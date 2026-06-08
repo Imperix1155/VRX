@@ -1,171 +1,91 @@
-@import './base.css';
+@import 'tailwindcss';
 
+/**
+ * VRX design tokens (VRX-4)
+ *
+ * Verbatim from DESIGN.md §2 (dark = default) and §2A (light = [data-theme="light"]
+ * override). These are the single source of truth; never hardcode color outside them.
+ *
+ * Themed colors live as raw CSS variables (not Tailwind @theme) so they flip under
+ * [data-theme="light"] — consume them in JSX via arbitrary values, e.g. bg-[var(--vrc)].
+ * Only the static, non-theming scale (radius, fonts) goes in @theme below.
+ */
+
+/* ── §2 Tokens — dark (default) ───────────────────────────────────────────── */
+:root {
+  --bg-base: #08080b;
+  --text: #f3f1fb;
+  --text-dim: rgba(231, 225, 250, 0.72);
+  --text-faint: rgba(216, 208, 242, 0.46);
+
+  /* PLATFORM — deep + saturated (spine/tint/glyph only) */
+  --vrc: #2b7ce8; /* VRChat / blue */
+  --cvr: #f3711e; /* ChilloutVR / orange */
+  --bridge: #e8e8f0; /* neutral merge accent (silver) */
+
+  /* STATE — avatar dot; in-game + offline match CVR */
+  --ingame: #34d399; /* state="online" — in a world */
+  --active: #2dd4bf; /* state="active" — online, NOT in game */
+  --offline: #6b6480;
+
+  /* STATUS — VRChat user intent (labeled pills ONLY) */
+  --st-joinme: #3aa0ff;
+  --st-online: #43c95a;
+  --st-askme: #ff9a3d;
+  --st-dnd: #e5484b;
+
+  --glass-blur: blur(26px) saturate(165%);
+}
+
+/* ── §2A Tokens — light (override only; same semantic names) ───────────────── */
+[data-theme='light'] {
+  --bg-base: #eef3f8;
+  --text: #14131c;
+  --text-dim: rgba(30, 28, 42, 0.72);
+  --text-faint: rgba(52, 49, 70, 0.48);
+
+  --vrc: #1f6fd3;
+  --cvr: #d85f18;
+  --bridge: #30323b;
+
+  --ingame: #0f9f6e;
+  --active: #0d9488;
+  --offline: #8a8d99;
+
+  --st-joinme: #1d78d8;
+  --st-online: #169a4a;
+  --st-askme: #cf6a18;
+  --st-dnd: #c9363a;
+
+  --glass-blur: blur(24px) saturate(142%);
+}
+
+/* ── Static scale → Tailwind utilities (never theme-switches) ──────────────── */
+@theme {
+  /* Radius scale (DESIGN.md §3): panels 20px · controls 12–13px · pills 9–10px */
+  --radius-pill: 9px;
+  --radius-control: 12px;
+  --radius-panel: 20px;
+
+  /* Accent face — VT323 (self-hosted @font-face is VRX-32; token only here) */
+  --font-mono: 'VT323', ui-monospace, monospace;
+  /* Body/UI face — Inter (self-hosted in VRX-32) */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Base canvas ───────────────────────────────────────────────────────────── */
 body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background-image: url('./wavy-lines.svg');
-  background-size: cover;
-  user-select: none;
+  min-height: 100vh;
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-code {
-  font-weight: 600;
-  padding: 3px 5px;
-  border-radius: 2px;
-  background-color: var(--color-background-mute);
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    SF Mono,
-    Menlo,
-    Consolas,
-    Liberation Mono,
-    monospace;
-  font-size: 85%;
-}
-
-#root {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  margin-bottom: 80px;
-}
-
-.logo {
-  margin-bottom: 20px;
-  -webkit-user-drag: none;
-  height: 128px;
-  width: 128px;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 1.2em #6988e6aa);
-}
-
-.creator {
-  font-size: 14px;
-  line-height: 16px;
-  color: var(--ev-c-text-2);
-  font-weight: 600;
-  margin-bottom: 10px;
-}
-
-.text {
-  font-size: 28px;
-  color: var(--ev-c-text-1);
-  font-weight: 700;
-  line-height: 32px;
-  text-align: center;
-  margin: 0 10px;
-  padding: 16px 0;
-}
-
-.tip {
-  font-size: 16px;
-  line-height: 24px;
-  color: var(--ev-c-text-2);
-  font-weight: 600;
-}
-
-.react {
-  background: -webkit-linear-gradient(315deg, #087ea4 55%, #7c93ee);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 700;
-}
-
-.ts {
-  background: -webkit-linear-gradient(315deg, #3178c6 45%, #f0dc4e);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 700;
-}
-
-.actions {
-  display: flex;
-  padding-top: 32px;
-  margin: -6px;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
-
-.action {
-  flex-shrink: 0;
-  padding: 6px;
-}
-
-.action a {
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  border: 1px solid transparent;
-  text-align: center;
-  font-weight: 600;
-  white-space: nowrap;
-  border-radius: 20px;
-  padding: 0 20px;
-  line-height: 38px;
-  font-size: 14px;
-  border-color: var(--ev-button-alt-border);
-  color: var(--ev-button-alt-text);
-  background-color: var(--ev-button-alt-bg);
-}
-
-.action a:hover {
-  border-color: var(--ev-button-alt-hover-border);
-  color: var(--ev-button-alt-hover-text);
-  background-color: var(--ev-button-alt-hover-bg);
-}
-
-.versions {
-  position: absolute;
-  bottom: 30px;
-  margin: 0 auto;
-  padding: 15px 0;
-  font-family: 'Menlo', 'Lucida Console', monospace;
-  display: inline-flex;
-  overflow: hidden;
-  align-items: center;
-  border-radius: 22px;
-  background-color: #202127;
-  backdrop-filter: blur(24px);
-}
-
-.versions li {
-  display: block;
-  float: left;
-  border-right: 1px solid var(--ev-c-gray-1);
-  padding: 0 20px;
-  font-size: 14px;
-  line-height: 14px;
-  opacity: 0.8;
-  &:last-child {
-    border: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .text {
-    font-size: 20px;
-  }
-}
-
-@media (max-width: 620px) {
-  .versions {
-    display: none;
-  }
-}
-
-@media (max-width: 350px) {
-  .tip,
-  .actions {
-    display: none;
-  }
-}
+/**
+ * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
+ * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`
+ * variant (e.g. `motion-safe:transition`) so reduced-motion users get none — with
+ * no forced-override reset.
+ */
