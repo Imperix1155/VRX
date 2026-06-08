@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: vrx
+appId: com.imperix.vrx
+productName: VRX
 directories:
   buildResources: build
 files:
@@ -33,11 +33,11 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
+  maintainer: Aimi-Imperix
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
   provider: generic
-  url: https://example.com/auto-updates
+  url: https://github.com/Imperix1155/vrx/releases/latest/download
