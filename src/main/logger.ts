@@ -19,6 +19,7 @@ import { redact } from './redact'
 type LogLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly'
 const LEVELS: readonly LogLevel[] = ['error', 'warn', 'info', 'verbose', 'debug', 'silly']
 
+/** Resolve the file log level from the `VRX_LOG_LEVEL` env var, defaulting to `info`. */
 function resolveLevel(): LogLevel {
   const env = process.env.VRX_LOG_LEVEL?.toLowerCase() as LogLevel | undefined
   return env && LEVELS.includes(env) ? env : 'info'
