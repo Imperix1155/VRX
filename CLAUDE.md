@@ -51,6 +51,16 @@ Never write to VRCX/CVRX folders.
 Project tracked on Linear (team VRX). Issues `VRX-N`. Release scope: `v1.0` label = ships in 1.0,
 `v1.x` = deferred. M1 (Foundation) must be complete before other milestones.
 
+**Board hygiene rule — update Linear as you go:**
+- When starting work on an issue → set it to **In Progress**.
+- When a PR is opened → set it to **In Review**.
+- When work is confirmed done (`typecheck + lint + build` pass, PR merged) → set it to **Done**
+  with a brief description of what was built/verified.
+- Never leave the board stale. If you completed something and Linear still shows Backlog, fix it
+  before ending the session.
+- Use the Linear MCP tools (`save_issue` with `state:`) — do not ask the user to update the board
+  manually unless the change requires their authorization (e.g. closing a milestone).
+
 <!-- ───────────────────────────────────────────────────────────────────────── -->
 <!-- ADD YOUR OWN NOTES BELOW THIS LINE -->
 
