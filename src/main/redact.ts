@@ -12,10 +12,16 @@ const REDACTED = '***REDACTED***'
 const SENSITIVE_KEY =
   /^(authorization|auth|authtoken|token|password|passwd|cookie|apikey|api_key|accesskey|access_key|secret|twofactorauth)$/i
 
-/** Inline token shapes (e.g. VRChat `auth=`/`twoFactorAuth=` cookies, `authToken: ...`). */
+/**
+ * Inline token shapes (VRChat `auth=`/`twoFactorAuth=` cookies, `authToken: ...`,
+ * `Authorization: Bearer ...`). Each pattern captures the key as group 1 and the
+ * separator (incl. any quote/whitespace) as group 2, so the replacement can keep
+ * the original delimiter and replace only the secret value.
+ */
 const SENSITIVE_INLINE: readonly RegExp[] = [
-  /\b(auth|twoFactorAuth|authcookie)=[^;,\s]+/gi,
-  /\b(authToken|accessKey|password|apiKey)("?\s*[:=]\s*"?)[^",}\s]+/gi
+  /\b(auth|twoFactorAuth|authcookie)(=)[^;,\s]+/gi,
+  /\b(authToken|accessKey|password|apiKey)("?\s*[:=]\s*"?)[^",}\s]+/gi,
+  /\b(Bearer)(\s+)[^\s,;"]+/gi
 ]
 
 /**
@@ -25,7 +31,10 @@ const SENSITIVE_INLINE: readonly RegExp[] = [
  */
 export function redact(value: unknown, seen = new WeakSet<object>()): unknown {
   if (typeof value === 'string') {
-    return SENSITIVE_INLINE.reduce((s, re) => s.replace(re, (_m, p1) => `${p1}=${REDACTED}`), value)
+    return SENSITIVE_INLINE.reduce(
+      (s, re) => s.replace(re, (_m, key, sep) => `${key}${sep}${REDACTED}`),
+      value
+    )
   }
   if (value && typeof value === 'object') {
     if (seen.has(value)) return '[Circular]'
