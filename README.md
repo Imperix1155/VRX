@@ -1,34 +1,38 @@
-# vrx
+# VRX
 
-An Electron application with React and TypeScript
+> Social VR companion for VRChat + ChilloutVR — like VRCX and CVRX, unified.
 
-## Recommended IDE Setup
+VRX is a local desktop Electron app that brings your VRChat and ChilloutVR social lives into one place. Friends list, presence, hot instances, notifications, and more — without polling, without bots, without touching VRCX or CVRX data.
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+**Status:** Early development (M1 Foundation complete). Not yet usable.
 
-## Project Setup
+## Stack
 
-### Install
+Electron 39 · React 19 · Vite 7 · TypeScript 5.9 strict · electron-vite
 
-```bash
-$ npm install
-```
-
-### Development
+## Dev Setup
 
 ```bash
-$ npm run dev
+npm install
+npm run dev        # dev mode with HMR
+npm run typecheck  # type-check all three processes
+npm run lint       # ESLint
+npm run build      # production build
 ```
 
-### Build
+## Build
 
 ```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
+npm run build:win    # Windows (NSIS installer)
+npm run build:mac    # macOS (DMG)
+npm run build:linux  # Linux (AppImage + deb)
 ```
+
+## Docs
+
+Design system, architecture decisions, and agent guidelines live in `docs/` (coming in VRX-122).
+For AI agents: read `CLAUDE.md` first.
+
+## License
+
+MIT — see LICENSE (coming in VRX-122).
