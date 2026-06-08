@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import log, { initLogger } from './logger'
 
 function createWindow(): void {
   // Create the browser window.
@@ -39,6 +40,9 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Structured logging first, so anything below is captured (VRX-15).
+  initLogger()
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -49,8 +53,8 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // IPC test (scaffold demo — to be removed when real IPC lands in VRX-20)
+  ipcMain.on('ping', () => log.info('pong'))
 
   createWindow()
 
