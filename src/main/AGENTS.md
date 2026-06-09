@@ -7,6 +7,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `index.ts` — app bootstrap + main window.
 - `logger.ts` — electron-log setup (file transport, level, redaction hook).
 - `redact.ts` — pure credential scrubber for log arguments.
+- `updater.ts` — electron-updater wiring to GitHub Releases; checks once on startup, packaged builds only (VRX-11).
 - `ipc/`, `platform/`, `services/` — empty placeholders until their features land (IPC → VRX-18/20, adapters → VRX-16/17).
 
 ## Local Contracts
