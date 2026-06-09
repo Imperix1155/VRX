@@ -53,7 +53,9 @@ describe('redact', () => {
   it('handles circular references without throwing', () => {
     const obj: Record<string, unknown> = { password: 'x' }
     obj.self = obj
-    expect(() => redact(obj)).not.toThrow()
+    const result = redact(obj) as Record<string, unknown>
+    expect(result.password).toBe('***REDACTED***')
+    expect(result.self).toBe('[Circular]')
   })
 
   it('passes through primitives unchanged', () => {
