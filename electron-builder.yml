@@ -13,6 +13,9 @@ asarUnpack:
   - resources/**
 win:
   executableName: vrx
+  target:
+    - nsis
+    - portable
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -31,7 +34,6 @@ dmg:
 linux:
   target:
     - AppImage
-    - snap
     - deb
   maintainer: Aimi-Imperix
   category: Utility
@@ -39,5 +41,6 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://github.com/Imperix1155/vrx/releases/latest/download
+  provider: github
+  owner: Imperix1155
+  repo: VRX
