@@ -19,6 +19,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 ## Work Guidance
 
 ## Verification
+`npm run typecheck && npm run lint && npm test`
 
 ## Child DOX Index
 No children yet — `ipc/`, `platform/`, `services/` get their own docs when they gain durable content.

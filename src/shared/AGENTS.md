@@ -16,6 +16,7 @@ The common data model and constants shared across the main, preload, and rendere
 ## Work Guidance
 
 ## Verification
+`npm run typecheck && npm run lint && npm test`
 
 ## Child DOX Index
 No children.

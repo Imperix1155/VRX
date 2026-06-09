@@ -20,6 +20,7 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 ## Work Guidance
 
 ## Verification
+`npm run typecheck && npm run lint && npm test`
 
 ## Child DOX Index
 No children yet.
