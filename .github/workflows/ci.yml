@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Least privilege: CI only needs to read the repo.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the postinstall hook (electron-builder install-app-deps),
+      # which rebuilds better-sqlite3 against Electron's ABI on each OS.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      # No-ops until VRX-13 adds a `test` script, then runs automatically.
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build
+
+  # Stable aggregate gate — THIS is the name to mark as the required status check
+  # in branch protection, so the OS matrix above can evolve (e.g. VRX-102) without
+  # changing the required check. `if: always()` so it reports a definitive pass/fail
+  # even when a matrix leg fails (a skipped required check would block PRs forever).
+  ci-success:
+    name: ci-success
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all matrix legs passed
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "Build matrix did not succeed: ${{ needs.build.result }}"
+            exit 1
+          fi
+          echo "All CI matrix legs passed."
