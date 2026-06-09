@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
+import { initAutoUpdater } from './updater'
 
 function createWindow(): void {
   // Create the browser window.
@@ -43,8 +44,9 @@ app.whenReady().then(() => {
   // Structured logging first, so anything below is captured (VRX-15).
   initLogger()
 
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // Set app user model id for windows — must match electron-builder `appId`
+  // so Windows groups the taskbar entry and update notifications fire.
+  electronApp.setAppUserModelId('com.imperix.vrx')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -57,6 +59,9 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => log.info('pong'))
 
   createWindow()
+
+  // Check GitHub Releases for updates on startup (packaged builds only).
+  initAutoUpdater()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
