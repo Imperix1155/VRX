@@ -80,4 +80,11 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
+VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is `docs/DESIGN.md` (currently external; lands in-repo via VRX-122).
+
+Children own their local technical contracts:
+- **[`src/shared`](./src/shared/AGENTS.md)** — pure cross-process types + constants (no electron/node imports).
+- **[`src/main`](./src/main/AGENTS.md)** — Electron main process: security trinity, electron-log + credential redaction.
+- **[`src/renderer`](./src/renderer/AGENTS.md)** — React UI: Tailwind v4, design-token-only styling.
+
+Not yet durable boundaries (no child doc until they gain real content): `src/preload`, and the empty placeholder dirs `src/main/{ipc,platform,services}` and `src/renderer/src/{hooks,queries,routes,stores,utils}`.
