@@ -14,6 +14,11 @@ on:
   push:
     tags: ['v*']
 
+# One release run per tag; never cancel a publish already in flight.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 # Needed to create the release and upload assets via GITHUB_TOKEN.
 permissions:
   contents: write
@@ -23,6 +28,25 @@ jobs:
     name: create draft release
     runs-on: ubuntu-latest
     steps:
+      # Checks out the tagged commit (tag push), so the version read below is the
+      # one this release will actually ship.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Fail fast if the tag and package.json disagree: electron-builder derives
+      # artifact names and latest.yml from package.json, so a mismatch would
+      # publish broken updater metadata. Equality (not a semver regex) so
+      # prereleases like v0.1.0-beta.1 still pass.
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
       - name: Create draft release with generated changelog
         run: >
           gh release create "$GITHUB_REF_NAME"
@@ -49,7 +73,12 @@ jobs:
             platform: win
     runs-on: ${{ matrix.os }}
     steps:
+      # persist-credentials: false — npm ci runs third-party postinstall scripts
+      # (electron-builder install-app-deps, better-sqlite3 native build) and no
+      # later step needs git auth (electron-builder publishes via GH_TOKEN env).
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
