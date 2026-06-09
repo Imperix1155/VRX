@@ -10,8 +10,9 @@ import { app } from 'electron'
 import electronUpdater from 'electron-updater'
 import log from './logger'
 
-// electron-updater is CommonJS; destructure from the default import so the
-// named export resolves under electron-vite's ESM main build.
+// electron-updater exports `autoUpdater` as a lazy getter, which a static ESM
+// named import can't bind (it resolves to undefined). Destructure it from the
+// default import so it works whether the main bundle is CJS (current) or ESM.
 const { autoUpdater } = electronUpdater
 
 export function initAutoUpdater(): void {
