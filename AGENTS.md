@@ -80,7 +80,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is `docs/DESIGN.md` (currently external; lands in-repo via VRX-122).
+VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is `docs/DESIGN.md` (currently external).
 
 Children own their local technical contracts:
 - **[`src/shared`](./src/shared/AGENTS.md)** — pure cross-process types + constants (no electron/node imports).
