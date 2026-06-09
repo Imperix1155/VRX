@@ -128,19 +128,11 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-## Behavioral Guideline 5: Code Review Checkpoints
+## Behavioral Guideline 5: Code Review Before Every PR
 
-**After completing a feature, fix, or meaningful set of changes, ask:**
+**Always run the full review pass before opening any PR — do not offer, just do it.**
 
-> "Want me to do a code review pass — checking for dead code, duplication, and anything that looks off?"
-
-When:
-- A feature or update is functionally complete
-- A bug fix is done and verified
-- A refactor wraps up
-- Any time the user signals "we're done with this"
-
-Don't run a review automatically on every edit — only offer at natural stopping points. If the user says yes, run both:
+Run both tools on every PR diff before `gh pr create`:
 - **Fallow** (`fallow dead-code`, `fallow dupes`) — for dead code, unused exports, and duplication
 - **`/code-review`** (built-in skill) — for logic bugs, correctness, security, and broader code quality
 
