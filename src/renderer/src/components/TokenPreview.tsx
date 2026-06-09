@@ -42,8 +42,8 @@ function TokenPreview(): React.JSX.Element {
       </header>
 
       <p className="text-[var(--text-faint)]">
-        VRX-4 token preview — Tailwind v4 + DESIGN.md §2/§2A tokens. Toggle to verify the
-        light override.
+        VRX-4 token preview — Tailwind v4 + DESIGN.md §2/§2A tokens. Toggle to verify the light
+        override.
       </p>
 
       <section className="rounded-panel border border-white/10 p-6">
