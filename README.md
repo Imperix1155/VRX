@@ -30,9 +30,9 @@ npm run build:linux  # Linux (AppImage + deb)
 
 ## Docs
 
-Design system, architecture decisions, and agent guidelines live in `docs/` (coming in VRX-122).
+Design system, architecture decisions, and agent guidelines will live in `docs/`.
 For AI agents: read `CLAUDE.md` first.
 
 ## License
 
-MIT — see LICENSE (coming in VRX-122).
+MIT — see [LICENSE](LICENSE).
