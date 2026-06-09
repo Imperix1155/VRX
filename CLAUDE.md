@@ -4,6 +4,12 @@
 > Claude reads this file automatically when working in `~/dev/vrx`.
 > Human contributor guide: see `docs/` (design system) and `README.md`.
 
+## DOX
+This project follows the [DOX framework](https://github.com/agent0ai/dox). The canonical
+agent contract is **[`AGENTS.md`](./AGENTS.md)** — read it (and walk the full DOX chain to
+each path you touch) before editing, and run a DOX pass after meaningful changes. The rules
+below complement that contract.
+
 ## What VRX is
 A local desktop Electron companion app for **VRChat** and **ChilloutVR** — like VRCX/CVRX, merged
 into one. Authenticates AS THE USER on their own machine; reads only that user's social data
