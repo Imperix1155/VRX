@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # npm dependencies — weekly, with minor + patch bumps grouped into one PR to
+  # cut review noise. Majors come as their own PRs for a deliberate look.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions versions — weekly, grouped. Covers the Dependabot half of
+  # VRX-149 (keeps action refs current); SHA-pinning remains optional there.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
