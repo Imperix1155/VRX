@@ -1,0 +1,111 @@
+name: Release
+
+# Auto-publishes a GitHub Release with installers when a version tag is pushed.
+#
+# Process: bump package.json version -> commit -> tag `vX.Y.Z` to match, then
+# push the tag. electron-builder derives artifact names and latest.yml from
+# package.json, so the tag and package version MUST agree.
+#
+# Flow: create a DRAFT release with auto-generated notes -> each OS uploads its
+# installers + electron-updater manifest into that draft -> flip it to published
+# only if every build leg succeeded (a failed build leaves a private draft to
+# inspect, delete, and retry).
+on:
+  push:
+    tags: ['v*']
+
+# One release run per tag; never cancel a publish already in flight.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Needed to create the release and upload assets via GITHUB_TOKEN.
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: create draft release
+    runs-on: ubuntu-latest
+    steps:
+      # Checks out the tagged commit (tag push), so the version read below is the
+      # one this release will actually ship.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Fail fast if the tag and package.json disagree: electron-builder derives
+      # artifact names and latest.yml from package.json, so a mismatch would
+      # publish broken updater metadata. Equality (not a semver regex) so
+      # prereleases like v0.1.0-beta.1 still pass.
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Create draft release with generated changelog
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          --draft
+          --generate-notes
+          --verify-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: build (${{ matrix.platform }})
+    needs: create-release
+    strategy:
+      fail-fast: false
+      # Serial: avoid two electron-builder publish runs mutating the same
+      # release concurrently. Release builds are not latency-sensitive.
+      max-parallel: 1
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+    runs-on: ${{ matrix.os }}
+    steps:
+      # persist-credentials: false — npm ci runs third-party postinstall scripts
+      # (electron-builder install-app-deps, better-sqlite3 native build) and no
+      # later step needs git auth (electron-builder publishes via GH_TOKEN env).
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the postinstall hook (electron-builder install-app-deps),
+      # rebuilding better-sqlite3 against Electron's ABI on each OS.
+      - name: Install dependencies
+        run: npm ci
+
+      # Compiles to out/, then packages installers (Linux: AppImage + deb;
+      # Windows: nsis + portable) and uploads them plus the latest*.yml
+      # electron-updater manifests into the draft release for this tag.
+      - name: Build and publish ${{ matrix.platform }} installers
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.platform }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark release as published
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
