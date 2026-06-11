@@ -1,0 +1,10 @@
+# Normalize all text files to LF on checkout, on every OS. Without this the
+# Windows CI runner checks out CRLF line endings and prettier (which expects LF)
+# fails the lint step with hundreds of "Delete CR" warnings. `text=auto` lets Git
+# auto-detect which files are text vs binary.
+* text=auto eol=lf
+
+# Binary assets — never touch their bytes.
+*.png binary
+*.ico binary
+*.icns binary
