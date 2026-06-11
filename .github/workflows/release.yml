@@ -30,7 +30,7 @@ jobs:
     steps:
       # Checks out the tagged commit (tag push), so the version read below is the
       # one this release will actually ship.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -76,7 +76,7 @@ jobs:
       # persist-credentials: false — npm ci runs third-party postinstall scripts
       # (electron-builder install-app-deps, better-sqlite3 native build) and no
       # later step needs git auth (electron-builder publishes via GH_TOKEN env).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
