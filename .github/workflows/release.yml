@@ -47,13 +47,29 @@ jobs:
             exit 1
           fi
 
-      - name: Create draft release with generated changelog
-        run: >
-          gh release create "$GITHUB_REF_NAME"
-          --repo "$GITHUB_REPOSITORY"
-          --draft
-          --generate-notes
-          --verify-tag
+      # Pull this version's section out of CHANGELOG.md for the release notes
+      # (VRX-126). Falls back to GitHub's auto-generated notes if the section is
+      # missing, so a release never ships with empty notes.
+      - name: Build release notes from CHANGELOG
+        run: |
+          # `if node ...` keeps `set -e` from killing the step on an extractor
+          # failure: any non-zero exit OR empty output takes the fallback branch,
+          # so a release never fails (or ships truncated notes) over this.
+          if node scripts/extract-changelog.mjs "${GITHUB_REF_NAME#v}" > /tmp/release-notes.md && [ -s /tmp/release-notes.md ]; then
+            echo "HAVE_NOTES=1" >> "$GITHUB_ENV"
+          else
+            echo "No CHANGELOG section for ${GITHUB_REF_NAME#v} (or extractor failed) — using auto-generated notes." >&2
+            : > /tmp/release-notes.md
+            echo "HAVE_NOTES=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create draft release
+        run: |
+          if [ "$HAVE_NOTES" = "1" ]; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --notes-file /tmp/release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
