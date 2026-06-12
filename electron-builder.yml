@@ -11,6 +11,10 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+# Ship the changelog as an app resource so the in-app What's New dialog (VRX-111)
+# can read it at runtime. (It's excluded from `files` above, so include it here.)
+extraResources:
+  - CHANGELOG.md
 win:
   executableName: vrx
   target:
