@@ -70,3 +70,21 @@ VRX handles user credentials, so supply-chain scanning is automated and treated 
 - **CodeQL** scans JS/TS on every push and PR; results appear under **Security → Code scanning**. Fix true positives; dismiss false positives with a stated reason.
 
 A suspected exploitable vulnerability *in VRX itself* goes through [SECURITY.md](SECURITY.md) (private reporting), never a public issue.
+
+## Versioning & releases
+
+VRX follows [Semantic Versioning](https://semver.org) — `MAJOR.MINOR.PATCH`:
+
+- **MAJOR** — changes a user would notice break (removed features, incompatible data).
+- **MINOR** — backwards-compatible features.
+- **PATCH** — backwards-compatible fixes.
+
+Pre-1.0, breaking changes may still land in a MINOR bump.
+
+Notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) ([Keep a Changelog](https://keepachangelog.com/) format) under `[Unreleased]` as PRs merge. To cut a release:
+
+1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section.
+2. Bump `version` in `package.json` to `X.Y.Z` (the release pipeline fails fast if the tag and `package.json` disagree).
+3. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The release pipeline builds the installers and publishes the GitHub Release, using that version's `CHANGELOG.md` section as the release notes (falling back to auto-generated notes if the section is missing).
