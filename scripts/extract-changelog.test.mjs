@@ -50,4 +50,18 @@ describe('extractSection', () => {
       'Example:\n\n```\n## [Not a release]\n```\n\n- Real entry.'
     )
   })
+
+  it('only closes a fence with a matching marker (mixed ``` / ~~~)', () => {
+    const mixed = [
+      '## [2.0.0]',
+      '```',
+      '~~~',
+      '## [Not a release]',
+      '```',
+      '- Real entry.',
+      '## [1.0.0]',
+      '- old.'
+    ].join('\n')
+    expect(extractSection(mixed, '2.0.0')).toBe('```\n~~~\n## [Not a release]\n```\n- Real entry.')
+  })
 })

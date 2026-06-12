@@ -15,21 +15,24 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const HEADING = /^##\s+\[([^\]]+)\]/
-const FENCE = /^\s*(```|~~~)/
+const FENCE = /^\s*(```+|~~~+)/
 
 /** Return the trimmed body of the `## [version]` section, or '' if not found. */
 export function extractSection(changelog, version) {
   const lines = changelog.split('\n')
   let start = -1
   let end = lines.length
-  let inFence = false
+  let openFence = null // marker char (` or ~) of the open code fence, or null
 
   for (let i = 0; i < lines.length; i++) {
-    if (FENCE.test(lines[i])) {
-      inFence = !inFence
+    const fence = lines[i].match(FENCE)
+    if (fence) {
+      const marker = fence[1][0]
+      if (openFence === null) openFence = marker
+      else if (openFence === marker) openFence = null
       continue
     }
-    if (inFence) continue
+    if (openFence !== null) continue
 
     const m = lines[i].match(HEADING)
     if (!m) continue
