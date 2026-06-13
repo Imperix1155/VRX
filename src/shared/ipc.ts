@@ -18,7 +18,7 @@ import type {
   JoinMode,
   LoginResult,
   Platform
-} from './types'
+} from '@shared/types'
 
 /**
  * Request/response channels — renderer asks, main answers:
