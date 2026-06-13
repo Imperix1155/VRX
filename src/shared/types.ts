@@ -129,3 +129,53 @@ export interface AppStatus {
 
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────
 export type Theme = 'dark' | 'light' | 'system'
+
+// ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
+export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
+
+export interface AuthStatus {
+  platform: Platform
+  state: AuthState
+  /** Signed-in account's display name, when authenticated; null otherwise. */
+  displayName: string | null
+}
+
+/**
+ * Login credentials sent renderer → main. `password` holds the secret — a VRChat
+ * password, or a ChilloutVR AccessKey (the same "secret" slot). `twoFactorCode` is
+ * VRChat-only, supplied on the retry after a `needs-2fa` result.
+ * ⚠️ Never log this object (the electron-log redaction hook covers it).
+ */
+export interface Credentials {
+  username: string
+  password: string
+  twoFactorCode?: string
+}
+
+export type TwoFactorMethod = 'email' | 'totp'
+
+/** Result of a login attempt — drives the 2FA flow. */
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; needs2fa: true; method: TwoFactorMethod }
+  | { ok: false; needs2fa: false; error: string }
+
+// ─── Instance join (VRX-16) ──────────────────────────────────────────────────
+/** Join an instance by launching the desktop client or VR mode. */
+export type JoinMode = 'desktop' | 'vr'
+
+// ─── Adapter live events (the WebSocket-pushed stream — VRX-146/147) ──────────
+/**
+ * Normalized real-time event an adapter emits via `subscribe()`. Each platform maps
+ * its raw WS events into this shape; the UI/stores never see raw platform objects.
+ * VRChat emits per-friend deltas; CVR pushes the current online set as a
+ * `friends-snapshot` with `scope: 'online'` — a roster member NOT in that list is
+ * offline (CVR `ONLINE_FRIENDS` semantics, VRX-147). `scope: 'all'` is a full
+ * friend-list replacement. Extended as the WS clients (VRX-146/147) are built.
+ */
+export type AdapterEvent =
+  | { type: 'friend-presence'; platform: Platform; friend: Friend }
+  | { type: 'friend-added'; platform: Platform; friend: Friend }
+  | { type: 'friend-removed'; platform: Platform; platformUserId: string }
+  | { type: 'friends-snapshot'; platform: Platform; scope: 'online' | 'all'; friends: Friend[] }
+  | { type: 'connection'; platform: Platform; health: ConnectionHealth }
