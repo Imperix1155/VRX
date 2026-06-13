@@ -8,7 +8,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `logger.ts` — electron-log setup (file transport, level, redaction hook).
 - `redact.ts` — pure credential scrubber for log arguments.
 - `updater.ts` — electron-updater wiring to GitHub Releases; checks once on startup, packaged builds only (VRX-11).
-- `ipc/`, `platform/`, `services/` — empty placeholders until their features land (IPC → VRX-18/20, adapters → VRX-16/17).
+- `services/adapters/IPlatformAdapter.ts` — the platform adapter interface (VRX-16): the contract VRChat/CVR adapters implement; stream-aware via `subscribe()` (live presence, not polling). `ipc/`, `platform/`, and the rest of `services/` — placeholders until their features land (IPC handlers → VRX-20).
 
 ## Local Contracts
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in CLAUDE.md). NOTE: the current scaffold still has `sandbox:false` — corrected in VRX-25.

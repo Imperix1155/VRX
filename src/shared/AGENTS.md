@@ -4,7 +4,8 @@
 The common data model and constants shared across the main, preload, and renderer processes — the contract the whole app normalizes into.
 
 ## Ownership
-- `types.ts` — the `Friend` model and all enums (platform, presence state, status, openness, trust, linking).
+- `types.ts` — the `Friend` model and all enums (platform, presence state, status, openness, trust, linking) + auth (`Credentials`/`AuthStatus`/`LoginResult`), `JoinMode`, and the live `AdapterEvent` union.
+- `ipc.ts` — the typed IPC channel contract (`IpcInvoke` request/response + `IpcEvents` push); main↔preload↔renderer derive their types from it so a bad channel/payload is a compile error (VRX-18).
 - `constants.ts` — API bases, WebSocket URLs, timeouts, cache TTLs, limits.
 
 ## Local Contracts
