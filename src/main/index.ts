@@ -1,9 +1,11 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import log, { initLogger } from './logger'
+import { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
+import { FakeVrcAdapter } from './services/adapters/FakeVrcAdapter'
+import { registerIpcHandlers } from './ipc'
 
 function createWindow(): void {
   // Create the browser window.
@@ -15,7 +17,11 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   })
 
@@ -55,8 +61,8 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test (scaffold demo — to be removed when real IPC lands in VRX-20)
-  ipcMain.on('ping', () => log.info('pong'))
+  const adapters = new Map([['vrchat' as const, new FakeVrcAdapter()]])
+  registerIpcHandlers(adapters)
 
   createWindow()
 
