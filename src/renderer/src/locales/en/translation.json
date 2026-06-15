@@ -1,4 +1,9 @@
 {
   "appName": "VRX",
-  "greeting": "Welcome to VRX"
+  "greeting": "Welcome to VRX",
+  "friends": {
+    "title": "Friends",
+    "loading": "Loading...",
+    "empty": "No friends online"
+  }
 }
