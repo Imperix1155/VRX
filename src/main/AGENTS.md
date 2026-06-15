@@ -14,6 +14,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `ipc/friends.ts` — handles `get-friends`; delegates to the adapter registry (VRX-19/20).
 - `ipc/index.ts` — `registerIpcHandlers(adapters)` — single entry point; imported once in `index.ts`.
 - `platform/` — placeholder until real platform adapters land.
+- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers via `contextBridge`; `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
 
 ## Local Contracts
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in CLAUDE.md). Trinity applied in VRX-25.
