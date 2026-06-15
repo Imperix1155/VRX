@@ -14,7 +14,7 @@ export const useFriendsStore = create<FriendsState>((set) => ({
   error: null,
   fetchFriends: async (platform) => {
     if (!window.vrx) {
-      set({ loading: false })
+      set({ friends: [], loading: false, error: 'bridge_unavailable' })
       return
     }
     set({ loading: true, error: null })
