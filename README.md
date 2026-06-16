@@ -30,7 +30,9 @@ npm run build:linux  # Linux (AppImage + deb)
 
 ## Docs
 
-Design system, architecture decisions, and agent guidelines will live in `docs/`.
+The design system lives in [`docs/`](docs/) — `DESIGN.md` (spec) plus the rendered
+`design.html` and `glass.html` references. Architecture decisions and agent
+guidelines live in `CLAUDE.md` and the `AGENTS.md` files.
 For AI agents: read `CLAUDE.md` first.
 
 ## License
