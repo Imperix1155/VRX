@@ -9,7 +9,10 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `redact.ts` — pure credential scrubber for log arguments.
 - `updater.ts` — electron-updater wiring to GitHub Releases; checks once on startup, packaged builds only (VRX-11).
 - `services/adapters/IPlatformAdapter.ts` — the platform adapter interface (VRX-16): the contract VRChat/CVR adapters implement; stream-aware via `subscribe()`.
-- `services/adapters/FakeVrcAdapter.ts` — development stub returning hardcoded VRChat friends; replaced when real VRChat adapter lands.
+- `services/adapters/errors.ts` — structured error types (VRX-17): `AuthError`, `RateLimitError`, `NetworkError`. Main-process only; no electron imports.
+- `services/adapters/BaseAdapter.ts` — abstract base class (VRX-17): all real platform adapters extend this. Provides `protected request<T>(url, schema, options?)` with rate limiting (1 req/sec + jitter), `AbortSignal.timeout`, `redirect:'error'`, 429 exponential backoff (honors `Retry-After`), Zod validation, and a circuit breaker (opens after 3 consecutive non-429 failures; resets on success or after 60s). Inject `sleepFn` in constructor for unit tests. **Does not import electron** — pure Node, unit-testable.
+- `services/adapters/BaseAdapter.test.ts` — unit tests for `BaseAdapter` infrastructure (VRX-17): rate limiting, 429 backoff, circuit breaker, error classification, Zod validation.
+- `services/adapters/FakeVrcAdapter.ts` — development stub returning hardcoded VRChat friends; implements `IPlatformAdapter` directly (NOT via `BaseAdapter` — it makes no HTTP calls). Replaced when real VRChat adapter lands.
 - `ipc/security.ts` — `isTrustedIpcSender()` — call at the top of every `ipcMain.handle` callback (VRX-25).
 - `ipc/friends.ts` — handles `get-friends`; delegates to the adapter registry (VRX-19/20).
 - `ipc/index.ts` — `registerIpcHandlers(adapters)` — single entry point; imported once in `index.ts`.
@@ -29,4 +32,4 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 `npm run typecheck && npm run lint && npm test`
 
 ## Child DOX Index
-`ipc/` and `services/adapters/` now have durable content; no child docs yet — the files are small enough that this AGENTS.md owns their contracts. Add child docs when either subtree grows beyond 3–4 files.
+`ipc/` and `services/adapters/` have durable content; no child docs yet — `services/adapters/` now has 5 files (VRX-17 added errors.ts, BaseAdapter.ts, BaseAdapter.test.ts). Consider a child `AGENTS.md` for `services/adapters/` when a real platform adapter lands.
