@@ -66,7 +66,7 @@ The project owner reviews and merges all PRs. **Never self-merge.** `main` is br
 VRX handles user credentials, so supply-chain scanning is automated and treated as non-optional:
 
 - **Dependabot** opens weekly grouped PRs for npm + GitHub Actions updates (minor/patch grouped; majors separate). Review the changelog, let CI run, and merge when green. Give majors a deliberate look.
-- **`npm audit`** runs in CI and **fails the build on high/critical advisories**. To clear one: bump the dependency (or its parent), or — if it's a dev-only/unfixable false positive — explain the rationale in the PR. Don't disable the gate globally.
+- **`npm audit`** runs in CI and **fails the build on high/critical advisories**. To clear one: bump the dependency (or its parent), or — if it's a dev-only advisory with no forward fix — add its GHSA URL to the per-advisory allowlist in the `audit` job of [`ci.yml`](.github/workflows/ci.yml), with a comment explaining why and a tracking issue to remove it once upstream ships a fix. Never relax `--audit-level` or disable the gate globally.
 - **CodeQL** scans JS/TS on every push and PR; results appear under **Security → Code scanning**. Fix true positives; dismiss false positives with a stated reason.
 
 A suspected exploitable vulnerability *in VRX itself* goes through [SECURITY.md](SECURITY.md) (private reporting), never a public issue.
