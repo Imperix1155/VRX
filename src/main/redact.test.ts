@@ -5,8 +5,8 @@ import { redact } from './redact'
 // this on both ubuntu and windows (VRX-10).
 describe('redact', () => {
   it('masks values under sensitive object keys, leaving others intact', () => {
-    expect(redact({ username: 'aimi', password: 'hunter2', authToken: 'tok_abc' })).toEqual({
-      username: 'aimi',
+    expect(redact({ username: 'testuser', password: 'hunter2', authToken: 'tok_abc' })).toEqual({
+      username: 'testuser',
       password: '***REDACTED***',
       authToken: '***REDACTED***'
     })
@@ -27,19 +27,19 @@ describe('redact', () => {
   })
 
   it('masks a CVR accessKey', () => {
-    expect(redact({ Username: 'aimi', accessKey: 'AK_LIVE_999' })).toEqual({
-      Username: 'aimi',
+    expect(redact({ Username: 'testuser', accessKey: 'AK_LIVE_999' })).toEqual({
+      Username: 'testuser',
       accessKey: '***REDACTED***'
     })
   })
 
   it('recurses into nested structures', () => {
-    expect(redact({ account: { displayName: 'aimi', cookie: 'c=1' }, friends: ['usr_1'] })).toEqual(
-      {
-        account: { displayName: 'aimi', cookie: '***REDACTED***' },
-        friends: ['usr_1']
-      }
-    )
+    expect(
+      redact({ account: { displayName: 'testuser', cookie: 'c=1' }, friends: ['usr_1'] })
+    ).toEqual({
+      account: { displayName: 'testuser', cookie: '***REDACTED***' },
+      friends: ['usr_1']
+    })
   })
 
   it('leaves non-sensitive data untouched', () => {
