@@ -51,7 +51,7 @@ jobs:
 
   # Dependency vulnerability gate — fails the build on high/critical advisories
   # (VRX-123). OS-agnostic, so it runs once rather than per matrix leg. `npm audit`
-  # reads package-lock.json, so no install is needed.
+  # reads package-lock.json, so no install is needed (jq ships on the runner).
   audit:
     name: audit
     runs-on: ubuntu-latest
@@ -62,8 +62,35 @@ jobs:
         with:
           node-version: 22
 
+      # Fails on any high/critical advisory EXCEPT two temporarily-allowlisted esbuild
+      # advisories. Both are dev-tooling only (esbuild is a transitive build dependency
+      # of vite/electron-vite and never ships in the packaged app) and have no forward
+      # fix yet: the patch is esbuild 0.28.1, but vite pins esbuild ^0.27.0 and
+      # electron-vite ^0.25.11, so neither resolves it and `npm audit fix --force` would
+      # only downgrade electron-vite to 1.0.20. Remove the allowlist once vite +
+      # electron-vite adopt esbuild >=0.28.1. Tracking: VRX-152.
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: |
+          ALLOW='["https://github.com/advisories/GHSA-gv7w-rqvm-qjhr","https://github.com/advisories/GHSA-g7r4-m6w7-qqqr"]'
+          # Human-readable report for the CI log (non-failing).
+          npm audit --audit-level=high || true
+          # Machine-readable copy (npm audit exits nonzero when vulns exist).
+          report=$(npm audit --json || true)
+          # Count high/critical advisories whose URL is NOT in the allowlist. Cascade
+          # entries (vite/electron-vite, whose `via` is package-name strings) carry no
+          # advisory object of their own, so they drop out naturally.
+          filter='
+            [ .vulnerabilities[].via[]
+              | select(type == "object")
+              | select(.severity == "high" or .severity == "critical")
+              | select(.url as $u | ($allow | index($u)) | not) ]'
+          unhandled=$(jq --argjson allow "$ALLOW" "$filter | length" <<< "$report")
+          if [ "$unhandled" -gt 0 ]; then
+            echo "::error::$unhandled high/critical advisory(ies) outside the allowlist"
+            jq --argjson allow "$ALLOW" "$filter | map({title, url, severity})" <<< "$report"
+            exit 1
+          fi
+          echo "No high/critical advisories outside the allowlist."
 
   # Stable aggregate gate — THIS is the name to mark as the required status check
   # in branch protection, so the OS matrix above can evolve (e.g. VRX-102) without
