@@ -7,6 +7,7 @@ The common data model and constants shared across the main, preload, and rendere
 - `types.ts` — the `Friend` model and all enums (platform, presence state, status, openness, trust, linking) + auth (`Credentials`/`AuthStatus`/`LoginResult`), `JoinMode`, and the live `AdapterEvent` union.
 - `ipc.ts` — the typed IPC channel contract (`IpcInvoke` request/response + `IpcEvents` push); main↔preload↔renderer derive their types from it so a bad channel/payload is a compile error (VRX-18).
 - `constants.ts` — API bases, WebSocket URLs, timeouts, cache TTLs, limits.
+- `settings.ts` — the user-settings Zod schema (`Settings`, `DEFAULT_SETTINGS`, `SETTINGS_VERSION`), a versioned `runMigrations` runner (registry empty until a transforming change lands), and `parseSettings` — the safe load path: migrate → strip unknown keys → fall back to defaults on missing/invalid (`.catch`), never throws (VRX-23). Persistence lives in main (`services/settings.ts`).
 
 ## Local Contracts
 - MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only.
