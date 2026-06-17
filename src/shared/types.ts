@@ -128,7 +128,10 @@ export interface AppStatus {
 }
 
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────
-export type Theme = 'dark' | 'light' | 'system'
+/** Canonical theme values — the single source for both the `Theme` type and the
+ *  settings schema's `theme` enum (`@shared/settings`). */
+export const THEMES = ['dark', 'light', 'system'] as const
+export type Theme = (typeof THEMES)[number]
 
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
