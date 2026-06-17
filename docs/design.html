@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VRX — Design System (Contributor Guide)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=VT323&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-base: #08080b;
+    --text: #f3f1fb;
+    --text-dim: rgba(231,225,250,0.72);
+    --text-faint: rgba(216,208,242,0.46);
+    --vrc: #2b7ce8;
+    --cvr: #f3711e;
+    --bridge: #e8e8f0;
+    --ingame: #34d399;
+    --active: #2dd4bf;
+    --offline: #6b6480;
+    --st-joinme: #3aa0ff;
+    --st-online: #43c95a;
+    --st-askme: #ff9a3d;
+    --st-dnd: #e5484b;
+    --glass-blur: blur(26px) saturate(165%);
+    --font-mono: 'VT323', ui-monospace, monospace;
+    --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif; color: var(--text); line-height: 1.5;
+    -webkit-font-smoothing: antialiased; min-height: 100vh;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -2;
+    background:
+      radial-gradient(58% 50% at 12% 6%, rgba(43,124,232,0.26), transparent 60%),
+      radial-gradient(58% 50% at 92% 96%, rgba(243,113,30,0.20), transparent 60%),
+      var(--bg-base);
+    background-attachment: fixed;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay; opacity: 0.6;
+  }
+
+  /* ---------- glass material (verbatim from glass.html) ---------- */
+  .glass {
+    position: relative;
+    background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025));
+    backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid rgba(255,255,255,0.13); border-radius: 20px;
+    box-shadow: 0 12px 44px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 1px rgba(255,255,255,0.05);
+  }
+  .glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(125% 80% at 0% 0%, rgba(255,255,255,0.11), transparent 46%);
+  }
+  .tint-vrc { background: linear-gradient(135deg, rgba(43,124,232,0.22), rgba(43,124,232,0.05)); border-color: rgba(43,124,232,0.34); }
+  .tint-cvr { background: linear-gradient(135deg, rgba(243,113,30,0.22), rgba(243,113,30,0.05)); border-color: rgba(243,113,30,0.36); }
+
+  /* ---------- styleguide chrome ---------- */
+  .wrap { display: grid; grid-template-columns: 232px 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 22px; align-items: start; }
+  .toc { position: sticky; top: 22px; padding: 20px 14px; }
+  .toc .brand { font-family: var(--font-mono); font-size: 38px; line-height: 1; letter-spacing: 2px; display: flex; gap: 1px; padding: 0 6px; }
+  .toc .brand .v { color: var(--vrc); } .toc .brand .r { color: var(--bridge); } .toc .brand .x { color: var(--cvr); }
+  .toc .tag { font-size: 11px; color: var(--text-faint); letter-spacing: 0.5px; padding: 4px 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 10px; }
+  .toc a { display: block; color: var(--text-dim); text-decoration: none; font-size: 12.5px; font-weight: 600; padding: 7px 9px; border-radius: 9px; }
+  .toc a:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .toc a .num { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; margin-right: 7px; }
+  .toc .agentnote { margin-top: 14px; padding: 10px 9px; border-radius: 9px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); font-size: 11px; color: var(--text-dim); }
+  .toc .agentnote code { font-family: var(--code); color: var(--bridge); }
+
+  .lead-card { padding: 30px 32px; margin-bottom: 22px; }
+  .lead-card h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .lead-card p { color: var(--text-dim); font-size: 14.5px; max-width: 76ch; }
+  .lead-card .pill { display: inline-block; margin-top: 14px; font-family: var(--font-mono); font-size: 14px; letter-spacing: 1px; color: var(--ingame); border: 1px solid rgba(52,211,153,0.4); background: rgba(52,211,153,0.1); padding: 3px 12px; border-radius: 999px; }
+  .appframe { border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 14px 44px rgba(0,0,0,0.45); }
+  .appframe iframe { display: block; width: 100%; height: 640px; border: 0; background: var(--bg-base); }
+  .dualframe { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 920px) { .dualframe { grid-template-columns: 1fr; } }
+  .dfcol { min-width: 0; }
+  .dflabel { font-family: var(--font-mono); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); margin: 0 2px 8px; }
+  .dflabel code { font-family: var(--code); font-size: 11px; text-transform: none; letter-spacing: 0; }
+  .dualframe .appframe iframe { height: 460px; }
+
+  /* ---- light-mode demo island (renders light samples inside the dark guide) ---- */
+  .lightdemo { background: linear-gradient(180deg,#fbfcff,#e7edf4); border-color: rgba(40,48,68,0.12); }
+  .lightdemo .lp.glass, .lightdemo .glass.lp {
+    background: linear-gradient(135deg, rgba(255,255,255,0.70), rgba(255,255,255,0.28));
+    border-color: rgba(40,48,68,0.16);
+    box-shadow: 0 16px 46px rgba(59,72,93,0.22), inset 0 1px 0 rgba(255,255,255,0.88), inset 0 -1px 1px rgba(40,48,68,0.08);
+  }
+  .lightdemo .glass.lp::before { background: radial-gradient(125% 80% at 0% 0%, rgba(255,255,255,0.72), transparent 48%); }
+  .lightdemo .lp.tint-vrc { background: linear-gradient(135deg, rgba(31,111,211,0.18), rgba(255,255,255,0.34)); border-color: rgba(31,111,211,0.28); }
+  .lightdemo .lp.tint-cvr { background: linear-gradient(135deg, rgba(216,95,24,0.18), rgba(255,255,255,0.34)); border-color: rgba(216,95,24,0.30); }
+  /* channel samples retuned for the light island */
+  .lightdemo .dot.st-ingame { background:#0f9f6e; } .lightdemo .dot.st-active { background:#0d9488; } .lightdemo .dot.st-offline { background:#8a8d99; }
+  .lightdemo .dot { border-color:#eef3f8; }
+  .lightdemo .obadge { color:#34313f; background: rgba(255,255,255,0.6); border-color: rgba(40,48,68,0.16); }
+  .lightdemo .aff.join2 { color:#14131c; background: linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.45)); border-color: rgba(40,48,68,0.18); }
+  .lightdemo .stp.joinme { color:#124e91; background: rgba(29,120,216,0.12); border-color: rgba(29,120,216,0.30); }
+  .lightdemo .stp.online { color:#0f6e35; background: rgba(22,154,74,0.12); border-color: rgba(22,154,74,0.28); }
+  .lightdemo .stp.askme { color:#91480e; background: rgba(207,106,24,0.13); border-color: rgba(207,106,24,0.30); }
+  .lightdemo .stp.dnd { color:#8d2428; background: rgba(201,54,58,0.12); border-color: rgba(201,54,58,0.30); }
+  .lightdemo .stp.joinme .sd { background:#1d78d8; } .lightdemo .stp.online .sd { background:#169a4a; }
+  .lightdemo .stp.askme .sd { background:#cf6a18; } .lightdemo .stp.dnd .sd { background:#c9363a; }
+
+  section.panel { padding: 26px 30px; margin-bottom: 20px; scroll-margin-top: 22px; }
+  .kick { font-family: var(--font-mono); font-size: 16px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-faint); }
+  .stitle { font-size: 23px; font-weight: 800; letter-spacing: -0.3px; margin: 1px 0 6px; }
+  .slead { color: var(--text-dim); font-size: 14px; max-width: 78ch; margin-bottom: 6px; }
+
+  .el { padding: 22px 0 4px; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 18px; }
+  .el:first-of-type { border-top: 0; margin-top: 8px; }
+  .el-name { font-size: 15.5px; font-weight: 700; display: flex; align-items: center; gap: 9px; }
+  .el-name .ix { font-family: var(--font-mono); color: var(--text-faint); font-size: 15px; }
+  .el-sum { color: var(--text-dim); font-size: 13px; margin: 3px 0 14px; max-width: 80ch; }
+
+  .demo {
+    background: rgba(0,0,0,0.24); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+    padding: 24px; margin-bottom: 13px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+  }
+  .demo.col { flex-direction: column; align-items: stretch; }
+
+  .grid2 { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 14px; }
+  @media (max-width: 920px) { .grid2 { grid-template-columns: 1fr; } .wrap { grid-template-columns: 1fr; } .toc { position: static; } }
+  .box-label { font-family: var(--font-mono); font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 7px; }
+  .box-label.how { color: #8fb6e8; } .box-label.why { color: #d2a8f0; }
+  .code {
+    font-family: var(--code); font-size: 11.5px; line-height: 1.65; color: #cdd6f4;
+    background: rgba(0,0,0,0.34); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    padding: 13px 15px; white-space: pre-wrap; word-break: break-word; height: 100%;
+  }
+  .code .c { color: #7c89a8; } .code .p { color: #9bd0a0; } .code .v { color: #e8c98f; }
+  .why { font-size: 13.5px; color: var(--text-dim); line-height: 1.65; }
+  .why b { color: var(--text); font-weight: 600; }
+  .why + .why { margin-top: 8px; }
+
+  /* swatches */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 12px; }
+  .sw { border-radius: 12px; padding: 11px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+  .sw .chip { height: 40px; border-radius: 8px; margin-bottom: 9px; border: 1px solid rgba(255,255,255,0.14); box-shadow: inset 0 1px 0 rgba(255,255,255,0.18); }
+  .sw .nm { font-family: var(--code); font-size: 11px; color: var(--text); }
+  .sw .hex { font-family: var(--code); font-size: 10.5px; color: var(--text-faint); }
+  .sw .role { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  /* channel table */
+  table.chan { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.chan th, table.chan td { text-align: left; padding: 9px 11px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+  table.chan th { font-family: var(--font-mono); font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-faint); font-weight: 400; }
+  table.chan td b { color: var(--text); }
+  table.chan .no { color: #f0a0a0; }
+
+  /* do / don't */
+  .rules { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .rules { grid-template-columns: 1fr; } }
+  .rules ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .rules li { font-size: 13px; padding: 9px 12px 9px 32px; border-radius: 10px; position: relative; line-height: 1.45; }
+  .do li { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.22); color: var(--text-dim); }
+  .dont li { background: rgba(240,120,120,0.08); border: 1px solid rgba(240,120,120,0.24); color: var(--text-dim); }
+  .do li::before { content: "✓"; position: absolute; left: 12px; color: var(--ingame); font-weight: 700; }
+  .dont li::before { content: "✕"; position: absolute; left: 12px; color: #f07878; font-weight: 700; }
+  .rules h4 { font-family: var(--font-mono); font-size: 15px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 9px; }
+  .do h4 { color: var(--ingame); } .dont h4 { color: #f08a8a; }
+
+  /* ===== actual VRX components (verbatim) ===== */
+  .brand-lg { font-family: var(--font-mono); font-size: 64px; line-height: 1; letter-spacing: 3px; display: inline-flex; gap: 2px; }
+  .brand-lg .v { color: var(--vrc); } .brand-lg .r { color: var(--bridge); } .brand-lg .x { color: var(--cvr); }
+
+  .seg { display: inline-flex; padding: 4px; border-radius: 13px; gap: 2px; }
+  .seg button { font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-dim); background: transparent; border: 0; padding: 6px 13px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .seg button.on { color: var(--text); background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 10px rgba(0,0,0,0.3); }
+  .seg .tagv { color: var(--vrc); font-weight: 800; } .seg .tagc { color: var(--cvr); font-weight: 800; }
+
+  .stat { padding: 16px 18px; min-width: 150px; } .stat .n { font-family: var(--font-mono); font-size: 38px; line-height: 1; } .stat .l { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; }
+  .stat.s-ingame .n { color: var(--ingame); } .stat.s-online .n { color: var(--active); } .stat.s-hot .n { color: var(--bridge); }
+
+  .ic { display: inline-grid; place-items: center; color: var(--text-dim); } .ic svg { display: block; }
+
+  .gcard { overflow: hidden; width: 256px; } .gtop { height: 4px; }
+  .gcard.vrc .gtop { background: linear-gradient(90deg, var(--vrc), transparent); }
+  .gcard.cvr .gtop { background: linear-gradient(90deg, var(--cvr), transparent); }
+  .gbody { padding: 15px 16px 16px; } .grow1 { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .gglyph { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex: none; font-family: var(--font-mono); }
+  .gcard.vrc .gglyph { background: rgba(43,124,232,0.22); color: #bcd9fb; border: 1px solid rgba(43,124,232,0.4); }
+  .gcard.cvr .gglyph { background: rgba(243,113,30,0.22); color: #ffd9bc; border: 1px solid rgba(243,113,30,0.42); }
+  .obadge { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13); padding: 3px 9px 3px 7px; border-radius: 999px; }
+  .obadge .ic svg { width: 13px; height: 13px; }
+  .gtitle { font-size: 16px; font-weight: 700; } .gplat { font-size: 11.5px; margin-top: 2px; }
+  .gcard.vrc .gplat { color: var(--vrc); } .gcard.cvr .gplat { color: var(--cvr); }
+  .gfoot { display: flex; align-items: center; gap: 9px; margin-top: 14px; } .stack { display: flex; }
+  .stack .av { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(10,8,24,0.5); margin-left: -8px; background: linear-gradient(135deg,#bfc0cb,#6b6480); display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #0e0f14; }
+  .stack .av:first-child { margin-left: 0; } .gcount { font-size: 12px; color: var(--text-dim); } .gcount b { color: var(--text); }
+  .join { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer; padding: 6px 15px; border-radius: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05)); border: 1px solid rgba(255,255,255,0.18); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25); }
+  .gcard.vrc .join { background: linear-gradient(135deg, rgba(43,124,232,0.4), rgba(43,124,232,0.14)); border-color: rgba(43,124,232,0.5); }
+  .gcard.cvr .join { background: linear-gradient(135deg, rgba(243,113,30,0.4), rgba(243,113,30,0.14)); border-color: rgba(243,113,30,0.5); }
+
+  .flist { padding: 6px; width: 420px; max-width: 100%; }
+  .frow { display: grid; grid-template-columns: 3px 42px 1fr auto; align-items: center; gap: 13px; padding: 9px 12px 9px 0; border-radius: 13px; position: relative; }
+  .frow:hover { background: rgba(255,255,255,0.045); }
+  .frow .fspine { width: 3px; height: 26px; border-radius: 0 3px 3px 0; }
+  .frow.vrc .fspine { background: var(--vrc); box-shadow: 0 0 10px rgba(43,124,232,0.5); }
+  .frow.cvr .fspine { background: var(--cvr); box-shadow: 0 0 10px rgba(243,113,30,0.5); }
+  .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
+  .av2 .st { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0c0a1c; }
+  .st-ingame { background: var(--ingame); } .st-active { background: var(--active); } .st-offline { background: var(--offline); }
+  .fname { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .fglyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); }
+  .frow.vrc .fglyph { background: rgba(43,124,232,0.2); color: #bcd9fb; } .frow.cvr .fglyph { background: rgba(243,113,30,0.2); color: #ffd9bc; }
+  .fsub { font-size: 12.5px; color: var(--text-dim); margin-top: 1px; } .fsub .ph { color: var(--text-faint); }
+  .aff { font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 9px; white-space: nowrap; }
+  .aff.join2 { color: var(--text); background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.2); }
+  .aff.ask { color: var(--text-dim); border: 1px solid rgba(255,255,255,0.16); }
+  .aff.busy { color: var(--text-faint); border: 1px solid rgba(255,255,255,0.1); }
+  .stp { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; letter-spacing: 0.2px; padding: 2px 8px 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); white-space: nowrap; }
+  .stp .sd { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .stp.joinme { color: #bcdcff; background: rgba(58,160,255,0.14); border-color: rgba(58,160,255,0.38); } .stp.joinme .sd { background: var(--st-joinme); }
+  .stp.online { color: #bff0c8; background: rgba(67,201,90,0.14); border-color: rgba(67,201,90,0.36); } .stp.online .sd { background: var(--st-online); }
+  .stp.askme { color: #ffd9b0; background: rgba(255,154,61,0.15); border-color: rgba(255,154,61,0.40); } .stp.askme .sd { background: var(--st-askme); }
+  .stp.dnd { color: #ffc2c2; background: rgba(229,72,75,0.15); border-color: rgba(229,72,75,0.42); } .stp.dnd .sd { background: var(--st-dnd); }
+
+  /* presence dot demo */
+  .dot { width: 13px; height: 13px; border-radius: 50%; display: inline-block; border: 2px solid #0c0a1c; vertical-align: middle; }
+  .dotrow { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--text-dim); }
+
+  /* openness ladder */
+  .ladder { display: flex; flex-wrap: wrap; gap: 10px; }
+  .tier { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 13px 16px; border-radius: 13px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); min-width: 96px; }
+  .tier .ic svg { width: 22px; height: 22px; }
+  .tier .tn { font-size: 12px; font-weight: 700; } .tier .td { font-size: 10.5px; color: var(--text-faint); }
+  .tier .ar { color: var(--text-faint); align-self: center; }
+  .gmod { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; color: var(--text-dim); background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.16); padding: 3px 9px; border-radius: 999px; }
+
+  /* type samples */
+  .type-inter { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; }
+  .type-inter span { font-family: 'Inter'; }
+  .tw4 { font-weight: 400; } .tw5 { font-weight: 500; } .tw6 { font-weight: 600; } .tw7 { font-weight: 700; } .tw8 { font-weight: 800; }
+  .vt-sample { font-family: var(--font-mono); }
+
+  /* trust */
+  .rank.muted { font-size: 10.5px; font-weight: 700; color: var(--text-faint); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); padding: 2px 9px; border-radius: 999px; }
+  .toggle { display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim); }
+  .toggle .tk { width: 34px; height: 19px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); position: relative; }
+  .toggle .tk::after { content: ""; position: absolute; left: 2px; top: 1.5px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-faint); }
+
+  /* person / linking card */
+  .person { width: 340px; max-width: 100%; padding: 16px; }
+  .person .ptop { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
+  .person .pav { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, var(--vrc), var(--cvr)); display: grid; place-items: center; font-weight: 800; color: #0c0a1c; }
+  .person .pname { font-weight: 700; font-size: 15px; } .person .plink { font-size: 11px; color: var(--bridge); display: flex; align-items: center; gap: 5px; }
+  .person .prow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.08); }
+  .person .pg { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); flex: none; }
+  .person .pg.v { background: rgba(43,124,232,0.2); color: #bcd9fb; } .person .pg.c { background: rgba(243,113,30,0.2); color: #ffd9bc; }
+  .person .pst { font-size: 12.5px; color: var(--text-dim); flex: 1; } .person .pst .ph { color: var(--text-faint); }
+
+  .anno { font-size: 11.5px; color: var(--text-faint); display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .anno span { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; padding: 3px 8px; }
+</style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="o-public" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/></symbol>
+    <symbol id="o-fof" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3"/><path d="M3.4 19c0-3.1 2.5-5.3 5.6-5.3 1.4 0 2.6.4 3.6 1.1"/><path d="M17.5 13.5v5M15 16h5"/></symbol>
+    <symbol id="o-friends" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 19c0-3.6 3.1-6 7-6s7 2.4 7 6"/></symbol>
+    <symbol id="o-group" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="9" r="2.7"/><circle cx="16" cy="9.5" r="2.2"/><path d="M3.5 18c0-2.7 2.2-4.4 5-4.4 1 0 1.9.2 2.7.6"/><path d="M13.5 14.4c.7-.3 1.5-.5 2.5-.5 2.5 0 4.5 1.5 4.5 3.6"/></symbol>
+    <symbol id="o-invite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M4.5 7.5 12 13l7.5-5.5"/></symbol>
+    <symbol id="o-offline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M6.2 6.2l11.6 11.6"/></symbol>
+    <symbol id="o-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h6"/><path d="M10 8H7a4 4 0 0 0 0 8h3"/><path d="M14 8h3a4 4 0 0 1 0 8h-3"/></symbol>
+  </svg>
+
+  <div class="wrap">
+    <!-- ============ TOC ============ -->
+    <aside class="toc glass">
+      <div class="brand"><span class="v">V</span><span class="r">R</span><span class="x">X</span></div>
+      <div class="tag">Design System · Contributor Guide</div>
+      <a href="#identity"><span class="num">00</span>Identity</a>
+      <a href="#app"><span class="num">01</span>The app</a>
+      <a href="#color"><span class="num">02</span>Color tokens</a>
+      <a href="#glass"><span class="num">03</span>Glass material</a>
+      <a href="#bg"><span class="num">04</span>Background</a>
+      <a href="#channels"><span class="num">05</span>Color channels</a>
+      <a href="#ladder"><span class="num">06</span>Openness ladder</a>
+      <a href="#type"><span class="num">07</span>Typography</a>
+      <a href="#shell"><span class="num">08</span>App shell</a>
+      <a href="#components"><span class="num">09</span>Components</a>
+      <a href="#linking"><span class="num">10</span>Cross-platform link</a>
+      <a href="#light"><span class="num">11</span>Light mode</a>
+      <a href="#donot"><span class="num">12</span>Do / Don't</a>
+      <div class="agentnote">🤖 Building this with an AI agent? Point it at <code>DESIGN.md</code> — the machine-optimized rule spec.</div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <main>
+      <div class="lead-card glass" id="identity">
+        <div class="brand-lg"><span class="v">V</span><span class="r">R</span><span class="x">X</span></div>
+        <h1 style="margin-top:14px;">The VRX visual language</h1>
+        <p>VRX is a dark, translucent <b>liquid-glass</b> companion for VRChat &amp; ChilloutVR. Frosted panels float over a slow aurora the glass refracts; a faint CRT scanline texture and a VT323 retro-terminal accent give it an "old-internet" soul that sets it apart from both platforms' own apps. It is unique, but <b>operational and readable first</b>. Color always carries meaning through a fixed channel system — never decoration. This guide shows every element: how it looks, how it's built, and the choice behind it.</p>
+        <span class="pill">● Liquid Glass — locked baseline</span>
+      </div>
+
+      <!-- 01 THE APP -->
+      <section class="panel glass" id="app">
+        <div class="kick">01 · The app</div>
+        <div class="stitle">The dashboard, assembled</div>
+        <p class="slead">Everything in this guide, composed into the real product surface — rendered <b>live</b> below (both are the actual <code style="font-family:var(--code)">glass.html</code>, embedded). <b>Same app, both themes:</b> dark is the default; light is the same file with <code style="font-family:var(--code)">data-theme="light"</code>. This is how VRX looks, without opening the app.</p>
+        <div class="dualframe">
+          <div class="dfcol"><div class="dflabel">● Dark — default</div><div class="appframe"><iframe src="glass.html" title="VRX dashboard — dark (default)" loading="lazy"></iframe></div></div>
+          <div class="dfcol"><div class="dflabel">○ Light — <code style="font-family:var(--code)">data-theme="light"</code></div><div class="appframe"><iframe id="lightframe" src="glass.html" title="VRX dashboard — light mode" loading="lazy" onload="try{this.contentDocument.documentElement.setAttribute('data-theme','light')}catch(e){}"></iframe></div></div>
+        </div>
+        <p class="why" style="margin-top:12px;">Scroll inside either frame to reach the friends list. Note they are the <b>same</b> dashboard — identical layout, components, and channel system; only the tokens and glass material shift. Everything below in this guide is this, taken apart. (Light mode gets its own breakdown in §11.)</p>
+      </section>
+
+      <!-- 02 COLOR -->
+      <section class="panel glass" id="color">
+        <div class="kick">02 · Tokens</div>
+        <div class="stitle">Color tokens</div>
+        <p class="slead">Three families: <b>base/text</b>, the <b>platform</b> pair, and <b>presence</b>. Everything in the app pulls from these CSS variables — no raw hex anywhere else.</p>
+        <div class="el" style="border:0;padding-top:14px;">
+          <div class="swatches">
+            <div class="sw"><div class="chip" style="background:#08080b"></div><div class="nm">--bg-base</div><div class="hex">#08080b</div><div class="role">App background</div></div>
+            <div class="sw"><div class="chip" style="background:#f3f1fb"></div><div class="nm">--text</div><div class="hex">#f3f1fb</div><div class="role">Primary text</div></div>
+            <div class="sw"><div class="chip" style="background:#2b7ce8"></div><div class="nm">--vrc</div><div class="hex">#2b7ce8</div><div class="role"><b style="color:var(--vrc)">VRChat</b> · blue</div></div>
+            <div class="sw"><div class="chip" style="background:#f3711e"></div><div class="nm">--cvr</div><div class="hex">#f3711e</div><div class="role"><b style="color:var(--cvr)">ChilloutVR</b> · orange</div></div>
+            <div class="sw"><div class="chip" style="background:#e8e8f0"></div><div class="nm">--bridge</div><div class="hex">#e8e8f0</div><div class="role">Merge / shared</div></div>
+            <div class="sw"><div class="chip" style="background:#34d399"></div><div class="nm">--ingame</div><div class="hex">#34d399</div><div class="role">In a world (green)</div></div>
+            <div class="sw"><div class="chip" style="background:#2dd4bf"></div><div class="nm">--active</div><div class="hex">#2dd4bf</div><div class="role">Active — online, not in&#8209;game (teal)</div></div>
+            <div class="sw"><div class="chip" style="background:#6b6480"></div><div class="nm">--offline</div><div class="hex">#6b6480</div><div class="role">Offline (gray)</div></div>
+          </div>
+          <div class="grid2" style="margin-top:16px;">
+            <div><div class="box-label why">Why these choices</div><div class="why">Blue=VRChat and orange=ChilloutVR is the whole brand: two ecosystems merging, with a <b>neutral silver bridge</b> (the mark's "R", "hot" stat — slated to become a user-customizable accent later). Values are <b>UI-tuned</b> (a touch desaturated) so they stay legible on dark glass — deeper hero hues live separately and never appear in app chrome.</div><div class="why">Presence deliberately avoids blue: "online" instinctively wants to be blue, but blue is already VRChat. So <b>online is teal</b> and in-game is green — see §05.</div><div class="why"><b>These are the dark (default) tokens.</b> Light mode keeps the exact same channel meanings, retuned for pale glass (e.g. platform hues darken: VRChat <code style="font-family:var(--code)">#1f6fd3</code>, CVR <code style="font-family:var(--code)">#d85f18</code>) — the full light set is in <b>§11</b> and DESIGN.md §2A.</div></div>
+            <div><div class="box-label how">How it's used</div><div class="code"><span class="c">/* every value is a CSS var */</span>
+color: <span class="v">var(--text)</span>;
+background: <span class="v">var(--vrc)</span>;
+
+<span class="c">/* dim text scale */</span>
+--text-dim:   <span class="v">rgba(231,225,250,.72)</span>;
+--text-faint: <span class="v">rgba(216,208,242,.46)</span>;</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 03 GLASS -->
+      <section class="panel glass" id="glass">
+        <div class="kick">03 · Material</div>
+        <div class="stitle">The glass surface</div>
+        <p class="slead">The single most important element. Everything that "floats" — sidebar, cards, the segmented control, list containers — is built from one <code style="font-family:var(--code);color:var(--bridge)">.glass</code> recipe.</p>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">3.1</span> Base glass panel</div>
+          <div class="el-sum">Translucent white fill + heavy backdrop blur + a 1px light border + a depth shadow stacked with an inset top highlight, plus a top-left specular sheen.</div>
+          <div class="demo">
+            <div class="glass" style="width:200px;height:120px;"></div>
+            <div class="glass" style="width:200px;height:120px;display:grid;place-items:center;color:var(--text-dim);font-size:13px;">content sits here</div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How it's built</div><div class="code">.glass {
+  background: linear-gradient(135deg,
+     <span class="v">rgba(255,255,255,.09)</span>, <span class="v">rgba(255,255,255,.025)</span>);
+  backdrop-filter: <span class="v">blur(26px) saturate(165%)</span>;
+  border: 1px solid <span class="v">rgba(255,255,255,.13)</span>;
+  border-radius: <span class="v">20px</span>;
+  box-shadow: <span class="v">0 12px 44px rgba(0,0,0,.5)</span>,   <span class="c">/* depth */</span>
+    <span class="v">inset 0 1px 0 rgba(255,255,255,.22)</span>; <span class="c">/* edge */</span>
+}
+.glass::before {  <span class="c">/* top-left sheen */</span>
+  background: radial-gradient(125% 80% at 0% 0%,
+     <span class="v">rgba(255,255,255,.11)</span>, transparent 46%);
+}</div></div>
+            <div><div class="box-label why">Why</div><div class="why">The <b>saturate(165%)</b> is what makes it read as "liquid glass" rather than a gray frost — it super-charges the aurora bleeding through.</div><div class="why">The <b>inset top highlight is non-negotiable</b>: paired with the depth shadow it gives the lit top edge / shadowed underside that sells a physical pane of glass. Without it the panel looks flat.</div><div class="why">The <b>::before sheen</b> is the wet specular glint — like light catching the corner of a real screen.</div><div class="why"><b>Light mode keeps every one of these moves</b> — frosted pane, border, inset highlight, depth shadow, sheen all remain required — but inverts the fill: a <b>bright white pane</b> (≈0.70→0.28 white) with ink borders/shadow instead of translucent-white-on-black. Same material, lit. See §11.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">3.2</span> Platform-tinted glass</div>
+          <div class="el-sum">On surfaces that belong to one platform (hot-instance cards), the glass itself is tinted — so the material carries platform identity.</div>
+          <div class="demo">
+            <div class="glass tint-vrc" style="width:200px;height:96px;display:grid;place-items:center;color:#bcd9fb;font-size:12.5px;">.tint-vrc</div>
+            <div class="glass tint-cvr" style="width:200px;height:96px;display:grid;place-items:center;color:#ffd9bc;font-size:12.5px;">.tint-cvr</div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code">.tint-vrc {
+  background: linear-gradient(135deg,
+    <span class="v">rgba(43,124,232,.22)</span>, <span class="v">rgba(43,124,232,.05)</span>);
+  border-color: <span class="v">rgba(43,124,232,.34)</span>;
+}
+.tint-cvr { <span class="c">/* same, orange 243,113,30 */</span> }</div></div>
+            <div><div class="box-label why">Why</div><div class="why">Tint opacity is capped around <b>0.22</b> — push past that and the frost reads as solid colored plastic, losing the glass. Radius scale: <b>20px</b> panels/cards, <b>12–13px</b> nav &amp; segmented control &amp; buttons, <b>9–10px</b> small pills/affordances.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 04 BACKGROUND -->
+      <section class="panel glass" id="bg">
+        <div class="kick">04 · Atmosphere</div>
+        <div class="stitle">The background the glass refracts</div>
+        <p class="slead">Look behind this very page: a near-black canvas with a quiet blue glow (top-left) and orange glow (bottom-right) — the two platforms as light — plus a faint CRT scanline grid. The glass has something worth blurring.</p>
+        <div class="el" style="border:0;padding-top:14px;">
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code">body::before {  <span class="c">/* aurora, z-index:-2 */</span>
+  background:
+   radial-gradient(58% 50% at 12% 6%, <span class="v">vrc .26</span>, …),
+   radial-gradient(58% 50% at 92% 96%, <span class="v">cvr .20</span>, …),
+   var(--bg-base);  <span class="c">/* near-black #08080b */</span>
+}
+body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
+  background: repeating-linear-gradient(0deg,
+    <span class="v">rgba(255,255,255,.022) 0 1px</span>, transparent 1px 3px);
+  mix-blend-mode: overlay; opacity: .6;
+}</div></div>
+            <div><div class="box-label why">Why</div><div class="why">The blue (VRChat) corner and orange (ChilloutVR) corner are the brand, expressed as light — the only color on an otherwise neutral near-black canvas. Two platforms glowing at opposite corners, no third hue: neutral, premium, and unmistakably <b>VRX</b>.</div><div class="why">The scanlines are the <b>old-internet soul</b> — at 2.2% white on overlay they're a texture you feel more than see. Keep the aurora <b>slow/static in v1</b>; if it ever animates it must respect <code style="font-family:var(--code)">prefers-reduced-motion</code>.</div><div class="why"><b>Light mode keeps the same composition</b> — same blue-top-left / orange-bottom-right corners, same scanlines — but over a near-<b>white</b> canvas, with the glows softened (blue .18 / orange .15) and the scanlines flipped to <b>dark ink on <code style="font-family:var(--code)">multiply</code></b> (white-overlay scanlines would vanish / look like dirt on white). "Sunlit, not rebranded." See §11.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 05 CHANNELS -->
+      <section class="panel glass" id="channels">
+        <div class="kick">05 · The core law</div>
+        <div class="stitle">Color channels — meaning never collides</div>
+        <p class="slead">Four color systems were on a collision course (platform blue/orange vs. presence vs. trust ranks vs. VRChat status). The rule that keeps them all legible: <b>each meaning owns one fixed location and a non-color glyph</b>, so two hues never fight for the same pixel.</p>
+
+        <div class="el" style="border:0;padding-top:6px;">
+          <table class="chan">
+            <tr><th>Channel</th><th>Lives in</th><th>Encoding</th><th>Never</th></tr>
+            <tr><td><b>Platform</b></td><td>glass tint + left spine + V/C glyph</td><td>blue VRChat · orange CVR</td><td class="no">a bare dot</td></tr>
+            <tr><td><b>State</b></td><td>the avatar <b>dot</b></td><td>green in-game · teal active · gray offline</td><td class="no">a text/panel color</td></tr>
+            <tr><td><b>Status</b> <span style="color:var(--text-faint)">(VRChat)</span></td><td>a labeled <b>pill</b></td><td>Join Me · Online · Ask Me · DND · custom msg</td><td class="no">a bare dot; a CVR equivalent</td></tr>
+            <tr><td><b>Openness</b></td><td>a neutral gray <b>badge</b> + shared icon</td><td>gray pill, platform-true label</td><td class="no">colored by platform/type</td></tr>
+            <tr><td><b>Joinability</b></td><td>right-side <b>affordance</b></td><td>Join / Ask / ⊘ (derived)</td><td class="no">reusing a platform hue</td></tr>
+            <tr><td><b>Trust</b></td><td>opt-in muted pill</td><td><b>off by default; names neutral</b></td><td class="no">a name color, or on by default</td></tr>
+          </table>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">5.1</span> Platform — tint + spine + glyph</div>
+          <div class="el-sum">Platform is said three ways at once, none of them a lone dot: the glass tint, a glowing left spine, and a little V/C glyph.</div>
+          <div class="demo">
+            <div class="frow vrc glass" style="width:300px;"><span class="fspine"></span><div class="av2">A</div><div><div class="fname">AlexVR <span class="fglyph">V</span></div><div class="fsub">VRChat</div></div><span></span></div>
+            <div class="frow cvr glass" style="width:300px;"><span class="fspine"></span><div class="av2">M</div><div><div class="fname">Mika <span class="fglyph">C</span></div><div class="fsub">ChilloutVR</div></div><span></span></div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code"><span class="c">&lt;!-- glowing platform spine --&gt;</span>
+.frow.vrc .fspine {
+  background: <span class="v">var(--vrc)</span>;
+  box-shadow: <span class="v">0 0 10px rgba(43,124,232,.5)</span>;
+}
+<span class="c">&lt;!-- V/C glyph, VT323 --&gt;</span>
+.fglyph { font-family: <span class="v">var(--font-mono)</span>; }</div></div>
+            <div><div class="box-label why">Why</div><div class="why">Because platform is carried by <b>tint + spine + glyph</b>, no other element ever needs to be blue or orange to say "which platform." That frees blue/orange to mean <b>only</b> platform, everywhere.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">5.2</span> State — the avatar dot</div>
+          <div class="el-sum">System-assigned presence — <b>where</b> a friend is, not their chosen status. Three values, shown only as the dot on their avatar.</div>
+          <div class="demo">
+            <div class="dotrow"><span class="dot st-ingame"></span> In a world <span style="color:var(--text-faint)">· green</span></div>
+            <div class="dotrow"><span class="dot st-active"></span> Active — online, not in game <span style="color:var(--text-faint)">· teal</span></div>
+            <div class="dotrow"><span class="dot st-offline"></span> Offline <span style="color:var(--text-faint)">· gray</span></div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code">.st-ingame  { background: <span class="v">var(--ingame)</span>; } <span class="c">/* green */</span>
+.st-active  { background: <span class="v">var(--active)</span>; } <span class="c">/* teal  */</span>
+.st-offline { background: <span class="v">var(--offline)</span>; }<span class="c">/* gray  */</span></div></div>
+            <div><div class="box-label why">Why</div><div class="why"><b>In-game</b> (<code style="font-family:var(--code)">state:"online"</code>) and <b>offline</b> are the shared baseline — same meaning on both platforms. <b>Active</b> (<code style="font-family:var(--code)">state:"active"</code>) is VRChat-only: online on the website or desktop app but not in a world. Teal (not blue) keeps the dot clear of the platform channel; it only ever appears as the dot.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">5.3</span> VRChat status — a labeled pill</div>
+          <div class="el-sum">VRChat lets a user broadcast <i>how they want to be approached</i>. Four statuses, each with a canonical color — shown as a small labeled pill so the color is unambiguous (it never appears as a bare dot fighting the platform spine or the state dot).</div>
+          <div class="demo">
+            <span class="stp joinme"><span class="sd"></span>Join Me</span>
+            <span class="stp online"><span class="sd"></span>Online</span>
+            <span class="stp askme"><span class="sd"></span>Ask Me</span>
+            <span class="stp dnd"><span class="sd"></span>DND</span>
+            <span class="fsub" style="margin:0">✎ + custom status · up to 32 chars</span>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">Data model — VRChat API (two fields!)</div><div class="code">status: <span class="v">"join me"</span> | <span class="v">"active"</span> | <span class="v">"ask me"</span> | <span class="v">"busy"</span>
+  <span class="c">// "active" → Online (green); "busy" → DND (red)</span>
+statusDescription: <span class="v">"custom text"</span> <span class="c">// ≤32 chars</span>
+
+state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.2)</span>
+      | <span class="v">"active"</span>  <span class="c">// online, NOT in game</span>
+      | <span class="v">"offline"</span></div></div>
+            <div><div class="box-label why">Behavior &amp; why</div><div class="why"><b>Join Me</b> auto-accepts join requests · <b>Online</b> is joinable if the instance allows · <b>Ask Me</b> &amp; <b>DND</b> <b>hide the world</b> (so we show the status, not the instance) · DND also silences requests.</div><div class="why"><b>ChilloutVR has none of this</b> — only online/offline. We don't fake a CVR equivalent; CVR rows simply have no status pill.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">5.4</span> Joinability — the derived action</div>
+          <div class="el-sum">The status pill (5.3) says how a friend wants to be approached; the right-side affordance is the <i>action</i> you take, derived from status + instance: join freely, request an invite, or — for Do Not Disturb — don't.</div>
+          <div class="demo">
+            <span class="aff join2">Join</span>
+            <span class="aff ask">Ask</span>
+            <span class="aff busy">⊘ DND</span>
+            <span style="font-size:12px;color:var(--text-faint)">+ active / offline → no action</span>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code">.aff.join2 { <span class="c">/* glass-filled, primary */</span> }
+.aff.ask   { border: 1px solid <span class="v">rgba(255,255,255,.16)</span>; }
+.aff.busy  { color: <span class="v">var(--text-faint)</span>; }</div></div>
+            <div><div class="box-label why">Why</div><div class="why">Status colors live in the labeled pill (5.3); the action stays <b>neutral</b> so the same blue/orange/red never reappears as a second, unlabeled signal. The affordance maps the status to what it means for <i>you</i>: Join Me &amp; Online → <b>Join</b>, Ask Me → <b>Ask</b>, DND → <b>⊘</b>.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">5.5</span> Trust — demoted by design</div>
+          <div class="el-sum">VRChat itself is phasing out trust ranks (an in-game "show as User" toggle; nametags no longer rank-colored). VRX mirrors that.</div>
+          <div class="demo col" style="gap:13px;">
+            <div class="dotrow"><span class="toggle"><span class="tk"></span> Show trust ranks</span> <span style="color:var(--text-faint);font-size:12px">— off by default</span></div>
+            <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+              <div class="fname" style="font-size:14px">Nova <span class="fglyph" style="background:rgba(43,124,232,.2);color:#bcd9fb;font-family:var(--font-mono)">V</span> <span style="color:var(--text-faint);font-size:11px">(default — name neutral)</span></div>
+              <div class="fname" style="font-size:14px">Nova <span class="rank muted">Known</span> <span style="color:var(--text-faint);font-size:11px">(opt-in pill, muted)</span></div>
+            </div>
+          </div>
+          <div class="why" style="margin-top:4px;">CVR has <b>no trust ranks at all</b> — we don't invent a fake equivalent. That asymmetry is honest. Names stay neutral so trust never becomes a 5th color competing with the four above.</div>
+        </div>
+      </section>
+
+      <!-- 06 LADDER -->
+      <section class="panel glass" id="ladder">
+        <div class="kick">06 · Consistency</div>
+        <div class="stitle">One openness ladder, two vocabularies</div>
+        <p class="slead">The hardest cross-platform problem: stay <b>consistent</b> while still telling <b>each platform's story</b>. It turns out <b>both platforms have 8 instance types that map almost 1:1</b> onto one shared openness scale. The <b>icon is identical across platforms</b>, the <b>label stays platform-true</b>, the badge is neutral.</p>
+        <div class="el" style="border:0;padding-top:8px;">
+          <div class="demo col">
+            <div class="ladder">
+              <div class="tier"><span class="ic"><svg><use href="#o-public"/></svg></span><span class="tn">Public</span><span class="td">open</span></div>
+              <span class="ar">→</span>
+              <div class="tier"><span class="ic"><svg><use href="#o-fof"/></svg></span><span class="tn">Friends+</span><span class="td">FoF</span></div>
+              <span class="ar">→</span>
+              <div class="tier"><span class="ic"><svg><use href="#o-friends"/></svg></span><span class="tn">Friends</span><span class="td">friends</span></div>
+              <span class="ar">→</span>
+              <div class="tier"><span class="ic"><svg><use href="#o-invite"/></svg></span><span class="tn">Invite+</span><span class="td">can ask</span></div>
+              <span class="ar">→</span>
+              <div class="tier"><span class="ic"><svg><use href="#o-invite"/></svg></span><span class="tn">Invite</span><span class="td">closed</span></div>
+              <div class="tier" style="border-style:dashed;"><span class="gmod"><span class="ic"><svg style="width:13px;height:13px"><use href="#o-group"/></svg></span> Group</span><span class="td">modifier</span></div>
+            </div>
+          </div>
+          <table class="chan" style="margin-top:4px;">
+            <tr><th>Openness tier</th><th>Icon</th><th style="color:#8fb6e8">VRChat</th><th style="color:#f3a06a">ChilloutVR</th></tr>
+            <tr><td>Public</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-public"/></svg></span></td><td>Public</td><td>Public</td></tr>
+            <tr><td>Friends+</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-fof"/></svg></span></td><td>Friends+</td><td>Friends of Friends</td></tr>
+            <tr><td>Friends</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-friends"/></svg></span></td><td>Friends</td><td>Friends</td></tr>
+            <tr><td>Invite+ <span style="color:var(--text-faint)">· open invite</span></td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-invite"/></svg></span></td><td>Invite+</td><td>Everyone Can Invite</td></tr>
+            <tr><td>Invite <span style="color:var(--text-faint)">· closed</span></td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-invite"/></svg></span></td><td>Invite</td><td>Owner Must Invite</td></tr>
+            <tr><td><b>Group</b> · public</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-public"/></svg></span></td><td>Group Public</td><td>Group Public</td></tr>
+            <tr><td><b>Group</b> · friends-ext.</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-fof"/></svg></span></td><td>Group+</td><td>Friends of Members</td></tr>
+            <tr><td><b>Group</b> · members only</td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-group"/></svg></span></td><td>Group</td><td>Members Only</td></tr>
+            <tr><td>Offline <span style="color:var(--text-faint)">· not joinable</span></td><td><span class="ic"><svg style="width:15px;height:15px"><use href="#o-offline"/></svg></span></td><td><span style="color:var(--text-faint)">—</span></td><td>Offline Instance</td></tr>
+          </table>
+          <div class="anno" style="margin-top:10px;"><span>✓ verified vs VRChat wiki + ChilloutVR docs</span><span>8 shared tiers — near 1:1</span><span>+ CVR Offline instance</span><span>tracked in VRX-130</span></div>
+          <div class="why" style="margin-top:14px;">The badge stays <b>neutral gray</b> because platform is already said by the card's tint + spine + glyph (§05). "Group" is a <b>chip modifier</b>, not its own tier — a group instance can still be public, friends-only, etc.</div>
+          <div class="demo" style="margin-top:13px;">
+            <span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span>
+            <span class="obadge"><span class="ic"><svg><use href="#o-fof"/></svg></span> Friends+</span>
+            <span class="obadge"><span class="ic"><svg><use href="#o-friends"/></svg></span> Friends</span>
+            <span class="obadge"><span class="ic"><svg><use href="#o-invite"/></svg></span> Invite</span>
+            <span style="font-size:12px;color:var(--text-faint)">← same neutral badge on both platforms</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 07 TYPE -->
+      <section class="panel glass" id="type">
+        <div class="kick">07 · Type</div>
+        <div class="stitle">Two typefaces, one rule</div>
+        <p class="slead"><b>Inter</b> does all the reading. <b>VT323</b> is an accent voice — never body text.</p>
+        <div class="el">
+          <div class="el-name"><span class="ix">7.1</span> Inter — everything you read</div>
+          <div class="demo col">
+            <div class="type-inter">
+              <span class="tw4" style="font-size:20px">Regular 400</span>
+              <span class="tw5" style="font-size:20px">Medium 500</span>
+              <span class="tw6" style="font-size:20px">Semibold 600</span>
+              <span class="tw7" style="font-size:20px">Bold 700</span>
+              <span class="tw8" style="font-size:20px">Extrabold 800</span>
+            </div>
+            <div class="why">Names, labels, descriptions, buttons, world titles, statuses — anything the user scans or reads repeatedly.</div>
+          </div>
+        </div>
+        <div class="el">
+          <div class="el-name"><span class="ix">7.2</span> VT323 — the accent voice</div>
+          <div class="demo col">
+            <div style="display:flex;gap:30px;align-items:center;flex-wrap:wrap;">
+              <span class="brand-lg" style="font-size:46px"><span class="v">V</span><span class="r">R</span><span class="x">X</span></span>
+              <span class="vt-sample" style="font-size:46px;color:var(--ingame)">47</span>
+              <span class="vt-sample" style="font-size:20px;letter-spacing:2px;text-transform:uppercase;color:var(--text-faint)">Hot Instances</span>
+              <span class="gglyph" style="position:static;display:inline-grid">V</span>
+            </div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">Where VT323 is allowed</div><div class="why">The VRX mark · big stat numbers · section kickers · the V/C glyphs · technical IDs/versions. That's the whole list.</div></div>
+            <div><div class="box-label why">Why the strict limit</div><div class="why">VT323 is a CRT terminal face — gorgeous as a flavor, <b>punishing as body text</b>. Confining it to numerals and short all-caps labels gives the retro character without ever hurting readability. <b>Never</b> set descriptions, helper text, statuses, or form labels in it.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 08 SHELL -->
+      <section class="panel glass" id="shell">
+        <div class="kick">08 · Layout</div>
+        <div class="stitle">The app shell</div>
+        <p class="slead">A fixed 248px glass sidebar and a single scrolling content column. The shell never scrolls; only the main column does.</p>
+        <div class="el" style="border:0;padding-top:10px;">
+          <div class="demo">
+            <div style="display:flex;gap:8px;width:100%;max-width:520px;height:150px;">
+              <div class="glass" style="width:120px;display:flex;flex-direction:column;padding:12px;gap:6px;">
+                <span class="brand-lg" style="font-size:24px"><span class="v">V</span><span class="r">R</span><span class="x">X</span></span>
+                <div style="height:9px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:6px;width:80%"></div>
+                <div style="height:9px;background:rgba(255,255,255,.08);border-radius:4px;width:70%"></div>
+                <div style="height:9px;background:rgba(255,255,255,.08);border-radius:4px;width:75%"></div>
+                <div style="margin-top:auto;font-size:9px;color:var(--text-faint);font-family:var(--font-mono)">VRX · v0.1.0</div>
+              </div>
+              <div class="glass" style="flex:1;padding:12px;">
+                <div style="height:12px;width:40%;background:rgba(255,255,255,.14);border-radius:4px;margin-bottom:10px"></div>
+                <div style="display:flex;gap:7px;"><div style="flex:1;height:40px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px"></div><div style="flex:1;height:40px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px"></div><div style="flex:1;height:40px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How</div><div class="code">.app  { display: grid;
+        grid-template-columns: <span class="v">248px 1fr</span>;
+        height: 100vh; padding: 16px; gap: 16px; }
+body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
+.main { overflow-y: auto; }   <span class="c">/* only this scrolls */</span></div></div>
+            <div><div class="box-label why">Why</div><div class="why">A persistent, calm sidebar (brand → nav → footer) and a dense content column is the shape of a <b>desktop utility</b>, not a landing page. The active nav item gets a glass fill and a left spine that runs <b>blue→orange</b> — the merge again. v1 is desktop-only; no responsive collapse required.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 09 COMPONENTS -->
+      <section class="panel glass" id="components">
+        <div class="kick">09 · Components</div>
+        <div class="stitle">Core components, assembled</div>
+        <p class="slead">Each one is just the rules above, composed. These are the live components from the dashboard.</p>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.1</span> Segmented control</div>
+          <div class="el-sum">The platform filter. A glass track with a glass-gradient bubble on the active segment.</div>
+          <div class="demo">
+            <div class="seg glass"><button class="on">All</button><button><span class="tagv">V</span> VRChat</button><button><span class="tagc">C</span> ChilloutVR</button></div>
+          </div>
+          <div class="why">In the React build the bubble animates with <code style="font-family:var(--code)">transform</code>/<code style="font-family:var(--code)">width</code> (reduce-motion shortens it). Never fake selection with per-button backgrounds.</div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.2</span> Stat cards</div>
+          <div class="el-sum">Glass + a big VT323 number, tinted by meaning.</div>
+          <div class="demo">
+            <div class="stat glass s-online"><div class="n">47</div><div class="l">Friends online</div></div>
+            <div class="stat glass s-ingame"><div class="n">23</div><div class="l">In game right now</div></div>
+            <div class="stat glass s-hot"><div class="n">08</div><div class="l">Hot instances</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.3</span> Hot-instance card</div>
+          <div class="el-sum">Platform-tinted glass · 4px top edge · V/C glyph · neutral openness badge · avatar stack · platform Join.</div>
+          <div class="demo">
+            <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">V</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">The Great Pug</div><div class="gplat">VRChat</div><div class="gfoot"><div class="stack"><span class="av">A</span><span class="av">S</span><span class="av">J</span></div><span class="gcount"><b>14</b> here</span><span class="join">Join</span></div></div></div>
+            <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-friends"/></svg></span> Friends</span></div><div class="gtitle">Movie Night</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">B</span><span class="av">P</span></div><span class="gcount"><b>5</b> here</span><span class="join">Join</span></div></div></div>
+          </div>
+          <div class="why">Every channel is visible at once and none collide: platform (tint+glyph+edge), openness (neutral badge+icon), headcount (text). Blue and orange sort themselves at a glance.</div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.4</span> Friend row</div>
+          <div class="el-sum">Grid: <code style="font-family:var(--code)">spine | avatar + state dot | name + glyph + status pill / subline | affordance</code>.</div>
+          <div class="demo col">
+            <div class="flist glass">
+              <div class="frow vrc"><span class="fspine"></span><div class="av2">A<span class="st st-ingame"></span></div><div><div class="fname">AlexVR <span class="fglyph">V</span> <span class="stp joinme"><span class="sd"></span>Join Me</span></div><div class="fsub">The Great Pug · <span class="ph">Public</span></div></div><span class="aff join2">Join</span></div>
+              <div class="frow vrc"><span class="fspine"></span><div class="av2">N<span class="st st-ingame"></span></div><div><div class="fname">Nova <span class="fglyph">V</span> <span class="stp askme"><span class="sd"></span>Ask Me</span></div><div class="fsub ph">location hidden</div></div><span class="aff ask">Ask</span></div>
+              <div class="frow vrc"><span class="fspine"></span><div class="av2">P<span class="st st-active"></span></div><div><div class="fname">Pixel <span class="fglyph">V</span></div><div class="fsub ph">Active · on the web</div></div><span></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 LINKING -->
+      <section class="panel glass" id="linking">
+        <div class="kick">10 · The biggest problem</div>
+        <div class="stitle">Cross-platform friend linking</div>
+        <p class="slead">A friend can exist on both platforms under different names, with <b>no shared identity</b> between them. So linking is <b>user-driven</b> — the user says "this VRChat friend is that CVR friend," and VRX stores the relation. We never auto-merge.</p>
+        <div class="el" style="border:0;padding-top:8px;">
+          <div class="demo">
+            <div class="person glass">
+              <div class="ptop"><div class="pav">R</div><div><div class="pname">Rin</div><div class="plink"><span class="ic"><svg style="width:13px;height:13px"><use href="#o-link"/></svg></span> linked across 2 platforms</div></div></div>
+              <div class="prow"><span class="pg v">V</span><span class="pst">in <b style="color:var(--text)">The Great Pug</b> · <span class="ph">Public</span></span><span class="aff join2">Join</span></div>
+              <div class="prow"><span class="pg c">C</span><span class="pst">Offline · <span class="ph">2h ago</span></span></div>
+            </div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label why">Why user-driven</div><div class="why">There is no reliable signal that two accounts are the same person. A <b>wrong auto-merge is worse than no link</b>, so the user always confirms. VRX may <i>suggest</i> matches (e.g. identical display names), never apply them silently.</div></div>
+            <div><div class="box-label how">How it renders</div><div class="why">One person card, blue→orange avatar (the bridge), each platform's presence shown <b>independently</b> — Rin can be in-world on VRChat and offline on CVR at once. Link data is private, stored in the app's own <code style="font-family:var(--code)">userData</code> — never written into VRCX/CVRX folders.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11 DO / DON'T -->
+      <!-- 11 LIGHT MODE -->
+      <section class="panel glass" id="light">
+        <div class="kick">11 · Light mode</div>
+        <div class="stitle">Same app, lights on</div>
+        <p class="slead">Dark is the default and the focus. Light mode is fully supported — but it is <b>not a second design</b>. It is the exact same VRX: same layout, same components, same channel law (§05), same openness ladder (§06), same typography (§07), same glyphs. Only the <b>tokens, glass material, and background</b> shift lighter, behind a single <code style="font-family:var(--code)">[data-theme="light"]</code> selector on <code style="font-family:var(--code)">&lt;html&gt;</code>. A user who flips the switch should feel like someone turned the lights on — not like they opened a different product. (See the live dark/light pair in §01.)</p>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">11.1</span> What changes vs. what stays</div>
+          <div class="el-sum">The discipline that keeps the two themes in parity: a short list changes, everything structural stays.</div>
+          <div class="grid2">
+            <div><div class="box-label" style="color:#8fb6e8">Shifts in light</div><div class="why" style="line-height:1.9;">• <b>Tokens</b> — base, text, platform, state, status all retune (below)<br>• <b>Glass material</b> — white pane instead of translucent-white-on-black<br>• <b>Background</b> — near-white canvas; glows softened; scanlines → dark-ink <code style="font-family:var(--code)">multiply</code><br>• <b>Contrast tuning</b> — borders/shadows become ink; pill text darkens</div></div>
+            <div><div class="box-label" style="color:#d2a8f0">Stays identical (theme-invariant)</div><div class="why" style="line-height:1.9;">• <b>Layout &amp; app shell</b> (§08) — pixel-for-pixel<br>• <b>The channel law</b> (§05) — platform/state/status/openness/trust, same locations<br>• <b>Openness ladder</b> (§06) — same icons, same neutral badges<br>• <b>Typography</b> (§07) — Inter + VT323, same roles<br>• <b>Every component</b> (§09) — no light-only classes, ever</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">11.2</span> Light tokens</div>
+          <div class="el-sum">The same token names as §02, remapped for readability on pale glass. VRChat stays blue, ChilloutVR stays orange — just darkened so they hold contrast on white.</div>
+          <div class="swatches">
+            <div class="sw"><div class="chip" style="background:#eef3f8"></div><div class="nm">--bg-base</div><div class="hex">#eef3f8</div><div class="role">App background</div></div>
+            <div class="sw"><div class="chip" style="background:#14131c"></div><div class="nm">--text</div><div class="hex">#14131c</div><div class="role">Primary text (ink)</div></div>
+            <div class="sw"><div class="chip" style="background:#1f6fd3"></div><div class="nm">--vrc</div><div class="hex">#1f6fd3</div><div class="role"><b style="color:#1f6fd3">VRChat</b> · blue</div></div>
+            <div class="sw"><div class="chip" style="background:#d85f18"></div><div class="nm">--cvr</div><div class="hex">#d85f18</div><div class="role"><b style="color:#d85f18">ChilloutVR</b> · orange</div></div>
+            <div class="sw"><div class="chip" style="background:#30323b"></div><div class="nm">--bridge</div><div class="hex">#30323b</div><div class="role">Merge (ink/silver)</div></div>
+            <div class="sw"><div class="chip" style="background:#0f9f6e"></div><div class="nm">--ingame</div><div class="hex">#0f9f6e</div><div class="role">In a world (green)</div></div>
+            <div class="sw"><div class="chip" style="background:#0d9488"></div><div class="nm">--active</div><div class="hex">#0d9488</div><div class="role">Active (teal)</div></div>
+            <div class="sw"><div class="chip" style="background:#8a8d99"></div><div class="nm">--offline</div><div class="hex">#8a8d99</div><div class="role">Offline (gray)</div></div>
+          </div>
+          <div class="why" style="margin-top:14px;"><b>Status pills</b> get darker companion text for contrast on light fills: Join Me <code style="font-family:var(--code)">#124e91</code> · Online <code style="font-family:var(--code)">#0f6e35</code> · Ask Me <code style="font-family:var(--code)">#91480e</code> · DND <code style="font-family:var(--code)">#8d2428</code>. Authoritative set: DESIGN.md §2A.</div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">11.3</span> Light glass + background — the material, lit</div>
+          <div class="el-sum">A live light-themed panel, rendered right here. Every glass "move" from §03 survives — pane, border, inset highlight, depth shadow, sheen — just inverted to bright.</div>
+          <div class="demo lightdemo">
+            <div class="glass lp" style="width:200px;height:120px;"></div>
+            <div class="glass lp tint-vrc" style="width:170px;height:120px;display:grid;place-items:center;color:#0f4f9c;font-size:12.5px;">.tint-vrc</div>
+            <div class="glass lp tint-cvr" style="width:170px;height:120px;display:grid;place-items:center;color:#a3410d;font-size:12.5px;">.tint-cvr</div>
+          </div>
+          <div class="grid2">
+            <div><div class="box-label how">How (override layer)</div><div class="code"><span class="c">/* dark is default; light is an override */</span>
+[data-theme="light"] .glass {
+  background: linear-gradient(135deg,
+     <span class="v">rgba(255,255,255,.70)</span>, <span class="v">rgba(255,255,255,.28)</span>);
+  border-color: <span class="v">rgba(40,48,68,.16)</span>;
+  box-shadow: <span class="v">0 16px 46px rgba(59,72,93,.22)</span>,
+    <span class="v">inset 0 1px 0 rgba(255,255,255,.88)</span>;
+}
+[data-theme="light"] body::before {  <span class="c">/* same corners, softer */</span>
+  background:
+   radial-gradient(58% 50% at 12% 6%, <span class="v">vrc .18</span>, …),
+   radial-gradient(58% 50% at 92% 96%, <span class="v">cvr .15</span>, …),
+   linear-gradient(180deg,#fbfcff,var(--bg-base),#e7edf4);
+}</div></div>
+            <div><div class="box-label why">Why</div><div class="why"><b>Tint ceiling drops to 0.18</b> in light (vs 0.22 dark) — higher and the platform color overpowers the white pane and the app stops feeling like glass.</div><div class="why">Scanlines flip to <b>dark ink on <code style="font-family:var(--code)">multiply</code></b> at low opacity — a white overlay would be invisible on a light canvas. Same texture, opposite ink.</div><div class="why">Openness badges stay <b>neutral</b> (white/ink-gray) — never blue/orange — exactly as in dark.</div></div>
+          </div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">11.4</span> Channels, in light</div>
+          <div class="el-sum">Proof the channel law (§05) is untouched — every signal lives in the same place, just retuned for contrast. Rendered light here.</div>
+          <div class="demo lightdemo" style="gap:22px;">
+            <div class="lp" style="display:flex;flex-direction:column;gap:9px;">
+              <div class="dotrow" style="color:#1e1c2a"><span class="dot st-ingame"></span> in-game</div>
+              <div class="dotrow" style="color:#1e1c2a"><span class="dot st-active"></span> active</div>
+              <div class="dotrow" style="color:#1e1c2a"><span class="dot st-offline"></span> offline</div>
+            </div>
+            <div class="lp" style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;">
+              <span class="stp joinme"><span class="sd"></span>Join Me</span>
+              <span class="stp online"><span class="sd"></span>Online</span>
+              <span class="stp askme"><span class="sd"></span>Ask Me</span>
+              <span class="stp dnd"><span class="sd"></span>DND</span>
+            </div>
+            <div class="lp" style="display:flex;flex-direction:column;gap:8px;align-items:flex-start;">
+              <span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span>
+              <span class="obadge"><span class="ic"><svg><use href="#o-friends"/></svg></span> Friends</span>
+              <span class="aff join2">Join</span>
+            </div>
+          </div>
+          <div class="why">Same dots, same labeled pills, same neutral badges, same neutral affordance — identical to §05, just contrast-tuned. Nothing moved; nothing was recolored by a different rule.</div>
+        </div>
+      </section>
+
+      <section class="panel glass" id="donot">
+        <div class="kick">12 · Guardrails</div>
+        <div class="stitle">Do &amp; Don't</div>
+        <div class="el" style="border:0;padding-top:10px;">
+          <div class="rules">
+            <div class="do"><h4>Do</h4><ul>
+              <li>Build every floating surface from <b>.glass</b></li>
+              <li>Pull all color/spacing from the <b>tokens</b></li>
+              <li>Say platform with tint + spine + glyph</li>
+              <li>Keep openness badges <b>neutral gray</b> + shared icon</li>
+              <li>Pair every color with <b>position + glyph/text</b></li>
+              <li>Honor <b>prefers-reduced-motion</b></li>
+              <li>Use official platform logos, <code style="font-family:var(--code)">object-fit:contain</code></li>
+              <li>Keep dark + light in <b>parity</b>: light is overrides only (§11)</li>
+            </ul></div>
+            <div class="dont"><h4>Don't</h4><ul>
+              <li>Color an openness badge by platform or type</li>
+              <li>Use blue/orange for anything but platform</li>
+              <li>Make "online" blue (it's <b>teal</b>)</li>
+              <li>Turn trust ranks on by default, or color names</li>
+              <li>Set body/helper/status text in <b>VT323</b></li>
+              <li><b>Auto-merge</b> cross-platform identities</li>
+              <li>Invent CVR features (trust, Busy) for symmetry</li>
+              <li>Fake a VRChat/ChilloutVR logo</li>
+              <li><b>Fork components for light mode</b> — retune tokens, never duplicate classes</li>
+            </ul></div>
+          </div>
+          <div class="why" style="margin-top:16px;text-align:center;">Full token values &amp; CSS (both themes) live in <b>glass.html</b> · light overrides in DESIGN.md <b>§2A–§4A</b> · machine-readable rules for AI agents live in <b>DESIGN.md</b>.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

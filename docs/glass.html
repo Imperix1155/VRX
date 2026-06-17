@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VRX — Liquid Glass Style</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=VT323&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-base: #08080b;
+    --text: #f3f1fb;
+    --text-dim: rgba(231,225,250,0.72);
+    --text-faint: rgba(216,208,242,0.46);
+
+    /* PLATFORM — deep + saturated (carried by spine/tint/glyph only) */
+    --vrc: #2b7ce8;
+    --cvr: #f3711e;
+    --bridge: #e8e8f0;            /* neutral merge accent (silver); customizable later */
+
+    /* STATE — system presence (the avatar dot); online+offline match CVR */
+    --ingame: #34d399;           /* in a world (state=online) */
+    --active: #2dd4bf;           /* online but NOT in game — web/app (state=active) */
+    --offline: #6b6480;
+
+    /* STATUS — VRChat user intent (labeled pills only) */
+    --st-joinme: #3aa0ff;        /* Join Me */
+    --st-online: #43c95a;        /* Online (status="active") */
+    --st-askme:  #ff9a3d;        /* Ask Me */
+    --st-dnd:    #e5484b;        /* Do Not Disturb (status="busy") */
+
+    /* GLASS */
+    --glass-blur: blur(26px) saturate(165%);
+    --font-mono: 'VT323', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  /* ambient aurora behind the glass */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -2;
+    background:
+      radial-gradient(58% 50% at 12% 6%, rgba(43,124,232,0.26), transparent 60%),
+      radial-gradient(58% 50% at 92% 96%, rgba(243,113,30,0.20), transparent 60%),
+      var(--bg-base);
+  }
+  /* faint CRT scanlines — the "old internet" texture, kept very low */
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay; opacity: 0.6;
+  }
+
+  /* ---------- Glass material ---------- */
+  .glass {
+    position: relative;
+    background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.025));
+    backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 20px;
+    box-shadow: 0 12px 44px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 1px rgba(255,255,255,0.05);
+  }
+  .glass::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(125% 80% at 0% 0%, rgba(255,255,255,0.11), transparent 46%);
+  }
+  .tint-vrc { background: linear-gradient(135deg, rgba(43,124,232,0.22), rgba(43,124,232,0.05)); border-color: rgba(43,124,232,0.34); }
+  .tint-cvr { background: linear-gradient(135deg, rgba(243,113,30,0.22), rgba(243,113,30,0.05)); border-color: rgba(243,113,30,0.36); }
+
+  /* ---------- App frame ---------- */
+  .app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; padding: 16px; gap: 16px; }
+  .sidebar { padding: 20px 16px; display: flex; flex-direction: column; }
+  .brand {
+    font-family: var(--font-mono); font-size: 40px; line-height: 1; letter-spacing: 2px;
+    display: flex; gap: 1px; padding: 4px 6px 0;
+  }
+  .brand .v { color: var(--vrc); }
+  .brand .r { color: var(--bridge); }
+  .brand .x { color: var(--cvr); }
+  .brand-sub { font-size: 11px; color: var(--text-faint); letter-spacing: 0.5px; padding: 4px 6px 0; margin-bottom: 22px; }
+
+  .nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .nitem {
+    display: flex; align-items: center; gap: 12px; padding: 9px 11px; border-radius: 12px;
+    color: var(--text-dim); font-size: 13.5px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .nitem svg { width: 18px; height: 18px; flex: none; }
+  .nitem:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .nitem.active {
+    color: var(--text);
+    background: linear-gradient(135deg, rgba(255,255,255,0.13), rgba(255,255,255,0.04));
+    border-color: rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .nitem.active::before {
+    content: ""; position: absolute; left: -16px; width: 3px; height: 20px; border-radius: 2px;
+    background: linear-gradient(var(--vrc), var(--cvr));
+  }
+  .nitem { position: relative; }
+  .nbadge { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--text-faint); font-family: var(--font-mono); }
+  .sfoot { font-size: 11px; color: var(--text-faint); padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 12px; }
+  .sfoot b { color: var(--text-dim); font-family: var(--font-mono); font-size: 16px; letter-spacing: 1px; }
+
+  /* ---------- Main ---------- */
+  .main { overflow-y: auto; padding: 6px 8px 40px; }
+  .main::-webkit-scrollbar { width: 9px; }
+  .main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+  .topbar { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
+  .ttl { font-size: 25px; font-weight: 800; letter-spacing: -0.4px; }
+  .seg { display: flex; padding: 4px; border-radius: 13px; gap: 2px; margin-left: 6px; }
+  .seg button {
+    font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-dim);
+    background: transparent; border: 0; padding: 6px 13px; border-radius: 9px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .seg button.on {
+    color: var(--text);
+    background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 10px rgba(0,0,0,0.3);
+  }
+  .seg .tagv { color: var(--vrc); font-weight: 800; }
+  .seg .tagc { color: var(--cvr); font-weight: 800; }
+  .ocount { margin-left: auto; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .ocount .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ingame); box-shadow: 0 0 10px var(--ingame); }
+
+  .kick {
+    font-family: var(--font-mono); font-size: 18px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-faint); margin: 4px 2px 12px;
+  }
+
+  /* ---------- Stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
+  .stat { padding: 16px 18px; }
+  .stat .n { font-family: var(--font-mono); font-size: 38px; line-height: 1; }
+  .stat .l { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; }
+  .stat.s-ingame .n { color: var(--ingame); }
+  .stat.s-online .n { color: var(--active); }
+  .stat.s-hot .n { color: var(--bridge); }
+
+  /* ---------- Openness icon ---------- */
+  .ic { display: inline-grid; place-items: center; color: var(--text-dim); }
+  .ic svg { display: block; }
+
+  /* ---------- Hot instances ---------- */
+  .hot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
+  .gcard { overflow: hidden; }
+  .gtop { height: 4px; }
+  .gcard.vrc .gtop { background: linear-gradient(90deg, var(--vrc), transparent); }
+  .gcard.cvr .gtop { background: linear-gradient(90deg, var(--cvr), transparent); }
+  .gbody { padding: 15px 16px 16px; }
+  .grow1 { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+  .gglyph {
+    width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
+    font-size: 12px; font-weight: 800; flex: none; font-family: var(--font-mono);
+  }
+  .gcard.vrc .gglyph { background: rgba(43,124,232,0.22); color: #bcd9fb; border: 1px solid rgba(43,124,232,0.4); }
+  .gcard.cvr .gglyph { background: rgba(243,113,30,0.22); color: #ffd9bc; border: 1px solid rgba(243,113,30,0.42); }
+  .obadge {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 700; color: var(--text-dim);
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13);
+    padding: 3px 9px 3px 7px; border-radius: 999px;
+  }
+  .obadge .ic svg { width: 13px; height: 13px; }
+  .gtitle { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gplat { font-size: 11.5px; margin-top: 2px; }
+  .gcard.vrc .gplat { color: var(--vrc); }
+  .gcard.cvr .gplat { color: var(--cvr); }
+  .gfoot { display: flex; align-items: center; gap: 9px; margin-top: 14px; }
+  .stack { display: flex; }
+  .stack .av { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(10,8,24,0.5); margin-left: -8px; background: linear-gradient(135deg,#bfc0cb,#6b6480); display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #0e0f14; }
+  .stack .av:first-child { margin-left: 0; }
+  .gcount { font-size: 12px; color: var(--text-dim); }
+  .gcount b { color: var(--text); }
+  .join {
+    margin-left: auto; font-size: 12px; font-weight: 700; color: var(--text); cursor: pointer;
+    padding: 6px 15px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+    border: 1px solid rgba(255,255,255,0.18); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .gcard.vrc .join { background: linear-gradient(135deg, rgba(43,124,232,0.4), rgba(43,124,232,0.14)); border-color: rgba(43,124,232,0.5); }
+  .gcard.cvr .join { background: linear-gradient(135deg, rgba(243,113,30,0.4), rgba(243,113,30,0.14)); border-color: rgba(243,113,30,0.5); }
+
+  /* ---------- Friends list ---------- */
+  .flist { padding: 8px; }
+  .frow { display: grid; grid-template-columns: 3px 42px 1fr auto; align-items: center; gap: 13px; padding: 9px 12px 9px 0; border-radius: 13px; position: relative; }
+  .frow:hover { background: rgba(255,255,255,0.045); }
+  .frow .fspine { width: 3px; height: 26px; border-radius: 0 3px 3px 0; }
+  .frow.vrc .fspine { background: var(--vrc); box-shadow: 0 0 10px rgba(43,124,232,0.5); }
+  .frow.cvr .fspine { background: var(--cvr); box-shadow: 0 0 10px rgba(243,113,30,0.5); }
+  .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
+  .av2 .st { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0c0a1c; }
+  .st-ingame { background: var(--ingame); } .st-active { background: var(--active); } .st-offline { background: var(--offline); }
+  .fname { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .fglyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); }
+  .frow.vrc .fglyph { background: rgba(43,124,232,0.2); color: #bcd9fb; }
+  .frow.cvr .fglyph { background: rgba(243,113,30,0.2); color: #ffd9bc; }
+  .fsub { font-size: 12.5px; color: var(--text-dim); margin-top: 1px; }
+  .fsub .ph { color: var(--text-faint); }
+  .aff { font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 9px; white-space: nowrap; }
+  .aff.join2 { color: var(--text); background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.2); }
+  .aff.ask { color: var(--text-dim); border: 1px solid rgba(255,255,255,0.16); }
+  .aff.busy { color: var(--text-faint); border: 1px solid rgba(255,255,255,0.1); }
+
+  /* ---------- VRChat status pills (labeled; VRChat-only) ---------- */
+  .stp { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; letter-spacing: 0.2px; padding: 2px 8px 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); white-space: nowrap; }
+  .stp .sd { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .stp.joinme { color: #bcdcff; background: rgba(58,160,255,0.14); border-color: rgba(58,160,255,0.38); } .stp.joinme .sd { background: var(--st-joinme); }
+  .stp.online { color: #bff0c8; background: rgba(67,201,90,0.14); border-color: rgba(67,201,90,0.36); } .stp.online .sd { background: var(--st-online); }
+  .stp.askme { color: #ffd9b0; background: rgba(255,154,61,0.15); border-color: rgba(255,154,61,0.40); } .stp.askme .sd { background: var(--st-askme); }
+  .stp.dnd { color: #ffc2c2; background: rgba(229,72,75,0.15); border-color: rgba(229,72,75,0.42); } .stp.dnd .sd { background: var(--st-dnd); }
+
+  .secline { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 12px; }
+  .secline .kick { margin: 0; }
+  .secline .hint { font-size: 12px; color: var(--text-faint); }
+
+  /* ========== LIGHT MODE (DESIGN.md §2A–§4A) ==========
+     Dark is the default baseline above. Light is an OVERRIDE layer behind
+     [data-theme="light"] — same layout/components/channel law, only tokens +
+     glass material + contrast tuning shift. To preview: add data-theme="light"
+     to the <html> tag. Same VRX app, lights on. */
+  [data-theme="light"] {
+    --bg-base: #eef3f8;
+    --text: #14131c;
+    --text-dim: rgba(30, 28, 42, 0.72);
+    --text-faint: rgba(52, 49, 70, 0.48);
+    --vrc: #1f6fd3;
+    --cvr: #d85f18;
+    --bridge: #30323b;
+    --ingame: #0f9f6e;
+    --active: #0d9488;
+    --offline: #8a8d99;
+    --st-joinme: #1d78d8;
+    --st-online: #169a4a;
+    --st-askme: #cf6a18;
+    --st-dnd: #c9363a;
+    --glass-blur: blur(24px) saturate(142%);
+  }
+  [data-theme="light"] body::before {
+    background:
+      radial-gradient(58% 50% at 12% 6%, rgba(31, 111, 211, 0.18), transparent 60%),
+      radial-gradient(58% 50% at 92% 96%, rgba(216, 95, 24, 0.15), transparent 60%),
+      linear-gradient(180deg, #fbfcff 0%, var(--bg-base) 48%, #e7edf4 100%);
+  }
+  [data-theme="light"] body::after {
+    background: repeating-linear-gradient(0deg, rgba(20, 19, 28, 0.026) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+    opacity: 0.42;
+  }
+  [data-theme="light"] .glass {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.28));
+    border-color: rgba(40, 48, 68, 0.16);
+    box-shadow: 0 16px 46px rgba(59, 72, 93, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88), inset 0 -1px 1px rgba(40, 48, 68, 0.08);
+  }
+  [data-theme="light"] .glass::before {
+    background: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
+  }
+  [data-theme="light"] .tint-vrc {
+    background: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
+    border-color: rgba(31, 111, 211, 0.28);
+  }
+  [data-theme="light"] .tint-cvr {
+    background: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
+    border-color: rgba(216, 95, 24, 0.3);
+  }
+  [data-theme="light"] .nitem:hover,
+  [data-theme="light"] .frow:hover { background: rgba(20, 19, 28, 0.045); }
+  [data-theme="light"] .nitem.active,
+  [data-theme="light"] .seg button.on,
+  [data-theme="light"] .join,
+  [data-theme="light"] .aff.join2 {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.38));
+    border-color: rgba(40, 48, 68, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
+  }
+  [data-theme="light"] .sfoot { border-top-color: rgba(40, 48, 68, 0.1); }
+  [data-theme="light"] .main::-webkit-scrollbar-thumb { background: rgba(20, 19, 28, 0.16); }
+  [data-theme="light"] .obadge {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(40, 48, 68, 0.14);
+  }
+  [data-theme="light"] .gglyph,
+  [data-theme="light"] .fglyph { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42); }
+  [data-theme="light"] .gcard.vrc .gglyph,
+  [data-theme="light"] .frow.vrc .fglyph {
+    color: #0f4f9c;
+    background: rgba(31, 111, 211, 0.14);
+    border-color: rgba(31, 111, 211, 0.24);
+  }
+  [data-theme="light"] .gcard.cvr .gglyph,
+  [data-theme="light"] .frow.cvr .fglyph {
+    color: #a3410d;
+    background: rgba(216, 95, 24, 0.14);
+    border-color: rgba(216, 95, 24, 0.26);
+  }
+  [data-theme="light"] .av2 .st { border-color: #eef3f8; }
+  [data-theme="light"] .stack .av { border-color: rgba(255, 255, 255, 0.72); }
+  [data-theme="light"] .gcard.vrc .join {
+    background: linear-gradient(135deg, rgba(31, 111, 211, 0.3), rgba(31, 111, 211, 0.1));
+    border-color: rgba(31, 111, 211, 0.34);
+  }
+  [data-theme="light"] .gcard.cvr .join {
+    background: linear-gradient(135deg, rgba(216, 95, 24, 0.3), rgba(216, 95, 24, 0.1));
+    border-color: rgba(216, 95, 24, 0.36);
+  }
+  [data-theme="light"] .stp.joinme {
+    color: #124e91;
+    background: rgba(29, 120, 216, 0.12);
+    border-color: rgba(29, 120, 216, 0.3);
+  }
+  [data-theme="light"] .stp.online {
+    color: #0f6e35;
+    background: rgba(22, 154, 74, 0.12);
+    border-color: rgba(22, 154, 74, 0.28);
+  }
+  [data-theme="light"] .stp.askme {
+    color: #91480e;
+    background: rgba(207, 106, 24, 0.13);
+    border-color: rgba(207, 106, 24, 0.3);
+  }
+  [data-theme="light"] .stp.dnd {
+    color: #8d2428;
+    background: rgba(201, 54, 58, 0.12);
+    border-color: rgba(201, 54, 58, 0.3);
+  }
+</style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="o-public" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/></symbol>
+    <symbol id="o-fof" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3"/><path d="M3.4 19c0-3.1 2.5-5.3 5.6-5.3 1.4 0 2.6.4 3.6 1.1"/><path d="M17.5 13.5v5M15 16h5"/></symbol>
+    <symbol id="o-friends" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 19c0-3.6 3.1-6 7-6s7 2.4 7 6"/></symbol>
+    <symbol id="o-group" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="9" r="2.7"/><circle cx="16" cy="9.5" r="2.2"/><path d="M3.5 18c0-2.7 2.2-4.4 5-4.4 1 0 1.9.2 2.7.6"/><path d="M13.5 14.4c.7-.3 1.5-.5 2.5-.5 2.5 0 4.5 1.5 4.5 3.6"/></symbol>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar glass">
+      <div class="brand"><span class="v">V</span><span class="r">R</span><span class="x">X</span></div>
+      <div class="brand-sub">Social VR Companion</div>
+      <nav class="nav">
+        <div class="nitem active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg> Dashboard</div>
+        <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.6a3 3 0 0 1 0 5.8"/><path d="M16.6 14c2.3.2 3.9 2 3.9 4.4"/></svg> Friends <span class="nbadge">47</span></div>
+        <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/></svg> Instances</div>
+        <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="2.7"/><circle cx="16" cy="9.5" r="2.2"/><path d="M3.5 18c0-2.7 2.2-4.4 5-4.4 1 0 1.9.2 2.7.6M13.5 14.4c.7-.3 1.5-.5 2.5-.5 2.5 0 4.5 1.5 4.5 3.6"/></svg> Groups</div>
+        <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4"/><circle cx="15" cy="16" r="2.4"/></svg> Settings</div>
+      </nav>
+      <div class="sfoot"><b>VRX</b><br/>Social VR Companion · v0.1.0</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="ttl">Dashboard</div>
+        <div class="seg glass">
+          <button class="on">All</button>
+          <button><span class="tagv">V</span> VRChat</button>
+          <button><span class="tagc">C</span> ChilloutVR</button>
+        </div>
+        <div class="ocount"><span class="pulse"></span> 47 friends online</div>
+      </div>
+
+      <div class="stats">
+        <div class="stat glass s-online"><div class="n">47</div><div class="l">Friends online</div></div>
+        <div class="stat glass s-ingame"><div class="n">23</div><div class="l">In game right now</div></div>
+        <div class="stat glass s-hot"><div class="n">08</div><div class="l">Hot instances</div></div>
+      </div>
+
+      <div class="secline"><span class="kick">Hot Instances</span> <span class="hint">sorts blue VRChat from orange ChilloutVR at a glance — glass tinted by platform</span></div>
+      <div class="hot">
+        <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">V</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">The Great Pug</div><div class="gplat">VRChat</div><div class="gfoot"><div class="stack"><span class="av">A</span><span class="av">S</span><span class="av">J</span></div><span class="gcount"><b>14</b> here</span><span class="join">Join</span></div></div></div>
+        <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">The Black Cat</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">M</span><span class="av">K</span></div><span class="gcount"><b>6</b> here</span><span class="join">Join</span></div></div></div>
+        <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">V</span><span class="obadge"><span class="ic"><svg><use href="#o-fof"/></svg></span> Group+</span></div><div class="gtitle">Murder 4</div><div class="gplat">VRChat</div><div class="gfoot"><div class="stack"><span class="av">N</span><span class="av">R</span><span class="av">T</span></div><span class="gcount"><b>8</b> here</span><span class="join">Join</span></div></div></div>
+        <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-friends"/></svg></span> Friends</span></div><div class="gtitle">Movie Night</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">B</span><span class="av">P</span></div><span class="gcount"><b>5</b> here</span><span class="join">Join</span></div></div></div>
+        <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">V</span><span class="obadge"><span class="ic"><svg><use href="#o-fof"/></svg></span> Friends+</span></div><div class="gtitle">Prismic</div><div class="gplat">VRChat</div><div class="gfoot"><div class="stack"><span class="av">Q</span><span class="av">L</span><span class="av">D</span></div><span class="gcount"><b>11</b> here</span><span class="join">Join</span></div></div></div>
+        <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">Spawn Zone</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">K</span></div><span class="gcount"><b>4</b> here</span><span class="join">Join</span></div></div></div>
+      </div>
+
+      <div class="secline"><span class="kick">Friends</span> <span class="hint">state dot (in-game / active / offline) · VRChat status pills · custom status · trust off by default</span></div>
+      <div class="flist glass">
+        <div class="frow vrc"><span class="fspine"></span><div class="av2">A<span class="st st-ingame"></span></div><div><div class="fname">AlexVR <span class="fglyph">V</span> <span class="stp joinme"><span class="sd"></span>Join Me</span></div><div class="fsub">The Great Pug · <span class="ph">Public</span></div></div><span class="aff join2">Join</span></div>
+        <div class="frow vrc"><span class="fspine"></span><div class="av2">N<span class="st st-ingame"></span></div><div><div class="fname">Nova <span class="fglyph">V</span> <span class="stp online"><span class="sd"></span>Online</span></div><div class="fsub">Murder 4 · <span class="ph">Group+</span></div></div><span class="aff join2">Join</span></div>
+        <div class="frow vrc"><span class="fspine"></span><div class="av2">S<span class="st st-ingame"></span></div><div><div class="fname">Sage <span class="fglyph">V</span> <span class="stp askme"><span class="sd"></span>Ask Me</span></div><div class="fsub">✎ taking commissions · <span class="ph">location hidden</span></div></div><span class="aff ask">Ask</span></div>
+        <div class="frow vrc"><span class="fspine"></span><div class="av2">K<span class="st st-ingame"></span></div><div><div class="fname">Kira <span class="fglyph">V</span> <span class="stp dnd"><span class="sd"></span>DND</span></div><div class="fsub ph">location hidden</div></div><span class="aff busy">⊘</span></div>
+        <div class="frow vrc"><span class="fspine"></span><div class="av2">P<span class="st st-active"></span></div><div><div class="fname">Pixel <span class="fglyph">V</span></div><div class="fsub ph">Active · on the web</div></div><span></span></div>
+        <div class="frow cvr"><span class="fspine"></span><div class="av2">M<span class="st st-ingame"></span></div><div><div class="fname">Mika <span class="fglyph">C</span></div><div class="fsub">The Black Cat · <span class="ph">Public</span></div></div><span class="aff join2">Join</span></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
