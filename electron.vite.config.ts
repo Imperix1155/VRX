@@ -1,5 +1,5 @@
 import { resolve } from 'path'
-import { defineConfig } from 'electron-vite'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -10,6 +10,9 @@ const shared = resolve('src/shared')
 
 export default defineConfig({
   main: {
+    // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v11), so a
+    // require() from the CJS main bundle would throw at runtime — bundle it instead (VRX-23).
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
     resolve: {
       alias: {
         '@shared': shared

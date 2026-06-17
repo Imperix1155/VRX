@@ -2,8 +2,9 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { initLogger } from './logger'
+import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
+import { loadSettings } from './services/settings'
 import { FakeVrcAdapter } from './services/adapters/FakeVrcAdapter'
 import { registerIpcHandlers } from './ipc'
 
@@ -49,6 +50,11 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Structured logging first, so anything below is captured (VRX-15).
   initLogger()
+
+  // Load persisted settings (migrate + validate on read; normalizes the on-disk
+  // file to the current schema). Available for IPC/store wiring next (VRX-23).
+  const settings = loadSettings()
+  log.info('settings loaded', { version: settings.version, theme: settings.theme })
 
   // Set app user model id for windows — must match electron-builder `appId`
   // so Windows groups the taskbar entry and update notifications fire.
