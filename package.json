@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "VRX — Social VR companion for VRChat + ChilloutVR",
   "main": "./out/main/index.js",
-  "author": "Aimi-Imperix",
+  "author": "Imperix1155",
   "license": "MIT",
   "scripts": {
     "format": "prettier --write .",

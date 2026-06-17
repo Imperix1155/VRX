@@ -39,7 +39,7 @@ linux:
   target:
     - AppImage
     - deb
-  maintainer: Aimi-Imperix
+  maintainer: Imperix1155 <93307534+Imperix1155@users.noreply.github.com>
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
