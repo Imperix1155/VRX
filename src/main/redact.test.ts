@@ -34,12 +34,12 @@ describe('redact', () => {
   })
 
   it('recurses into nested structures', () => {
-    expect(redact({ account: { displayName: 'testuser', cookie: 'c=1' }, friends: ['usr_1'] })).toEqual(
-      {
-        account: { displayName: 'testuser', cookie: '***REDACTED***' },
-        friends: ['usr_1']
-      }
-    )
+    expect(
+      redact({ account: { displayName: 'testuser', cookie: 'c=1' }, friends: ['usr_1'] })
+    ).toEqual({
+      account: { displayName: 'testuser', cookie: '***REDACTED***' },
+      friends: ['usr_1']
+    })
   })
 
   it('leaves non-sensitive data untouched', () => {
