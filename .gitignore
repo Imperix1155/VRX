@@ -13,6 +13,7 @@ release
 # local working notes (not for the public repo)
 GITHUB-SETUP.md
 SCAFFOLD-STATUS.md
+local-notes/
 
 # test coverage
 coverage
