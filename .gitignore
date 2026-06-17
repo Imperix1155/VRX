@@ -10,6 +10,20 @@ release
 .vite
 *.node
 
+# secrets & credentials — NEVER commit (this is a public repo)
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.crt
+*.cer
+.npmrc
+secrets.json
+credentials.json
+auth.json
+
 # local working notes (not for the public repo)
 GITHUB-SETUP.md
 SCAFFOLD-STATUS.md
