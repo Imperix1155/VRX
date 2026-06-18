@@ -9,7 +9,12 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 - `src/i18n/` — i18next + react-i18next setup (VRX-14): bundled resources, OS-locale detection via `navigator.language`, English fallback.
 - `src/locales/<lng>/translation.json` — translation resources (`en`, `ja`). All user-visible strings must be keyed here.
 - `src/assets/main.css` — Tailwind import + the VRX design tokens (§2 dark `:root`, §2A light `[data-theme="light"]`).
-- `src/stores/friends.ts` — Zustand friends store: `friends[]`, `loading`, `error`, `fetchFriends(platform)` (VRX-19/21). Guard against `window.vrx` being undefined (Preview/test env).
+- `src/stores/` — Zustand stores, one per domain; each independently testable, and **no store imports another** (compose at the view layer). Guard `window.vrx` (undefined in Preview/test) in any IPC-backed fetch. (VRX-19/21)
+  - `friends.ts` — `friends[]` + `fetchFriends(platform)`; client-side view state `search` / `platformFilter` / `selectedFriendId` (filtering itself happens in the view).
+  - `settings.ts` — `Settings` seeded from `@shared/settings` `DEFAULT_SETTINGS` + a `dirty` flag. In-memory only until the `get-settings` / `save-settings` IPC lands (persistence-pending).
+  - `accounts.ts` — `accounts[]` via `get-accounts` (`[]` until VRX-24); `activeAccount(platform)` derived from `Account.isActive` (no separate active-id state).
+  - `ui.ts` — ephemeral view state ONLY (`activeTab`, `drawerOpen`). Persisted prefs like `density` live in `settings.ts`, never here.
+  - notifications store deferred — no `Notification` type or IPC channel exists yet (M3).
 - Empty placeholders (`src/hooks`, `queries`, `routes`, `utils`) — unused until features land.
 
 ## Local Contracts
