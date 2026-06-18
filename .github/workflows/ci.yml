@@ -92,13 +92,30 @@ jobs:
           fi
           echo "No high/critical advisories outside the allowlist."
 
+  # Secret scanning — fails the build if a credential, token, or key is committed
+  # (VRX-153). OS-agnostic, so it runs once. gitleaks scans the full history on
+  # push and the PR commits on pull_request; config + the fixture allowlist live
+  # in .gitleaks.toml. gitleaks-action is free for public repositories.
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history so gitleaks can scan every commit
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Stable aggregate gate — THIS is the name to mark as the required status check
   # in branch protection, so the OS matrix above can evolve (e.g. VRX-102) without
   # changing the required check. `if: always()` so it reports a definitive pass/fail
   # even when a matrix leg fails (a skipped required check would block PRs forever).
   ci-success:
     name: ci-success
-    needs: [build, audit]
+    needs: [build, audit, secret-scan]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -110,6 +127,10 @@ jobs:
           fi
           if [ "${{ needs.audit.result }}" != "success" ]; then
             echo "Dependency audit did not succeed: ${{ needs.audit.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.secret-scan.result }}" != "success" ]; then
+            echo "Secret scan did not succeed: ${{ needs.secret-scan.result }}"
             exit 1
           fi
           echo "All required CI jobs passed."
