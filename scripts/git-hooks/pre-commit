@@ -1,0 +1,21 @@
+#!/bin/sh
+# VRX pre-commit hook (VRX-153) — block secrets before they are committed.
+#
+# CI is the authoritative gate; this is a fast local early-catch. In a genuine
+# emergency you can bypass with `git commit --no-verify`, but CI will still scan.
+# Wired in via `core.hooksPath` (set by the `prepare` npm script on install).
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "vrx: gitleaks not found — skipping local secret scan (CI will still scan)."
+  echo "vrx: install it to catch secrets before they leave your machine:"
+  echo "vrx:   https://github.com/gitleaks/gitleaks#installing"
+  exit 0
+fi
+
+if ! gitleaks git --staged --redact --no-banner; then
+  echo
+  echo "vrx: gitleaks found a potential secret in your staged changes (above)."
+  echo "vrx: remove it, or — if it is a confirmed false positive — allowlist the"
+  echo "vrx: exact value (not the path) in .gitleaks.toml with a comment."
+  exit 1
+fi

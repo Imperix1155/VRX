@@ -1,0 +1,31 @@
+# gitleaks configuration for VRX (VRX-153)
+#
+# Extends gitleaks' built-in ruleset and adds a narrow allowlist for the
+# intentionally-fake secrets used as fixtures in the redaction unit tests, so
+# the gate stays green even if a future gitleaks ruleset starts matching them.
+#
+# Current default rules (gitleaks 8.30.x) do NOT flag these values — the
+# baseline scan is clean — but pinning them documents them as known-fake and
+# future-proofs the gate.
+#
+# To allowlist a NEW legitimate fixture: add its exact value (or a tight regex)
+# to `regexes` below with a comment explaining why it is not a real secret.
+# Never allowlist by broad path — that would blind the scanner to a real secret
+# accidentally committed to that file.
+
+title = "VRX gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-fake fixtures used in src/main/redact.test.ts"
+regexTarget = "match"
+regexes = [
+  '''^hunter2$''',
+  '''^tok_abc$''',
+  '''^authcookie_SECRET$''',
+  '''^AK_LIVE_999$''',
+  '''^jwt\.body\.sig$''',
+  '''^Bearer abc\.def\.ghi$''',
+]
