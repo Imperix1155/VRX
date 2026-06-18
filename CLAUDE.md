@@ -37,7 +37,9 @@ Before touching ANY UI, read DESIGN.md. Hard rules in brief:
 `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every
 IPC handler; `safeStorage` for all credentials; URL allowlist before `shell.openExternal`; no
 `unsafe-inline` CSP; renderer never sees raw tokens. Never log credentials/tokens/PII (use electron-log).
-Never write to VRCX/CVRX folders.
+Never write to VRCX/CVRX folders. Never commit secrets — a gitleaks gate (CI `secret-scan` job +
+local pre-commit hook) blocks keys/tokens/credentials; allowlist only confirmed-fake fixtures by exact
+value (never by path) in `.gitleaks.toml`.
 
 ## API etiquette (VRChat + CVR are unofficial APIs)
 - Real-time data via WebSocket (VRChat Pipeline / CVR `/users/ws`), NOT polling — polling friend status
