@@ -22,6 +22,20 @@ describe('useSettingsStore', () => {
     expect(state.dirty).toBe(true)
   })
 
+  it('updateSettings does not mark dirty for a no-op patch', () => {
+    const { theme } = useSettingsStore.getState().settings
+    useSettingsStore.getState().updateSettings({ theme })
+    expect(useSettingsStore.getState().dirty).toBe(false)
+  })
+
+  it('updateSettings preserves an existing dirty flag on a later no-op patch', () => {
+    useSettingsStore.getState().updateSettings({ theme: 'dark' })
+    expect(useSettingsStore.getState().dirty).toBe(true)
+    const { density } = useSettingsStore.getState().settings
+    useSettingsStore.getState().updateSettings({ density })
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
   it('markSaved clears the dirty flag without changing settings', () => {
     useSettingsStore.getState().updateSettings({ density: 'compact' })
     expect(useSettingsStore.getState().dirty).toBe(true)
