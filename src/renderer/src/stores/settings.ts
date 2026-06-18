@@ -16,7 +16,7 @@ interface SettingsState {
   dirty: boolean
   /** Replace settings wholesale (e.g. after loading persisted state); clears dirty. */
   setSettings: (settings: Settings) => void
-  /** Merge a partial update and mark dirty. */
+  /** Merge a partial update; marks dirty only when a value actually changes. */
   updateSettings: (patch: Partial<Settings>) => void
   /** Clear the dirty flag (after a successful persist). */
   markSaved: () => void
@@ -27,6 +27,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   dirty: false,
   setSettings: (settings) => set({ settings, dirty: false }),
   updateSettings: (patch) =>
-    set((state) => ({ settings: { ...state.settings, ...patch }, dirty: true })),
+    set((state) => {
+      const next = { ...state.settings, ...patch }
+      const changed = (Object.keys(patch) as (keyof Settings)[]).some(
+        (key) => state.settings[key] !== next[key]
+      )
+      return { settings: next, dirty: state.dirty || changed }
+    }),
   markSaved: () => set({ dirty: false })
 }))
