@@ -22,10 +22,10 @@ useDefault = true
 description = "Known-fake fixtures used in src/main/redact.test.ts"
 regexTarget = "match"
 regexes = [
-  '''hunter2''',
-  '''tok_abc''',
-  '''authcookie_SECRET''',
-  '''AK_LIVE_999''',
-  '''jwt\.body\.sig''',
-  '''Bearer abc\.def\.ghi''',
+  '''^hunter2$''',
+  '''^tok_abc$''',
+  '''^authcookie_SECRET$''',
+  '''^AK_LIVE_999$''',
+  '''^jwt\.body\.sig$''',
+  '''^Bearer abc\.def\.ghi$''',
 ]
