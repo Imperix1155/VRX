@@ -13,6 +13,11 @@ describe('fetchFriends', () => {
     vi.unstubAllGlobals()
   })
 
+  it('throws when window is undefined (pure node context)', async () => {
+    // no window stub — exercises the `typeof window === 'undefined'` guard
+    await expect(fetchFriends('vrchat')).rejects.toThrow('bridge_unavailable')
+  })
+
   it('throws when the bridge is unavailable', async () => {
     vi.stubGlobal('window', {})
     await expect(fetchFriends('vrchat')).rejects.toThrow('bridge_unavailable')
