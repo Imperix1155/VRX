@@ -4,6 +4,8 @@
   "friends": {
     "title": "Friends",
     "loading": "Loading...",
-    "empty": "No friends online"
+    "empty": "No friends online",
+    "refresh": "Refresh",
+    "error": "Couldn't load friends"
   }
 }
