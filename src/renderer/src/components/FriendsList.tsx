@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
-import { useFriendsStore } from '../stores/friends'
+import { useFriends } from '../queries/friends'
 
 function presenceClass(presence: Friend['presence']): string {
   if (presence === 'in-game') return 'bg-[var(--ingame)]'
@@ -30,24 +29,35 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
 
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
-  const { friends, loading, error, fetchFriends } = useFriendsStore()
-
-  useEffect(() => {
-    fetchFriends('vrchat')
-  }, [fetchFriends])
+  // Server data comes from the TanStack Query cache (VRX-22); the Zustand store
+  // holds only view state (search/filter/selection).
+  const { data: friends, isPending, isError, isFetching, refetch } = useFriends('vrchat')
 
   return (
     <section className="rounded-panel border border-white/10 p-4">
-      <h2 className="mb-3 font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
-        {t('friends.title')}
-      </h2>
-      {loading && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {!loading && !error && friends.length === 0 && (
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
+          {t('friends.title')}
+        </h2>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+          aria-label={t('friends.refresh')}
+          className="rounded-control px-2 py-1 text-xs text-[var(--text-dim)] hover:bg-white/5 disabled:opacity-50 motion-safe:transition-colors"
+        >
+          {t('friends.refresh')}
+        </button>
+      </div>
+      {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
+      {/* Stale-while-revalidate: only surface the error when there's no cached data;
+          a background refetch failure keeps showing the last good list. */}
+      {isError && !friends && <p className="text-sm text-red-400">{t('friends.error')}</p>}
+      {friends && friends.length === 0 && (
         <p className="text-sm text-[var(--text-faint)]">{t('friends.empty')}</p>
       )}
       <ul className="flex flex-col gap-0.5">
-        {friends.map((f) => (
+        {friends?.map((f) => (
           <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
         ))}
       </ul>

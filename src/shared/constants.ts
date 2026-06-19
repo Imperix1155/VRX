@@ -22,8 +22,10 @@ export const CVR_WS_URL = 'wss://api.chilloutvr.net/1/users/ws' as const
 // ─── Polling / refresh cadence ───────────────────────────────────────────────
 // NOTE: WebSocket is the primary real-time path (VRX-146/147). These intervals
 // are the REST reconcile/fallback cadence (VRX-22/77), not the live path.
-/** Default friend-list reconcile interval (ms). User-configurable (VRX-77). */
-export const AUTO_REFRESH_MS = 120_000
+/** Friend-list REST reconcile interval (ms) — the slow safety-net cadence
+ *  (minutes, not seconds), NOT a live poll: the WS drives live updates
+ *  (VRX-146/147). User-configurable (VRX-77). */
+export const FRIENDS_RECONCILE_MS = 300_000
 /** Per-request timeout for all API calls (ms). */
 export const API_TIMEOUT_MS = 15_000
 /** Debounce for the friend-list search box (ms). */
