@@ -12,7 +12,7 @@ export function friendsQueryKey(platform: Platform): readonly ['friends', Platfo
  * (Preview/test env), mirroring the old store. Exported (pure) for unit tests.
  */
 export async function fetchFriends(platform: Platform): Promise<Friend[]> {
-  if (!window.vrx) throw new Error('bridge_unavailable')
+  if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   return window.vrx.getFriends({ platform })
 }
 
