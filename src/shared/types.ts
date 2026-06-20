@@ -25,6 +25,10 @@ export type Platform = 'vrchat' | 'chilloutvr'
  */
 export type PresenceState = 'in-game' | 'active' | 'offline'
 
+interface Presence {
+  state: PresenceState
+}
+
 /**
  * STATUS = user-chosen intent → the labeled PILL. VRChat only (null on CVR).
  * ⚠️ VRChat API string "active" maps to 'online' here (displays "Online", green);
@@ -49,11 +53,37 @@ export type OpennessTier =
   | 'invite' // VRChat Invite / CVR Owner Must Invite
   | 'offline' // CVR Offline Instance (not joinable)
 
+/** Platform-true instance type before it is normalized into the openness ladder. */
+export type VrcInstanceType =
+  | 'public'
+  | 'friends-plus'
+  | 'friends'
+  | 'invite-plus'
+  | 'invite'
+  | 'group-public'
+  | 'group-plus'
+  | 'group'
+
+export type CvrInstanceType =
+  | 'public'
+  | 'friends-of-friends'
+  | 'friends'
+  | 'everyone-can-invite'
+  | 'owner-must-invite'
+  | 'group-public'
+  | 'friends-of-members'
+  | 'members-only'
+  | 'offline'
+
+export type InstanceType = VrcInstanceType | CvrInstanceType
+
 export interface InstanceInfo {
   worldId: string
   instanceId: string
   worldName: string | null
   thumbnailUrl: string | null
+  /** Platform-true instance type; normalize to openness for shared UI grouping. */
+  type: InstanceType
   openness: OpennessTier
   /** True for group instances (Group Public / Group+ / Group · etc.). The Group chip modifier. */
   isGroup: boolean
@@ -65,7 +95,7 @@ export interface InstanceInfo {
 }
 
 // ─── Friend (the normalized model both adapters produce) ──────────────────────
-export interface Friend {
+interface FriendBase {
   /** Stable per-platform id (VRChat usr_… / CVR GUID). NEVER displayName. (VRX-61) */
   platformUserId: string
   platform: Platform
@@ -73,17 +103,10 @@ export interface Friend {
   avatarUrl: string | null
 
   /** System presence → the dot. */
-  presence: PresenceState
-  /** User-chosen status → labeled pill. VRChat only; null on CVR. */
-  status: UserStatus
-  /** Custom status text, ≤32 chars. VRChat only; null on CVR. */
-  statusDescription: string | null
+  presence: Presence
 
   /** Current instance, or null when hidden (Ask Me/DND), active, or offline. */
   instance: InstanceInfo | null
-
-  /** VRChat trust rank; null on CVR or when not shown. */
-  trustRank: TrustRank
 
   // ── User-authored, per-account (VRX-24 / VRX-70) ──
   isFavorite: boolean
@@ -92,6 +115,26 @@ export interface Friend {
   /** Link to a cross-platform logical person, if the user has linked this friend (VRX-143). */
   linkedPersonId: string | null
 }
+
+export interface VrcFriend extends FriendBase {
+  platform: 'vrchat'
+  /** User-chosen status → labeled pill. */
+  status: UserStatus
+  /** Custom status text, ≤32 chars. */
+  statusDescription: string | null
+  /** VRChat trust rank; null when not shown. */
+  trustRank: TrustRank
+}
+
+export interface CvrFriend extends FriendBase {
+  platform: 'chilloutvr'
+  presence: { state: Exclude<PresenceState, 'active'> }
+  status: null
+  statusDescription: null
+  trustRank: null
+}
+
+export type Friend = VrcFriend | CvrFriend
 
 // ─── Cross-platform linked person (DESIGN.md §10 / VRX-143) ───────────────────
 /** A user-created link uniting one VRChat + one CVR friend as a single logical person. */

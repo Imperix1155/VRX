@@ -6,6 +6,12 @@
     "loading": "Loading...",
     "empty": "No friends online",
     "refresh": "Refresh",
-    "error": "Couldn't load friends"
+    "error": "Couldn't load friends",
+    "status": {
+      "joinMe": "Join Me",
+      "online": "Online",
+      "askMe": "Ask Me",
+      "dnd": "Do Not Disturb"
+    }
   }
 }

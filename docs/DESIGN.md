@@ -55,6 +55,8 @@ LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interacti
   --st-online:#43c95a; /* status="active" → displays "Online" */
   --st-askme:#ff9a3d;  /* status="ask me" */
   --st-dnd:#e5484b;    /* status="busy"   → displays "Do Not Disturb" */
+  --st-joinme-text:var(--st-joinme); --st-online-text:var(--st-online);
+  --st-askme-text:var(--st-askme); --st-dnd-text:var(--st-dnd);
   --glass-blur:blur(26px) saturate(165%);
   --font-mono:'VT323',ui-monospace,monospace;  /* accent only */
 }
@@ -80,6 +82,8 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
   --st-online:#169a4a;
   --st-askme:#cf6a18;
   --st-dnd:#c9363a;
+  --st-joinme-text:#124e91; --st-online-text:#0f6e35;
+  --st-askme-text:#91480e; --st-dnd-text:#8d2428;
   --glass-blur:blur(24px) saturate(142%);
 }
 ```
