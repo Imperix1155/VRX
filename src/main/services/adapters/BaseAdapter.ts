@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { API_TIMEOUT_MS } from '@shared/constants'
 import type {
   AdapterEvent,
   AuthStatus,
@@ -13,7 +14,6 @@ import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import { AuthError, NetworkError, RateLimitError } from './errors'
 
 const MIN_INTERVAL_MS = 1_000
-const API_TIMEOUT_MS = 10_000
 const BASE_RETRY_DELAY_MS = 1_000
 const MAX_RETRY_DELAY_MS = 30_000
 const MAX_429_RETRIES = 3
@@ -41,7 +41,8 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   abstract readonly platform: Platform
 
   private readonly sleep: (ms: number) => Promise<void>
-  private lastRequestAt = 0
+  private nextRequestAt = 0
+  private cooldownUntil = 0
   private consecutiveFailures = 0
   private lastFailureAt = 0
 
@@ -60,21 +61,19 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     ) {
       throw new NetworkError('Circuit open: too many consecutive failures')
     }
-    return this.attempt(url, schema, options, 0)
+    return this.attempt(url, schema, options, 0, null)
   }
 
   private async attempt<T>(
     url: string,
     schema: z.ZodType<T>,
     options: RequestInit,
-    retryCount: number
+    retryCount: number,
+    reservedRetryAt: number | null
   ): Promise<T> {
-    // Rate limit: enforce at least MIN_INTERVAL_MS between outgoing requests.
-    const elapsed = Date.now() - this.lastRequestAt
-    if (elapsed < MIN_INTERVAL_MS) {
-      await this.sleep(MIN_INTERVAL_MS - elapsed + jitter())
+    if (reservedRetryAt === null) {
+      await this.waitForRequestSlot()
     }
-    this.lastRequestAt = Date.now()
 
     let response: Response
     try {
@@ -93,16 +92,14 @@ export abstract class BaseAdapter implements IPlatformAdapter {
 
     // 429 — backoff and retry; 429s are not circuit-breaker events.
     if (response.status === 429) {
+      const delay = this.rateLimitDelay(response, retryCount)
       if (retryCount >= MAX_429_RETRIES) {
-        throw new RateLimitError(MAX_RETRY_DELAY_MS)
+        this.applyCooldown(delay, false)
+        throw new RateLimitError(delay)
       }
-      const retryAfterHeader = response.headers.get('Retry-After')
-      const parsedRetryAfter = retryAfterHeader !== null ? parseInt(retryAfterHeader, 10) : NaN
-      const delay = !isNaN(parsedRetryAfter)
-        ? parsedRetryAfter * 1_000 + jitter()
-        : Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, retryCount), MAX_RETRY_DELAY_MS) + jitter()
-      await this.sleep(delay)
-      return this.attempt(url, schema, options, retryCount + 1)
+      const retryAt = this.applyCooldown(delay, true)
+      await this.sleep(Math.max(0, retryAt - Date.now()))
+      return this.attempt(url, schema, options, retryCount + 1, retryAt)
     }
 
     if (response.status === 401 || response.status === 403) {
@@ -138,6 +135,36 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.lastFailureAt = Date.now()
   }
 
+  private async waitForRequestSlot(): Promise<void> {
+    while (true) {
+      const now = Date.now()
+      const requestAt = Math.max(now, this.nextRequestAt, this.cooldownUntil)
+      this.nextRequestAt = requestAt + MIN_INTERVAL_MS + jitter()
+
+      if (requestAt > now) {
+        await this.sleep(requestAt - now)
+      }
+
+      if (Date.now() >= this.cooldownUntil) return
+    }
+  }
+
+  private rateLimitDelay(response: Response, retryCount: number): number {
+    const headerDelay = retryAfterDelayMs(response.headers.get('Retry-After'), Date.now())
+    const fallbackDelay = Math.min(BASE_RETRY_DELAY_MS * 2 ** retryCount, MAX_RETRY_DELAY_MS)
+    return (headerDelay ?? fallbackDelay) + jitter()
+  }
+
+  private applyCooldown(delay: number, reserveRetrySlot: boolean): number {
+    const retryAt = Date.now() + delay
+    this.cooldownUntil = Math.max(this.cooldownUntil, retryAt)
+    this.nextRequestAt = Math.max(
+      this.nextRequestAt,
+      retryAt + (reserveRetrySlot ? MIN_INTERVAL_MS + jitter() : 0)
+    )
+    return retryAt
+  }
+
   abstract getAuthStatus(): Promise<AuthStatus>
   abstract login(credentials: Credentials): Promise<LoginResult>
   abstract importSession(): Promise<boolean>
@@ -146,4 +173,17 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   abstract joinInstance(instanceId: string, mode: JoinMode): Promise<void>
   abstract selfInvite(instanceId: string): Promise<void>
   abstract subscribe(handler: (event: AdapterEvent) => void): Unsubscribe
+}
+
+function retryAfterDelayMs(header: string | null, now: number): number | null {
+  if (header === null) return null
+
+  const trimmed = header.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed) * 1_000
+  if (!/[a-z,]/i.test(trimmed)) return null
+
+  const retryAt = Date.parse(trimmed)
+  if (Number.isFinite(retryAt) && retryAt >= now) return retryAt - now
+
+  return null
 }
