@@ -292,11 +292,77 @@ describe('VrcAdapter', () => {
   })
 
   describe('scaffolded methods', () => {
-    it('importSession is a no-op (VRX-54) and getFriends is not yet implemented (VRX-43)', async () => {
+    it('importSession is a no-op (VRX-54)', async () => {
       const adapter = new VrcAdapter(fakeStore(), noopSleep)
       expect(await adapter.importSession()).toBe(false)
-      await expect(adapter.getFriends()).rejects.toThrow(/not implemented/)
+    })
+
+    it('subscribe returns an unsubscribe function', () => {
+      const adapter = new VrcAdapter(fakeStore(), noopSleep)
       expect(typeof adapter.subscribe()).toBe('function')
+    })
+
+    it('getFriends returns a normalized friend list (VRX-43)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'usr_00000001',
+              displayName: 'Alice',
+              currentAvatarThumbnailImageUrl: null,
+              status: 'active',
+              statusDescription: null,
+              tags: []
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      // /auth/user for buckets: return empty buckets + no friends in any bucket
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'usr_self',
+            displayName: 'Self',
+            onlineFriends: [],
+            activeFriends: [],
+            offlineFriends: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      // online page (1 friend)
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              id: 'usr_00000001',
+              displayName: 'Alice',
+              currentAvatarThumbnailImageUrl: null,
+              status: 'active',
+              statusDescription: null,
+              tags: []
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      // offline page (empty — ends pass)
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+
+      const friends = await adapter.getFriends()
+      expect(friends).toHaveLength(1)
+      expect(friends[0].platform).toBe('vrchat')
+      expect(friends[0].platformUserId).toBe('usr_00000001')
+      expect(friends[0].displayName).toBe('Alice')
     })
   })
 })

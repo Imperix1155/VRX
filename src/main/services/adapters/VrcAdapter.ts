@@ -10,6 +10,7 @@ import type {
 } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
+import { fetchFriends } from './vrchat/fetchFriends'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -203,8 +204,9 @@ export class VrcAdapter extends VrcApiClient {
     return Promise.resolve(false)
   }
 
-  getFriends(): Promise<Friend[]> {
-    return Promise.reject(new Error('VrcAdapter.getFriends not implemented (VRX-43)'))
+  async getFriends(): Promise<Friend[]> {
+    const { friends } = await fetchFriends((path, schema) => this.get(path, schema))
+    return friends
   }
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('VrcAdapter.getInstanceDetails not implemented'))
