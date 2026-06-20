@@ -17,6 +17,21 @@
   --text: #f3f1fb;
   --text-dim: rgba(231, 225, 250, 0.72);
   --text-faint: rgba(216, 208, 242, 0.46);
+  --border: rgba(255, 255, 255, 0.1);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --control-fill: rgba(255, 255, 255, 0.05);
+  --control-fill-hover: rgba(255, 255, 255, 0.1);
+  --error: #f87171;
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --friend-status-description-width: 160px;
 
   /* PLATFORM — deep + saturated (spine/tint/glyph only) */
   --vrc: #2b7ce8; /* VRChat / blue */
@@ -43,6 +58,11 @@
   --text: #14131c;
   --text-dim: rgba(30, 28, 42, 0.72);
   --text-faint: rgba(52, 49, 70, 0.48);
+  --border: rgba(40, 48, 68, 0.16);
+  --surface-hover: rgba(20, 19, 28, 0.045);
+  --control-fill: rgba(20, 19, 28, 0.045);
+  --control-fill-hover: rgba(20, 19, 28, 0.09);
+  --error: #b4232c;
 
   --vrc: #1f6fd3;
   --cvr: #d85f18;
