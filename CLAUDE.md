@@ -52,6 +52,7 @@ value (never by path) in `.gitleaks.toml`.
   agents never self-merge. STOP after opening a PR.
 - Branch names exactly `imperix/vrx-XX-slug`; commit messages reference `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version comments; Dependabot updates the pins.
+  Set `actions/checkout` credential persistence to false unless a job explicitly needs authenticated git writes.
 - No hardcoded `C:\`/`%APPDATA%`/`~` paths — use `app.getPath()`. No `console.log` (electron-log).
   No `any`/`@ts-ignore` without an explanation comment.
 - Verify before declaring done: `npm run typecheck && npm run lint && npm run build` must pass.
