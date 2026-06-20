@@ -18,3 +18,24 @@ export class NetworkError extends Error {
     this.name = 'NetworkError'
   }
 }
+
+export class CVRAuthError extends AuthError {
+  constructor(message = 'ChilloutVR authentication required') {
+    super(message)
+    this.name = 'CVRAuthError'
+  }
+}
+
+export class CVRRateLimitError extends RateLimitError {
+  constructor(retryAfterMs: number) {
+    super(retryAfterMs)
+    this.name = 'CVRRateLimitError'
+  }
+}
+
+export class CVRNetworkError extends NetworkError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause)
+    this.name = 'CVRNetworkError'
+  }
+}
