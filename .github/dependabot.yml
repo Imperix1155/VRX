@@ -14,7 +14,7 @@ updates:
           - patch
 
   # GitHub Actions versions — weekly, grouped. Covers the Dependabot half of
-  # VRX-149 (keeps action refs current); SHA-pinning remains optional there.
+  # VRX-149 by keeping policy-required SHA-pinned action refs current.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
