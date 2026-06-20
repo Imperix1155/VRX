@@ -8,7 +8,7 @@ import { BaseAdapter } from './BaseAdapter'
  * descriptive UA carrying contact info. Hardened/finalized in VRX-129; the
  * contact is the public repo (no personal info).
  */
-const VRC_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
+export const VRC_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
 
 /**
  * Low-level VRChat API client (VRX-41) — the typed HTTP layer every VRChat
