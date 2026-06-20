@@ -105,6 +105,15 @@ describe('parsePresence — status axis', () => {
     const result = parsePresence(baseFriend(USR_A, { status: 'some-future-status' }), baseBuckets())
     expect(result.status).toBe('online')
   })
+
+  it('maps an inherited-property name (e.g. "toString") → "online" (no prototype-chain false match)', () => {
+    expect(parsePresence(baseFriend(USR_A, { status: 'toString' }), baseBuckets()).status).toBe(
+      'online'
+    )
+    expect(parsePresence(baseFriend(USR_A, { status: 'constructor' }), baseBuckets()).status).toBe(
+      'online'
+    )
+  })
 })
 
 // ─── statusDescription pass-through ──────────────────────────────────────────

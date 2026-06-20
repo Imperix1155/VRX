@@ -58,7 +58,8 @@ const STATUS_MAP: Record<string, UserStatus> = {
 function mapStatus(raw: string | null | undefined): UserStatus {
   if (raw == null) return null
   const key = raw.toLowerCase()
-  if (key in STATUS_MAP) return STATUS_MAP[key]
+  // Own-key check (not `in`) so inherited props like 'toString'/'constructor' don't false-match.
+  if (Object.hasOwn(STATUS_MAP, key)) return STATUS_MAP[key]
   // Unknown strings degrade to 'online' (generic green pill — never crash per CLAUDE.md §API etiquette).
   return 'online'
 }
