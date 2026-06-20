@@ -50,27 +50,32 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.sleep = sleepFn
   }
 
-  protected async request<T>(
-    url: string,
-    schema: z.ZodType<T>,
-    options: RequestInit = {}
-  ): Promise<T> {
+  /**
+   * Low-level request: rate limiting (1 req/sec + jitter), AbortSignal.timeout,
+   * redirect:'error', 429 backoff/retry, and the circuit breaker — returning the
+   * raw `Response` WITHOUT interpreting its status or body. Non-429 statuses
+   * (200/401/500/…) come back as-is for the caller to interpret; only a thrown
+   * fetch (network failure) records a circuit failure here.
+   *
+   * Auth flows use this directly so a 401 is a clean "wrong password" result —
+   * NOT an `AuthError` plus a circuit-breaker lockout after 3 wrong attempts.
+   */
+  protected async rawRequest(url: string, options: RequestInit = {}): Promise<Response> {
     if (
       this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD &&
       Date.now() - this.lastFailureAt < CIRCUIT_RESET_MS
     ) {
       throw new NetworkError('Circuit open: too many consecutive failures')
     }
-    return this.attempt(url, schema, options, 0, null)
+    return this.attemptRaw(url, options, 0, null)
   }
 
-  private async attempt<T>(
+  private async attemptRaw(
     url: string,
-    schema: z.ZodType<T>,
     options: RequestInit,
     retryCount: number,
     reservedRetryAt: number | null
-  ): Promise<T> {
+  ): Promise<Response> {
     if (reservedRetryAt === null) {
       await this.waitForRequestSlot()
     }
@@ -99,8 +104,24 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       }
       const retryAt = this.applyCooldown(delay, true)
       await this.sleep(Math.max(0, retryAt - Date.now()))
-      return this.attempt(url, schema, options, retryCount + 1, retryAt)
+      return this.attemptRaw(url, options, retryCount + 1, retryAt)
     }
+
+    return response
+  }
+
+  /**
+   * Typed request: `rawRequest` + status/JSON/Zod interpretation. A non-2xx
+   * response (401/403 → `AuthError`, else `NetworkError`), an unparseable body,
+   * or a schema mismatch records a circuit failure; a fully-validated response
+   * resets it.
+   */
+  protected async request<T>(
+    url: string,
+    schema: z.ZodType<T>,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const response = await this.rawRequest(url, options)
 
     if (response.status === 401 || response.status === 403) {
       this.recordFailure()
