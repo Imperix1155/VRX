@@ -78,6 +78,8 @@ Default section order:
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
 
+- Measure twice, cut once: establish a verified baseline, confirm constraints and compatibility, then make incremental changes with verification between steps.
+
 ## Child DOX Index
 
 VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is **[`docs/DESIGN.md`](./docs/DESIGN.md)** (rendered guide: `docs/design.html`; visual reference: `docs/glass.html`).
