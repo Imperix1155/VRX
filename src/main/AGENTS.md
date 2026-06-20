@@ -16,6 +16,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `services/adapters/VrcApiClient.test.ts` — unit tests for the client delta (VRX-41): URL = base+path, cookie/User-Agent headers, POST JSON body, 401→`AuthError`.
 - `services/adapters/FakeVrcAdapter.ts` — development stub returning hardcoded VRChat friends; implements `IPlatformAdapter` directly (NOT via `BaseAdapter` — it makes no HTTP calls). Replaced when the real `VrcAdapter` lands.
 - `services/settings.ts` — electron-store-backed settings persistence (VRX-23): `loadSettings()` (migrate + validate on read, then persist the normalized form back) and `saveSettings(patch)`. Schema/migration/defaults live in `@shared/settings`; this is the thin wiring. electron-store@11 is ESM-only, so it is **bundled** into the main process (not externalized) via `externalizeDepsPlugin({ exclude: ['electron-store'] })` in `electron.vite.config.ts` — a CJS `require()` of it would throw at runtime.
+- `services/credentials.ts` — main-only credential persistence (VRX-34): encrypts values with Electron `safeStorage`, stores only base64-encoded encrypted blobs in the `credentials` electron-store, and exposes save/load/delete operations for main-process auth and logout flows.
 - `ipc/` — all `IpcInvoke` channel handlers; see [`ipc/AGENTS.md`](ipc/AGENTS.md) for the full index (VRX-19/20/25).
 - `platform/` — placeholder until real platform adapters land.
 - `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers via `contextBridge`; `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
@@ -26,6 +27,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - No hardcoded paths — use `app.getPath()`.
 - `redact.ts` MUST stay pure (no electron imports) so it remains unit-testable in isolation.
 - Never write to VRCX/CVRX folders.
+- Credential values must enter and leave persistence only through `services/credentials.ts`; never expose `loadCredential()` through IPC or log its inputs/outputs. Credential keys are runtime-allowlisted and dot notation stays disabled. Encryption unavailability must fail closed, and Linux must also reject Electron's `basic_text` storage backend even when `isEncryptionAvailable()` is true; deletion remains available.
 
 ## Work Guidance
 
