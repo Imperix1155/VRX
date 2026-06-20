@@ -2,23 +2,68 @@ import { useTranslation } from 'react-i18next'
 import type { Friend } from '@shared/types'
 import { useFriends } from '../queries/friends'
 
-function presenceClass(presence: Friend['presence']): string {
-  if (presence === 'in-game') return 'bg-[var(--ingame)]'
-  if (presence === 'active') return 'bg-[var(--active)]'
+const STATUS_PILLS = {
+  'join-me': {
+    labelKey: 'friends.status.joinMe',
+    className:
+      'border-[color-mix(in_srgb,var(--st-joinme)_38%,transparent)] bg-[color-mix(in_srgb,var(--st-joinme)_14%,transparent)] text-[var(--st-joinme-text)]',
+    dotClassName: 'bg-[var(--st-joinme)]'
+  },
+  online: {
+    labelKey: 'friends.status.online',
+    className:
+      'border-[color-mix(in_srgb,var(--st-online)_36%,transparent)] bg-[color-mix(in_srgb,var(--st-online)_14%,transparent)] text-[var(--st-online-text)]',
+    dotClassName: 'bg-[var(--st-online)]'
+  },
+  'ask-me': {
+    labelKey: 'friends.status.askMe',
+    className:
+      'border-[color-mix(in_srgb,var(--st-askme)_40%,transparent)] bg-[color-mix(in_srgb,var(--st-askme)_15%,transparent)] text-[var(--st-askme-text)]',
+    dotClassName: 'bg-[var(--st-askme)]'
+  },
+  dnd: {
+    labelKey: 'friends.status.dnd',
+    className:
+      'border-[color-mix(in_srgb,var(--st-dnd)_42%,transparent)] bg-[color-mix(in_srgb,var(--st-dnd)_15%,transparent)] text-[var(--st-dnd-text)]',
+    dotClassName: 'bg-[var(--st-dnd)]'
+  }
+} as const satisfies Record<
+  NonNullable<Friend['status']>,
+  { labelKey: string; className: string; dotClassName: string }
+>
+
+function presenceClass(state: Friend['presence']['state']): string {
+  if (state === 'in-game') return 'bg-[var(--ingame)]'
+  if (state === 'active') return 'bg-[var(--active)]'
   return 'bg-[var(--offline)]'
 }
 
 function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
+  const { t } = useTranslation()
+  const statusPill =
+    friend.platform === 'vrchat' && friend.status ? STATUS_PILLS[friend.status] : null
+
   return (
     <li className="flex items-center gap-[var(--space-3)] rounded-control px-[var(--space-3)] py-[var(--space-2)] hover:bg-[var(--surface-hover)]">
       <span
-        className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence)}`}
+        className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
         aria-hidden="true"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--text)]">
         {friend.displayName}
       </span>
-      {friend.statusDescription && (
+      {statusPill && (
+        <span
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusPill.className}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusPill.dotClassName}`}
+            aria-hidden="true"
+          />
+          {t(statusPill.labelKey)}
+        </span>
+      )}
+      {friend.platform === 'vrchat' && friend.statusDescription && (
         <span className="shrink-0 max-w-[var(--friend-status-description-width)] truncate text-xs text-[var(--text-dim)]">
           {friend.statusDescription}
         </span>

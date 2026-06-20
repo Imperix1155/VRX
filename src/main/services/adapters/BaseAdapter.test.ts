@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { z } from 'zod'
+import { API_TIMEOUT_MS } from '@shared/constants'
 import type { AuthStatus, Friend, LoginResult, Platform } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
 import { BaseAdapter } from './BaseAdapter'
@@ -78,6 +79,8 @@ describe('BaseAdapter', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -96,6 +99,15 @@ describe('BaseAdapter', () => {
       await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(NetworkError)
       const result = await adapter.fetch('http://api/x', schema)
       expect(result).toEqual({ id: 1 })
+    })
+
+    it('uses the shared API timeout on every request', async () => {
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+
+      await new TestAdapter().fetch('http://api/x', schema)
+
+      expect(timeoutSpy).toHaveBeenCalledWith(API_TIMEOUT_MS)
     })
   })
 
@@ -117,9 +129,88 @@ describe('BaseAdapter', () => {
       expect(ms).toBeGreaterThan(900)
       expect(ms).toBeLessThanOrEqual(1_100)
     })
+
+    it('reserves distinct slots for concurrent requests', async () => {
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
+      vi.spyOn(Date, 'now').mockReturnValue(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const sleepResolvers: Array<() => void> = []
+      const sleepSpy = vi.fn<(ms: number) => Promise<void>>(
+        () => new Promise<void>((resolve) => sleepResolvers.push(resolve))
+      )
+      const adapter = new TestAdapter(sleepSpy)
+
+      const requests = [
+        adapter.fetch('http://api/1', schema),
+        adapter.fetch('http://api/2', schema),
+        adapter.fetch('http://api/3', schema)
+      ]
+
+      expect(sleepSpy).toHaveBeenCalledTimes(2)
+      expect(sleepSpy.mock.calls.map(([ms]) => ms)).toEqual([1_000, 2_000])
+
+      for (const resolve of sleepResolvers) resolve()
+      await expect(Promise.all(requests)).resolves.toEqual([validBody, validBody, validBody])
+    })
+
+    it('keeps concurrent slots one second apart when jitter varies', async () => {
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
+      vi.spyOn(Date, 'now').mockReturnValue(10_000)
+      vi.spyOn(Math, 'random').mockReturnValueOnce(0.99).mockReturnValue(0)
+      const sleepResolvers: Array<() => void> = []
+      const sleepSpy = vi.fn<(ms: number) => Promise<void>>(
+        () => new Promise<void>((resolve) => sleepResolvers.push(resolve))
+      )
+      const adapter = new TestAdapter(sleepSpy)
+
+      const requests = [
+        adapter.fetch('http://api/1', schema),
+        adapter.fetch('http://api/2', schema),
+        adapter.fetch('http://api/3', schema)
+      ]
+
+      expect(sleepSpy.mock.calls.map(([ms]) => ms)).toEqual([1_099, 2_099])
+
+      for (const resolve of sleepResolvers) resolve()
+      await Promise.all(requests)
+    })
   })
 
   describe('429 backoff', () => {
+    it('pauses and reorders already queued requests behind a shared cooldown', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const dispatches: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        return Promise.resolve(
+          dispatches.length === 1
+            ? makeResponse(429, {}, { 'retry-after': '5' })
+            : makeResponse(200, validBody)
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const requests = [
+        adapter.fetch('http://api/1', schema),
+        adapter.fetch('http://api/2', schema),
+        adapter.fetch('http://api/3', schema)
+      ]
+      await vi.advanceTimersByTimeAsync(4_999)
+
+      expect(dispatches).toEqual([{ url: 'http://api/1', at: 10_000 }])
+
+      await vi.advanceTimersByTimeAsync(3_001)
+      await expect(Promise.all(requests)).resolves.toEqual([validBody, validBody, validBody])
+      expect(dispatches).toEqual([
+        { url: 'http://api/1', at: 10_000 },
+        { url: 'http://api/1', at: 15_000 },
+        { url: 'http://api/2', at: 16_000 },
+        { url: 'http://api/3', at: 17_000 }
+      ])
+    })
+
     it('retries once after Retry-After header and succeeds', async () => {
       fetchMock
         .mockResolvedValueOnce(makeResponse(429, {}, { 'retry-after': '2' }))
@@ -132,6 +223,60 @@ describe('BaseAdapter', () => {
       const retrySleep = (sleepSpy.mock.calls as [number][]).find(([ms]) => ms >= 2_000)
       expect(retrySleep).toBeDefined()
     })
+
+    it('parses an HTTP-date Retry-After value against the dispatch clock', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-06-20T12:00:00.000Z'))
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const dispatchTimes: number[] = []
+      fetchMock.mockImplementation(() => {
+        dispatchTimes.push(Date.now())
+        return Promise.resolve(
+          dispatchTimes.length === 1
+            ? makeResponse(429, {}, { 'retry-after': 'Sat, 20 Jun 2026 12:00:04 GMT' })
+            : makeResponse(200, validBody)
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const request = adapter.fetch('http://api/x', schema)
+      await vi.advanceTimersByTimeAsync(3_999)
+      expect(dispatchTimes).toEqual([Date.parse('2026-06-20T12:00:00.000Z')])
+
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(request).resolves.toEqual(validBody)
+      expect(dispatchTimes).toEqual([
+        Date.parse('2026-06-20T12:00:00.000Z'),
+        Date.parse('2026-06-20T12:00:04.000Z')
+      ])
+    })
+
+    it.each(['invalid', '-1', '2 seconds'])(
+      'uses bounded fallback backoff for malformed Retry-After %j',
+      async (retryAfter) => {
+        vi.useFakeTimers()
+        vi.setSystemTime(10_000)
+        vi.spyOn(Math, 'random').mockReturnValue(0)
+        const dispatchTimes: number[] = []
+        fetchMock.mockImplementation(() => {
+          dispatchTimes.push(Date.now())
+          return Promise.resolve(
+            dispatchTimes.length === 1
+              ? makeResponse(429, {}, { 'retry-after': retryAfter })
+              : makeResponse(200, validBody)
+          )
+        })
+        const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+        const request = adapter.fetch('http://api/x', schema)
+        await vi.advanceTimersByTimeAsync(999)
+        expect(dispatchTimes).toEqual([10_000])
+
+        await vi.advanceTimersByTimeAsync(1)
+        await expect(request).resolves.toEqual(validBody)
+        expect(dispatchTimes).toEqual([10_000, 11_000])
+      }
+    )
 
     it('retries with exponential backoff when no Retry-After header', async () => {
       fetchMock
@@ -154,10 +299,25 @@ describe('BaseAdapter', () => {
       expect(fetchMock).toHaveBeenCalledTimes(4)
     })
 
+    it('reports the effective final fallback delay when retries are exhausted', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      fetchMock.mockResolvedValue(makeResponse(429, {}))
+
+      await expect(new TestAdapter().fetch('http://api/x', schema)).rejects.toMatchObject({
+        retryAfterMs: 8_000
+      })
+    })
+
     it('does not count 429 exhaustion toward the circuit breaker', async () => {
       // 3× rate-limit exhaustions must NOT open the circuit.
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
       fetchMock.mockResolvedValue(makeResponse(429, {}))
-      const adapter = new TestAdapter()
+      const adapter = new TestAdapter((ms) => {
+        vi.setSystemTime(Date.now() + ms)
+        return Promise.resolve()
+      })
       for (let i = 0; i < 3; i++) {
         await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(RateLimitError)
       }

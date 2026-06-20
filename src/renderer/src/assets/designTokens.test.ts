@@ -85,7 +85,17 @@ function scannableCss(source: string, path: string | null): string {
 
 function scannableSource(source: string, extension: string, path: string | null): string {
   if (['.css', '.less', '.sass', '.scss'].includes(extension)) return scannableCss(source, path)
-  if (extension === '.html') return source.replace(/<!--[\s\S]*?-->/g, '')
+  if (extension === '.html') {
+    // Strip HTML comments to a fixpoint — a single pass can leave a `<!--`
+    // behind on nested/crafted input (CodeQL: incomplete multi-char sanitization).
+    let stripped = source
+    let prev: string
+    do {
+      prev = stripped
+      stripped = stripped.replace(/<!--[\s\S]*?-->/g, '')
+    } while (stripped !== prev)
+    return stripped
+  }
   return stripScriptComments(source)
 }
 
