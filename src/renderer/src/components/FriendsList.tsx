@@ -44,9 +44,9 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
     friend.platform === 'vrchat' && friend.status ? STATUS_PILLS[friend.status] : null
 
   return (
-    <li className="flex items-center gap-3 rounded-control px-3 py-2 hover:bg-white/5">
+    <li className="flex items-center gap-[var(--space-3)] rounded-control px-[var(--space-3)] py-[var(--space-2)] hover:bg-[var(--surface-hover)]">
       <span
-        className={`h-2.5 w-2.5 shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
+        className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
         aria-hidden="true"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--text)]">
@@ -64,7 +64,7 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
         </span>
       )}
       {friend.platform === 'vrchat' && friend.statusDescription && (
-        <span className="shrink-0 max-w-[160px] truncate text-xs text-[var(--text-dim)]">
+        <span className="shrink-0 max-w-[var(--friend-status-description-width)] truncate text-xs text-[var(--text-dim)]">
           {friend.statusDescription}
         </span>
       )}
@@ -79,8 +79,8 @@ export default function FriendsList(): React.JSX.Element {
   const { data: friends, isPending, isError, isFetching, refetch } = useFriends('vrchat')
 
   return (
-    <section className="rounded-panel border border-white/10 p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <section className="rounded-panel border border-[var(--border)] p-[var(--space-4)]">
+      <div className="mb-[var(--space-3)] flex items-center justify-between gap-[var(--space-2)]">
         <h2 className="font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
           {t('friends.title')}
         </h2>
@@ -89,7 +89,7 @@ export default function FriendsList(): React.JSX.Element {
           onClick={() => void refetch()}
           disabled={isFetching}
           aria-label={t('friends.refresh')}
-          className="rounded-control px-2 py-1 text-xs text-[var(--text-dim)] hover:bg-white/5 disabled:opacity-50 motion-safe:transition-colors"
+          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
         >
           {t('friends.refresh')}
         </button>
@@ -97,11 +97,11 @@ export default function FriendsList(): React.JSX.Element {
       {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
       {/* Stale-while-revalidate: only surface the error when there's no cached data;
           a background refetch failure keeps showing the last good list. */}
-      {isError && !friends && <p className="text-sm text-red-400">{t('friends.error')}</p>}
+      {isError && !friends && <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>}
       {friends && friends.length === 0 && (
         <p className="text-sm text-[var(--text-faint)]">{t('friends.empty')}</p>
       )}
-      <ul className="flex flex-col gap-0.5">
+      <ul className="flex flex-col gap-[var(--space-0-5)]">
         {friends?.map((f) => (
           <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
         ))}

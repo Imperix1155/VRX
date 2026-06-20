@@ -8,8 +8,10 @@ import { useState } from 'react'
  */
 function Swatch({ label, swatchClass }: { label: string; swatchClass: string }): React.JSX.Element {
   return (
-    <div className="flex items-center gap-3">
-      <div className={`h-10 w-10 rounded-control border border-white/20 ${swatchClass}`} />
+    <div className="flex items-center gap-[var(--space-3)]">
+      <div
+        className={`h-[var(--space-10)] w-[var(--space-10)] rounded-control border border-[var(--border)] ${swatchClass}`}
+      />
       <span className="text-sm text-[var(--text-dim)]">{label}</span>
     </div>
   )
@@ -25,7 +27,7 @@ function TokenPreview(): React.JSX.Element {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 p-10">
+    <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-[var(--space-8)] p-[var(--space-10)]">
       <header className="flex items-center justify-between">
         <div className="font-mono text-5xl leading-none">
           <span className="text-[var(--vrc)]">V</span>
@@ -35,7 +37,7 @@ function TokenPreview(): React.JSX.Element {
         <button
           type="button"
           onClick={toggleTheme}
-          className="rounded-control border border-white/15 bg-white/5 px-4 py-2 text-sm text-[var(--text)] motion-safe:transition-colors hover:bg-white/10"
+          className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] motion-safe:transition-colors hover:bg-[var(--control-fill-hover)]"
         >
           Theme: {light ? 'Light' : 'Dark'}
         </button>
@@ -46,22 +48,22 @@ function TokenPreview(): React.JSX.Element {
         override.
       </p>
 
-      <section className="rounded-panel border border-white/10 p-6">
-        <h2 className="mb-4 font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
+      <section className="rounded-panel border border-[var(--border)] p-[var(--space-6)]">
+        <h2 className="mb-[var(--space-4)] font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
           Platform
         </h2>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-[var(--space-3)]">
           <Swatch label="VRChat — var(--vrc)" swatchClass="bg-[var(--vrc)]" />
           <Swatch label="ChilloutVR — var(--cvr)" swatchClass="bg-[var(--cvr)]" />
           <Swatch label="Bridge — var(--bridge)" swatchClass="bg-[var(--bridge)]" />
         </div>
       </section>
 
-      <section className="rounded-panel border border-white/10 p-6">
-        <h2 className="mb-4 font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
+      <section className="rounded-panel border border-[var(--border)] p-[var(--space-6)]">
+        <h2 className="mb-[var(--space-4)] font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
           Presence state
         </h2>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-[var(--space-3)]">
           <Swatch label="In-game — var(--ingame)" swatchClass="bg-[var(--ingame)]" />
           <Swatch label="Active — var(--active)" swatchClass="bg-[var(--active)]" />
           <Swatch label="Offline — var(--offline)" swatchClass="bg-[var(--offline)]" />

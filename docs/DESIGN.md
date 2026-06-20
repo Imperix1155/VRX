@@ -42,6 +42,11 @@ LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interacti
 :root{
   --bg-base:#08080b; --text:#f3f1fb;   /* near-black, neutral (no purple cast) */
   --text-dim:rgba(231,225,250,0.72); --text-faint:rgba(216,208,242,0.46);
+  --border:rgba(255,255,255,0.10); --surface-hover:rgba(255,255,255,0.05);
+  --control-fill:rgba(255,255,255,0.05); --control-fill-hover:rgba(255,255,255,0.10); --error:#f87171;
+  --space-0-5:2px; --space-1:4px; --space-2:8px; --space-2-5:10px; --space-3:12px;
+  --space-4:16px; --space-6:24px; --space-8:32px; --space-10:40px;
+  --friend-status-description-width:160px;
   /* PLATFORM — deep + saturated (spine/tint/glyph only) */
   --vrc:#2b7ce8;     /* VRChat / blue        rgb(43,124,232) */
   --cvr:#f3711e;     /* ChilloutVR / orange  rgb(243,113,30) */
@@ -69,6 +74,8 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
 [data-theme="light"]{
   --bg-base:#eef3f8; --text:#14131c;
   --text-dim:rgba(30,28,42,0.72); --text-faint:rgba(52,49,70,0.48);
+  --border:rgba(40,48,68,0.16); --surface-hover:rgba(20,19,28,0.045);
+  --control-fill:rgba(20,19,28,0.045); --control-fill-hover:rgba(20,19,28,0.09); --error:#b4232c;
   /* PLATFORM — same meanings, tuned darker for light glass */
   --vrc:#1f6fd3;     /* VRChat / blue        rgb(31,111,211) */
   --cvr:#d85f18;     /* ChilloutVR / orange  rgb(216,95,24) */
@@ -88,6 +95,8 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
 }
 ```
 RULE: dark remains the baseline/default. Light overrides MUST live behind an explicit theme selector (`[data-theme="light"]`, `.theme-light`, or equivalent) and MUST reuse the same semantic token names. NEVER create parallel component classes just for light mode.
+
+`--control-fill` and `--control-fill-hover` are neutral interactive-control surfaces. Use them as a paired idle/hover affordance for buttons and similar controls; they do not carry platform, state, or status meaning. Static spacing tokens live in `:root` because spacing does not theme-switch; use them for component spacing instead of raw scale utilities on touched surfaces.
 
 ## §3 Glass material
 ```css
