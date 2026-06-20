@@ -39,3 +39,4 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 ## Child DOX Index
 - [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (10 files, VRX-19/20/25)
 - `services/adapters/` — adapter interface, shared HTTP base, VRChat/CVR API clients, errors, and fake adapter (9 files, VRX-16/17/41/55); no child doc yet. Add one when a concrete platform adapter lands.
+- [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md) — pure VRChat parsers/builders: presence, instance-type, trust-rank, join-URL (VRX-44/45/49/50).
