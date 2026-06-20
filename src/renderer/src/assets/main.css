@@ -54,6 +54,18 @@
   --st-dnd-text: var(--st-dnd);
 
   --glass-blur: blur(26px) saturate(165%);
+
+  /* GLASS material (§3) — rgba extracted as vars so .glass class uses no raw rgba */
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-shadow: 0 12px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.05);
+  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.11), transparent 46%);
+  --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
+  --tint-vrc-border: rgba(43, 124, 232, 0.34);
+
+  /* TEXT ON PLATFORM surfaces (login button, etc.) */
+  --text-on-vrc: #ffffff;
 }
 
 /* ── §2A Tokens — light (override only; same semantic names) ───────────────── */
@@ -86,6 +98,17 @@
   --st-dnd-text: #8d2428;
 
   --glass-blur: blur(24px) saturate(142%);
+
+  /* GLASS material — light overrides (§3A) */
+  --glass-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.28));
+  --glass-border: rgba(40, 48, 68, 0.16);
+  --glass-shadow: 0 16px 46px rgba(59, 72, 93, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 -1px 1px rgba(40, 48, 68, 0.08);
+  --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
+  --tint-vrc-bg: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
+  --tint-vrc-border: rgba(31, 111, 211, 0.28);
+
+  --text-on-vrc: #ffffff;
 }
 
 /* ── Static scale → Tailwind utilities (never theme-switches) ──────────────── */
@@ -109,6 +132,32 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Glass material (DESIGN.md §3 / §3A) ──────────────────────────────────── */
+/* rgba values live in :root / [data-theme="light"] above; classes reference vars only */
+.glass {
+  position: relative;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+}
+
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--glass-sheen);
+}
+
+.tint-vrc {
+  background: var(--tint-vrc-bg);
+  border-color: var(--tint-vrc-border);
 }
 
 /**
