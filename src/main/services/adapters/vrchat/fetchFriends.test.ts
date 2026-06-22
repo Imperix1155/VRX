@@ -218,6 +218,64 @@ describe('fetchFriends', () => {
       expect(f.status).toBeNull()
       expect(f.statusDescription).toBeNull()
     })
+
+    it('parses a real location into a non-null InstanceInfo', async () => {
+      const fetcher = buildFetcher(
+        [
+          [
+            {
+              ...makeFriend(1),
+              location: 'wrld_abc:12345~hidden(usr_x)~region(us)'
+            }
+          ]
+        ],
+        []
+      )
+      const result = await fetchFriends(fetcher)
+      const f = result.friends[0]
+      expect(f.instance).not.toBeNull()
+      expect(f.instance!.worldId).toBe('wrld_abc')
+      expect(f.instance!.instanceId).toBe('12345~hidden(usr_x)~region(us)')
+      expect(f.instance!.type).toBe('friends-plus')
+      expect(f.instance!.openness).toBe('friends-plus')
+      expect(f.instance!.isGroup).toBe(false)
+      expect(f.instance!.region).toBe('us')
+      expect(f.instance!.worldName).toBeNull()
+    })
+
+    it('sets instance to null for location="private"', async () => {
+      const fetcher = buildFetcher(
+        [
+          [
+            {
+              ...makeFriend(1),
+              location: 'private'
+            }
+          ]
+        ],
+        []
+      )
+      const result = await fetchFriends(fetcher)
+      expect(result.friends[0].instance).toBeNull()
+    })
+
+    it('sets instance to null when location is absent', async () => {
+      const fetcher = buildFetcher(
+        [
+          [
+            {
+              id: 'usr_00000001',
+              displayName: 'Carol',
+              tags: []
+              // no location field
+            }
+          ]
+        ],
+        []
+      )
+      const result = await fetchFriends(fetcher)
+      expect(result.friends[0].instance).toBeNull()
+    })
   })
 
   describe('MAX_FRIENDS cap', () => {
