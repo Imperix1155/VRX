@@ -7,6 +7,7 @@ type VrxBridge = {
     req: IpcInvoke['get-auth-status']['req']
   ) => Promise<IpcInvoke['get-auth-status']['res']>
   login: (req: IpcInvoke['login']['req']) => Promise<IpcInvoke['login']['res']>
+  verify2fa: (req: IpcInvoke['verify-2fa']['req']) => Promise<IpcInvoke['verify-2fa']['res']>
   joinInstance: (
     req: IpcInvoke['join-instance']['req']
   ) => Promise<IpcInvoke['join-instance']['res']>
