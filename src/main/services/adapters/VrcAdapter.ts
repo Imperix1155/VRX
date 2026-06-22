@@ -53,6 +53,18 @@ function mapTwoFactorMethod(types: string[]): TwoFactorMethod {
 }
 
 /**
+ * A well-formed VRChat instance location: `wrld_<id>:<instance>[~tags]`. Validated
+ * BEFORE the value is interpolated into a request URL path so a crafted instanceId
+ * can't carry URL-structural characters (`/ ? # \`), whitespace, or control chars
+ * and rewrite the authenticated request path (VRX-51 security review). The instance
+ * segment legitimately contains `~ ( ) :` — none URL-structural in a path segment —
+ * so a denylist of structural characters preserves valid locations.
+ */
+function isInstanceLocation(location: string): boolean {
+  return /^wrld_[A-Za-z0-9_-]+:[^/?#\\\s]+$/.test(location)
+}
+
+/**
  * Concrete VRChat adapter (VRX-157) — direct login + 2FA + session restore.
  *
  * Auth calls use the inherited `rawRequest`, NOT `get`/`post`/`request<T>`, so a
@@ -233,14 +245,20 @@ export class VrcAdapter extends VrcApiClient {
     return Promise.reject(new Error('VrcAdapter.joinInstance not implemented'))
   }
   async selfInvite(instanceId: string): Promise<void> {
+    // Validate the location BEFORE classification or URL use: a crafted instanceId
+    // could otherwise satisfy the public-instance check via a `#~private(...)`
+    // fragment yet rewrite the authenticated POST path (VRX-51 security review).
+    if (!isInstanceLocation(instanceId)) {
+      throw new Error('Invalid instance location')
+    }
     // Public instances don't require an invite — the user can just join.
     if (parseInstanceType(instanceId) === 'public') {
       throw new Error('No invite needed for public instances')
     }
 
-    // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw.
-    // The response is a Notification object; we discard it (returns void).
-    // z.unknown() avoids breaking on benign API drift (VRChat Notification shape may change).
+    // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw
+    // (now validated free of URL-structural characters). The Notification response
+    // is discarded (returns void); z.unknown() tolerates benign API drift.
     await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
   }
   subscribe(): Unsubscribe {

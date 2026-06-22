@@ -441,5 +441,21 @@ describe('VrcAdapter', () => {
         expect(String(err)).not.toContain(inviteLocation)
       }
     })
+
+    it.each([
+      '../../../auth/user#~private(usr_x)', // Codex gadget: fragment satisfies the public check, path is rewritten
+      'wrld_abc:11111/../../auth', // path traversal via '/'
+      'wrld_abc:11111?invite=all', // query injection
+      'wrld_abc:11111#frag', // fragment
+      'wrld_abc:11111 has space', // whitespace
+      'not-a-location' // missing wrld_ prefix
+    ])('rejects unsafe/malformed location %j with NO API call (VRX-51 security)', async (bad) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+
+      await expect(adapter.selfInvite(bad)).rejects.toThrow(/invalid instance location/i)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
   })
 })
