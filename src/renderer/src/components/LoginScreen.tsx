@@ -24,9 +24,13 @@ export default function LoginScreen(): React.JSX.Element {
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault()
-    if (!window.vrx) return
-
     setErrorKey(null)
+
+    if (!window.vrx) {
+      setErrorKey('login.error.unknown')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -48,6 +52,10 @@ export default function LoginScreen(): React.JSX.Element {
       } else {
         setErrorKey(mapLoginError(result.error))
       }
+    } catch {
+      // Bridge/IPC failure (e.g. the main handler threw) — surface it instead of
+      // silently re-enabling the button with no feedback.
+      setErrorKey('login.error.unknown')
     } finally {
       setIsSubmitting(false)
     }
