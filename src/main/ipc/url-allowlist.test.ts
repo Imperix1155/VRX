@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAllowedUrl } from './url-allowlist'
+import { isAllowedUrl, isAllowedLaunchUrl } from './url-allowlist'
 
 describe('isAllowedUrl', () => {
   it('allows exact known hosts', () => {
@@ -43,5 +43,71 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('')).toBe(false)
     expect(isAllowedUrl('not a url')).toBe(false)
     expect(isAllowedUrl('://missing-protocol.com')).toBe(false)
+  })
+})
+
+describe('isAllowedLaunchUrl', () => {
+  it('allows well-formed vrchat launch URLs', () => {
+    // Canonical form emitted by buildJoinUrl
+    expect(isAllowedLaunchUrl('vrchat://launch?ref=vrchat.com&id=wrld_abc123:1~region(us)')).toBe(
+      true
+    )
+    // Without optional ref param
+    expect(isAllowedLaunchUrl('vrchat://launch?id=wrld_abc123:1')).toBe(true)
+    // With instance tags (~private, ~nonce, etc.)
+    expect(
+      isAllowedLaunchUrl('vrchat://launch?id=wrld_abc123:1~private(usr_xyz)~nonce(abc)~region(us)')
+    ).toBe(true)
+    // Uppercase scheme/host — URL parser preserves case for non-special schemes,
+    // but our predicate lowercases before comparing
+    expect(isAllowedLaunchUrl('VRCHAT://LAUNCH?id=wrld_abc123:1')).toBe(true)
+  })
+
+  it('denies arbitrary vrchat:// paths (not launch)', () => {
+    expect(isAllowedLaunchUrl('vrchat://evil')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://admin?id=wrld_abc:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://home')).toBe(false)
+  })
+
+  it('denies launch URL with missing or non-wrld_ id', () => {
+    expect(isAllowedLaunchUrl('vrchat://launch')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch?id=')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch?id=evil_world:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch?id=../../../etc/passwd')).toBe(false)
+  })
+
+  it('denies credential-injection via userinfo', () => {
+    // vrchat://launch@evil.com parses hostname as evil.com, not launch
+    expect(isAllowedLaunchUrl('vrchat://launch@evil.com?id=wrld_abc:1')).toBe(false)
+  })
+
+  it('denies authority decoration even when the host is launch (userinfo / port)', () => {
+    // hostname IS launch here, but the strict predicate rejects any userinfo/port
+    expect(isAllowedLaunchUrl('vrchat://user:pass@launch?id=wrld_abc:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://user@launch?id=wrld_abc:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch:1234?id=wrld_abc:1')).toBe(false)
+  })
+
+  it('denies non-vrchat custom schemes', () => {
+    expect(isAllowedLaunchUrl('javascript:alert(1)')).toBe(false)
+    expect(isAllowedLaunchUrl('file:///etc/passwd')).toBe(false)
+    expect(isAllowedLaunchUrl('data:text/html,<script>alert(1)</script>')).toBe(false)
+    expect(isAllowedLaunchUrl('steam://run/123')).toBe(false)
+  })
+
+  it('denies https URLs (isAllowedUrl domain, not isAllowedLaunchUrl)', () => {
+    expect(isAllowedLaunchUrl('https://vrchat.com/home')).toBe(false)
+    expect(isAllowedLaunchUrl('https://vrchat.com/launch?id=wrld_abc:1')).toBe(false)
+  })
+
+  it('denies malformed URLs', () => {
+    expect(isAllowedLaunchUrl('')).toBe(false)
+    expect(isAllowedLaunchUrl('not a url')).toBe(false)
+  })
+
+  it('isAllowedUrl still rejects vrchat: scheme (asymmetry preserved)', () => {
+    // The web-link path must never accept custom schemes
+    expect(isAllowedUrl('vrchat://launch?ref=vrchat.com&id=wrld_abc:1')).toBe(false)
+    expect(isAllowedUrl('vrchat://evil')).toBe(false)
   })
 })
