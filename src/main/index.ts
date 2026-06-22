@@ -5,7 +5,8 @@ import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
 import { loadSettings } from './services/settings'
-import { FakeVrcAdapter } from './services/adapters/FakeVrcAdapter'
+import { CREDENTIAL_KEYS, loadCredential, saveCredential } from './services/credentials'
+import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { registerIpcHandlers } from './ipc'
 
 function createWindow(): void {
@@ -67,7 +68,13 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  const adapters = new Map([['vrchat' as const, new FakeVrcAdapter()]])
+  // The VRChat session cookie persists via safeStorage (VRX-34); the store is
+  // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
+  const vrcCredentials: VrcCredentialStore = {
+    load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
+    save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
+  }
+  const adapters = new Map([['vrchat' as const, new VrcAdapter(vrcCredentials)]])
   registerIpcHandlers(adapters)
 
   createWindow()
