@@ -30,6 +30,7 @@ export interface WorldMeta {
   name: string
   thumbnailUrl: string | null
   capacity: number
+  shortName: string | null
 }
 
 /**
@@ -40,7 +41,8 @@ export interface WorldMeta {
 const WorldApiSchema = z.object({
   name: z.string(),
   thumbnailImageUrl: z.string().nullable().optional(),
-  capacity: z.number().int()
+  capacity: z.number().int(),
+  shortName: z.string().nullable().optional()
 })
 
 interface CacheEntry {
@@ -87,10 +89,22 @@ export class WorldResolver {
     const meta: WorldMeta = {
       name: parsed.data.name,
       thumbnailUrl: parsed.data.thumbnailImageUrl ?? null,
-      capacity: parsed.data.capacity
+      capacity: parsed.data.capacity,
+      shortName: parsed.data.shortName ?? null
     }
 
     this.cache.set(worldId, { meta, fetchedAt: now })
     return meta
   }
+}
+
+/**
+ * Convert a world's shortName to a vrch.at short link.
+ *
+ * - `shortName` present → returns `https://vrch.at/<shortName>`
+ * - `shortName` null or undefined → returns `null`
+ */
+export function worldShortLink(shortName: string | null): string | null {
+  if (!shortName) return null
+  return `https://vrch.at/${shortName}`
 }
