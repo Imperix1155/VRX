@@ -28,7 +28,7 @@
  *   (no access tag)                         → Public
  */
 
-import type { VrcInstanceType } from '@shared/types'
+import type { OpennessTier, VrcInstanceType } from '@shared/types'
 
 /** Splits a raw instanceId into its tag names and values. */
 function parseTags(instanceId: string): Map<string, string> {
@@ -40,6 +40,28 @@ function parseTags(instanceId: string): Map<string, string> {
     tags.set(match[1], match[2] ?? '')
   }
   return tags
+}
+
+/**
+ * Maps a VrcInstanceType to the shared OpennessTier (documented in the file header).
+ * Exported for use by parseLocation and any future consumers.
+ */
+export function opennessFor(type: VrcInstanceType): OpennessTier {
+  switch (type) {
+    case 'public':
+    case 'group-public':
+      return 'public'
+    case 'friends-plus':
+    case 'group-plus':
+      return 'friends-plus'
+    case 'friends':
+      return 'friends'
+    case 'invite-plus':
+      return 'invite-plus'
+    case 'invite':
+    case 'group':
+      return 'invite'
+  }
 }
 
 /**
