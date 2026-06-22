@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { WorldResolver, WORLD_CACHE_TTL_MS } from './WorldResolver'
+import { WorldResolver, WORLD_CACHE_TTL_MS, worldShortLink } from './WorldResolver'
 
 const VALID_WORLD_RAW = {
   name: 'The Great Pug',
@@ -10,7 +10,8 @@ const VALID_WORLD_RAW = {
 const VALID_WORLD_META = {
   name: 'The Great Pug',
   thumbnailUrl: 'https://example.com/pug.jpg',
-  capacity: 20
+  capacity: 20,
+  shortName: null
 }
 
 describe('WorldResolver', () => {
@@ -141,5 +142,34 @@ describe('WorldResolver', () => {
     expect(first).toBeNull()
     expect(second).toEqual(VALID_WORLD_META)
     expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  // ── shortName support ────────────────────────────────────────────────────────
+
+  it('includes shortName in WorldMeta when present in response', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ...VALID_WORLD_RAW,
+      shortName: 'example-world'
+    })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.shortName).toBe('example-world')
+  })
+
+  it('sets shortName to null when absent from response', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ name: 'Test', capacity: 10 })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.shortName).toBeNull()
+  })
+
+  // ── worldShortLink helper ────────────────────────────────────────────────────
+
+  it('worldShortLink converts shortName to https://vrch.at/ link', () => {
+    expect(worldShortLink('example-world')).toBe('https://vrch.at/example-world')
+  })
+
+  it('worldShortLink returns null when shortName is null', () => {
+    expect(worldShortLink(null)).toBeNull()
   })
 })

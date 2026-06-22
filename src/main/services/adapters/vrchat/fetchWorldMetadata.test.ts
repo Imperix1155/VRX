@@ -122,12 +122,14 @@ describe('fetchWorldMetadata', () => {
     expect(result.get('wrld_a')).toEqual({
       name: 'World wrld_a',
       thumbnailUrl: 'https://cdn.example.com/wrld_a.jpg',
-      capacity: 20
+      capacity: 20,
+      shortName: null
     })
     expect(result.get('wrld_b')).toEqual({
       name: 'World wrld_b',
       thumbnailUrl: 'https://cdn.example.com/wrld_b.jpg',
-      capacity: 20
+      capacity: 20,
+      shortName: null
     })
   })
 
