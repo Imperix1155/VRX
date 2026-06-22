@@ -108,6 +108,7 @@ describe('CvrApiClient', () => {
       MatureContentDlc: 'false'
     })
     expect(options.headers['User-Agent']).toMatch(/^VRX\//)
+    expect(options.headers['User-Agent']).toContain('github.com/Imperix1155/VRX')
     expect(options.headers.Authorization).toBeUndefined()
     expect(options.redirect).toBe('error')
     expect(options.signal).toBeInstanceOf(AbortSignal)
