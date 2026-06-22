@@ -9,7 +9,7 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 
 - `security.ts` — `isTrustedIpcSender()`: dev=origin-exact, prod=file://+top-frame (VRX-25).
 - `friends.ts` — `get-friends`: delegates to the platform adapter (VRX-19/20).
-- `auth.ts` — `get-auth-status`, `login`: delegates to adapter. `login` payload is never logged (VRX-20).
+- `auth.ts` — `get-auth-status`, `login`, `verify-2fa`: delegates to adapter. `login` payload is never logged (VRX-20); `verify-2fa` (VRX-159) takes only `{code}` and routes to `adapter.verify2fa`, so the renderer completes the 2FA leg via the session cookie without resending/holding the password.
 - `accounts.ts` — `get-accounts`: stub returning `[]` until VRX-24 lands the AccountStore.
 - `instance.ts` — `join-instance`, `self-invite`: delegates to adapter (VRX-20).
 - `app-status.ts` — `get-app-status`: stub returning all-'ok' until VRX-79/146/147 wire WS health (VRX-20).

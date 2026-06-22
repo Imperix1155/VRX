@@ -43,6 +43,9 @@ class TestAdapter extends BaseAdapter {
   login(): Promise<LoginResult> {
     return Promise.resolve({ ok: true })
   }
+  verify2fa(): Promise<LoginResult> {
+    return Promise.resolve({ ok: true })
+  }
   importSession(): Promise<boolean> {
     return Promise.resolve(false)
   }

@@ -29,4 +29,14 @@ export function registerAuthHandlers(adapters: Map<Platform, IPlatformAdapter>):
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     return adapter.login(req.credentials)
   })
+
+  ipcMain.handle('verify-2fa', (event, req: IpcInvoke['verify-2fa']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform) || typeof req.code !== 'string') {
+      throw new Error('Invalid verify-2fa request')
+    }
+    const adapter = adapters.get(req.platform)
+    if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
+    return adapter.verify2fa(req.code)
+  })
 }

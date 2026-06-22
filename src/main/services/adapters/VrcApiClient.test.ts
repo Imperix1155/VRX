@@ -37,6 +37,9 @@ class TestClient extends VrcApiClient {
   login(): Promise<LoginResult> {
     throw new Error('stub')
   }
+  verify2fa(): Promise<LoginResult> {
+    throw new Error('stub')
+  }
   importSession(): Promise<boolean> {
     throw new Error('stub')
   }

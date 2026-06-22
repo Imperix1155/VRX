@@ -248,6 +248,29 @@ describe('VrcAdapter', () => {
 
       expect(store.saved.at(-1)).toBe('auth=rotated9; twoFactorAuth=tf2')
     })
+
+    it('verify2fa completes the second leg via the session cookie, no credentials resent (VRX-159)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          authResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          authResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+        )
+        .mockResolvedValueOnce(authResponse({ id: 'u', displayName: 'Trinity' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore()
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      expect(await adapter.login(creds)).toEqual({ ok: false, needs2fa: true, method: 'totp' })
+      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+
+      const [verifyUrl, verifyOpts] = fetchMock.mock.calls[1] as [string, RequestInit]
+      expect(verifyUrl).toMatch(/\/auth\/twofactorauth\/totp\/verify$/)
+      expect(verifyOpts.body).toBe(JSON.stringify({ code: '123456' }))
+      expect(store.saved.at(-1)).toBe('auth=tok1; twoFactorAuth=tf2')
+    })
   })
 
   describe('getAuthStatus & session restore', () => {
