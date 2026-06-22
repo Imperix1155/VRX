@@ -13,8 +13,8 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - `accounts.ts` — `get-accounts`: stub returning `[]` until VRX-24 lands the AccountStore.
 - `instance.ts` — `join-instance`, `self-invite`: delegates to adapter (VRX-20).
 - `app-status.ts` — `get-app-status`: stub returning all-'ok' until VRX-79/146/147 wire WS health (VRX-20).
-- `launch.ts` — `open-url`: validates via `isAllowedUrl()` before `shell.openExternal` (VRX-20).
-- `url-allowlist.ts` — `isAllowedUrl()`: pure HTTPS+known-host predicate; no electron imports (VRX-20).
+- `launch.ts` — `open-url`: validates via `isAllowedUrl() || isAllowedLaunchUrl()` before `shell.openExternal`; accepts both HTTPS web links and VRChat desktop-launch URLs (VRX-20/161).
+- `url-allowlist.ts` — `isAllowedUrl()`: pure HTTPS+known-host predicate; no electron imports (VRX-20). Also exports `isAllowedLaunchUrl()`: permits `vrchat://launch?id=wrld_…` strictly — `vrchat:` scheme only, hostname must be exactly `launch`, no userinfo/port, `id` param must start with `wrld_`; all other schemes remain rejected (VRX-161). The two predicates are intentionally separate so `setWindowOpenHandler` (web links) never accepts a custom scheme.
 - `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20).
 - `index.ts` — `registerIpcHandlers(adapters)`: wires all handlers; imported once in `src/main/index.ts`.
 
@@ -26,9 +26,3 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - Deferred channels (get-settings/save-settings, get-notifications, launch-app) have no handler yet — add them when their owning issue ships (VRX-23, M3 notifications, VRX-98).
 - `login` credentials are never logged or echoed back — the electron-log redaction hook (VRX-15) covers the adapter layer, but the handler must not introduce new log points.
 
-## Known gap (VRX-20 scope)
-
-`src/main/index.ts:32` calls `shell.openExternal(details.url)` in `setWindowOpenHandler`
-with no allowlist. The `isAllowedUrl` predicate is now available to fix this; left
-intentionally untouched (VRX-20 scope is handlers only). File a follow-up to route
-that call through the same guard.
