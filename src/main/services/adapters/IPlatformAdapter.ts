@@ -26,8 +26,14 @@ export interface IPlatformAdapter {
 
   // ── Auth ──
   getAuthStatus(): Promise<AuthStatus>
-  /** Direct login (username/password + optional 2FA). `needs2fa` drives the retry. */
+  /** Direct login (username/password). A `needs2fa` result is completed via `verify2fa`. */
   login(credentials: Credentials): Promise<LoginResult>
+  /**
+   * Complete a `needs2fa` login by verifying the 2FA code — uses the session
+   * established by the first `login()` call, so the renderer needn't resend or keep
+   * the password. Platforms without a 2-leg 2FA flow reject this.
+   */
+  verify2fa(code: string): Promise<LoginResult>
   /** Hybrid auth: import an existing VRCX/CVRX session if present. True if imported. */
   importSession(): Promise<boolean>
 

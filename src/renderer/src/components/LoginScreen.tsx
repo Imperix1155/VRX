@@ -34,20 +34,18 @@ export default function LoginScreen(): React.JSX.Element {
     setIsSubmitting(true)
 
     try {
-      const result = await window.vrx.login({
-        platform: 'vrchat',
-        credentials: {
-          username,
-          password,
-          ...(pending2fa ? { twoFactorCode } : {})
-        }
-      })
+      // Second leg authenticates via the session cookie from the first login, so
+      // no credentials are resent — the password is dropped once 2FA is requested.
+      const result = pending2fa
+        ? await window.vrx.verify2fa({ platform: 'vrchat', code: twoFactorCode })
+        : await window.vrx.login({ platform: 'vrchat', credentials: { username, password } })
 
       if (result.ok) {
         // Invalidate so the auth gate re-checks and transitions to the app.
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey })
       } else if (result.needs2fa) {
         setPending2fa(result.method)
+        setPassword('') // drop the secret — the 2FA leg authenticates via the cookie
         setTwoFactorCode('')
       } else {
         setErrorKey(mapLoginError(result.error))

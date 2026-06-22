@@ -121,6 +121,15 @@ export class VrcAdapter extends VrcApiClient {
     return { ok: true }
   }
 
+  /**
+   * Second leg of a 2FA login (VRX-159): verify the code against the session
+   * cookie from the initial `login()` call — no credentials needed, so the
+   * renderer can drop the password from memory after the first leg.
+   */
+  verify2fa(code: string): Promise<LoginResult> {
+    return this.verifyTwoFactor(code)
+  }
+
   private async verifyTwoFactor(code: string): Promise<LoginResult> {
     const method = this.pendingTwoFactorMethod ?? 'totp'
     const endpoint =
