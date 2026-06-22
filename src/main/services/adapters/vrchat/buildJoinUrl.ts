@@ -6,10 +6,9 @@
  * re-encode them (URLSearchParams / new URL() would percent-encode `:`, `(`, `)`)
  * so this function concatenates the string directly.
  *
- * ⚠️ INTEGRATION NOTE: `isAllowedUrl` in `src/main/ipc/url-allowlist.ts` currently
- * only permits `https:` URLs, so routing `vrchat://` through the `open-url` IPC
- * handler would be rejected. A follow-up must teach `isAllowedUrl` (or the launch
- * path) to permit the `vrchat:` scheme before this URL can actually open a client.
+ * The `open-url` IPC handler accepts this launch URL via `isAllowedLaunchUrl`
+ * (`src/main/ipc/url-allowlist.ts`) — a strict `vrchat://launch?id=wrld_…` predicate
+ * added in VRX-161. (`isAllowedUrl` itself still permits only `https:`.)
  */
 
 /** `wrld_` prefix pattern VRChat uses for world IDs. */
