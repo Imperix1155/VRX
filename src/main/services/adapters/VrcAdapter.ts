@@ -9,6 +9,7 @@ import type {
   TwoFactorMethod
 } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
+import { NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { fetchFriends } from './vrchat/fetchFriends'
 
@@ -205,7 +206,14 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   async getFriends(): Promise<Friend[]> {
-    const { friends } = await fetchFriends((path, schema) => this.get(path, schema))
+    const { friends, failedPages } = await fetchFriends((path, schema) => this.get(path, schema))
+    // If fetches failed AND we got nothing, surface an error rather than a
+    // misleading empty list (the UI shows "couldn't load" instead of "no friends").
+    // A partial result (some pages failed but others succeeded) is still returned
+    // as graceful degradation; signalling partial failure to the UI is a follow-up.
+    if (failedPages > 0 && friends.length === 0) {
+      throw new NetworkError('Failed to fetch friends')
+    }
     return friends
   }
   getInstanceDetails(): Promise<InstanceInfo> {

@@ -364,5 +364,11 @@ describe('VrcAdapter', () => {
       expect(friends[0].platformUserId).toBe('usr_00000001')
       expect(friends[0].displayName).toBe('Alice')
     })
+
+    it('throws (not a misleading empty list) when all friend fetches fail (VRX-43)', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
+    })
   })
 })
