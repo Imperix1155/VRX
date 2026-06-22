@@ -58,6 +58,10 @@ export function isAllowedLaunchUrl(raw: string): boolean {
   }
   if (url.protocol !== 'vrchat:') return false
   if (url.hostname.toLowerCase() !== 'launch') return false
+  // Reject any authority decoration — a bare `vrchat://launch` host only. Userinfo
+  // (`user:pass@launch`) and ports are benign to VRChat's URI handler, but a strict
+  // predicate is the conservative posture (independent security review, VRX-161).
+  if (url.username !== '' || url.password !== '' || url.port !== '') return false
   const id = url.searchParams.get('id')
   return typeof id === 'string' && id.startsWith('wrld_')
 }

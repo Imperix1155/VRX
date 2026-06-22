@@ -81,6 +81,13 @@ describe('isAllowedLaunchUrl', () => {
     expect(isAllowedLaunchUrl('vrchat://launch@evil.com?id=wrld_abc:1')).toBe(false)
   })
 
+  it('denies authority decoration even when the host is launch (userinfo / port)', () => {
+    // hostname IS launch here, but the strict predicate rejects any userinfo/port
+    expect(isAllowedLaunchUrl('vrchat://user:pass@launch?id=wrld_abc:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://user@launch?id=wrld_abc:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch:1234?id=wrld_abc:1')).toBe(false)
+  })
+
   it('denies non-vrchat custom schemes', () => {
     expect(isAllowedLaunchUrl('javascript:alert(1)')).toBe(false)
     expect(isAllowedLaunchUrl('file:///etc/passwd')).toBe(false)
