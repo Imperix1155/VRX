@@ -32,7 +32,7 @@ VRX does not send bulk invites, does not automate social actions on the user's b
 
 ### Defensive parsing
 
-Responses containing unknown enum values, unexpected fields, or missing optional data degrade gracefully — unknown values are ignored or mapped to a safe default. VRX never crashes on an API change it hasn't seen before.
+Responses containing unknown enum values, unexpected fields, or missing optional data degrade gracefully — unknown values are ignored or mapped to a safe default. VRX never crashes on an API change it hasn't seen before. See [`docs/api-volatility.md`](./api-volatility.md) for the catalog of volatile API surfaces and resilience strategies.
 
 ## Risk disclosure
 
