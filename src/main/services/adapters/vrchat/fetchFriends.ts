@@ -15,6 +15,7 @@ import type { VrcFriend } from '@shared/types'
 import { parsePresence } from './parsePresence'
 import type { VrcCurrentUserBuckets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
+import { parseLocation } from './parseLocation'
 
 // ─── Local constants (mirror @shared/constants values — intentionally local
 //     to avoid coupling to a file other branches are actively editing) ──────────
@@ -40,6 +41,7 @@ const rawFriendSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   currentAvatarThumbnailImageUrl: z.string().nullable().optional(),
+  location: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
   statusDescription: z.string().nullable().optional(),
   tags: z.array(z.string()).default([])
@@ -66,7 +68,7 @@ function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFriend {
     status,
     statusDescription,
     trustRank: parseTrustRank(raw.tags),
-    instance: null,
+    instance: parseLocation(raw.location ?? ''),
     isFavorite: false,
     favoriteGroupIds: [],
     linkedPersonId: null
