@@ -1,5 +1,10 @@
 {
   "appName": "VRX",
+  "error": {
+    "heading": "問題が発生しました",
+    "hint": "予期しないエラーが発生しました。アプリを再読み込みしてみてください。",
+    "reload": "再読み込み"
+  },
   "greeting": "VRXへようこそ",
   "friends": {
     "title": "フレンド",

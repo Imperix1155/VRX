@@ -109,5 +109,18 @@ app.on('window-all-closed', () => {
   }
 })
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+// ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
+// Registered at module scope (not inside whenReady) so they catch early-boot
+// errors before the app is fully initialized.
+
+process.on('uncaughtException', (error: Error) => {
+  // Log and let Electron decide whether to quit — don't suppress the exit.
+  log.error('uncaughtException', { message: error.message, stack: error.stack })
+})
+
+process.on('unhandledRejection', (reason: unknown) => {
+  // Log without exiting — an unhandled rejection alone doesn't warrant a crash.
+  const message = reason instanceof Error ? reason.message : String(reason)
+  const stack = reason instanceof Error ? reason.stack : undefined
+  log.warn('unhandledRejection', { message, stack })
+})

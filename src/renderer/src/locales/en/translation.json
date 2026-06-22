@@ -1,5 +1,10 @@
 {
   "appName": "VRX",
+  "error": {
+    "heading": "Something went wrong",
+    "hint": "An unexpected error occurred. You can try reloading the app.",
+    "reload": "Reload"
+  },
   "greeting": "Welcome to VRX",
   "friends": {
     "title": "Friends",
