@@ -13,5 +13,29 @@
       "askMe": "Ask Me",
       "dnd": "Do Not Disturb"
     }
+  },
+  "login": {
+    "subtitle": "Social VR Companion",
+    "username": "Username or email",
+    "usernamePlaceholder": "you@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "••••••••",
+    "signIn": "Sign In",
+    "signingIn": "Signing in…",
+    "disclaimer": "Connects to VRChat on your behalf. Your credentials are stored securely on this device.",
+    "error": {
+      "invalidCredentials": "Incorrect username or password. Please try again.",
+      "networkError": "Couldn't reach VRChat. Check your connection and try again.",
+      "invalid2faCode": "Incorrect verification code. Please try again.",
+      "unknown": "Something went wrong. Please try again."
+    },
+    "twoFactor": {
+      "promptTotp": "Open your authenticator app and enter the 6-digit code.",
+      "promptEmail": "Enter the code sent to your email address.",
+      "code": "Verification code",
+      "placeholder": "000000",
+      "verify": "Verify",
+      "back": "Back"
+    }
   }
 }
