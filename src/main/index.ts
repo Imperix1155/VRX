@@ -8,6 +8,7 @@ import { loadSettings } from './services/settings'
 import { CREDENTIAL_KEYS, loadCredential, saveCredential } from './services/credentials'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { registerIpcHandlers } from './ipc'
+import { isAllowedUrl } from './ipc/url-allowlist'
 
 function createWindow(): void {
   // Create the browser window.
@@ -32,7 +33,17 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isAllowedUrl(details.url)) {
+      shell.openExternal(details.url)
+    } else {
+      // Log protocol+host only — the full URL may contain tokens in query params.
+      try {
+        const u = new URL(details.url)
+        log.warn('window-open blocked', { protocol: u.protocol, host: u.hostname })
+      } catch {
+        log.warn('window-open blocked', { url: '[unparseable]' })
+      }
+    }
     return { action: 'deny' }
   })
 
