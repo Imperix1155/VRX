@@ -39,6 +39,11 @@ export function isAllowedUrl(raw: string): boolean {
  *   while remaining agnostic about the instance-tag grammar (`~type(...)`, etc.).
  * - `ref` is not a security boundary and is not validated.
  *
+ * Note: callers pass the raw string (not `url.href`) to `shell.openExternal`.
+ * This is intentional: `buildJoinUrl` leaves `:`, `(`, `)` unencoded in the
+ * instance-tag segment, and `url.href` would re-percent-encode them, breaking
+ * the launch URL that VRChat's client expects.
+ *
  * TODO: add the ChilloutVR launch scheme here when it is confirmed (VRX-161).
  *
  * This predicate is intentionally separate from `isAllowedUrl` so the web-link
