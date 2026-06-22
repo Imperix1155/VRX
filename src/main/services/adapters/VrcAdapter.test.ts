@@ -394,4 +394,52 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
   })
+
+  describe('selfInvite (VRX-51)', () => {
+    // Full location string: worldId:nonce~accessTag (as documented in parseInstanceType.ts)
+    const inviteLocation = 'wrld_abc123:11111~private(usr_xyz)'
+    const publicLocation = 'wrld_abc123:22222'
+
+    it('posts to the correct path with the raw location string (no encoding)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+
+      await adapter.selfInvite(inviteLocation)
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe(`https://api.vrchat.cloud/api/1/invite/myself/to/${inviteLocation}`)
+      expect(opts.method).toBe('POST')
+    })
+
+    it('rejects without an API call for public instances', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+
+      await expect(adapter.selfInvite(publicLocation)).rejects.toThrow(
+        /no invite needed for public instances/i
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects with a generic error when the API call fails', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+
+      await expect(adapter.selfInvite(inviteLocation)).rejects.toThrow()
+      // The thrown error must not leak the instanceId / internal path
+      try {
+        await adapter.selfInvite(inviteLocation)
+      } catch (err) {
+        expect(String(err)).not.toContain(inviteLocation)
+      }
+    })
+  })
 })

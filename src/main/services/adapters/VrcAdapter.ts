@@ -12,6 +12,7 @@ import type { Unsubscribe } from './IPlatformAdapter'
 import { NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { fetchFriends } from './vrchat/fetchFriends'
+import { parseInstanceType } from './vrchat/parseInstanceType'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -231,8 +232,16 @@ export class VrcAdapter extends VrcApiClient {
   joinInstance(): Promise<void> {
     return Promise.reject(new Error('VrcAdapter.joinInstance not implemented'))
   }
-  selfInvite(): Promise<void> {
-    return Promise.reject(new Error('VrcAdapter.selfInvite not implemented'))
+  async selfInvite(instanceId: string): Promise<void> {
+    // Public instances don't require an invite — the user can just join.
+    if (parseInstanceType(instanceId) === 'public') {
+      throw new Error('No invite needed for public instances')
+    }
+
+    // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw.
+    // The response is a Notification object; we discard it (returns void).
+    // z.unknown() avoids breaking on benign API drift (VRChat Notification shape may change).
+    await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
   }
   subscribe(): Unsubscribe {
     // Live WS stream is VRX-146.
