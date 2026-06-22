@@ -35,6 +35,9 @@ The design system lives in [`docs/`](docs/) — `DESIGN.md` (spec) plus the rend
 guidelines live in `CLAUDE.md` and the `AGENTS.md` files.
 For AI agents: read `CLAUDE.md` first.
 
+VRX's stance on unofficial API use, rate-limit etiquette, and risk is in
+[`docs/api-policy.md`](docs/api-policy.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
