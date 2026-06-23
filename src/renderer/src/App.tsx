@@ -21,7 +21,7 @@ function App(): React.JSX.Element {
       <LocaleProbe />
       <TokenPreview />
       <div className="mx-auto max-w-2xl px-10 pb-10">
-        <ErrorBoundary>
+        <ErrorBoundary variant="panel">
           <FriendsList />
         </ErrorBoundary>
       </div>
