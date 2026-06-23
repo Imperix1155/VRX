@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -54,6 +54,71 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // ── Renderer crash/hang handlers (VRX-127 follow-up) ──────────────────────
+
+  // render-process-gone fires when the renderer process exits unexpectedly.
+  // Denylist only intentional teardown reasons — all others (crashed, oom,
+  // abnormal-exit, launch-failed, integrity-failure, memory-eviction) surface
+  // a recovery dialog. 'clean-exit' is normal shutdown; 'killed' is the
+  // reason emitted when forcefullyCrashRenderer() is called to unstick an
+  // unresponsive renderer, so a second dialog is never shown for that path.
+  const SILENT_REASONS: ReadonlySet<string> = new Set(['clean-exit', 'killed'])
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    // Expected exits (a clean shutdown, or our own forcefullyCrashRenderer →
+    // 'killed') are silent — don't error-log or alarm on them (CodeRabbit).
+    if (SILENT_REASONS.has(details.reason)) return
+
+    log.error('render-process-gone', { reason: details.reason, exitCode: details.exitCode })
+
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'VRX — Renderer Crashed',
+        message: 'The window has stopped responding due to an unexpected error.',
+        detail: `Reason: ${details.reason} (exit code ${details.exitCode})`,
+        buttons: ['Reload', 'Close'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (!mainWindow.isDestroyed() && response === 0) {
+          mainWindow.reload()
+        }
+      })
+      .catch((err: unknown) => {
+        log.warn('render-process-gone dialog rejected', { message: String(err) })
+      })
+  })
+
+  // unresponsive fires when the renderer stops responding to IPC pings.
+  mainWindow.on('unresponsive', () => {
+    log.warn('window-unresponsive')
+
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'VRX — Window Not Responding',
+        message: 'VRX is not responding.',
+        detail: 'The window may be busy. You can wait or reload it.',
+        buttons: ['Reload', 'Wait'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (!mainWindow.isDestroyed() && response === 0) {
+          // Force-kill the stuck renderer before reloading so the reload
+          // starts a fresh process. This emits render-process-gone with
+          // reason 'killed', which is silently skipped by SILENT_REASONS.
+          mainWindow.webContents.forcefullyCrashRenderer()
+          mainWindow.reload()
+        }
+      })
+      .catch((err: unknown) => {
+        log.warn('unresponsive dialog rejected', { message: String(err) })
+      })
+  })
 }
 
 // This method will be called when Electron has finished
