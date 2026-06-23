@@ -66,9 +66,11 @@ function createWindow(): void {
   const SILENT_REASONS: ReadonlySet<string> = new Set(['clean-exit', 'killed'])
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    log.error('render-process-gone', { reason: details.reason, exitCode: details.exitCode })
-
+    // Expected exits (a clean shutdown, or our own forcefullyCrashRenderer →
+    // 'killed') are silent — don't error-log or alarm on them (CodeRabbit).
     if (SILENT_REASONS.has(details.reason)) return
+
+    log.error('render-process-gone', { reason: details.reason, exitCode: details.exitCode })
 
     dialog
       .showMessageBox(mainWindow, {
