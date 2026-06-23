@@ -3,7 +3,8 @@
   "error": {
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",
-    "reload": "Reload"
+    "reload": "Reload",
+    "copyDiagnostics": "Copy diagnostics"
   },
   "greeting": "Welcome to VRX",
   "friends": {

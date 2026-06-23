@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * ErrorBoundary tests (VRX-127).
+ * ErrorBoundary tests (VRX-127 / VRX-127 follow-up).
  *
  * Needs a real DOM because React error boundaries only fire during the
  * client commit phase — renderToStaticMarkup (SSR) has no commit phase and
@@ -69,5 +69,33 @@ describe('ErrorBoundary', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Reload' })).toBeDefined()
+  })
+
+  it('shows a Copy diagnostics button in the fallback', () => {
+    render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    expect(screen.getByRole('button', { name: 'Copy diagnostics' })).toBeDefined()
+  })
+
+  it('a per-panel boundary fallback does not affect siblings', () => {
+    // Render a sibling outside the boundary alongside a crashing panel.
+    // The sibling must remain visible once the boundary catches the error.
+    render(
+      <>
+        <ErrorBoundary>
+          <Bomb />
+        </ErrorBoundary>
+        <span>sibling content</span>
+      </>
+    )
+
+    // Fallback rendered for the panel that threw
+    expect(screen.getByText('Something went wrong')).toBeDefined()
+    // Sibling outside the boundary is unaffected
+    expect(screen.getByText('sibling content')).toBeDefined()
   })
 })
