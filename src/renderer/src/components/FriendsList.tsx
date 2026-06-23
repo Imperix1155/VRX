@@ -71,39 +71,45 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
     instance != null ? (INSTANCE_TYPE_LABEL_KEYS[instance.type] ?? null) : null
 
   return (
-    <li className="flex items-center gap-[var(--space-3)] rounded-control px-[var(--space-3)] py-[var(--space-2)] hover:bg-[var(--surface-hover)]">
-      <span
-        className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-[var(--text)]">{friend.displayName}</span>
-        {instance != null && (
-          <span className="block truncate text-xs text-[var(--text-dim)] motion-safe:transition-colors">
-            {instance.worldName ?? t('friends.instance.unknownWorld')}
-            {instanceTypeLabelKey != null && (
-              <>
-                {' · '}
-                <span className="text-[var(--text-faint)]">{t(instanceTypeLabelKey)}</span>
-              </>
-            )}
+    <li className="flex flex-col gap-[var(--space-0-5)] rounded-control px-[var(--space-3)] py-[var(--space-2)] hover:bg-[var(--surface-hover)]">
+      {/* Name line — dot + name + status pill + status text, vertically centered
+          together so the presence dot aligns to the NAME, not the two-line block. */}
+      <div className="flex items-center gap-[var(--space-3)]">
+        <span
+          className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate text-sm text-[var(--text)]">
+          {friend.displayName}
+        </span>
+        {statusPill && (
+          <span
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusPill.className}`}
+          >
+            <span
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusPill.dotClassName}`}
+              aria-hidden="true"
+            />
+            {t(statusPill.labelKey)}
+          </span>
+        )}
+        {friend.platform === 'vrchat' && friend.statusDescription && (
+          <span className="shrink-0 max-w-[var(--friend-status-description-width)] truncate text-xs text-[var(--text-dim)]">
+            {friend.statusDescription}
           </span>
         )}
       </div>
-      {statusPill && (
-        <span
-          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusPill.className}`}
-        >
-          <span
-            className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusPill.dotClassName}`}
-            aria-hidden="true"
-          />
-          {t(statusPill.labelKey)}
-        </span>
-      )}
-      {friend.platform === 'vrchat' && friend.statusDescription && (
-        <span className="shrink-0 max-w-[var(--friend-status-description-width)] truncate text-xs text-[var(--text-dim)]">
-          {friend.statusDescription}
+      {/* Instance subline — where the friend is. Indented past the dot to align
+          under the name (VRX-164). */}
+      {instance != null && (
+        <span className="block truncate pl-[calc(var(--space-2-5)_+_var(--space-3))] text-xs text-[var(--text-dim)]">
+          {instance.worldName ?? t('friends.instance.unknownWorld')}
+          {instanceTypeLabelKey != null && (
+            <>
+              {' · '}
+              <span className="text-[var(--text-faint)]">{t(instanceTypeLabelKey)}</span>
+            </>
+          )}
         </span>
       )}
     </li>
