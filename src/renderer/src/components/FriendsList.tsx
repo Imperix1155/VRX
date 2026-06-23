@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import type { Friend } from '@shared/types'
+import type { Friend, InstanceType } from '@shared/types'
 import { useFriends } from '../queries/friends'
 
 const STATUS_PILLS = {
@@ -32,6 +32,29 @@ const STATUS_PILLS = {
   { labelKey: string; className: string; dotClassName: string }
 >
 
+/**
+ * Maps each platform-true InstanceType to its i18n key (DESIGN.md §6).
+ * Using a lookup map avoids dot-notation issues with hyphenated keys.
+ */
+const INSTANCE_TYPE_LABEL_KEYS: Record<InstanceType, string> = {
+  // VRChat types
+  public: 'friends.instance.type.public',
+  'friends-plus': 'friends.instance.type.friends-plus',
+  friends: 'friends.instance.type.friends',
+  'invite-plus': 'friends.instance.type.invite-plus',
+  invite: 'friends.instance.type.invite',
+  'group-public': 'friends.instance.type.group-public',
+  'group-plus': 'friends.instance.type.group-plus',
+  group: 'friends.instance.type.group',
+  // CVR types
+  'friends-of-friends': 'friends.instance.type.friends-of-friends',
+  'everyone-can-invite': 'friends.instance.type.everyone-can-invite',
+  'owner-must-invite': 'friends.instance.type.owner-must-invite',
+  'friends-of-members': 'friends.instance.type.friends-of-members',
+  'members-only': 'friends.instance.type.members-only',
+  offline: 'friends.instance.type.offline'
+}
+
 function presenceClass(state: Friend['presence']['state']): string {
   if (state === 'in-game') return 'bg-[var(--ingame)]'
   if (state === 'active') return 'bg-[var(--active)]'
@@ -43,15 +66,30 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
   const statusPill =
     friend.platform === 'vrchat' && friend.status ? STATUS_PILLS[friend.status] : null
 
+  const instance = friend.instance
+  const instanceTypeLabelKey =
+    instance != null ? (INSTANCE_TYPE_LABEL_KEYS[instance.type] ?? null) : null
+
   return (
     <li className="flex items-center gap-[var(--space-3)] rounded-control px-[var(--space-3)] py-[var(--space-2)] hover:bg-[var(--surface-hover)]">
       <span
         className={`h-[var(--space-2-5)] w-[var(--space-2-5)] shrink-0 rounded-full ${presenceClass(friend.presence.state)}`}
         aria-hidden="true"
       />
-      <span className="min-w-0 flex-1 truncate text-sm text-[var(--text)]">
-        {friend.displayName}
-      </span>
+      <div className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-[var(--text)]">{friend.displayName}</span>
+        {instance != null && (
+          <span className="block truncate text-xs text-[var(--text-dim)] motion-safe:transition-colors">
+            {instance.worldName ?? t('friends.instance.unknownWorld')}
+            {instanceTypeLabelKey != null && (
+              <>
+                {' · '}
+                <span className="text-[var(--text-faint)]">{t(instanceTypeLabelKey)}</span>
+              </>
+            )}
+          </span>
+        )}
+      </div>
       {statusPill && (
         <span
           className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusPill.className}`}
