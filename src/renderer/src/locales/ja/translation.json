@@ -3,7 +3,8 @@
   "error": {
     "heading": "問題が発生しました",
     "hint": "予期しないエラーが発生しました。アプリを再読み込みしてみてください。",
-    "reload": "再読み込み"
+    "reload": "再読み込み",
+    "copyDiagnostics": "診断情報をコピー"
   },
   "greeting": "VRXへようこそ",
   "friends": {
