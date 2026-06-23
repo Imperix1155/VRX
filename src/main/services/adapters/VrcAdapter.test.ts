@@ -393,6 +393,263 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
+
+    it('enriches friends in worlds with worldName/thumbnailUrl (VRX-163)', async () => {
+      const worldId = 'wrld_abc123'
+      const worldMeta = {
+        name: 'The Grid',
+        thumbnailImageUrl: 'https://example.com/thumb.jpg',
+        capacity: 20,
+        shortName: null
+      }
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          const isOffline = url.includes('offline=true')
+          if (isOffline) {
+            return Promise.resolve(
+              new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            )
+          }
+          // online friends page — one friend in a world
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: 'usr_111',
+                  displayName: 'Bob',
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `${worldId}:11111~private(usr_self)`
+                }
+              ]),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+        }
+        if (url.includes(`/worlds/${worldId}`)) {
+          return Promise.resolve(
+            new Response(JSON.stringify(worldMeta), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            })
+          )
+        }
+        // /auth/user — buckets
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'usr_self',
+              displayName: 'Self',
+              onlineFriends: ['usr_111'],
+              activeFriends: [],
+              offlineFriends: []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      const friends = await adapter.getFriends()
+
+      expect(friends).toHaveLength(1)
+      expect(friends[0].instance?.worldName).toBe('The Grid')
+      expect(friends[0].instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+    })
+
+    it('leaves worldName null for a friend with no instance (VRX-163)', async () => {
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          const isOffline = url.includes('offline=true')
+          if (isOffline) {
+            return Promise.resolve(
+              new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            )
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: 'usr_222',
+                  displayName: 'Eve',
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  // no location → instance stays null
+                  location: 'private'
+                }
+              ]),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'usr_self',
+              displayName: 'Self',
+              onlineFriends: ['usr_222'],
+              activeFriends: [],
+              offlineFriends: []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      const friends = await adapter.getFriends()
+
+      expect(friends).toHaveLength(1)
+      expect(friends[0].instance).toBeNull()
+    })
+
+    it('keeps worldName null for an unresolvable world, friends still returned (VRX-163)', async () => {
+      const worldId = 'wrld_deleted999'
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          const isOffline = url.includes('offline=true')
+          if (isOffline) {
+            return Promise.resolve(
+              new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            )
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: 'usr_333',
+                  displayName: 'Carol',
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `${worldId}:22222`
+                }
+              ]),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+        }
+        if (url.includes(`/worlds/${worldId}`)) {
+          // Returns a body that fails WorldApiSchema → resolver returns null
+          return Promise.resolve(
+            new Response(JSON.stringify({}), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            })
+          )
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'usr_self',
+              displayName: 'Self',
+              onlineFriends: ['usr_333'],
+              activeFriends: [],
+              offlineFriends: []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      const friends = await adapter.getFriends()
+
+      expect(friends).toHaveLength(1)
+      expect(friends[0].instance?.worldName).toBeNull()
+      expect(friends[0].instance?.worldId).toBe(worldId)
+    })
+
+    it('caches world metadata across getFriends calls (single resolver, VRX-163)', async () => {
+      const worldId = 'wrld_cached1'
+      const worldMeta = {
+        name: 'Cached World',
+        thumbnailImageUrl: null,
+        capacity: 10,
+        shortName: null
+      }
+
+      function onlineFriendResponse(): Response {
+        return new Response(
+          JSON.stringify([
+            {
+              id: 'usr_444',
+              displayName: 'Dave',
+              currentAvatarThumbnailImageUrl: null,
+              status: 'active',
+              statusDescription: null,
+              tags: [],
+              location: `${worldId}:33333`
+            }
+          ]),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      function bucketsResponse(): Response {
+        return new Response(
+          JSON.stringify({
+            id: 'usr_self',
+            displayName: 'Self',
+            onlineFriends: ['usr_444'],
+            activeFriends: [],
+            offlineFriends: []
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
+      function emptyPage(): Response {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      function worldResponse(): Response {
+        return new Response(JSON.stringify(worldMeta), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const worldFetchCount = { n: 0 }
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          return Promise.resolve(
+            url.includes('offline=true') ? emptyPage() : onlineFriendResponse()
+          )
+        }
+        if (url.includes(`/worlds/${worldId}`)) {
+          worldFetchCount.n++
+          return Promise.resolve(worldResponse())
+        }
+        return Promise.resolve(bucketsResponse())
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      await adapter.getFriends()
+      await adapter.getFriends()
+
+      // The world was fetched only once because the resolver's TTL cache persists
+      // across getFriends calls (single worldResolver field, not recreated per call).
+      expect(worldFetchCount.n).toBe(1)
+    })
   })
 
   describe('selfInvite (VRX-51)', () => {

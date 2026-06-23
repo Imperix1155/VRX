@@ -12,7 +12,9 @@ import type { Unsubscribe } from './IPlatformAdapter'
 import { NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { fetchFriends } from './vrchat/fetchFriends'
+import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
+import { WorldResolver } from './vrchat/WorldResolver'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -76,6 +78,10 @@ export class VrcAdapter extends VrcApiClient {
   private cookie: string | null = null
   private displayName: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
+  /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
+  private readonly worldResolver = new WorldResolver((worldId) =>
+    this.get(`/worlds/${worldId}`, z.unknown())
+  )
 
   constructor(
     private readonly credentials: VrcCredentialStore,
@@ -236,6 +242,23 @@ export class VrcAdapter extends VrcApiClient {
     if (failedPages > 0 && friends.length === 0) {
       throw new NetworkError('Failed to fetch friends')
     }
+
+    // Enrich friends with world names via the shared resolver (VRX-163).
+    // fetchWorldMetadata deduplicates ids and swallows failures to null, so a
+    // world-resolution failure does NOT break the friend list — friends are
+    // returned as-is with worldName/thumbnailUrl staying null.
+    const worlds = await fetchWorldMetadata(
+      friends.map((f) => f.instance?.worldId ?? null),
+      this.worldResolver
+    )
+    for (const friend of friends) {
+      if (friend.instance) {
+        const meta = worlds.get(friend.instance.worldId)
+        friend.instance.worldName = meta?.name ?? null
+        friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+      }
+    }
+
     return friends
   }
   getInstanceDetails(): Promise<InstanceInfo> {
