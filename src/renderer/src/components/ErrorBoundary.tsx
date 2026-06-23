@@ -2,14 +2,19 @@ import { Component } from 'react'
 import { useTranslation } from 'react-i18next'
 import logRenderer from 'electron-log/renderer'
 
+type FallbackVariant = 'app' | 'panel'
+
 interface FallbackProps {
   error?: Error
+  /** 'app' = full-screen (top-level crash); 'panel' = compact, fits inside a panel. */
+  variant?: FallbackVariant
 }
 
 // Fallback UI is a functional component so it can call useTranslation
 // (hooks cannot be called inside class components).
-function ErrorFallback({ error }: FallbackProps): React.JSX.Element {
+function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Element {
   const { t } = useTranslation()
+  const isPanel = variant === 'panel'
 
   function copyDiagnostics(): void {
     const text = `${error?.message ?? 'Unknown error'}\n\n${error?.stack ?? ''}`
@@ -19,18 +24,30 @@ function ErrorFallback({ error }: FallbackProps): React.JSX.Element {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-[var(--space-4)] py-[var(--space-10)]">
-      <div className="glass relative w-full max-w-sm overflow-hidden rounded-panel p-[var(--space-8)]">
+    <div
+      className={
+        isPanel
+          ? 'flex items-center justify-center px-[var(--space-4)] py-[var(--space-6)]'
+          : 'flex min-h-screen items-center justify-center px-[var(--space-4)] py-[var(--space-10)]'
+      }
+    >
+      <div
+        className={`glass relative w-full max-w-sm overflow-hidden rounded-panel ${
+          isPanel ? 'p-[var(--space-6)]' : 'p-[var(--space-8)]'
+        }`}
+      >
         <div className="relative text-center">
-          {/* Brand mark (DESIGN.md §1) */}
-          <div
-            className="mb-[var(--space-4)] inline-block font-mono text-4xl leading-none tracking-wider"
-            aria-label="VRX"
-          >
-            <span style={{ color: 'var(--vrc)' }}>V</span>
-            <span style={{ color: 'var(--bridge)' }}>R</span>
-            <span style={{ color: 'var(--cvr)' }}>X</span>
-          </div>
+          {/* Brand mark (DESIGN.md §1) — full-screen app crash only, not per-panel. */}
+          {!isPanel && (
+            <div
+              className="mb-[var(--space-4)] inline-block font-mono text-4xl leading-none tracking-wider"
+              aria-label="VRX"
+            >
+              <span style={{ color: 'var(--vrc)' }}>V</span>
+              <span style={{ color: 'var(--bridge)' }}>R</span>
+              <span style={{ color: 'var(--cvr)' }}>X</span>
+            </div>
+          )}
 
           {/* Error glyph + heading (DESIGN.md R2/R10: color + non-color glyph) */}
           <p
@@ -79,8 +96,14 @@ interface State {
  * bridge that log.initialize() wires up in main (VRX-15). No new IPC
  * channels are needed.
  */
-export default class ErrorBoundary extends Component<{ children: React.ReactNode }, State> {
-  constructor(props: { children: React.ReactNode }) {
+interface ErrorBoundaryProps {
+  children: React.ReactNode
+  /** Forwarded to the fallback — 'panel' renders a compact, non-full-screen fallback. */
+  variant?: FallbackVariant
+}
+
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
+  constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { hasError: false }
   }
@@ -99,7 +122,7 @@ export default class ErrorBoundary extends Component<{ children: React.ReactNode
 
   render(): React.ReactNode {
     if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} />
+      return <ErrorFallback error={this.state.error} variant={this.props.variant} />
     }
     return this.props.children
   }
