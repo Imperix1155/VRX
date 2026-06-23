@@ -98,4 +98,30 @@ describe('ErrorBoundary', () => {
     // Sibling outside the boundary is unaffected
     expect(screen.getByText('sibling content')).toBeDefined()
   })
+
+  it('panel variant renders a compact fallback (no full-screen, no brand mark)', () => {
+    const { container } = render(
+      <ErrorBoundary variant="panel">
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    // Still a real fallback (heading + actions present)
+    expect(screen.getByText('Something went wrong')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeDefined()
+    // Compact: not full-screen, and no large app brand mark.
+    expect(container.querySelector('.min-h-screen')).toBeNull()
+    expect(screen.queryByLabelText('VRX')).toBeNull()
+  })
+
+  it('app variant (default) renders the full-screen fallback with the brand mark', () => {
+    const { container } = render(
+      <ErrorBoundary>
+        <Bomb />
+      </ErrorBoundary>
+    )
+
+    expect(container.querySelector('.min-h-screen')).not.toBeNull()
+    expect(screen.getByLabelText('VRX')).toBeDefined()
+  })
 })
