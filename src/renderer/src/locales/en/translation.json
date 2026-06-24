@@ -18,6 +18,25 @@
       "online": "Online",
       "askMe": "Ask Me",
       "dnd": "Do Not Disturb"
+    },
+    "instance": {
+      "unknownWorld": "Unknown World",
+      "type": {
+        "public": "Public",
+        "friends-plus": "Friends+",
+        "friends": "Friends",
+        "invite-plus": "Invite+",
+        "invite": "Invite",
+        "group-public": "Group Public",
+        "group-plus": "Group+",
+        "group": "Group",
+        "friends-of-friends": "Friends of Friends",
+        "everyone-can-invite": "Everyone Can Invite",
+        "owner-must-invite": "Owner Must Invite",
+        "friends-of-members": "Friends of Members",
+        "members-only": "Members Only",
+        "offline": "Offline Instance"
+      }
     }
   },
   "login": {
