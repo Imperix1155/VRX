@@ -137,4 +137,171 @@ describe('FriendsList', () => {
     expect(markup).not.toContain('The Great Pug')
     expect(markup).not.toContain('Unknown World')
   })
+
+  // ─── VRX-166: hide-world rule (§5 R6) ──────────────────────────────────────
+
+  it('hides world and shows custom status for ask-me friend (exactly once)', () => {
+    const askMeFriend: Friend = {
+      ...friend,
+      status: 'ask-me',
+      statusDescription: 'taking commissions',
+      instance: publicInstance
+    }
+    useFriends.mockReturnValue({
+      data: [askMeFriend],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    // World name must NOT appear
+    expect(markup).not.toContain('The Great Pug')
+    // Custom status text must appear exactly once
+    const count = (markup.match(/taking commissions/g) ?? []).length
+    expect(count).toBe(1)
+  })
+
+  it('hides world and shows custom status for dnd friend (exactly once)', () => {
+    const dndFriend: Friend = {
+      ...friend,
+      status: 'dnd',
+      statusDescription: 'in meeting',
+      instance: publicInstance
+    }
+    useFriends.mockReturnValue({
+      data: [dndFriend],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    expect(markup).not.toContain('The Great Pug')
+    const count = (markup.match(/in meeting/g) ?? []).length
+    expect(count).toBe(1)
+  })
+
+  it('shows no subline content for ask-me friend with null statusDescription', () => {
+    const askMeFriend: Friend = {
+      ...friend,
+      status: 'ask-me',
+      statusDescription: null,
+      instance: publicInstance
+    }
+    useFriends.mockReturnValue({
+      data: [askMeFriend],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    // World must be hidden
+    expect(markup).not.toContain('The Great Pug')
+  })
+
+  // ─── VRX-166: openness icon badge (§6) ─────────────────────────────────────
+
+  it('renders openness icon badge (SVG) alongside world name in subline', () => {
+    useFriends.mockReturnValue({
+      data: [{ ...friend, instance: publicInstance }],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    // Badge renders an SVG element for the icon
+    expect(markup).toContain('<svg')
+    // Label text present
+    expect(markup).toContain('Public')
+  })
+
+  it.each([
+    ['public', 'Public'],
+    ['friends-plus', 'Friends+'],
+    ['friends', 'Friends'],
+    ['invite', 'Invite'],
+    ['invite-plus', 'Invite+']
+  ] as const)('renders openness badge label for %s instance type', (type, label) => {
+    useFriends.mockReturnValue({
+      data: [
+        {
+          ...friend,
+          instance: { ...publicInstance, type, openness: 'public' as const }
+        }
+      ],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    expect(markup).toContain(label)
+  })
+
+  // ─── VRX-166: platform spine + glyph ────────────────────────────────────────
+
+  it('renders VRChat spine (--vrc color) for a VRChat friend', () => {
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    expect(markup).toContain('var(--vrc)')
+  })
+
+  it('renders CVR spine (--cvr color) for a CVR friend', () => {
+    const cvrFriend: Friend = {
+      ...friend,
+      platform: 'chilloutvr',
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      presence: { state: 'in-game' }
+    } as Friend
+    useFriends.mockReturnValue({
+      data: [cvrFriend],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    expect(markup).toContain('var(--cvr)')
+  })
+
+  it('renders V glyph for VRChat friend and C glyph for CVR friend', () => {
+    const cvrFriend: Friend = {
+      ...friend,
+      platform: 'chilloutvr',
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      presence: { state: 'in-game' }
+    } as Friend
+
+    const vrcMarkup = renderToStaticMarkup(createElement(FriendsList))
+    expect(vrcMarkup).toContain('>V<')
+
+    useFriends.mockReturnValue({
+      data: [cvrFriend],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+    const cvrMarkup = renderToStaticMarkup(createElement(FriendsList))
+    expect(cvrMarkup).toContain('>C<')
+  })
 })
