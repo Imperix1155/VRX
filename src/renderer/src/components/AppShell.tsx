@@ -3,6 +3,7 @@ import { useUiStore } from '../stores/ui'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import FriendsList from './FriendsList'
+import DashboardView from './DashboardView'
 import ErrorBoundary from './ErrorBoundary'
 
 /** Glass "coming soon" stub for views not yet implemented. */
@@ -32,7 +33,11 @@ function MainContent(): React.JSX.Element {
         </ErrorBoundary>
       )
     case 'dashboard':
-      return <ComingSoonStub labelKey="shell.nav.dashboard" />
+      return (
+        <ErrorBoundary variant="panel">
+          <DashboardView />
+        </ErrorBoundary>
+      )
     case 'activity':
       return <ComingSoonStub labelKey="shell.nav.activity" />
     case 'instances':
