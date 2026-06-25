@@ -1,8 +1,5 @@
-import LocaleProbe from './components/LocaleProbe'
-import TokenPreview from './components/TokenPreview'
-import FriendsList from './components/FriendsList'
+import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
-import ErrorBoundary from './components/ErrorBoundary'
 import { useAuthStatus } from './queries/auth'
 
 function App(): React.JSX.Element {
@@ -16,17 +13,7 @@ function App(): React.JSX.Element {
     return <LoginScreen />
   }
 
-  return (
-    <>
-      <LocaleProbe />
-      <TokenPreview />
-      <div className="mx-auto max-w-2xl px-10 pb-10">
-        <ErrorBoundary variant="panel">
-          <FriendsList />
-        </ErrorBoundary>
-      </div>
-    </>
-  )
+  return <AppShell />
 }
 
 export default App
