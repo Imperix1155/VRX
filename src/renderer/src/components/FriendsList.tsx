@@ -104,15 +104,16 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
   // Ask Me / DND hide the world; custom status shown in subline instead (§5 R6).
   const hideWorld = isWorldHidden(friend)
 
-  // Custom status text — only on VRChat, only when world is hidden (so it appears
-  // exactly once — we suppress the name-line copy for ask-me/dnd).
-  const customStatus =
-    friend.platform === 'vrchat' && hideWorld ? (friend.statusDescription ?? null) : null
+  // Custom status text — VRChat only. For non-hidden statuses (join-me/online) it
+  // appears on the name line; for ask-me/dnd it moves to the subline. Either way
+  // it appears exactly once.
+  const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
 
   return (
     <li
       className={[
-        // grid: 3px spine · (42px avatar — deferred, col reserved) · 1fr content · auto affordance
+        // grid: 3px spine · 1fr content · auto affordance
+        // 42px avatar col is deferred (VRX-48) — added when avatar column lands
         'grid grid-cols-[3px_1fr_auto] items-center gap-x-[13px]',
         'rounded-[13px] py-[9px] pr-[12px]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
@@ -134,6 +135,11 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
           </span>
           {/* V/C platform glyph (§7/§238) */}
           <PlatformGlyph platform={friend.platform} />
+          {/* Custom status text on name line — only for non-hidden statuses (join-me/online).
+              For ask-me/dnd it moves to the subline; shown exactly once either way. */}
+          {!hideWorld && customStatus && (
+            <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">{customStatus}</span>
+          )}
           {/* VRChat status pill — only when NOT ask-me/dnd (those still get the pill,
               just no world in the subline). */}
           {statusPill && (

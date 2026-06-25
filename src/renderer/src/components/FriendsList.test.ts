@@ -207,6 +207,32 @@ describe('FriendsList', () => {
     expect(markup).not.toContain('The Great Pug')
   })
 
+  it('shows statusDescription on name line for join-me friend (not hidden, exactly once)', () => {
+    // join-me is NOT ask-me/dnd — world stays; custom status appears on name line
+    useFriends.mockReturnValue({
+      data: [
+        {
+          ...friend,
+          status: 'join-me',
+          statusDescription: 'Come hang out!',
+          instance: publicInstance
+        }
+      ],
+      isPending: false,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+
+    const markup = renderToStaticMarkup(createElement(FriendsList))
+
+    // World is NOT hidden
+    expect(markup).toContain('The Great Pug')
+    // statusDescription appears exactly once
+    const count = (markup.match(/Come hang out!/g) ?? []).length
+    expect(count).toBe(1)
+  })
+
   // ─── VRX-166: openness icon badge (§6) ─────────────────────────────────────
 
   it('renders openness icon badge (SVG) alongside world name in subline', () => {

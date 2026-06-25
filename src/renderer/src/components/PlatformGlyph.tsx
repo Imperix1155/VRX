@@ -14,14 +14,16 @@ interface PlatformGlyphProps {
 export default function PlatformGlyph({ platform }: PlatformGlyphProps): React.JSX.Element {
   const isVrc = platform === 'vrchat'
 
-  // bg: 20% platform color mixed into transparent; text: 74% platform color into white
-  // These mirror glass.html .frow.vrc/.cvr .fglyph without hardcoded hex.
+  // bg: 20% platform color mixed into transparent.
+  // text: dark mode → 74% platform color into white (light glyph on dark bg);
+  //       light mode → 82% platform color into black (dark glyph on light bg, matching
+  //       glass.html reference: vrc #0f4f9c / cvr #a3410d territory).
   const bgClass = isVrc
     ? 'bg-[color-mix(in_srgb,var(--vrc)_20%,transparent)]'
     : 'bg-[color-mix(in_srgb,var(--cvr)_20%,transparent)]'
   const textClass = isVrc
-    ? 'text-[color-mix(in_srgb,var(--vrc)_74%,white)]'
-    : 'text-[color-mix(in_srgb,var(--cvr)_74%,white)]'
+    ? 'text-[color-mix(in_srgb,var(--vrc)_74%,white)] [data-theme=light]_&:text-[color-mix(in_srgb,var(--vrc)_82%,black)]'
+    : 'text-[color-mix(in_srgb,var(--cvr)_74%,white)] [data-theme=light]_&:text-[color-mix(in_srgb,var(--cvr)_82%,black)]'
 
   return (
     <span
