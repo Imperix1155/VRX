@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
+import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
 
 /** Glass "coming soon" stub for views not yet implemented. */
@@ -45,7 +46,11 @@ function MainContent(): React.JSX.Element {
     case 'groups':
       return <ComingSoonStub labelKey="shell.nav.groups" />
     case 'settings':
-      return <ComingSoonStub labelKey="shell.nav.settings" />
+      return (
+        <ErrorBoundary variant="panel">
+          <SettingsView />
+        </ErrorBoundary>
+      )
   }
 }
 
