@@ -1,5 +1,26 @@
 {
   "appName": "VRX",
+  "shell": {
+    "subtitle": "Social VR Companion",
+    "footer": "Social VR Companion",
+    "nav": {
+      "aria": "Main navigation",
+      "dashboard": "Dashboard",
+      "activity": "Activity",
+      "friends": "Friends",
+      "instances": "Instances",
+      "groups": "Groups",
+      "settings": "Settings"
+    },
+    "seg": {
+      "all": "All",
+      "vrchat": "VRChat",
+      "chilloutvr": "ChilloutVR",
+      "aria": "Platform filter"
+    },
+    "onlineCount": "{{count}} friends online",
+    "comingSoon": "Coming soon"
+  },
   "error": {
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",

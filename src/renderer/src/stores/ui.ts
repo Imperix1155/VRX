@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 
 /**
- * Top-level app surface. Provisional set — grows as routes land; the v1 surfaces
- * are the friends list and dashboard (M2 scope), plus settings.
+ * Top-level app surface. Full §8 nav set (VRX-168).
+ * `activity`, `instances`, `groups` are stubs in v1; `friends` mounts FriendsList.
  */
-export type ActiveTab = 'friends' | 'dashboard' | 'settings'
+export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'instances' | 'groups' | 'settings'
 
 /**
  * Ephemeral UI view state (VRX-21). Holds only transient layout state — NOT

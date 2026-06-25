@@ -1,5 +1,26 @@
 {
   "appName": "VRX",
+  "shell": {
+    "subtitle": "Social VR コンパニオン",
+    "footer": "Social VR コンパニオン",
+    "nav": {
+      "aria": "メインナビゲーション",
+      "dashboard": "ダッシュボード",
+      "activity": "アクティビティ",
+      "friends": "フレンド",
+      "instances": "インスタンス",
+      "groups": "グループ",
+      "settings": "設定"
+    },
+    "seg": {
+      "all": "すべて",
+      "vrchat": "VRChat",
+      "chilloutvr": "ChilloutVR",
+      "aria": "プラットフォームフィルター"
+    },
+    "onlineCount": "{{count}}人のフレンドがオンライン",
+    "comingSoon": "近日公開"
+  },
   "error": {
     "heading": "問題が発生しました",
     "hint": "予期しないエラーが発生しました。アプリを再読み込みしてみてください。",
