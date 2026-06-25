@@ -21,6 +21,19 @@
     "onlineCount": "{{count}}人のフレンドがオンライン",
     "comingSoon": "近日公開"
   },
+  "settings": {
+    "appearance": {
+      "heading": "外観"
+    },
+    "theme": {
+      "label": "テーマ",
+      "description": "このデバイスでのVRXの表示方法を選択します。",
+      "aria": "テーマ選択",
+      "dark": "ダーク",
+      "light": "ライト",
+      "system": "システム"
+    }
+  },
   "error": {
     "heading": "問題が発生しました",
     "hint": "予期しないエラーが発生しました。アプリを再読み込みしてみてください。",

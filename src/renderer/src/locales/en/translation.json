@@ -21,6 +21,19 @@
     "onlineCount": "{{count}} friends online",
     "comingSoon": "Coming soon"
   },
+  "settings": {
+    "appearance": {
+      "heading": "Appearance"
+    },
+    "theme": {
+      "label": "Theme",
+      "description": "Choose how VRX looks on this device.",
+      "aria": "Theme selector",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    }
+  },
   "error": {
     "heading": "Something went wrong",
     "hint": "An unexpected error occurred. You can try reloading the app.",
