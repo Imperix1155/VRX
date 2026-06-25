@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import type { Theme } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 
@@ -24,7 +24,10 @@ export function applyTheme(theme: Theme, prefersLight: boolean): void {
 export function useApplyTheme(): void {
   const theme = useSettingsStore((s) => s.settings.theme)
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the theme attribute is set BEFORE the
+  // browser paints — otherwise a stored light/system theme flashes dark on first
+  // load (CodeRabbit). Safe here: the renderer is client-only, never SSR.
+  useLayoutEffect(() => {
     const mq =
       typeof window !== 'undefined' && window.matchMedia
         ? window.matchMedia('(prefers-color-scheme: light)')
