@@ -22,8 +22,8 @@ export default function PlatformGlyph({ platform }: PlatformGlyphProps): React.J
     ? 'bg-[color-mix(in_srgb,var(--vrc)_20%,transparent)]'
     : 'bg-[color-mix(in_srgb,var(--cvr)_20%,transparent)]'
   const textClass = isVrc
-    ? 'text-[color-mix(in_srgb,var(--vrc)_74%,white)] [data-theme=light]_&:text-[color-mix(in_srgb,var(--vrc)_82%,black)]'
-    : 'text-[color-mix(in_srgb,var(--cvr)_74%,white)] [data-theme=light]_&:text-[color-mix(in_srgb,var(--cvr)_82%,black)]'
+    ? 'text-[color-mix(in_srgb,var(--vrc)_74%,white)] [[data-theme=light]_&]:text-[color-mix(in_srgb,var(--vrc)_82%,black)]'
+    : 'text-[color-mix(in_srgb,var(--cvr)_74%,white)] [[data-theme=light]_&]:text-[color-mix(in_srgb,var(--cvr)_82%,black)]'
 
   return (
     <span
