@@ -63,6 +63,8 @@
   --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.11), transparent 46%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
+  --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
+  --tint-cvr-border: rgba(243, 113, 30, 0.36);
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
@@ -126,6 +128,8 @@
   --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
   --tint-vrc-border: rgba(31, 111, 211, 0.28);
+  --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
+  --tint-cvr-border: rgba(216, 95, 24, 0.30);
 
   --text-on-vrc: #ffffff;
 
@@ -219,6 +223,11 @@ body::after {
 .tint-vrc {
   background: var(--tint-vrc-bg);
   border-color: var(--tint-vrc-border);
+}
+
+.tint-cvr {
+  background: var(--tint-cvr-bg);
+  border-color: var(--tint-cvr-border);
 }
 
 /**

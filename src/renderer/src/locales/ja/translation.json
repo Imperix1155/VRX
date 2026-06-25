@@ -60,6 +60,18 @@
       }
     }
   },
+  "dashboard": {
+    "statOnlineLabel": "オンラインのフレンド",
+    "statInGameLabel": "ゲーム中",
+    "statHotLabel": "ホットインスタンス",
+    "sectionHotInstances": "ホットインスタンス",
+    "platformVrc": "VRChat",
+    "platformCvr": "ChilloutVR",
+    "friendsHere": "<bold>{{count}}</bold>人がここにいます",
+    "joinInstance": "参加",
+    "emptyHeading": "オンラインのフレンドはいません",
+    "emptyHint": "フレンドのワールドがここに表示されます。"
+  },
   "login": {
     "subtitle": "Social VR コンパニオン",
     "username": "ユーザー名またはメールアドレス",
