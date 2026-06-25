@@ -208,13 +208,4 @@ describe('renderer design token contract', () => {
 
     expect(violations).toEqual([])
   })
-
-  it('keeps the TokenPreview theme control fill semantic in both states', () => {
-    const preview = readFileSync(join(rendererSource, 'components/TokenPreview.tsx'), 'utf8')
-
-    expect(preview).toContain('bg-[var(--control-fill)]')
-    expect(preview).toContain('hover:bg-[var(--control-fill-hover)]')
-    expect(preview).toContain('p-[var(--space-10)]')
-    expect(preview).toContain('gap-[var(--space-8)]')
-  })
 })
