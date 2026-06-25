@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUiStore, type ActiveTab } from '../stores/ui'
+import { useFriends } from '../queries/friends'
 
 /** Platform filter for the segmented control. */
 export type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
@@ -26,6 +27,16 @@ export default function TopBar(): React.JSX.Element {
   const [platform, setPlatform] = useState<PlatformFilter>('all')
 
   const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
+
+  // Real online count for the §8 status indicator — total across platforms.
+  // Online = active OR in-game presence (same definition as the dashboard's
+  // getDashboardStats). The friends queries are already cached (Friends/Dashboard
+  // views), so this re-uses them rather than fetching again.
+  const vrcFriends = useFriends('vrchat').data ?? []
+  const cvrFriends = useFriends('chilloutvr').data ?? []
+  const onlineCount = [...vrcFriends, ...cvrFriends].filter(
+    (f) => f.presence.state === 'active' || f.presence.state === 'in-game'
+  ).length
 
   return (
     <div className="flex items-center gap-[18px] mb-[22px]">
@@ -90,7 +101,7 @@ export default function TopBar(): React.JSX.Element {
           }}
           aria-hidden="true"
         />
-        {t('shell.onlineCount', { count: 0 })}
+        {t('shell.onlineCount', { count: onlineCount })}
       </div>
     </div>
   )
