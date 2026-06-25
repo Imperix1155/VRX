@@ -60,6 +60,18 @@
       }
     }
   },
+  "dashboard": {
+    "statOnlineLabel": "Friends online",
+    "statInGameLabel": "In game right now",
+    "statHotLabel": "Hot instances",
+    "sectionHotInstances": "Hot Instances",
+    "platformVrc": "VRChat",
+    "platformCvr": "ChilloutVR",
+    "friendsHere": "<bold>{{count}}</bold> here",
+    "joinInstance": "Join",
+    "emptyHeading": "No friends online",
+    "emptyHint": "Your friends' active worlds will appear here."
+  },
   "login": {
     "subtitle": "Social VR Companion",
     "username": "Username or email",
