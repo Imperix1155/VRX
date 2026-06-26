@@ -20,7 +20,8 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  activeTab: 'friends',
+  // App opens on the Dashboard (owner: the Dashboard is the intended landing view).
+  activeTab: 'dashboard',
   drawerOpen: false,
   setActiveTab: (activeTab) => set({ activeTab }),
   setDrawerOpen: (drawerOpen) => set({ drawerOpen }),

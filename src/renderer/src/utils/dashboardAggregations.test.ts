@@ -126,11 +126,26 @@ describe('getHotInstances', () => {
     expect(result[0].worldName).toBe('The Great Pug')
   })
 
+  it('excludes instances with only 1 friend (a lone friend is not "hot")', () => {
+    const solo = instance('wrld_solo', 'Lonely World')
+    const pair = instance('wrld_pair', 'Busy World')
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', solo),
+      vrcFriend('b', 'in-game', pair),
+      vrcFriend('c', 'in-game', pair)
+    ]
+    const result = getHotInstances(friends)
+    expect(result).toHaveLength(1)
+    expect(result[0].worldId).toBe('wrld_pair')
+    expect(result[0].friendCount).toBe(2)
+  })
+
   it('sorts by friend count descending', () => {
     const inst1 = instance('wrld_1', 'Smaller World')
     const inst2 = instance('wrld_2', 'Bigger World')
     const friends: Friend[] = [
       vrcFriend('a', 'in-game', inst1),
+      vrcFriend('e', 'in-game', inst1),
       vrcFriend('b', 'in-game', inst2),
       vrcFriend('c', 'in-game', inst2),
       vrcFriend('d', 'in-game', inst2)
@@ -139,7 +154,7 @@ describe('getHotInstances', () => {
     expect(result[0].worldId).toBe('wrld_2')
     expect(result[0].friendCount).toBe(3)
     expect(result[1].worldId).toBe('wrld_1')
-    expect(result[1].friendCount).toBe(1)
+    expect(result[1].friendCount).toBe(2)
   })
 
   it('breaks ties by worldName then worldId (stable/deterministic)', () => {
@@ -147,10 +162,12 @@ describe('getHotInstances', () => {
     const inst2 = instance('wrld_a', 'Beta')
     const friends: Friend[] = [
       vrcFriend('a', 'in-game', inst2), // Beta wrld_a
-      vrcFriend('b', 'in-game', inst1) // Alpha wrld_z
+      vrcFriend('b', 'in-game', inst2),
+      vrcFriend('c', 'in-game', inst1), // Alpha wrld_z
+      vrcFriend('d', 'in-game', inst1)
     ]
     const result = getHotInstances(friends)
-    // Both have friendCount 1; tiebreak: Alpha < Beta
+    // Both have friendCount 2; tiebreak: Alpha < Beta
     expect(result[0].worldId).toBe('wrld_z')
     expect(result[1].worldId).toBe('wrld_a')
   })
@@ -158,23 +175,35 @@ describe('getHotInstances', () => {
   it('breaks ties by worldId when worldNames are equal', () => {
     const inst1 = instance('wrld_b', 'Same Name')
     const inst2 = instance('wrld_a', 'Same Name')
-    const friends: Friend[] = [vrcFriend('a', 'in-game', inst1), vrcFriend('b', 'in-game', inst2)]
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', inst1),
+      vrcFriend('c', 'in-game', inst1),
+      vrcFriend('b', 'in-game', inst2),
+      vrcFriend('d', 'in-game', inst2)
+    ]
     const result = getHotInstances(friends)
     expect(result[0].worldId).toBe('wrld_a')
     expect(result[1].worldId).toBe('wrld_b')
   })
 
   it('caps at 6 results', () => {
-    const friends: Friend[] = Array.from({ length: 8 }, (_, i) =>
-      vrcFriend(`u${i}`, 'in-game', instance(`wrld_${i}`, `World ${i}`))
-    )
+    // 8 worlds, each with 2 friends (all "hot") → capped at 6.
+    const friends: Friend[] = Array.from({ length: 8 }, (_, i) => [
+      vrcFriend(`u${i}a`, 'in-game', instance(`wrld_${i}`, `World ${i}`)),
+      vrcFriend(`u${i}b`, 'in-game', instance(`wrld_${i}`, `World ${i}`))
+    ]).flat()
     expect(getHotInstances(friends)).toHaveLength(6)
   })
 
   it('handles null worldName in tiebreak without crashing', () => {
     const inst1 = instance('wrld_1', null)
     const inst2 = instance('wrld_2', 'Named World')
-    const friends: Friend[] = [vrcFriend('a', 'in-game', inst1), vrcFriend('b', 'in-game', inst2)]
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', inst1),
+      vrcFriend('c', 'in-game', inst1),
+      vrcFriend('b', 'in-game', inst2),
+      vrcFriend('d', 'in-game', inst2)
+    ]
     // Should not throw
     const result = getHotInstances(friends)
     expect(result).toHaveLength(2)
@@ -184,7 +213,7 @@ describe('getHotInstances', () => {
 
   it('carries the correct platform from the first friend in the world', () => {
     const inst = instance('wrld_1', 'CVR World')
-    const friends: Friend[] = [cvrFriend('a', 'in-game', inst)]
+    const friends: Friend[] = [cvrFriend('a', 'in-game', inst), cvrFriend('b', 'in-game', inst)]
     const result = getHotInstances(friends)
     expect(result[0].platform).toBe('chilloutvr')
   })

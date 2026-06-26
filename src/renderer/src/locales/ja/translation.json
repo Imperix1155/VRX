@@ -82,8 +82,8 @@
     "platformCvr": "ChilloutVR",
     "friendsHere": "<bold>{{count}}</bold>人がここにいます",
     "joinInstance": "参加",
-    "emptyHeading": "オンラインのフレンドはいません",
-    "emptyHint": "フレンドのワールドがここに表示されます。"
+    "emptyHeading": "ホットインスタンスはありません",
+    "emptyHint": "2人以上のフレンドが同じワールドにいると、ここに表示されます。"
   },
   "login": {
     "subtitle": "Social VR コンパニオン",
