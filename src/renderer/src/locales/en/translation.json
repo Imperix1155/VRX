@@ -82,8 +82,8 @@
     "platformCvr": "ChilloutVR",
     "friendsHere": "<bold>{{count}}</bold> here",
     "joinInstance": "Join",
-    "emptyHeading": "No friends online",
-    "emptyHint": "Your friends' active worlds will appear here."
+    "emptyHeading": "No hot instances currently",
+    "emptyHint": "When 2 or more friends gather in the same world, it'll show up here."
   },
   "login": {
     "subtitle": "Social VR Companion",

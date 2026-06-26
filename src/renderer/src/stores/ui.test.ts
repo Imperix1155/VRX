@@ -4,11 +4,11 @@ import type { ActiveTab } from './ui'
 
 describe('useUiStore', () => {
   beforeEach(() => {
-    useUiStore.setState({ activeTab: 'friends', drawerOpen: false })
+    useUiStore.setState({ activeTab: 'dashboard', drawerOpen: false })
   })
 
-  it('seeds with friends as the default active tab', () => {
-    expect(useUiStore.getState().activeTab).toBe('friends')
+  it('seeds with dashboard as the default active tab', () => {
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
   })
 
   it('setActiveTab switches between all §8 nav views', () => {
