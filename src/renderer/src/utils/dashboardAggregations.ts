@@ -78,16 +78,20 @@ export function getHotInstances(friends: Friend[]): HotInstance[] {
     }
   }
 
-  return [...map.values()]
-    .sort((a, b) => {
-      // Primary: descending friend count
-      if (b.friendCount !== a.friendCount) return b.friendCount - a.friendCount
-      // Tiebreak 1: worldName lexicographic (nulls last)
-      const aName = a.worldName ?? '￿'
-      const bName = b.worldName ?? '￿'
-      if (aName !== bName) return aName < bName ? -1 : 1
-      // Tiebreak 2: worldId (always defined, guarantees full determinism)
-      return a.worldId < b.worldId ? -1 : 1
-    })
-    .slice(0, MAX_HOT_INSTANCES)
+  return (
+    [...map.values()]
+      // A "hot" instance needs 2+ friends — a single friend in a world isn't hot (owner rule).
+      .filter((h) => h.friendCount >= 2)
+      .sort((a, b) => {
+        // Primary: descending friend count
+        if (b.friendCount !== a.friendCount) return b.friendCount - a.friendCount
+        // Tiebreak 1: worldName lexicographic (nulls last)
+        const aName = a.worldName ?? '￿'
+        const bName = b.worldName ?? '￿'
+        if (aName !== bName) return aName < bName ? -1 : 1
+        // Tiebreak 2: worldId (always defined, guarantees full determinism)
+        return a.worldId < b.worldId ? -1 : 1
+      })
+      .slice(0, MAX_HOT_INSTANCES)
+  )
 }
