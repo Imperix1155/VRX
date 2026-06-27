@@ -2,7 +2,8 @@
  * PlatformGlyph — small VT323 platform-tinted square badge (DESIGN.md §7/§238).
  *
  * Renders `V` (VRChat) or `C` (ChilloutVR) in a platform-colored rounded square.
- * This is the ONLY platform-color carrier in the name line (§5 / §9).
+ * Used by the Dashboard hot-instance cards. (The §9.1 friend row dropped this glyph
+ * and carries platform via the spine color alone — see DESIGN.md §5/§9.1.)
  * Colors use color-mix() against the CSS var tokens so they flip in light mode.
  */
 import type { Platform } from '@shared/types'
