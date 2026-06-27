@@ -16,6 +16,8 @@
       "all": "すべて",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
+      "vrchatShort": "VRC",
+      "chilloutvrShort": "CVR",
       "aria": "プラットフォームフィルター"
     },
     "onlineCount": "{{count}}人のフレンドがオンライン",
@@ -53,8 +55,14 @@
       "askMe": "Ask Me",
       "dnd": "取り込み中"
     },
+    "presence": {
+      "inGame": "ゲーム中",
+      "active": "アクティブ",
+      "offline": "オフライン"
+    },
     "instance": {
       "unknownWorld": "不明なワールド",
+      "private": "プライベート",
       "type": {
         "public": "パブリック",
         "friends-plus": "Friends+",

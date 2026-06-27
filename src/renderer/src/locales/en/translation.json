@@ -16,6 +16,8 @@
       "all": "All",
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
+      "vrchatShort": "VRC",
+      "chilloutvrShort": "CVR",
       "aria": "Platform filter"
     },
     "onlineCount": "{{count}} friends online",
@@ -53,8 +55,14 @@
       "askMe": "Ask Me",
       "dnd": "Do Not Disturb"
     },
+    "presence": {
+      "inGame": "In-game",
+      "active": "Active",
+      "offline": "Offline"
+    },
     "instance": {
       "unknownWorld": "Unknown World",
+      "private": "Private",
       "type": {
         "public": "Public",
         "friends-plus": "Friends+",
