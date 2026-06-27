@@ -15,10 +15,13 @@ const VIEW_TITLE_KEYS: Record<ActiveTab, string> = {
   settings: 'shell.nav.settings'
 }
 
-const SEG_ITEMS: Array<{ id: PlatformFilter; key: string }> = [
-  { id: 'all', key: 'shell.seg.all' },
-  { id: 'vrchat', key: 'shell.seg.vrchat' },
-  { id: 'chilloutvr', key: 'shell.seg.chilloutvr' }
+// Order: VRChat | All | ChilloutVR — "All" sits in the MIDDLE because it mixes the
+// two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only
+// acronyms; the platform color is applied to the WORD itself (no glyph chip).
+const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }> = [
+  { id: 'vrchat', key: 'shell.seg.vrchatShort', color: 'var(--vrc)' },
+  { id: 'all', key: 'shell.seg.allShort', color: null },
+  { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--cvr)' }
 ]
 
 export default function TopBar(): React.JSX.Element {
@@ -92,29 +95,22 @@ export default function TopBar(): React.JSX.Element {
           }}
           aria-hidden="true"
         />
-        {SEG_ITEMS.map(({ id, key }) => (
+        {SEG_ITEMS.map(({ id, key, color }) => (
           <button
             key={id}
             type="button"
             onClick={() => setPlatform(id)}
             aria-pressed={platform === id}
             className={[
-              'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
-              'inline-flex items-center justify-center gap-[6px] border-0 bg-transparent cursor-pointer',
+              'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
+              'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',
               'motion-safe:transition-colors',
-              platform === id ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
+              // Platform words carry their own color always; "All" is neutral
+              // (active = full text, inactive = dim).
+              color != null ? '' : platform === id ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
             ].join(' ')}
+            style={color != null ? { color } : undefined}
           >
-            {id === 'vrchat' && (
-              <span className="font-extrabold" style={{ color: 'var(--vrc)' }} aria-hidden="true">
-                V
-              </span>
-            )}
-            {id === 'chilloutvr' && (
-              <span className="font-extrabold" style={{ color: 'var(--cvr)' }} aria-hidden="true">
-                C
-              </span>
-            )}
             {t(key)}
           </button>
         ))}

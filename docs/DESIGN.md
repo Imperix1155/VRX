@@ -14,11 +14,11 @@ R2  Color == meaning, never decoration. Each meaning has ONE fixed location + a 
 R3  Platform hues: --vrc(blue)=VRChat, --cvr(orange)=ChilloutVR. NEVER swap. NEVER reuse blue/orange for non-platform meaning.
 R4  STATE == the avatar DOT only: in-game=green, active=teal (online-not-in-game), offline=gray. in-game+offline match CVR. NEVER color text/panels by state; NEVER make it blue.
 R5  Openness badge == ALWAYS neutral gray + shared icon (§6). NEVER colored by platform or by type.
-R6  STATUS (VRChat: Join Me/Online/Ask Me/DND + custom msg) renders as a LABELED colored pill, NEVER a bare dot. Joinability ACTION (Join/Ask/⊘) is separate + neutral. Ask Me/DND hide the world. CVR has NO status (§5).
+R6  STATUS (VRChat: Join Me/Online/Ask Me/DND + custom msg) renders as a LABELED colored pill, NEVER a bare dot. Joinability ACTION (Join/Ask/⊘) is separate + neutral. Ask Me/DND hide the world. CVR has NO status (§5). [Friend-row carve-out: ring + glyph + aria-label replace the pill; openness pill IS the join target — §9.1.]
 R7  Trust == OFF by default, names neutral, opt-in muted pill only (§5). NEVER color a name by trust. NEVER default-on.
 R8  Type: Inter = all readable text. VT323 = accent ONLY (mark, big numbers, kickers, glyphs, IDs) (§7). NEVER VT323 for body/helper/status/labels.
 R9  NEVER hardcode color/spacing outside tokens (§2). NEVER auto-merge cross-platform identities (§10). NEVER write to VRCX/CVRX folders.
-R10 NEVER rely on color alone — always color + position + glyph/text. ALWAYS honor prefers-reduced-motion.
+R10 NEVER rely on color alone — always color + position + glyph/text. ALWAYS honor prefers-reduced-motion. [Friend-row exception: PLATFORM rides spine color + far-left position only (no glyph), a CVD-safe blue/orange pair — §5/§9.1.]
 R11 Light mode is a token/material shift only (§2A–§4A). SAME layout, typography, channel law, glyphs, and component grammar. NEVER make a separate-looking app.
 ```
 
@@ -192,6 +192,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 - CVR: state online/offline ONLY (online↔`--ingame`, offline↔`--offline`, matching VRChat). NO status pill, NO custom status, NO `active` state. NEVER fabricate a CVR equivalent.
 - Trust: names neutral; trust only as an opt-in muted gray pill. WHY: VRChat is phasing out trust visibility; CVR has none.
 - A11y (hard): every channel = color **+** position **+** glyph/label. Color is NEVER the sole signal.
+- **Friend-row consolidation (§9.1 — owner-approved A11y carve-out):** in the *friends list row only*, the channel FORMS consolidate — STATE+STATUS fold into the avatar's color **ring + status glyph + `aria-label`** (replacing the separate dot + pill); OPENNESS+JOINABILITY merge into ONE right-side **instance-type pill** that doubles as the join target; and PLATFORM is carried by the **spine color + far-left position alone** (the `V`/`C` glyph is dropped). The LAW's intent is unchanged — status is still never color-alone (the glyph + `aria-label` carry it). The one true exception is platform: it loses its glyph and rides color + position (justified because `--vrc` blue vs `--cvr` orange is a CVD-distinct pair, reinforced by the active platform filter). See §9.1 for the full row spec; this carve-out is scoped to the row and does NOT relax R6/R10 anywhere else.
 
 ## §6 OPENNESS LADDER (instance-type consistency — cited by Linear)
 Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true; badge neutral gray.
@@ -226,16 +227,43 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 body{overflow:hidden;}   .main{overflow-y:auto;}   /* shell fixed; only main scrolls */
 ```
 - Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Instances / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z`). Active nav = glass-gradient fill + left spine gradient `--vrc → --cvr`. "Activity" carries an unread badge.
-- Main: topbar (view title + glass segmented control All/V VRChat/C ChilloutVR + right online count w/ green pulse) → stat row → titled sections (`.secline` = VT323 kicker + dim hint).
+- Main: topbar (view title + glass segmented control All/V VRChat/C ChilloutVR + right online count w/ green pulse) → stat row → titled sections (`.secline` = VT323 kicker + dim hint). **(↻ segmented control REVISED by §9.1 — order `VRChat | All | ChilloutVR`, text-only `VRC/ALL/CVR`; it filters the whole view + drives the sidebar accent.)**
 - Dense desktop utility. No responsive collapse required for v1. Deadspace OK at view bottom, NOT between related cards.
 
 ## §9 Components (compose §3–§7; exact markup in glass.html)
 - Stat card: `.glass`, big VT323 number tinted by meaning (online→`--active`, in-game→`--ingame`, hot→`--bridge`), dim Inter label.
-- Hot-instance card: `.glass`+`.tint-vrc|cvr`+platform class; 4px top edge gradient (platform→transparent); `V`/`C` glyph; neutral openness badge+icon; world title; platform-colored subtitle; avatar stack + "<b>N</b> here"; platform-tinted Join.
-- Friend row: grid `3px | 42px | 1fr | auto` = glowing platform spine · avatar + state dot · neutral name + `V`/`C` glyph + status pill (VRChat) + "world · openness" / custom-status subline · derived affordance. Active/offline → no affordance; Ask Me/DND → no world (hidden).
+- Hot-instance card: `.glass`+`.tint-vrc|cvr`+platform class; 4px top edge gradient (platform→transparent); `V`/`C` glyph; neutral openness badge+icon; world title; platform-colored subtitle; avatar stack + "<b>N</b> here"; platform-tinted Join. **(↻ REVISED by §9.1 — 2026-06-25 owner review.)**
+- Friend row: grid `3px | 42px | 1fr | auto` = platform spine · avatar (status ring + glyph) · name + custom-status-beside / world subline · instance-type pill (= join target). **(↻ BUILT per §9.1 — the old dot + `V`/`C` glyph + status pill + openness-in-subline + separate affordance is fully superseded.)**
 - Activity feed row (the **Activity** view + a Dashboard preview): reverse-chronological log of friend events — world/instance change, online/active/offline, status change, incoming/accepted friend request, joined-your-instance, group events. Reuses the channel system (platform spine+glyph, state dot, status pill, openness badge on location events, join affordance when joinable) + a small **event-type glyph** + a dim **relative timestamp** (Inter, NOT VT323). MAX user control: scope = **All / Friends / Favorites** (+ specific favorite groups); per-event-type toggles; per-platform via the segmented control. Local/private (derived from polling, stored as local history). Models VRCX Feed/Friend Log; CVR-lighter. (Tracked: VRX-144 + VRX-53 instance history.)
 - Segmented control: glass track; active = glass-gradient bubble + inset highlight. React: animate bubble via transform/width; reduce-motion shortens. NEVER fake selection with per-button bg.
 - Badges/pills: openness = neutral gray; platform glyph = platform-tinted square; VRChat status pill = labeled (§5).
+
+## §9.1 Friends-UI redesign — owner real-data review (2026-06-25)
+Decisions from the FIRST real-data Windows review (running app, real friends, ultrawide + normal + TV), refined against rendered mocks (2026-06-26). These **REVISE** the friend row + hot-instance card (§9), the segmented control (§8), and parts of §5/§6 — and supersede the prior spec where they conflict. Items marked **OPEN** are still being explored or carry a rule tension to resolve before building. These feed the existing M3 — Friends UI issues (VRX-64/66/67/68/71/76/78), not new ones.
+
+**Build status:** the **friend row** + **segmented control** are now BUILT + render-verified (this PR). The **hot-instance card** (VRX-71), list sectioning (VRX-67), Compact/Detail (VRX-68), split-by-platform option (VRX-76), real avatars (VRX-48), click-to-join (VRX-166), and the whole-view platform filter (VRX-66) are still pending their issues.
+
+**Friend row (revises §235 — BUILT, mock-approved 2026-06-26, render-verified):**
+- **Faint, always-on card surface** (`color-mix(--text 4%)` + hairline) so rows read as separated cards. **Uniform height** — the 42px avatar sets it (measured 60px/row), so no-custom-status rows are no longer short (fixes the old bug).
+- **Avatar far-left** (initial placeholder — real images are VRX-48; the renderer CSP blocks remote `img-src`), **wrapped in a status-color ring with a status glyph badge.** Ring + glyph + the avatar's `aria-label` carry STATUS (VRChat) or PRESENCE fallback (CVR/offline) — color **+** glyph **+** text, never color-alone (resolves the earlier A11y OPEN; see the §5 carve-out). Glyphs: Online ✓ · Join Me ⇥ · Ask Me ? · DND – · CVR in-game gamepad · active dot · offline none. The glyph is knocked out to `--bg-base` so it flips in light mode.
+- **Name + custom status on ONE line** (name, then the custom status BESIDE it, dim) — **revises** the earlier "stacked under the name." **World name on the subline** beneath (fixed-height slot keeps rows uniform). Ask Me/DND still hide the world; the custom status still shows beside the name.
+- **NO `VRC`/`CVR` acronym/glyph in the row** — the **spine color alone carries platform** (far-left blue/orange; the §5/R10 carve-out, a CVD-safe pair). Revises the earlier "quiet acronym by the name."
+- **Right side: ONE instance-type pill** (text-only openness label, neutral, `min-width` + centered → a tidy right-aligned column) that **doubles as the join target** — merges the old subline openness badge **and** the separate Join/Ask/⊘ affordance into one element ("press the instance type to join"). Shows the accurate openness label when the instance is visible, or **"Private"** when an Ask Me/DND friend is in a (hidden) world; nothing when there's no instance to act on (offline, in-menu, or Ask Me/DND while only `active`). It is the *visual* affordance now; the click→join IPC lands with VRX-166 (then it becomes a real `button`).
+  - ⚠️ **OPEN — verbose CVR labels:** "Friends of Friends" / "Everyone Can Invite" / etc. overflow the tidy column (measured 133px vs the 78px short-label width). Decide a short-label policy (map verbose CVR types → short equivalents) before the pill column is final; until then long labels expand the pill.
+
+**Compact / Detail (VRX-68):** Detail = full row; **Compact hides the custom status**, keeping name + icon + status + instance. The icon **scales down proportionally — "compact," NOT "crunched"** (never distorted/cropped).
+
+**List structure (VRX-67 / VRX-76):** sections — **In-Game/Online** + a **collapsible Offline** (online stays expanded), each with counts. One-column-combined (VRX-76) vs **split-by-platform = a USER OPTION**, not a fixed choice.
+
+**Hot-instance card (revises §9):** **world image LEFT** (rectangular, rounded, glassy — when thumbnails are available; degrade cleanly without it), **info RIGHT**: world title, instance #/hash, openness icon-badge, **platform de-emphasized** (a quiet readable label, NOT a big `V`/`C` — color carries the platform), notes. **"Who's there?"** = a few names + **"+N more"** (NEVER all) + "N here". Quick **Join** (when `joinInstance` lands). **≥2 friends** to be "hot" (done in VRX-171; VRX-78 makes the floor configurable); **most→least** order (most friends top-left). Empty: **"No hot instances currently"** (done, VRX-171).
+
+**Segmented control (revises §8):** order **`VRChat | All | ChilloutVR`** — **All in the MIDDLE** (it mixes the platforms, so it sits between them; keep consistent with the mixed-"All" list order — **OPEN** until that list exists). Labels = **text-only acronyms `VRC | ALL | CVR`**, the platform color applied to **the word itself** (VRC blue, CVR orange; ALL neutral) — **no icons, no separate chip**. The bubble tracks the **active button's real width** (labels are unequal — done in VRX-171). The control **filters the WHOLE view** — friends list, online counts, AND dashboard hot instances: one platform → that platform only; All → both combined.
+
+**Sidebar nav accent follows the active platform filter (NEW issue):** keep the `--vrc→--cvr` gradient for All; recolor the active-nav accent to the platform color when one platform is filtered (VRChat → blue, CVR → orange) — an extra "you're filtered, not seeing the full list" cue.
+
+**App opens on the Dashboard** (done, VRX-171).
+
+**Reference:** the owner's pre-rewrite app (v0.10.0) is a *visual target* (NOT a revert) for: distinct stacked cards, `VRC`/`CVR` acronyms, All-in-middle, avatar+ring, instance line under the name. Adapt to the glass language, don't copy.
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 - No shared identity exists across platforms → linking is USER-DRIVEN. NEVER auto-merge.
