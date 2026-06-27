@@ -197,13 +197,14 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
       : null
 
   // Instance pill (right): the accurate openness label when the instance is visible
-  // (this is the §9.1 join target once join IPC lands — VRX-166), or "Private" when
-  // an online friend's instance is hidden (Ask Me / DND). Nothing when there's no
-  // instance to act on (offline / in-menu).
+  // (this is the §9.1 join target once join IPC lands — VRX-166), or "Private" when an
+  // Ask Me / DND friend is in a (hidden) world. Nothing when there's no instance to act
+  // on — offline, in-menu, or Ask Me/DND while only `active` (state distinguishes
+  // in-a-hidden-world from in-the-menu even though the location itself is hidden).
   let instancePill: string | null = null
   let pillJoinable = false
   if (hideWorld) {
-    instancePill = t('friends.instance.private')
+    if (friend.presence.state === 'in-game') instancePill = t('friends.instance.private')
   } else if (instance != null) {
     instancePill = t(INSTANCE_TYPE_LABEL_KEYS[instance.type] ?? 'friends.instance.unknownWorld')
     pillJoinable = true

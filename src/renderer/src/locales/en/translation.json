@@ -18,6 +18,7 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR",
+      "allShort": "ALL",
       "aria": "Platform filter"
     },
     "onlineCount": "{{count}} friends online",

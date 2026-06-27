@@ -132,27 +132,48 @@ describe('FriendsList', () => {
     expect(render()).toContain(label)
   })
 
-  it('shows "Private" (not the world or type) for an Ask Me friend whose instance is hidden', () => {
+  it('shows "Private" (not the world or type) for an Ask Me friend in a hidden world', () => {
     mock([
       {
         ...friend,
         status: 'ask-me',
         statusDescription: 'taking commissions',
-        instance: publicInstance
+        instance: publicInstance,
+        presence: { state: 'in-game' } // in a world, but the location is hidden
       }
     ])
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
+    // "Private" replaces BOTH the world AND the openness type label.
+    expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
     // Custom status still shown (beside the name), exactly once.
     expect((markup.match(/taking commissions/g) ?? []).length).toBe(1)
   })
 
-  it('shows "Private" for a DND friend with a hidden instance', () => {
-    mock([{ ...friend, status: 'dnd', statusDescription: 'in meeting', instance: publicInstance }])
+  it('shows "Private" for a DND friend in a hidden world', () => {
+    mock([
+      {
+        ...friend,
+        status: 'dnd',
+        statusDescription: 'in meeting',
+        instance: publicInstance,
+        presence: { state: 'in-game' }
+      }
+    ])
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
+    expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
+  })
+
+  it('shows NO pill for an Ask Me friend in the menu (active, not in a world)', () => {
+    // Location is hidden either way, but state distinguishes in-a-world from in-menu;
+    // "Private" implies a hidden instance, so the menu case must show nothing (§9.1).
+    mock([{ ...friend, status: 'ask-me', statusDescription: 'brb', presence: { state: 'active' } }])
+    const markup = render()
+    expect(markup).not.toContain('Private')
+    expect(markup).not.toContain('Public')
   })
 
   it('renders no instance pill for an in-menu friend with no instance', () => {

@@ -20,7 +20,7 @@ const VIEW_TITLE_KEYS: Record<ActiveTab, string> = {
 // acronyms; the platform color is applied to the WORD itself (no glyph chip).
 const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }> = [
   { id: 'vrchat', key: 'shell.seg.vrchatShort', color: 'var(--vrc)' },
-  { id: 'all', key: 'shell.seg.all', color: null },
+  { id: 'all', key: 'shell.seg.allShort', color: null },
   { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--cvr)' }
 ]
 
