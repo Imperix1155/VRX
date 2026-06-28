@@ -1,7 +1,6 @@
 node_modules
 dist
 out
-.DS_Store
 .eslintcache
 *.log*
 release
@@ -9,6 +8,22 @@ release
 .env.*
 .vite
 *.node
+
+# OS cruft (cross-platform: this project is built/tested on macOS + Windows)
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# editor / IDE state (per-developer). NOTE: .vscode/ is intentionally TRACKED here —
+# it holds shared launch/settings/extensions config, so it is deliberately not ignored.
+.idea/
+*.swp
+
+# local tool caches & agent state (regenerated locally)
+.claude/settings.local.json
+.claude/worktrees/
+.fallow/
 
 # secrets & credentials — NEVER commit (this is a public repo)
 *.pem
@@ -31,3 +46,8 @@ local-notes/
 
 # test coverage
 coverage
+
+# local design-system export for claude.ai/design — not needed to build the app
+# (its source of truth is src/renderer/src/assets/main.css + docs/). If you'd rather
+# version it as a design reference, drop this line and commit the folder instead.
+vrx-design/
