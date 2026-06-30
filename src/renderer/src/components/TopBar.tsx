@@ -77,16 +77,19 @@ export default function TopBar(): React.JSX.Element {
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 
-      {/* Segmented control (§9: one bubble element, never per-button bg) */}
+      {/* Segmented control (§9: one bubble element, never per-button bg).
+          Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
+          here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
+          the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
       <div
         ref={trackRef}
-        className="glass relative flex p-[4px] rounded-[13px] gap-[2px] ml-[6px]"
+        className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
         role="group"
         aria-label={t('shell.seg.aria')}
       >
         {/* Sliding bubble — left/width measured from the active button (see above) */}
         <span
-          className="absolute top-[4px] bottom-[4px] rounded-[9px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
+          className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
           style={{
             left: `${bubble.left}px`,
             width: `${bubble.width}px`,
