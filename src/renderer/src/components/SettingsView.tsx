@@ -45,15 +45,17 @@ export default function SettingsView(): React.JSX.Element {
               </p>
             </div>
 
-            {/* Segmented control (§9 pattern) */}
+            {/* Segmented control (§9 pattern). Radius: .glass's 20px panel radius wins
+                over any `rounded-[..]` here (see TopBar), so the bubble is rounded-[16px]
+                (= 20px − 4px inset) to seat concentrically into the track. */}
             <div
-              className="glass relative flex p-[4px] rounded-[13px] gap-[2px] shrink-0"
+              className="glass relative flex p-[4px] gap-[2px] shrink-0"
               role="group"
               aria-label={t('settings.theme.aria')}
             >
               {/* Sliding bubble */}
               <span
-                className="absolute top-[4px] bottom-[4px] rounded-[9px] pointer-events-none motion-safe:transition-transform motion-safe:duration-200"
+                className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-transform motion-safe:duration-200"
                 style={{
                   width: `calc((100% - 8px - ${THEMES.length - 1} * 2px) / ${THEMES.length})`,
                   transform: `translateX(calc(${activeIndex} * 100% + ${activeIndex} * 2px))`,

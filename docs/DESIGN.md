@@ -112,6 +112,7 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
 ```
 - MUST always include the inset top highlight WITH the depth shadow (else reads flat). WHY: simulates lit top edge + shadowed underside.
 - Radius scale: panels/cards `20px`; nav/segmented/buttons `12–13px`; pills/affordances `9–10px`.
+  - **Carve-out (owner-ratified 2026-06):** the **segmented control track** uses the `20px` panel radius, not 12–13px. It's a `.glass` surface and `.glass` (un-layered) overrides any `rounded-[..]` utility anyway; the owner chose to keep the rounder look. Its sliding bubble is then `16px` (= 20 − 4px inset) so it seats concentrically. If you want a control back on the 12–13px scale, you must override `.glass`'s radius explicitly.
 - Platform tint opacity ceiling = `0.22`. Above → reads as solid plastic (loses glass).
 - `.tint-vrc`/`.tint-cvr` used ONLY where the surface belongs to one platform (e.g. hot-instance cards).
 
