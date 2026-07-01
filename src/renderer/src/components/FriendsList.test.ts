@@ -167,6 +167,69 @@ describe('FriendsList', () => {
     expect(markup).toContain('Private')
   })
 
+  it('shows "Private" for an ONLINE-status friend in a hidden world (the screenshot bug)', () => {
+    // VRChat reports location "private" for ANY friend in a private instance — not
+    // just Ask Me/DND. instance parses to null but state says in-world → Private.
+    mock([
+      {
+        ...friend,
+        status: 'online',
+        statusDescription: 'chilling',
+        instance: null,
+        presence: { state: 'in-game' }
+      }
+    ])
+    const markup = render()
+    expect(markup).toContain('Private')
+  })
+
+  it('shows "Private" for a join-me friend in a hidden world too', () => {
+    mock([{ ...friend, status: 'join-me', instance: null, presence: { state: 'in-game' } }])
+    expect(render()).toContain('Private')
+  })
+
+  it('shows NO pill for a web-active friend (online, truly not in a world)', () => {
+    mock([{ ...friend, status: 'online', instance: null, presence: { state: 'active' } }])
+    expect(render()).not.toContain('Private')
+  })
+
+  // ─── §6 openness-ladder pill colors ──────────────────────────────────────────
+
+  it.each([
+    ['public', 'op-public'],
+    ['friends-plus', 'op-friends-plus'],
+    ['friends', 'op-friends'],
+    ['invite', 'op-invite'],
+    ['group-public', 'op-group-public'],
+    ['group', 'op-group']
+  ] as const)('colors the %s pill with its ladder token', (type, token) => {
+    mock([{ ...friend, instance: { ...publicInstance, type }, presence: { state: 'in-game' } }])
+    expect(render()).toContain(`var(--${token}`)
+  })
+
+  it('colors CVR friends-of-friends with the shared friends-plus tier', () => {
+    mock([
+      {
+        ...friend,
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        presence: { state: 'in-game' },
+        instance: { ...publicInstance, type: 'friends-of-friends' }
+      } as Friend
+    ])
+    expect(render()).toContain('var(--op-friends-plus')
+  })
+
+  it('keeps the hidden "Private" pill neutral (no ladder token)', () => {
+    mock([
+      { ...friend, status: 'ask-me', instance: publicInstance, presence: { state: 'in-game' } }
+    ])
+    const markup = render()
+    expect(markup).toContain('Private')
+    expect(markup).not.toContain('var(--op-')
+  })
+
   it('shows NO pill for an Ask Me friend in the menu (active, not in a world)', () => {
     // Location is hidden either way, but state distinguishes in-a-world from in-menu;
     // "Private" implies a hidden instance, so the menu case must show nothing (§9.1).
