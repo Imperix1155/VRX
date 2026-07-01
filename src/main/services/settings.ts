@@ -43,7 +43,12 @@ export function loadSettings(): Settings {
     }
     return settings
   } catch (err) {
-    log.warn('settings: load failed; using in-memory defaults, on-disk file left intact', err)
+    // Plain string, not the raw Error: message/stack are non-enumerable, so the log
+    // redaction hook's object-walk can't see inside an Error (house pattern).
+    log.warn(
+      'settings: load failed; using in-memory defaults, on-disk file left intact',
+      err instanceof Error ? err.message : String(err)
+    )
     return { ...DEFAULT_SETTINGS }
   }
 }

@@ -20,6 +20,9 @@ export function initAutoUpdater(): void {
 
   autoUpdater.logger = log
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-    log.warn('autoUpdater: update check failed', err)
+    // Reformat to a plain string: Error.message/.stack are non-enumerable, so the
+    // log redaction hook's object-walk can't see inside a raw Error (house pattern —
+    // see the crash handlers in index.ts).
+    log.warn('autoUpdater: update check failed', err instanceof Error ? err.message : String(err))
   })
 }
