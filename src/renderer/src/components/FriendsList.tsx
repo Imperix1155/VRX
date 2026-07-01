@@ -3,6 +3,40 @@ import type { Friend, InstanceType } from '@shared/types'
 import { useFriends } from '../queries/friends'
 
 /**
+ * Openness-ladder tier per InstanceType (DESIGN.md §6) — keys the pill's `--op-*`
+ * color tokens. Friend ladder green→orange (open→locked); groups purple (lighter =
+ * more open). `null` = neutral pill (CVR Offline Instance — not joinable).
+ */
+type OpennessTier =
+  | 'public'
+  | 'friends-plus'
+  | 'friends'
+  | 'invite-plus'
+  | 'invite'
+  | 'group-public'
+  | 'group-plus'
+  | 'group'
+
+const OPENNESS_TIER: Record<InstanceType, OpennessTier | null> = {
+  // VRChat types
+  public: 'public',
+  'friends-plus': 'friends-plus',
+  friends: 'friends',
+  'invite-plus': 'invite-plus',
+  invite: 'invite',
+  'group-public': 'group-public',
+  'group-plus': 'group-plus',
+  group: 'group',
+  // CVR types (same §6 tiers, platform-true labels)
+  'friends-of-friends': 'friends-plus',
+  'everyone-can-invite': 'invite-plus',
+  'owner-must-invite': 'invite',
+  'friends-of-members': 'group-plus',
+  'members-only': 'group',
+  offline: null
+}
+
+/**
  * Maps each platform-true InstanceType to its i18n key (DESIGN.md §6).
  * Using a lookup map avoids dot-notation issues with hyphenated keys.
  */
@@ -196,18 +230,20 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
       ? (instance.worldName ?? t('friends.instance.unknownWorld'))
       : null
 
-  // Instance pill (right): the accurate openness label when the instance is visible
-  // (this is the §9.1 join target once join IPC lands — VRX-166), or "Private" when an
-  // Ask Me / DND friend is in a (hidden) world. Nothing when there's no instance to act
-  // on — offline, in-menu, or Ask Me/DND while only `active` (state distinguishes
-  // in-a-hidden-world from in-the-menu even though the location itself is hidden).
+  // Instance pill (right): the accurate openness label — colored by its §6 tier —
+  // when the instance is visible (the §9.1 join target once join IPC lands, VRX-166).
+  // A friend who is IN A WORLD we can't see gets "Private" — REGARDLESS of status:
+  // VRChat reports location "private" for any friend in a private instance (not just
+  // Ask Me/DND), so `state` is the truth about being in-world, not `status` (owner
+  // rule: never no pill unless they're truly not in a world). Web/app-active friends
+  // (state "active") and offline friends are not in any instance → no pill.
   let instancePill: string | null = null
-  let pillJoinable = false
-  if (hideWorld) {
-    if (friend.presence.state === 'in-game') instancePill = t('friends.instance.private')
-  } else if (instance != null) {
+  let pillTier: OpennessTier | null = null
+  if (!hideWorld && instance != null) {
     instancePill = t(INSTANCE_TYPE_LABEL_KEYS[instance.type] ?? 'friends.instance.unknownWorld')
-    pillJoinable = true
+    pillTier = OPENNESS_TIER[instance.type] ?? null
+  } else if (friend.presence.state === 'in-game') {
+    instancePill = t('friends.instance.private')
   }
 
   return (
@@ -240,18 +276,29 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
         </span>
       </div>
 
-      {/* Instance pill — same width column, centered (§9.1). Visual affordance now;
-          the clickable join lands with VRX-166. */}
+      {/* Instance pill — same width column, centered (§9.1); tier-colored per the §6
+          openness ladder (inline style: tier→token is runtime lookup, so Tailwind
+          can't emit it). Neutral (Private / CVR Offline Instance) pills stay hueless
+          but readable. Visual affordance now; the clickable join lands with VRX-166. */}
       {instancePill != null ? (
         <span
           className={[
             'inline-flex h-[28px] min-w-[78px] shrink-0 items-center justify-center',
-            'rounded-[10px] border px-[12px] text-[12px] font-semibold whitespace-nowrap',
-            'bg-[color-mix(in_srgb,var(--text)_5%,transparent)]',
-            pillJoinable
-              ? 'border-[color-mix(in_srgb,var(--text)_13%,transparent)] text-[var(--text-dim)]'
-              : 'border-[color-mix(in_srgb,var(--text)_9%,transparent)] text-[var(--text-faint)]'
+            'rounded-[10px] border px-[12px] text-[12px] font-semibold whitespace-nowrap'
           ].join(' ')}
+          style={
+            pillTier != null
+              ? {
+                  color: `var(--op-${pillTier}-text)`,
+                  background: `color-mix(in srgb, var(--op-${pillTier}) 13%, transparent)`,
+                  borderColor: `color-mix(in srgb, var(--op-${pillTier}) 36%, transparent)`
+                }
+              : {
+                  color: 'var(--text-dim)',
+                  background: 'color-mix(in srgb, var(--text) 7%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--text) 16%, transparent)'
+                }
+          }
         >
           {instancePill}
         </span>

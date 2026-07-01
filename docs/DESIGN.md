@@ -13,7 +13,7 @@ R1  Every floating surface = .glass (§3). NEVER opaque/solid card backgrounds.
 R2  Color == meaning, never decoration. Each meaning has ONE fixed location + a non-color glyph (§5).
 R3  Platform hues: --vrc(blue)=VRChat, --cvr(orange)=ChilloutVR. NEVER swap. NEVER reuse blue/orange for non-platform meaning.
 R4  STATE == the avatar DOT only: in-game=green, active=teal (online-not-in-game), offline=gray. in-game+offline match CVR. NEVER color text/panels by state; NEVER make it blue.
-R5  Openness badge == ALWAYS neutral gray + shared icon (§6). NEVER colored by platform or by type.
+R5  Openness == colored by its §6 LADDER TIER (owner-ratified 2026-07-01: friend ladder green→orange open→locked, groups purple by shade, hidden/offline-instance neutral) — NEVER by platform. The friend-row pill is the tier-colored form; icon badges elsewhere stay neutral gray until migrated (VRX-71).
 R6  STATUS (VRChat: Join Me/Online/Ask Me/DND + custom msg) renders as a LABELED colored pill, NEVER a bare dot. Joinability ACTION (Join/Ask/⊘) is separate + neutral. Ask Me/DND hide the world. CVR has NO status (§5). [Friend-row carve-out: ring + glyph + aria-label replace the pill; openness pill IS the join target — §9.1.]
 R7  Trust == OFF by default, names neutral, opt-in muted pill only (§5). NEVER color a name by trust. NEVER default-on.
 R8  Type: Inter = all readable text. VT323 = accent ONLY (mark, big numbers, kickers, glyphs, IDs) (§7). NEVER VT323 for body/helper/status/labels.
@@ -165,7 +165,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 | Platform | glass tint + left spine + `V`/`C` glyph | `--vrc` blue / `--cvr` orange | a bare dot; non-platform use of blue/orange |
 | State (presence) | the avatar **dot** | in-game `--ingame` green · active `--active` teal · offline `--offline` gray | color on text/panel; making it blue |
 | Status (VRChat) | a **labeled pill** | Join Me / Online / Ask Me / DND (VRChat hues) + custom msg | a bare dot; reusing the dot; a CVR equivalent |
-| Openness | neutral gray **badge** + shared icon | gray pill, platform-true label | color by platform or by type |
+| Openness | right-side instance **pill** (friend row) / icon badge | `--op-*` tier color + platform-true label (§6 ladder); hidden/offline-instance = neutral | color by platform; a hue for Private |
 | Joinability | right-side **affordance** | `Join` / `Ask` / `⊘` (neutral, derived) | reusing a platform/status hue |
 | Trust | opt-in muted pill (right) | OFF by default; names neutral | name color; default-on |
 
@@ -196,9 +196,28 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 - **Friend-row consolidation (§9.1 — owner-approved A11y carve-out):** in the *friends list row only*, the channel FORMS consolidate — STATE+STATUS fold into the avatar's color **ring + status glyph + `aria-label`** (replacing the separate dot + pill); OPENNESS+JOINABILITY merge into ONE right-side **instance-type pill** that doubles as the join target; and PLATFORM is carried by the **spine color + far-left position alone** (the `V`/`C` glyph is dropped). The LAW's intent is unchanged — status is still never color-alone (the glyph + `aria-label` carry it). The one true exception is platform: it loses its glyph and rides color + position (justified because `--vrc` blue vs `--cvr` orange is a CVD-distinct pair, reinforced by the active platform filter). See §9.1 for the full row spec; this carve-out is scoped to the row and does NOT relax R6/R10 anywhere else.
 
 ## §6 OPENNESS LADDER (instance-type consistency — cited by Linear)
-Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true; badge neutral gray.
+Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
 Scale (open→closed): `Public → Friends+ → Friends → Invite+ → Invite`. `Group` = chip MODIFIER on top of openness (a group instance is still public / friends-extended / members-only).
 Shared icon sprite: `#o-public`(globe) `#o-fof`(person+plus) `#o-friends`(person) `#o-invite`(envelope) `#o-group`(two people).
+
+### §6.1 Openness COLORS (owner-approved 2026-07-01 — replaces "badge always neutral gray")
+The instance pill is colored by TIER so the type reads by color alone (hue = family, shade = tier; label carries the last mile). Tokens `--op-<tier>` / `--op-<tier>-text` in main.css:
+
+| Tier | dark | dark text | light | light text |
+|---|---|---|---|---|
+| Public | `#3ee36a` | = hue | `#1fae4e` | `#147a36` |
+| Friends+ | `#b7de4f` | = hue | `#7fa821` | `#5c7a16` |
+| Friends | `#e6c353` | = hue | `#b28a1d` | `#82651a` |
+| Invite+ | `#ffc172` | = hue | `#d98324` | `#9a5c14` |
+| Invite | `#ffa14e` | = hue | `#c96a20` | `#8f4c15` |
+| Group Public | `#bfa0ff` | = hue | `#7a5fd0` | `#5b429e` |
+| Group+ | `#9d80f6` | = hue | `#6d4fc9` | `#4f38a0` |
+| Group | `#8d61f0` | `#b795ff` (lifted) | `#5f3fc4` | `#452f96` |
+| Private / Offline Instance | neutral: text `--text-dim`, bg `color-mix(--text 7%)`, border `color-mix(--text 16%)` | | | |
+
+Pill treatment: text `--op-<tier>-text` · bg `color-mix(in srgb, var(--op-<tier>) 13%, transparent)` · border `36%` mix. Rules: friend ladder = green (open) → orange (locked), deliberately LIGHT oranges so Invite never reads as the CVR platform hue (`--cvr` stays deep red-orange); groups = purple family, lighter = more open; **Private/Offline-instance = hueless but readable** (they must recede behind joinable pills, never strain). CVR types color by their tier column above (FoF = Friends+, Everyone-Can-Invite = Invite+, Owner-Must-Invite = Invite, Friends-of-Members = Group+, Members-Only = Group).
+
+**Pill presence rule (owner 2026-07-01):** a friend IN A WORLD always gets a pill — the tier label when visible, **"Private"** when the location is hidden (VRChat sends `location:"private"` for ANY friend in a private instance, regardless of status — `presence.state` is the in-world truth, never `status`). No pill ONLY when truly not in a world: offline, or online-on-web/app (`state:"active"`).
 
 Unified mapping — verified vs VRChat wiki + ChilloutVR docs (2026-05):
 
@@ -249,7 +268,7 @@ Decisions from the FIRST real-data Windows review (running app, real friends, ul
 - **Avatar far-left** (initial placeholder — real images are VRX-48; the renderer CSP blocks remote `img-src`), **wrapped in a status-color ring with a status glyph badge.** Ring + glyph + the avatar's `aria-label` carry STATUS (VRChat) or PRESENCE fallback (CVR/offline) — color **+** glyph **+** text, never color-alone (resolves the earlier A11y OPEN; see the §5 carve-out). Glyphs: Online ✓ · Join Me ⇥ · Ask Me ? · DND – · CVR in-game gamepad · active dot · offline none. The glyph is knocked out to `--bg-base` so it flips in light mode.
 - **Name + custom status on ONE line** (name, then the custom status BESIDE it, dim) — **revises** the earlier "stacked under the name." **World name on the subline** beneath (fixed-height slot keeps rows uniform). Ask Me/DND still hide the world; the custom status still shows beside the name.
 - **NO `VRC`/`CVR` acronym/glyph in the row** — the **spine color alone carries platform** (far-left blue/orange; the §5/R10 carve-out, a CVD-safe pair). Revises the earlier "quiet acronym by the name."
-- **Right side: ONE instance-type pill** (text-only openness label, neutral, `min-width` + centered → a tidy right-aligned column) that **doubles as the join target** — merges the old subline openness badge **and** the separate Join/Ask/⊘ affordance into one element ("press the instance type to join"). Shows the accurate openness label when the instance is visible, or **"Private"** when an Ask Me/DND friend is in a (hidden) world; nothing when there's no instance to act on (offline, in-menu, or Ask Me/DND while only `active`). It is the *visual* affordance now; the click→join IPC lands with VRX-166 (then it becomes a real `button`).
+- **Right side: ONE instance-type pill** (text-only openness label, neutral, `min-width` + centered → a tidy right-aligned column) that **doubles as the join target** — merges the old subline openness badge **and** the separate Join/Ask/⊘ affordance into one element ("press the instance type to join"). Shows the accurate openness label — **tier-colored per §6.1** — when the instance is visible, or a neutral **"Private"** for ANY friend in a hidden world (revised 2026-07-01: any status, not just Ask Me/DND — `state === 'in-game'` is the gate); nothing only when truly not in a world (offline / web-active). It is the *visual* affordance now; the click→join IPC lands with VRX-166 (then it becomes a real `button`).
   - ⚠️ **OPEN — verbose CVR labels:** "Friends of Friends" / "Everyone Can Invite" / etc. overflow the tidy column (measured 133px vs the 78px short-label width). Decide a short-label policy (map verbose CVR types → short equivalents) before the pill column is final; until then long labels expand the pill.
 
 **Compact / Detail (VRX-68):** Detail = full row; **Compact hides the custom status**, keeping name + icon + status + instance. The icon **scales down proportionally — "compact," NOT "crunched"** (never distorted/cropped).
