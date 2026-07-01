@@ -24,6 +24,10 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('vrx', vrx)
   } catch (error) {
+    // console (not electron-log) is a deliberate exception here: the sandboxed
+    // preload can't load electron-log's node transport, and if the contextBridge
+    // itself failed there is no working bridge to route a log over — the devtools
+    // console is the only surface that still works in this bootstrap-failure case.
     console.error('[preload] contextBridge failed:', error)
   }
 } else {
