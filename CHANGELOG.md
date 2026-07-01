@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Instance-type pills in the friends list are now color-coded by openness: green (Public) through orange (Invite) for the friend ladder — the more locked, the warmer — and shades of purple for the group family, so the instance type reads at a glance without reading the label. Private stays neutral but is now clearly readable.
+
 ### Fixed
+
+- Friends who are in a private world now always show a "Private" pill, whatever their status — previously only Ask Me / Do Not Disturb friends did, so an "Online" friend in a private instance showed no instance type at all. Friends online on the website/app (not in a world) intentionally show no pill.
 
 - The platform toggle's selection bubble now seats into the track's rounded corners (the track renders at the 20px panel radius; the bubble is 16px to nest concentrically) — in both the top-bar platform filter and the Settings theme control.
 
