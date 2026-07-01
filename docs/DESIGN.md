@@ -246,7 +246,7 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 .app{display:grid;grid-template-columns:248px 1fr;height:100vh;padding:16px;gap:16px;}
 body{overflow:hidden;}   .main{overflow-y:auto;}   /* shell fixed; only main scrolls */
 ```
-- Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Instances / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z`). Active nav = glass-gradient fill + left spine gradient `--vrc → --cvr`. "Activity" carries an unread badge.
+- Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Instances / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z` — the version is BUILD-INJECTED from package.json via `__APP_VERSION__`, never hardcoded). Active nav = glass-gradient fill + left spine gradient `--vrc → --cvr`. "Activity" carries an unread badge. **(Status 2026-07-01: the Friends·count suffix and the Activity unread badge are spec'd but NOT YET BUILT — the nav renders plain labels; no tracking issue yet.)**
 - Main: topbar (view title + glass segmented control All/V VRChat/C ChilloutVR + right online count w/ green pulse) → stat row → titled sections (`.secline` = VT323 kicker + dim hint). **(↻ segmented control REVISED by §9.1 — order `VRChat | All | ChilloutVR`, text-only `VRC/ALL/CVR`; it filters the whole view + drives the sidebar accent.)**
 - Dense desktop utility. No responsive collapse required for v1. Deadspace OK at view bottom, NOT between related cards.
 
@@ -261,7 +261,7 @@ body{overflow:hidden;}   .main{overflow-y:auto;}   /* shell fixed; only main scr
 ## §9.1 Friends-UI redesign — owner real-data review (2026-06-25)
 Decisions from the FIRST real-data Windows review (running app, real friends, ultrawide + normal + TV), refined against rendered mocks (2026-06-26). These **REVISE** the friend row + hot-instance card (§9), the segmented control (§8), and parts of §5/§6 — and supersede the prior spec where they conflict. Items marked **OPEN** are still being explored or carry a rule tension to resolve before building. These feed the existing M3 — Friends UI issues (VRX-64/66/67/68/71/76/78), not new ones.
 
-**Build status:** the **friend row** + **segmented control** are now BUILT + render-verified (this PR). The **hot-instance card** (VRX-71), list sectioning (VRX-67), Compact/Detail (VRX-68), split-by-platform option (VRX-76), real avatars (VRX-48), click-to-join (VRX-166), and the whole-view platform filter (VRX-66) are still pending their issues.
+**Build status (2026-07-01):** the **friend row** + **segmented control** are BUILT + render-verified, and the row's instance pill now carries the **§6.1 openness colors** + the always-Private rule. Still pending their issues: the **hot-instance card REDESIGN** (VRX-71 — the pre-redesign §9 card is built and live on the Dashboard; the §9.1 image-left/"+N more" redesign is not), list sectioning (VRX-67), Compact/Detail (VRX-68), split-by-platform option (VRX-76), real avatars (VRX-48), click-to-join (VRX-166), and the whole-view platform filter (VRX-66).
 
 **Friend row (revises §235 — BUILT, mock-approved 2026-06-26, render-verified):**
 - **Faint, always-on card surface** (`color-mix(--text 4%)` + hairline) so rows read as separated cards. **Uniform height** — the 42px avatar sets it (measured 60px/row), so no-custom-status rows are no longer short (fixes the old bug).

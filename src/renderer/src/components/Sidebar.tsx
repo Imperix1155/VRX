@@ -194,7 +194,8 @@ export default function Sidebar(): React.JSX.Element {
           VRX
         </span>
         <br />
-        {t('shell.footer')} · v0.1.0
+        {/* Version is build-injected from package.json (never hardcode — it drifts) */}
+        {t('shell.footer')} · v{__APP_VERSION__}
       </div>
     </aside>
   )
