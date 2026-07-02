@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { Theme } from '@shared/types'
 import { THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
+import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -48,9 +49,11 @@ export default function SettingsView(): React.JSX.Element {
             {/* Segmented control (§9 pattern). Radius: .glass's 20px panel radius wins
                 over any `rounded-[..]` here (see TopBar), so the bubble is rounded-[16px]
                 (= 20px − 4px inset) to seat concentrically into the track. */}
+            {/* A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
+                arrows move the selection (same dialect as the TopBar filter). */}
             <div
               className="glass relative flex p-[4px] gap-[2px] shrink-0"
-              role="group"
+              role="radiogroup"
               aria-label={t('settings.theme.aria')}
             >
               {/* Sliding bubble */}
@@ -64,12 +67,21 @@ export default function SettingsView(): React.JSX.Element {
                 }}
                 aria-hidden="true"
               />
-              {THEMES.map((t_value) => (
+              {THEMES.map((t_value, index) => (
                 <button
                   key={t_value}
                   type="button"
+                  role="radio"
+                  aria-checked={theme === t_value}
+                  tabIndex={theme === t_value ? 0 : -1}
                   onClick={() => updateSettings({ theme: t_value })}
-                  aria-pressed={theme === t_value}
+                  onKeyDown={(e) => {
+                    const next = segArrowTarget(e.key, index, THEMES.length)
+                    if (next === null) return
+                    e.preventDefault()
+                    updateSettings({ theme: THEMES[next] })
+                    focusRadioSibling(e.currentTarget, next)
+                  }}
                   className={[
                     'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
                     'border-0 bg-transparent cursor-pointer motion-safe:transition-colors',

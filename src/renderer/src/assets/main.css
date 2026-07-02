@@ -258,7 +258,7 @@ body::after {
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
+  border-radius: var(--radius-panel); /* §3 radius scale — one source of truth (audit W5) */
   box-shadow: var(--glass-shadow);
 }
 

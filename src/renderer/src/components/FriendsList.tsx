@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceType } from '@shared/types'
 import { useFriends } from '../queries/friends'
@@ -216,7 +217,11 @@ function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
   )
 }
 
-function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
+// memo: the query cache's structuralSharing keeps unchanged Friend object
+// references across refetches, so memoizing the row skips re-rendering every
+// unchanged friend on each reconcile tick (audit W5 stopgap; virtualization is
+// the real fix and lands with VRX-64).
+const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
   const { t } = useTranslation()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
@@ -307,7 +312,7 @@ function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
       )}
     </li>
   )
-}
+})
 
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
@@ -316,9 +321,15 @@ export default function FriendsList(): React.JSX.Element {
   const { data: friends, isPending, isError, isFetching, refetch } = useFriends('vrchat')
 
   return (
-    <section className="rounded-panel border border-[var(--border)] p-[var(--space-4)]">
+    <section
+      aria-labelledby="friends-list-heading"
+      className="rounded-panel border border-[var(--border)] p-[var(--space-4)]"
+    >
       <div className="mb-[var(--space-3)] flex items-center justify-between gap-[var(--space-2)]">
-        <h2 className="font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase">
+        <h2
+          id="friends-list-heading"
+          className="font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase"
+        >
           {t('friends.title')}
         </h2>
         <button

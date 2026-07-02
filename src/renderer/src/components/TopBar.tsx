@@ -1,19 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useUiStore, type ActiveTab } from '../stores/ui'
+import { useUiStore } from '../stores/ui'
 import { useFriends } from '../queries/friends'
+import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
+import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
 /** Platform filter for the segmented control. */
 export type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
-
-const VIEW_TITLE_KEYS: Record<ActiveTab, string> = {
-  dashboard: 'shell.nav.dashboard',
-  activity: 'shell.nav.activity',
-  friends: 'shell.nav.friends',
-  instances: 'shell.nav.instances',
-  groups: 'shell.nav.groups',
-  settings: 'shell.nav.settings'
-}
 
 // Order: VRChat | All | ChilloutVR — "All" sits in the MIDDLE because it mixes the
 // two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only
@@ -25,7 +18,7 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
 ]
 
 export default function TopBar(): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
   const [platform, setPlatform] = useState<PlatformFilter>('all')
 
@@ -58,7 +51,10 @@ export default function TopBar(): React.JSX.Element {
       cancelAnimationFrame(raf)
       ro.disconnect()
     }
-  }, [activeIndex])
+    // i18n.language: the labels re-render with new (differently-sized) text on a
+    // language switch, so the bubble must re-measure or it seats on stale widths
+    // (audit W5 — the ResizeObserver watches the TRACK, which may not resize).
+  }, [activeIndex, i18n.language])
 
   // Real online count for the §8 status indicator — total across platforms.
   // Online = active OR in-game presence (same definition as the dashboard's
@@ -81,10 +77,13 @@ export default function TopBar(): React.JSX.Element {
           Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
           here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
           the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
+      {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
+          semantics with a roving tabindex (one Tab stop; arrows move the selection),
+          not N independent toggle buttons announced as pressed/unpressed. */}
       <div
         ref={trackRef}
         className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
-        role="group"
+        role="radiogroup"
         aria-label={t('shell.seg.aria')}
       >
         {/* Sliding bubble — left/width measured from the active button (see above) */}
@@ -98,12 +97,21 @@ export default function TopBar(): React.JSX.Element {
           }}
           aria-hidden="true"
         />
-        {SEG_ITEMS.map(({ id, key, color }) => (
+        {SEG_ITEMS.map(({ id, key, color }, index) => (
           <button
             key={id}
             type="button"
+            role="radio"
+            aria-checked={platform === id}
+            tabIndex={platform === id ? 0 : -1}
             onClick={() => setPlatform(id)}
-            aria-pressed={platform === id}
+            onKeyDown={(e) => {
+              const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
+              if (next === null) return
+              e.preventDefault()
+              setPlatform(SEG_ITEMS[next].id)
+              focusRadioSibling(e.currentTarget, next)
+            }}
             className={[
               'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
               'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',

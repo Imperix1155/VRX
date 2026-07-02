@@ -12,6 +12,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import type { InstanceType, Platform } from '@shared/types'
 import { useFriends } from '../queries/friends'
 import OpennessIcon from './OpennessIcon'
+import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 import {
   getDashboardStats,
   getHotInstances,
@@ -168,7 +169,8 @@ function DashboardEmpty(): React.JSX.Element {
     <div className="glass flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
       <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
       <p className="text-[var(--text-faint)] text-xs mt-[var(--space-1)]">
-        {t('dashboard.emptyHint')}
+        {/* `threshold` (not `count`) — interpolation only, no plural-suffix lookup. */}
+        {t('dashboard.emptyHint', { threshold: HOT_INSTANCE_THRESHOLD })}
       </p>
     </div>
   )
@@ -176,13 +178,18 @@ function DashboardEmpty(): React.JSX.Element {
 
 // ─── Section heading (VT323 kicker style — DESIGN.md §9/glass.html) ──────────
 
-function SectionHeading({ labelKey }: { labelKey: string }): React.JSX.Element {
+function SectionHeading({ labelKey, id }: { labelKey: string; id: string }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="flex items-baseline gap-[10px] mx-[2px] mb-[12px] mt-[var(--space-6)]">
-      <span className="font-[family-name:var(--font-mono)] text-[18px] tracking-[2px] uppercase text-[var(--text-faint)]">
+      {/* A real heading (not a styled span) so the section landmark can be
+          labelled by it and screen readers get a navigable outline (audit W5). */}
+      <h2
+        id={id}
+        className="font-[family-name:var(--font-mono)] text-[18px] font-normal tracking-[2px] uppercase text-[var(--text-faint)]"
+      >
         {t(labelKey)}
-      </span>
+      </h2>
     </div>
   )
 }
@@ -192,10 +199,43 @@ function SectionHeading({ labelKey }: { labelKey: string }): React.JSX.Element {
 /**
  * §9 Dashboard — stat cards + hot-instance grid.
  * Queries both platforms and merges the results.
+ *
+ * Load/error states mirror FriendsList's SWR pattern (audit W5): with NO cached
+ * data at all, an in-flight initial load shows "loading" and an everything-failed
+ * outage shows an error — never a misleading "0 / 0 / 0, no friends online".
+ * Once either platform has data, partial results render (a background refetch
+ * failure or one platform erroring keeps the last good numbers).
  */
 export default function DashboardView(): React.JSX.Element {
+  const { t } = useTranslation()
   const vrcQuery = useFriends('vrchat')
   const cvrQuery = useFriends('chilloutvr')
+
+  const hasData = vrcQuery.data != null || cvrQuery.data != null
+  if (!hasData) {
+    // Loading while ANY query is still pending (don't flash an error while the
+    // other platform may yet deliver); error only when every source has failed.
+    if (vrcQuery.isPending || cvrQuery.isPending) {
+      return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+    }
+    // Manual retry (same affordance as FriendsList's Refresh) — without it the
+    // only recovery is the 5-minute reconcile tick or a view remount.
+    return (
+      <div className="flex items-center gap-[var(--space-3)]">
+        <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
+        <button
+          type="button"
+          onClick={() => {
+            void vrcQuery.refetch()
+            void cvrQuery.refetch()
+          }}
+          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+        >
+          {t('dashboard.retry')}
+        </button>
+      </div>
+    )
+  }
 
   const vrcFriends = vrcQuery.data ?? []
   const cvrFriends = cvrQuery.data ?? []
@@ -220,25 +260,27 @@ export default function DashboardView(): React.JSX.Element {
         <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
       </div>
 
-      {/* Hot instances section */}
-      <SectionHeading labelKey="dashboard.sectionHotInstances" />
+      {/* Hot instances section — a labelled landmark (audit W5) */}
+      <section aria-labelledby="dashboard-hot-heading">
+        <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
 
-      {hotInstances.length === 0 ? (
-        <DashboardEmpty />
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '14px',
-            marginBottom: '26px'
-          }}
-        >
-          {hotInstances.map((inst) => (
-            <HotInstanceCard key={inst.worldId} instance={inst} />
-          ))}
-        </div>
-      )}
+        {hotInstances.length === 0 ? (
+          <DashboardEmpty />
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '14px',
+              marginBottom: '26px'
+            }}
+          >
+            {hotInstances.map((inst) => (
+              <HotInstanceCard key={inst.worldId} instance={inst} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
