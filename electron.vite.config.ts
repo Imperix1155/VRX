@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
@@ -7,6 +8,13 @@ import tailwindcss from '@tailwindcss/vite'
 // because electron-vite bundles them separately. Aliasing only the renderer would
 // typecheck but fail at bundle/runtime for main + preload imports.
 const shared = resolve('src/shared')
+
+// App version injected into the renderer at build time (the sandboxed renderer can't
+// read package.json). Keeps UI version strings from drifting per release — the
+// sidebar footer once shipped a stale hardcoded "v0.1.0" after the 0.1.1 release.
+const appVersion = (
+  JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version: string }
+).version
 
 export default defineConfig({
   main: {
@@ -27,6 +35,9 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
+    },
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
