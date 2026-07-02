@@ -92,6 +92,7 @@ export default defineConfig(
               group: [
                 'electron/*',
                 'node:*',
+                'node:*/*',
                 'fs',
                 'path',
                 'os',
@@ -110,7 +111,28 @@ export default defineConfig(
                 'worker_threads',
                 'process',
                 'tls',
-                'dns'
+                'dns',
+                'timers',
+                'fs/*',
+                'path/*',
+                'os/*',
+                'crypto/*',
+                'child_process/*',
+                'http/*',
+                'https/*',
+                'net/*',
+                'events/*',
+                'util/*',
+                'stream/*',
+                'buffer/*',
+                'url/*',
+                'assert/*',
+                'zlib/*',
+                'worker_threads/*',
+                'process/*',
+                'tls/*',
+                'dns/*',
+                'timers/*'
               ],
               message:
                 'src/shared is PURE (bundles into the sandboxed renderer) — no node builtins. See src/shared/AGENTS.md.'

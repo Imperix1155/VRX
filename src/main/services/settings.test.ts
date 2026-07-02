@@ -9,10 +9,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
-const storeState = vi.hoisted((): { throwOnRead: boolean; data: Record<string, unknown> } => ({
-  throwOnRead: false,
-  data: {}
-}))
+const storeState = vi.hoisted(
+  (): {
+    throwOnRead: boolean
+    data: Record<string, unknown>
+    written: Record<string, unknown>[]
+  } => ({
+    throwOnRead: false,
+    data: {},
+    written: []
+  })
+)
 
 vi.mock('electron-store', () => ({
   default: class {
@@ -20,8 +27,8 @@ vi.mock('electron-store', () => ({
       if (storeState.throwOnRead) throw new SyntaxError('Unexpected token in JSON at position 0')
       return storeState.data
     }
-    set store(_value: Record<string, unknown>) {
-      /* persisted-back path — not under test */
+    set store(value: Record<string, unknown>) {
+      storeState.written.push(value)
     }
   }
 }))
@@ -33,6 +40,7 @@ import { loadSettings } from './settings'
 beforeEach(() => {
   storeState.throwOnRead = false
   storeState.data = {}
+  storeState.written = []
 })
 
 describe('loadSettings (W7 M1)', () => {
@@ -45,5 +53,26 @@ describe('loadSettings (W7 M1)', () => {
   it('parses a valid persisted file', () => {
     storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
     expect(loadSettings().theme).toBe('light')
+  })
+
+  it('persists the normalized form back for a legacy (version-less) file', () => {
+    // Raw legacy shape: no version field → readVersion 0 ≤ SETTINGS_VERSION →
+    // loadSettings writes the migrated+validated form back to disk.
+    storeState.data = { theme: 'light' }
+
+    const settings = loadSettings()
+
+    expect(settings.theme).toBe('light')
+    expect(storeState.written).toHaveLength(1)
+    expect(storeState.written[0]).toEqual(settings)
+  })
+
+  it('does NOT overwrite a file written by a newer build (forward fields preserved)', () => {
+    storeState.data = { ...DEFAULT_SETTINGS, version: 9999, futureField: 'keep-me' }
+
+    loadSettings()
+
+    // Persisting would strip futureField and lose data on a rollback.
+    expect(storeState.written).toHaveLength(0)
   })
 })
