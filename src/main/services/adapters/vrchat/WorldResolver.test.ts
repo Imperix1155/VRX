@@ -163,6 +163,54 @@ describe('WorldResolver', () => {
     expect(result?.shortName).toBeNull()
   })
 
+  // ── 2026-07 audit W4: enrichment fields must not kill the world ─────────────
+  // api-volatility.md promises "missing capacity → unknown"; before this fix a
+  // missing/garbage capacity failed the WHOLE parse and nulled name+thumbnail.
+
+  it('resolves name+thumbnail when capacity is absent (capacity → null)', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      name: 'The Great Pug',
+      thumbnailImageUrl: 'https://example.com/pug.jpg'
+    })
+    const resolver = new WorldResolver(fetcher)
+    expect(await resolver.resolve('wrld_abc')).toEqual({
+      name: 'The Great Pug',
+      thumbnailUrl: 'https://example.com/pug.jpg',
+      capacity: null,
+      shortName: null
+    })
+  })
+
+  it('degrades a garbage capacity (wrong type) to null instead of nulling the world', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ...VALID_WORLD_RAW, capacity: 'lots' })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.name).toBe('The Great Pug')
+    expect(result?.capacity).toBeNull()
+  })
+
+  it('degrades a garbage thumbnailImageUrl (wrong type) to null, keeping the name', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ...VALID_WORLD_RAW, thumbnailImageUrl: 42 })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.name).toBe('The Great Pug')
+    expect(result?.thumbnailUrl).toBeNull()
+  })
+
+  it('degrades a garbage shortName (wrong type) to null, keeping the name', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ...VALID_WORLD_RAW, shortName: 123 })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.name).toBe('The Great Pug')
+    expect(result?.shortName).toBeNull()
+  })
+
+  it('still returns null when name is missing (the one critical field)', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ thumbnailImageUrl: 'x.jpg', capacity: 10 })
+    const resolver = new WorldResolver(fetcher)
+    expect(await resolver.resolve('wrld_abc')).toBeNull()
+  })
+
   // ── worldShortLink helper ────────────────────────────────────────────────────
 
   it('worldShortLink converts shortName to https://vrch.at/ link', () => {

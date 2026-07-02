@@ -428,6 +428,85 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
 
+    it('one malformed record does not kill the page OR the circuit (audit W4)', async () => {
+      // End-to-end through the real request<T> path: before W4, one bad record
+      // failed the page's array schema → NetworkError + a circuit-breaker failure
+      // recorded — data drift poisoned the transport layer.
+      const json = (body: unknown): Response =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      const goodFriend = {
+        id: 'usr_00000001',
+        displayName: 'Alice',
+        status: 'active',
+        tags: []
+      }
+      const fetchMock = vi
+        .fn()
+        // buckets
+        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+        // online page: one good, one malformed (no displayName) — partial page ends pass
+        .mockResolvedValueOnce(json([goodFriend, { id: 'usr_bad' }]))
+        // offline page: empty — ends pass
+        .mockResolvedValueOnce(json([]))
+        // second getFriends call (circuit-state probe): buckets + pages again
+        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+        .mockResolvedValueOnce(json([goodFriend]))
+        .mockResolvedValueOnce(json([]))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      const friends = await adapter.getFriends()
+
+      expect(friends).toHaveLength(1)
+      expect(friends[0].displayName).toBe('Alice')
+
+      // The circuit must NOT have recorded the drifted record as a failure: a
+      // follow-up call still reaches the wire (an open circuit would throw
+      // 'Circuit open' before fetching).
+      await expect(adapter.getFriends()).resolves.toHaveLength(1)
+    })
+
+    it('transport failures (non-array body) still trip the circuit breaker (audit W4)', async () => {
+      // The flip side of the drift claim: a 200 whose body is NOT an array is a
+      // transport-level problem — request<T> throws, records circuit failures,
+      // and after 3 consecutive the breaker opens, so the offline pass fails
+      // instantly with no extra wire hits. Total fetches: 1 buckets + 3 pages.
+      const json = (body: unknown): Response =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) return Promise.resolve(json({ error: 'drift' }))
+        return Promise.resolve(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+    })
+
+    it('throws when every record is malformed (drift must not look like "no friends")', async () => {
+      const json = (body: unknown): Response =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+        .mockResolvedValueOnce(json([{ totally: 'wrong' }, { also: 'wrong' }]))
+        .mockResolvedValueOnce(json([]))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+
+      await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
+    })
+
     it('enriches friends in worlds with worldName/thumbnailUrl (VRX-163)', async () => {
       const worldId = 'wrld_abc123'
       const worldMeta = {

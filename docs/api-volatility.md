@@ -79,9 +79,11 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 - **Empty or null `tags` array:** Defaults to `'visitor'` rank. Safe; user is rendered as a fresh visitor, not as an error.
 - **Missing avatar URL:** Zod `.nullable().optional()` defaults to `null`; UI renders a placeholder. Non-breaking.
 - **New optional fields added by API:** Zod ignores them. VRX silently accepts and proceeds. Safe tolerance for benign drift.
+- **A malformed friend record (breaking drift on one entry):** Skipped and counted (`skippedRecords`); the other records on the page survive. Records are validated individually, not as an all-or-nothing page (2026-07 audit W4).
+- **A failed page fetch (network blip, transient 5xx):** Counted (`failedPages`) and the window skipped; the pass continues to the next page, giving up only after 3 consecutive failures. If NOTHING was fetched and anything failed or drifted, `getFriends` throws instead of returning a misleading empty list.
 
 **Code references:**
-- `/src/main/services/adapters/vrchat/fetchFriends.ts` (lines 38–46: Zod schema with `.default([])` and `.nullable().optional()` for defensive tolerance)
+- `/src/main/services/adapters/vrchat/fetchFriends.ts` (`rawFriendSchema` with `.default([])`/`.nullable().optional()`; per-record `safeParse` skip+count; `MAX_CONSECUTIVE_PAGE_FAILURES`)
 - `/src/main/services/adapters/vrchat/parsePresence.ts` (unknown status mapping)
 - `/src/main/services/adapters/vrchat/parseTrustRank.ts` (unknown tag handling)
 
@@ -159,10 +161,11 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** 🟡 Endpoint verified; field names and presence subject to drift.
 
 **Degradation if changed:**
-- **Missing `name`, `imageUrl`, or `capacity`:** Non-critical fields for the initial UI. VRX renders defaults (blank name, placeholder image, unknown capacity). Degrades gracefully.
+- **Missing `name`:** The one critical field — the whole world resolves to `null` (nothing to show without a name); friends still render with `worldName: null`. Non-breaking.
+- **Missing or wrong-typed `thumbnailImageUrl` / `capacity` / `shortName`:** Each enrichment field independently degrades to `null` via Zod `.catch(null)` — one drifted field never nulls the rest of the world (2026-07 audit W4).
 - **New metadata fields added (e.g., `averageRating`):** Zod ignores them. Non-breaking.
 
-**Code reference:** `/src/main/services/adapters/vrchat/WorldResolver.ts` (Zod schema with defensive `.optional()` for field drift).
+**Code reference:** `/src/main/services/adapters/vrchat/WorldResolver.ts` (`WorldApiSchema`: only `name` required; enrichment fields use `.catch(null)`).
 
 ---
 
