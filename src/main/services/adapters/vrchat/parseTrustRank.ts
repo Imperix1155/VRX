@@ -38,12 +38,12 @@ export function parseTrustRank(tags: string[]): TrustRank {
   let highestTag: string | null = null
 
   for (const tag of tags) {
-    if (tag in trustTagRanks) {
-      const rank = trustTagRanks[tag]
-      if (rank > highestRank) {
-        highestRank = rank
-        highestTag = tag
-      }
+    // undefined-narrowing (not `in`) — `in` includes inherited keys AND doesn't
+    // narrow the indexed access under noUncheckedIndexedAccess (audit W7).
+    const rank = trustTagRanks[tag]
+    if (rank !== undefined && rank > highestRank) {
+      highestRank = rank
+      highestTag = tag
     }
   }
 
@@ -55,9 +55,6 @@ export function parseTrustRank(tags: string[]): TrustRank {
     system_trust_veteran: 'trusted'
   }
 
-  if (highestTag && highestTag in rankMap) {
-    return rankMap[highestTag]
-  }
-
-  return 'visitor'
+  const mapped = highestTag !== null ? rankMap[highestTag] : undefined
+  return mapped ?? 'visitor'
 }

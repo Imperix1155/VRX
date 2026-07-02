@@ -108,8 +108,10 @@ export default function TopBar(): React.JSX.Element {
             onKeyDown={(e) => {
               const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
               if (next === null) return
+              const target = SEG_ITEMS[next]
+              if (target === undefined) return // modulo keeps next in range; narrows the index
               e.preventDefault()
-              setPlatform(SEG_ITEMS[next].id)
+              setPlatform(target.id)
               focusRadioSibling(e.currentTarget, next)
             }}
             className={[

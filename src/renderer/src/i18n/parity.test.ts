@@ -75,7 +75,9 @@ describe('key-existence scan (renderer source → en locale)', () => {
       const source = readFileSync(file, 'utf8')
       for (const match of source.matchAll(LITERAL)) {
         const key = match[1]
-        if (!NAMESPACES.has(key.split('.')[0])) continue
+        if (key === undefined) continue
+        const namespace = key.split('.')[0]
+        if (namespace === undefined || !NAMESPACES.has(namespace)) continue
         if (!enBase.has(toBase(key))) {
           missing.push(`${key} (${file.slice(SRC_ROOT.length + 1)})`)
         }
