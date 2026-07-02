@@ -197,6 +197,14 @@ describe('WorldResolver', () => {
     expect(result?.thumbnailUrl).toBeNull()
   })
 
+  it('degrades a garbage shortName (wrong type) to null, keeping the name', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ...VALID_WORLD_RAW, shortName: 123 })
+    const resolver = new WorldResolver(fetcher)
+    const result = await resolver.resolve('wrld_abc')
+    expect(result?.name).toBe('The Great Pug')
+    expect(result?.shortName).toBeNull()
+  })
+
   it('still returns null when name is missing (the one critical field)', async () => {
     const fetcher = vi.fn().mockResolvedValue({ thumbnailImageUrl: 'x.jpg', capacity: 10 })
     const resolver = new WorldResolver(fetcher)
