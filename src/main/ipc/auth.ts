@@ -21,7 +21,9 @@ export function registerAuthHandlers(adapters: Map<Platform, IPlatformAdapter>):
       !req ||
       !VALID_PLATFORMS.has(req.platform) ||
       typeof req.credentials?.username !== 'string' ||
-      typeof req.credentials?.password !== 'string'
+      typeof req.credentials?.password !== 'string' ||
+      (req.credentials.twoFactorCode !== undefined &&
+        typeof req.credentials.twoFactorCode !== 'string')
     ) {
       throw new Error('Invalid login request')
     }

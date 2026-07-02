@@ -14,18 +14,23 @@ function authResponse(
   return new Response(JSON.stringify(body), { status: opts.status ?? 200, headers })
 }
 
-/** In-memory credential store that records every persisted value for assertions. */
-function fakeStore(initial?: string): VrcCredentialStore & { saved: string[] } {
+/** In-memory credential store that records persisted values + delete calls for assertions. */
+function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
   let value = initial
-  const saved: string[] = []
-  return {
+  const store = {
+    saved: [] as string[],
+    deleted: 0,
     load: () => value,
     save: (cookie: string) => {
       value = cookie
-      saved.push(cookie)
+      store.saved.push(cookie)
     },
-    saved
+    delete: () => {
+      value = undefined
+      store.deleted++
+    }
   }
+  return store
 }
 
 const creds = { username: 'neo', password: 'redpill' }
@@ -311,6 +316,35 @@ describe('VrcAdapter', () => {
       expect(await new VrcAdapter(fakeStore('auth=x'), noopSleep).getAuthStatus()).toMatchObject({
         state: 'error'
       })
+    })
+
+    it('clears a dead session on 401 — memory, request mirror, AND persisted blob', async () => {
+      // First status check: the persisted cookie is rejected (session expired).
+      const fetchMock = vi.fn().mockResolvedValue(authResponse({}, { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore('auth=expired')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      // The dead cookie was wiped from disk so session restore can't re-adopt it.
+      expect(store.deleted).toBe(1)
+      expect(store.load()).toBeUndefined()
+
+      // Proof the in-memory cookie + VrcApiClient mirror are gone: the next
+      // status check short-circuits to unauthenticated with NO network call.
+      fetchMock.mockClear()
+      expect(await adapter.getAuthStatus()).toEqual({
+        platform: 'vrchat',
+        state: 'unauthenticated',
+        displayName: null
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+
+      // Proof the persisted blob is gone too — a FRESH adapter (the next launch)
+      // built on the same store finds nothing to restore and never hits the wire.
+      const relaunched = new VrcAdapter(store, noopSleep)
+      expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).not.toHaveBeenCalled()
     })
   })
 
