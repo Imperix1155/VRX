@@ -209,7 +209,16 @@ app
     createWindow()
 
     // Check GitHub Releases for updates on startup (packaged builds only).
-    initAutoUpdater()
+    // Own try/catch: a sync throw here would otherwise reach the bootstrap
+    // .catch and exit an app whose window ALREADY WORKS — auto-update failure
+    // is never worth killing a healthy session (audit W7 review).
+    try {
+      initAutoUpdater()
+    } catch (error) {
+      log.warn('autoUpdater init failed', {
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
 
     app.on('activate', function () {
       // On macOS it's common to re-create a window in the app when the

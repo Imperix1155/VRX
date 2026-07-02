@@ -87,7 +87,10 @@ export default defineConfig(
           ],
           patterns: [
             {
+              // electron subpaths + node builtins, both bare and node:-prefixed
+              // (bare-name gaps found by the W7 adversarial review probe).
               group: [
+                'electron/*',
                 'node:*',
                 'fs',
                 'path',
@@ -96,7 +99,18 @@ export default defineConfig(
                 'child_process',
                 'http',
                 'https',
-                'net'
+                'net',
+                'events',
+                'util',
+                'stream',
+                'buffer',
+                'url',
+                'assert',
+                'zlib',
+                'worker_threads',
+                'process',
+                'tls',
+                'dns'
               ],
               message:
                 'src/shared is PURE (bundles into the sandboxed renderer) — no node builtins. See src/shared/AGENTS.md.'
