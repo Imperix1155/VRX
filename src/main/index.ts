@@ -39,7 +39,9 @@ function createWindow(): void {
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     if (isAllowedUrl(details.url)) {
-      shell.openExternal(details.url)
+      shell.openExternal(details.url).catch((err: unknown) => {
+        log.warn('openExternal failed', { message: String(err) })
+      })
     } else {
       // Log protocol+host only — the full URL may contain tokens in query params.
       try {
@@ -54,11 +56,14 @@ function createWindow(): void {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  // A load failure means a blank window — log it loudly instead of dropping it.
+  const loaded =
+    is.dev && process.env['ELECTRON_RENDERER_URL']
+      ? mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      : mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  loaded.catch((err: unknown) => {
+    log.error('renderer load failed', { message: String(err) })
+  })
 
   // ── Renderer crash/hang handlers (VRX-127 follow-up) ──────────────────────
 
@@ -155,61 +160,81 @@ process.on('unhandledRejection', (reason: unknown) => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Structured logging first, so anything below is captured (VRX-15).
-  initLogger()
+app
+  .whenReady()
+  .then(() => {
+    // Structured logging first, so anything below is captured (VRX-15).
+    initLogger()
 
-  // Lock down the default session's permission surface (defense-in-depth). VRX
-  // loads only its own bundled renderer and legitimately needs exactly one web
-  // permission: writing to the clipboard (ErrorBoundary's "copy details" button,
-  // which requests `clipboard-sanitized-write`). Deny every other request/check —
-  // camera, microphone, geolocation, notifications, MIDI, HID, … — so a
-  // compromised renderer can't reach for device APIs.
-  const ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set(['clipboard-sanitized-write'])
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(ALLOWED_PERMISSIONS.has(permission))
+    // Lock down the default session's permission surface (defense-in-depth). VRX
+    // loads only its own bundled renderer and legitimately needs exactly one web
+    // permission: writing to the clipboard (ErrorBoundary's "copy details" button,
+    // which requests `clipboard-sanitized-write`). Deny every other request/check —
+    // camera, microphone, geolocation, notifications, MIDI, HID, … — so a
+    // compromised renderer can't reach for device APIs.
+    const ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set(['clipboard-sanitized-write'])
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(ALLOWED_PERMISSIONS.has(permission))
+    })
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
+      ALLOWED_PERMISSIONS.has(permission)
+    )
+
+    // Load persisted settings (migrate + validate on read; normalizes the on-disk
+    // file to the current schema). Available for IPC/store wiring next (VRX-23).
+    const settings = loadSettings()
+    log.info('settings loaded', { version: settings.version, theme: settings.theme })
+
+    // Set app user model id for windows — must match electron-builder `appId`
+    // so Windows groups the taskbar entry and update notifications fire.
+    electronApp.setAppUserModelId('com.imperix.vrx')
+
+    // Default open or close DevTools by F12 in development
+    // and ignore CommandOrControl + R in production.
+    // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    // The VRChat session cookie persists via safeStorage (VRX-34); the store is
+    // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
+    const vrcCredentials: VrcCredentialStore = {
+      load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
+      save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
+      delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
+    }
+    const adapters = new Map([['vrchat' as const, new VrcAdapter(vrcCredentials)]])
+    registerIpcHandlers(adapters)
+
+    createWindow()
+
+    // Check GitHub Releases for updates on startup (packaged builds only).
+    // Own try/catch: a sync throw here would otherwise reach the bootstrap
+    // .catch and exit an app whose window ALREADY WORKS — auto-update failure
+    // is never worth killing a healthy session (audit W7 review).
+    try {
+      initAutoUpdater()
+    } catch (error) {
+      log.warn('autoUpdater init failed', {
+        message: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    app.on('activate', function () {
+      // On macOS it's common to re-create a window in the app when the
+      // dock icon is clicked and there are no other windows open.
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
-    ALLOWED_PERMISSIONS.has(permission)
-  )
-
-  // Load persisted settings (migrate + validate on read; normalizes the on-disk
-  // file to the current schema). Available for IPC/store wiring next (VRX-23).
-  const settings = loadSettings()
-  log.info('settings loaded', { version: settings.version, theme: settings.theme })
-
-  // Set app user model id for windows — must match electron-builder `appId`
-  // so Windows groups the taskbar entry and update notifications fire.
-  electronApp.setAppUserModelId('com.imperix.vrx')
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+  .catch((error: unknown) => {
+    // A bootstrap failure (settings load, IPC registration, window creation)
+    // would otherwise surface only as a logged unhandledRejection and leave the
+    // app running with NO window. Same policy as uncaughtException: log + exit.
+    const message = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    log.error('bootstrap failed — terminating', { message, stack })
+    app.exit(1)
   })
-
-  // The VRChat session cookie persists via safeStorage (VRX-34); the store is
-  // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
-  const vrcCredentials: VrcCredentialStore = {
-    load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-    save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
-    delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
-  }
-  const adapters = new Map([['vrchat' as const, new VrcAdapter(vrcCredentials)]])
-  registerIpcHandlers(adapters)
-
-  createWindow()
-
-  // Check GitHub Releases for updates on startup (packaged builds only).
-  initAutoUpdater()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

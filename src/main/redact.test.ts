@@ -149,8 +149,8 @@ describe('redact', () => {
     const result = redact(agg) as Record<string, unknown>
     const errors = result.errors as Array<Record<string, unknown>>
     expect(errors).toHaveLength(2)
-    expect(errors[0].message).toBe('first: auth=***REDACTED***')
-    expect(errors[1].message).toBe('second')
+    expect(errors[0]!.message).toBe('first: auth=***REDACTED***')
+    expect(errors[1]!.message).toBe('second')
   })
 
   it('masks a BARE authcookie (no key prefix) — e.g. pasted into an Error message', () => {

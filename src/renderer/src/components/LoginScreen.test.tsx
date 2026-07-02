@@ -105,10 +105,10 @@ describe('LoginScreen (W6)', () => {
     // Go Back — the credentials form must come back with the password GONE
     // (dropped on the needs2fa transition, not merely hidden).
     fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
-    const passwordInput = screen.getByLabelText(msg('login.password')) as HTMLInputElement
+    const passwordInput = screen.getByLabelText<HTMLInputElement>(msg('login.password'))
     expect(passwordInput.value).toBe('')
     // Username is kept (not a secret; re-typing it would be pure friction).
-    const usernameInput = screen.getByLabelText(msg('login.username')) as HTMLInputElement
+    const usernameInput = screen.getByLabelText<HTMLInputElement>(msg('login.username'))
     expect(usernameInput.value).toBe('neo')
   })
 

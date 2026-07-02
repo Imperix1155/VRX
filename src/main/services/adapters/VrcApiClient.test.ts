@@ -64,7 +64,7 @@ describe('VrcApiClient', () => {
     const user = await new TestClient().callGet('/auth/user', userSchema)
 
     expect(user).toEqual({ id: 'usr_1', displayName: 'A' })
-    const [url, options] = fetchMock.mock.calls[0]
+    const [url, options] = fetchMock.mock.calls[0]!
     expect(url).toBe(`${VRC_API_BASE}/auth/user`)
     expect(options.method).toBe('GET')
     expect(options.headers['User-Agent']).toMatch(/^VRX\//)
@@ -79,7 +79,7 @@ describe('VrcApiClient', () => {
     client.setCookie('auth=authcookie_test')
     await client.callGet('/auth/user', userSchema)
 
-    expect(fetchMock.mock.calls[0][1].headers.Cookie).toBe('auth=authcookie_test')
+    expect(fetchMock.mock.calls[0]![1].headers.Cookie).toBe('auth=authcookie_test')
   })
 
   it('POSTs a JSON body with a Content-Type header', async () => {
@@ -92,7 +92,7 @@ describe('VrcApiClient', () => {
       userSchema
     )
 
-    const [url, options] = fetchMock.mock.calls[0]
+    const [url, options] = fetchMock.mock.calls[0]!
     expect(url).toBe(`${VRC_API_BASE}/auth/twofactorauth/totp/verify`)
     expect(options.method).toBe('POST')
     expect(options.headers['Content-Type']).toBe('application/json')

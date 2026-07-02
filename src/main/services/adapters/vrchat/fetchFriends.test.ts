@@ -140,14 +140,14 @@ describe('fetchFriends', () => {
       const result = await fetchFriends(fetcher)
       const [f1, f2, f3] = result.friends
 
-      expect(f1.presence.state).toBe('in-game')
-      expect(f1.status).toBe('join-me')
+      expect(f1!.presence.state).toBe('in-game')
+      expect(f1!.status).toBe('join-me')
 
-      expect(f2.presence.state).toBe('active')
-      expect(f2.status).toBe('online')
+      expect(f2!.presence.state).toBe('active')
+      expect(f2!.status).toBe('online')
 
-      expect(f3.presence.state).toBe('offline')
-      expect(f3.status).toBeNull()
+      expect(f3!.presence.state).toBe('offline')
+      expect(f3!.status).toBeNull()
     })
 
     it('parses trust rank from tags', async () => {
@@ -162,9 +162,9 @@ describe('fetchFriends', () => {
         []
       )
       const result = await fetchFriends(fetcher)
-      expect(result.friends[0].trustRank).toBe('trusted')
-      expect(result.friends[1].trustRank).toBe('nuisance')
-      expect(result.friends[2].trustRank).toBe('visitor')
+      expect(result.friends[0]!.trustRank).toBe('trusted')
+      expect(result.friends[1]!.trustRank).toBe('nuisance')
+      expect(result.friends[2]!.trustRank).toBe('visitor')
     })
 
     it('maps VrcFriend fields correctly (avatarUrl, platform, defaults)', async () => {
@@ -186,16 +186,16 @@ describe('fetchFriends', () => {
       const result = await fetchFriends(fetcher)
       const f = result.friends[0]
 
-      expect(f.platform).toBe('vrchat')
-      expect(f.platformUserId).toBe('usr_00000001')
-      expect(f.displayName).toBe('Alice')
-      expect(f.avatarUrl).toBe('https://example.com/img.png')
-      expect(f.statusDescription).toBe('Having fun!')
-      expect(f.trustRank).toBe('new')
-      expect(f.instance).toBeNull()
-      expect(f.isFavorite).toBe(false)
-      expect(f.favoriteGroupIds).toEqual([])
-      expect(f.linkedPersonId).toBeNull()
+      expect(f!.platform).toBe('vrchat')
+      expect(f!.platformUserId).toBe('usr_00000001')
+      expect(f!.displayName).toBe('Alice')
+      expect(f!.avatarUrl).toBe('https://example.com/img.png')
+      expect(f!.statusDescription).toBe('Having fun!')
+      expect(f!.trustRank).toBe('new')
+      expect(f!.instance).toBeNull()
+      expect(f!.isFavorite).toBe(false)
+      expect(f!.favoriteGroupIds).toEqual([])
+      expect(f!.linkedPersonId).toBeNull()
     })
 
     it('coerces missing optional fields to null', async () => {
@@ -214,9 +214,9 @@ describe('fetchFriends', () => {
       )
       const result = await fetchFriends(fetcher)
       const f = result.friends[0]
-      expect(f.avatarUrl).toBeNull()
-      expect(f.status).toBeNull()
-      expect(f.statusDescription).toBeNull()
+      expect(f!.avatarUrl).toBeNull()
+      expect(f!.status).toBeNull()
+      expect(f!.statusDescription).toBeNull()
     })
 
     it('parses a real location into a non-null InstanceInfo', async () => {
@@ -233,14 +233,14 @@ describe('fetchFriends', () => {
       )
       const result = await fetchFriends(fetcher)
       const f = result.friends[0]
-      expect(f.instance).not.toBeNull()
-      expect(f.instance!.worldId).toBe('wrld_abc')
-      expect(f.instance!.instanceId).toBe('12345~hidden(usr_x)~region(us)')
-      expect(f.instance!.type).toBe('friends-plus')
-      expect(f.instance!.openness).toBe('friends-plus')
-      expect(f.instance!.isGroup).toBe(false)
-      expect(f.instance!.region).toBe('us')
-      expect(f.instance!.worldName).toBeNull()
+      expect(f!.instance).not.toBeNull()
+      expect(f!.instance!.worldId).toBe('wrld_abc')
+      expect(f!.instance!.instanceId).toBe('12345~hidden(usr_x)~region(us)')
+      expect(f!.instance!.type).toBe('friends-plus')
+      expect(f!.instance!.openness).toBe('friends-plus')
+      expect(f!.instance!.isGroup).toBe(false)
+      expect(f!.instance!.region).toBe('us')
+      expect(f!.instance!.worldName).toBeNull()
     })
 
     it('sets instance to null for location="private"', async () => {
@@ -256,7 +256,7 @@ describe('fetchFriends', () => {
         []
       )
       const result = await fetchFriends(fetcher)
-      expect(result.friends[0].instance).toBeNull()
+      expect(result.friends[0]!.instance).toBeNull()
     })
 
     it('sets instance to null when location is absent', async () => {
@@ -274,7 +274,7 @@ describe('fetchFriends', () => {
         []
       )
       const result = await fetchFriends(fetcher)
-      expect(result.friends[0].instance).toBeNull()
+      expect(result.friends[0]!.instance).toBeNull()
     })
   })
 
@@ -347,7 +347,7 @@ describe('fetchFriends', () => {
       const result = await fetchFriends(fetcher)
       expect(result.friends).toHaveLength(1)
       // Without buckets, all friends default to 'offline'
-      expect(result.friends[0].presence.state).toBe('offline')
+      expect(result.friends[0]!.presence.state).toBe('offline')
     })
 
     it('returns empty list with 0 failedPages when there are no friends', async () => {

@@ -58,8 +58,12 @@ const STATUS_MAP: Record<string, UserStatus> = {
 function mapStatus(raw: string | null | undefined): UserStatus {
   if (raw == null) return null
   const key = raw.toLowerCase()
-  // Own-key check (not `in`) so inherited props like 'toString'/'constructor' don't false-match.
-  if (Object.hasOwn(STATUS_MAP, key)) return STATUS_MAP[key]
+  // Own-key check (not `in`) so inherited props like 'toString'/'constructor' don't
+  // false-match; the extra undefined-narrowing satisfies noUncheckedIndexedAccess
+  // WITHOUT `??` — null is a legitimate mapped value ('offline' → null), so a
+  // nullish fallback would silently rewrite offline to 'online' (audit W7).
+  const mapped = STATUS_MAP[key]
+  if (Object.hasOwn(STATUS_MAP, key) && mapped !== undefined) return mapped
   // Unknown strings degrade to 'online' (generic green pill — never crash per CLAUDE.md §API etiquette).
   return 'online'
 }

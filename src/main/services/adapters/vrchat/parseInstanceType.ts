@@ -37,7 +37,8 @@ function parseTags(instanceId: string): Map<string, string> {
   const tagRe = /~([a-zA-Z]+)(?:\(([^)]*)\))?/g
   let match: RegExpExecArray | null
   while ((match = tagRe.exec(instanceId)) !== null) {
-    tags.set(match[1], match[2] ?? '')
+    const [, tagName, tagValue] = match
+    if (tagName !== undefined) tags.set(tagName, tagValue ?? '')
   }
   return tags
 }

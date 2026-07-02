@@ -93,7 +93,7 @@ describe('CvrApiClient', () => {
       username: 'CVR User'
     })
 
-    const [url, options] = fetchMock.mock.calls[0]
+    const [url, options] = fetchMock.mock.calls[0]!
     expect(url).toBe(`${CVR_API_BASE}/users/me`)
     expect(options.method).toBe('GET')
     expect(options.headers).toMatchObject({
@@ -120,7 +120,7 @@ describe('CvrApiClient', () => {
 
     await client.callPost('/users/update', { username: 'New' }, userSchema)
 
-    const [, options] = fetchMock.mock.calls[0]
+    const [, options] = fetchMock.mock.calls[0]!
     expect(options.method).toBe('POST')
     expect(options.headers['Content-Type']).toBe('application/json')
     expect(options.body).toBe(JSON.stringify({ username: 'New' }))
@@ -262,7 +262,7 @@ describe('CvrApiClient', () => {
       authData
     )
 
-    const [url, options] = fetchMock.mock.calls[0]
+    const [url, options] = fetchMock.mock.calls[0]!
     expect(url).toBe(`${CVR_API_BASE}/users/auth`)
     expect(JSON.parse(options.body)).toEqual({
       AuthType: 2,
@@ -282,7 +282,7 @@ describe('CvrApiClient', () => {
 
     await new TestClient().callReauthenticate('CVR User', 'access-key')
 
-    const [, options] = fetchMock.mock.calls[0]
+    const [, options] = fetchMock.mock.calls[0]!
     expect(JSON.parse(options.body)).toEqual({
       AuthType: 1,
       Username: 'CVR User',

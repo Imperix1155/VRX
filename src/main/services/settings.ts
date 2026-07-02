@@ -35,8 +35,12 @@ function getStore(): Store<Record<string, unknown>> {
  * migration fails, leaving the on-disk file intact.
  */
 export function loadSettings(): Settings {
-  const raw = getStore().store
   try {
+    // Inside the try (audit W7 review): conf's `store` getter RETHROWS on a
+    // corrupted JSON file — outside the try, that throw escaped the "never
+    // throws" contract and (post-W7 bootstrap .catch) would exit-loop the app
+    // on every launch until the file was hand-deleted.
+    const raw = getStore().store
     const settings = parseSettings(raw)
     if (shouldPersistSettings(raw)) {
       getStore().store = settings

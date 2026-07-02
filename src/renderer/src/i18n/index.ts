@@ -17,7 +17,9 @@ import ja from '../locales/ja/translation.json'
 // `navigator` is absent under the node test env — default to English there.
 const osLanguage = typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : 'en'
 
-i18n.use(initReactI18next).init({
+// Resources are bundled (no async loading) — init is effectively synchronous;
+// `void` acknowledges the promise per no-floating-promises (audit W7).
+void i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     ja: { translation: ja }

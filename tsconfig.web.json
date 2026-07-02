@@ -10,6 +10,8 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
     "paths": {
       "@renderer/*": [
         "./src/renderer/src/*"

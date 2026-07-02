@@ -52,5 +52,5 @@ export function stubPlatformAdapter(overrides: Partial<IPlatformAdapter> = {}): 
     selfInvite: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockReturnValue(() => {}),
     ...overrides
-  } as IPlatformAdapter
+  }
 }
