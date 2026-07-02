@@ -121,9 +121,9 @@ describe('getHotInstances', () => {
     ]
     const result = getHotInstances(friends)
     expect(result).toHaveLength(1)
-    expect(result[0].friendCount).toBe(3)
-    expect(result[0].worldId).toBe('wrld_1')
-    expect(result[0].worldName).toBe('The Great Pug')
+    expect(result[0]!.friendCount).toBe(3)
+    expect(result[0]!.worldId).toBe('wrld_1')
+    expect(result[0]!.worldName).toBe('The Great Pug')
   })
 
   it('excludes instances with only 1 friend (a lone friend is not "hot")', () => {
@@ -136,8 +136,8 @@ describe('getHotInstances', () => {
     ]
     const result = getHotInstances(friends)
     expect(result).toHaveLength(1)
-    expect(result[0].worldId).toBe('wrld_pair')
-    expect(result[0].friendCount).toBe(2)
+    expect(result[0]!.worldId).toBe('wrld_pair')
+    expect(result[0]!.friendCount).toBe(2)
   })
 
   it('sorts by friend count descending', () => {
@@ -151,10 +151,10 @@ describe('getHotInstances', () => {
       vrcFriend('d', 'in-game', inst2)
     ]
     const result = getHotInstances(friends)
-    expect(result[0].worldId).toBe('wrld_2')
-    expect(result[0].friendCount).toBe(3)
-    expect(result[1].worldId).toBe('wrld_1')
-    expect(result[1].friendCount).toBe(2)
+    expect(result[0]!.worldId).toBe('wrld_2')
+    expect(result[0]!.friendCount).toBe(3)
+    expect(result[1]!.worldId).toBe('wrld_1')
+    expect(result[1]!.friendCount).toBe(2)
   })
 
   it('breaks ties by worldName then worldId (stable/deterministic)', () => {
@@ -168,8 +168,8 @@ describe('getHotInstances', () => {
     ]
     const result = getHotInstances(friends)
     // Both have friendCount 2; tiebreak: Alpha < Beta
-    expect(result[0].worldId).toBe('wrld_z')
-    expect(result[1].worldId).toBe('wrld_a')
+    expect(result[0]!.worldId).toBe('wrld_z')
+    expect(result[1]!.worldId).toBe('wrld_a')
   })
 
   it('breaks ties by worldId when worldNames are equal', () => {
@@ -182,8 +182,8 @@ describe('getHotInstances', () => {
       vrcFriend('d', 'in-game', inst2)
     ]
     const result = getHotInstances(friends)
-    expect(result[0].worldId).toBe('wrld_a')
-    expect(result[1].worldId).toBe('wrld_b')
+    expect(result[0]!.worldId).toBe('wrld_a')
+    expect(result[1]!.worldId).toBe('wrld_b')
   })
 
   it('caps at 6 results', () => {
@@ -208,13 +208,13 @@ describe('getHotInstances', () => {
     const result = getHotInstances(friends)
     expect(result).toHaveLength(2)
     // Named world sorts before null-named
-    expect(result[0].worldId).toBe('wrld_2')
+    expect(result[0]!.worldId).toBe('wrld_2')
   })
 
   it('carries the correct platform from the first friend in the world', () => {
     const inst = instance('wrld_1', 'CVR World')
     const friends: Friend[] = [cvrFriend('a', 'in-game', inst), cvrFriend('b', 'in-game', inst)]
     const result = getHotInstances(friends)
-    expect(result[0].platform).toBe('chilloutvr')
+    expect(result[0]!.platform).toBe('chilloutvr')
   })
 })

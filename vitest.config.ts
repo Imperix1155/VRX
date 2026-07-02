@@ -2,15 +2,15 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
 /**
- * Vitest config (VRX-13)
+ * Vitest config (VRX-13; comment truth-synced in the 2026-07 audit W7)
  *
- * `environment: 'node'` — current tests cover pure logic (e.g. redact.ts). When real
- * UI components land, add a separate jsdom test project (do NOT switch globally).
+ * `environment: 'node'` is the default; component tests opt into jsdom per-file
+ * via the `// @vitest-environment jsdom` header (the established pattern —
+ * ErrorBoundary/LoginScreen/TopBar/DashboardView tests).
  *
- * Coverage targets (design goal): 80%+ business logic, 60%+ UI components. These are
- * NOT enforced as `thresholds` yet — most of the codebase is bootstrap/preview and not
- * meaningfully unit-testable. Turn on `coverage.thresholds` once real business logic
- * exists so CI doesn't fail on day-one emptiness.
+ * Coverage targets (design goal): 80%+ business logic, 60%+ UI components.
+ * `coverage.thresholds` are still not enforced — turning them on (with targeted
+ * per-dir numbers) is tracked in the audit ledger's later items.
  */
 export default defineConfig({
   test: {

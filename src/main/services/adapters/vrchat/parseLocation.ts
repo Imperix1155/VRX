@@ -21,7 +21,7 @@ import { opennessFor, parseInstanceType } from './parseInstanceType'
 /** Extracts the ~region(xx) tag value, or null if absent. */
 function parseRegion(instanceId: string): string | null {
   const match = /~region\(([^)]*)\)/.exec(instanceId)
-  return match ? match[1] : null
+  return match?.[1] ?? null
 }
 
 /**

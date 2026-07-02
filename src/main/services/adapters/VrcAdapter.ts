@@ -46,7 +46,11 @@ function basicAuthHeader(username: string, password: string): string {
 function extractCookie(setCookies: string[], name: string): string | null {
   for (const raw of setCookies) {
     const match = raw.match(/^\s*([^=]+)=([^;]+)/)
-    if (match && match[1].trim() === name) return `${name}=${match[2].trim()}`
+    const key = match?.[1]
+    const value = match?.[2]
+    if (key !== undefined && value !== undefined && key.trim() === name) {
+      return `${name}=${value.trim()}`
+    }
   }
   return null
 }

@@ -10,7 +10,7 @@ The common data model and constants shared across the main, preload, and rendere
 - `settings.ts` — the user-settings Zod schema (`Settings`, `DEFAULT_SETTINGS`, `SETTINGS_VERSION`), a versioned `runMigrations` runner (registry empty until a transforming change lands), and `parseSettings` — the safe load path: migrate → strip unknown keys → fall back to defaults on missing/invalid (`.catch`), never throws (VRX-23). Persistence lives in main (`services/settings.ts`).
 
 ## Local Contracts
-- MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only.
+- MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only. **Lint-enforced** since the 2026-07 audit W7: `no-restricted-imports` in `eslint.config.mjs` errors on `electron` and node builtins for `src/shared/**`.
 - String-literal unions, not `const enum` (esbuild-safe, Zod-friendly).
 - Imported via the `@shared` alias (wired in all three electron-vite builds + both tsconfigs).
 - Presence is two axes — `presence.state` (the state dot) vs `status` (the VRChat pill); never conflate (DESIGN.md §5). `Friend` is discriminated by `platform`; CVR friends must have `status`, `statusDescription`, and `trustRank` set to `null`.

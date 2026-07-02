@@ -98,7 +98,7 @@ function redactString(s: string): string {
 
 /** True for objects the entries-walk can faithfully represent. */
 function isPlainObject(value: object): boolean {
-  const proto = Object.getPrototypeOf(value)
+  const proto: unknown = Object.getPrototypeOf(value)
   return proto === Object.prototype || proto === null
 }
 

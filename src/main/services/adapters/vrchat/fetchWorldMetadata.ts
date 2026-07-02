@@ -41,6 +41,7 @@ export async function fetchWorldMetadata(
   async function worker(): Promise<void> {
     while (cursor < ids.length) {
       const id = ids[cursor++]
+      if (id === undefined) break // bounds-narrowing for noUncheckedIndexedAccess (audit W7)
       const meta = await resolver.resolve(id)
       if (meta !== null) {
         result.set(id, meta)

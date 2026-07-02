@@ -406,9 +406,9 @@ describe('VrcAdapter', () => {
 
       const friends = await adapter.getFriends()
       expect(friends).toHaveLength(1)
-      expect(friends[0].platform).toBe('vrchat')
-      expect(friends[0].platformUserId).toBe('usr_00000001')
-      expect(friends[0].displayName).toBe('Alice')
+      expect(friends[0]!.platform).toBe('vrchat')
+      expect(friends[0]!.platformUserId).toBe('usr_00000001')
+      expect(friends[0]!.displayName).toBe('Alice')
     })
 
     it('throws (not a misleading empty list) when all friend fetches fail (VRX-43)', async () => {
@@ -449,7 +449,7 @@ describe('VrcAdapter', () => {
       const friends = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
-      expect(friends[0].displayName).toBe('Alice')
+      expect(friends[0]!.displayName).toBe('Alice')
 
       // The circuit must NOT have recorded the drifted record as a failure: a
       // follow-up call still reaches the wire (an open circuit would throw
@@ -555,8 +555,8 @@ describe('VrcAdapter', () => {
       const friends = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
-      expect(friends[0].instance?.worldName).toBe('The Grid')
-      expect(friends[0].instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+      expect(friends[0]!.instance?.worldName).toBe('The Grid')
+      expect(friends[0]!.instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
     })
 
     it('leaves worldName null for a friend with no instance (VRX-163)', async () => {
@@ -608,7 +608,7 @@ describe('VrcAdapter', () => {
       const friends = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
-      expect(friends[0].instance).toBeNull()
+      expect(friends[0]!.instance).toBeNull()
     })
 
     it('keeps worldName null for an unresolvable world, friends still returned (VRX-163)', async () => {
@@ -669,8 +669,8 @@ describe('VrcAdapter', () => {
       const friends = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
-      expect(friends[0].instance?.worldName).toBeNull()
-      expect(friends[0].instance?.worldId).toBe(worldId)
+      expect(friends[0]!.instance?.worldName).toBeNull()
+      expect(friends[0]!.instance?.worldId).toBe(worldId)
     })
 
     it('caches world metadata across getFriends calls (single resolver, VRX-163)', async () => {

@@ -20,7 +20,7 @@ const useFriendsMock = vi.hoisted(() => vi.fn())
 vi.mock('../queries/friends', () => ({ useFriends: useFriendsMock }))
 
 // Assertions go through i18n.t so a copy tweak doesn't break behavior tests.
-const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts) as string
+const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
 
 type QueryStub = {
   data: Friend[] | undefined

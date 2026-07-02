@@ -447,7 +447,7 @@ describe('BaseAdapter', () => {
         status: 200,
         headers: { get: () => null },
         json: () => Promise.reject(new SyntaxError('Unexpected token'))
-      } as unknown as Response)
+      })
       await expect(new TestAdapter().fetch('http://api/x', schema)).rejects.toBeInstanceOf(
         NetworkError
       )
