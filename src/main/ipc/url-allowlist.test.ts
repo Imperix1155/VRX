@@ -44,6 +44,22 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('not a url')).toBe(false)
     expect(isAllowedUrl('://missing-protocol.com')).toBe(false)
   })
+
+  // ── 2026-07 audit W6 ─────────────────────────────────────────────────────────
+
+  it('denies Cyrillic homoglyph hosts (IDN spoof)', () => {
+    // 'vrсhat.com' with a Cyrillic Es (U+0441) — visually identical, different
+    // host. The URL parser punycodes it to xn--*, which must not match.
+    expect(isAllowedUrl('https://vrсhat.com')).toBe(false)
+    expect(isAllowedUrl('https://api.vrсhat.com/login')).toBe(false)
+  })
+
+  it('denies protocol-relative and scheme-less forms', () => {
+    // Protocol-relative: would inherit the embedding context's scheme — there
+    // is no such context here, and new URL() rejects it without a base.
+    expect(isAllowedUrl('//vrchat.com/home')).toBe(false)
+    expect(isAllowedUrl('vrchat.com/home')).toBe(false)
+  })
 })
 
 describe('isAllowedLaunchUrl', () => {
