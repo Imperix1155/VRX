@@ -5,17 +5,9 @@ import type { AuthStatus, Friend, InstanceInfo, LoginResult } from '@shared/type
 import type { Unsubscribe } from './IPlatformAdapter'
 import { AuthError } from './errors'
 import { VrcApiClient } from './VrcApiClient'
-
-const noopSleep = (): Promise<void> => Promise.resolve()
+import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 
 const userSchema = z.object({ id: z.string(), displayName: z.string() })
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  })
-}
 
 /** Exposes the protected client methods; stubs the IPlatformAdapter contract (VrcAdapter's job, not under test here). */
 class TestClient extends VrcApiClient {

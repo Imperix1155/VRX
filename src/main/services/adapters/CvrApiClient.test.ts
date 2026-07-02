@@ -5,16 +5,9 @@ import type { AuthStatus, Friend, InstanceInfo, LoginResult } from '@shared/type
 import type { Unsubscribe } from './IPlatformAdapter'
 import { CVRAuthError, CVRNetworkError } from './errors'
 import { CvrApiClient, type CVRUserAuth } from './CvrApiClient'
+import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 
-const noopSleep = (): Promise<void> => Promise.resolve()
 const userSchema = z.object({ id: z.string(), username: z.string() })
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  })
-}
 
 const authData: CVRUserAuth = {
   username: 'CVR User',
@@ -216,6 +209,12 @@ describe('CvrApiClient', () => {
   })
 
   it('honors Retry-After seconds before retrying', async () => {
+    // Fake timers freeze Date.now: attemptRaw computes retryAt = Date.now()+delay
+    // and later sleeps retryAt - Date.now() — two SEPARATE clock reads. On a slow
+    // CI runner a real millisecond ticked between them → sleep(1999) ≠ 2000
+    // (flaked on windows during audit W4 #96). A frozen clock makes it exact.
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const fetchMock = vi
       .fn()

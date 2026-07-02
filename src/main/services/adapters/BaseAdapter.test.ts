@@ -5,6 +5,7 @@ import type { AuthStatus, Friend, LoginResult, Platform } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
 import { BaseAdapter } from './BaseAdapter'
 import { AuthError, NetworkError, RateLimitError } from './errors'
+import { noopSleep } from './__testutils__/adapterTestKit'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,7 +24,6 @@ function makeResponse(
 
 const schema = z.object({ id: z.number() })
 const validBody = { id: 1 }
-const noopSleep = (): Promise<void> => Promise.resolve()
 
 // ── TestAdapter ───────────────────────────────────────────────────────────────
 
@@ -65,9 +65,12 @@ class TestAdapter extends BaseAdapter {
     return () => {}
   }
 
-  // Expose the protected method for testing.
+  // Expose the protected methods for testing.
   fetch<T>(url: string, schema: z.ZodType<T>, options?: RequestInit): Promise<T> {
     return this.request(url, schema, options)
+  }
+  raw(url: string, options?: RequestInit): Promise<Response> {
+    return this.rawRequest(url, options)
   }
 }
 
@@ -357,6 +360,47 @@ describe('BaseAdapter', () => {
       await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(NetworkError)
       await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
       // Counter reset — next request must reach the network normally.
+      await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
+    })
+
+    // ── 2026-07 audit W6 ─────────────────────────────────────────────────────
+
+    it('closes again after CIRCUIT_RESET_MS elapses (time reset)', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      fetchMock.mockResolvedValue(makeResponse(500, {}))
+      const adapter = new TestAdapter()
+
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(NetworkError)
+      }
+      // Open: fails fast without a network call.
+      const callsWhileOpen = fetchMock.mock.calls.length
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
+      expect(fetchMock.mock.calls.length).toBe(callsWhileOpen)
+
+      // 60s later the breaker must let a probe through to the network again.
+      vi.setSystemTime(10_000 + 60_000)
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
+      await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
+      expect(fetchMock.mock.calls.length).toBe(callsWhileOpen + 1)
+    })
+
+    it('rawRequest 401s do NOT trip the circuit (auth flows stay unlocked)', async () => {
+      // rawRequest returns statuses uninterpreted — only a thrown fetch records
+      // a failure. Repeated wrong-password 401s must never open the breaker
+      // (the VrcAdapter-level regression, pinned here at the engine level).
+      fetchMock.mockResolvedValue(makeResponse(401, {}))
+      const adapter = new TestAdapter()
+
+      for (let i = 0; i < 5; i++) {
+        const res = await adapter.raw('http://api/auth')
+        expect(res.status).toBe(401)
+      }
+      // All five reached the network — no fail-fast in the sequence.
+      expect(fetchMock.mock.calls.length).toBe(5)
+      // And the typed path still works right after (counter untouched).
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
       await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
     })
   })
