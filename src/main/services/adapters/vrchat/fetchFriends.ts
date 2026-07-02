@@ -21,6 +21,13 @@ import { parseLocation } from './parseLocation'
 //     to avoid coupling to a file other branches are actively editing) ──────────
 const PAGE_SIZE = 100
 const MAX_FRIENDS = 5000
+/**
+ * A pass tolerates transient page failures (skip the window, keep going) but
+ * gives up after this many CONSECUTIVE failures — the injected fetcher can't be
+ * assumed to have a circuit breaker, and hammering a dead API violates the
+ * 1 req/sec etiquette this app lives by (2026-07 audit W4).
+ */
+const MAX_CONSECUTIVE_PAGE_FAILURES = 3
 
 // ─── Injected fetcher type ────────────────────────────────────────────────────
 
@@ -47,7 +54,15 @@ const rawFriendSchema = z.object({
   tags: z.array(z.string()).default([])
 })
 
-const friendPageSchema = z.array(rawFriendSchema)
+/**
+ * Transport-level page schema: only "the body is an array". Element validation
+ * happens HERE, per record (see fetchPass) — NOT in the fetcher's request<T>.
+ * Before the 2026-07 audit (W4) this was z.array(rawFriendSchema), so one
+ * malformed record of 100 failed the whole page in request<T>, which ALSO
+ * recorded a circuit-breaker failure — three drifted pages could lock the
+ * adapter out entirely. Data drift must never look like transport failure.
+ */
+const friendPageSchema = z.array(z.unknown())
 
 type RawFriend = z.infer<typeof rawFriendSchema>
 
@@ -81,6 +96,8 @@ export interface FetchFriendsResult {
   friends: VrcFriend[]
   /** Number of pages that failed (fetched but errored). Caller may log this. */
   failedPages: number
+  /** Number of individual records skipped for failing the friend schema (W4). */
+  skippedRecords: number
 }
 
 // ─── Paginator ────────────────────────────────────────────────────────────────
@@ -90,23 +107,44 @@ async function fetchPass(
   offline: boolean,
   buckets: VrcCurrentUserBuckets,
   existing: VrcFriend[],
-  failedPages: { count: number }
+  counters: { failedPages: number; skippedRecords: number }
 ): Promise<void> {
   let offset = 0
+  let consecutiveFailures = 0
 
-  while (existing.length < MAX_FRIENDS) {
+  // Progress invariant: every non-breaking iteration advances `offset` by at
+  // least PAGE_SIZE (success or failure), so bounding on offset caps a pass at
+  // MAX_FRIENDS/PAGE_SIZE requests even when `existing` never grows — e.g. a
+  // misbehaving endpoint returning full pages of schema-drifted records, which
+  // would otherwise loop forever: transport succeeds (no failure count, breaker
+  // reset) yet every record is skipped (found by the W4 adversarial review).
+  while (existing.length < MAX_FRIENDS && offset < MAX_FRIENDS) {
     const path = `/auth/user/friends?offset=${offset}&n=${PAGE_SIZE}&offline=${offline}`
-    let page: RawFriend[]
+    let page: unknown[]
     try {
       page = await fetcher(path, friendPageSchema)
     } catch {
-      failedPages.count++
-      break
+      // Skip-and-continue (the api-volatility.md promise): count the failure,
+      // skip past the failed window, and try the next page — one transient blip
+      // must not discard every page behind it. Give up only after
+      // MAX_CONSECUTIVE_PAGE_FAILURES in a row (dead API, don't hammer it).
+      counters.failedPages++
+      if (++consecutiveFailures >= MAX_CONSECUTIVE_PAGE_FAILURES) break
+      offset += PAGE_SIZE
+      continue
     }
+    consecutiveFailures = 0
 
+    // Per-record validation: one drifted/malformed friend is skipped and
+    // counted — the other 99 on the page survive (W4; was all-or-nothing).
     for (const raw of page) {
       if (existing.length >= MAX_FRIENDS) break
-      existing.push(normalize(raw, buckets))
+      const parsed = rawFriendSchema.safeParse(raw)
+      if (!parsed.success) {
+        counters.skippedRecords++
+        continue
+      }
+      existing.push(normalize(parsed.data, buckets))
     }
 
     // Fewer than PAGE_SIZE items means this was the last page.
@@ -125,8 +163,11 @@ async function fetchPass(
  *   2. Paginate online friends (`offline=false`).
  *   3. Paginate offline friends (`offline=true`).
  *
- * Caps at MAX_FRIENDS total. On a page-fetch failure, stops that pass and
- * records the failure count — returns everything collected so far.
+ * Caps at MAX_FRIENDS total. Degrades per-unit, never per-pass (W4): a failed
+ * page is counted and skipped (the pass continues, giving up only after
+ * MAX_CONSECUTIVE_PAGE_FAILURES in a row); a malformed record is counted and
+ * skipped (the rest of its page survives). Returns everything collected plus
+ * both counters so the caller can distinguish "no friends" from "drift ate them".
  *
  * @param fetcher - Injected HTTP helper (e.g. `(path, schema) => this.get(path, schema)`).
  */
@@ -140,12 +181,12 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   }
 
   const friends: VrcFriend[] = []
-  const failedPages = { count: 0 }
+  const counters = { failedPages: 0, skippedRecords: 0 }
 
   // Step 2: online pass
-  await fetchPass(fetcher, false, buckets, friends, failedPages)
+  await fetchPass(fetcher, false, buckets, friends, counters)
   // Step 3: offline pass
-  await fetchPass(fetcher, true, buckets, friends, failedPages)
+  await fetchPass(fetcher, true, buckets, friends, counters)
 
-  return { friends, failedPages: failedPages.count }
+  return { friends, failedPages: counters.failedPages, skippedRecords: counters.skippedRecords }
 }

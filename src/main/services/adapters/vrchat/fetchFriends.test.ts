@@ -316,7 +316,7 @@ describe('fetchFriends', () => {
   })
 
   describe('partial-failure tolerance', () => {
-    it('returns collected friends plus failedPages count on a page fetch error', async () => {
+    it('returns collected friends plus failedPages count on page fetch errors', async () => {
       let callCount = 0
       const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
         if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
@@ -330,7 +330,9 @@ describe('fetchFriends', () => {
 
       const result = await fetchFriends(fetcher)
       expect(result.friends).toHaveLength(PAGE_SIZE) // got first page
-      expect(result.failedPages).toBe(1)
+      // W4 skip-and-continue: a persistently-failing pass retries up to the
+      // consecutive-failure cap (3) before giving up — was 1 under break-on-first.
+      expect(result.failedPages).toBe(3)
     })
 
     it('gracefully degrades when /auth/user bucket fetch fails (all offline state)', async () => {
@@ -353,6 +355,108 @@ describe('fetchFriends', () => {
       const result = await fetchFriends(fetcher)
       expect(result.friends).toHaveLength(0)
       expect(result.failedPages).toBe(0)
+      expect(result.skippedRecords).toBe(0)
+    })
+  })
+
+  // ─── 2026-07 audit W4: skip-and-continue (the doc's promise, now real) ────────
+
+  describe('malformed-record and failed-page tolerance (W4)', () => {
+    it('skips a malformed record and keeps the other 99 (1-bad-of-100)', async () => {
+      const page: unknown[] = makePage(1, PAGE_SIZE)
+      page[42] = { id: 'usr_bad' } // no displayName → fails rawFriendSchema
+      const fetcher = buildFetcher([page], [])
+
+      const result = await fetchFriends(fetcher)
+
+      expect(result.friends).toHaveLength(PAGE_SIZE - 1)
+      expect(result.skippedRecords).toBe(1)
+      expect(result.failedPages).toBe(0)
+      // The survivors are the real ones, in order, without the poisoned slot.
+      expect(result.friends.some((f) => f.platformUserId === 'usr_bad')).toBe(false)
+    })
+
+    it('skips non-object garbage elements in a page', async () => {
+      const fetcher = buildFetcher([[makeFriend(1), null, 42, 'nope', makeFriend(2)]], [])
+      const result = await fetchFriends(fetcher)
+      expect(result.friends).toHaveLength(2)
+      expect(result.skippedRecords).toBe(3)
+    })
+
+    it('continues to the next page after a single failed page (transient blip)', async () => {
+      // offset=0 succeeds (full page), offset=100 FAILS, offset=200 succeeds (partial).
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
+        if (path.includes('offline=true')) return Promise.resolve([] as T)
+        const offset = parseInt(new URLSearchParams(path.split('?')[1]).get('offset') ?? '0')
+        if (offset === 0) return Promise.resolve(makePage(1, PAGE_SIZE) as T)
+        if (offset === PAGE_SIZE) return Promise.reject(new Error('blip'))
+        return Promise.resolve(makePage(500, 10) as T)
+      }
+
+      const result = await fetchFriends(fetcher)
+
+      // Pages 1 and 3 survive; the failed window is counted, not fatal.
+      expect(result.friends).toHaveLength(PAGE_SIZE + 10)
+      expect(result.failedPages).toBe(1)
+    })
+
+    it('stops a pass after 3 consecutive page failures (dead API is not hammered)', async () => {
+      let onlineAttempts = 0
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
+        if (path.includes('offline=true')) return Promise.resolve([] as T)
+        onlineAttempts++
+        return Promise.reject(new Error('down'))
+      }
+
+      const result = await fetchFriends(fetcher)
+
+      expect(onlineAttempts).toBe(3)
+      expect(result.failedPages).toBe(3)
+      expect(result.friends).toHaveLength(0)
+    })
+
+    it('terminates (bounded requests) when every full page is all-drifted records', async () => {
+      // The nasty case: transport succeeds (no failure count, circuit reset) yet
+      // every record fails the schema — `existing` never grows. A misbehaving
+      // endpoint (or systematic field-rename drift) returning full pages forever
+      // must NOT be hammered forever: the pass is bounded by offset, at
+      // MAX_FRIENDS/PAGE_SIZE requests (adversarial-review Critical, W4).
+      let onlineRequests = 0
+      const badFullPage = Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `usr_bad_${i}` }))
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
+        if (path.includes('offline=true')) return Promise.resolve([] as T)
+        onlineRequests++
+        return Promise.resolve(badFullPage as T)
+      }
+
+      const result = await fetchFriends(fetcher)
+
+      expect(onlineRequests).toBe(MAX_FRIENDS / PAGE_SIZE) // 50, not unbounded
+      expect(result.friends).toHaveLength(0)
+      expect(result.skippedRecords).toBe(MAX_FRIENDS)
+      expect(result.failedPages).toBe(0)
+    })
+
+    it('resets the consecutive-failure count on a successful page', async () => {
+      // fail, ok(full), fail, ok(full), fail, ok(partial) — never 3 in a row.
+      const script = ['fail', 'ok-full', 'fail', 'ok-full', 'fail', 'ok-partial']
+      let call = 0
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
+        if (path.includes('offline=true')) return Promise.resolve([] as T)
+        const step = script[call++] ?? 'ok-partial'
+        if (step === 'fail') return Promise.reject(new Error('blip'))
+        if (step === 'ok-full') return Promise.resolve(makePage(call * 1000, PAGE_SIZE) as T)
+        return Promise.resolve(makePage(call * 1000, 5) as T)
+      }
+
+      const result = await fetchFriends(fetcher)
+
+      expect(result.friends).toHaveLength(PAGE_SIZE * 2 + 5)
+      expect(result.failedPages).toBe(3)
     })
   })
 })
