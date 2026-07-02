@@ -29,7 +29,8 @@ export const WORLD_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 export interface WorldMeta {
   name: string
   thumbnailUrl: string | null
-  capacity: number
+  /** null = the API omitted it or sent garbage (api-volatility: "missing capacity → unknown"). */
+  capacity: number | null
   shortName: string | null
 }
 
@@ -37,12 +38,19 @@ export interface WorldMeta {
  * The raw VRChat `/worlds/:id` response shape we care about.
  * `thumbnailImageUrl` is the actual field name in the VRChat API; we map it
  * to `thumbnailUrl` on `WorldMeta` so callers see a normalised contract.
+ *
+ * Only `name` is critical — a world with no name has nothing to show. Every
+ * other field is enrichment, so each degrades independently to null via
+ * `.catch(null)` (missing key, wrong type, anything). Before the 2026-07 audit
+ * (W4), a REQUIRED `capacity` meant one missing unused field nulled the whole
+ * world — name and thumbnail included — falsifying api-volatility.md's
+ * "missing capacity → unknown" promise.
  */
 const WorldApiSchema = z.object({
   name: z.string(),
-  thumbnailImageUrl: z.string().nullable().optional(),
-  capacity: z.number().int(),
-  shortName: z.string().nullable().optional()
+  thumbnailImageUrl: z.string().nullable().catch(null),
+  capacity: z.number().int().nullable().catch(null),
+  shortName: z.string().nullable().catch(null)
 })
 
 interface CacheEntry {
@@ -88,9 +96,9 @@ export class WorldResolver {
 
     const meta: WorldMeta = {
       name: parsed.data.name,
-      thumbnailUrl: parsed.data.thumbnailImageUrl ?? null,
+      thumbnailUrl: parsed.data.thumbnailImageUrl,
       capacity: parsed.data.capacity,
-      shortName: parsed.data.shortName ?? null
+      shortName: parsed.data.shortName
     }
 
     this.cache.set(worldId, { meta, fetchedAt: now })

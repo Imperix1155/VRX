@@ -242,13 +242,19 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   async getFriends(): Promise<Friend[]> {
-    const { friends, failedPages } = await fetchFriends((path, schema) => this.get(path, schema))
-    // If fetches failed AND we got nothing, surface an error rather than a
-    // misleading empty list (the UI shows "couldn't load" instead of "no friends").
-    // A partial result (some pages failed but others succeeded) is still returned
+    const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
+      this.get(path, schema)
+    )
+    // If anything failed (page fetches OR schema-drifted records) AND we got
+    // nothing, surface an error rather than a misleading empty list (the UI shows
+    // "couldn't load" instead of "no friends"). A partial result is still returned
     // as graceful degradation; signalling partial failure to the UI is a follow-up.
-    if (failedPages > 0 && friends.length === 0) {
-      throw new NetworkError('Failed to fetch friends')
+    if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
+      // Carry both counters so logs can tell transport failure from pure schema
+      // drift (failedPages=0, skippedRecords>0 means the wire was fine).
+      throw new NetworkError(
+        `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+      )
     }
 
     // Enrich friends with world names via the shared resolver (VRX-163).
