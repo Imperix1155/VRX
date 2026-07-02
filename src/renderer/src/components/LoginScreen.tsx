@@ -76,7 +76,7 @@ export default function LoginScreen(): React.JSX.Element {
         .glass and .tint-vrc classes are defined in main.css; all rgba values live in
         :root / [data-theme="light"] token blocks so light-mode parity is automatic.
       */}
-      <div className="glass tint-vrc relative w-full max-w-sm overflow-hidden rounded-panel p-[var(--space-8)]">
+      <div className="glass tint-vrc relative w-full max-w-sm overflow-hidden p-[var(--space-8)]">
         {/*
           The .glass::before sheen is defined in CSS.
           This wrapper isolates content above the ::before pseudo-element.

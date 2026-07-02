@@ -18,7 +18,8 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "onlineCount": "{{count}} friends online",
+    "onlineCount_one": "{{count}} friend online",
+    "onlineCount_other": "{{count}} friends online",
     "comingSoon": "Coming soon"
   },
   "settings": {
@@ -80,6 +81,9 @@
     }
   },
   "dashboard": {
+    "loading": "Loading...",
+    "error": "Couldn't load your friends right now",
+    "retry": "Retry",
     "statOnlineLabel": "Friends online",
     "statInGameLabel": "In game right now",
     "statHotLabel": "Hot instances",
@@ -89,7 +93,7 @@
     "friendsHere": "<bold>{{count}}</bold> here",
     "joinInstance": "Join",
     "emptyHeading": "No hot instances currently",
-    "emptyHint": "When 2 or more friends gather in the same world, it'll show up here."
+    "emptyHint": "When {{threshold}} or more friends gather in the same world, it'll show up here."
   },
   "login": {
     "subtitle": "Social VR Companion",

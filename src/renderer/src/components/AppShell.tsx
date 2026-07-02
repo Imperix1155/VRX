@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useUiStore } from '../stores/ui'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
+import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import SettingsView from './SettingsView'
@@ -60,6 +61,9 @@ function MainContent(): React.JSX.Element {
  * the §8 CSS spec without needing a custom Tailwind plugin.
  */
 export default function AppShell(): React.JSX.Element {
+  const { t } = useTranslation()
+  const activeTab = useUiStore((s) => s.activeTab)
+
   return (
     <div
       style={{
@@ -71,7 +75,10 @@ export default function AppShell(): React.JSX.Element {
       }}
     >
       <Sidebar />
+      {/* The landmark is labelled by the active view so screen-reader users hear
+          which view the main region currently holds (audit W5). */}
       <main
+        aria-label={t(VIEW_TITLE_KEYS[activeTab])}
         style={{ overflowY: 'auto', padding: 'var(--space-2) var(--space-2) var(--space-10)' }}
         className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >

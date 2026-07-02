@@ -5,6 +5,7 @@
  * No React, no i18n — pure TS so they're unit-testable in plain Vitest.
  */
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
+import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ const MAX_HOT_INSTANCES = 6
  * Groups online friends by worldId and returns the top worlds sorted by
  * friend count (desc), with a stable tiebreak on worldName then worldId.
  *
+ * - Grouping by WORLD (not instance) is intentional — DESIGN.md §6.1 and the
+ *   owner copy define hot as friends "gather[ing] in the same world"; two
+ *   friends in different instances of one world still count (audit W5
+ *   disposition: keep worldId, do not switch to instanceId).
  * - Only friends with a non-null instance are included (active/Ask-Me/DND
  *   already have `instance: null` so they're excluded automatically).
  * - Capped at MAX_HOT_INSTANCES (6) — one grid row of cards.
@@ -81,7 +86,7 @@ export function getHotInstances(friends: Friend[]): HotInstance[] {
   return (
     [...map.values()]
       // A "hot" instance needs 2+ friends — a single friend in a world isn't hot (owner rule).
-      .filter((h) => h.friendCount >= 2)
+      .filter((h) => h.friendCount >= HOT_INSTANCE_THRESHOLD)
       .sort((a, b) => {
         // Primary: descending friend count
         if (b.friendCount !== a.friendCount) return b.friendCount - a.friendCount
