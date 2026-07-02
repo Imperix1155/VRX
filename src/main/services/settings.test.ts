@@ -70,9 +70,12 @@ describe('loadSettings (W7 M1)', () => {
   it('does NOT overwrite a file written by a newer build (forward fields preserved)', () => {
     storeState.data = { ...DEFAULT_SETTINGS, version: 9999, futureField: 'keep-me' }
 
-    loadSettings()
+    const settings = loadSettings()
 
     // Persisting would strip futureField and lose data on a rollback.
     expect(storeState.written).toHaveLength(0)
+    // And the in-memory view keeps the file's original version (not down-leveled)
+    // — the other half of parseSettings's newer-build contract.
+    expect(settings.version).toBe(9999)
   })
 })
