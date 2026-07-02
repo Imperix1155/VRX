@@ -35,6 +35,18 @@
     --st-askme:  #ff9a3d;        /* Ask Me */
     --st-dnd:    #e5484b;        /* Do Not Disturb (status="busy") */
 
+    /* OPENNESS — instance-pill tier ladder (§6.1, 2026-07-01): green(open)→orange
+       (locked); groups purple, lighter = more open; hidden/offline-instance neutral */
+    --op-public: #3ee36a;
+    --op-friends-plus: #b7de4f;
+    --op-friends: #e6c353;
+    --op-invite-plus: #ffc172;
+    --op-invite: #ffa14e;
+    --op-group-public: #bfa0ff;
+    --op-group-plus: #9d80f6;
+    --op-group: #8d61f0;
+    --op-group-text: #b795ff;    /* Group's lifted dark text */
+
     /* GLASS */
     --glass-blur: blur(26px) saturate(165%);
     --font-mono: 'VT323', ui-monospace, monospace;
@@ -119,19 +131,24 @@
   .main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
   .topbar { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
   .ttl { font-size: 25px; font-weight: 800; letter-spacing: -0.4px; }
-  .seg { display: flex; padding: 4px; border-radius: 13px; gap: 2px; margin-left: 6px; }
+  /* §9.1 segmented control: order VRC | ALL | CVR (All mixes the platforms, so it
+     sits between them); text-only acronyms, platform color on the WORD; the track
+     keeps .glass's 20px panel radius and the active bubble is 16px (§3 carve-out). */
+  .seg { display: flex; padding: 4px; gap: 2px; margin-left: 6px; }
   .seg button {
-    font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-dim);
-    background: transparent; border: 0; padding: 6px 13px; border-radius: 9px; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-dim);
+    background: transparent; border: 0; padding: 6px 13px; border-radius: 16px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .seg button.on {
-    color: var(--text);
     background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 10px rgba(0,0,0,0.3);
   }
-  .seg .tagv { color: var(--vrc); font-weight: 800; }
-  .seg .tagc { color: var(--cvr); font-weight: 800; }
+  .seg .segv { color: var(--vrc); }
+  .seg .segc { color: var(--cvr); }
+  .seg .sega { color: var(--text-dim); }
+  .seg .sega.on { color: var(--text); }
   .ocount { margin-left: auto; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
   .ocount .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ingame); box-shadow: 0 0 10px var(--ingame); }
 
@@ -193,28 +210,30 @@
   .gcard.vrc .join { background: linear-gradient(135deg, rgba(43,124,232,0.4), rgba(43,124,232,0.14)); border-color: rgba(43,124,232,0.5); }
   .gcard.cvr .join { background: linear-gradient(135deg, rgba(243,113,30,0.4), rgba(243,113,30,0.14)); border-color: rgba(243,113,30,0.5); }
 
-  /* ---------- Friends list ---------- */
-  .flist { padding: 8px; }
-  .frow { display: grid; grid-template-columns: 3px 42px 1fr auto; align-items: center; gap: 13px; padding: 9px 12px 9px 0; border-radius: 13px; position: relative; }
-  .frow:hover { background: rgba(255,255,255,0.045); }
+  /* ---------- Friends list — §9.1 row (mirrors FriendsList.tsx exactly) ---------- */
+  .flist { padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+  .frow { display: grid; grid-template-columns: 3px 42px 1fr auto; align-items: center; gap: 12px; padding: 8px 12px 8px 10px; border-radius: 13px; border: 1px solid color-mix(in srgb, var(--text) 7%, transparent); background: color-mix(in srgb, var(--text) 4%, transparent); }
+  .frow:hover { background: var(--surface-hover, rgba(255,255,255,0.05)); }
   .frow .fspine { width: 3px; height: 26px; border-radius: 0 3px 3px 0; }
-  .frow.vrc .fspine { background: var(--vrc); box-shadow: 0 0 10px rgba(43,124,232,0.5); }
-  .frow.cvr .fspine { background: var(--cvr); box-shadow: 0 0 10px rgba(243,113,30,0.5); }
-  .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
-  .av2 .st { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0c0a1c; }
-  .st-ingame { background: var(--ingame); } .st-active { background: var(--active); } .st-offline { background: var(--offline); }
-  .fname { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-  .fglyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); }
-  .frow.vrc .fglyph { background: rgba(43,124,232,0.2); color: #bcd9fb; }
-  .frow.cvr .fglyph { background: rgba(243,113,30,0.2); color: #ffd9bc; }
-  .fsub { font-size: 12.5px; color: var(--text-dim); margin-top: 1px; }
-  .fsub .ph { color: var(--text-faint); }
-  .aff { font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 9px; white-space: nowrap; }
-  .aff.join2 { color: var(--text); background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04)); border: 1px solid rgba(255,255,255,0.2); }
-  .aff.ask { color: var(--text-dim); border: 1px solid rgba(255,255,255,0.16); }
-  .aff.busy { color: var(--text-faint); border: 1px solid rgba(255,255,255,0.1); }
+  .frow.vrc .fspine { background: var(--vrc); box-shadow: 0 0 10px color-mix(in srgb, var(--vrc) 50%, transparent); }
+  .frow.cvr .fspine { background: var(--cvr); box-shadow: 0 0 10px color-mix(in srgb, var(--cvr) 50%, transparent); }
+  /* Avatar: initial disc + STATUS-color ring (--ring) + glyph badge (§9.1 carve-out —
+     ring + glyph + label replace the old state dot + status pill inside the row) */
+  .rav { position: relative; width: 42px; height: 42px; }
+  .rav .disc { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 600; color: var(--text-dim); background: color-mix(in srgb, var(--text) 10%, transparent); box-shadow: 0 0 0 2.5px var(--ring); }
+  .rav .rb { position: absolute; right: -1px; bottom: -1px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--bg-base); display: grid; place-items: center; background: var(--ring); color: var(--bg-base); }
+  .rav .rb svg { width: 10px; height: 10px; }
+  .fname { font-size: 14px; font-weight: 600; color: var(--text); }
+  .fcs { font-size: 12px; color: var(--text-dim); margin-left: 8px; font-weight: 400; }
+  .fworld { font-size: 12.5px; color: var(--text-dim); height: 16px; line-height: 16px; margin-top: 1px; }
+  /* Instance pill — §6.1 tier-colored (set --op per row); .neutral = Private / CVR
+     Offline Instance (hueless but readable). 13% bg / 36% border mixes = the app's. */
+  .opill { display: inline-flex; align-items: center; justify-content: center; min-width: 78px; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--opc, var(--op)); background: color-mix(in srgb, var(--op) 13%, transparent); border: 1px solid color-mix(in srgb, var(--op) 36%, transparent); }
+  .opill.neutral { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); }
 
-  /* ---------- VRChat status pills (labeled; VRChat-only) ---------- */
+  /* ---------- VRChat status pills (labeled) — the §5 status-pill FORM. After the
+     §9.1 carve-out the friend ROW carries status via the avatar ring; this pill form
+     remains the reference for other locations (e.g. the Activity feed rows). ---------- */
   .stp { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; letter-spacing: 0.2px; padding: 2px 8px 2px 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); white-space: nowrap; }
   .stp .sd { width: 7px; height: 7px; border-radius: 50%; flex: none; }
   .stp.joinme { color: #bcdcff; background: rgba(58,160,255,0.14); border-color: rgba(58,160,255,0.38); } .stp.joinme .sd { background: var(--st-joinme); }
@@ -251,6 +270,15 @@
     --st-online: #169a4a;
     --st-askme: #cf6a18;
     --st-dnd: #c9363a;
+    --op-public: #1fae4e;
+    --op-friends-plus: #7fa821;
+    --op-friends: #b28a1d;
+    --op-invite-plus: #d98324;
+    --op-invite: #c96a20;
+    --op-group-public: #7a5fd0;
+    --op-group-plus: #6d4fc9;
+    --op-group: #5f3fc4;
+    --op-group-text: #452f96;
     --glass-blur: blur(24px) saturate(142%);
   }
   [data-theme="light"] body::before {
@@ -284,8 +312,7 @@
   [data-theme="light"] .frow:hover { background: rgba(20, 19, 28, 0.045); }
   [data-theme="light"] .nitem.active,
   [data-theme="light"] .seg button.on,
-  [data-theme="light"] .join,
-  [data-theme="light"] .aff.join2 {
+  [data-theme="light"] .join {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.38));
     border-color: rgba(40, 48, 68, 0.16);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 2px 12px rgba(59, 72, 93, 0.12);
@@ -296,21 +323,17 @@
     background: rgba(255, 255, 255, 0.5);
     border-color: rgba(40, 48, 68, 0.14);
   }
-  [data-theme="light"] .gglyph,
-  [data-theme="light"] .fglyph { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42); }
-  [data-theme="light"] .gcard.vrc .gglyph,
-  [data-theme="light"] .frow.vrc .fglyph {
+  [data-theme="light"] .gglyph { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42); }
+  [data-theme="light"] .gcard.vrc .gglyph {
     color: #0f4f9c;
     background: rgba(31, 111, 211, 0.14);
     border-color: rgba(31, 111, 211, 0.24);
   }
-  [data-theme="light"] .gcard.cvr .gglyph,
-  [data-theme="light"] .frow.cvr .fglyph {
+  [data-theme="light"] .gcard.cvr .gglyph {
     color: #a3410d;
     background: rgba(216, 95, 24, 0.14);
     border-color: rgba(216, 95, 24, 0.26);
   }
-  [data-theme="light"] .av2 .st { border-color: #eef3f8; }
   [data-theme="light"] .stack .av { border-color: rgba(255, 255, 255, 0.72); }
   [data-theme="light"] .gcard.vrc .join {
     background: linear-gradient(135deg, rgba(31, 111, 211, 0.3), rgba(31, 111, 211, 0.1));
@@ -368,9 +391,9 @@
       <div class="topbar">
         <div class="ttl">Dashboard</div>
         <div class="seg glass">
-          <button class="on">All</button>
-          <button><span class="tagv">V</span> VRChat</button>
-          <button><span class="tagc">C</span> ChilloutVR</button>
+          <button class="segv">VRC</button>
+          <button class="sega on">ALL</button>
+          <button class="segc">CVR</button>
         </div>
         <div class="ocount"><span class="pulse"></span> 47 friends online</div>
       </div>
@@ -391,14 +414,27 @@
         <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">Spawn Zone</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">K</span></div><span class="gcount"><b>4</b> here</span><span class="join">Join</span></div></div></div>
       </div>
 
-      <div class="secline"><span class="kick">Friends</span> <span class="hint">state dot (in-game / active / offline) · VRChat status pills · custom status · trust off by default</span></div>
+      <div class="secline"><span class="kick">Friends</span> <span class="hint">§9.1 row: avatar status-ring + glyph · custom status beside the name · world subline · §6.1 tier-colored instance pill (Private when hidden; none when not in a world)</span></div>
       <div class="flist glass">
-        <div class="frow vrc"><span class="fspine"></span><div class="av2">A<span class="st st-ingame"></span></div><div><div class="fname">AlexVR <span class="fglyph">V</span> <span class="stp joinme"><span class="sd"></span>Join Me</span></div><div class="fsub">The Great Pug · <span class="ph">Public</span></div></div><span class="aff join2">Join</span></div>
-        <div class="frow vrc"><span class="fspine"></span><div class="av2">N<span class="st st-ingame"></span></div><div><div class="fname">Nova <span class="fglyph">V</span> <span class="stp online"><span class="sd"></span>Online</span></div><div class="fsub">Murder 4 · <span class="ph">Group+</span></div></div><span class="aff join2">Join</span></div>
-        <div class="frow vrc"><span class="fspine"></span><div class="av2">S<span class="st st-ingame"></span></div><div><div class="fname">Sage <span class="fglyph">V</span> <span class="stp askme"><span class="sd"></span>Ask Me</span></div><div class="fsub">✎ taking commissions · <span class="ph">location hidden</span></div></div><span class="aff ask">Ask</span></div>
-        <div class="frow vrc"><span class="fspine"></span><div class="av2">K<span class="st st-ingame"></span></div><div><div class="fname">Kira <span class="fglyph">V</span> <span class="stp dnd"><span class="sd"></span>DND</span></div><div class="fsub ph">location hidden</div></div><span class="aff busy">⊘</span></div>
-        <div class="frow vrc"><span class="fspine"></span><div class="av2">P<span class="st st-active"></span></div><div><div class="fname">Pixel <span class="fglyph">V</span></div><div class="fsub ph">Active · on the web</div></div><span></span></div>
-        <div class="frow cvr"><span class="fspine"></span><div class="av2">M<span class="st st-ingame"></span></div><div><div class="fname">Mika <span class="fglyph">C</span></div><div class="fsub">The Black Cat · <span class="ph">Public</span></div></div><span class="aff join2">Join</span></div>
+        <div class="frow vrc"><span class="fspine"></span><span class="rav" style="--ring: var(--st-joinme)"><span class="disc">A</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h11"/><path d="M11 8l4 4-4 4"/></svg></span></span><span><span class="fname">AlexVR<span class="fcs">come thru</span></span><span class="fworld" style="display:block">The Great Pug</span></span><span class="opill" style="--op: var(--op-public)">Public</span></div>
+        <div class="frow vrc"><span class="fspine"></span><span class="rav" style="--ring: var(--st-online)"><span class="disc">N</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span></span><span><span class="fname">Nova</span><span class="fworld" style="display:block">Murder 4</span></span><span class="opill" style="--op: var(--op-group-plus)">Group+</span></div>
+        <div class="frow vrc"><span class="fspine"></span><span class="rav" style="--ring: var(--st-askme)"><span class="disc">S</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.3a3 3 0 1 1 4 2.8c-1 .5-1.5 1.1-1.5 2.2"/><path d="M11.5 17.6h.01" stroke-width="3.2"/></svg></span></span><span><span class="fname">Sage<span class="fcs">taking commissions</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
+        <div class="frow vrc"><span class="fspine"></span><span class="rav" style="--ring: var(--st-online)"><span class="disc">K</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span></span><span><span class="fname">Kira<span class="fcs">Online status, private world — still gets a pill</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
+        <div class="frow vrc"><span class="fspine"></span><span class="rav" style="--ring: var(--active)"><span class="disc">P</span><span class="rb"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.5"/></svg></span></span><span><span class="fname">Pixel<span class="fcs">on the web — not in a world, no pill</span></span><span class="fworld" style="display:block"></span></span><span></span></div>
+        <div class="frow cvr"><span class="fspine"></span><span class="rav" style="--ring: var(--ingame)"><span class="disc">M</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8.5" width="18" height="8" rx="4"/><path d="M7.3 11v3M5.8 12.5h3"/><path d="M15.6 12h.01M17.6 13.6h.01" stroke-width="3.2"/></svg></span></span><span><span class="fname">Mika</span><span class="fworld" style="display:block">The Black Cat</span></span><span class="opill" style="--op: var(--op-friends-plus)">Friends of Friends</span></div>
+      </div>
+      <div class="secline" style="margin-top:18px"><span class="kick">Openness Ladder</span> <span class="hint">§6.1 — green (open) → orange (locked) · groups purple, lighter = more open · hidden/offline-instance neutral</span></div>
+      <div class="glass" style="padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <span class="opill" style="--op: var(--op-public)">Public</span>
+        <span class="opill" style="--op: var(--op-friends-plus)">Friends+</span>
+        <span class="opill" style="--op: var(--op-friends)">Friends</span>
+        <span class="opill" style="--op: var(--op-invite-plus)">Invite+</span>
+        <span class="opill" style="--op: var(--op-invite)">Invite</span>
+        <span class="opill" style="--op: var(--op-group-public)">Group Public</span>
+        <span class="opill" style="--op: var(--op-group-plus)">Group+</span>
+        <span class="opill" style="--op: var(--op-group); --opc: var(--op-group-text)">Group</span>
+        <span class="opill neutral">Private</span>
+        <span class="opill neutral">Offline Instance</span>
       </div>
     </main>
   </div>
