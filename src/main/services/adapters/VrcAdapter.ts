@@ -24,6 +24,8 @@ import { WorldResolver } from './vrchat/WorldResolver'
 export interface VrcCredentialStore {
   load(): string | undefined
   save(cookie: string): void
+  /** Remove the persisted session so an expired cookie can't survive a restart. */
+  delete(): void
 }
 
 /** Minimal current-user shape we rely on (the API returns much more). */
@@ -212,7 +214,13 @@ export class VrcAdapter extends VrcApiClient {
     } catch {
       return this.status('error')
     }
-    if (response.status === 401) return this.status('unauthenticated')
+    // The cookie WE SENT was rejected — the session is dead. Clear it everywhere
+    // (memory, VrcApiClient mirror, persisted blob) so session restore can't
+    // re-adopt it on the next launch and 401 forever.
+    if (response.status === 401) {
+      this.clearSession()
+      return this.status('unauthenticated')
+    }
     if (!response.ok) return this.status('error')
 
     let body: unknown
@@ -293,6 +301,23 @@ export class VrcAdapter extends VrcApiClient {
   private setCookie(cookie: string): void {
     this.cookie = cookie
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
+  }
+
+  /**
+   * Tear down a dead session everywhere it lives: the in-memory cookie, the
+   * VrcApiClient mirror it feeds onto every authed request, the cached display
+   * name, AND the persisted safeStorage blob. The delete is best-effort — a
+   * locked/unavailable store must never turn a routine 401 into a crash.
+   */
+  private clearSession(): void {
+    this.cookie = null
+    this.setAuthCookie(null)
+    this.displayName = null
+    try {
+      this.credentials.delete()
+    } catch {
+      /* best-effort — the in-memory session is already cleared for this run */
+    }
   }
 
   private cookieHeader(): Record<string, string> {

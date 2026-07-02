@@ -1,11 +1,16 @@
-import { app, shell, BrowserWindow, dialog } from 'electron'
+import { app, shell, BrowserWindow, dialog, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
 import { loadSettings } from './services/settings'
-import { CREDENTIAL_KEYS, loadCredential, saveCredential } from './services/credentials'
+import {
+  CREDENTIAL_KEYS,
+  clearCredential,
+  loadCredential,
+  saveCredential
+} from './services/credentials'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -128,6 +133,20 @@ app.whenReady().then(() => {
   // Structured logging first, so anything below is captured (VRX-15).
   initLogger()
 
+  // Lock down the default session's permission surface (defense-in-depth). VRX
+  // loads only its own bundled renderer and legitimately needs exactly one web
+  // permission: writing to the clipboard (ErrorBoundary's "copy details" button,
+  // which requests `clipboard-sanitized-write`). Deny every other request/check —
+  // camera, microphone, geolocation, notifications, MIDI, HID, … — so a
+  // compromised renderer can't reach for device APIs.
+  const ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set(['clipboard-sanitized-write'])
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission))
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) =>
+    ALLOWED_PERMISSIONS.has(permission)
+  )
+
   // Load persisted settings (migrate + validate on read; normalizes the on-disk
   // file to the current schema). Available for IPC/store wiring next (VRX-23).
   const settings = loadSettings()
@@ -148,7 +167,8 @@ app.whenReady().then(() => {
   // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
   const vrcCredentials: VrcCredentialStore = {
     load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-    save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
+    save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
+    delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
   }
   const adapters = new Map([['vrchat' as const, new VrcAdapter(vrcCredentials)]])
   registerIpcHandlers(adapters)
@@ -178,9 +198,18 @@ app.on('window-all-closed', () => {
 // Registered at module scope (not inside whenReady) so they catch early-boot
 // errors before the app is fully initialized.
 
+let crashing = false
 process.on('uncaughtException', (error: Error) => {
-  // Log and let Electron decide whether to quit — don't suppress the exit.
-  log.error('uncaughtException', { message: error.message, stack: error.stack })
+  // Registering ANY uncaughtException listener suppresses Node's default
+  // print-and-exit, so a handler that only logs would leave the app limping on
+  // in an undefined state — worse than crashing. Log the fatal error (electron-
+  // log's file transport is synchronous, so it flushes to disk before we exit),
+  // then terminate. The guard stops a second exception during teardown from
+  // re-entering and calling app.exit twice.
+  if (crashing) return
+  crashing = true
+  log.error('uncaughtException — terminating', { message: error.message, stack: error.stack })
+  app.exit(1)
 })
 
 process.on('unhandledRejection', (reason: unknown) => {
