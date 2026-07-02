@@ -18,7 +18,7 @@
       "allShort": "ALL",
       "aria": "プラットフォームフィルター"
     },
-    "onlineCount": "{{count}}人のフレンドがオンライン",
+    "onlineCount_other": "{{count}}人のフレンドがオンライン",
     "comingSoon": "近日公開"
   },
   "settings": {
@@ -80,6 +80,9 @@
     }
   },
   "dashboard": {
+    "loading": "読み込み中...",
+    "error": "フレンドを読み込めませんでした",
+    "retry": "再試行",
     "statOnlineLabel": "オンラインのフレンド",
     "statInGameLabel": "ゲーム中",
     "statHotLabel": "ホットインスタンス",
@@ -89,7 +92,7 @@
     "friendsHere": "<bold>{{count}}</bold>人がここにいます",
     "joinInstance": "参加",
     "emptyHeading": "ホットインスタンスはありません",
-    "emptyHint": "2人以上のフレンドが同じワールドにいると、ここに表示されます。"
+    "emptyHint": "{{threshold}}人以上のフレンドが同じワールドにいると、ここに表示されます。"
   },
   "login": {
     "subtitle": "Social VR コンパニオン",
