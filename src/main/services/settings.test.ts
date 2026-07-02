@@ -9,7 +9,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 
-const storeState = vi.hoisted(() => ({ throwOnRead: false, data: {} as Record<string, unknown> }))
+const storeState = vi.hoisted((): { throwOnRead: boolean; data: Record<string, unknown> } => ({
+  throwOnRead: false,
+  data: {}
+}))
 
 vi.mock('electron-store', () => ({
   default: class {
