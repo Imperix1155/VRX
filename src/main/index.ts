@@ -126,6 +126,32 @@ function createWindow(): void {
   })
 }
 
+// ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
+// Registered at module scope BEFORE app.whenReady() so they are active for the
+// earliest boot errors — including a synchronous throw during startup, which
+// would otherwise bypass the guarded exit below (CodeRabbit, audit W3).
+
+let crashing = false
+process.on('uncaughtException', (error: Error) => {
+  // Registering ANY uncaughtException listener suppresses Node's default
+  // print-and-exit, so a handler that only logs would leave the app limping on
+  // in an undefined state — worse than crashing. Log the fatal error (electron-
+  // log's file transport is synchronous, so it flushes to disk before we exit),
+  // then terminate. The guard stops a second exception during teardown from
+  // re-entering and calling app.exit twice.
+  if (crashing) return
+  crashing = true
+  log.error('uncaughtException — terminating', { message: error.message, stack: error.stack })
+  app.exit(1)
+})
+
+process.on('unhandledRejection', (reason: unknown) => {
+  // Log without exiting — an unhandled rejection alone doesn't warrant a crash.
+  const message = reason instanceof Error ? reason.message : String(reason)
+  const stack = reason instanceof Error ? reason.stack : undefined
+  log.warn('unhandledRejection', { message, stack })
+})
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -192,29 +218,4 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
-})
-
-// ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
-// Registered at module scope (not inside whenReady) so they catch early-boot
-// errors before the app is fully initialized.
-
-let crashing = false
-process.on('uncaughtException', (error: Error) => {
-  // Registering ANY uncaughtException listener suppresses Node's default
-  // print-and-exit, so a handler that only logs would leave the app limping on
-  // in an undefined state — worse than crashing. Log the fatal error (electron-
-  // log's file transport is synchronous, so it flushes to disk before we exit),
-  // then terminate. The guard stops a second exception during teardown from
-  // re-entering and calling app.exit twice.
-  if (crashing) return
-  crashing = true
-  log.error('uncaughtException — terminating', { message: error.message, stack: error.stack })
-  app.exit(1)
-})
-
-process.on('unhandledRejection', (reason: unknown) => {
-  // Log without exiting — an unhandled rejection alone doesn't warrant a crash.
-  const message = reason instanceof Error ? reason.message : String(reason)
-  const stack = reason instanceof Error ? reason.stack : undefined
-  log.warn('unhandledRejection', { message, stack })
 })
