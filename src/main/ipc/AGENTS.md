@@ -15,7 +15,9 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - `app-status.ts` — `get-app-status`: stub returning all-'ok' until VRX-79/146/147 wire WS health (VRX-20).
 - `launch.ts` — `open-url`: validates via `isAllowedUrl() || isAllowedLaunchUrl()` before `shell.openExternal`; accepts both HTTPS web links and VRChat desktop-launch URLs (VRX-20/161).
 - `url-allowlist.ts` — `isAllowedUrl()`: pure HTTPS+known-host predicate; no electron imports (VRX-20). Also exports `isAllowedLaunchUrl()`: permits `vrchat://launch?id=wrld_…` strictly — `vrchat:` scheme only, hostname must be exactly `launch`, no userinfo/port, `id` param must start with `wrld_`; all other schemes remain rejected (VRX-161). The two predicates are intentionally separate so `setWindowOpenHandler` (web links) never accepts a custom scheme.
-- `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20).
+- `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20; W6 added Cyrillic-homoglyph + protocol-relative denials).
+- `security.test.ts` — unit tests for `isTrustedIpcSender` (audit W6 — the guard on every channel finally has coverage): dev exact-origin incl. the `localhost:5173.evil.com` prefix-spoof, port/scheme mismatch, unset-env fail-closed, malformed URLs; prod top-frame-file:// incl. the subframe rejection. Mocks `@electron-toolkit/utils` (`is.dev` is read per call).
+- `auth.test.ts` — handler boundary tests (audit W6): captures handlers via a mocked `ipcMain.handle`, then drives them with hostile payloads — untrusted sender, bad platform, non-string credentials/twoFactorCode (the W3 pin), no-adapter platform — plus happy-path delegation. Uses `stubPlatformAdapter` from the adapters' `__testutils__/adapterTestKit`.
 - `index.ts` — `registerIpcHandlers(adapters)`: wires all handlers; imported once in `src/main/index.ts`.
 
 ## Local Contracts

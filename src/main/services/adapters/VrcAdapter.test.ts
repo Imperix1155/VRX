@@ -1,18 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-
-const noopSleep = (): Promise<void> => Promise.resolve()
-
-/** Build a real Response so `headers.getSetCookie()` is exercised for real. */
-function authResponse(
-  body: unknown,
-  opts: { status?: number; setCookies?: string[] } = {}
-): Response {
-  const headers = new Headers({ 'Content-Type': 'application/json' })
-  for (const cookie of opts.setCookies ?? []) headers.append('Set-Cookie', cookie)
-  return new Response(JSON.stringify(body), { status: opts.status ?? 200, headers })
-}
+import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -53,7 +42,7 @@ describe('VrcAdapter', () => {
       // getAuthStatus) — return a fresh Response per call.
       const fetchMock = vi.fn(() =>
         Promise.resolve(
-          authResponse(
+          jsonResponse(
             { id: 'usr_1', displayName: 'Neo' },
             { setCookies: ['auth=abc123; Path=/; HttpOnly; Secure'] }
           )
@@ -74,7 +63,7 @@ describe('VrcAdapter', () => {
     it('sends Basic auth with url-encoded username:password', async () => {
       const fetchMock = vi
         .fn()
-        .mockResolvedValue(authResponse({ id: 'u', displayName: 'X' }, { setCookies: ['auth=t'] }))
+        .mockResolvedValue(jsonResponse({ id: 'u', displayName: 'X' }, { setCookies: ['auth=t'] }))
       vi.stubGlobal('fetch', fetchMock)
 
       await new VrcAdapter(fakeStore(), noopSleep).login({ username: 'a:b@c', password: 'p:w@d' })
@@ -86,7 +75,7 @@ describe('VrcAdapter', () => {
     it('never persists or transmits the password as a cookie', async () => {
       const fetchMock = vi
         .fn()
-        .mockResolvedValue(authResponse({ id: 'u', displayName: 'X' }, { setCookies: ['auth=t'] }))
+        .mockResolvedValue(jsonResponse({ id: 'u', displayName: 'X' }, { setCookies: ['auth=t'] }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
 
@@ -98,7 +87,7 @@ describe('VrcAdapter', () => {
     it('maps a 401 to a clean invalid_credentials result', async () => {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(authResponse({ error: 'x' }, { status: 401 }))
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
       )
       const result = await new VrcAdapter(fakeStore(), noopSleep).login(creds)
       expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
@@ -109,7 +98,7 @@ describe('VrcAdapter', () => {
       // with the correct password. Auth goes through rawRequest, so it must not.
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(authResponse({ error: 'x' }, { status: 401 }))
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
       )
       const adapter = new VrcAdapter(fakeStore(), noopSleep)
 
@@ -125,7 +114,7 @@ describe('VrcAdapter', () => {
     it('flags an unexpected response body as an error rather than a false success', async () => {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(authResponse({ unexpected: true }, { setCookies: ['auth=t'] }))
+        vi.fn().mockResolvedValue(jsonResponse({ unexpected: true }, { setCookies: ['auth=t'] }))
       )
       const result = await new VrcAdapter(fakeStore(), noopSleep).login(creds)
       expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
@@ -137,15 +126,15 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          authResponse(
+          jsonResponse(
             { requiresTwoFactorAuth: ['totp', 'otp'] },
             { setCookies: ['auth=tok1; Path=/'] }
           )
         )
         .mockResolvedValueOnce(
-          authResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2; Path=/'] })
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2; Path=/'] })
         )
-        .mockResolvedValueOnce(authResponse({ id: 'usr_9', displayName: 'Trinity' }))
+        .mockResolvedValueOnce(jsonResponse({ id: 'usr_9', displayName: 'Trinity' }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
       const adapter = new VrcAdapter(store, noopSleep)
@@ -168,12 +157,12 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          authResponse({ requiresTwoFactorAuth: ['emailOtp'] }, { setCookies: ['auth=tok1'] })
+          jsonResponse({ requiresTwoFactorAuth: ['emailOtp'] }, { setCookies: ['auth=tok1'] })
         )
         .mockResolvedValueOnce(
-          authResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
         )
-        .mockResolvedValueOnce(authResponse({ id: 'u', displayName: 'X' }))
+        .mockResolvedValueOnce(jsonResponse({ id: 'u', displayName: 'X' }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore(), noopSleep)
 
@@ -189,9 +178,9 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          authResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
         )
-        .mockResolvedValueOnce(authResponse({ error: 'bad code' }, { status: 400 }))
+        .mockResolvedValueOnce(jsonResponse({ error: 'bad code' }, { status: 400 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore(), noopSleep)
 
@@ -206,7 +195,7 @@ describe('VrcAdapter', () => {
     it.each([
       [
         '{ verified: false }',
-        authResponse({ verified: false }, { setCookies: ['twoFactorAuth=tf2'] })
+        jsonResponse({ verified: false }, { setCookies: ['twoFactorAuth=tf2'] })
       ],
       ['a malformed body', new Response('not json', { status: 200 })],
       ['a 204 with no body', new Response(null, { status: 204 })]
@@ -216,7 +205,7 @@ describe('VrcAdapter', () => {
         const fetchMock = vi
           .fn()
           .mockResolvedValueOnce(
-            authResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+            jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
           )
           .mockResolvedValueOnce(verifyResp)
         vi.stubGlobal('fetch', fetchMock)
@@ -235,15 +224,15 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          authResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
         )
         .mockResolvedValueOnce(
-          authResponse(
+          jsonResponse(
             { verified: true },
             { setCookies: ['auth=rotated9; Path=/', 'twoFactorAuth=tf2'] }
           )
         )
-        .mockResolvedValueOnce(authResponse({ id: 'u', displayName: 'X' }))
+        .mockResolvedValueOnce(jsonResponse({ id: 'u', displayName: 'X' }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
       const adapter = new VrcAdapter(store, noopSleep)
@@ -258,12 +247,12 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          authResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
         )
         .mockResolvedValueOnce(
-          authResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
         )
-        .mockResolvedValueOnce(authResponse({ id: 'u', displayName: 'Trinity' }))
+        .mockResolvedValueOnce(jsonResponse({ id: 'u', displayName: 'Trinity' }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
       const adapter = new VrcAdapter(store, noopSleep)
@@ -282,7 +271,7 @@ describe('VrcAdapter', () => {
     it('restores a persisted cookie and sends it on the status check', async () => {
       const fetchMock = vi
         .fn()
-        .mockResolvedValue(authResponse({ id: 'usr', displayName: 'Restored' }))
+        .mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Restored' }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=restored'), noopSleep)
 
@@ -307,7 +296,7 @@ describe('VrcAdapter', () => {
     })
 
     it('maps a 401 to unauthenticated and a network failure to error', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(authResponse({}, { status: 401 })))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 })))
       expect(await new VrcAdapter(fakeStore('auth=x'), noopSleep).getAuthStatus()).toMatchObject({
         state: 'unauthenticated'
       })
@@ -320,7 +309,7 @@ describe('VrcAdapter', () => {
 
     it('clears a dead session on 401 — memory, request mirror, AND persisted blob', async () => {
       // First status check: the persisted cookie is rejected (session expired).
-      const fetchMock = vi.fn().mockResolvedValue(authResponse({}, { status: 401 }))
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore('auth=expired')
       const adapter = new VrcAdapter(store, noopSleep)
@@ -432,11 +421,6 @@ describe('VrcAdapter', () => {
       // End-to-end through the real request<T> path: before W4, one bad record
       // failed the page's array schema → NetworkError + a circuit-breaker failure
       // recorded — data drift poisoned the transport layer.
-      const json = (body: unknown): Response =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        })
       const goodFriend = {
         id: 'usr_00000001',
         displayName: 'Alice',
@@ -446,15 +430,19 @@ describe('VrcAdapter', () => {
       const fetchMock = vi
         .fn()
         // buckets
-        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+        .mockResolvedValueOnce(
+          jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+        )
         // online page: one good, one malformed (no displayName) — partial page ends pass
-        .mockResolvedValueOnce(json([goodFriend, { id: 'usr_bad' }]))
+        .mockResolvedValueOnce(jsonResponse([goodFriend, { id: 'usr_bad' }]))
         // offline page: empty — ends pass
-        .mockResolvedValueOnce(json([]))
+        .mockResolvedValueOnce(jsonResponse([]))
         // second getFriends call (circuit-state probe): buckets + pages again
-        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
-        .mockResolvedValueOnce(json([goodFriend]))
-        .mockResolvedValueOnce(json([]))
+        .mockResolvedValueOnce(
+          jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+        )
+        .mockResolvedValueOnce(jsonResponse([goodFriend]))
+        .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
 
@@ -474,14 +462,12 @@ describe('VrcAdapter', () => {
       // transport-level problem — request<T> throws, records circuit failures,
       // and after 3 consecutive the breaker opens, so the offline pass fails
       // instantly with no extra wire hits. Total fetches: 1 buckets + 3 pages.
-      const json = (body: unknown): Response =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        })
       const fetchMock = vi.fn((url: string) => {
-        if (url.includes('/auth/user/friends')) return Promise.resolve(json({ error: 'drift' }))
-        return Promise.resolve(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
+        if (url.includes('/auth/user/friends'))
+          return Promise.resolve(jsonResponse({ error: 'drift' }))
+        return Promise.resolve(
+          jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+        )
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
@@ -491,16 +477,13 @@ describe('VrcAdapter', () => {
     })
 
     it('throws when every record is malformed (drift must not look like "no friends")', async () => {
-      const json = (body: unknown): Response =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        })
       const fetchMock = vi
         .fn()
-        .mockResolvedValueOnce(json({ onlineFriends: [], activeFriends: [], offlineFriends: [] }))
-        .mockResolvedValueOnce(json([{ totally: 'wrong' }, { also: 'wrong' }]))
-        .mockResolvedValueOnce(json([]))
+        .mockResolvedValueOnce(
+          jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+        )
+        .mockResolvedValueOnce(jsonResponse([{ totally: 'wrong' }, { also: 'wrong' }]))
+        .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
 
