@@ -357,7 +357,18 @@ export class VrcAdapter extends VrcApiClient {
     this.pipeline ??= new VrcPipeline({
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
-        for (const subscriber of this.subscribers) subscriber(event)
+        // Isolate subscribers: one throwing handler must not starve the others
+        // in a shared fan-out (VrcPipeline.emit wraps the whole call, so an
+        // unisolated throw here would abort the loop). CodeRabbit.
+        for (const subscriber of this.subscribers) {
+          try {
+            subscriber(event)
+          } catch (err) {
+            this.live?.log?.('warn', 'pipeline: subscriber threw', {
+              message: err instanceof Error ? err.message : String(err)
+            })
+          }
+        }
       },
       socketFactory:
         this.live?.socketFactory ??

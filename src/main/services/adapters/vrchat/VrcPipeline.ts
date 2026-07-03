@@ -89,7 +89,7 @@ const friendIdSchema = z.object({ userId: z.string() })
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
-const noJitter = (): number => Math.floor(Math.random() * 250)
+const jitter = (): number => Math.floor(Math.random() * 250)
 const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 export class VrcPipeline {
@@ -148,7 +148,7 @@ export class VrcPipeline {
       PIPELINE_BACKOFF_BASE_MS * 2 ** this.consecutiveFailures,
       PIPELINE_BACKOFF_CAP_MS
     )
-    return exp + noJitter()
+    return exp + jitter()
   }
 
   /**

@@ -508,6 +508,39 @@ describe('VrcAdapter', () => {
       unsub3()
     })
 
+    it('one throwing subscriber does not starve the others in the fan-out (CodeRabbit)', async () => {
+      const received: string[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), noopSleep, {
+        socketFactory: () => {
+          const listeners: Record<string, (arg: unknown) => void> = {}
+          const s = {
+            on: (ev: string, cb: (arg: unknown) => void) => {
+              listeners[ev] = cb
+            },
+            close: () => {},
+            fire: (ev: string, arg?: unknown) => listeners[ev]?.(arg)
+          }
+          queueMicrotask(() => s.fire('open'))
+          ;(globalThis as { __sock?: typeof s }).__sock = s
+          return s as unknown as { on: () => void; close: () => void }
+        }
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
+      )
+
+      adapter.subscribe(() => {
+        throw new Error('subscriber A bug')
+      })
+      adapter.subscribe((e) => received.push(e.type))
+      await new Promise((r) => setImmediate(r))
+      await new Promise((r) => setImmediate(r))
+
+      // The 'open' → connection:'live' event must reach subscriber B despite A throwing.
+      expect(received).toContain('connection')
+    })
+
     it('pipeline token: null without a session — the pipeline never dials (VRX-146)', async () => {
       let dials = 0
       const adapter = new VrcAdapter(fakeStore(), noopSleep, {

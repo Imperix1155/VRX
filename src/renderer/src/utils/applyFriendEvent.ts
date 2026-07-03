@@ -53,7 +53,11 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
     case 'friend-updated':
       return friends.map((f): Friend =>
         f.platform === event.platform && f.platformUserId === event.friend.platformUserId
-          ? ({
+          ? // Cast is safe: `f` and `event.friend` share `event.platform` (the
+            // match gates on it), so spreading the same-platform event.friend and
+            // re-taking `f`'s fields yields a valid Friend of that same variant —
+            // TS just can't re-narrow the discriminated union across the spread.
+            ({
               ...event.friend,
               // The wire event says nothing about presence/location — keep ours.
               presence: f.presence,
