@@ -69,10 +69,24 @@ Default section order:
 
 1. Re-check changed paths against the DOX chain
 2. Update nearest owning docs and any affected parents or children
-3. Refresh every affected Child DOX Index
-4. Remove stale or contradictory text
-5. Run existing verification when relevant
-6. Report any docs intentionally left unchanged and why
+3. Walk the Doc-Sync Matrix below and update every doc a changed surface maps to
+4. Refresh every affected Child DOX Index
+5. Remove stale or contradictory text
+6. Run existing verification when relevant
+7. Report any docs intentionally left unchanged and why
+
+## Doc-Sync Matrix
+
+Each kind of change owns a doc that must be updated **in the same PR** — doc drift is a defect, not a chore for later.
+
+| If the change touches… | Update |
+| --- | --- |
+| The callable surface — any IPC channel, `window.vrx` method, `AdapterEvent`, hook, store, parser, service, or shared constant (added, renamed, resignatured, or removed) | its row in `docs/INTERNAL-API.md` |
+| Visual or interaction design — tokens, component looks/behavior, design rules | `docs/DESIGN.md` (exact values, rule text) AND the reference renderings `docs/glass.html` / `docs/design.html` — they are design docs too and drift silently |
+| Assumptions about the external VRChat/CVR APIs — wire shapes, endpoints, enum values, 🟡 unverified markers | `docs/api-volatility.md` (and `docs/api-policy.md` if etiquette/policy changed) |
+| User-visible behavior | `CHANGELOG.md` |
+| Purpose, structure, contracts, or workflows of a directory | the nearest owning `AGENTS.md` (Update After Editing rules) |
+| Project-level facts — stack versions, feature status, doc links | `README.md` |
 
 ## User Preferences
 
@@ -82,7 +96,7 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is **[`docs/DESIGN.md`](./docs/DESIGN.md)** (rendered guide: `docs/design.html`; visual reference: `docs/glass.html`).
+VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is **[`docs/DESIGN.md`](./docs/DESIGN.md)** (rendered guide: `docs/design.html`; visual reference: `docs/glass.html`). The internal callable surface — every IPC channel, `AdapterEvent`, hook, store, parser, and constant — is catalogued in **[`docs/INTERNAL-API.md`](./docs/INTERNAL-API.md)**: consult it BEFORE building new surfaces (reuse beats rebuild), and update its rows in the same PR whenever a surface is added or changed (part of the DOX pass).
 
 Children own their local technical contracts:
 - **[`src/shared`](./src/shared/AGENTS.md)** — pure cross-process types + constants (no electron/node imports).
