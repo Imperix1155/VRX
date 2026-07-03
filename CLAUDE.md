@@ -27,6 +27,8 @@ Before touching ANY UI, read DESIGN.md. Hard rules in brief:
 - All tokens/spacing come from the design tokens; never hardcode hex outside them.
 
 ## Architecture
+- **Before adding any channel/event/hook/util: check [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md)** — the
+  dictionary of the existing callable surface. Reuse beats rebuild; update it in the same PR when you add a surface.
 - electron-vite + React 19 + TypeScript (strict). Three processes: `src/main`, `src/preload`, `src/renderer`.
 - Cross-process shared code lives in `src/shared` (imported via the `@shared` alias). Keep it PURE —
   no `electron`/`node` imports (it bundles into the sandboxed renderer). Types + plain values only.
@@ -57,6 +59,10 @@ value (never by path) in `.gitleaks.toml`.
 - No hardcoded `C:\`/`%APPDATA%`/`~` paths — use `app.getPath()`. No `console.log` (electron-log).
   No `any`/`@ts-ignore` without an explanation comment.
 - Verify before declaring done: `npm run typecheck && npm run lint && npm run build` must pass.
+- **Docs ship in the same PR as the change** — follow the **Doc-Sync Matrix** in [`AGENTS.md`](AGENTS.md):
+  callable-surface changes → `docs/INTERNAL-API.md`; design changes → `docs/DESIGN.md` + `glass.html`/`design.html`;
+  external-API assumption changes → `docs/api-volatility.md`; user-visible changes → `CHANGELOG.md`.
+  A PR that changes a surface without its doc row is incomplete.
 
 ## Linear
 Project tracked on Linear (team VRX). Issues `VRX-N`. Release scope: `v1.0` label = ships in 1.0,

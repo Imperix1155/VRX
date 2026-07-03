@@ -11,8 +11,6 @@
 // ─── API base URLs (verified vs platform sources, 2026-06) ───────────────────
 /** VRChat REST API base. */
 export const VRC_API_BASE = 'https://api.vrchat.cloud/api/1' as const
-/** VRChat Pipeline WebSocket (real-time). authToken appended at connect. */
-export const VRC_WS_URL = 'wss://pipeline.vrchat.cloud' as const
 
 /** ChilloutVR REST API base. `api.chilloutvr.net` is an alias of the same host. */
 export const CVR_API_BASE = 'https://api.abinteractive.net/1' as const
