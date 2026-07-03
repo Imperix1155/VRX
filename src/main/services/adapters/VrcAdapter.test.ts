@@ -517,12 +517,10 @@ describe('VrcAdapter', () => {
             on: (ev: string, cb: (arg: unknown) => void) => {
               listeners[ev] = cb
             },
-            close: () => {},
-            fire: (ev: string, arg?: unknown) => listeners[ev]?.(arg)
+            close: () => {}
           }
-          queueMicrotask(() => s.fire('open'))
-          ;(globalThis as { __sock?: typeof s }).__sock = s
-          return s as unknown as { on: () => void; close: () => void }
+          queueMicrotask(() => listeners['open']?.(undefined))
+          return s
         }
       })
       vi.stubGlobal(
