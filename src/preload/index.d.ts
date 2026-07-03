@@ -1,4 +1,4 @@
-import type { IpcInvoke } from '@shared/ipc'
+import type { IpcEvents, IpcInvoke } from '@shared/ipc'
 
 type VrxBridge = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
@@ -14,6 +14,8 @@ type VrxBridge = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
+  /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */
+  onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => () => void
 }
 
 declare global {

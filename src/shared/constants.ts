@@ -28,6 +28,12 @@ export const CVR_WS_URL = 'wss://api.chilloutvr.net/1/users/ws' as const
 export const FRIENDS_RECONCILE_MS = 300_000
 /** Per-request timeout for all API calls (ms). */
 export const API_TIMEOUT_MS = 15_000
+
+/** VRChat Pipeline WebSocket endpoint (VRX-146). Token goes in `?authToken=`. */
+export const VRC_PIPELINE_URL = 'wss://pipeline.vrchat.cloud/' as const
+/** Pipeline reconnect backoff: base doubles per failure up to the cap, plus jitter. */
+export const PIPELINE_BACKOFF_BASE_MS = 1_000
+export const PIPELINE_BACKOFF_CAP_MS = 60_000
 /** Debounce for the friend-list search box (ms). */
 export const SEARCH_DEBOUNCE_MS = 200
 
