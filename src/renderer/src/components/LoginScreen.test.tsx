@@ -24,11 +24,13 @@ function setBridge(bridge: VrxBridge | undefined): void {
   ;(window as unknown as { vrx?: VrxBridge }).vrx = bridge
 }
 
-function renderLogin(): { queryClient: QueryClient } {
+function renderLogin(initialTwoFactor: 'totp' | 'email' | null = null): {
+  queryClient: QueryClient
+} {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
-      <LoginScreen />
+      <LoginScreen initialTwoFactor={initialTwoFactor} />
     </QueryClientProvider>
   )
   return { queryClient }
@@ -184,6 +186,43 @@ describe('LoginScreen (W6)', () => {
       'disabled',
       false
     )
+  })
+
+  it('opens directly on the 2FA prompt when seeded by the auth gate (VRX-173 reprompt)', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin('email')
+
+    // Method-aware prompt, no credentials form, nothing asked twice.
+    expect(screen.getByText(msg('login.twoFactor.promptEmail'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+    expect(screen.queryByLabelText(msg('login.password'))).toBeNull()
+  })
+
+  it('verifies a reprompt code via the session cookie (no login() call) and re-checks auth', async () => {
+    const login = vi.fn()
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({ login, verify2fa })
+    const { queryClient } = renderLogin('totp')
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(screen.getByLabelText(msg('login.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalled())
+    expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '654321' })
+    expect(login).not.toHaveBeenCalled() // the password never enters this flow
+  })
+
+  it('Back from a seeded reprompt falls back to the full credentials form (escape hatch)', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin('totp')
+
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
+
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.getByLabelText(msg('login.password'))).toBeTruthy()
   })
 
   it('shows the generic error when the bridge is entirely absent', async () => {

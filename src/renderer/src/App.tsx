@@ -14,7 +14,18 @@ function App(): React.JSX.Element {
   if (isPending) return <></>
 
   if (authStatus?.state !== 'authenticated') {
-    return <LoginScreen />
+    // needs-2fa: the session's auth cookie is alive, only the second factor
+    // expired — jump straight to the code prompt (no password re-entry, VRX-173).
+    return (
+      <LoginScreen
+        // key: a needs-2fa ↔ unauthenticated transition while mounted must
+        // remount (re-seed) the screen — the seed is read once at first render.
+        key={authStatus?.state ?? 'pending'}
+        initialTwoFactor={
+          authStatus?.state === 'needs-2fa' ? (authStatus.twoFactorMethod ?? 'totp') : null
+        }
+      />
+    )
   }
 
   return <AppShell />

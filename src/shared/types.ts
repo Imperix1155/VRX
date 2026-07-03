@@ -184,6 +184,12 @@ export interface AuthStatus {
   state: AuthState
   /** Signed-in account's display name, when authenticated; null otherwise. */
   displayName: string | null
+  /**
+   * Which second factor to prompt for — present ONLY when `state` is
+   * `'needs-2fa'` (the session's auth cookie is alive but the twoFactorAuth
+   * cookie expired; VRX-173). Drives the method-aware reprompt copy.
+   */
+  twoFactorMethod?: TwoFactorMethod
 }
 
 /**
