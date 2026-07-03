@@ -9,8 +9,10 @@ import type {
   TwoFactorMethod
 } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
+import type { AdapterEvent } from '@shared/types'
 import { NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
+import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
@@ -35,6 +37,12 @@ const twoFactorRequiredSchema = z.object({ requiresTwoFactorAuth: z.array(z.stri
 const authUserResponseSchema = z.union([twoFactorRequiredSchema, currentUserSchema])
 /** VRChat's 2FA verify response — `verified` is the authoritative success signal. */
 const twoFactorVerifySchema = z.object({ verified: z.boolean() })
+/**
+ * GET /auth response — exchanges the session cookie for the Pipeline token
+ * (VRX-146). The token IS the authcookie value; the exchange verifies the
+ * session server-side. Falls back to the raw cookie value if unavailable.
+ */
+const authTokenSchema = z.object({ token: z.string() })
 
 /** VRChat Basic auth: `base64(urlencode(username):urlencode(password))`. */
 function basicAuthHeader(username: string, password: string): string {
@@ -101,9 +109,22 @@ export class VrcAdapter extends VrcApiClient {
     this.get(`/worlds/${worldId}`, z.unknown())
   )
 
+  // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
+  private pipeline: VrcPipeline | null = null
+  private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+
   constructor(
     private readonly credentials: VrcCredentialStore,
-    sleepFn?: (ms: number) => Promise<void>
+    sleepFn?: (ms: number) => Promise<void>,
+    /**
+     * Live-pipeline wiring (VRX-146), injected at the call site so this file
+     * stays electron-free: the real socketFactory (ws + User-Agent) and the
+     * electron-log bridge live in main/index.ts; tests inject fakes.
+     */
+    private readonly live?: {
+      socketFactory?: (url: string) => PipelineSocket
+      log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+    }
   ) {
     super(sleepFn)
     // Session restore — adopt any persisted cookie; tolerate a missing/locked store.
@@ -329,9 +350,64 @@ export class VrcAdapter extends VrcApiClient {
     // is discarded (returns void); z.unknown() tolerates benign API drift.
     await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
   }
-  subscribe(): Unsubscribe {
-    // Live WS stream is VRX-146.
-    return () => {}
+  subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
+    this.subscribers.add(handler)
+    // One shared pipeline for all subscribers; started on the first, stopped
+    // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
+    this.pipeline ??= new VrcPipeline({
+      tokenProvider: () => this.pipelineToken(),
+      onEvent: (event) => {
+        for (const subscriber of this.subscribers) subscriber(event)
+      },
+      socketFactory:
+        this.live?.socketFactory ??
+        (() => {
+          throw new Error('VrcAdapter: no socketFactory wired for the live pipeline')
+        }),
+      log: this.live?.log
+    })
+    this.pipeline.start()
+
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      this.subscribers.delete(handler)
+      if (this.subscribers.size === 0) {
+        this.pipeline?.stop()
+      }
+    }
+  }
+
+  /**
+   * Pipeline auth token (VRX-146): exchange the session cookie via GET /auth
+   * (verifies the session server-side — the VRCX pattern), falling back to the
+   * raw authcookie value when the exchange fails, and null with no session
+   * (the pipeline waits and retries; a fresh login is picked up automatically).
+   */
+  private async pipelineToken(): Promise<string | null> {
+    if (!this.cookie) return null
+    try {
+      const response = await this.rawRequest(`${VRC_API_BASE}/auth`, {
+        method: 'GET',
+        headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+      })
+      if (response.ok) {
+        const parsed = authTokenSchema.safeParse(await response.json())
+        if (parsed.success) return parsed.data.token
+      }
+    } catch {
+      /* exchange unavailable — fall back below */
+    }
+    // Fallback: the raw cookie value after the FIRST `auth=` (both reportedly
+    // work; the exchange is preferred as it validates the session first). Split
+    // once — the value can itself contain `=` (base64 padding), so slice-join
+    // rather than [1], which would truncate it.
+    const authPart = cookiePart(this.cookie, 'auth')
+    if (!authPart) return null
+    const eq = authPart.indexOf('=')
+    const value = eq === -1 ? '' : authPart.slice(eq + 1)
+    return value !== '' ? value : null
   }
 
   // ── internals ──────────────────────────────────────────────────────────────

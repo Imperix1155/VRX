@@ -416,9 +416,111 @@ describe('VrcAdapter', () => {
       expect(await adapter.importSession()).toBe(false)
     })
 
-    it('subscribe returns an unsubscribe function', () => {
-      const adapter = new VrcAdapter(fakeStore(), noopSleep)
-      expect(typeof adapter.subscribe()).toBe('function')
+    it('subscribe starts ONE shared pipeline and stops it when the last handler leaves (VRX-146)', async () => {
+      let dials = 0
+      const fakeSocket = (): { on: () => void; close: () => void } => ({
+        on: () => {},
+        close: () => {}
+      })
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), noopSleep, {
+        socketFactory: () => {
+          dials++
+          return fakeSocket()
+        }
+      })
+      // Token exchange responds OK so the pipeline dials immediately.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
+      )
+
+      const unsubA = adapter.subscribe(() => {})
+      const unsubB = adapter.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+
+      expect(typeof unsubA).toBe('function')
+      expect(dials).toBe(1) // shared — the second subscribe did not re-dial
+
+      unsubA()
+      unsubB()
+      unsubB() // double-unsubscribe is safe
+    })
+
+    it('pipeline token: prefers the GET /auth exchange, falls back to the raw cookie value (VRX-146)', async () => {
+      const dialed: string[] = []
+      const adapter = new VrcAdapter(
+        fakeStore('auth=authcookie_raw; twoFactorAuth=tf'),
+        noopSleep,
+        {
+          socketFactory: (url) => {
+            dialed.push(url)
+            return { on: () => {}, close: () => {} }
+          }
+        }
+      )
+
+      // Exchange succeeds → the EXCHANGED token dials the socket.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((url: string) => {
+          if (url.endsWith('/auth'))
+            return Promise.resolve(jsonResponse({ token: 'authcookie_exchanged' }))
+          return Promise.reject(new Error('unexpected'))
+        })
+      )
+      const unsub = adapter.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+      expect(dialed[0]).toContain('authToken=authcookie_exchanged')
+      unsub()
+
+      // Exchange fails → fall back to the raw authcookie value (never the whole
+      // combined cookie string).
+      const dialed2: string[] = []
+      const adapter2 = new VrcAdapter(
+        fakeStore('auth=authcookie_raw; twoFactorAuth=tf'),
+        noopSleep,
+        {
+          socketFactory: (url) => {
+            dialed2.push(url)
+            return { on: () => {}, close: () => {} }
+          }
+        }
+      )
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
+      const unsub2 = adapter2.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+      expect(dialed2[0]).toContain('authToken=authcookie_raw')
+      expect(dialed2[0]).not.toContain('twoFactorAuth')
+      unsub2()
+
+      // A cookie VALUE containing '=' (base64 padding) must not be truncated.
+      const dialed3: string[] = []
+      const adapter3 = new VrcAdapter(fakeStore('auth=tok==pad; twoFactorAuth=tf'), noopSleep, {
+        socketFactory: (url) => {
+          dialed3.push(url)
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
+      const unsub3 = adapter3.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+      expect(dialed3[0]).toContain('authToken=tok==pad')
+      unsub3()
+    })
+
+    it('pipeline token: null without a session — the pipeline never dials (VRX-146)', async () => {
+      let dials = 0
+      const adapter = new VrcAdapter(fakeStore(), noopSleep, {
+        socketFactory: () => {
+          dials++
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      vi.stubGlobal('fetch', vi.fn())
+      const unsub = adapter.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+      expect(dials).toBe(0)
+      unsub()
     })
 
     it('getFriends returns a normalized friend list (VRX-43)', async () => {
