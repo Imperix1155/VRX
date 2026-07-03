@@ -10,15 +10,25 @@ import { mapLoginError } from '../utils/loginError'
  *
  * Flow: credentials → login() → on needs2fa → 2FA code prompt → login() with code.
  * The password is held in component state only for the 2FA retry; it is never logged.
+ *
+ * `initialTwoFactor` (VRX-173): the auth gate passes the method when the session
+ * only needs a fresh second factor (auth cookie alive, twoFactorAuth expired) —
+ * the screen then opens directly on the code prompt; verify2fa authenticates via
+ * the session cookie, so no password is asked for. Back remains the escape hatch
+ * to a full credentials login.
  */
-export default function LoginScreen(): React.JSX.Element {
+export default function LoginScreen({
+  initialTwoFactor = null
+}: {
+  initialTwoFactor?: TwoFactorMethod | null
+}): React.JSX.Element {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [twoFactorCode, setTwoFactorCode] = useState('')
-  const [pending2fa, setPending2fa] = useState<TwoFactorMethod | null>(null)
+  const [pending2fa, setPending2fa] = useState<TwoFactorMethod | null>(initialTwoFactor)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
