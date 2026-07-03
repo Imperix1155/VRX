@@ -238,6 +238,48 @@ describe('applyFriendEvent', () => {
     expect(next[0]).toBe(cvrInGame) // no churn — memo'd row skips
   })
 
+  it('presence-snapshot DOES update when only a volatile field differs (userCount)', () => {
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'friends',
+      openness: 'friends',
+      isGroup: false,
+      groupName: null,
+      region: null,
+      userCount: 4
+    }
+    const cached = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_count',
+      displayName: 'count',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([cached], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_count',
+          presence: { state: 'in-game' },
+          instance: { ...inst, userCount: 5 } as never
+        }
+      ]
+    })
+    expect(next[0]).not.toBe(cached) // fresh data must not be dropped as "same"
+    expect(next[0]!.instance!.userCount).toBe(5)
+  })
+
   it('presence-snapshot leaves already-offline absentees with their identity (no churn)', () => {
     const cvrOffline = {
       platform: 'chilloutvr',

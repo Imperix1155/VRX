@@ -22,16 +22,20 @@
  */
 import type { AdapterEvent, Friend } from '@shared/types'
 
-/** Value-compare the wire-derived instance fields (snapshot entries are freshly allocated). */
+/** Value-compare ALL InstanceInfo fields (snapshot entries are freshly allocated). */
 function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
   if (a === null || b === null) return a === b
   return (
     a.worldId === b.worldId &&
     a.instanceId === b.instanceId &&
     a.worldName === b.worldName &&
+    a.thumbnailUrl === b.thumbnailUrl &&
     a.type === b.type &&
     a.openness === b.openness &&
-    a.isGroup === b.isGroup
+    a.isGroup === b.isGroup &&
+    a.groupName === b.groupName &&
+    a.region === b.region &&
+    a.userCount === b.userCount
   )
 }
 

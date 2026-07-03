@@ -176,12 +176,13 @@ export abstract class ReconnectingPipeline<Prep> {
       }
 
       try {
-        // Auth material rides on openSocket (URL token or upgrade headers) —
-        // never logged from here.
         socket = this.openSocket(prep)
       } catch (err) {
+        // Auth material rides on openSocket (URL token / upgrade headers) and
+        // construction errors can ECHO it (e.g. an invalid-URL message) — log
+        // only the error class, never the message (CLAUDE.md: no tokens in logs).
         this.log('warn', 'pipeline: socket construction failed', {
-          message: err instanceof Error ? err.message : String(err)
+          errorName: err instanceof Error ? err.name : typeof err
         })
         settle()
         return
@@ -201,7 +202,13 @@ export abstract class ReconnectingPipeline<Prep> {
 
       socket.on('message', (data: unknown) => {
         if (this.stopped || generation !== this.generation) return
-        this.handleMessage(data)
+        try {
+          this.handleMessage(data)
+        } catch {
+          // Subclass decoders are never-throw by contract, but a regression
+          // there must degrade to a dropped frame, not a dead pipeline.
+          this.log('warn', 'pipeline: message handler threw (frame dropped)')
+        }
       })
 
       socket.on('error', (err: unknown) => {

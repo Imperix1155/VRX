@@ -100,7 +100,7 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
     // Token goes in the query string — the UA header rides on the socket
     // factory (ws options at the call site). Never logged: the URL carries
     // the token, so log statements here must not include it.
-    return this.socketFactory(`${VRC_PIPELINE_URL}?authToken=${token}`)
+    return this.socketFactory(`${VRC_PIPELINE_URL}?authToken=${encodeURIComponent(token)}`)
   }
 
   /** Decode one wire message. NEVER throws — malformed data is logged and dropped. */
