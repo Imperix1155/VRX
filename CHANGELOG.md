@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Live presence: VRX now connects to VRChat's real-time event stream (the Pipeline WebSocket) — friends going online/offline, changing worlds, or updating their status appear in the list within seconds, without polling. The connection reconnects automatically with backoff and re-syncs the full list on every (re)connect. (VRX-146)
+
 ### Fixed
 
 - When your VRChat two-factor cookie expires (roughly monthly), VRX now asks for just a fresh 2FA code instead of a full username-and-password re-login — the session cookie is still valid, so only the second factor is re-verified. Also fixed a cookie-rebuild bug that could have made the reprompt loop forever. (VRX-173)

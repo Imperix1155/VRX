@@ -227,6 +227,19 @@ export type JoinMode = 'desktop' | 'vr'
  */
 export type AdapterEvent =
   | { type: 'friend-presence'; platform: Platform; friend: Friend }
+  /**
+   * The friend went offline — a userId-only delta (VRX-146): VRChat's
+   * `friend-offline` wire event carries NO user object, so a full `Friend`
+   * can't be built; the consumer patches its cached entry to offline.
+   */
+  | { type: 'friend-offline'; platform: Platform; platformUserId: string }
+  /**
+   * Profile-only change (displayName / avatar / status / trust — VRChat
+   * `friend-update`, VRX-146). The wire event says nothing about presence or
+   * location, so the consumer merges profile fields and PRESERVES its cached
+   * presence + instance — `friend-presence` would stomp them with guesses.
+   */
+  | { type: 'friend-updated'; platform: Platform; friend: Friend }
   | { type: 'friend-added'; platform: Platform; friend: Friend }
   | { type: 'friend-removed'; platform: Platform; platformUserId: string }
   | { type: 'friends-snapshot'; platform: Platform; scope: 'online' | 'all'; friends: Friend[] }

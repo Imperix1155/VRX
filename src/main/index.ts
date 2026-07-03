@@ -11,7 +11,9 @@ import {
   loadCredential,
   saveCredential
 } from './services/credentials'
+import { WebSocket } from 'ws'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
+import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 
@@ -203,8 +205,29 @@ app
       save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
       delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
     }
-    const adapters = new Map([['vrchat' as const, new VrcAdapter(vrcCredentials)]])
+    // Live-pipeline wiring (VRX-146): the real socket carries the required
+    // User-Agent (same policy as REST — VRX-129); logs route through the
+    // redaction hook. The adapter itself stays electron-free.
+    const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
+      socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
+      log: (level, message, meta) => log[level](message, meta)
+    })
+    const adapters = new Map([['vrchat' as const, vrcAdapter]])
     registerIpcHandlers(adapters)
+
+    // Broadcast live adapter events to every window over the typed push
+    // channel ('friend-event', @shared/ipc). The renderer applies them to the
+    // TanStack cache — presence is PUSHED, never polled (CLAUDE.md).
+    const unsubscribeLive = vrcAdapter.subscribe((event) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        // Guard a window torn down between enumeration and send.
+        if (!window.isDestroyed()) window.webContents.send('friend-event', event)
+      }
+    })
+    app.on('before-quit', () => {
+      // Close the socket and halt the reconnect loop so quit is clean.
+      unsubscribeLive()
+    })
 
     createWindow()
 

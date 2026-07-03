@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { IpcInvoke } from '@shared/ipc'
+import type { IpcEvents, IpcInvoke } from '@shared/ipc'
 
 function invoke<K extends keyof IpcInvoke>(
   channel: K,
@@ -17,7 +17,20 @@ const vrx = {
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getAppStatus: () => invoke('get-app-status', undefined),
-  openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req)
+  openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
+  /**
+   * Live adapter events pushed from main ('friend-event', VRX-146). Returns an
+   * unsubscribe. The payload is passed through as-is — it originates in the
+   * main process (trusted); the renderer applies it to the query cache.
+   */
+  onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['friend-event']
+    ): void => callback(payload)
+    ipcRenderer.on('friend-event', listener)
+    return () => ipcRenderer.removeListener('friend-event', listener)
+  }
 }
 
 if (process.contextIsolated) {

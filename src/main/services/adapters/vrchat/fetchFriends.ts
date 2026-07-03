@@ -43,8 +43,11 @@ const currentUserBucketsSchema = z.object({
   offlineFriends: z.array(z.string()).default([])
 })
 
-/** Raw friend object from the VRChat /auth/user/friends endpoint. */
-const rawFriendSchema = z.object({
+/**
+ * Raw friend object from the VRChat /auth/user/friends endpoint. EXPORTED for
+ * the Pipeline WS client (VRX-146) — friend events carry the same user shape.
+ */
+export const rawFriendSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   currentAvatarThumbnailImageUrl: z.string().nullable().optional(),
@@ -64,11 +67,16 @@ const rawFriendSchema = z.object({
  */
 const friendPageSchema = z.array(z.unknown())
 
-type RawFriend = z.infer<typeof rawFriendSchema>
+export type RawFriend = z.infer<typeof rawFriendSchema>
 
 // ─── Normalizer ───────────────────────────────────────────────────────────────
 
-function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFriend {
+/**
+ * EXPORTED for the Pipeline (VRX-146): WS events normalize through the exact
+ * same path as REST; the pipeline passes SYNTHETIC buckets because the event
+ * TYPE (online/active/offline) is what carries the presence state there.
+ */
+export function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFriend {
   const { state, status, statusDescription } = parsePresence(
     { id: raw.id, status: raw.status, statusDescription: raw.statusDescription },
     buckets
