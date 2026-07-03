@@ -307,6 +307,79 @@ describe('VrcAdapter', () => {
       })
     })
 
+    it('maps an unparseable 200 body to unauthenticated WITHOUT clearing the session', async () => {
+      // The body is garbage but the server said 200 — the cookie may be fine
+      // (transient drift); nuking the persisted session here would force a full
+      // re-login over a blip.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ totally: 'wrong' })))
+      const store = fakeStore('auth=x')
+
+      expect(await new VrcAdapter(store, noopSleep).getAuthStatus()).toMatchObject({
+        state: 'unauthenticated'
+      })
+      expect(store.deleted).toBe(0)
+    })
+
+    it('reports needs-2fa (method totp) when only the second factor expired — session KEPT (VRX-173)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp', 'otp'] }))
+      )
+      const store = fakeStore('auth=tok1; twoFactorAuth=stale')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      const status = await adapter.getAuthStatus()
+
+      expect(status).toEqual({
+        platform: 'vrchat',
+        state: 'needs-2fa',
+        displayName: null,
+        twoFactorMethod: 'totp'
+      })
+      // The auth cookie is ALIVE — recoverable with just a code. Never clear.
+      expect(store.deleted).toBe(0)
+    })
+
+    it('completes the 2FA reprompt loop: needs-2fa → verify2fa → authenticated (VRX-173)', async () => {
+      const fetchMock = vi
+        .fn()
+        // getAuthStatus: auth cookie alive, second factor expired (email method)
+        .mockResolvedValueOnce(jsonResponse({ requiresTwoFactorAuth: ['emailOtp'] }))
+        // verify: fresh twoFactorAuth issued; auth NOT re-issued
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh; Path=/'] })
+        )
+        // refreshDisplayName + follow-up status check — a Response body is
+        // single-use, so build a FRESH one per call.
+        .mockImplementation(() =>
+          Promise.resolve(jsonResponse({ id: 'usr_9', displayName: 'Trinity' }))
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      // Restored session cookie is the COMBINED string from the last full login.
+      const store = fakeStore('auth=tok1; twoFactorAuth=stale')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      expect(await adapter.getAuthStatus()).toMatchObject({
+        state: 'needs-2fa',
+        twoFactorMethod: 'email'
+      })
+
+      // The reprompt method came from getAuthStatus (login() never ran) — the
+      // verify must route to /otp/verify, not the totp default.
+      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+      expect((fetchMock.mock.calls[1] as [string, RequestInit])[0]).toMatch(
+        /\/auth\/twofactorauth\/otp\/verify$/
+      )
+
+      // The rebuilt cookie keeps the auth PART and the fresh twoFactorAuth —
+      // never the stale one, never duplicates (the cookiePart fix): a whole-
+      // string fallback would have persisted "…; twoFactorAuth=stale; …=fresh"
+      // with the stale part winning server-side → endless reprompt loop.
+      expect(store.saved.at(-1)).toBe('auth=tok1; twoFactorAuth=fresh')
+
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'authenticated' })
+    })
+
     it('clears a dead session on 401 — memory, request mirror, AND persisted blob', async () => {
       // First status check: the persisted cookie is rejected (session expired).
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 }))

@@ -55,6 +55,18 @@ function extractCookie(setCookies: string[], name: string): string | null {
   return null
 }
 
+/**
+ * Pull one `name=value` pair out of a COMBINED Cookie string
+ * (`"auth=…; twoFactorAuth=…"`). Distinct from `extractCookie`, which reads
+ * Set-Cookie response lines (first pair + attributes).
+ */
+function cookiePart(cookie: string | null, name: string): string | null {
+  if (!cookie) return null
+  // Tolerate ';' without the space — every internal producer joins with '; ',
+  // but a stricter split here is free insurance against a drifted blob.
+  return cookie.split(/;\s*/).find((part) => part.startsWith(`${name}=`)) ?? null
+}
+
 /** Map VRChat's `requiresTwoFactorAuth` values to our method (`emailOtp` → email, else authenticator). */
 function mapTwoFactorMethod(types: string[]): TwoFactorMethod {
   return types.some((type) => type.toLowerCase() === 'emailotp') ? 'email' : 'totp'
@@ -193,9 +205,13 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     // Completing the second factor may re-issue the `auth` session token — prefer
-    // the rotated one if present, else keep the cookie from the initial login.
+    // the rotated one if present, else keep the auth PART of the current cookie.
+    // The part-extraction matters for the reprompt flow (VRX-173): a restored
+    // session cookie is the combined "auth=…; twoFactorAuth=<stale>" string, and
+    // falling back to it whole would rebuild a cookie with DUPLICATE twoFactorAuth
+    // parts — the stale one winning server-side → an endless reprompt loop.
     const setCookies = response.headers.getSetCookie()
-    const authCookie = extractCookie(setCookies, 'auth') ?? this.cookie
+    const authCookie = extractCookie(setCookies, 'auth') ?? cookiePart(this.cookie, 'auth')
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
     if (combined.length) this.setCookie(combined.join('; '))
@@ -233,8 +249,19 @@ export class VrcAdapter extends VrcApiClient {
     } catch {
       return this.status('error')
     }
-    const parsed = currentUserSchema.safeParse(body)
+    // The union covers BOTH branches VRChat returns on 200: the current user, or
+    // `requiresTwoFactorAuth` when the auth cookie is alive but the twoFactorAuth
+    // cookie expired (~weeks). The latter must NOT read as plain unauthenticated —
+    // the session is recoverable with just a code, no password (VRX-173).
+    const parsed = authUserResponseSchema.safeParse(body)
     if (!parsed.success) return this.status('unauthenticated')
+
+    if ('requiresTwoFactorAuth' in parsed.data) {
+      // Remember the method so a verify2fa() from the reprompt hits the right
+      // endpoint (email OTP vs TOTP) — login() isn't part of this flow.
+      this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
+      return this.status('needs-2fa', this.pendingTwoFactorMethod)
+    }
 
     this.displayName = parsed.data.displayName
     return this.status('authenticated')
@@ -357,11 +384,12 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  private status(state: AuthStatus['state']): AuthStatus {
+  private status(state: AuthStatus['state'], twoFactorMethod?: TwoFactorMethod): AuthStatus {
     return {
       platform: 'vrchat',
       state,
-      displayName: state === 'authenticated' ? this.displayName : null
+      displayName: state === 'authenticated' ? this.displayName : null,
+      ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {})
     }
   }
 }

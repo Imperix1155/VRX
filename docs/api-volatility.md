@@ -20,7 +20,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 | Endpoint / Field | What VRX uses it for | Verification | Degradation if changed |
 |---|---|---|---|
-| `GET /auth/user` (auth branch) | 2FA detection, user ID, display name | ✅ Verified | Unknown shape → treats as unauthenticated; login fails |
+| `GET /auth/user` (auth branch) | 2FA detection, user ID, display name | 🟡 Login branch verified; the VRX-173 reprompt branch (200+`requiresTwoFactorAuth` on a live session with expired 2FA cookie, and verify accepting a stale `twoFactorAuth` part in the Cookie header) matches VRChat web-client behavior but is mock-verified only — confirm on the owner's first live reprompt | `requiresTwoFactorAuth` on a live session → `needs-2fa` reprompt (code only, no password — VRX-173); if the API 401s instead, behavior degrades to today's full re-login (safe); unknown shape → treats as unauthenticated |
 | `GET /auth/user` (success branch) | User ID, display name, presence buckets | ✅ Verified | Missing fields → partial login; empty buckets → all friends appear offline |
 | `GET /auth/user/friends` (paginated) | Friend list, status, avatar, trust tags | 🟡 Verified endpoint, field drift observed | Unknown fields ignored; unknown status → `'online'`; empty tags → `'visitor'` trust |
 | `/auth/user/friends` — `status` string | User status pill (join-me, ask-me, busy, etc.) | ✅ Verified | Unknown string → defaults to `'online'` (generic green pill) |
