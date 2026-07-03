@@ -36,6 +36,12 @@ export function useLiveFriendEvents(): void {
         }
         return
       }
+      if (event.type === 'roster-changed') {
+        // The friend ROSTER changed (adds/removes — CVR, VRX-147): the wire is
+        // trigger-only, so refetch the list rather than patching the cache.
+        void queryClient.invalidateQueries({ queryKey: friendsQueryKey(event.platform) })
+        return
+      }
 
       queryClient.setQueryData<Friend[]>(friendsQueryKey(event.platform), (cached) =>
         cached === undefined ? undefined : applyFriendEvent(cached, event)
