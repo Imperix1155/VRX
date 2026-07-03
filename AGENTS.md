@@ -69,10 +69,24 @@ Default section order:
 
 1. Re-check changed paths against the DOX chain
 2. Update nearest owning docs and any affected parents or children
-3. Refresh every affected Child DOX Index
-4. Remove stale or contradictory text
-5. Run existing verification when relevant
-6. Report any docs intentionally left unchanged and why
+3. Walk the Doc-Sync Matrix below and update every doc a changed surface maps to
+4. Refresh every affected Child DOX Index
+5. Remove stale or contradictory text
+6. Run existing verification when relevant
+7. Report any docs intentionally left unchanged and why
+
+## Doc-Sync Matrix
+
+Each kind of change owns a doc that must be updated **in the same PR** — doc drift is a defect, not a chore for later.
+
+| If the change touches… | Update |
+| --- | --- |
+| The callable surface — any IPC channel, `window.vrx` method, `AdapterEvent`, hook, store, parser, service, or shared constant (added, renamed, resignatured, or removed) | its row in `docs/INTERNAL-API.md` |
+| Visual or interaction design — tokens, component looks/behavior, design rules | `docs/DESIGN.md` (exact values, rule text) AND the reference renderings `docs/glass.html` / `docs/design.html` — they are design docs too and drift silently |
+| Assumptions about the external VRChat/CVR APIs — wire shapes, endpoints, enum values, 🟡 unverified markers | `docs/api-volatility.md` (and `docs/api-policy.md` if etiquette/policy changed) |
+| User-visible behavior | `CHANGELOG.md` |
+| Purpose, structure, contracts, or workflows of a directory | the nearest owning `AGENTS.md` (Update After Editing rules) |
+| Project-level facts — stack versions, feature status, doc links | `README.md` |
 
 ## User Preferences
 

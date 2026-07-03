@@ -5,7 +5,8 @@
 > If what you need is listed, call it — don't rebuild it. If you add a new
 > surface, add its row here in the same PR (this doc is part of the DOX pass).
 >
-> Source of truth is always the code; every entry links to its defining file.
+> Source of truth is always the code; every entry names its defining file
+> (linked where the table format allows).
 > Deep contracts live in the `AGENTS.md` chain — this is the index card, not
 > the essay.
 

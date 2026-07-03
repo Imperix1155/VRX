@@ -59,6 +59,10 @@ value (never by path) in `.gitleaks.toml`.
 - No hardcoded `C:\`/`%APPDATA%`/`~` paths — use `app.getPath()`. No `console.log` (electron-log).
   No `any`/`@ts-ignore` without an explanation comment.
 - Verify before declaring done: `npm run typecheck && npm run lint && npm run build` must pass.
+- **Docs ship in the same PR as the change** — follow the **Doc-Sync Matrix** in [`AGENTS.md`](AGENTS.md):
+  callable-surface changes → `docs/INTERNAL-API.md`; design changes → `docs/DESIGN.md` + `glass.html`/`design.html`;
+  external-API assumption changes → `docs/api-volatility.md`; user-visible changes → `CHANGELOG.md`.
+  A PR that changes a surface without its doc row is incomplete.
 
 ## Linear
 Project tracked on Linear (team VRX). Issues `VRX-N`. Release scope: `v1.0` label = ships in 1.0,
