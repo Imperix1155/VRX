@@ -27,6 +27,8 @@ Before touching ANY UI, read DESIGN.md. Hard rules in brief:
 - All tokens/spacing come from the design tokens; never hardcode hex outside them.
 
 ## Architecture
+- **Before adding any channel/event/hook/util: check [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md)** — the
+  dictionary of the existing callable surface. Reuse beats rebuild; update it in the same PR when you add a surface.
 - electron-vite + React 19 + TypeScript (strict). Three processes: `src/main`, `src/preload`, `src/renderer`.
 - Cross-process shared code lives in `src/shared` (imported via the `@shared` alias). Keep it PURE —
   no `electron`/`node` imports (it bundles into the sandboxed renderer). Types + plain values only.
