@@ -13,12 +13,31 @@
  * - friend-updated:  merge PROFILE fields only; the cached presence + instance
  *   are preserved (the wire event says nothing about either).
  * - friend-added:    upsert. friend-removed: filter out.
- * - friends-snapshot scope 'all': full replacement. scope 'online' (CVR
- *   semantics, VRX-147): every cached friend NOT in the snapshot flips offline,
- *   snapshot members are upserted.
+ * - friends-snapshot scope 'all': full replacement; scope 'online': absentees
+ *   flip offline, members upsert (currently producer-less — CVR moved to
+ *   presence-snapshot when the wire turned out to carry no profiles).
+ * - presence-snapshot (the CVR contract, VRX-147): patch presence+instance by
+ *   id — no profiles on the wire; absent same-platform friends flip offline.
  * - connection: no list change (handled by the hook — reconcile trigger).
  */
 import type { AdapterEvent, Friend } from '@shared/types'
+
+/** Value-compare ALL InstanceInfo fields (snapshot entries are freshly allocated). */
+function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
+  if (a === null || b === null) return a === b
+  return (
+    a.worldId === b.worldId &&
+    a.instanceId === b.instanceId &&
+    a.worldName === b.worldName &&
+    a.thumbnailUrl === b.thumbnailUrl &&
+    a.type === b.type &&
+    a.openness === b.openness &&
+    a.isGroup === b.isGroup &&
+    a.groupName === b.groupName &&
+    a.region === b.region &&
+    a.userCount === b.userCount
+  )
+}
 
 function upsert(friends: Friend[], incoming: Friend): Friend[] {
   const index = friends.findIndex(
@@ -93,6 +112,40 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       for (const friend of event.friends) next = upsert(next, friend)
       return next
     }
+
+    case 'presence-snapshot': {
+      // CVR ONLINE_FRIENDS (VRX-147): the wire carries ids + instances, no
+      // profiles — patch presence/instance for listed ids on the CACHED
+      // entries; absent same-platform friends are offline (the CVR contract).
+      // Unknown ids are ignored — the roster refetch carries the profile.
+      // CVR re-pushes the FULL set on every change, so a no-op entry must keep
+      // its reference (the header's identity invariant; memo'd rows skip) —
+      // wire instances arrive freshly allocated, so compare by value.
+      const byId = new Map(event.entries.map((e) => [e.platformUserId, e]))
+      return friends.map((f): Friend => {
+        if (f.platform !== event.platform) return f
+        const entry = byId.get(f.platformUserId)
+        if (entry === undefined) {
+          return f.presence.state === 'offline'
+            ? f
+            : {
+                ...f,
+                presence: { state: 'offline' },
+                status: null,
+                statusDescription: null,
+                instance: null
+              }
+        }
+        if (f.presence.state === entry.presence.state && sameInstance(f.instance, entry.instance)) {
+          return f
+        }
+        return { ...f, presence: entry.presence, instance: entry.instance } as Friend
+      })
+    }
+
+    case 'roster-changed':
+      // Trigger-only: the hook invalidates the friends query (REST refetch).
+      return friends
 
     case 'connection':
       return friends

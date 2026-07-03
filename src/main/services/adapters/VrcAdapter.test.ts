@@ -504,7 +504,9 @@ describe('VrcAdapter', () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
       const unsub3 = adapter3.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
-      expect(dialed3[0]).toContain('authToken=tok==pad')
+      // Full value preserved (no '=' truncation) AND URL-encoded (reserved
+      // chars can't reshape the query string — CodeRabbit).
+      expect(dialed3[0]).toContain('authToken=tok%3D%3Dpad')
       unsub3()
     })
 

@@ -5,48 +5,39 @@
  * sanctioned real-time source for friend/notification events — presence comes
  * from HERE, never from REST polling (the #1 rate-limit/ban risk, CLAUDE.md).
  *
- * Design:
+ * Lifecycle (reconnect/backoff/generation discipline) lives in the shared
+ * `ReconnectingPipeline` base; this class owns the VRChat wire specifics:
  * - RECEIVE-ONLY. Nothing is ever sent over the socket.
- * - Dependency-injected (ws factory, token provider, sleep, log) — electron-free
- *   and unit-testable like every module in this directory.
  * - Wire format: every message is `{ type, content }` where `content` is a
  *   DOUBLE-ENCODED JSON string — parse the outer object, `JSON.parse(content)`,
- *   then Zod-validate the inner payload.
+ *   then Zod-validate the inner payload. (An already-decoded object is also
+ *   accepted defensively — the double-encode is mock-verified.)
  * - Presence state comes from the EVENT TYPE (`friend-online` → in-game,
  *   `friend-active` → website/app, `friend-offline` → offline), so friend
  *   payloads are normalized through the shared `normalize()` with SYNTHETIC
  *   buckets built from that type.
  * - Unknown event types and malformed payloads are logged and IGNORED — the
  *   client never throws on wire data (api-volatility contract).
- * - Reconnect: exponential backoff + jitter (PIPELINE_BACKOFF_* constants),
- *   reset on a successful open. The token is re-fetched per attempt (a fresh
- *   session cookie is picked up automatically after re-login). No application
- *   heartbeat exists on this socket — TCP keepalive only (VRCX-verified note).
- * - Consumers reconcile on (re)connect: every successful open emits
- *   `{ type: 'connection', health: 'live' }`, and the renderer invalidates the
- *   friends query in response — that REST refetch is the reconcile.
+ * - The token is re-fetched per attempt (a fresh session cookie is picked up
+ *   automatically after re-login). No application heartbeat exists on this
+ *   socket — TCP keepalive only (VRCX-verified note).
  *
  * Notification / self / group events are DECODED (so drift is visible in logs)
  * but not yet routed anywhere — the notifications store doesn't exist until
  * VRX-84/86/87. Routing them is those issues' scope.
  */
 import { z } from 'zod'
-import {
-  PIPELINE_BACKOFF_BASE_MS,
-  PIPELINE_BACKOFF_CAP_MS,
-  VRC_PIPELINE_URL
-} from '@shared/constants'
+import { VRC_PIPELINE_URL } from '@shared/constants'
 import type { AdapterEvent } from '@shared/types'
+import {
+  ReconnectingPipeline,
+  type PipelineLog,
+  type PipelineSocket
+} from '../ReconnectingPipeline'
 import { normalize, rawFriendSchema } from './fetchFriends'
 import { parseLocation } from './parseLocation'
 
-// ─── Injected surfaces ────────────────────────────────────────────────────────
-
-/** The slice of a WebSocket the pipeline uses — `ws` satisfies it; tests fake it. */
-export interface PipelineSocket {
-  on(event: 'open' | 'message' | 'close' | 'error', listener: (...args: unknown[]) => void): void
-  close(): void
-}
+export type { PipelineSocket } from '../ReconnectingPipeline'
 
 export interface VrcPipelineDeps {
   /**
@@ -60,7 +51,7 @@ export interface VrcPipelineDeps {
   socketFactory: (url: string) => PipelineSocket
   sleepFn?: (ms: number) => Promise<void>
   /** Logging is injected — this module stays electron-free (directory contract). */
-  log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+  log?: PipelineLog
 }
 
 // ─── Wire schemas ─────────────────────────────────────────────────────────────
@@ -89,169 +80,31 @@ const friendIdSchema = z.object({ userId: z.string() })
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
-const jitter = (): number => Math.floor(Math.random() * 250)
-const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+export class VrcPipeline extends ReconnectingPipeline<string> {
+  protected readonly platform = 'vrchat' as const
 
-export class VrcPipeline {
-  private readonly deps: Required<
-    Pick<VrcPipelineDeps, 'tokenProvider' | 'onEvent' | 'socketFactory'>
-  > &
-    Pick<VrcPipelineDeps, 'sleepFn' | 'log'>
-
-  private socket: PipelineSocket | null = null
-  private stopped = true
-  private consecutiveFailures = 0
-  /** Increments per start(); stale async loops from a previous run see it changed and exit. */
-  private generation = 0
+  private readonly tokenProvider: () => Promise<string | null>
+  private readonly socketFactory: (url: string) => PipelineSocket
 
   constructor(deps: VrcPipelineDeps) {
-    this.deps = deps
+    super({ onEvent: deps.onEvent, sleepFn: deps.sleepFn, log: deps.log })
+    this.tokenProvider = deps.tokenProvider
+    this.socketFactory = deps.socketFactory
   }
 
-  /** Begin the connect/reconnect loop. Idempotent while running. */
-  start(): void {
-    if (!this.stopped) return
-    this.stopped = false
-    this.generation++
-    void this.runLoop(this.generation)
+  protected prepareConnection(): Promise<string | null> {
+    return this.tokenProvider()
   }
 
-  /** Close the socket and stop reconnecting. Safe to call repeatedly. */
-  stop(): void {
-    if (this.stopped) return
-    this.stopped = true
-    this.generation++
-    this.closeSocket()
-  }
-
-  // ── Internals ───────────────────────────────────────────────────────────────
-
-  private log(level: 'info' | 'warn' | 'debug', message: string, meta?: unknown): void {
-    this.deps.log?.(level, message, meta)
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return (this.deps.sleepFn ?? defaultSleep)(ms)
-  }
-
-  private closeSocket(): void {
-    try {
-      this.socket?.close()
-    } catch {
-      /* already closing/closed */
-    }
-    this.socket = null
-  }
-
-  private backoffDelay(): number {
-    const exp = Math.min(
-      PIPELINE_BACKOFF_BASE_MS * 2 ** this.consecutiveFailures,
-      PIPELINE_BACKOFF_CAP_MS
-    )
-    return exp + jitter()
-  }
-
-  /**
-   * One long-lived loop per start(): fetch token → connect → wait for close →
-   * backoff → repeat. A generation bump (stop/start) exits stale loops.
-   */
-  private async runLoop(generation: number): Promise<void> {
-    while (!this.stopped && generation === this.generation) {
-      let token: string | null = null
-      try {
-        token = await this.deps.tokenProvider()
-      } catch {
-        token = null
-      }
-      if (this.stopped || generation !== this.generation) return
-
-      if (token === null) {
-        // No session yet (or re-auth in progress). Local wait — no network hit.
-        this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
-        const delay = this.backoffDelay()
-        this.consecutiveFailures++
-        await this.sleep(delay)
-        continue
-      }
-
-      const closed = await this.connectOnce(token, generation)
-      if (this.stopped || generation !== this.generation) return
-
-      this.emit({ type: 'connection', platform: 'vrchat', health: 'reconnecting' })
-      const delay = this.backoffDelay()
-      this.consecutiveFailures++
-      this.log('info', 'pipeline: reconnecting after close', { cleanOpen: closed.opened })
-      await this.sleep(delay)
-    }
-  }
-
-  /** Connect and resolve when the socket closes (however it closes). */
-  private connectOnce(token: string, generation: number): Promise<{ opened: boolean }> {
-    return new Promise((resolve) => {
-      let opened = false
-      let settled = false
-      const settle = (): void => {
-        if (settled) return
-        settled = true
-        // Only null the field if it still points at THIS socket — a rapid
-        // stop()→start() may have already installed a newer one (the class
-        // advertises safe restart), and nulling that would leak it.
-        if (this.socket === socket) this.socket = null
-        resolve({ opened })
-      }
-
-      let socket: PipelineSocket
-      try {
-        // Token goes in the query string — the UA header rides on the socket
-        // factory (ws options at the call site). Never logged: the URL carries
-        // the token, so log statements here must not include it.
-        socket = this.deps.socketFactory(`${VRC_PIPELINE_URL}?authToken=${token}`)
-      } catch (err) {
-        this.log('warn', 'pipeline: socket construction failed', {
-          message: err instanceof Error ? err.message : String(err)
-        })
-        settle()
-        return
-      }
-      this.socket = socket
-
-      socket.on('open', () => {
-        if (this.stopped || generation !== this.generation) return
-        opened = true
-        this.consecutiveFailures = 0
-        this.log('info', 'pipeline: connected')
-        // The consumer's reconcile trigger: refetch friends over REST so
-        // anything missed while disconnected is caught (VRX-43/VRX-22).
-        this.emit({ type: 'connection', platform: 'vrchat', health: 'live' })
-      })
-
-      socket.on('message', (data: unknown) => {
-        if (this.stopped || generation !== this.generation) return
-        this.handleMessage(data)
-      })
-
-      socket.on('error', (err: unknown) => {
-        // 'close' always follows 'error' — log only; settle on close.
-        this.log('warn', 'pipeline: socket error', {
-          message: err instanceof Error ? err.message : String(err)
-        })
-      })
-
-      socket.on('close', () => settle())
-    })
-  }
-
-  private emit(event: AdapterEvent): void {
-    try {
-      this.deps.onEvent(event)
-    } catch {
-      // A consumer throwing must never kill the socket loop.
-      this.log('warn', 'pipeline: event handler threw')
-    }
+  protected openSocket(token: string): PipelineSocket {
+    // Token goes in the query string — the UA header rides on the socket
+    // factory (ws options at the call site). Never logged: the URL carries
+    // the token, so log statements here must not include it.
+    return this.socketFactory(`${VRC_PIPELINE_URL}?authToken=${encodeURIComponent(token)}`)
   }
 
   /** Decode one wire message. NEVER throws — malformed data is logged and dropped. */
-  private handleMessage(data: unknown): void {
+  protected handleMessage(data: unknown): void {
     let outer: z.infer<typeof envelopeSchema>
     try {
       const text =

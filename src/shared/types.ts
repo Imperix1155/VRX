@@ -220,10 +220,13 @@ export type JoinMode = 'desktop' | 'vr'
 /**
  * Normalized real-time event an adapter emits via `subscribe()`. Each platform maps
  * its raw WS events into this shape; the UI/stores never see raw platform objects.
- * VRChat emits per-friend deltas; CVR pushes the current online set as a
- * `friends-snapshot` with `scope: 'online'` — a roster member NOT in that list is
- * offline (CVR `ONLINE_FRIENDS` semantics, VRX-147). `scope: 'all'` is a full
- * friend-list replacement. Extended as the WS clients (VRX-146/147) are built.
+ * VRChat emits per-friend deltas (VRX-146). CVR pushes its current online set as a
+ * `presence-snapshot` — ids + instances only, NO profiles; a roster member absent
+ * from the snapshot is offline (CVR `ONLINE_FRIENDS` semantics, VRX-147) — and
+ * `roster-changed` when the friend list itself changes (trigger-only refetch).
+ * `friends-snapshot` remains for full-Friend list replacements; it currently has
+ * no producer (the CVR plan moved to `presence-snapshot` when the wire turned out
+ * to carry no profiles) — removal is a follow-up decision, not this contract's.
  */
 export type AdapterEvent =
   | { type: 'friend-presence'; platform: Platform; friend: Friend }
@@ -243,4 +246,30 @@ export type AdapterEvent =
   | { type: 'friend-added'; platform: Platform; friend: Friend }
   | { type: 'friend-removed'; platform: Platform; platformUserId: string }
   | { type: 'friends-snapshot'; platform: Platform; scope: 'online' | 'all'; friends: Friend[] }
+  /**
+   * Presence-only snapshot (VRX-147): CVR's ONLINE_FRIENDS pushes the FULL
+   * current online set as `{id, instance}` entries — no names/profiles — so a
+   * full-Friend snapshot can't be built honestly from the wire. The consumer
+   * patches presence+instance for listed ids and flips absent same-platform
+   * friends offline (absent-from-snapshot ⇒ offline is the CVR contract).
+   */
+  | {
+      type: 'presence-snapshot'
+      platform: Platform
+      entries: Array<{
+        platformUserId: string
+        /**
+         * Producer discipline (not type-enforced): entries must respect the
+         * platform's presence domain — CvrPipeline only ever emits
+         * 'in-game' | 'offline' (CvrFriend has no 'active').
+         */
+        presence: Friend['presence']
+        instance: InstanceInfo | null
+      }>
+    }
+  /**
+   * The friend ROSTER changed (adds/removes — CVR FRIEND_LIST_UPDATED,
+   * VRX-147). Trigger-only: the consumer refetches the list over REST.
+   */
+  | { type: 'roster-changed'; platform: Platform }
   | { type: 'connection'; platform: Platform; health: ConnectionHealth }
