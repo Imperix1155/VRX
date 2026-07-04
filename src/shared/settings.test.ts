@@ -18,7 +18,8 @@ describe('settings schema', () => {
       density: 'comfortable',
       firstRunDisclaimerAcknowledged: false,
       telemetryEnabled: false,
-      labelScheme: 'vrchat'
+      labelScheme: 'vrchat',
+      hotInstanceThreshold: 2
     })
   })
 
@@ -43,6 +44,16 @@ describe('settings schema', () => {
     expect(s.theme).toBe('system')
     expect(s.density).toBe('comfortable')
     expect(s.telemetryEnabled).toBe(false)
+  })
+
+  it('hotInstanceThreshold: accepts 1–10, defaults missing/out-of-range/non-integer to 2', () => {
+    expect(parseSettings({ hotInstanceThreshold: 1 }).hotInstanceThreshold).toBe(1)
+    expect(parseSettings({ hotInstanceThreshold: 10 }).hotInstanceThreshold).toBe(10)
+    expect(parseSettings({ theme: 'dark' }).hotInstanceThreshold).toBe(2)
+    expect(parseSettings({ hotInstanceThreshold: 0 }).hotInstanceThreshold).toBe(2)
+    expect(parseSettings({ hotInstanceThreshold: 11 }).hotInstanceThreshold).toBe(2)
+    expect(parseSettings({ hotInstanceThreshold: 3.5 }).hotInstanceThreshold).toBe(2)
+    expect(parseSettings({ hotInstanceThreshold: '5' }).hotInstanceThreshold).toBe(2)
   })
 
   it('labelScheme: accepts every scheme, defaults pre-VRX-183 objects and garbage to vrchat', () => {

@@ -363,6 +363,16 @@
     background: rgba(201, 54, 58, 0.12);
     border-color: rgba(201, 54, 58, 0.3);
   }
+
+  /* §9 NumberStepper (VRX-78) — the hot-threshold quick control: glass track,
+     one Tab stop (value = spinbutton), −/+ out of tab order. */
+  .stepper{display:inline-flex;align-items:center;gap:2px;padding:4px}
+  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:8px;
+    background:color-mix(in srgb, var(--text) 8%, transparent);color:var(--text);
+    font:600 14px Inter,sans-serif;cursor:pointer}
+  .stepper button:hover{background:color-mix(in srgb, var(--text) 14%, transparent)}
+  .stepper button[disabled]{color:var(--text-faint);cursor:default}
+  .stepper .val{min-width:28px;text-align:center;font:600 12.5px Inter,sans-serif;color:var(--text)}
 </style>
 </head>
 <body>
@@ -404,7 +414,8 @@
         <div class="stat glass s-hot"><div class="n">08</div><div class="l">Hot instances</div></div>
       </div>
 
-      <div class="secline"><span class="kick">Hot Instances</span> <span class="hint">sorts blue VRChat from orange ChilloutVR at a glance — glass tinted by platform</span></div>
+      <div class="secline" style="display:flex;align-items:center;gap:12px"><span class="kick">Hot Instances</span> <span class="hint">sorts blue VRChat from orange ChilloutVR at a glance — glass tinted by platform</span>
+        <span class="stepper glass" style="margin-left:auto" title="Hot instance threshold (VRX-78): min friends in one world; 1–10, default 2"><button disabled>−</button><span class="val">2</span><button>+</button></span></div>
       <div class="hot">
         <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">V</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">The Great Pug</div><div class="gplat">VRChat</div><div class="gfoot"><div class="stack"><span class="av">A</span><span class="av">S</span><span class="av">J</span></div><span class="gcount"><b>14</b> here</span><span class="join">Join</span></div></div></div>
         <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="grow1"><span class="gglyph">C</span><span class="obadge"><span class="ic"><svg><use href="#o-public"/></svg></span> Public</span></div><div class="gtitle">The Black Cat</div><div class="gplat">ChilloutVR</div><div class="gfoot"><div class="stack"><span class="av">M</span><span class="av">K</span></div><span class="gcount"><b>6</b> here</span><span class="join">Join</span></div></div></div>

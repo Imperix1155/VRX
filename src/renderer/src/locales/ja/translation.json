@@ -40,6 +40,14 @@
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "プラットフォーム別"
+    },
+    "dashboard": {
+      "heading": "ダッシュボード"
+    },
+    "hotThreshold": {
+      "label": "ホットインスタンスのしきい値",
+      "description": "ホットと見なす同一ワールド内の最少フレンド数。",
+      "aria": "ホットインスタンスのしきい値"
     }
   },
   "error": {
@@ -100,7 +108,8 @@
     "friendsHere": "<bold>{{count}}</bold>人がここにいます",
     "joinInstance": "参加",
     "emptyHeading": "ホットインスタンスはありません",
-    "emptyHint": "{{threshold}}人以上のフレンドが同じワールドにいると、ここに表示されます。"
+    "emptyHint": "{{threshold}}人以上のフレンドが同じワールドにいると、ここに表示されます。",
+    "hotThresholdAria": "ホットインスタンスのしきい値"
   },
   "login": {
     "subtitle": "Social VR コンパニオン",
@@ -125,5 +134,9 @@
       "verify": "確認",
       "back": "戻る"
     }
+  },
+  "stepper": {
+    "decrease": "減らす",
+    "increase": "増やす"
   }
 }

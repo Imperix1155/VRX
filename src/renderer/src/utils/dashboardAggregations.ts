@@ -61,8 +61,13 @@ const MAX_HOT_INSTANCES = 6
  * - Only friends with a non-null instance are included (active/Ask-Me/DND
  *   already have `instance: null` so they're excluded automatically).
  * - Capped at MAX_HOT_INSTANCES (6) — one grid row of cards.
+ * - `threshold` is the user's `settings.hotInstanceThreshold` (VRX-78);
+ *   defaults to the project constant so non-UI callers stay unchanged.
  */
-export function getHotInstances(friends: Friend[]): HotInstance[] {
+export function getHotInstances(
+  friends: Friend[],
+  threshold: number = HOT_INSTANCE_THRESHOLD
+): HotInstance[] {
   const map = new Map<string, HotInstance>()
 
   for (const f of friends) {
@@ -85,8 +90,9 @@ export function getHotInstances(friends: Friend[]): HotInstance[] {
 
   return (
     [...map.values()]
-      // A "hot" instance needs 2+ friends — a single friend in a world isn't hot (owner rule).
-      .filter((h) => h.friendCount >= HOT_INSTANCE_THRESHOLD)
+      // A "hot" instance needs `threshold`+ friends (user-configurable, VRX-78;
+      // the 2+ default is the owner rule — a single friend in a world isn't hot).
+      .filter((h) => h.friendCount >= threshold)
       .sort((a, b) => {
         // Primary: descending friend count
         if (b.friendCount !== a.friendCount) return b.friendCount - a.friendCount
