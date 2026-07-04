@@ -19,6 +19,7 @@ import type {
   LoginResult,
   Platform
 } from '@shared/types'
+import type { Settings } from '@shared/settings'
 
 /**
  * Request/response channels — renderer asks, main answers:
@@ -34,6 +35,8 @@ export interface IpcInvoke {
   'self-invite': { req: { platform: Platform; instanceId: string }; res: void }
   'get-app-status': { req: void; res: AppStatus }
   'open-url': { req: { url: string }; res: void }
+  'get-settings': { req: void; res: Settings }
+  'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
 }
 
 /**
@@ -50,6 +53,5 @@ export type IpcEventChannel = keyof IpcEvents
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):
-//   'get-settings' / 'save-settings' → Settings (VRX-23)
 //   'get-notifications'              → Notification[] (notifications, M3)
 //   'launch-app'                     → LaunchResult (process launch, VRX-98)

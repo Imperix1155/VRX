@@ -5,10 +5,9 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
  * App settings store (VRX-21). Seeds from `DEFAULT_SETTINGS`; the schema and
  * migration runner live in `@shared/settings` (VRX-23).
  *
- * Persistence is pending: the `get-settings` / `save-settings` IPC channels are
- * not in the contract yet (see `@shared/ipc`). For now this is in-memory — a
- * future change loads via IPC into `setSettings` on startup and calls
- * `markSaved` after persisting `updateSettings` changes.
+ * Persisted (VRX-184): `hooks/useSettingsPersistence` (mounted in App.tsx)
+ * loads via `get-settings` into `setSettings` on startup and saves on the
+ * `dirty` flag over `save-settings`, calling `markSaved` on success.
  */
 interface SettingsState {
   settings: Settings

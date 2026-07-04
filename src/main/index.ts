@@ -183,7 +183,8 @@ app
     )
 
     // Load persisted settings (migrate + validate on read; normalizes the on-disk
-    // file to the current schema). Available for IPC/store wiring next (VRX-23).
+    // file to the current schema). The renderer fetches them over 'get-settings'
+    // once it boots (VRX-184); this early load tidies the file and logs the state.
     const settings = loadSettings()
     log.info('settings loaded', { version: settings.version, theme: settings.theme })
 
