@@ -214,7 +214,7 @@ adapter lands).
 | `CONCURRENCY_LIMIT` | 10 | Batch-fetch in-flight cap |
 | `WORLD_CACHE_TTL_MS` | 24 h | World metadata TTL |
 | `INSTANCE_CACHE_TTL_MS` | 5 min | Instance detail TTL |
-| `HOT_INSTANCE_THRESHOLD` | 2 | Min friends for a "hot" world |
+| `HOT_INSTANCE_THRESHOLD` (`_MIN`=1 / `_MAX`=10) | 2 | Default + bounds for the hot-world floor (`settings.hotInstanceThreshold`, VRX-78) |
 
 ## 8. Core shared types (the model vocabulary)
 

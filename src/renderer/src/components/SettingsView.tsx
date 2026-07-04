@@ -5,6 +5,7 @@ import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useSettingsStore } from '../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import NumberStepper from './NumberStepper'
+import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -181,8 +182,8 @@ export default function SettingsView(): React.JSX.Element {
             </div>
             <NumberStepper
               value={hotThreshold}
-              min={1}
-              max={10}
+              min={HOT_INSTANCE_THRESHOLD_MIN}
+              max={HOT_INSTANCE_THRESHOLD_MAX}
               onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
               ariaLabel={t('settings.hotThreshold.aria')}
             />

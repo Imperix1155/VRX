@@ -11,7 +11,7 @@
  * DashboardView consumes only { data, isPending } from useFriends.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -162,17 +162,18 @@ describe('DashboardView states (W5)', () => {
     })
     stubQueries({ data: [solo], isPending: false }, { data: [], isPending: false })
 
-    // Default threshold (2): a single friend in a world is NOT hot → empty state.
-    render(<DashboardView />)
-    expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
-    cleanup()
-
-    // Threshold 1: the same single friend now qualifies — no restart, store-driven.
-    useSettingsStore.setState({
-      settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
-    })
     try {
+      // Default threshold (2): a single friend in a world is NOT hot → empty state.
       render(<DashboardView />)
+      expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
+
+      // Mutate the store while MOUNTED — the same render must react live
+      // (no unmount/remount; this is the "immediate, no restart" AC itself).
+      act(() =>
+        useSettingsStore.setState({
+          settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
+        })
+      )
       expect(screen.getByText('Quiet World')).toBeTruthy()
       expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
       // The quick-access stepper reflects the live value.

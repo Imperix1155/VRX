@@ -20,6 +20,7 @@ import {
 } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -258,8 +259,8 @@ export default function DashboardView(): React.JSX.Element {
           <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
           <NumberStepper
             value={hotThreshold}
-            min={1}
-            max={10}
+            min={HOT_INSTANCE_THRESHOLD_MIN}
+            max={HOT_INSTANCE_THRESHOLD_MAX}
             onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
             ariaLabel={t('dashboard.hotThresholdAria')}
           />
