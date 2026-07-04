@@ -9,7 +9,7 @@
  * Deferred: avatar stack (VRX-48), Join button (`joinInstance` IPC).
  */
 import { Trans, useTranslation } from 'react-i18next'
-import type { InstanceType, Platform } from '@shared/types'
+import type { Platform } from '@shared/types'
 import { useFriends } from '../queries/friends'
 import OpennessIcon from './OpennessIcon'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
@@ -18,24 +18,7 @@ import {
   getHotInstances,
   type HotInstance
 } from '../utils/dashboardAggregations'
-
-// ─── INSTANCE_TYPE_LABEL_KEYS (same mapping as FriendsList — kept local) ─────
-const INSTANCE_TYPE_LABEL_KEYS: Record<InstanceType, string> = {
-  public: 'friends.instance.type.public',
-  'friends-plus': 'friends.instance.type.friends-plus',
-  friends: 'friends.instance.type.friends',
-  'invite-plus': 'friends.instance.type.invite-plus',
-  invite: 'friends.instance.type.invite',
-  'group-public': 'friends.instance.type.group-public',
-  'group-plus': 'friends.instance.type.group-plus',
-  group: 'friends.instance.type.group',
-  'friends-of-friends': 'friends.instance.type.friends-of-friends',
-  'everyone-can-invite': 'friends.instance.type.everyone-can-invite',
-  'owner-must-invite': 'friends.instance.type.owner-must-invite',
-  'friends-of-members': 'friends.instance.type.friends-of-members',
-  'members-only': 'friends.instance.type.members-only',
-  offline: 'friends.instance.type.offline'
-}
+import { INSTANCE_TYPE_LABEL_KEYS } from '../utils/instanceTypeLabels'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 

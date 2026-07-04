@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Upgraded the app runtime to Electron 43 (Chromium 150, Node 24.17) — no user-visible behavior changes expected; verified against the 43.0 breaking-changes list, the full test suite, and a packaged-app smoke run. (VRX-176)
 
+- Instance-type pills now use one naming scheme across both platforms — the shorter, more widely known VRChat labels ("Friends of Friends" → "Friends+", "Everyone Can Invite" → "Invite+", "Owner Must Invite" → "Invite", "Friends of Members" → "Group+", "Members Only" → "Group"). ChilloutVR's "Offline Instance" keeps its name (it has no VRChat equivalent). A setting to choose the label scheme (VRChat / ChilloutVR / platform-native) is planned. (VRX-182)
+
 ### Added
 
 - Instance-type pills in the friends list are now color-coded by openness: green (Public) through orange (Invite) for the friend ladder — the more locked, the warmer — and shades of purple for the group family, so the instance type reads at a glance without reading the label. Private stays neutral but is now clearly readable.

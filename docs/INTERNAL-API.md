@@ -155,6 +155,7 @@ adapter lands).
 | `getDashboardStats` / `getHotInstances` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`HOT_INSTANCE_THRESHOLD` friends in one WORLD |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
+| `INSTANCE_TYPE_LABEL_KEYS` | `utils/instanceTypeLabels.ts` | `InstanceType` → pill-label i18n key; VRChat scheme on BOTH platforms (VRX-182 baseline — CVR types resolve to their tier's VRChat label; scheme setting = VRX-183). Shared by FriendsList + DashboardView |
 
 ## 6. Main-process parsers & services (pure, reusable)
 

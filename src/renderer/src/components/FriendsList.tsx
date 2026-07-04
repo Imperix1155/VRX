@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceType } from '@shared/types'
 import { useFriends } from '../queries/friends'
+import { INSTANCE_TYPE_LABEL_KEYS } from '../utils/instanceTypeLabels'
 
 /**
  * Openness-ladder tier per InstanceType (DESIGN.md §6) — keys the pill's `--op-*`
@@ -35,29 +36,6 @@ const OPENNESS_TIER: Record<InstanceType, OpennessTier | null> = {
   'friends-of-members': 'group-plus',
   'members-only': 'group',
   offline: null
-}
-
-/**
- * Maps each platform-true InstanceType to its i18n key (DESIGN.md §6).
- * Using a lookup map avoids dot-notation issues with hyphenated keys.
- */
-const INSTANCE_TYPE_LABEL_KEYS: Record<InstanceType, string> = {
-  // VRChat types
-  public: 'friends.instance.type.public',
-  'friends-plus': 'friends.instance.type.friends-plus',
-  friends: 'friends.instance.type.friends',
-  'invite-plus': 'friends.instance.type.invite-plus',
-  invite: 'friends.instance.type.invite',
-  'group-public': 'friends.instance.type.group-public',
-  'group-plus': 'friends.instance.type.group-plus',
-  group: 'friends.instance.type.group',
-  // CVR types
-  'friends-of-friends': 'friends.instance.type.friends-of-friends',
-  'everyone-can-invite': 'friends.instance.type.everyone-can-invite',
-  'owner-must-invite': 'friends.instance.type.owner-must-invite',
-  'friends-of-members': 'friends.instance.type.friends-of-members',
-  'members-only': 'friends.instance.type.members-only',
-  offline: 'friends.instance.type.offline'
 }
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
