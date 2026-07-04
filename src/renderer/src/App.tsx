@@ -3,8 +3,12 @@ import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
+import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 
 function App(): React.JSX.Element {
+  // Load persisted settings + save changes (VRX-184) — before useApplyTheme
+  // reads the store so the persisted theme lands as early as possible.
+  useSettingsPersistence()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()
   // Live WS events → query cache (VRX-146). Top-level like useApplyTheme: the

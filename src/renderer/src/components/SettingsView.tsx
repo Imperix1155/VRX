@@ -99,9 +99,8 @@ function SegmentedSetting<T extends string>({
  * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
  * native terms. Presentation only: the data stays platform-true.
  *
- * Persistence note: settings are stored in-memory only — the `get-settings` /
- * `save-settings` IPC channels are not yet wired, so choices reset on
- * restart. A future change will load/persist via IPC.
+ * Settings persist across restarts (VRX-184): `useSettingsPersistence` in
+ * App.tsx loads them on boot and saves every change through the settings IPC.
  */
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
