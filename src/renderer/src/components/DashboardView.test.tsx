@@ -13,7 +13,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
+import { useSettingsStore } from '../stores/settings'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -105,5 +107,40 @@ describe('DashboardView states (W5)', () => {
     render(<DashboardView />)
     const heading = screen.getByRole('heading', { name: msg('dashboard.sectionHotInstances') })
     expect(heading.id).toBe('dashboard-hot-heading')
+  })
+
+  it('hot-card openness label follows the labelScheme setting (VRX-183)', () => {
+    // jsdom renders client-side, so the REAL settings store applies (unlike the
+    // SSR-rendered FriendsList tests, which must mock it — see that file).
+    const hotGroupPlus = (id: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        instance: {
+          worldId: 'wrld_hot',
+          instanceId: 'wrld_hot:1~groupPlus',
+          worldName: 'Midnight Rooftop',
+          thumbnailUrl: null,
+          type: 'group-plus',
+          openness: 'invite-plus',
+          isGroup: true,
+          groupName: null,
+          region: 'us',
+          userCount: 5
+        }
+      })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, labelScheme: 'chilloutvr' }
+    })
+    try {
+      stubQueries(
+        { data: [hotGroupPlus('usr_1'), hotGroupPlus('usr_2')], isPending: false },
+        { data: [], isPending: false }
+      )
+      render(<DashboardView />)
+      expect(screen.getByText('Friends of Members')).toBeTruthy()
+      expect(screen.queryByText('Group+')).toBeNull()
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
   })
 })

@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUiStore } from '../stores/ui'
 import { useFriends } from '../queries/friends'
+import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
@@ -18,43 +19,15 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
 ]
 
 export default function TopBar(): React.JSX.Element {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
   const [platform, setPlatform] = useState<PlatformFilter>('all')
 
   const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
 
-  // Sliding bubble: measure the ACTIVE button's real left/width. The labels are
-  // unequal widths (e.g. "All" vs "ChilloutVR"), so a fixed 1/3-width bubble can't
-  // line up — it has to track the actual button box. useLayoutEffect places it
-  // before paint; the ResizeObserver keeps it aligned when the window resizes.
-  const trackRef = useRef<HTMLDivElement>(null)
-  const [bubble, setBubble] = useState<{ left: number; width: number }>({ left: 4, width: 0 })
-  useLayoutEffect(() => {
-    const track = trackRef.current
-    if (!track) return
-    let cancelled = false
-    const place = (): void => {
-      if (cancelled) return
-      const btn = track.querySelectorAll('button')[activeIndex] as HTMLElement | undefined
-      if (btn) setBubble({ left: btn.offsetLeft, width: btn.offsetWidth })
-    }
-    place()
-    // Re-measure once layout settles (next frame) and after web fonts load — the
-    // first paint can measure stale (too-narrow) label widths otherwise.
-    const raf = requestAnimationFrame(place)
-    document.fonts?.ready.then(place).catch(() => {})
-    const ro = new ResizeObserver(place)
-    ro.observe(track)
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(raf)
-      ro.disconnect()
-    }
-    // i18n.language: the labels re-render with new (differently-sized) text on a
-    // language switch, so the bubble must re-measure or it seats on stale widths
-    // (audit W5 — the ResizeObserver watches the TRACK, which may not resize).
-  }, [activeIndex, i18n.language])
+  // Sliding bubble measured from the active button (labels are unequal widths —
+  // the shared hook owns the recipe; also used by SettingsView, VRX-183).
+  const { trackRef, bubble } = useSegmentedBubble(activeIndex)
 
   // Real online count for the §8 status indicator — total across platforms.
   // Online = active OR in-game presence (same definition as the dashboard's

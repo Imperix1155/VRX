@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
-import type { Theme } from '@shared/types'
-import { THEMES } from '@shared/types'
+import type { LabelScheme, Theme } from '@shared/types'
+import { LABEL_SCHEMES, THEMES } from '@shared/types'
+import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useSettingsStore } from '../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 
@@ -10,20 +11,103 @@ const THEME_LABEL_KEYS: Record<Theme, string> = {
   system: 'settings.theme.system'
 }
 
+const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
+  vrchat: 'settings.labelScheme.vrchat',
+  chilloutvr: 'settings.labelScheme.chilloutvr',
+  'platform-native': 'settings.labelScheme.platformNative'
+}
+
+/**
+ * Segmented control (§9 pattern) shared by the settings rows. Radius: .glass's
+ * 20px panel radius wins over any `rounded-[..]` here (see TopBar), so the
+ * bubble is rounded-[16px] (= 20px − 4px inset) to seat concentrically into
+ * the track. A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
+ * arrows move the selection (same dialect as the TopBar filter).
+ */
+function SegmentedSetting<T extends string>({
+  values,
+  active,
+  labelKeys,
+  ariaLabel,
+  onChange
+}: {
+  values: readonly T[]
+  active: T
+  labelKeys: Record<T, string>
+  ariaLabel: string
+  onChange: (value: T) => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const activeIndex = values.indexOf(active)
+
+  // Sliding bubble measured from the active button — labels are unequal widths
+  // ("VRChat" vs "Per platform"), so the old fixed 1/N-width CSS-calc bubble
+  // could not line up (it sat 10.5px off on the theme row's "System").
+  const { trackRef, bubble } = useSegmentedBubble(activeIndex)
+
+  return (
+    <div
+      ref={trackRef}
+      className="glass relative flex p-[4px] gap-[2px] shrink-0"
+      role="radiogroup"
+      aria-label={ariaLabel}
+    >
+      {/* Sliding bubble — left/width measured from the active button (see above) */}
+      <span
+        className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
+        style={{
+          left: `${bubble.left}px`,
+          width: `${bubble.width}px`,
+          background: 'var(--seg-bubble-bg)',
+          boxShadow: 'var(--seg-bubble-shadow)'
+        }}
+        aria-hidden="true"
+      />
+      {values.map((value, index) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={active === value}
+          tabIndex={active === value ? 0 : -1}
+          onClick={() => onChange(value)}
+          onKeyDown={(e) => {
+            const next = segArrowTarget(e.key, index, values.length)
+            const nextValue = next === null ? undefined : values[next]
+            if (next === null || nextValue === undefined) return
+            e.preventDefault()
+            onChange(nextValue)
+            focusRadioSibling(e.currentTarget, next)
+          }}
+          className={[
+            'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
+            'border-0 bg-transparent cursor-pointer motion-safe:transition-colors whitespace-nowrap',
+            active === value ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
+          ].join(' ')}
+        >
+          {t(labelKeys[value])}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
  * Theme row: 3-way segmented control (Dark / Light / System).
+ * Instance-labels row (VRX-183): pill naming scheme — VRChat terms everywhere
+ * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
+ * native terms. Presentation only: the data stays platform-true.
  *
- * Persistence note: theme is stored in-memory only — the `get-settings` /
- * `save-settings` IPC channels are not yet wired, so the choice resets on
+ * Persistence note: settings are stored in-memory only — the `get-settings` /
+ * `save-settings` IPC channels are not yet wired, so choices reset on
  * restart. A future change will load/persist via IPC.
  */
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-
-  const activeIndex = THEMES.indexOf(theme)
 
   return (
     <div className="glass p-[var(--space-8)]">
@@ -45,53 +129,32 @@ export default function SettingsView(): React.JSX.Element {
                 {t('settings.theme.description')}
               </p>
             </div>
+            <SegmentedSetting
+              values={THEMES}
+              active={theme}
+              labelKeys={THEME_LABEL_KEYS}
+              ariaLabel={t('settings.theme.aria')}
+              onChange={(value) => updateSettings({ theme: value })}
+            />
+          </div>
 
-            {/* Segmented control (§9 pattern). Radius: .glass's 20px panel radius wins
-                over any `rounded-[..]` here (see TopBar), so the bubble is rounded-[16px]
-                (= 20px − 4px inset) to seat concentrically into the track. */}
-            {/* A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
-                arrows move the selection (same dialect as the TopBar filter). */}
-            <div
-              className="glass relative flex p-[4px] gap-[2px] shrink-0"
-              role="radiogroup"
-              aria-label={t('settings.theme.aria')}
-            >
-              {/* Sliding bubble */}
-              <span
-                className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-transform motion-safe:duration-200"
-                style={{
-                  width: `calc((100% - 8px - ${THEMES.length - 1} * 2px) / ${THEMES.length})`,
-                  transform: `translateX(calc(${activeIndex} * 100% + ${activeIndex} * 2px))`,
-                  background: 'var(--seg-bubble-bg)',
-                  boxShadow: 'var(--seg-bubble-shadow)'
-                }}
-                aria-hidden="true"
-              />
-              {THEMES.map((t_value, index) => (
-                <button
-                  key={t_value}
-                  type="button"
-                  role="radio"
-                  aria-checked={theme === t_value}
-                  tabIndex={theme === t_value ? 0 : -1}
-                  onClick={() => updateSettings({ theme: t_value })}
-                  onKeyDown={(e) => {
-                    const next = segArrowTarget(e.key, index, THEMES.length)
-                    if (next === null) return
-                    e.preventDefault()
-                    updateSettings({ theme: THEMES[next] })
-                    focusRadioSibling(e.currentTarget, next)
-                  }}
-                  className={[
-                    'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
-                    'border-0 bg-transparent cursor-pointer motion-safe:transition-colors',
-                    theme === t_value ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
-                  ].join(' ')}
-                >
-                  {t(THEME_LABEL_KEYS[t_value])}
-                </button>
-              ))}
+          {/* Instance-labels row (VRX-183) */}
+          <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div>
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t('settings.labelScheme.label')}
+              </p>
+              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                {t('settings.labelScheme.description')}
+              </p>
             </div>
+            <SegmentedSetting
+              values={LABEL_SCHEMES}
+              active={labelScheme}
+              labelKeys={SCHEME_LABEL_KEYS}
+              ariaLabel={t('settings.labelScheme.aria')}
+              onChange={(value) => updateSettings({ labelScheme: value })}
+            />
           </div>
         </section>
       </div>

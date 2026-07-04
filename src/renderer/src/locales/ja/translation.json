@@ -32,6 +32,14 @@
       "dark": "ダーク",
       "light": "ライト",
       "system": "システム"
+    },
+    "labelScheme": {
+      "label": "インスタンスラベル",
+      "description": "インスタンス種別ピルに使う用語を選択します。",
+      "aria": "インスタンスラベルのスキーム選択",
+      "vrchat": "VRChat",
+      "chilloutvr": "ChilloutVR",
+      "platformNative": "プラットフォーム別"
     }
   },
   "error": {
@@ -70,6 +78,11 @@
         "group-public": "グループ公開",
         "group-plus": "Group+",
         "group": "グループ",
+        "friends-of-friends": "フレンドのフレンド",
+        "everyone-can-invite": "全員が招待可能",
+        "owner-must-invite": "オーナー招待のみ",
+        "friends-of-members": "メンバーのフレンド",
+        "members-only": "メンバーのみ",
         "offline": "オフラインインスタンス"
       }
     }
