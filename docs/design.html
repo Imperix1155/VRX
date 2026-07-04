@@ -272,6 +272,14 @@
 
   .anno { font-size: 11.5px; color: var(--text-faint); display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
   .anno span { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; padding: 3px 8px; }
+
+  .stepper{display:inline-flex;align-items:center;gap:2px;padding:4px}
+  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:8px;
+    background:color-mix(in srgb, var(--text) 8%, transparent);color:var(--text);
+    font:600 14px Inter,sans-serif;cursor:pointer}
+  .stepper button:hover{background:color-mix(in srgb, var(--text) 14%, transparent)}
+  .stepper button[disabled]{color:var(--text-faint);cursor:default}
+  .stepper .val{min-width:28px;text-align:center;font:600 12.5px Inter,sans-serif;color:var(--text)}
 </style>
 </head>
 <body>
@@ -664,6 +672,16 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
             <div class="seg glass"><button class="on">All</button><button><span class="tagv">V</span> VRChat</button><button><span class="tagc">C</span> ChilloutVR</button></div>
           </div>
           <div class="why">In the React build the bubble animates with <code style="font-family:var(--code)">transform</code>/<code style="font-family:var(--code)">width</code> (reduce-motion shortens it). Never fake selection with per-button backgrounds.</div>
+        </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.1b</span> Number stepper</div>
+          <div class="el-sum">Bounded integer settings (VRX-78: the hot-instance threshold, 1–10). Glass track; ONE Tab stop — the value is the spinbutton (arrow/Home/End keys), the −/+ buttons sit outside the tab order with their own labels; at a bound the button dims but never leaves the DOM.</div>
+          <div class="demo">
+            <span class="stepper glass"><button disabled>−</button><span class="val">2</span><button>+</button></span>
+            <span class="stepper glass"><button>−</button><span class="val">7</span><button>+</button></span>
+          </div>
+          <div class="why">Same one-Tab-stop dialect as the segmented controls (roving focus, audit W5). Lives on the Dashboard hot header for quick access AND in Settings → Dashboard — both write <code style="font-family:var(--code)">settings.hotInstanceThreshold</code>.</div>
         </div>
 
         <div class="el">
