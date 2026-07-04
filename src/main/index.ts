@@ -24,6 +24,10 @@ import { createTray } from './tray'
 // the up-to-date value (VRX-112).
 let quitting = false
 
+// Module-scope Tray retention (see whenReady) — never read, must simply live.
+let tray: import('electron').Tray | null = null
+void tray
+
 function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -256,7 +260,10 @@ app
     })
 
     const mainWindow = createWindow()
-    createTray(mainWindow)
+    // Retain the Tray: if the object is GC'd the icon silently vanishes (the
+    // menu closures only keep it alive while the window does — on macOS a
+    // closed window is destroyed, which would free it).
+    tray = createTray(mainWindow)
 
     // Check GitHub Releases for updates on startup (packaged builds only).
     // Own try/catch: a sync throw here would otherwise reach the bootstrap
