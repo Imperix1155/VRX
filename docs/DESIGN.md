@@ -165,7 +165,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 | Platform | glass tint + left spine + `V`/`C` glyph | `--vrc` blue / `--cvr` orange | a bare dot; non-platform use of blue/orange |
 | State (presence) | the avatar **dot** | in-game `--ingame` green · active `--active` teal · offline `--offline` gray | color on text/panel; making it blue |
 | Status (VRChat) | a **labeled pill** | Join Me / Online / Ask Me / DND (VRChat hues) + custom msg | a bare dot; reusing the dot; a CVR equivalent |
-| Openness | right-side instance **pill** (friend row) / icon badge | `--op-*` tier color + platform-true label (§6 ladder); hidden/offline-instance = neutral | color by platform; a hue for Private |
+| Openness | right-side instance **pill** (friend row) / icon badge | `--op-*` tier color + VRChat-scheme label (§6 ladder + label rule, VRX-182); hidden/offline-instance = neutral | color by platform; a hue for Private |
 | Joinability | right-side **affordance** | `Join` / `Ask` / `⊘` (neutral, derived) | reusing a platform/status hue |
 | Trust | opt-in muted pill (right) | OFF by default; names neutral | name color; default-on |
 
@@ -219,9 +219,11 @@ Pill treatment: text `--op-<tier>-text` · bg `color-mix(in srgb, var(--op-<tier
 
 **Pill presence rule (owner 2026-07-01):** a friend IN A WORLD always gets a pill — the tier label when visible, **"Private"** when the location is hidden (VRChat sends `location:"private"` for ANY friend in a private instance, regardless of status — `presence.state` is the in-world truth, never `status`). No pill ONLY when truly not in a world: offline, or online-on-web/app (`state:"active"`).
 
+**Pill label rule (owner 2026-07-03, VRX-182):** pills use the **VRChat naming scheme on BOTH platforms** — a CVR instance shows its tier's VRChat label ("Friends of Friends" → "Friends+", "Friends of Members" → "Group+", "Members Only" → "Group"). One vocabulary keeps merged friend lists consistent, and the short labels fit the pill column. The DATA stays platform-true (`InstanceInfo.type` is untouched); the ChilloutVR column below documents each platform's native term (those return as an option with the VRX-183 label-scheme setting: VRChat / CVR / platform-native). CVR **"Offline Instance"** has no VRChat counterpart and keeps its own label. Label map: `src/renderer/src/utils/instanceTypeLabels.ts`.
+
 Unified mapping — verified vs VRChat wiki + ChilloutVR docs (2026-05):
 
-| Openness tier | icon | VRChat | ChilloutVR |
+| Openness tier | icon | VRChat | ChilloutVR (native term — pill shows the VRChat label, VRX-182) |
 |---|---|---|---|
 | Public | `#o-public` | Public | Public |
 | Friends+ | `#o-fof` | Friends+ | Friends of Friends |
@@ -269,7 +271,7 @@ Decisions from the FIRST real-data Windows review (running app, real friends, ul
 - **Name + custom status on ONE line** (name, then the custom status BESIDE it, dim) — **revises** the earlier "stacked under the name." **World name on the subline** beneath (fixed-height slot keeps rows uniform). Ask Me/DND still hide the world; the custom status still shows beside the name.
 - **NO `VRC`/`CVR` acronym/glyph in the row** — the **spine color alone carries platform** (far-left blue/orange; the §5/R10 carve-out, a CVD-safe pair). Revises the earlier "quiet acronym by the name."
 - **Right side: ONE instance-type pill** (text-only openness label, neutral, `min-width` + centered → a tidy right-aligned column) that **doubles as the join target** — merges the old subline openness badge **and** the separate Join/Ask/⊘ affordance into one element ("press the instance type to join"). Shows the accurate openness label — **tier-colored per §6.1** — when the instance is visible, or a neutral **"Private"** for ANY friend in a hidden world (revised 2026-07-01: any status, not just Ask Me/DND — `state === 'in-game'` is the gate); nothing only when truly not in a world (offline / web-active). It is the *visual* affordance now; the click→join IPC lands with VRX-166 (then it becomes a real `button`).
-  - ⚠️ **OPEN — verbose CVR labels:** "Friends of Friends" / "Everyone Can Invite" / etc. overflow the tidy column (measured 133px vs the 78px short-label width). Decide a short-label policy (map verbose CVR types → short equivalents) before the pill column is final; until then long labels expand the pill.
+  - **Label policy (RESOLVED 2026-07-03, VRX-182):** pills use the short VRChat-scheme labels on both platforms (§6 label rule), so the verbose-CVR-overflow concern is moot — every label fits the 78px column. A user-selectable scheme (VRChat / CVR / platform-native) is VRX-183.
 
 **Compact / Detail (VRX-68):** Detail = full row; **Compact hides the custom status**, keeping name + icon + status + instance. The icon **scales down proportionally — "compact," NOT "crunched"** (never distorted/cropped).
 

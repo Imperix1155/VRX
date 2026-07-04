@@ -221,6 +221,25 @@ describe('FriendsList', () => {
     expect(render()).toContain('var(--op-friends-plus')
   })
 
+  it('labels CVR types with the VRChat scheme (VRX-182 baseline)', () => {
+    const cvr = (type: InstanceInfo['type']): Friend =>
+      ({
+        ...friend,
+        platformUserId: `usr_${type}`,
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        presence: { state: 'in-game' },
+        instance: { ...publicInstance, type }
+      }) as Friend
+    mock([cvr('friends-of-friends'), cvr('members-only')])
+    const markup = render()
+    expect(markup).toContain('Friends+')
+    expect(markup).not.toContain('Friends of Friends')
+    expect(markup).toContain('>Group<')
+    expect(markup).not.toContain('Members Only')
+  })
+
   it('keeps the hidden "Private" pill neutral (no ladder token)', () => {
     mock([
       { ...friend, status: 'ask-me', instance: publicInstance, presence: { state: 'in-game' } }
