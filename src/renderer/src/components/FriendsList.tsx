@@ -2,7 +2,8 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceType } from '@shared/types'
 import { useFriends } from '../queries/friends'
-import { INSTANCE_TYPE_LABEL_KEYS } from '../utils/instanceTypeLabels'
+import { useSettingsStore } from '../stores/settings'
+import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 
 /**
  * Openness-ladder tier per InstanceType (DESIGN.md §6) — keys the pill's `--op-*`
@@ -201,6 +202,8 @@ function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
 // the real fix and lands with VRX-64).
 const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
   const { t } = useTranslation()
+  // Store subscription (not a prop) so memo'd rows still re-render on change.
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
@@ -223,7 +226,9 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
   let instancePill: string | null = null
   let pillTier: OpennessTier | null = null
   if (!hideWorld && instance != null) {
-    instancePill = t(INSTANCE_TYPE_LABEL_KEYS[instance.type] ?? 'friends.instance.unknownWorld')
+    instancePill = t(
+      LABEL_KEYS_BY_SCHEME[labelScheme][instance.type] ?? 'friends.instance.unknownWorld'
+    )
     pillTier = OPENNESS_TIER[instance.type] ?? null
   } else if (friend.presence.state === 'in-game') {
     instancePill = t('friends.instance.private')

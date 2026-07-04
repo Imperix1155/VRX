@@ -176,6 +176,15 @@ export interface AppStatus {
 export const THEMES = ['dark', 'light', 'system'] as const
 export type Theme = (typeof THEMES)[number]
 
+// ─── Instance-label scheme (VRX-183) ─────────────────────────────────────────
+/** Which naming scheme the instance pills use (DESIGN.md §6 label rule):
+ *  `vrchat` = VRChat terms on both platforms (the VRX-182 baseline/default),
+ *  `chilloutvr` = CVR terms on both platforms,
+ *  `platform-native` = each platform's own terms. Single source for both the
+ *  `LabelScheme` type and the settings schema's `labelScheme` enum. */
+export const LABEL_SCHEMES = ['vrchat', 'chilloutvr', 'platform-native'] as const
+export type LabelScheme = (typeof LABEL_SCHEMES)[number]
+
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
 

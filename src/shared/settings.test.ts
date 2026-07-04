@@ -17,7 +17,8 @@ describe('settings schema', () => {
       language: 'en',
       density: 'comfortable',
       firstRunDisclaimerAcknowledged: false,
-      telemetryEnabled: false
+      telemetryEnabled: false,
+      labelScheme: 'vrchat'
     })
   })
 
@@ -42,6 +43,13 @@ describe('settings schema', () => {
     expect(s.theme).toBe('system')
     expect(s.density).toBe('comfortable')
     expect(s.telemetryEnabled).toBe(false)
+  })
+
+  it('labelScheme: accepts every scheme, defaults pre-VRX-183 objects and garbage to vrchat', () => {
+    expect(parseSettings({ labelScheme: 'chilloutvr' }).labelScheme).toBe('chilloutvr')
+    expect(parseSettings({ labelScheme: 'platform-native' }).labelScheme).toBe('platform-native')
+    expect(parseSettings({ theme: 'dark' }).labelScheme).toBe('vrchat')
+    expect(parseSettings({ labelScheme: 'klingon' }).labelScheme).toBe('vrchat')
   })
 
   it('coerces non-object input to defaults', () => {

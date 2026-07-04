@@ -136,6 +136,7 @@ adapter lands).
 | --- | --- | --- |
 | `useLiveFriendEvents()` | `hooks/useLiveFriendEvents.ts` | The live bridge — mount ONCE (App.tsx). Applies `AdapterEvent`s to the cache; invalidates on `connection:'live'` and `roster-changed` |
 | `useApplyTheme()` | `hooks/useApplyTheme.ts` | Applies `data-theme` pre-paint; System follows `prefers-color-scheme` |
+| `useSegmentedBubble(activeIndex)` | `hooks/useSegmentedBubble.ts` | Sliding-bubble geometry for segmented controls — measures the active button (unequal label widths); returns `{ trackRef, bubble }`. Used by TopBar + SettingsView (VRX-183) |
 
 ### Zustand stores (VIEW state only — never server data; stores never import each other)
 
@@ -155,7 +156,7 @@ adapter lands).
 | `getDashboardStats` / `getHotInstances` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`HOT_INSTANCE_THRESHOLD` friends in one WORLD |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
-| `INSTANCE_TYPE_LABEL_KEYS` | `utils/instanceTypeLabels.ts` | `InstanceType` → pill-label i18n key; VRChat scheme on BOTH platforms (VRX-182 baseline — CVR types resolve to their tier's VRChat label; scheme setting = VRX-183). Shared by FriendsList + DashboardView |
+| `LABEL_KEYS_BY_SCHEME` | `utils/instanceTypeLabels.ts` | `LabelScheme` → (`InstanceType` → pill-label i18n key). Schemes: `vrchat` (default, VRX-182 baseline — CVR types resolve to their tier's VRChat label), `chilloutvr` (the reverse), `platform-native` (identity — data is platform-true). Keyed off `settings.labelScheme` (VRX-183). Shared by FriendsList + DashboardView |
 
 ## 6. Main-process parsers & services (pure, reusable)
 
@@ -223,4 +224,4 @@ the friend ladder with `isGroup` as the modifier) · `TrustRank` ·
 `AuthStatus`/`AuthState` (incl. `needs-2fa` + `twoFactorMethod`) ·
 `Credentials` (⚠️ never log) · `LoginResult` · `TwoFactorMethod` ·
 `AdapterEvent` (§3) · `ConnectionHealth` · `AppStatus` · `Account` ·
-`Settings`/`THEMES` (`@shared/settings`) · `JoinMode`.
+`Settings`/`THEMES` (`@shared/settings`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
