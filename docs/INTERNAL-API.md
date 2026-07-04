@@ -31,6 +31,8 @@ or should be added.
 | `selfInvite({ platform, instanceId })` | `self-invite` | `Promise<void>` |
 | `getAppStatus()` | `get-app-status` | `Promise<AppStatus>` |
 | `openUrl({ url })` | `open-url` | `Promise<void>` |
+| `getSettings()` | `get-settings` | `Promise<Settings>` |
+| `saveSettings({ patch })` | `save-settings` | `Promise<Settings>` (normalized) |
 | `onFriendEvent(callback)` | `friend-event` (push) | `() => void` (unsubscribe) |
 
 Guard rule: any renderer code calling the bridge must tolerate `window.vrx`
@@ -55,6 +57,8 @@ per domain, every handler behind `isTrustedIpcSender` first.
 | `self-invite` | `{ platform, instanceId }` | `void` | `ipc/instance.ts` | Location validated against path-injection (VRX-51) |
 | `get-app-status` | — | `AppStatus` | `ipc/app-status.ts` | Stub all-'ok' until VRX-79 wires WS health |
 | `open-url` | `{ url }` | `void` | `ipc/launch.ts` | Gated by `isAllowedUrl() \|\| isAllowedLaunchUrl()` |
+| `get-settings` | — | `Settings` | `ipc/settings.ts` | Migrated + validated on read; never throws (VRX-184) |
+| `save-settings` | `{ patch: Partial<Settings> }` | `Settings` | `ipc/settings.ts` | Patch shape-validated (plain object); fields degrade via `parseSettings`; REJECTS rather than overwrite a newer-version file |
 
 ### Push (main broadcasts, renderer listens)
 
@@ -64,8 +68,7 @@ per domain, every handler behind `isTrustedIpcSender` first.
 
 ### Deferred channels (typed on purpose only when built)
 
-`get-settings` / `save-settings` (VRX-23) · `get-notifications` (M3) ·
-`launch-app` (VRX-98).
+`get-notifications` (M3) · `launch-app` (VRX-98).
 
 ## 3. Live events: the `AdapterEvent` dictionary
 
@@ -137,13 +140,14 @@ adapter lands).
 | `useLiveFriendEvents()` | `hooks/useLiveFriendEvents.ts` | The live bridge — mount ONCE (App.tsx). Applies `AdapterEvent`s to the cache; invalidates on `connection:'live'` and `roster-changed` |
 | `useApplyTheme()` | `hooks/useApplyTheme.ts` | Applies `data-theme` pre-paint; System follows `prefers-color-scheme` |
 | `useSegmentedBubble(activeIndex)` | `hooks/useSegmentedBubble.ts` | Sliding-bubble geometry for segmented controls — measures the active button (unequal label widths); returns `{ trackRef, bubble }`. Used by TopBar + SettingsView (VRX-183) |
+| `useSettingsPersistence()` | `hooks/useSettingsPersistence.ts` | Mount ONCE (App.tsx): loads persisted settings on boot (`get-settings` → `setSettings`), saves on the store's `dirty` flag (`save-settings` → `markSaved`); failed saves stay dirty and retry on the next change (VRX-184) |
 
 ### Zustand stores (VIEW state only — never server data; stores never import each other)
 
 | Store | State | Actions |
 | --- | --- | --- |
 | `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen` | `setActiveTab`, `setDrawerOpen`, `toggleDrawer` |
-| `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` (in-memory until VRX-23 IPC) |
+| `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
 

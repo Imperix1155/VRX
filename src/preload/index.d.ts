@@ -14,6 +14,10 @@ type VrxBridge = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
+  getSettings: () => Promise<IpcInvoke['get-settings']['res']>
+  saveSettings: (
+    req: IpcInvoke['save-settings']['req']
+  ) => Promise<IpcInvoke['save-settings']['res']>
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */
   onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => () => void
 }
