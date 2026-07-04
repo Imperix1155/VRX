@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- VRX now lives in the **system tray**: closing the window on Windows/Linux minimizes to the tray instead of quitting, double-clicking the tray icon brings VRX back, and the tray menu offers Show/Hide and Quit. macOS keeps its native close behavior. (VRX-112)
+
 - The dashboard's **hot instance threshold is now configurable** (1–10 friends, default 2) — a small −/+ stepper sits right on the Hot Instances header for quick tweaks, with the same setting in Settings → Dashboard. Changes apply instantly and persist across restarts. (VRX-78)
 
 - Settings now **persist across restarts** — the theme and instance-label choices are saved to disk the moment you change them and load back on launch. Older settings files migrate automatically, and a file written by a newer version of VRX is never overwritten by an older one (safe rollbacks). (VRX-184)
