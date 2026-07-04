@@ -21,7 +21,10 @@ import { createTray } from './tray'
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
 // before a window's own 'close' event, so the close handler below always reads
-// the up-to-date value (VRX-112).
+// the up-to-date value (VRX-112). EXCEPTION (advisor F1): autoUpdater's
+// quitAndInstall() reverses that order — if a "restart to update" path is ever
+// added, set `quitting = true` BEFORE calling it or close-to-tray will swallow
+// the close and stall the install in the tray.
 let quitting = false
 
 // Module-scope Tray retention (see whenReady) — never read, must simply live.
@@ -255,7 +258,8 @@ app
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the
-      // up-to-date value (VRX-112).
+      // up-to-date value (VRX-112; sole exception: quitAndInstall — see the
+      // `quitting` declaration).
       quitting = true
     })
 
