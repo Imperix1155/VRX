@@ -18,7 +18,8 @@ import {
   getHotInstances,
   type HotInstance
 } from '../utils/dashboardAggregations'
-import { INSTANCE_TYPE_LABEL_KEYS } from '../utils/instanceTypeLabels'
+import { useSettingsStore } from '../stores/settings'
+import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -88,9 +89,10 @@ function HotCardGlyph({ platform }: { platform: Platform }): React.JSX.Element {
 
 function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Element {
   const { t } = useTranslation()
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const isVrc = instance.platform === 'vrchat'
 
-  const opennessLabelKey = INSTANCE_TYPE_LABEL_KEYS[instance.instanceType]
+  const opennessLabelKey = LABEL_KEYS_BY_SCHEME[labelScheme][instance.instanceType]
   const opennessLabel = t(opennessLabelKey)
   const platformLabel = isVrc ? t('dashboard.platformVrc') : t('dashboard.platformCvr')
   const platformColor = isVrc ? 'text-[var(--vrc)]' : 'text-[var(--cvr)]'

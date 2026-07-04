@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New setting: **Instance labels** (Settings → Appearance) — choose which naming scheme the instance-type pills use: VRChat terms everywhere (the default), ChilloutVR terms everywhere, or each platform's own terms. Applies to the friends list and the dashboard's hot-instance cards. Like the theme setting, the choice currently resets on restart until settings persistence is wired. (VRX-183)
+
 - Live presence: VRX now connects to VRChat's real-time event stream (the Pipeline WebSocket) — friends going online/offline, changing worlds, or updating their status appear in the list within seconds, without polling. The connection reconnects automatically with backoff and re-syncs the full list on every (re)connect. (VRX-146)
 
 ### Fixed

@@ -17,9 +17,10 @@
  *   language              → i18next (src/renderer/src/i18n)
  *   firstRunDisclaimerAcknowledged → M2 architecture decision #5 (unofficial-API disclaimer)
  *   telemetryEnabled      → privacy-first default OFF (cf. VRX-96 opt-in telemetry)
+ *   labelScheme           → DESIGN.md §6 label rule (VRX-183; VRChat-scheme default per VRX-182)
  */
 import { z } from 'zod'
-import { THEMES } from './types'
+import { LABEL_SCHEMES, THEMES } from './types'
 
 /** Bump ONLY when a field needs a transforming migration (not a plain add/remove —
  *  additive fields are covered by schema defaults, removed fields by key stripping). */
@@ -37,7 +38,9 @@ export const SettingsSchema = z.object({
   /** Whether the user acknowledged the unofficial-API first-run disclaimer. */
   firstRunDisclaimerAcknowledged: z.boolean().catch(false),
   /** Opt-in crash/usage telemetry; OFF by default. */
-  telemetryEnabled: z.boolean().catch(false)
+  telemetryEnabled: z.boolean().catch(false),
+  /** Instance-pill naming scheme (DESIGN.md §6 label rule). Values from `@shared/types` LABEL_SCHEMES. */
+  labelScheme: z.enum(LABEL_SCHEMES).catch('vrchat')
 })
 
 export type Settings = z.infer<typeof SettingsSchema>

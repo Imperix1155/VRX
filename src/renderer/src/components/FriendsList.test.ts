@@ -1,12 +1,21 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import '../i18n'
 
 const { useFriends } = vi.hoisted(() => ({ useFriends: vi.fn() }))
 
 vi.mock('../queries/friends', () => ({ useFriends }))
+
+// renderToStaticMarkup is SSR: zustand serves the store's INITIAL state to
+// useSyncExternalStore's server snapshot, so setState never reaches the render.
+// Mock the store with a mutable ref instead (verified empirically — VRX-183).
+const scheme = vi.hoisted(() => ({ current: 'vrchat' }))
+vi.mock('../stores/settings', () => ({
+  useSettingsStore: <T>(selector: (state: unknown) => T): T =>
+    selector({ settings: { labelScheme: scheme.current } })
+}))
 
 import FriendsList from './FriendsList'
 
@@ -238,6 +247,38 @@ describe('FriendsList', () => {
     expect(markup).not.toContain('Friends of Friends')
     expect(markup).toContain('>Group<')
     expect(markup).not.toContain('Members Only')
+  })
+
+  describe('labelScheme setting (VRX-183)', () => {
+    afterEach(() => {
+      scheme.current = 'vrchat'
+    })
+
+    const inWorld = (type: InstanceInfo['type'], platform: Friend['platform']): Friend =>
+      ({
+        ...friend,
+        platformUserId: `usr_${type}`,
+        platform,
+        ...(platform === 'chilloutvr' ? { status: null, statusDescription: null } : {}),
+        presence: { state: 'in-game' },
+        instance: { ...publicInstance, type }
+      }) as Friend
+
+    it('chilloutvr scheme: a VRChat Group+ instance reads "Friends of Members"', () => {
+      scheme.current = 'chilloutvr'
+      mock([inWorld('group-plus', 'vrchat')])
+      const markup = render()
+      expect(markup).toContain('Friends of Members')
+      expect(markup).not.toContain('Group+')
+    })
+
+    it('platform-native scheme: each platform keeps its own terms', () => {
+      scheme.current = 'platform-native'
+      mock([inWorld('members-only', 'chilloutvr'), inWorld('group', 'vrchat')])
+      const markup = render()
+      expect(markup).toContain('Members Only')
+      expect(markup).toContain('>Group<')
+    })
   })
 
   it('keeps the hidden "Private" pill neutral (no ladder token)', () => {
