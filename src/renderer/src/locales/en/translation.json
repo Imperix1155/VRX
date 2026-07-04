@@ -41,6 +41,14 @@
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "Per platform"
+    },
+    "dashboard": {
+      "heading": "Dashboard"
+    },
+    "hotThreshold": {
+      "label": "Hot instance threshold",
+      "description": "Minimum friends in one world before it counts as hot.",
+      "aria": "Hot instance threshold"
     }
   },
   "error": {
@@ -101,7 +109,8 @@
     "friendsHere": "<bold>{{count}}</bold> here",
     "joinInstance": "Join",
     "emptyHeading": "No hot instances currently",
-    "emptyHint": "When {{threshold}} or more friends gather in the same world, it'll show up here."
+    "emptyHint": "When {{threshold}} or more friends gather in the same world, it'll show up here.",
+    "hotThresholdAria": "Hot instance threshold"
   },
   "login": {
     "subtitle": "Social VR Companion",
@@ -126,5 +135,9 @@
       "verify": "Verify",
       "back": "Back"
     }
+  },
+  "stepper": {
+    "decrease": "Decrease",
+    "increase": "Increase"
   }
 }

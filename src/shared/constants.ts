@@ -50,6 +50,9 @@ export const INSTANCE_CACHE_TTL_MS = 300_000
 // ─── Feature thresholds ──────────────────────────────────────────────────────
 /** Min friends in one instance for it to count as a "hot instance". User-configurable. */
 export const HOT_INSTANCE_THRESHOLD = 2
+/** Bounds for the user-configurable hot threshold (VRX-78) — schema + both steppers share these. */
+export const HOT_INSTANCE_THRESHOLD_MIN = 1
+export const HOT_INSTANCE_THRESHOLD_MAX = 10
 
 // ─── Platform / app identity ─────────────────────────────────────────────────
 /** CVR `Platform` header value (verified vs CVRX source). */

@@ -4,6 +4,8 @@ import { LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useSettingsStore } from '../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
+import NumberStepper from './NumberStepper'
+import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -106,6 +108,7 @@ export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
   return (
@@ -153,6 +156,36 @@ export default function SettingsView(): React.JSX.Element {
               labelKeys={SCHEME_LABEL_KEYS}
               ariaLabel={t('settings.labelScheme.aria')}
               onChange={(value) => updateSettings({ labelScheme: value })}
+            />
+          </div>
+        </section>
+
+        {/* ── Dashboard section ── */}
+        <section aria-labelledby="settings-dashboard-heading" className="mt-[var(--space-8)]">
+          <h2
+            id="settings-dashboard-heading"
+            className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
+          >
+            {t('settings.dashboard.heading')}
+          </h2>
+
+          {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
+              Dashboard's hot-instances header; both write the same setting. */}
+          <div className="flex items-center justify-between gap-[var(--space-6)]">
+            <div>
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t('settings.hotThreshold.label')}
+              </p>
+              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                {t('settings.hotThreshold.description')}
+              </p>
+            </div>
+            <NumberStepper
+              value={hotThreshold}
+              min={HOT_INSTANCE_THRESHOLD_MIN}
+              max={HOT_INSTANCE_THRESHOLD_MAX}
+              onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+              ariaLabel={t('settings.hotThreshold.aria')}
             />
           </div>
         </section>

@@ -112,6 +112,23 @@ describe('getHotInstances', () => {
     expect(getHotInstances(friends)).toHaveLength(0)
   })
 
+  it('respects a custom threshold (VRX-78): 1 shows singles, 5 filters below five', () => {
+    const solo = instance('wrld_solo', 'Quiet World')
+    const trio = instance('wrld_trio', 'Busy World')
+    const friends: Friend[] = [
+      vrcFriend('s1', 'in-game', solo),
+      vrcFriend('t1', 'in-game', trio),
+      vrcFriend('t2', 'in-game', trio),
+      vrcFriend('t3', 'in-game', trio)
+    ]
+    // Threshold 1: every occupied world qualifies, including the single friend.
+    expect(getHotInstances(friends, 1)).toHaveLength(2)
+    // Threshold 5: nothing reaches five friends.
+    expect(getHotInstances(friends, 5)).toHaveLength(0)
+    // Default (no arg) stays the owner-rule 2+.
+    expect(getHotInstances(friends)).toHaveLength(1)
+  })
+
   it('groups friends in the same world', () => {
     const inst = instance('wrld_1', 'The Great Pug')
     const friends: Friend[] = [

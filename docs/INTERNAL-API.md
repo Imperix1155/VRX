@@ -157,7 +157,8 @@ adapter lands).
 | --- | --- | --- |
 | `applyFriendEvent(friends, event)` | `utils/applyFriendEvent.ts` | Pure cache transition for every `AdapterEvent` (see §3 table) |
 | `mapLoginError(code)` | `utils/loginError.ts` | Adapter error code → i18n key; unknown codes collapse to generic (raw codes never reach users) |
-| `getDashboardStats` / `getHotInstances` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`HOT_INSTANCE_THRESHOLD` friends in one WORLD |
+| `getDashboardStats` / `getHotInstances(friends, threshold?)` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`threshold` friends in one WORLD (`settings.hotInstanceThreshold`, default `HOT_INSTANCE_THRESHOLD`) |
+| `NumberStepper` | `components/NumberStepper.tsx` | Reusable −/value/+ control for bounded integer settings; one Tab stop (spinbutton + arrow keys); used by Dashboard hot header + SettingsView (VRX-78) |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
 | `LABEL_KEYS_BY_SCHEME` | `utils/instanceTypeLabels.ts` | `LabelScheme` → (`InstanceType` → pill-label i18n key). Schemes: `vrchat` (default, VRX-182 baseline — CVR types resolve to their tier's VRChat label), `chilloutvr` (the reverse), `platform-native` (identity — data is platform-true). Keyed off `settings.labelScheme` (VRX-183). Shared by FriendsList + DashboardView |
@@ -213,7 +214,7 @@ adapter lands).
 | `CONCURRENCY_LIMIT` | 10 | Batch-fetch in-flight cap |
 | `WORLD_CACHE_TTL_MS` | 24 h | World metadata TTL |
 | `INSTANCE_CACHE_TTL_MS` | 5 min | Instance detail TTL |
-| `HOT_INSTANCE_THRESHOLD` | 2 | Min friends for a "hot" world |
+| `HOT_INSTANCE_THRESHOLD` (`_MIN`=1 / `_MAX`=10) | 2 | Default + bounds for the hot-world floor (`settings.hotInstanceThreshold`, VRX-78) |
 
 ## 8. Core shared types (the model vocabulary)
 

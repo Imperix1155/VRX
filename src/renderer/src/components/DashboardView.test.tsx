@@ -11,7 +11,7 @@
  * DashboardView consumes only { data, isPending } from useFriends.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -139,6 +139,46 @@ describe('DashboardView states (W5)', () => {
       render(<DashboardView />)
       expect(screen.getByText('Friends of Members')).toBeTruthy()
       expect(screen.queryByText('Group+')).toBeNull()
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
+
+  it('hot grid follows the hotInstanceThreshold setting immediately (VRX-78)', () => {
+    const solo = makeFriend({
+      platformUserId: 'usr_solo',
+      instance: {
+        worldId: 'wrld_quiet',
+        instanceId: 'wrld_quiet:1~public',
+        worldName: 'Quiet World',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        region: 'us',
+        userCount: 1
+      }
+    })
+    stubQueries({ data: [solo], isPending: false }, { data: [], isPending: false })
+
+    try {
+      // Default threshold (2): a single friend in a world is NOT hot → empty state.
+      render(<DashboardView />)
+      expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
+
+      // Mutate the store while MOUNTED — the same render must react live
+      // (no unmount/remount; this is the "immediate, no restart" AC itself).
+      act(() =>
+        useSettingsStore.setState({
+          settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
+        })
+      )
+      expect(screen.getByText('Quiet World')).toBeTruthy()
+      expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+      // The quick-access stepper reflects the live value.
+      const spin = screen.getByRole('spinbutton', { name: msg('dashboard.hotThresholdAria') })
+      expect(spin.getAttribute('aria-valuenow')).toBe('1')
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
     }
