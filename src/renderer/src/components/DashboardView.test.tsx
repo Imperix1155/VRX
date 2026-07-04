@@ -143,4 +143,43 @@ describe('DashboardView states (W5)', () => {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
     }
   })
+
+  it('hot grid follows the hotInstanceThreshold setting immediately (VRX-78)', () => {
+    const solo = makeFriend({
+      platformUserId: 'usr_solo',
+      instance: {
+        worldId: 'wrld_quiet',
+        instanceId: 'wrld_quiet:1~public',
+        worldName: 'Quiet World',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        region: 'us',
+        userCount: 1
+      }
+    })
+    stubQueries({ data: [solo], isPending: false }, { data: [], isPending: false })
+
+    // Default threshold (2): a single friend in a world is NOT hot → empty state.
+    render(<DashboardView />)
+    expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
+    cleanup()
+
+    // Threshold 1: the same single friend now qualifies — no restart, store-driven.
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
+    })
+    try {
+      render(<DashboardView />)
+      expect(screen.getByText('Quiet World')).toBeTruthy()
+      expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+      // The quick-access stepper reflects the live value.
+      const spin = screen.getByRole('spinbutton', { name: msg('dashboard.hotThresholdAria') })
+      expect(spin.getAttribute('aria-valuenow')).toBe('1')
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
 })

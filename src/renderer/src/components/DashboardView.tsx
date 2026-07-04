@@ -11,8 +11,8 @@
 import { Trans, useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useFriends } from '../queries/friends'
+import NumberStepper from './NumberStepper'
 import OpennessIcon from './OpennessIcon'
-import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 import {
   getDashboardStats,
   getHotInstances,
@@ -148,14 +148,14 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function DashboardEmpty(): React.JSX.Element {
+function DashboardEmpty({ threshold }: { threshold: number }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div className="glass flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
       <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
       <p className="text-[var(--text-faint)] text-xs mt-[var(--space-1)]">
         {/* `threshold` (not `count`) — interpolation only, no plural-suffix lookup. */}
-        {t('dashboard.emptyHint', { threshold: HOT_INSTANCE_THRESHOLD })}
+        {t('dashboard.emptyHint', { threshold })}
       </p>
     </div>
   )
@@ -195,6 +195,10 @@ export default function DashboardView(): React.JSX.Element {
   const { t } = useTranslation()
   const vrcQuery = useFriends('vrchat')
   const cvrQuery = useFriends('chilloutvr')
+  // Hot-grid threshold (VRX-78): live from the store — changes apply
+  // immediately and persist via useSettingsPersistence (VRX-184).
+  const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
 
   const hasData = vrcQuery.data != null || cvrQuery.data != null
   if (!hasData) {
@@ -226,7 +230,7 @@ export default function DashboardView(): React.JSX.Element {
   const cvrFriends = cvrQuery.data ?? []
   const allFriends = [...vrcFriends, ...cvrFriends]
 
-  const hotInstances = getHotInstances(allFriends)
+  const hotInstances = getHotInstances(allFriends, hotThreshold)
   const stats = getDashboardStats(allFriends, hotInstances.length)
 
   return (
@@ -247,10 +251,22 @@ export default function DashboardView(): React.JSX.Element {
 
       {/* Hot instances section — a labelled landmark (audit W5) */}
       <section aria-labelledby="dashboard-hot-heading">
-        <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
+        {/* Header row: heading + the quick-access threshold stepper (VRX-78).
+            The issue AC said "Friends panel header", but the control belongs
+            next to the grid it changes — deviation flagged in the PR. */}
+        <div className="flex items-center justify-between gap-[var(--space-4)]">
+          <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
+          <NumberStepper
+            value={hotThreshold}
+            min={1}
+            max={10}
+            onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+            ariaLabel={t('dashboard.hotThresholdAria')}
+          />
+        </div>
 
         {hotInstances.length === 0 ? (
-          <DashboardEmpty />
+          <DashboardEmpty threshold={hotThreshold} />
         ) : (
           <div
             style={{

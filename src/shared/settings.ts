@@ -18,8 +18,10 @@
  *   firstRunDisclaimerAcknowledged → M2 architecture decision #5 (unofficial-API disclaimer)
  *   telemetryEnabled      → privacy-first default OFF (cf. VRX-96 opt-in telemetry)
  *   labelScheme           → DESIGN.md §6 label rule (VRX-183; VRChat-scheme default per VRX-182)
+ *   hotInstanceThreshold  → §9 dashboard hot grid (VRX-78; default from HOT_INSTANCE_THRESHOLD)
  */
 import { z } from 'zod'
+import { HOT_INSTANCE_THRESHOLD } from './constants'
 import { LABEL_SCHEMES, THEMES } from './types'
 
 /** Bump ONLY when a field needs a transforming migration (not a plain add/remove —
@@ -40,7 +42,9 @@ export const SettingsSchema = z.object({
   /** Opt-in crash/usage telemetry; OFF by default. */
   telemetryEnabled: z.boolean().catch(false),
   /** Instance-pill naming scheme (DESIGN.md §6 label rule). Values from `@shared/types` LABEL_SCHEMES. */
-  labelScheme: z.enum(LABEL_SCHEMES).catch('vrchat')
+  labelScheme: z.enum(LABEL_SCHEMES).catch('vrchat'),
+  /** Min friends in one world for the dashboard hot grid (VRX-78). Out-of-range/invalid → the default. */
+  hotInstanceThreshold: z.number().int().min(1).max(10).catch(HOT_INSTANCE_THRESHOLD)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
