@@ -238,6 +238,10 @@ Unified mapping — verified vs VRChat wiki + ChilloutVR docs (2026-05):
 The group sub-track is near-identical (Group Public↔Group Public; Group+↔Friends of Members; Group↔Members Only). CVR classes Public / Group Public / Friends of Members / Friends of Friends as "public"; the rest private (Members Only is public if the group join privacy = "everyone can join"). CVR additionally surfaces an **Offline Instance** (`#o-offline` — local / non-networked: the friend is in-game but in a private offline world, not joinable; CVRX shows it), with NO VRChat privacy equivalent. CVR has NO trust ranks and NO JoinMe/AskMe/Busy. NEVER invent CVR concepts to force symmetry.
 NOTE: names above are verified UI/display names. When building each adapter, confirm the exact API enum STRINGS (VRChat location tags → VRX-45; CVR API field values → CVR adapter); ship NO guessed values.
 
+**No-scroll rule (owner, 2026-07-05, VRX-186):** control surfaces don't scroll — feeds do. The friends list and future activity feeds scroll; **Settings must never scroll**: it is split into category mini-pages behind a segmented category nav at the top (Appearance | Dashboard, extending as sections are added; same one-Tab-stop segmented dialect as every selector). Active category is session state, not a persisted setting. Apply the same rule to any future control surface (wizards, dialogs): if it needs a scrollbar, it needs another page.
+
+**Theme control order (owner, 2026-07-05, VRX-186):** **Dark | System | Light** — System sits in the CENTER because it resolves to either neighbor, the same "mixed option in the middle" logic as the platform filter's All. Default remains System. `THEMES` in `@shared/types` is the display order.
+
 ## §7 Typography
 - Inter (400–800): ALL body/UI — names, labels, copy, buttons, world titles, statuses, helper text, modal body.
 - VT323 (`--font-mono`): accent ONLY — VRX mark, big stat numbers, section kickers (uppercase, +tracking), `V`/`C` glyphs, technical IDs/versions. That is the complete allow-list.

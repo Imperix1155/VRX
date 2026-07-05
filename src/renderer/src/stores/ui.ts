@@ -11,19 +11,30 @@ export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'instances' | 'gr
  * anything persisted. `density` is a persisted user setting, so it lives in the
  * settings store, not here.
  */
+/** Settings category mini-pages (VRX-186). Extend as sections are added. */
+export type SettingsCategory = 'appearance' | 'dashboard'
+export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = ['appearance', 'dashboard']
+
 interface UiState {
   activeTab: ActiveTab
   drawerOpen: boolean
+  /** Session-only (deliberately NOT a persisted setting): survives view
+   *  switches within a session so a user hopping Settings↔Dashboard lands
+   *  back on the category they were adjusting (VRX-186). */
+  settingsCategory: SettingsCategory
   setActiveTab: (tab: ActiveTab) => void
   setDrawerOpen: (open: boolean) => void
   toggleDrawer: () => void
+  setSettingsCategory: (category: SettingsCategory) => void
 }
 
 export const useUiStore = create<UiState>((set) => ({
   // App opens on the Dashboard (owner: the Dashboard is the intended landing view).
   activeTab: 'dashboard',
   drawerOpen: false,
+  settingsCategory: 'appearance',
   setActiveTab: (activeTab) => set({ activeTab }),
   setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
-  toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen }))
+  toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen })),
+  setSettingsCategory: (settingsCategory) => set({ settingsCategory })
 }))

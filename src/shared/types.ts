@@ -173,7 +173,10 @@ export interface AppStatus {
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────
 /** Canonical theme values — the single source for both the `Theme` type and the
  *  settings schema's `theme` enum (`@shared/settings`). */
-export const THEMES = ['dark', 'light', 'system'] as const
+// Order is the DISPLAY order (§8: System sits in the CENTER — it resolves to
+// either neighbor, same 'mixed option in the middle' logic as the platform
+// filter's All; owner-decided 2026-07-05, VRX-186).
+export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
 // ─── Instance-label scheme (VRX-183) ─────────────────────────────────────────

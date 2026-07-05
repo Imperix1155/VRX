@@ -146,7 +146,7 @@ adapter lands).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen` | `setActiveTab`, `setDrawerOpen`, `toggleDrawer` |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen` | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`  `settingsCategory`/`setSettingsCategory` + `SETTINGS_CATEGORIES` — Settings mini-page nav, session-only (VRX-186) |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |

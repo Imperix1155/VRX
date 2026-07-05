@@ -3,6 +3,7 @@ import type { LabelScheme, Theme } from '@shared/types'
 import { LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useSettingsStore } from '../stores/settings'
+import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import NumberStepper from './NumberStepper'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
@@ -17,6 +18,12 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
   vrchat: 'settings.labelScheme.vrchat',
   chilloutvr: 'settings.labelScheme.chilloutvr',
   'platform-native': 'settings.labelScheme.platformNative'
+}
+
+// Category nav labels reuse the section-heading keys — one string per concept.
+const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
+  appearance: 'settings.appearance.heading',
+  dashboard: 'settings.dashboard.heading'
 }
 
 /**
@@ -110,11 +117,29 @@ export default function SettingsView(): React.JSX.Element {
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
+  // (§8 no-scroll rule: control surfaces don't scroll, feeds do). Session state,
+  // deliberately not persisted.
+  const category = useUiStore((s) => s.settingsCategory)
+  const setCategory = useUiStore((s) => s.setSettingsCategory)
 
   return (
     <div className="glass p-[var(--space-8)]">
       <div className="relative">
-        {/* ── Appearance section ── */}
+        {/* ── Category nav — same one-Tab-stop segmented dialect as every other
+            selector; expands as categories are added (VRX-186) ── */}
+        <div className="mb-[var(--space-8)]">
+          <SegmentedSetting
+            values={SETTINGS_CATEGORIES}
+            active={category}
+            labelKeys={CATEGORY_LABEL_KEYS}
+            ariaLabel={t('settings.categories.aria')}
+            onChange={setCategory}
+          />
+        </div>
+
+        {/* ── Appearance page ── */}
+        {category === 'appearance' && (
         <section aria-labelledby="settings-appearance-heading">
           <h2
             id="settings-appearance-heading"
@@ -159,9 +184,11 @@ export default function SettingsView(): React.JSX.Element {
             />
           </div>
         </section>
+        )}
 
-        {/* ── Dashboard section ── */}
-        <section aria-labelledby="settings-dashboard-heading" className="mt-[var(--space-8)]">
+        {/* ── Dashboard page ── */}
+        {category === 'dashboard' && (
+        <section aria-labelledby="settings-dashboard-heading">
           <h2
             id="settings-dashboard-heading"
             className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
@@ -189,6 +216,7 @@ export default function SettingsView(): React.JSX.Element {
             />
           </div>
         </section>
+        )}
       </div>
     </div>
   )

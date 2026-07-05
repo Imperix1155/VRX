@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Settings is now organized into **category pages** (Appearance, Dashboard) with a selector at the top — one page at a time, no scrolling, ready to grow as more settings arrive. The theme control is reordered to **Dark | System | Light** with System in the middle. (VRX-186)
+
 ## [0.2.0] - 2026-07-05
 
 ### Added
