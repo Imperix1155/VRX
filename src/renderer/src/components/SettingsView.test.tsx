@@ -44,6 +44,17 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
+  it('renders the label-scheme options in VRChat | Per-platform | ChilloutVR order (center-neutral rule)', () => {
+    render(<SettingsView />)
+    const group = screen.getByRole('radiogroup', { name: msg('settings.labelScheme.aria') })
+    const labels = [...group.querySelectorAll('[role="radio"]')].map((b) => b.textContent)
+    expect(labels).toEqual([
+      msg('settings.labelScheme.vrchat'),
+      msg('settings.labelScheme.platformNative'),
+      msg('settings.labelScheme.chilloutvr')
+    ])
+  })
+
   it('renders NO in-panel category selector — the TopBar slot is the only one (owner rule)', () => {
     render(<SettingsView />)
     expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()

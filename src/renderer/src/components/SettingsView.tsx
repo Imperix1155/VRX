@@ -21,7 +21,7 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
 
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
- * Theme row: 3-way segmented control (Dark / Light / System).
+ * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
  * Instance-labels row (VRX-183): pill naming scheme — VRChat terms everywhere
  * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
  * native terms. Presentation only: the data stays platform-true.

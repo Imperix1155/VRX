@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Settings is now organized into **category pages** (Appearance, Dashboard) — one page at a time, no scrolling, ready to grow as more settings arrive. The category selector lives in the **top bar**, replacing the platform filter while you're in Settings (it has no meaning there). The theme control is reordered to **Dark | System | Light** with System in the middle. (VRX-186)
+- The instance-labels selector is reordered to **VRChat | Per-platform | ChilloutVR** — every selector now follows the same design rule: the neutral/combined option sits in the center, matching the platform filter and the theme control.
 
 ## [0.2.0] - 2026-07-05
 

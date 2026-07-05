@@ -247,7 +247,12 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 
 **No-scroll rule (owner, 2026-07-05, VRX-186):** control surfaces don't scroll — feeds do. The friends list and future activity feeds scroll; **Settings must never scroll**: it is split into category mini-pages (Appearance | Dashboard, extending as sections are added). **The category nav renders in the TOP BAR's contextual slot** — the slot holds whichever control belongs to the active view: the platform filter on content views, the category nav on Settings (a platform filter is meaningless there; owner-decided). Same one-Tab-stop segmented dialect as every selector. The panel's section headings are sr-only (the nav is their visible label — no double-labeling). Active category is session state, not a persisted setting. Apply the same rule to any future control surface (wizards, dialogs): if it needs a scrollbar, it needs another page.
 
-**Theme control order (owner, 2026-07-05, VRX-186):** **Dark | System | Light** — System sits in the CENTER because it resolves to either neighbor, the same "mixed option in the middle" logic as the platform filter's All. Default remains System. `THEMES` in `@shared/types` is the display order.
+**Center-neutral rule — CORE, applies to EVERY segmented control (owner, 2026-07-05):** the neutral / combined / mixed option always sits in the **CENTER**; the polar or single-scoped options flank it. This is the app-wide slider language — a user who learns one control has learned them all. Enshrined instances (the `as const` arrays in code are the display order):
+- Platform filter: **VRChat | All | ChilloutVR** (`SEG_ITEMS`, TopBar) — All mixes both platforms.
+- Theme: **Dark | System | Light** (`THEMES`, `@shared/types`) — System resolves to either neighbor. Default remains System.
+- Instance labels: **VRChat | Per-platform | ChilloutVR** (`LABEL_SCHEMES`, `@shared/types`) — Per-platform uses both platforms' terms.
+
+Any NEW segmented control MUST follow this before it ships: identify the option that spans/mixes/defers (the "both/auto" one) and seat it in the middle. If no option is neutral (a pure enum like Compact/Detail), the rule is silent — but check before assuming.
 
 ```css
 .app{display:grid;grid-template-columns:248px 1fr;height:100vh;padding:16px;gap:16px;}
@@ -262,7 +267,7 @@ body{overflow:hidden;}   .main{overflow-y:auto;}   /* shell fixed; only main scr
 - Hot-instance card: `.glass`+`.tint-vrc|cvr`+platform class; 4px top edge gradient (platform→transparent); `V`/`C` glyph; neutral openness badge+icon; world title; platform-colored subtitle; avatar stack + "<b>N</b> here"; platform-tinted Join. **(↻ REVISED by §9.1 — 2026-06-25 owner review.)**
 - Friend row: grid `3px | 42px | 1fr | auto` = platform spine · avatar (status ring + glyph) · name + custom-status-beside / world subline · instance-type pill (= join target). **(↻ BUILT per §9.1 — the old dot + `V`/`C` glyph + status pill + openness-in-subline + separate affordance is fully superseded.)**
 - Activity feed row (the **Activity** view + a Dashboard preview): reverse-chronological log of friend events — world/instance change, online/active/offline, status change, incoming/accepted friend request, joined-your-instance, group events. Reuses the channel system (platform spine+glyph, state dot, status pill, openness badge on location events, join affordance when joinable) + a small **event-type glyph** + a dim **relative timestamp** (Inter, NOT VT323). MAX user control: scope = **All / Friends / Favorites** (+ specific favorite groups); per-event-type toggles; per-platform via the segmented control. Local/private (derived from polling, stored as local history). Models VRCX Feed/Friend Log; CVR-lighter. (Tracked: VRX-144 + VRX-53 instance history.)
-- Segmented control: glass track; active = glass-gradient bubble + inset highlight. React: animate bubble via transform/width; reduce-motion shortens. NEVER fake selection with per-button bg.
+- Segmented control: glass track; active = glass-gradient bubble + inset highlight. React: animate bubble via transform/width; reduce-motion shortens. NEVER fake selection with per-button bg. Option order follows the §8 **center-neutral rule** (neutral/combined option in the middle).
 - Badges/pills: openness = neutral gray; platform glyph = platform-tinted square; VRChat status pill = labeled (§5).
 
 ## §9.1 Friends-UI redesign — owner real-data review (2026-06-25)
