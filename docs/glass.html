@@ -367,12 +367,12 @@
   /* §9 NumberStepper (VRX-78) — the hot-threshold quick control: glass track,
      one Tab stop (value = spinbutton), −/+ out of tab order. */
   .stepper{display:inline-flex;align-items:center;gap:2px;padding:4px}
-  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:8px;
+  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:999px;
     background:color-mix(in srgb, var(--text) 8%, transparent);color:var(--text);
     font:600 14px Inter,sans-serif;cursor:pointer}
   .stepper button:hover{background:color-mix(in srgb, var(--text) 14%, transparent)}
   .stepper button[disabled]{color:var(--text-faint);cursor:default}
-  .stepper .val{min-width:28px;text-align:center;font:600 12.5px Inter,sans-serif;color:var(--text)}
+  .stepper .val{min-width:36px;text-align:center;font:600 12.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:var(--text)}
 </style>
 </head>
 <body>

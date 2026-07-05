@@ -30,9 +30,12 @@ export default function NumberStepper({
     if (next !== value) onChange(next)
   }
 
+  // Buttons are CIRCLES (owner design round, VRX-187): the §3 concentric rule —
+  // .glass pill 20px − 4px inset = 16px, which on a 24px button IS a circle
+  // (same seating rule as the segmented bubble's 16px).
   const btnClass = (disabled: boolean): string =>
     [
-      'grid h-[24px] w-[24px] place-items-center rounded-[8px] border-0 text-[14px] font-semibold',
+      'grid h-[24px] w-[24px] place-items-center rounded-full border-0 text-[14px] font-semibold',
       'bg-[color-mix(in_srgb,var(--text)_8%,transparent)] motion-safe:transition-colors',
       disabled
         ? 'text-[var(--text-faint)] cursor-default'
@@ -73,7 +76,10 @@ export default function NumberStepper({
             set(max)
           }
         }}
-        className="min-w-[28px] text-center text-[12.5px] font-semibold text-[var(--text)] rounded-[8px] outline-offset-2"
+        // min-w-[36px] reserves THREE digits (owner, VRX-187): the pill's
+        // silhouette never morphs as the value moves — shorter values center
+        // in the fixed cell; tabular-nums keeps every digit the same width.
+        className="min-w-[36px] text-center text-[12.5px] font-semibold tabular-nums text-[var(--text)] rounded-full outline-offset-2"
       >
         {value}
       </span>

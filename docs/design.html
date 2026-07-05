@@ -274,12 +274,12 @@
   .anno span { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; padding: 3px 8px; }
 
   .stepper{display:inline-flex;align-items:center;gap:2px;padding:4px}
-  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:8px;
+  .stepper button{width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:999px;
     background:color-mix(in srgb, var(--text) 8%, transparent);color:var(--text);
     font:600 14px Inter,sans-serif;cursor:pointer}
   .stepper button:hover{background:color-mix(in srgb, var(--text) 14%, transparent)}
   .stepper button[disabled]{color:var(--text-faint);cursor:default}
-  .stepper .val{min-width:28px;text-align:center;font:600 12.5px Inter,sans-serif;color:var(--text)}
+  .stepper .val{min-width:36px;text-align:center;font:600 12.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:var(--text)}
 </style>
 </head>
 <body>
@@ -676,10 +676,10 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.1b</span> Number stepper</div>
-          <div class="el-sum">Bounded integer settings (VRX-78: the hot-instance threshold, 1–10). Glass track; ONE Tab stop — the value is the spinbutton (arrow/Home/End keys), the −/+ buttons sit outside the tab order with their own labels; at a bound the button dims but never leaves the DOM.</div>
+          <div class="el-sum">Bounded integer settings (VRX-78: the hot-instance threshold, 1–10). Glass track; −/+ are CIRCLES (§3 concentric: 20 − 4 = 16px ⇒ circle at 24px; VRX-187); the value cell reserves THREE digits (36px, tabular-nums) so the pill never morphs — shorter values center. ONE Tab stop — the value is the spinbutton (arrow/Home/End keys), the −/+ buttons sit outside the tab order with their own labels; at a bound the button dims but never leaves the DOM.</div>
           <div class="demo">
-            <span class="stepper glass"><button type="button" disabled>−</button><span class="val">2</span><button type="button">+</button></span>
-            <span class="stepper glass"><button type="button">−</button><span class="val">7</span><button type="button">+</button></span>
+            <span class="stepper glass"><button type="button" disabled>−</button><span class="val">1</span><button type="button">+</button></span>
+            <span class="stepper glass"><button type="button">−</button><span class="val">10</span><button type="button">+</button></span>
           </div>
           <div class="why">Same one-Tab-stop dialect as the segmented controls (roving focus, audit W5). Lives on the Dashboard hot header for quick access AND in Settings → Dashboard — both write <code style="font-family:var(--code)">settings.hotInstanceThreshold</code>.</div>
         </div>
