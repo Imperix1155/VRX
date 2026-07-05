@@ -29,7 +29,23 @@ export function buildTrayMenuTemplate({
   ]
 }
 
-export function createTray(mainWindow: Electron.BrowserWindow): Tray {
+export interface TrayHandle {
+  tray: Tray
+  /** Attach menu-refresh listeners to a (re)created window and sync the menu.
+   *  Call for EVERY window the app creates — macOS destroys the window on
+   *  close and `activate` makes a new one; without rewiring, the menu label
+   *  would go stale (Codex review, PR #118). */
+  wireWindow: (win: Electron.BrowserWindow) => void
+}
+
+/**
+ * `getWindow` resolves the CURRENT main window at CLICK TIME — the callbacks
+ * deliberately never close over a window instance, because on macOS the bound
+ * window can be destroyed and replaced (native close + dock activate); a
+ * captured reference would leave every tray action a silent no-op (Codex
+ * review, PR #118). Null/destroyed → the action no-ops safely.
+ */
+export function createTray(getWindow: () => Electron.BrowserWindow | null): TrayHandle {
   // macOS tray icons render at their source size — a 512px app icon would fill
   // the whole menu bar, so shrink to the conventional 16x16 tray size there.
   // Windows/Linux tray icons are fine at a larger size, so only macOS resizes.
@@ -40,20 +56,26 @@ export function createTray(mainWindow: Electron.BrowserWindow): Tray {
   const tray = new Tray(image)
   tray.setToolTip('VRX')
 
+  const live = (): Electron.BrowserWindow | null => {
+    const win = getWindow()
+    return win && !win.isDestroyed() ? win : null
+  }
+
+  const showCurrent = (): void => {
+    const win = live()
+    if (win) {
+      win.show()
+      win.focus()
+    }
+  }
+
   const refreshMenu = (): void => {
     tray.setContextMenu(
       Menu.buildFromTemplate(
         buildTrayMenuTemplate({
-          isVisible: mainWindow.isVisible(),
-          onShow: () => {
-            if (!mainWindow.isDestroyed()) {
-              mainWindow.show()
-              mainWindow.focus()
-            }
-          },
-          onHide: () => {
-            if (!mainWindow.isDestroyed()) mainWindow.hide()
-          },
+          isVisible: live()?.isVisible() ?? false,
+          onShow: showCurrent,
+          onHide: () => live()?.hide(),
           onQuit: () => {
             app.quit()
           }
@@ -62,16 +84,13 @@ export function createTray(mainWindow: Electron.BrowserWindow): Tray {
     )
   }
 
-  mainWindow.on('show', refreshMenu)
-  mainWindow.on('hide', refreshMenu)
-  refreshMenu()
+  const wireWindow = (win: Electron.BrowserWindow): void => {
+    win.on('show', refreshMenu)
+    win.on('hide', refreshMenu)
+    refreshMenu()
+  }
 
-  tray.on('double-click', () => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.show()
-      mainWindow.focus()
-    }
-  })
+  tray.on('double-click', showCurrent)
 
-  return tray
+  return { tray, wireWindow }
 }
