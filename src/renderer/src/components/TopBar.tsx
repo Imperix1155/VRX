@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useUiStore } from '../stores/ui'
+import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { useFriends } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
+import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
@@ -18,41 +19,42 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
   { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--cvr)' }
 ]
 
-export default function TopBar(): React.JSX.Element {
-  const { t } = useTranslation()
-  const activeTab = useUiStore((s) => s.activeTab)
-  const [platform, setPlatform] = useState<PlatformFilter>('all')
+// Category nav labels reuse the settings section-heading keys — one string per
+// concept (the sections' h2s are sr-only; this nav is their visible label).
+const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
+  appearance: 'settings.appearance.heading',
+  dashboard: 'settings.dashboard.heading'
+}
 
+// The platform filter is its OWN component so useSegmentedBubble mounts and
+// unmounts WITH the track it measures. When the hook lived in TopBar (which
+// never unmounts), swapping to Settings left its ResizeObserver watching the
+// detached track — the observer fires on detach with width 0 and the bubble
+// rendered 0-wide after every Settings round-trip (advisor finding, VRX-186).
+// The `platform` STATE stays lifted in TopBar so the selection survives the swap.
+function PlatformFilter({
+  platform,
+  onChange
+}: {
+  platform: PlatformFilter
+  onChange: (next: PlatformFilter) => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
   const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
 
   // Sliding bubble measured from the active button (labels are unequal widths —
-  // the shared hook owns the recipe; also used by SettingsView, VRX-183).
+  // the shared hook owns the recipe; also used by SegmentedControl, VRX-183).
   const { trackRef, bubble } = useSegmentedBubble(activeIndex)
 
-  // Real online count for the §8 status indicator — total across platforms.
-  // Online = active OR in-game presence (same definition as the dashboard's
-  // getDashboardStats). The friends queries are already cached (Friends/Dashboard
-  // views), so this re-uses them rather than fetching again.
-  const vrcFriends = useFriends('vrchat').data ?? []
-  const cvrFriends = useFriends('chilloutvr').data ?? []
-  const onlineCount = [...vrcFriends, ...cvrFriends].filter(
-    (f) => f.presence.state === 'active' || f.presence.state === 'in-game'
-  ).length
-
   return (
-    <div className="flex items-center gap-[18px] mb-[22px]">
-      {/* View title */}
-      <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
-        {t(VIEW_TITLE_KEYS[activeTab])}
-      </h1>
-
+    <>
       {/* Segmented control (§9: one bubble element, never per-button bg).
-          Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
-          here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
-          the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
+      Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
+      here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
+      the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
       {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
-          semantics with a roving tabindex (one Tab stop; arrows move the selection),
-          not N independent toggle buttons announced as pressed/unpressed. */}
+      semantics with a roving tabindex (one Tab stop; arrows move the selection),
+      not N independent toggle buttons announced as pressed/unpressed. */}
       <div
         ref={trackRef}
         className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
@@ -77,14 +79,14 @@ export default function TopBar(): React.JSX.Element {
             role="radio"
             aria-checked={platform === id}
             tabIndex={platform === id ? 0 : -1}
-            onClick={() => setPlatform(id)}
+            onClick={() => onChange(id)}
             onKeyDown={(e) => {
               const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
               if (next === null) return
               const target = SEG_ITEMS[next]
               if (target === undefined) return // modulo keeps next in range; narrows the index
               e.preventDefault()
-              setPlatform(target.id)
+              onChange(target.id)
               focusRadioSibling(e.currentTarget, next)
             }}
             className={[
@@ -101,7 +103,50 @@ export default function TopBar(): React.JSX.Element {
           </button>
         ))}
       </div>
+    </>
+  )
+}
 
+export default function TopBar(): React.JSX.Element {
+  const { t } = useTranslation()
+  const activeTab = useUiStore((s) => s.activeTab)
+  const settingsCategory = useUiStore((s) => s.settingsCategory)
+  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  const [platform, setPlatform] = useState<PlatformFilter>('all')
+
+  // Real online count for the §8 status indicator — total across platforms.
+  // Online = active OR in-game presence (same definition as the dashboard's
+  // getDashboardStats). The friends queries are already cached (Friends/Dashboard
+  // views), so this re-uses them rather than fetching again.
+  const vrcFriends = useFriends('vrchat').data ?? []
+  const cvrFriends = useFriends('chilloutvr').data ?? []
+  const onlineCount = [...vrcFriends, ...cvrFriends].filter(
+    (f) => f.presence.state === 'active' || f.presence.state === 'in-game'
+  ).length
+
+  return (
+    <div className="flex items-center gap-[18px] mb-[22px]">
+      {/* View title */}
+      <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
+        {t(VIEW_TITLE_KEYS[activeTab])}
+      </h1>
+
+      {/* CONTEXTUAL SLOT (owner, VRX-186): the top-bar control belongs to the
+          active view. Settings has no use for a platform filter — it shows the
+          settings CATEGORY nav here instead (mini-pages, §8 no-scroll rule). */}
+      {activeTab === 'settings' ? (
+        <div className="ml-[6px]">
+          <SegmentedControl
+            values={SETTINGS_CATEGORIES}
+            active={settingsCategory}
+            labelKeys={CATEGORY_LABEL_KEYS}
+            ariaLabel={t('settings.categories.aria')}
+            onChange={setSettingsCategory}
+          />
+        </div>
+      ) : (
+        <PlatformFilter platform={platform} onChange={setPlatform} />
+      )}
       {/* Online count with green pulse (§8) */}
       <div className="ml-auto text-[13px] text-[var(--text-dim)] flex items-center gap-[8px]">
         {/* Pulse dot — no keyframes in v1; motion-safe guard if animation is added later */}

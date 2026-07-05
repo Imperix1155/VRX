@@ -173,7 +173,10 @@ export interface AppStatus {
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────
 /** Canonical theme values — the single source for both the `Theme` type and the
  *  settings schema's `theme` enum (`@shared/settings`). */
-export const THEMES = ['dark', 'light', 'system'] as const
+// Order is the DISPLAY order (§8: System sits in the CENTER — it resolves to
+// either neighbor, same 'mixed option in the middle' logic as the platform
+// filter's All; owner-decided 2026-07-05, VRX-186).
+export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
 // ─── Instance-label scheme (VRX-183) ─────────────────────────────────────────
@@ -182,7 +185,10 @@ export type Theme = (typeof THEMES)[number]
  *  `chilloutvr` = CVR terms on both platforms,
  *  `platform-native` = each platform's own terms. Single source for both the
  *  `LabelScheme` type and the settings schema's `labelScheme` enum. */
-export const LABEL_SCHEMES = ['vrchat', 'chilloutvr', 'platform-native'] as const
+// Order is the DISPLAY order (§9 center-neutral rule: the mixed/both-platforms
+// option sits in the CENTER, the single-platform poles flank it — same shape as
+// the platform filter and the theme control; owner rule 2026-07-05).
+export const LABEL_SCHEMES = ['vrchat', 'platform-native', 'chilloutvr'] as const
 export type LabelScheme = (typeof LABEL_SCHEMES)[number]
 
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────

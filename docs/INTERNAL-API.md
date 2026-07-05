@@ -146,7 +146,7 @@ adapter lands).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen` | `setActiveTab`, `setDrawerOpen`, `toggleDrawer` |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
@@ -158,6 +158,7 @@ adapter lands).
 | `applyFriendEvent(friends, event)` | `utils/applyFriendEvent.ts` | Pure cache transition for every `AdapterEvent` (see §3 table) |
 | `mapLoginError(code)` | `utils/loginError.ts` | Adapter error code → i18n key; unknown codes collapse to generic (raw codes never reach users) |
 | `getDashboardStats` / `getHotInstances(friends, threshold?)` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`threshold` friends in one WORLD (`settings.hotInstanceThreshold`, default `HOT_INSTANCE_THRESHOLD`) |
+| `SegmentedControl` | `components/SegmentedControl.tsx` | Generic one-Tab-stop segmented radiogroup (measured bubble); used by SettingsView rows + TopBar's contextual category nav (VRX-186). TopBar's platform filter keeps its bespoke colored variant |
 | `NumberStepper` | `components/NumberStepper.tsx` | Reusable −/value/+ control for bounded integer settings; one Tab stop (spinbutton + arrow keys); used by Dashboard hot header + SettingsView (VRX-78) |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
@@ -230,4 +231,4 @@ the friend ladder with `isGroup` as the modifier) · `TrustRank` ·
 `AuthStatus`/`AuthState` (incl. `needs-2fa` + `twoFactorMethod`) ·
 `Credentials` (⚠️ never log) · `LoginResult` · `TwoFactorMethod` ·
 `AdapterEvent` (§3) · `ConnectionHealth` · `AppStatus` · `Account` ·
-`Settings`/`THEMES` (`@shared/settings`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
+`Settings` (`@shared/settings`) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.

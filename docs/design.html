@@ -669,17 +669,17 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           <div class="el-name"><span class="ix">9.1</span> Segmented control</div>
           <div class="el-sum">The platform filter. A glass track with a glass-gradient bubble on the active segment.</div>
           <div class="demo">
-            <div class="seg glass"><button class="on">All</button><button><span class="tagv">V</span> VRChat</button><button><span class="tagc">C</span> ChilloutVR</button></div>
+            <div class="seg glass"><button type="button"><span class="tagv">V</span> VRChat</button><button type="button" class="on">All</button><button type="button"><span class="tagc">C</span> ChilloutVR</button></div>
           </div>
-          <div class="why">In the React build the bubble animates with <code style="font-family:var(--code)">transform</code>/<code style="font-family:var(--code)">width</code> (reduce-motion shortens it). Never fake selection with per-button backgrounds.</div>
+          <div class="why">In the React build the bubble animates with <code style="font-family:var(--code)">transform</code>/<code style="font-family:var(--code)">width</code> (reduce-motion shortens it). Never fake selection with per-button backgrounds. Same control powers the Settings CATEGORY NAV — rendered in the TOP BAR's contextual slot in place of the platform filter, which is meaningless on Settings (mini-pages, §8 no-scroll rule). <b>Center-neutral rule (owner, core):</b> in EVERY segmented control the neutral/combined option sits in the CENTER — VRChat | <b>All</b> | ChilloutVR, Dark | <b>System</b> | Light, VRChat | <b>Per-platform</b> | ChilloutVR.</div>
         </div>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.1b</span> Number stepper</div>
           <div class="el-sum">Bounded integer settings (VRX-78: the hot-instance threshold, 1–10). Glass track; ONE Tab stop — the value is the spinbutton (arrow/Home/End keys), the −/+ buttons sit outside the tab order with their own labels; at a bound the button dims but never leaves the DOM.</div>
           <div class="demo">
-            <span class="stepper glass"><button disabled>−</button><span class="val">2</span><button>+</button></span>
-            <span class="stepper glass"><button>−</button><span class="val">7</span><button>+</button></span>
+            <span class="stepper glass"><button type="button" disabled>−</button><span class="val">2</span><button type="button">+</button></span>
+            <span class="stepper glass"><button type="button">−</button><span class="val">7</span><button type="button">+</button></span>
           </div>
           <div class="why">Same one-Tab-stop dialect as the segmented controls (roving focus, audit W5). Lives on the Dashboard hot header for quick access AND in Settings → Dashboard — both write <code style="font-family:var(--code)">settings.hotInstanceThreshold</code>.</div>
         </div>

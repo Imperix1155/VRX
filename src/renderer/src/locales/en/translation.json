@@ -49,6 +49,9 @@
       "label": "Hot instance threshold",
       "description": "Minimum friends in one world before it counts as hot.",
       "aria": "Hot instance threshold"
+    },
+    "categories": {
+      "aria": "Settings category"
     }
   },
   "error": {
