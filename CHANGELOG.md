@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-05
+
 ### Added
 
 - VRX now lives in the **system tray**: closing the window on Windows/Linux minimizes to the tray instead of quitting, double-clicking the tray icon brings VRX back, and the tray menu offers Show/Hide and Quit. macOS keeps its native close behavior. (VRX-112)
