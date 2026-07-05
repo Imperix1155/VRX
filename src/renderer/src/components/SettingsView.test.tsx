@@ -44,6 +44,11 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
+  it('renders NO in-panel category selector — the TopBar slot is the only one (owner rule)', () => {
+    render(<SettingsView />)
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()
+  })
+
   it('renders the theme options in Dark | System | Light order (System center, VRX-186)', () => {
     render(<SettingsView />)
     const themeGroup = screen.getByRole('radiogroup', { name: msg('settings.theme.aria') })

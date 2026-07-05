@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { LabelScheme, Theme } from '@shared/types'
 import { LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
-import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
+import { useUiStore } from '../stores/ui'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
@@ -17,12 +17,6 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
   vrchat: 'settings.labelScheme.vrchat',
   chilloutvr: 'settings.labelScheme.chilloutvr',
   'platform-native': 'settings.labelScheme.platformNative'
-}
-
-// Category nav labels reuse the section-heading keys — one string per concept.
-const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
-  appearance: 'settings.appearance.heading',
-  dashboard: 'settings.dashboard.heading'
 }
 
 /**
@@ -42,35 +36,20 @@ export default function SettingsView(): React.JSX.Element {
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
-  // (§8 no-scroll rule: control surfaces don't scroll, feeds do). Session state,
-  // deliberately not persisted.
+  // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
+  // nav lives in the TopBar's contextual slot (the ONLY selector — no in-panel
+  // duplicate, owner rule). Session state, deliberately not persisted.
   const category = useUiStore((s) => s.settingsCategory)
-  const setCategory = useUiStore((s) => s.setSettingsCategory)
 
   return (
     <div className="glass p-[var(--space-8)]">
       <div className="relative">
-        {/* ── Category nav — same one-Tab-stop segmented dialect as every other
-            selector; expands as categories are added (VRX-186) ── */}
-        <div className="mb-[var(--space-8)]">
-          <SegmentedControl
-            values={SETTINGS_CATEGORIES}
-            active={category}
-            labelKeys={CATEGORY_LABEL_KEYS}
-            ariaLabel={t('settings.categories.aria')}
-            onChange={setCategory}
-          />
-        </div>
-
         {/* ── Appearance page ── */}
         {category === 'appearance' && (
           <section aria-labelledby="settings-appearance-heading">
             {/* sr-only: the TopBar category nav shows this label visually — a
-
-                visible duplicate directly beneath reads twice (owner + advisor,
-
-                VRX-186); the heading stays for the section landmark/outline. */}
-
+                visible duplicate reads twice (owner + advisor, VRX-186); the
+                heading stays for the section landmark/outline. */}
             <h2 id="settings-appearance-heading" className="sr-only">
               {t('settings.appearance.heading')}
             </h2>
