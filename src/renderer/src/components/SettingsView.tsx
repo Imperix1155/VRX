@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import type { LabelScheme, Theme } from '@shared/types'
 import { LABEL_SCHEMES, THEMES } from '@shared/types'
-import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { useSettingsStore } from '../stores/settings'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
-import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import NumberStepper from './NumberStepper'
+import SegmentedControl from './SegmentedControl'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
@@ -24,81 +23,6 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
 const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   appearance: 'settings.appearance.heading',
   dashboard: 'settings.dashboard.heading'
-}
-
-/**
- * Segmented control (§9 pattern) shared by the settings rows. Radius: .glass's
- * 20px panel radius wins over any `rounded-[..]` here (see TopBar), so the
- * bubble is rounded-[16px] (= 20px − 4px inset) to seat concentrically into
- * the track. A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
- * arrows move the selection (same dialect as the TopBar filter).
- */
-function SegmentedSetting<T extends string>({
-  values,
-  active,
-  labelKeys,
-  ariaLabel,
-  onChange
-}: {
-  values: readonly T[]
-  active: T
-  labelKeys: Record<T, string>
-  ariaLabel: string
-  onChange: (value: T) => void
-}): React.JSX.Element {
-  const { t } = useTranslation()
-  const activeIndex = values.indexOf(active)
-
-  // Sliding bubble measured from the active button — labels are unequal widths
-  // ("VRChat" vs "Per platform"), so the old fixed 1/N-width CSS-calc bubble
-  // could not line up (it sat 10.5px off on the theme row's "System").
-  const { trackRef, bubble } = useSegmentedBubble(activeIndex)
-
-  return (
-    <div
-      ref={trackRef}
-      className="glass relative flex p-[4px] gap-[2px] shrink-0"
-      role="radiogroup"
-      aria-label={ariaLabel}
-    >
-      {/* Sliding bubble — left/width measured from the active button (see above) */}
-      <span
-        className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
-        style={{
-          left: `${bubble.left}px`,
-          width: `${bubble.width}px`,
-          background: 'var(--seg-bubble-bg)',
-          boxShadow: 'var(--seg-bubble-shadow)'
-        }}
-        aria-hidden="true"
-      />
-      {values.map((value, index) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={active === value}
-          tabIndex={active === value ? 0 : -1}
-          onClick={() => onChange(value)}
-          onKeyDown={(e) => {
-            const next = segArrowTarget(e.key, index, values.length)
-            const nextValue = next === null ? undefined : values[next]
-            if (next === null || nextValue === undefined) return
-            e.preventDefault()
-            onChange(nextValue)
-            focusRadioSibling(e.currentTarget, next)
-          }}
-          className={[
-            'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
-            'border-0 bg-transparent cursor-pointer motion-safe:transition-colors whitespace-nowrap',
-            active === value ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
-          ].join(' ')}
-        >
-          {t(labelKeys[value])}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 /**
@@ -129,7 +53,7 @@ export default function SettingsView(): React.JSX.Element {
         {/* ── Category nav — same one-Tab-stop segmented dialect as every other
             selector; expands as categories are added (VRX-186) ── */}
         <div className="mb-[var(--space-8)]">
-          <SegmentedSetting
+          <SegmentedControl
             values={SETTINGS_CATEGORIES}
             active={category}
             labelKeys={CATEGORY_LABEL_KEYS}
@@ -141,10 +65,13 @@ export default function SettingsView(): React.JSX.Element {
         {/* ── Appearance page ── */}
         {category === 'appearance' && (
           <section aria-labelledby="settings-appearance-heading">
-            <h2
-              id="settings-appearance-heading"
-              className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
-            >
+            {/* sr-only: the TopBar category nav shows this label visually — a
+
+                visible duplicate directly beneath reads twice (owner + advisor,
+
+                VRX-186); the heading stays for the section landmark/outline. */}
+
+            <h2 id="settings-appearance-heading" className="sr-only">
               {t('settings.appearance.heading')}
             </h2>
 
@@ -158,7 +85,7 @@ export default function SettingsView(): React.JSX.Element {
                   {t('settings.theme.description')}
                 </p>
               </div>
-              <SegmentedSetting
+              <SegmentedControl
                 values={THEMES}
                 active={theme}
                 labelKeys={THEME_LABEL_KEYS}
@@ -177,7 +104,7 @@ export default function SettingsView(): React.JSX.Element {
                   {t('settings.labelScheme.description')}
                 </p>
               </div>
-              <SegmentedSetting
+              <SegmentedControl
                 values={LABEL_SCHEMES}
                 active={labelScheme}
                 labelKeys={SCHEME_LABEL_KEYS}
@@ -191,10 +118,7 @@ export default function SettingsView(): React.JSX.Element {
         {/* ── Dashboard page ── */}
         {category === 'dashboard' && (
           <section aria-labelledby="settings-dashboard-heading">
-            <h2
-              id="settings-dashboard-heading"
-              className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
-            >
+            <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
 

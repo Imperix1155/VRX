@@ -6,9 +6,10 @@
  * summed across BOTH platforms, with the i18next _one/_other plural applied.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { Friend } from '@shared/types'
 import i18n from '../i18n'
+import { useUiStore } from '../stores/ui'
 import TopBar from './TopBar'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -35,6 +36,7 @@ function stubFriends(vrc: Friend[], cvr: Friend[]): void {
 afterEach(() => {
   cleanup()
   useFriendsMock.mockReset()
+  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
 })
 
 describe('TopBar onlineCount (W6)', () => {
@@ -57,5 +59,28 @@ describe('TopBar onlineCount (W6)', () => {
     useFriendsMock.mockImplementation(() => ({ data: undefined }))
     render(<TopBar />)
     expect(screen.getByText(i18n.t('shell.onlineCount', { count: 0 }))).toBeTruthy()
+  })
+})
+
+describe('TopBar contextual slot (VRX-186)', () => {
+  const msg = (key: string): string => i18n.t(key)
+
+  it('shows the platform filter on content views, never the category nav', () => {
+    stubFriends([], [])
+    render(<TopBar />)
+    expect(screen.getByRole('radiogroup', { name: msg('shell.seg.aria') })).toBeTruthy()
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()
+  })
+
+  it('on Settings, swaps in the category nav and drops the platform filter', () => {
+    stubFriends([], [])
+    useUiStore.setState({ activeTab: 'settings' })
+    render(<TopBar />)
+    expect(screen.queryByRole('radiogroup', { name: msg('shell.seg.aria') })).toBeNull()
+    const nav = screen.getByRole('radiogroup', { name: msg('settings.categories.aria') })
+    expect(nav).toBeTruthy()
+    // Switching a category writes the ui store the SettingsView reads.
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.dashboard.heading') }))
+    expect(useUiStore.getState().settingsCategory).toBe('dashboard')
   })
 })

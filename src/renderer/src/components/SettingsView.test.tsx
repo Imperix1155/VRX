@@ -4,7 +4,7 @@
  * hot-threshold row — stepper reflects the store and writes back through
  * updateSettings. jsdom renders client-side, so the REAL zustand store applies.
  */
-import { fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -31,18 +31,17 @@ afterEach(() => {
 })
 
 describe('SettingsView — category mini-pages (VRX-186)', () => {
-  it('shows one category at a time and switches via the nav (no-scroll rule)', () => {
+  it('shows one category at a time, driven by the ui store (nav lives in the TopBar)', () => {
     render(<SettingsView />)
     // Appearance is the landing page: theme row visible, threshold row absent.
     expect(screen.getByText(msg('settings.theme.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.hotThreshold.label'))).toBeNull()
 
-    // Switch to Dashboard via the category nav.
-    fireEvent.click(screen.getByRole('radio', { name: msg('settings.dashboard.heading') }))
+    // The category nav renders in the TopBar (contextual slot — see
+    // TopBar.test); the view reacts to the store it writes.
+    act(() => useUiStore.setState({ settingsCategory: 'dashboard' }))
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
-    // Session state survives in the ui store.
-    expect(useUiStore.getState().settingsCategory).toBe('dashboard')
   })
 
   it('renders the theme options in Dark | System | Light order (System center, VRX-186)', () => {

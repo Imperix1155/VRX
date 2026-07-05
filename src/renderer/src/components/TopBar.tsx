@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useUiStore } from '../stores/ui'
+import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { useFriends } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
+import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
@@ -18,9 +19,18 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
   { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--cvr)' }
 ]
 
+// Category nav labels reuse the settings section-heading keys — one string per
+// concept (the sections' h2s are sr-only; this nav is their visible label).
+const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
+  appearance: 'settings.appearance.heading',
+  dashboard: 'settings.dashboard.heading'
+}
+
 export default function TopBar(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
+  const settingsCategory = useUiStore((s) => s.settingsCategory)
+  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   const [platform, setPlatform] = useState<PlatformFilter>('all')
 
   const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
@@ -46,62 +56,82 @@ export default function TopBar(): React.JSX.Element {
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 
-      {/* Segmented control (§9: one bubble element, never per-button bg).
+      {/* CONTEXTUAL SLOT (owner, VRX-186): the top-bar control belongs to the
+          active view. Settings has no use for a platform filter — it shows the
+          settings CATEGORY nav here instead (mini-pages, §8 no-scroll rule). */}
+      {activeTab === 'settings' ? (
+        <div className="ml-[6px]">
+          <SegmentedControl
+            values={SETTINGS_CATEGORIES}
+            active={settingsCategory}
+            labelKeys={CATEGORY_LABEL_KEYS}
+            ariaLabel={t('settings.categories.aria')}
+            onChange={setSettingsCategory}
+          />
+        </div>
+      ) : (
+        <>
+          {/* Segmented control (§9: one bubble element, never per-button bg).
           Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
           here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
           the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
-      {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
+          {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
           semantics with a roving tabindex (one Tab stop; arrows move the selection),
           not N independent toggle buttons announced as pressed/unpressed. */}
-      <div
-        ref={trackRef}
-        className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
-        role="radiogroup"
-        aria-label={t('shell.seg.aria')}
-      >
-        {/* Sliding bubble — left/width measured from the active button (see above) */}
-        <span
-          className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
-          style={{
-            left: `${bubble.left}px`,
-            width: `${bubble.width}px`,
-            background: 'var(--seg-bubble-bg)',
-            boxShadow: 'var(--seg-bubble-shadow)'
-          }}
-          aria-hidden="true"
-        />
-        {SEG_ITEMS.map(({ id, key, color }, index) => (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={platform === id}
-            tabIndex={platform === id ? 0 : -1}
-            onClick={() => setPlatform(id)}
-            onKeyDown={(e) => {
-              const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
-              if (next === null) return
-              const target = SEG_ITEMS[next]
-              if (target === undefined) return // modulo keeps next in range; narrows the index
-              e.preventDefault()
-              setPlatform(target.id)
-              focusRadioSibling(e.currentTarget, next)
-            }}
-            className={[
-              'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
-              'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',
-              'motion-safe:transition-colors',
-              // Platform words carry their own color always; "All" is neutral
-              // (active = full text, inactive = dim).
-              color != null ? '' : platform === id ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
-            ].join(' ')}
-            style={color != null ? { color } : undefined}
+          <div
+            ref={trackRef}
+            className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
+            role="radiogroup"
+            aria-label={t('shell.seg.aria')}
           >
-            {t(key)}
-          </button>
-        ))}
-      </div>
-
+            {/* Sliding bubble — left/width measured from the active button (see above) */}
+            <span
+              className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
+              style={{
+                left: `${bubble.left}px`,
+                width: `${bubble.width}px`,
+                background: 'var(--seg-bubble-bg)',
+                boxShadow: 'var(--seg-bubble-shadow)'
+              }}
+              aria-hidden="true"
+            />
+            {SEG_ITEMS.map(({ id, key, color }, index) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={platform === id}
+                tabIndex={platform === id ? 0 : -1}
+                onClick={() => setPlatform(id)}
+                onKeyDown={(e) => {
+                  const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
+                  if (next === null) return
+                  const target = SEG_ITEMS[next]
+                  if (target === undefined) return // modulo keeps next in range; narrows the index
+                  e.preventDefault()
+                  setPlatform(target.id)
+                  focusRadioSibling(e.currentTarget, next)
+                }}
+                className={[
+                  'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
+                  'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',
+                  'motion-safe:transition-colors',
+                  // Platform words carry their own color always; "All" is neutral
+                  // (active = full text, inactive = dim).
+                  color != null
+                    ? ''
+                    : platform === id
+                      ? 'text-[var(--text)]'
+                      : 'text-[var(--text-dim)]'
+                ].join(' ')}
+                style={color != null ? { color } : undefined}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {/* Online count with green pulse (§8) */}
       <div className="ml-auto text-[13px] text-[var(--text-dim)] flex items-center gap-[8px]">
         {/* Pulse dot — no keyframes in v1; motion-safe guard if animation is added later */}
