@@ -11,9 +11,10 @@ export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'instances' | 'gr
  * anything persisted. `density` is a persisted user setting, so it lives in the
  * settings store, not here.
  */
-/** Settings category mini-pages (VRX-186). Extend as sections are added. */
-export type SettingsCategory = 'appearance' | 'dashboard'
-export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = ['appearance', 'dashboard']
+/** Settings category mini-pages (VRX-186). Extend as sections are added —
+ *  the array order is the nav's display order (THEMES pattern). */
+export const SETTINGS_CATEGORIES = ['appearance', 'dashboard'] as const
+export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]
 
 interface UiState {
   activeTab: ActiveTab

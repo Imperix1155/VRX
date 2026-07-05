@@ -146,7 +146,7 @@ adapter lands).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen` | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`  `settingsCategory`/`setSettingsCategory` + `SETTINGS_CATEGORIES` — Settings mini-page nav, session-only (VRX-186) |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
@@ -230,4 +230,4 @@ the friend ladder with `isGroup` as the modifier) · `TrustRank` ·
 `AuthStatus`/`AuthState` (incl. `needs-2fa` + `twoFactorMethod`) ·
 `Credentials` (⚠️ never log) · `LoginResult` · `TwoFactorMethod` ·
 `AdapterEvent` (§3) · `ConnectionHealth` · `AppStatus` · `Account` ·
-`Settings`/`THEMES` (`@shared/settings`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
+`Settings` (`@shared/settings`) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.

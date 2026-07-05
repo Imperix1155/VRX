@@ -38,11 +38,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.hotThreshold.label'))).toBeNull()
 
     // Switch to Dashboard via the category nav.
-    const nav = screen.getByRole('radiogroup', { name: msg('settings.categories.aria') })
-    const dashboardTab = [...nav.querySelectorAll('[role="radio"]')].find(
-      (b) => b.textContent === msg('settings.dashboard.heading')
-    )!
-    fireEvent.click(dashboardTab)
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.dashboard.heading') }))
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
     // Session state survives in the ui store.
