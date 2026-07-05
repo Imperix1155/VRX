@@ -26,18 +26,93 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   dashboard: 'settings.dashboard.heading'
 }
 
+// The platform filter is its OWN component so useSegmentedBubble mounts and
+// unmounts WITH the track it measures. When the hook lived in TopBar (which
+// never unmounts), swapping to Settings left its ResizeObserver watching the
+// detached track — the observer fires on detach with width 0 and the bubble
+// rendered 0-wide after every Settings round-trip (advisor finding, VRX-186).
+// The `platform` STATE stays lifted in TopBar so the selection survives the swap.
+function PlatformFilter({
+  platform,
+  onChange
+}: {
+  platform: PlatformFilter
+  onChange: (next: PlatformFilter) => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
+
+  // Sliding bubble measured from the active button (labels are unequal widths —
+  // the shared hook owns the recipe; also used by SegmentedControl, VRX-183).
+  const { trackRef, bubble } = useSegmentedBubble(activeIndex)
+
+  return (
+    <>
+      {/* Segmented control (§9: one bubble element, never per-button bg).
+      Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
+      here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
+      the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
+      {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
+      semantics with a roving tabindex (one Tab stop; arrows move the selection),
+      not N independent toggle buttons announced as pressed/unpressed. */}
+      <div
+        ref={trackRef}
+        className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
+        role="radiogroup"
+        aria-label={t('shell.seg.aria')}
+      >
+        {/* Sliding bubble — left/width measured from the active button (see above) */}
+        <span
+          className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
+          style={{
+            left: `${bubble.left}px`,
+            width: `${bubble.width}px`,
+            background: 'var(--seg-bubble-bg)',
+            boxShadow: 'var(--seg-bubble-shadow)'
+          }}
+          aria-hidden="true"
+        />
+        {SEG_ITEMS.map(({ id, key, color }, index) => (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={platform === id}
+            tabIndex={platform === id ? 0 : -1}
+            onClick={() => onChange(id)}
+            onKeyDown={(e) => {
+              const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
+              if (next === null) return
+              const target = SEG_ITEMS[next]
+              if (target === undefined) return // modulo keeps next in range; narrows the index
+              e.preventDefault()
+              onChange(target.id)
+              focusRadioSibling(e.currentTarget, next)
+            }}
+            className={[
+              'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
+              'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',
+              'motion-safe:transition-colors',
+              // Platform words carry their own color always; "All" is neutral
+              // (active = full text, inactive = dim).
+              color != null ? '' : platform === id ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
+            ].join(' ')}
+            style={color != null ? { color } : undefined}
+          >
+            {t(key)}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export default function TopBar(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
   const settingsCategory = useUiStore((s) => s.settingsCategory)
   const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   const [platform, setPlatform] = useState<PlatformFilter>('all')
-
-  const activeIndex = SEG_ITEMS.findIndex((s) => s.id === platform)
-
-  // Sliding bubble measured from the active button (labels are unequal widths —
-  // the shared hook owns the recipe; also used by SettingsView, VRX-183).
-  const { trackRef, bubble } = useSegmentedBubble(activeIndex)
 
   // Real online count for the §8 status indicator — total across platforms.
   // Online = active OR in-game presence (same definition as the dashboard's
@@ -70,67 +145,7 @@ export default function TopBar(): React.JSX.Element {
           />
         </div>
       ) : (
-        <>
-          {/* Segmented control (§9: one bubble element, never per-button bg).
-          Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
-          here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
-          the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
-          {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
-          semantics with a roving tabindex (one Tab stop; arrows move the selection),
-          not N independent toggle buttons announced as pressed/unpressed. */}
-          <div
-            ref={trackRef}
-            className="glass relative flex p-[4px] gap-[2px] ml-[6px]"
-            role="radiogroup"
-            aria-label={t('shell.seg.aria')}
-          >
-            {/* Sliding bubble — left/width measured from the active button (see above) */}
-            <span
-              className="absolute top-[4px] bottom-[4px] rounded-[16px] pointer-events-none motion-safe:transition-all motion-safe:duration-200"
-              style={{
-                left: `${bubble.left}px`,
-                width: `${bubble.width}px`,
-                background: 'var(--seg-bubble-bg)',
-                boxShadow: 'var(--seg-bubble-shadow)'
-              }}
-              aria-hidden="true"
-            />
-            {SEG_ITEMS.map(({ id, key, color }, index) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={platform === id}
-                tabIndex={platform === id ? 0 : -1}
-                onClick={() => setPlatform(id)}
-                onKeyDown={(e) => {
-                  const next = segArrowTarget(e.key, index, SEG_ITEMS.length)
-                  if (next === null) return
-                  const target = SEG_ITEMS[next]
-                  if (target === undefined) return // modulo keeps next in range; narrows the index
-                  e.preventDefault()
-                  setPlatform(target.id)
-                  focusRadioSibling(e.currentTarget, next)
-                }}
-                className={[
-                  'relative z-10 flex-1 text-[12.5px] font-bold uppercase tracking-wide px-[13px] py-[6px] rounded-[9px]',
-                  'inline-flex items-center justify-center border-0 bg-transparent cursor-pointer',
-                  'motion-safe:transition-colors',
-                  // Platform words carry their own color always; "All" is neutral
-                  // (active = full text, inactive = dim).
-                  color != null
-                    ? ''
-                    : platform === id
-                      ? 'text-[var(--text)]'
-                      : 'text-[var(--text-dim)]'
-                ].join(' ')}
-                style={color != null ? { color } : undefined}
-              >
-                {t(key)}
-              </button>
-            ))}
-          </div>
-        </>
+        <PlatformFilter platform={platform} onChange={setPlatform} />
       )}
       {/* Online count with green pulse (§8) */}
       <div className="ml-auto text-[13px] text-[var(--text-dim)] flex items-center gap-[8px]">

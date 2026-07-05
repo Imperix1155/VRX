@@ -83,4 +83,27 @@ describe('TopBar contextual slot (VRX-186)', () => {
     fireEvent.click(screen.getByRole('radio', { name: msg('settings.dashboard.heading') }))
     expect(useUiStore.getState().settingsCategory).toBe('dashboard')
   })
+
+  it('platform selection survives a Settings round-trip (state lifted above the swap)', () => {
+    stubFriends([], [])
+    const { rerender } = render(<TopBar />)
+    fireEvent.click(screen.getByRole('radio', { name: msg('shell.seg.chilloutvrShort') }))
+    expect(
+      screen
+        .getByRole('radio', { name: msg('shell.seg.chilloutvrShort') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+
+    // Into Settings (filter unmounts) and back — the selection must persist.
+    useUiStore.setState({ activeTab: 'settings' })
+    rerender(<TopBar />)
+    expect(screen.queryByRole('radiogroup', { name: msg('shell.seg.aria') })).toBeNull()
+    useUiStore.setState({ activeTab: 'dashboard' })
+    rerender(<TopBar />)
+    expect(
+      screen
+        .getByRole('radio', { name: msg('shell.seg.chilloutvrShort') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
 })
