@@ -1,10 +1,10 @@
 /**
  * tray.test.ts (VRX-112)
  *
- * Unit-tests the pure template builder only. electron is neutralized with a
- * bare mock so importing tray.ts (which pulls in Tray/Menu/nativeImage at
- * module scope) doesn't touch the real module — createTray itself is not
- * exercised here.
+ * Two layers: the pure template builder (no electron at all), and createTray's
+ * click-time window resolution + wireWindow menu refresh (electron mocked with
+ * just enough surface — Tray/Menu/nativeImage/app — to capture what the tray
+ * wires up; the Codex regression on PR #118 lives in the second layer).
  */
 import { describe, expect, it, vi } from 'vitest'
 
@@ -110,6 +110,26 @@ describe('createTray — click-time window resolution (Codex regression, PR #118
     expect(first.show).not.toHaveBeenCalled()
     expect(second.show).toHaveBeenCalledOnce()
     expect(second.focus).toHaveBeenCalledOnce()
+  })
+
+  it('wireWindow attaches show/hide menu-refresh listeners and syncs the menu', () => {
+    const win = fakeWindow()
+    const winListeners = new Map<string, () => void>()
+    win.on = ((event: string, cb: () => void): void => {
+      winListeners.set(event, cb)
+    }) as never
+    const { wireWindow } = createTray(() => win as never)
+
+    captured.lastTemplate = []
+    wireWindow(win as never)
+    // Immediate sync: the menu was rebuilt with the visible-window label.
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
+    expect([...winListeners.keys()].sort()).toEqual(['hide', 'show'])
+
+    // A hide event refreshes the menu to the hidden-window label.
+    win.isVisible = () => false
+    winListeners.get('hide')!()
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Show VRX' })
   })
 
   it('tray actions no-op safely when no live window exists', () => {
