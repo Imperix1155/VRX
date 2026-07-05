@@ -140,82 +140,84 @@ export default function SettingsView(): React.JSX.Element {
 
         {/* ── Appearance page ── */}
         {category === 'appearance' && (
-        <section aria-labelledby="settings-appearance-heading">
-          <h2
-            id="settings-appearance-heading"
-            className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
-          >
-            {t('settings.appearance.heading')}
-          </h2>
+          <section aria-labelledby="settings-appearance-heading">
+            <h2
+              id="settings-appearance-heading"
+              className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
+            >
+              {t('settings.appearance.heading')}
+            </h2>
 
-          {/* Theme row */}
-          <div className="flex items-center justify-between gap-[var(--space-6)]">
-            <div>
-              <p className="text-sm font-medium text-[var(--text)]">{t('settings.theme.label')}</p>
-              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                {t('settings.theme.description')}
-              </p>
+            {/* Theme row */}
+            <div className="flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.theme.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.theme.description')}
+                </p>
+              </div>
+              <SegmentedSetting
+                values={THEMES}
+                active={theme}
+                labelKeys={THEME_LABEL_KEYS}
+                ariaLabel={t('settings.theme.aria')}
+                onChange={(value) => updateSettings({ theme: value })}
+              />
             </div>
-            <SegmentedSetting
-              values={THEMES}
-              active={theme}
-              labelKeys={THEME_LABEL_KEYS}
-              ariaLabel={t('settings.theme.aria')}
-              onChange={(value) => updateSettings({ theme: value })}
-            />
-          </div>
 
-          {/* Instance-labels row (VRX-183) */}
-          <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-            <div>
-              <p className="text-sm font-medium text-[var(--text)]">
-                {t('settings.labelScheme.label')}
-              </p>
-              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                {t('settings.labelScheme.description')}
-              </p>
+            {/* Instance-labels row (VRX-183) */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.labelScheme.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.labelScheme.description')}
+                </p>
+              </div>
+              <SegmentedSetting
+                values={LABEL_SCHEMES}
+                active={labelScheme}
+                labelKeys={SCHEME_LABEL_KEYS}
+                ariaLabel={t('settings.labelScheme.aria')}
+                onChange={(value) => updateSettings({ labelScheme: value })}
+              />
             </div>
-            <SegmentedSetting
-              values={LABEL_SCHEMES}
-              active={labelScheme}
-              labelKeys={SCHEME_LABEL_KEYS}
-              ariaLabel={t('settings.labelScheme.aria')}
-              onChange={(value) => updateSettings({ labelScheme: value })}
-            />
-          </div>
-        </section>
+          </section>
         )}
 
         {/* ── Dashboard page ── */}
         {category === 'dashboard' && (
-        <section aria-labelledby="settings-dashboard-heading">
-          <h2
-            id="settings-dashboard-heading"
-            className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
-          >
-            {t('settings.dashboard.heading')}
-          </h2>
+          <section aria-labelledby="settings-dashboard-heading">
+            <h2
+              id="settings-dashboard-heading"
+              className="text-xs font-semibold uppercase tracking-widest text-[var(--text-faint)] mb-[var(--space-6)]"
+            >
+              {t('settings.dashboard.heading')}
+            </h2>
 
-          {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
+            {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
               Dashboard's hot-instances header; both write the same setting. */}
-          <div className="flex items-center justify-between gap-[var(--space-6)]">
-            <div>
-              <p className="text-sm font-medium text-[var(--text)]">
-                {t('settings.hotThreshold.label')}
-              </p>
-              <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                {t('settings.hotThreshold.description')}
-              </p>
+            <div className="flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.hotThreshold.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.hotThreshold.description')}
+                </p>
+              </div>
+              <NumberStepper
+                value={hotThreshold}
+                min={HOT_INSTANCE_THRESHOLD_MIN}
+                max={HOT_INSTANCE_THRESHOLD_MAX}
+                onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+                ariaLabel={t('settings.hotThreshold.aria')}
+              />
             </div>
-            <NumberStepper
-              value={hotThreshold}
-              min={HOT_INSTANCE_THRESHOLD_MIN}
-              max={HOT_INSTANCE_THRESHOLD_MAX}
-              onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
-              ariaLabel={t('settings.hotThreshold.aria')}
-            />
-          </div>
-        </section>
+          </section>
         )}
       </div>
     </div>
