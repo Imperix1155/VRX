@@ -16,8 +16,25 @@ import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdap
 import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
+import { createTray } from './tray'
 
-function createWindow(): void {
+// Set true by the before-quit handler below — the single source of truth for
+// every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
+// before a window's own 'close' event, so the close handler below always reads
+// the up-to-date value (VRX-112). EXCEPTION (advisor F1): autoUpdater's
+// quitAndInstall() reverses that order — if a "restart to update" path is ever
+// added, set `quitting = true` BEFORE calling it or close-to-tray will swallow
+// the close and stall the install in the tray.
+let quitting = false
+
+// Module-scope Tray retention (see whenReady) — if the Tray object is GC'd the
+// icon silently vanishes. `currentWindow` is the click-time resolution target
+// for tray actions: macOS destroys the window on close and `activate` replaces
+// it, so the tray must never capture a window instance (Codex, PR #118).
+let trayHandle: import('./tray').TrayHandle | null = null
+let currentWindow: import('electron').BrowserWindow | null = null
+
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -131,6 +148,19 @@ function createWindow(): void {
         log.warn('unresponsive dialog rejected', { message: String(err) })
       })
   })
+
+  // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
+  // window instead of quitting — the app keeps running in the tray. macOS
+  // keeps its default close behavior (the app itself stays open via
+  // window-all-closed below; the tray is just an extra affordance there).
+  mainWindow.on('close', (event) => {
+    if (!quitting && process.platform !== 'darwin') {
+      event.preventDefault()
+      mainWindow.hide()
+    }
+  })
+
+  return mainWindow
 }
 
 // ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
@@ -228,9 +258,17 @@ app
     app.on('before-quit', () => {
       // Close the socket and halt the reconnect loop so quit is clean.
       unsubscribeLive()
+      // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
+      // app menu) — before-quit always fires before a window's own 'close'
+      // event, so the close-to-tray handler in createWindow() always sees the
+      // up-to-date value (VRX-112; sole exception: quitAndInstall — see the
+      // `quitting` declaration).
+      quitting = true
     })
 
-    createWindow()
+    currentWindow = createWindow()
+    trayHandle = createTray(() => currentWindow)
+    trayHandle.wireWindow(currentWindow)
 
     // Check GitHub Releases for updates on startup (packaged builds only).
     // Own try/catch: a sync throw here would otherwise reach the bootstrap
@@ -246,8 +284,13 @@ app
 
     app.on('activate', function () {
       // On macOS it's common to re-create a window in the app when the
-      // dock icon is clicked and there are no other windows open.
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      // dock icon is clicked and there are no other windows open. The tray
+      // resolves windows at click time, so updating `currentWindow` + rewiring
+      // the menu listeners is all the rebinding it needs (Codex, PR #118).
+      if (BrowserWindow.getAllWindows().length === 0) {
+        currentWindow = createWindow()
+        trayHandle?.wireWindow(currentWindow)
+      }
     })
   })
   .catch((error: unknown) => {

@@ -195,6 +195,7 @@ adapter lands).
 | `isAllowedUrl(url)` / `isAllowedLaunchUrl(url)` | `ipc/url-allowlist.ts` | HTTPS-allowlist / `vrchat://launch` gates before any `shell.openExternal` |
 | `saveCredential` / `loadCredential` / `clearCredential` | `services/credentials.ts` | The ONLY path for persisted secrets (safeStorage; keys in `CREDENTIAL_KEYS`) |
 | `loadSettings` / `saveSettings` | `services/settings.ts` | Persisted settings (migrate+validate on read; never throws) |
+| `buildTrayMenuTemplate` / `createTray` | `tray.ts` | System tray (VRX-112): pure menu-template builder (testable) + Tray/Menu wiring — Show/Hide toggle, Quit; double-click shows; close-to-tray on Win/Linux via the `quitting` flag |
 | `log` / `initLogger` / `getLogFilePath` | `logger.ts` | electron-log with the redaction hook — never `console.*` in main |
 
 ## 7. Shared constants ([`src/shared/constants.ts`](../src/shared/constants.ts))
