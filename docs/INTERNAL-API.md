@@ -113,13 +113,15 @@ every platform must implement. Registered per-platform in `main/index.ts`
 | `selfInvite(id)` | Invite self to a non-public instance | ✅ |
 | `subscribe(handler)` | Live `AdapterEvent` stream; returns `Unsubscribe`. One shared pipeline per adapter | ✅ |
 
+**ChilloutVR adapter** ([`CvrAdapter`](../src/main/services/adapters/CvrAdapter.ts), VRX-37/58/174) is now concrete and registered alongside VRChat. Parity notes: `login` (password → AuthType 2) and session validation (`getAuthStatus` → AuthType 1 reauth) both use the **breaker-free** `authenticateRaw` so validation failures can't lock out login; a dead key (401) clears the session everywhere; accessKey rotation is persisted; `getFriends` returns the roster (below), presence arrives via `subscribe` → `CvrPipeline`. CVR has **no 2FA** (`verify2fa` rejects); `importSession` = stub (VRX-56); instances = stub (VRX-59/60); `selfInvite` unsupported. Session `{username, accessKey}` persists as one `safeStorage` blob (`CHILLOUTVR_PRIMARY`, shape-guarded); the password never persists/logs.
+
 **WS clients:** [`ReconnectingPipeline`](../src/main/services/adapters/ReconnectingPipeline.ts)
 is the shared lifecycle base (backoff, generation counter, `isOpen` send gate)
 — **extend it, never fork it**. Concrete: `vrchat/VrcPipeline` (receive-only,
 double-encoded envelope), `cvr/CvrPipeline` (header-auth, bidirectional
 `sendFriendRequest`/`acceptFriendRequest`/`declineFriendRequest`/`unfriend`/
-`sendInvite`/`requestInvite`/`block`/`unblock` — built, unwired until the CVR
-adapter lands).
+`sendInvite`/`requestInvite`/`block`/`unblock` — wired via `CvrAdapter.subscribe`,
+VRX-58).
 
 ## 5. Renderer: hooks, queries, stores
 
@@ -129,8 +131,8 @@ adapter lands).
 | --- | --- | --- |
 | `useFriends(platform)` | `queries/friends.ts` | SWR; `staleTime`/`refetchInterval` = `FRIENDS_RECONCILE_MS` (the slow reconcile — WS is the live path) |
 | `friendsQueryKey(platform)` | `queries/friends.ts` | `['friends', platform]` — use THIS for any cache read/write, never a literal |
-| `useAuthStatus()` | `queries/auth.ts` | Invalidation-driven, never polled; drives the App auth gate |
-| `authStatusQueryKey` | `queries/auth.ts` | Invalidate after login/verify to re-check the gate |
+| `useAuthStatus(platform?)` | `queries/auth.ts` | Invalidation-driven, never polled. Defaults to `'vrchat'` (the App gate); `'chilloutvr'` drives the Settings → Accounts card (VRX-37) |
+| `authStatusQueryKey(platform?)` | `queries/auth.ts` | Per-platform key; invalidate after login/verify to re-check that platform's status |
 | `queryClient` config | `queries/queryClient.ts` | No refetch-on-focus; retry+backoff per rate-limit etiquette |
 
 ### Hooks
@@ -146,7 +148,7 @@ adapter lands).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**accounts**) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
@@ -160,6 +162,7 @@ adapter lands).
 | `getDashboardStats` / `getHotInstances(friends, threshold?)` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`threshold` friends in one WORLD (`settings.hotInstanceThreshold`, default `HOT_INSTANCE_THRESHOLD`) |
 | `SegmentedControl` | `components/SegmentedControl.tsx` | Generic one-Tab-stop segmented radiogroup (measured bubble); used by SettingsView rows + TopBar's contextual category nav (VRX-186). TopBar's platform filter keeps its bespoke colored variant |
 | `NumberStepper` | `components/NumberStepper.tsx` | Reusable −/value/+ control for bounded integer settings; one Tab stop (spinbutton + arrow keys); used by Dashboard hot header + SettingsView (VRX-78) |
+| `ChilloutVrAccountCard` | `components/ChilloutVrAccountCard.tsx` | Settings → Accounts sign-in card (VRX-37): `useAuthStatus('chilloutvr')` → connect form (calls `window.vrx.login({ platform:'chilloutvr', … })`, clears the password after each attempt, no fabricated 2FA) or connected state; §5 CVR-orange tint via glyph only |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
 | `LABEL_KEYS_BY_SCHEME` | `utils/instanceTypeLabels.ts` | `LabelScheme` → (`InstanceType` → pill-label i18n key). Schemes: `vrchat` (default, VRX-182 baseline — CVR types resolve to their tier's VRChat label), `chilloutvr` (the reverse), `platform-native` (identity — data is platform-true). Keyed off `settings.labelScheme` (VRX-183). Shared by FriendsList + DashboardView |
@@ -186,6 +189,8 @@ adapter lands).
 | --- | --- |
 | `parseCvrPrivacy(privacy)` | Privacy string → `{type, openness, isGroup}`; unknown → most-restrictive |
 | `CvrPipeline` (+ `CVR_RESPONSE` / `CVR_REQUEST` catalogs) | The live WS client + wire type constants (see §4) |
+| `fetchCvrFriends(fetcher)` | Single flat `GET /friends` → normalized `CvrFriend[]` (presence offline until the WS updates); per-entry defensive skip with counts; total failure throws (VRX-57). Pure, DI'd |
+| `extractCvrPlatformUserId(id)` | CVR GUID → stable lowercased `platformUserId` (survives display-name changes); rejects malformed (VRX-61) |
 
 ### Cross-cutting (`main/`)
 

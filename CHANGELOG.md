@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Connect your ChilloutVR account.** Settings → Accounts now has a ChilloutVR sign-in. Once connected, your CVR friends and their live presence show up alongside VRChat, and the session is remembered across restarts — stored encrypted, and your password is never saved. (VRX-37 / VRX-57 / VRX-58 / VRX-174)
+
 ## [0.3.0] - 2026-07-05
 
 ### Changed
