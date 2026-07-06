@@ -17,7 +17,7 @@ import App from './App'
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
 vi.mock('./queries/auth', () => ({
   useAuthStatus: useAuthStatusMock,
-  authStatusQueryKey: ['auth-status', 'vrchat']
+  authStatusQueryKey: (platform: string = 'vrchat') => ['auth-status', platform]
 }))
 // useApplyTheme touches matchMedia (absent in jsdom) — not under test here.
 vi.mock('./hooks/useApplyTheme', () => ({ useApplyTheme: vi.fn() }))

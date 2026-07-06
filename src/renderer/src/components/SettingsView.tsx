@@ -3,6 +3,7 @@ import type { LabelScheme, Theme } from '@shared/types'
 import { LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
+import ChilloutVrAccountCard from './ChilloutVrAccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
@@ -120,6 +121,17 @@ export default function SettingsView(): React.JSX.Element {
                 ariaLabel={t('settings.hotThreshold.aria')}
               />
             </div>
+          </section>
+        )}
+
+        {/* ── Accounts page (VRX-37) ── */}
+        {category === 'accounts' && (
+          <section aria-labelledby="settings-accounts-heading">
+            <h2 id="settings-accounts-heading" className="sr-only">
+              {t('settings.accounts.heading')}
+            </h2>
+
+            <ChilloutVrAccountCard />
           </section>
         )}
       </div>
