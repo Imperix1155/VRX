@@ -13,7 +13,7 @@ import {
 
 const CVR_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
 
-const cvrUserAuthSchema = z.object({
+export const cvrUserAuthSchema = z.object({
   username: z.string(),
   accessKey: z.string(),
   userId: z.string(),
@@ -25,6 +25,13 @@ const cvrUserAuthSchema = z.object({
 })
 
 export type CVRUserAuth = z.infer<typeof cvrUserAuthSchema>
+
+/** CVR's `{ message, data }` envelope around the auth payload — exported so the
+ *  adapter's raw (circuit-breaker-free) login leg can parse responses itself. */
+export const cvrAuthEnvelopeSchema = z.object({
+  message: z.string(),
+  data: cvrUserAuthSchema
+})
 
 export interface CVRCredentials {
   username: string
@@ -67,6 +74,24 @@ export abstract class CvrApiClient extends BaseAdapter {
   /** Re-authenticate: username and access key using CVR's ACCESS_KEY auth method. */
   protected reauthenticate(username: string, accessKey: string): Promise<CVRUserAuth> {
     return this.authenticate(1, username, accessKey)
+  }
+
+  /**
+   * Raw auth call for the interactive PASSWORD leg: bypasses `request<T>` so a
+   * wrong password is a clean non-2xx result — NOT an `AuthError` plus a
+   * circuit-breaker failure that would lock login out after 3 wrong attempts
+   * (the same trap VrcAdapter dodged with rawRequest; VRX-157/VRX-37).
+   */
+  protected authenticateRaw(
+    authType: 1 | 2,
+    username: string,
+    password: string
+  ): Promise<Response> {
+    return this.rawRequest(CVR_API_BASE + '/users/auth', {
+      method: 'POST',
+      headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
+    })
   }
 
   private authenticate(authType: 1 | 2, username: string, password: string): Promise<CVRUserAuth> {

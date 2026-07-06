@@ -14,6 +14,10 @@ import {
 import { WebSocket } from 'ws'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
+import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
+import type { CVRCredentials } from './services/adapters/CvrApiClient'
+import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
+import type { Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
@@ -243,7 +247,38 @@ app
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta)
     })
-    const adapters = new Map([['vrchat' as const, vrcAdapter]])
+    // CVR session = { username, accessKey } persisted as ONE safeStorage blob
+    // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
+    // instead of crashing the adapter constructor at boot.
+    const cvrCredentials: CvrCredentialStore = {
+      load: (): CVRCredentials | undefined => {
+        const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+        if (!raw) return undefined
+        try {
+          const parsed: unknown = JSON.parse(raw)
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            typeof (parsed as CVRCredentials).username === 'string' &&
+            typeof (parsed as CVRCredentials).accessKey === 'string'
+          ) {
+            return parsed as CVRCredentials
+          }
+        } catch {
+          /* fall through — malformed blob */
+        }
+        return undefined
+      },
+      save: (credentials) =>
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
+      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+    }
+    const cvrAdapter = new CvrAdapter(cvrCredentials)
+
+    const adapters = new Map<Platform, IPlatformAdapter>([
+      ['vrchat', vrcAdapter],
+      ['chilloutvr', cvrAdapter]
+    ])
     registerIpcHandlers(adapters)
 
     // Broadcast live adapter events to every window over the typed push
