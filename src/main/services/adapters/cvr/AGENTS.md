@@ -9,6 +9,7 @@ The renderer auth GATE stays VRChat-first by design — CVR sign-in lives in
 Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Ownership
+
 - `fetchCvrFriends.ts` — `fetchCvrFriends(fetcher)` → `{ friends: CvrFriend[], skippedRecords }` (VRX-57). Pure, DI'd: ONE flat `GET /friends` (never paginated, never per-friend polled), per-entry defensive parse (a drifted entry is skipped + counted, never sinks the roster), total failure throws (no misleading `[]`). Presence initialized offline — real presence is the pipeline's job. Never logs.
 - `cvrPlatformUserId.ts` — `extractCvrPlatformUserId(id)` → stable lowercased `platformUserId` from the CVR GUID (VRX-61): survives display-name changes; validates GUID shape, rejects malformed. Pure.
 - `parseCvrPrivacy.ts` — `parseCvrPrivacy(privacy)` → `{ type, openness }` (VRX-147). Pure parser for CVR's `instanceSettingPrivacy` / WS instance `privacy` values: 6 verified wire values mapped to platform-true `InstanceType`s; case/punctuation-insensitive; unknown/missing → the MOST RESTRICTIVE access (`owner-must-invite`, the api-volatility convention for access types). Never throws.
