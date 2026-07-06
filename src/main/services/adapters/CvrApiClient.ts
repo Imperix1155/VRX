@@ -13,7 +13,7 @@ import {
 
 const CVR_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
 
-const cvrUserAuthSchema = z.object({
+export const cvrUserAuthSchema = z.object({
   username: z.string(),
   accessKey: z.string(),
   userId: z.string(),
@@ -25,6 +25,13 @@ const cvrUserAuthSchema = z.object({
 })
 
 export type CVRUserAuth = z.infer<typeof cvrUserAuthSchema>
+
+/** CVR's `{ message, data }` envelope around the auth payload — exported so the
+ *  adapter's raw (circuit-breaker-free) login leg can parse responses itself. */
+export const cvrAuthEnvelopeSchema = z.object({
+  message: z.string(),
+  data: cvrUserAuthSchema
+})
 
 export interface CVRCredentials {
   username: string
@@ -59,18 +66,22 @@ export abstract class CvrApiClient extends BaseAdapter {
     })
   }
 
-  /** First login: email and password using CVR's PASSWORD auth method. */
-  protected loginWithPassword(email: string, password: string): Promise<CVRUserAuth> {
-    return this.authenticate(2, email, password)
-  }
-
-  /** Re-authenticate: username and access key using CVR's ACCESS_KEY auth method. */
-  protected reauthenticate(username: string, accessKey: string): Promise<CVRUserAuth> {
-    return this.authenticate(1, username, accessKey)
-  }
-
-  private authenticate(authType: 1 | 2, username: string, password: string): Promise<CVRUserAuth> {
-    return this.requestData('/users/auth', cvrUserAuthSchema, {
+  /**
+   * Raw CVR auth call for BOTH legs — interactive password login (AuthType 2)
+   * and session-restore reauth (AuthType 1). Bypasses `request<T>` so auth
+   * NEVER touches the circuit breaker: a wrong password / dead key comes back as
+   * a clean non-2xx for the caller to interpret, and an AUTOMATIC session
+   * validation failure (flaky boot, schema drift) can't record breaker failures
+   * that would later lock out an interactive login (VRX-157/VRX-37; the
+   * guarded-reauth-poisons-login bug Codex caught, 2026-07-06). The caller
+   * parses the `{ message, data }` envelope via `cvrAuthEnvelopeSchema`.
+   */
+  protected authenticateRaw(
+    authType: 1 | 2,
+    username: string,
+    password: string
+  ): Promise<Response> {
+    return this.rawRequest(CVR_API_BASE + '/users/auth', {
       method: 'POST',
       headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
@@ -104,6 +115,21 @@ export abstract class CvrApiClient extends BaseAdapter {
       Username: this.credentials.username,
       AccessKey: this.credentials.accessKey,
       ...extra
+    })
+  }
+
+  /**
+   * Auth headers for the live pipeline's upgrade handshake — SAME shape as REST
+   * (Username/AccessKey ride in the headers) — or `null` when there is no
+   * session, so the pipeline waits and retries rather than opening an
+   * unauthenticated socket. NON-throwing (unlike `authenticatedHeaders`) because
+   * "no session yet" is a normal pipeline state, not an error (VRX-58).
+   */
+  protected pipelineHeaders(): Record<string, string> | null {
+    if (!this.credentials) return null
+    return this.baseHeaders({
+      Username: this.credentials.username,
+      AccessKey: this.credentials.accessKey
     })
   }
 
