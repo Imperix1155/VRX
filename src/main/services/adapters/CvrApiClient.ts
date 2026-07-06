@@ -118,6 +118,21 @@ export abstract class CvrApiClient extends BaseAdapter {
     })
   }
 
+  /**
+   * Auth headers for the live pipeline's upgrade handshake — SAME shape as REST
+   * (Username/AccessKey ride in the headers) — or `null` when there is no
+   * session, so the pipeline waits and retries rather than opening an
+   * unauthenticated socket. NON-throwing (unlike `authenticatedHeaders`) because
+   * "no session yet" is a normal pipeline state, not an error (VRX-58).
+   */
+  protected pipelineHeaders(): Record<string, string> | null {
+    if (!this.credentials) return null
+    return this.baseHeaders({
+      Username: this.credentials.username,
+      AccessKey: this.credentials.accessKey
+    })
+  }
+
   private baseHeaders(extra?: Record<string, string>): Record<string, string> {
     return {
       'User-Agent': CVR_USER_AGENT,

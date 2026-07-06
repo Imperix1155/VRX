@@ -263,19 +263,94 @@ describe('CvrAdapter', () => {
   })
 
   describe('contract surface', () => {
-    it('importSession is false (CVRX import = VRX-56); data methods reject with their issue', async () => {
+    it('importSession is false (CVRX import = VRX-56); unimplemented methods reject with their issue', async () => {
       const adapter = new CvrAdapter(fakeStore(), noopSleep)
       expect(await adapter.importSession()).toBe(false)
-      await expect(adapter.getFriends()).rejects.toThrow('VRX-57')
       await expect(adapter.getInstanceDetails()).rejects.toThrow('VRX-59')
       await expect(adapter.joinInstance()).rejects.toThrow('VRX-60')
       await expect(adapter.selfInvite()).rejects.toThrow('not supported')
     })
+  })
 
-    it('subscribe is a safe no-op until VRX-58 (returns a working unsubscribe)', () => {
-      const adapter = new CvrAdapter(fakeStore(), noopSleep)
-      const unsubscribe = adapter.subscribe()
-      expect(() => unsubscribe()).not.toThrow()
+  describe('getFriends (VRX-57 delegation, VRX-58 stitch)', () => {
+    const sessioned = (): CvrAdapter =>
+      new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+
+    it('returns the normalized static roster, presence offline until the pipeline updates', async () => {
+      const roster = [
+        {
+          id: 'A1B2C3D4-0000-0000-0000-000000000001',
+          name: 'Neo',
+          imageUrl: 'https://cvr/a.png',
+          categories: []
+        },
+        {
+          id: 'a1b2c3d4-0000-0000-0000-000000000002',
+          name: 'Trinity',
+          imageUrl: null,
+          categories: ['friends']
+        }
+      ]
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'ok', data: roster }))
+      )
+      const friends = await sessioned().getFriends()
+      expect(friends).toHaveLength(2)
+      expect(friends[0]).toMatchObject({ platform: 'chilloutvr', displayName: 'Neo' })
+      expect(friends[0]?.presence.state).toBe('offline')
+      // GUID normalized to lowercase (VRX-61) — stable across name changes.
+      expect(friends[0]?.platformUserId).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
+    it('throws rather than returning a misleading empty list when every entry is malformed', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ message: 'ok', data: [{ nope: true }, { alsoBad: 1 }] })
+          )
+      )
+      await expect(sessioned().getFriends()).rejects.toThrow(/CVR friends/)
+    })
+  })
+
+  describe('live pipeline (VRX-58)', () => {
+    it('subscribe starts ONE shared pipeline and stops it when the last handler leaves', async () => {
+      let dials = 0
+      const fakeSocket = { on: () => {}, close: () => {} }
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => {
+          dials++
+          return fakeSocket
+        }
+      })
+
+      const unsubA = adapter.subscribe(() => {})
+      const unsubB = adapter.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+
+      expect(typeof unsubA).toBe('function')
+      expect(dials).toBe(1) // shared — the second subscribe did not re-dial
+
+      unsubA()
+      unsubB()
+      unsubB() // double-unsubscribe is safe
+    })
+
+    it('the pipeline waits (no dial) when there is no session', async () => {
+      let dials = 0
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, {
+        socketFactory: () => {
+          dials++
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsub = adapter.subscribe(() => {})
+      await new Promise((r) => setImmediate(r))
+      expect(dials).toBe(0) // no credentials → pipelineHeaders() null → no socket
+      unsub()
     })
   })
 })

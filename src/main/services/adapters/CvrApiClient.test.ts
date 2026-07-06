@@ -288,7 +288,8 @@ describe('CvrApiClient', () => {
   })
 
   it('a wrong password (401) comes back as a raw non-2xx, NOT a thrown auth error (no breaker hit)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+    const denied = jsonResponse({ message: 'denied' }, { status: 401 })
+    const fetchMock = vi.fn().mockResolvedValue(denied)
     vi.stubGlobal('fetch', fetchMock)
 
     const response = await new TestClient().callAuthRaw(2, 'user@example.com', 'wrong')

@@ -1,6 +1,25 @@
-import type { AuthStatus, Credentials, Friend, InstanceInfo, LoginResult } from '@shared/types'
+import type {
+  AdapterEvent,
+  AuthStatus,
+  Credentials,
+  Friend,
+  InstanceInfo,
+  LoginResult
+} from '@shared/types'
 import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
+import type { PipelineSocket } from './ReconnectingPipeline'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
+import { CvrPipeline } from './cvr/CvrPipeline'
+import { fetchCvrFriends } from './cvr/fetchCvrFriends'
+import { CVRNetworkError } from './errors'
+
+/** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
+ *  electron-free: the real socketFactory (ws + upgrade headers) and the
+ *  electron-log bridge live in main/index.ts; tests inject fakes. */
+export interface CvrLiveWiring {
+  socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
+  log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+}
 
 /**
  * Persistence for the CVR session (username + accessKey), safeStorage-backed in
@@ -35,18 +54,23 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * (401) clears the session on validation; network/schema trouble reports `error`
  * WITHOUT clearing, so a flaky boot never logs the user out.
  *
- * Data methods land in their own issues: getFriends = VRX-57 (stitched with the
- * pipeline in VRX-58), instances = VRX-59/60. CVR has NO 2FA leg — `verify2fa`
- * rejects per the IPlatformAdapter contract.
+ * `getFriends` returns the static roster (VRX-57) and `subscribe` drives live
+ * presence over the shared `CvrPipeline` (VRX-58); instances = VRX-59/60. CVR
+ * has NO 2FA leg — `verify2fa` rejects per the IPlatformAdapter contract.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
 
+  // ── Live pipeline state (VRX-58) — one shared socket per account ──
+  private pipeline: CvrPipeline | null = null
+  private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+
   constructor(
     private readonly store: CvrCredentialStore,
-    sleepFn?: (ms: number) => Promise<void>
+    sleepFn?: (ms: number) => Promise<void>,
+    private readonly live?: CvrLiveWiring
   ) {
     super(sleepFn)
     // Session restore (VRX-174) — adopt any persisted session; tolerate a
@@ -171,8 +195,20 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return Promise.resolve(false)
   }
 
-  getFriends(): Promise<Friend[]> {
-    return Promise.reject(new Error('CvrAdapter.getFriends not implemented — VRX-57'))
+  async getFriends(): Promise<Friend[]> {
+    // Static roster only (VRX-57); live presence arrives via the pipeline below.
+    const { friends, skippedRecords } = await fetchCvrFriends((path, schema) =>
+      this.get(path, schema)
+    )
+    // Everything was dropped as malformed → surface an error rather than a
+    // misleading empty list (UI shows "couldn't load", not "no friends"), the
+    // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
+    if (skippedRecords > 0 && friends.length === 0) {
+      throw new CVRNetworkError(
+        `Failed to normalize CVR friends (skippedRecords=${skippedRecords})`
+      )
+    }
+    return friends
   }
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('CvrAdapter.getInstanceDetails not implemented — VRX-59'))
@@ -184,12 +220,44 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return Promise.reject(new Error('CvrAdapter.selfInvite not supported on ChilloutVR'))
   }
 
-  // Fewer params than the interface is fine (structural typing) — the eslint
-  // config has no unused-args ignore pattern, so the handler param is omitted.
-  subscribe(): Unsubscribe {
-    // Live presence wires up with the existing CvrPipeline in VRX-58; a no-op
-    // keeps the adapter registrable without faking an event stream.
-    return () => {}
+  subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
+    this.subscribers.add(handler)
+    // One shared pipeline for all subscribers; started on the first, stopped
+    // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
+    // Mirrors VrcAdapter.subscribe (VRX-146c).
+    this.pipeline ??= new CvrPipeline({
+      headersProvider: () => Promise.resolve(this.pipelineHeaders()),
+      onEvent: (event) => {
+        // Isolate subscribers: one throwing handler must not starve the others
+        // in the shared fan-out.
+        for (const subscriber of this.subscribers) {
+          try {
+            subscriber(event)
+          } catch (err) {
+            this.live?.log?.('warn', 'cvr pipeline: subscriber threw', {
+              message: err instanceof Error ? err.message : String(err)
+            })
+          }
+        }
+      },
+      socketFactory:
+        this.live?.socketFactory ??
+        (() => {
+          throw new Error('CvrAdapter: no socketFactory wired for the live pipeline')
+        }),
+      log: this.live?.log
+    })
+    this.pipeline.start()
+
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      this.subscribers.delete(handler)
+      if (this.subscribers.size === 0) {
+        this.pipeline?.stop()
+      }
+    }
   }
 
   private adoptSession(credentials: CVRCredentials): void {
