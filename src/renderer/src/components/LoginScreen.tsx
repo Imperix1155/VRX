@@ -52,7 +52,7 @@ export default function LoginScreen({
 
       if (result.ok) {
         // Invalidate so the auth gate re-checks and transitions to the app.
-        void queryClient.invalidateQueries({ queryKey: authStatusQueryKey })
+        void queryClient.invalidateQueries({ queryKey: authStatusQueryKey('vrchat') })
       } else if (result.needs2fa) {
         setPending2fa(result.method)
         setPassword('') // drop the secret — the 2FA leg authenticates via the cookie

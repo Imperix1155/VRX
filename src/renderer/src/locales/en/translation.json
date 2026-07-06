@@ -52,6 +52,26 @@
     },
     "categories": {
       "aria": "Settings category"
+    },
+    "accounts": {
+      "heading": "Accounts",
+      "chilloutvr": {
+        "label": "ChilloutVR",
+        "connectedAs": "Connected as {{name}}",
+        "disconnect": "Disconnect",
+        "disconnectTitle": "Coming with VRX-89",
+        "username": "Username or email",
+        "usernamePlaceholder": "you@example.com",
+        "password": "Password",
+        "passwordPlaceholder": "••••••••",
+        "connect": "Connect",
+        "connecting": "Connecting…",
+        "error": {
+          "invalidCredentials": "Incorrect username or password. Please try again.",
+          "networkError": "Couldn't reach ChilloutVR. Check your connection and try again.",
+          "unknown": "Something went wrong. Please try again."
+        }
+      }
     }
   },
   "error": {
