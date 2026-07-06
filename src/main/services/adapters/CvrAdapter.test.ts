@@ -436,4 +436,35 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
     )
     expect(await adapter.login(creds)).toEqual({ ok: true })
   })
+
+  it('a login() landing mid-validation is NOT clobbered by the stale reauth (verifier finding)', async () => {
+    const store = fakeStore({ username: 'A', accessKey: 'ka' })
+    const adapter = new CvrAdapter(store, noopSleep)
+
+    // AuthType 1 = validation of the OLD session A (held pending); AuthType 2 =
+    // the fresh login to session B (resolves immediately).
+    let resolveValidation!: (r: Response) => void
+    const fetchMock = vi.fn((_url: string, opts: RequestInit) => {
+      const parsed = JSON.parse(opts.body as string) as { AuthType: number }
+      if (parsed.AuthType === 1) {
+        return new Promise<Response>((res) => {
+          resolveValidation = res
+        })
+      }
+      return Promise.resolve(
+        jsonResponse(envelope(authPayload({ username: 'B', accessKey: 'kb' })))
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const validating = adapter.getAuthStatus() // validateSession(A) → pending
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(await adapter.login({ username: 'B@x', password: 'pw' })).toEqual({ ok: true })
+
+    // The STALE validation of A now returns 401 — it must NOT wipe session B.
+    resolveValidation(jsonResponse({ message: 'denied' }, { status: 401 }))
+    expect((await validating).state).toBe('authenticated')
+    expect(store.deleted).toBe(0) // B survived
+    expect(store.saved.at(-1)).toEqual({ username: 'B', accessKey: 'kb' })
+  })
 })

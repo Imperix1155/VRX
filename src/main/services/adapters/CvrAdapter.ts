@@ -46,13 +46,15 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * restore (VRX-174).
  *
  * BOTH auth legs use `authenticateRaw` (no circuit breaker): a wrong password is
- * a clean `invalid_credentials`, and — critically — an AUTOMATIC session
- * validation failure (flaky boot, schema drift) can NOT record breaker failures
- * that would later fast-fail a correct-password login as `network_error` during
- * the reset window (the guarded-reauth-poisons-login bug Codex caught,
- * 2026-07-06; the guarded path only ever protects the DATA methods). A dead key
- * (401) clears the session on validation; network/schema trouble reports `error`
- * WITHOUT clearing, so a flaky boot never logs the user out.
+ * a clean `invalid_credentials`, and an automatic session validation that fails
+ * with a NON-2xx (401/5xx) or a schema-drifted body records NO breaker failure —
+ * so it can't fast-fail a later correct-password login (the guarded-reauth-
+ * poisons-login bug Codex caught, 2026-07-06; the guarded path only protects the
+ * DATA methods). A genuine network OUTAGE still backs off all raw calls incl.
+ * login for the 60s reset window — same as VrcAdapter, self-healing (a
+ * cross-adapter breaker-exemption cleanup is tracked as a follow-up).
+ * A dead key (401) clears the session; other trouble reports `error` WITHOUT
+ * clearing, so a flaky boot never logs the user out.
  *
  * `getFriends` returns the static roster (VRX-57) and `subscribe` drives live
  * presence over the shared `CvrPipeline` (VRX-58); instances = VRX-59/60. CVR
@@ -145,19 +147,27 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private async validateSession(): Promise<AuthStatus> {
-    if (!this.session) return this.status('unauthenticated')
+    // Capture the session under validation. A concurrent login() can replace it
+    // while we await; its result must NEVER clobber the newer session (verifier
+    // 2026-07-06 — a stale reauth's 401 was wiping a just-logged-in session).
+    const validated = this.session
+    if (!validated) return this.status('unauthenticated')
 
     // Breaker-free reauth (AuthType 1 = ACCESS_KEY) — parse the raw Response
     // ourselves so validation failures never poison the login circuit (Codex,
     // 2026-07-06), exactly as VrcAdapter.getAuthStatus interprets rawRequest.
     let response: Response
     try {
-      response = await this.authenticateRaw(1, this.session.username, this.session.accessKey)
+      response = await this.authenticateRaw(1, validated.username, validated.accessKey)
     } catch {
       // Network trouble or an already-open circuit — the session may still be
       // fine; report error WITHOUT clearing (a flaky boot must not log out).
-      return this.status('error')
+      return this.currentStatusIfSwapped(validated) ?? this.status('error')
     }
+
+    // A newer session landed under us → this result is stale; don't mutate.
+    const swapped = this.currentStatusIfSwapped(validated)
+    if (swapped) return swapped
 
     if (response.status === 401 || response.status === 403) {
       // The key WE SENT was rejected — the session is dead. Clear it everywhere
@@ -172,8 +182,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       body = await response.json()
     } catch {
-      return this.status('error')
+      return this.currentStatusIfSwapped(validated) ?? this.status('error')
     }
+    // Re-check after the body await too.
+    const swappedAfterBody = this.currentStatusIfSwapped(validated)
+    if (swappedAfterBody) return swappedAfterBody
+
     const parsed = cvrAuthEnvelopeSchema.safeParse(body)
     // Schema drift is NOT a dead session — report error without clearing, and
     // (now) without recording a breaker failure that could block login.
@@ -182,12 +196,23 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     const { username, accessKey } = parsed.data.data
     // CVR may ROTATE the accessKey on reauth — persist the rotation, or the next
     // restore would present the stale key and silently log the user out.
-    if (accessKey !== this.session.accessKey || username !== this.session.username) {
+    if (accessKey !== validated.accessKey || username !== validated.username) {
       this.adoptSession({ username, accessKey })
       this.persist()
     }
     this.displayName = username
     return this.status('authenticated')
+  }
+
+  /**
+   * When a concurrent login() replaced the session we were validating, our
+   * result is stale: return the CURRENT session's status (authenticated if
+   * login adopted a new one, unauthenticated if it was cleared) and mutate
+   * nothing. Returns null when the session is unchanged (proceed normally).
+   */
+  private currentStatusIfSwapped(validated: CVRCredentials): AuthStatus | null {
+    if (this.session === validated) return null
+    return this.status(this.session ? 'authenticated' : 'unauthenticated')
   }
 
   importSession(): Promise<boolean> {
