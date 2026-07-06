@@ -14,6 +14,10 @@ import {
 import { WebSocket } from 'ws'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
+import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
+import type { CVRCredentials } from './services/adapters/CvrApiClient'
+import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
+import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
@@ -243,21 +247,62 @@ app
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta)
     })
-    const adapters = new Map([['vrchat' as const, vrcAdapter]])
+    // CVR session = { username, accessKey } persisted as ONE safeStorage blob
+    // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
+    // instead of crashing the adapter constructor at boot.
+    const cvrCredentials: CvrCredentialStore = {
+      load: (): CVRCredentials | undefined => {
+        const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+        if (!raw) return undefined
+        try {
+          const parsed: unknown = JSON.parse(raw)
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            typeof (parsed as CVRCredentials).username === 'string' &&
+            typeof (parsed as CVRCredentials).accessKey === 'string'
+          ) {
+            return parsed as CVRCredentials
+          }
+        } catch {
+          /* fall through — malformed blob */
+        }
+        return undefined
+      },
+      save: (credentials) =>
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
+      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+    }
+    // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
+    // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the
+    // socketFactory forwards them verbatim; logs route through the redaction hook.
+    const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
+      socketFactory: (url, headers) => new WebSocket(url, { headers }),
+      log: (level, message, meta) => log[level](message, meta)
+    })
+
+    const adapters = new Map<Platform, IPlatformAdapter>([
+      ['vrchat', vrcAdapter],
+      ['chilloutvr', cvrAdapter]
+    ])
     registerIpcHandlers(adapters)
 
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
-    // TanStack cache — presence is PUSHED, never polled (CLAUDE.md).
-    const unsubscribeLive = vrcAdapter.subscribe((event) => {
+    // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
+    // platforms share one broadcaster; the renderer keys events by platform.
+    const broadcast = (event: AdapterEvent): void => {
       for (const window of BrowserWindow.getAllWindows()) {
         // Guard a window torn down between enumeration and send.
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
       }
-    })
+    }
+    const unsubscribeVrcLive = vrcAdapter.subscribe(broadcast)
+    const unsubscribeCvrLive = cvrAdapter.subscribe(broadcast)
     app.on('before-quit', () => {
-      // Close the socket and halt the reconnect loop so quit is clean.
-      unsubscribeLive()
+      // Close both sockets and halt the reconnect loops so quit is clean.
+      unsubscribeVrcLive()
+      unsubscribeCvrLive()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the

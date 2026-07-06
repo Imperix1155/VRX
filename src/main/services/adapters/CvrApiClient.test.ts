@@ -36,11 +36,8 @@ class TestClient extends CvrApiClient {
   clearAuth(): void {
     this.setCredentials(null)
   }
-  callLogin(email: string, password: string): Promise<CVRUserAuth> {
-    return this.loginWithPassword(email, password)
-  }
-  callReauthenticate(username: string, accessKey: string): Promise<CVRUserAuth> {
-    return this.reauthenticate(username, accessKey)
+  callAuthRaw(authType: 1 | 2, username: string, password: string): Promise<Response> {
+    return this.authenticateRaw(authType, username, password)
   }
   getAuthStatus(): Promise<AuthStatus> {
     throw new Error('stub')
@@ -252,15 +249,14 @@ describe('CvrApiClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
-  it('uses password auth for first login without authenticated headers', async () => {
+  it('password login (AuthType 2, raw) posts to /users/auth without authenticated headers', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(jsonResponse({ message: 'authenticated', data: authData }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(new TestClient().callLogin('user@example.com', 'real-password')).resolves.toEqual(
-      authData
-    )
+    const response = await new TestClient().callAuthRaw(2, 'user@example.com', 'real-password')
+    expect(response.ok).toBe(true)
 
     const [url, options] = fetchMock.mock.calls[0]!
     expect(url).toBe(`${CVR_API_BASE}/users/auth`)
@@ -274,13 +270,13 @@ describe('CvrApiClient', () => {
     expect(options.headers.AccessKey).toBeUndefined()
   })
 
-  it('sends the access key in Password for re-authentication', async () => {
+  it('reauth (AuthType 1, raw) sends the access key in Password', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(jsonResponse({ message: 'authenticated', data: authData }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await new TestClient().callReauthenticate('CVR User', 'access-key')
+    await new TestClient().callAuthRaw(1, 'CVR User', 'access-key')
 
     const [, options] = fetchMock.mock.calls[0]!
     expect(JSON.parse(options.body)).toEqual({
@@ -289,5 +285,14 @@ describe('CvrApiClient', () => {
       Password: 'access-key'
     })
     expect(options.headers.Platform).toBe(CVR_PLATFORM)
+  })
+
+  it('a wrong password (401) comes back as a raw non-2xx, NOT a thrown auth error (no breaker hit)', async () => {
+    const denied = jsonResponse({ message: 'denied' }, { status: 401 })
+    const fetchMock = vi.fn().mockResolvedValue(denied)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await new TestClient().callAuthRaw(2, 'user@example.com', 'wrong')
+    expect(response.status).toBe(401) // caller interprets; auth never records a circuit failure
   })
 })
