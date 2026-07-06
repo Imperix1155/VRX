@@ -202,6 +202,8 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 - Current avatar: `currentAvatar: string` (URI or ID)
 - Current home world: `currentHomeWorld: string` (world URI or ID)
 
+**Two auth legs (VRX-37):** `AuthType 2` = interactive password login; `AuthType 1` = re-auth with the stored `accessKey` (session validation on boot/refetch). Both use a breaker-free raw path so a failing validation can't lock out login (VRX-189 tracks the residual network sub-case). CVR may **rotate** the `accessKey` on re-auth — VRX persists the rotation; if it ever stops rotating, no impact (same key re-persisted). A 401 on re-auth = dead session → cleared everywhere (no zombie restore).
+
 **Verification:** 🟡 Endpoint verified; response shape from reverse-engineering and live observation.
 
 **Degradation if changed:**
