@@ -295,7 +295,9 @@ describe('CvrAdapter concurrent validation (verifier race)', () => {
 
     const first = adapter.getAuthStatus()
     const second = adapter.getAuthStatus()
-    expect(fetchMock).toHaveBeenCalledTimes(1) // shared in-flight validation
+    // Both share ONE in-flight validation → exactly one underlying reauth fetch
+    // (waitFor is timing-robust; the point is the count never reaches 2).
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
     resolveFetch?.(jsonResponse(envelope(authPayload({ accessKey: 'key-2' }))))
     const [a, b] = await Promise.all([first, second])
@@ -311,5 +313,52 @@ describe('CvrAdapter concurrent validation (verifier race)', () => {
       vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' })))))
     )
     expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+  })
+})
+
+describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)', () => {
+  // The circuit breaker is shared across the adapter; before the fix, guarded
+  // session validation recorded non-2xx/schema failures against it, so automatic
+  // background refetches could open the breaker (threshold 3) and fast-fail a
+  // CORRECT-password login as network_error. Validation is now breaker-free.
+  it('repeated 5xx session validations never block a subsequent correct login', async () => {
+    const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+    const adapter = new CvrAdapter(store, noopSleep)
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({ message: 'oops' }, { status: 500 })))
+    )
+    for (let i = 0; i < 4; i++) {
+      expect((await adapter.getAuthStatus()).state).toBe('error')
+    }
+    expect(store.deleted).toBe(0) // a 5xx is transient — never clears the session
+
+    // Correct password must reach the wire, not fast-fail on a poisoned breaker.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+    )
+    expect(await adapter.login(creds)).toEqual({ ok: true })
+  })
+
+  it('schema-drifted validation reports error without clearing or poisoning login', async () => {
+    const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+    const adapter = new CvrAdapter(store, noopSleep)
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse({ message: 'ok', data: { nope: true } })))
+    )
+    for (let i = 0; i < 4; i++) {
+      expect((await adapter.getAuthStatus()).state).toBe('error')
+    }
+    expect(store.deleted).toBe(0) // drift is not a dead session
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+    )
+    expect(await adapter.login(creds)).toEqual({ ok: true })
   })
 })

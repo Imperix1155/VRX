@@ -66,21 +66,15 @@ export abstract class CvrApiClient extends BaseAdapter {
     })
   }
 
-  /** First login: email and password using CVR's PASSWORD auth method. */
-  protected loginWithPassword(email: string, password: string): Promise<CVRUserAuth> {
-    return this.authenticate(2, email, password)
-  }
-
-  /** Re-authenticate: username and access key using CVR's ACCESS_KEY auth method. */
-  protected reauthenticate(username: string, accessKey: string): Promise<CVRUserAuth> {
-    return this.authenticate(1, username, accessKey)
-  }
-
   /**
-   * Raw auth call for the interactive PASSWORD leg: bypasses `request<T>` so a
-   * wrong password is a clean non-2xx result — NOT an `AuthError` plus a
-   * circuit-breaker failure that would lock login out after 3 wrong attempts
-   * (the same trap VrcAdapter dodged with rawRequest; VRX-157/VRX-37).
+   * Raw CVR auth call for BOTH legs — interactive password login (AuthType 2)
+   * and session-restore reauth (AuthType 1). Bypasses `request<T>` so auth
+   * NEVER touches the circuit breaker: a wrong password / dead key comes back as
+   * a clean non-2xx for the caller to interpret, and an AUTOMATIC session
+   * validation failure (flaky boot, schema drift) can't record breaker failures
+   * that would later lock out an interactive login (VRX-157/VRX-37; the
+   * guarded-reauth-poisons-login bug Codex caught, 2026-07-06). The caller
+   * parses the `{ message, data }` envelope via `cvrAuthEnvelopeSchema`.
    */
   protected authenticateRaw(
     authType: 1 | 2,
@@ -88,14 +82,6 @@ export abstract class CvrApiClient extends BaseAdapter {
     password: string
   ): Promise<Response> {
     return this.rawRequest(CVR_API_BASE + '/users/auth', {
-      method: 'POST',
-      headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
-    })
-  }
-
-  private authenticate(authType: 1 | 2, username: string, password: string): Promise<CVRUserAuth> {
-    return this.requestData('/users/auth', cvrUserAuthSchema, {
       method: 'POST',
       headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ AuthType: authType, Username: username, Password: password })

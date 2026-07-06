@@ -1,7 +1,6 @@
 import type { AuthStatus, Credentials, Friend, InstanceInfo, LoginResult } from '@shared/types'
 import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
-import { CVRAuthError } from './errors'
 
 /**
  * Persistence for the CVR session (username + accessKey), safeStorage-backed in
@@ -27,12 +26,14 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * Concrete ChilloutVR adapter (VRX-37) — direct login + session persistence and
  * restore (VRX-174).
  *
- * The interactive PASSWORD leg uses `authenticateRaw` (no circuit breaker), so a
- * wrong password is a clean `invalid_credentials` — not an `AuthError` plus a
- * breaker lockout after 3 wrong attempts (the VRX-157 lesson). Session
- * VALIDATION (`getAuthStatus`) reauthenticates with the stored accessKey via the
- * guarded path: a dead key clears the session on its first 401, so it cannot
- * accumulate breaker failures across refetches.
+ * BOTH auth legs use `authenticateRaw` (no circuit breaker): a wrong password is
+ * a clean `invalid_credentials`, and — critically — an AUTOMATIC session
+ * validation failure (flaky boot, schema drift) can NOT record breaker failures
+ * that would later fast-fail a correct-password login as `network_error` during
+ * the reset window (the guarded-reauth-poisons-login bug Codex caught,
+ * 2026-07-06; the guarded path only ever protects the DATA methods). A dead key
+ * (401) clears the session on validation; network/schema trouble reports `error`
+ * WITHOUT clearing, so a flaky boot never logs the user out.
  *
  * Data methods land in their own issues: getFriends = VRX-57 (stitched with the
  * pipeline in VRX-58), instances = VRX-59/60. CVR has NO 2FA leg — `verify2fa`
@@ -122,28 +123,47 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private async validateSession(): Promise<AuthStatus> {
     if (!this.session) return this.status('unauthenticated')
 
+    // Breaker-free reauth (AuthType 1 = ACCESS_KEY) — parse the raw Response
+    // ourselves so validation failures never poison the login circuit (Codex,
+    // 2026-07-06), exactly as VrcAdapter.getAuthStatus interprets rawRequest.
+    let response: Response
     try {
-      const auth = await this.reauthenticate(this.session.username, this.session.accessKey)
-      // CVR may ROTATE the accessKey on reauth — persist the rotation, or the
-      // next restore would present the stale key and silently log the user out.
-      if (auth.accessKey !== this.session.accessKey || auth.username !== this.session.username) {
-        this.adoptSession({ username: auth.username, accessKey: auth.accessKey })
-        this.persist()
-      }
-      this.displayName = auth.username
-      return this.status('authenticated')
-    } catch (error) {
-      if (error instanceof CVRAuthError) {
-        // The key WE SENT was rejected — the session is dead. Clear it
-        // everywhere so session restore can't re-adopt it next launch and
-        // 401 forever (mirrors the VrcAdapter dead-cookie rule).
-        this.clearSession()
-        return this.status('unauthenticated')
-      }
-      // Network/rate-limit trouble: the session may still be fine — report
-      // error WITHOUT clearing, so a flaky boot doesn't log the user out.
+      response = await this.authenticateRaw(1, this.session.username, this.session.accessKey)
+    } catch {
+      // Network trouble or an already-open circuit — the session may still be
+      // fine; report error WITHOUT clearing (a flaky boot must not log out).
       return this.status('error')
     }
+
+    if (response.status === 401 || response.status === 403) {
+      // The key WE SENT was rejected — the session is dead. Clear it everywhere
+      // so session restore can't re-adopt it next launch and 401 forever
+      // (mirrors the VrcAdapter dead-cookie rule).
+      this.clearSession()
+      return this.status('unauthenticated')
+    }
+    if (!response.ok) return this.status('error') // 5xx etc — transient, don't clear
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      return this.status('error')
+    }
+    const parsed = cvrAuthEnvelopeSchema.safeParse(body)
+    // Schema drift is NOT a dead session — report error without clearing, and
+    // (now) without recording a breaker failure that could block login.
+    if (!parsed.success) return this.status('error')
+
+    const { username, accessKey } = parsed.data.data
+    // CVR may ROTATE the accessKey on reauth — persist the rotation, or the next
+    // restore would present the stale key and silently log the user out.
+    if (accessKey !== this.session.accessKey || username !== this.session.username) {
+      this.adoptSession({ username, accessKey })
+      this.persist()
+    }
+    this.displayName = username
+    return this.status('authenticated')
   }
 
   importSession(): Promise<boolean> {
