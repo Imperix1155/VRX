@@ -7,7 +7,9 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/local-notes'] },
+  // '**/.claude': agent worktrees live under .claude/worktrees — flat config
+  // ignores .gitignore, so without this a live agent checkout breaks main-tree lint.
+  { ignores: ['**/node_modules', '**/dist', '**/out', '**/local-notes', '**/.claude'] },
   // Type-AWARE linting (audit W7): recommendedTypeChecked adds the rules that
   // need type info — no-floating-promises, no-misused-promises, unsafe-* —
   // the bug class that matters most in a credential-handling app.
