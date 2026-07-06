@@ -41,6 +41,7 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
+  private validationInFlight: Promise<AuthStatus> | null = null
 
   constructor(
     private readonly store: CvrCredentialStore,
@@ -107,6 +108,18 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
+    if (!this.session) return this.status('unauthenticated')
+    // Serialize concurrent validations (verifier-proven race): two overlapping
+    // reauths both capture the OLD key; if CVR rotates on the first, the
+    // second's 401 would clearSession() and wipe the freshly persisted
+    // rotation. One in-flight validation is shared by all concurrent callers.
+    this.validationInFlight ??= this.validateSession().finally(() => {
+      this.validationInFlight = null
+    })
+    return this.validationInFlight
+  }
+
+  private async validateSession(): Promise<AuthStatus> {
     if (!this.session) return this.status('unauthenticated')
 
     try {
