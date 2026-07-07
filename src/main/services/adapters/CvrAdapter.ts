@@ -11,7 +11,7 @@ import type { PipelineSocket } from './ReconnectingPipeline'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
 import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
-import { CVRNetworkError } from './errors'
+import { CVRAuthError, CVRNetworkError } from './errors'
 
 /** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
@@ -64,6 +64,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
+  // True once the current session has been proven this launch — by a fresh
+  // login (AuthType 2 just succeeded) or ONE successful restore validation.
+  // Gates the reauth in getAuthStatus so we never re-login on every status
+  // check: CVR's /users/auth rotates/rate-limits, and re-authing on each
+  // navigation churned the session and logged the user out (VRX-190). After
+  // this, the session is trusted in-memory; a dead key surfaces on the data
+  // path (getFriends 401 → clearSession).
+  private validated = false
 
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
@@ -125,6 +133,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       username: parsed.data.data.username,
       accessKey: parsed.data.data.accessKey
     })
+    // A fresh login just proved the credentials — trust the session without
+    // re-authing on every subsequent status check (VRX-190).
+    this.validated = true
     this.persist()
     return { ok: true }
   }
@@ -136,10 +147,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   async getAuthStatus(): Promise<AuthStatus> {
     if (!this.session) return this.status('unauthenticated')
-    // Serialize concurrent validations (verifier-proven race): two overlapping
-    // reauths both capture the OLD key; if CVR rotates on the first, the
-    // second's 401 would clearSession() and wipe the freshly persisted
-    // rotation. One in-flight validation is shared by all concurrent callers.
+    // Already proven this launch (fresh login or a prior restore validation) →
+    // trust the in-memory session; NO network call. This is what makes the
+    // session stick across navigation — re-authing here rotated/rate-limited
+    // CVR's /users/auth and logged the user out on the second check (VRX-190).
+    if (this.validated) return this.status('authenticated')
+    // First check of a RESTORED session (VRX-174) — validate it once. Serialize
+    // concurrent callers so two overlapping reauths can't clobber each other.
     this.validationInFlight ??= this.validateSession().finally(() => {
       this.validationInFlight = null
     })
@@ -201,6 +215,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.persist()
     }
     this.displayName = username
+    // Restored session proven once — trust it for the rest of this launch.
+    this.validated = true
     return this.status('authenticated')
   }
 
@@ -222,18 +238,26 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   async getFriends(): Promise<Friend[]> {
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
-    const { friends, skippedRecords } = await fetchCvrFriends((path, schema) =>
-      this.get(path, schema)
-    )
+    let result: { friends: Friend[]; skippedRecords: number }
+    try {
+      result = await fetchCvrFriends((path, schema) => this.get(path, schema))
+    } catch (error) {
+      // The data path is where a dead session surfaces (VRX-190): getAuthStatus
+      // trusts the session without re-authing, so a 401 here IS the signal that
+      // the accessKey died — clear it so the UI reflects logged-out, then let
+      // the error propagate for the "couldn't load" state.
+      if (error instanceof CVRAuthError) this.clearSession()
+      throw error
+    }
     // Everything was dropped as malformed → surface an error rather than a
     // misleading empty list (UI shows "couldn't load", not "no friends"), the
     // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
-    if (skippedRecords > 0 && friends.length === 0) {
+    if (result.skippedRecords > 0 && result.friends.length === 0) {
       throw new CVRNetworkError(
-        `Failed to normalize CVR friends (skippedRecords=${skippedRecords})`
+        `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
       )
     }
-    return friends
+    return result.friends
   }
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('CvrAdapter.getInstanceDetails not implemented — VRX-59'))
@@ -304,6 +328,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
+    this.validated = false
     try {
       this.store.delete()
     } catch {
