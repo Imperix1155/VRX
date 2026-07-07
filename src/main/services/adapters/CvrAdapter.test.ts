@@ -64,18 +64,33 @@ describe('CvrAdapter', () => {
       expect(store.saved).toEqual([{ username: 'trinity', accessKey: 'key-1' }])
       // The password must appear nowhere in the persisted session.
       expect(JSON.stringify(store.saved)).not.toContain(creds.password)
-      // Status probe reauthenticates with the ACCESS_KEY method (AuthType 1).
+      // A fresh login proved the credentials — a status check trusts it WITHOUT
+      // a second auth call (VRX-190: re-authing here rotated CVR's key and
+      // logged the user out on navigation).
       const status = await adapter.getAuthStatus()
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'authenticated',
         displayName: 'trinity'
       })
-      const lastCall = fetchMock.mock.calls.at(-1) as unknown as [string, RequestInit]
-      const lastBody = JSON.parse(lastCall[1].body as string) as Record<string, unknown>
-      expect(lastBody.AuthType).toBe(1)
-      expect(lastBody.Username).toBe('trinity')
-      expect(lastBody.Password).toBe('key-1')
+      expect(fetchMock).toHaveBeenCalledTimes(1) // login only — no reauth probe
+      const loginCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+      const loginBody = JSON.parse(loginCall[1].body as string) as Record<string, unknown>
+      expect(loginBody.AuthType).toBe(2) // password login leg
+    })
+
+    it('the session STICKS across repeated status checks — no reauth churn (VRX-190)', async () => {
+      const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(fakeStore(), noopSleep)
+
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+      // Navigating away and back re-checks status many times; every check must
+      // stay authenticated and NONE may hit the wire (the reported v0.4.0 bug).
+      for (let i = 0; i < 5; i++) {
+        expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(1) // still just the one login call
     })
 
     it('wrong password (401) → invalid_credentials, nothing persisted, login stays retryable', async () => {
@@ -313,6 +328,20 @@ describe('CvrAdapter', () => {
           )
       )
       await expect(sessioned().getFriends()).rejects.toThrow(/CVR friends/)
+    })
+
+    it('a 401 on getFriends clears the session — dead-key detection on the data path (VRX-190)', async () => {
+      const store = fakeStore({ username: 'u', accessKey: 'k' })
+      const adapter = new CvrAdapter(store, noopSleep)
+      // getAuthStatus trusts the restored session; the DATA path is where a dead
+      // key surfaces. A 401 on /friends must clear the session everywhere.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(store.deleted).toBe(1)
+      expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
     })
   })
 
