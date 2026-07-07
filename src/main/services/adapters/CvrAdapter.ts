@@ -106,10 +106,22 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
 
+    // A deliberate login must always reach the wire — background/data-call
+    // failures (e.g. a stale restored session on boot) can open the shared
+    // circuit breaker and otherwise fast-fail this as "cannot connect" for the
+    // 60s reset window even with correct credentials (VRX-190 follow-up).
+    this.resetCircuit()
+
     let response: Response
     try {
       response = await this.authenticateRaw(2, email, password)
-    } catch {
+    } catch (error) {
+      // Diagnostic (no secrets): distinguishes an open circuit from a real
+      // network/DNS/TLS failure if this ever recurs.
+      this.live?.log?.('warn', 'cvr login: request failed', {
+        name: error instanceof Error ? error.name : 'unknown',
+        message: error instanceof Error ? error.message : String(error)
+      })
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
 
