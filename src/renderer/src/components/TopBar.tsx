@@ -1,14 +1,15 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
+import { useFriendsStore } from '../stores/friends'
 import { useFriends } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
-/** Platform filter for the segmented control. */
-export type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
+/** Platform filter for the segmented control (local shape; the canonical
+ *  `PlatformFilter` + its state live in `stores/friends.ts`, VRX-66). */
+type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
 
 // Order: VRChat | All | ChilloutVR — "All" sits in the MIDDLE because it mixes the
 // two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only
@@ -113,7 +114,11 @@ export default function TopBar(): React.JSX.Element {
   const activeTab = useUiStore((s) => s.activeTab)
   const settingsCategory = useUiStore((s) => s.settingsCategory)
   const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
-  const [platform, setPlatform] = useState<PlatformFilter>('all')
+  // Platform filter lives in the friends VIEW store (VRX-66) so the selection
+  // survives view switches AND is readable by FriendsList — it was local state
+  // here before, which made the slider cosmetic.
+  const platform = useFriendsStore((s) => s.platformFilter)
+  const setPlatform = useFriendsStore((s) => s.setPlatformFilter)
 
   // Real online count for the §8 status indicator — total across platforms.
   // Online = active OR in-game presence (same definition as the dashboard's

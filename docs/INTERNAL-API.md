@@ -131,6 +131,7 @@ VRX-58).
 | --- | --- | --- |
 | `useFriends(platform)` | `queries/friends.ts` | SWR; `staleTime`/`refetchInterval` = `FRIENDS_RECONCILE_MS` (the slow reconcile — WS is the live path) |
 | `friendsQueryKey(platform)` | `queries/friends.ts` | `['friends', platform]` — use THIS for any cache read/write, never a literal |
+| `combineFriendQueries(filter, vrc, cvr)` | `queries/friends.ts` | Pure fold of the two per-platform `useFriends` results by `PlatformFilter` (VRX-66). Single-platform = pass-through; `all` = VRChat-then-CVR concat. `friends` stays `undefined` until one query returns (no empty/error flash). Consumed by `FriendsList` |
 | `useAuthStatus(platform?)` | `queries/auth.ts` | Invalidation-driven, never polled. Defaults to `'vrchat'` (the App gate); `'chilloutvr'` drives the Settings → Accounts card (VRX-37) |
 | `authStatusQueryKey(platform?)` | `queries/auth.ts` | Per-platform key; invalidate after login/verify to re-check that platform's status |
 | `queryClient` config | `queries/queryClient.ts` | No refetch-on-focus; retry+backoff per rate-limit etiquette |
@@ -150,7 +151,7 @@ VRX-58).
 | --- | --- | --- |
 | `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**accounts**) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
-| `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter`, `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
+| `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter` (wired VRX-66: TopBar's slider writes it, `FriendsList` reads it via `combineFriendQueries`), `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
 
 ### Renderer utilities

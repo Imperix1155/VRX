@@ -1,6 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
 import { FRIENDS_RECONCILE_MS } from '@shared/constants'
+import type { PlatformFilter } from '../stores/friends'
 
 /** Per-platform query key for the friends list. */
 export function friendsQueryKey(platform: Platform): readonly ['friends', Platform] {
@@ -32,4 +33,48 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     staleTime: FRIENDS_RECONCILE_MS,
     refetchInterval: FRIENDS_RECONCILE_MS
   })
+}
+
+/** The subset of a friends query the list view consumes. */
+export type FriendQuery = Pick<
+  UseQueryResult<Friend[], Error>,
+  'data' | 'isPending' | 'isError' | 'isFetching' | 'refetch'
+>
+
+export interface CombinedFriendsView {
+  friends: Friend[] | undefined
+  isPending: boolean
+  isError: boolean
+  isFetching: boolean
+  refetch: () => void
+}
+
+/**
+ * Fold the two per-platform friends queries into one view according to the
+ * platform filter (VRX-66). Single-platform filters pass that query's state
+ * through unchanged (preserving the pre-VRX-66 behavior); `all` concatenates
+ * VRChat-then-ChilloutVR in adapter order — a deliberate simple default, with
+ * presence-based sectioning deferred to VRX-67.
+ *
+ * `friends` stays `undefined` until at least one scoped query returns, so the
+ * list never flashes "empty" or an error while data is still loading (matching
+ * the stale-while-revalidate render in FriendsList). Error/empty only surface
+ * once every scoped query has resolved with nothing.
+ */
+export function combineFriendQueries(
+  filter: PlatformFilter,
+  vrc: FriendQuery,
+  cvr: FriendQuery
+): CombinedFriendsView {
+  const scoped = filter === 'vrchat' ? [vrc] : filter === 'chilloutvr' ? [cvr] : [vrc, cvr]
+  const anyData = scoped.some((q) => q.data !== undefined)
+  return {
+    friends: anyData ? scoped.flatMap((q) => q.data ?? []) : undefined,
+    isPending: scoped.every((q) => q.isPending),
+    isError: scoped.every((q) => q.isError),
+    isFetching: scoped.some((q) => q.isFetching),
+    refetch: () => {
+      for (const q of scoped) void q.refetch()
+    }
+  }
 }
