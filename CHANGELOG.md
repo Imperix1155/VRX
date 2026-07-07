@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-07
+
+### Fixed
+
+- **ChilloutVR login now sticks.** Connecting your CVR account stayed connected only until you left the Accounts page — navigating away and back asked you to log in again. VRX was re-checking your session by fully re-logging-in on every screen change, which ChilloutVR rejected. It now trusts your session once you're in and only re-checks when something actually fails. (VRX-190)
+
 ## [0.4.0] - 2026-07-06
 
 ### Added
