@@ -93,6 +93,26 @@ describe('CvrAdapter', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1) // still just the one login call
     })
 
+    it('login punches through an OPEN circuit breaker — "cannot connect" bug (VRX-190)', async () => {
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      // Trip the shared breaker with 3 background data-call network failures
+      // (each records a circuit failure via the guarded request path).
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.reject(new Error('offline')))
+      )
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      }
+      // Circuit is now open. A deliberate login must STILL reach the wire — it
+      // resets the breaker first (without the fix this returns network_error).
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+      )
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+    })
+
     it('wrong password (401) → invalid_credentials, nothing persisted, login stays retryable', async () => {
       const fetchMock = vi.fn(() =>
         Promise.resolve(jsonResponse({ message: 'nope' }, { status: 401 }))

@@ -156,6 +156,17 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.lastFailureAt = Date.now()
   }
 
+  /**
+   * Clear the circuit breaker. For a DELIBERATE user action (an interactive
+   * login) that must always reach the wire: background/data-call failures can
+   * open the shared breaker, and a user typing correct credentials should not
+   * be fast-failed as "cannot connect" for the reset window (VRX-190/VRX-189).
+   * Rate limiting (1 req/sec) and 429 backoff still protect the API.
+   */
+  protected resetCircuit(): void {
+    this.consecutiveFailures = 0
+  }
+
   private async waitForRequestSlot(): Promise<void> {
     while (true) {
       const now = Date.now()
