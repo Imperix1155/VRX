@@ -343,6 +343,17 @@ describe('CvrAdapter', () => {
       expect(store.deleted).toBe(1)
       expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
     })
+
+    it('a TRANSIENT getFriends error (5xx) does NOT clear the session — only a 401 does (VRX-190)', async () => {
+      const store = fakeStore({ username: 'u', accessKey: 'k' })
+      const adapter = new CvrAdapter(store, noopSleep)
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'oops' }, { status: 500 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(store.deleted).toBe(0) // a 5xx blip must not log the user out
+    })
   })
 
   describe('live pipeline (VRX-58)', () => {
