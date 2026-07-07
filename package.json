@@ -1,6 +1,6 @@
 {
   "name": "vrx",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "VRX — Social VR companion for VRChat + ChilloutVR",
   "main": "./out/main/index.js",
   "author": "Imperix1155",

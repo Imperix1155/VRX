@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-07
+
+### Fixed
+
+- **ChilloutVR login no longer falsely reports "cannot connect."** A safety mechanism that backs off after repeated request failures could get tripped by background activity on startup and then block your login for up to a minute — even with the right password and healthy servers. A deliberate login now clears that backoff first, so it always reaches ChilloutVR. (VRX-190)
+
 ## [0.4.1] - 2026-07-07
 
 ### Fixed
