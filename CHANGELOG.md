@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The platform filter now works.** The VRC / ALL / CVR slider in the top bar actually filters the friends list: VRC shows only VRChat friends, CVR shows only ChilloutVR friends, and ALL shows both (VRChat first, then ChilloutVR). Before, the slider was cosmetic and the list only ever showed VRChat — so your ChilloutVR friends now appear. The selection is remembered as you move between views. (VRX-66)
+- **The platform filter now works — everywhere.** The VRC / ALL / CVR slider in the top bar is now a global filter across every social view: VRC shows only VRChat, CVR shows only ChilloutVR, ALL shows both. It filters the **friends list** (your ChilloutVR friends now appear — ALL lists VRChat first, then ChilloutVR), the **Dashboard** stat cards and hot instances, and the **online count**. Before, the slider was cosmetic and the friends list only ever showed VRChat. The selection is remembered as you move between views; Settings is the only place it doesn't apply (it's app settings, not social data). (VRX-66)
 
 ## [0.4.2] - 2026-07-07
 

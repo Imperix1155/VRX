@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { useFriendsStore } from '../stores/friends'
-import { useFriends } from '../queries/friends'
+import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
@@ -120,15 +120,18 @@ export default function TopBar(): React.JSX.Element {
   const platform = useFriendsStore((s) => s.platformFilter)
   const setPlatform = useFriendsStore((s) => s.setPlatformFilter)
 
-  // Real online count for the §8 status indicator — total across platforms.
-  // Online = active OR in-game presence (same definition as the dashboard's
-  // getDashboardStats). The friends queries are already cached (Friends/Dashboard
-  // views), so this re-uses them rather than fetching again.
-  const vrcFriends = useFriends('vrchat').data ?? []
-  const cvrFriends = useFriends('chilloutvr').data ?? []
-  const onlineCount = [...vrcFriends, ...cvrFriends].filter(
-    (f) => f.presence.state === 'active' || f.presence.state === 'in-game'
-  ).length
+  // Real online count for the §8 status indicator. Online = active OR in-game
+  // presence (same definition as the dashboard's getDashboardStats). The friends
+  // queries are already cached (Friends/Dashboard views), so this re-uses them
+  // rather than fetching again. Scoped to the platform filter (VRX-66) so the
+  // count reflects whichever platform(s) the user is currently viewing.
+  const onlineCount = scopeByPlatformFilter(
+    platform,
+    useFriends('vrchat'),
+    useFriends('chilloutvr')
+  )
+    .flatMap((q) => q.data ?? [])
+    .filter((f) => f.presence.state === 'active' || f.presence.state === 'in-game').length
 
   return (
     <div className="flex items-center gap-[18px] mb-[22px]">

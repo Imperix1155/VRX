@@ -35,6 +35,17 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   })
 }
 
+/**
+ * Map a `PlatformFilter` to the per-platform items in scope (VRX-66) — the ONE
+ * definition of "which platforms does this filter select", shared by every
+ * social surface so they all filter identically (Friends, Dashboard, the online
+ * count, …). Generic over the item so callers can scope query results OR any
+ * per-platform value. Order is VRChat-then-ChilloutVR for the combined `all`.
+ */
+export function scopeByPlatformFilter<T>(filter: PlatformFilter, vrc: T, cvr: T): T[] {
+  return filter === 'vrchat' ? [vrc] : filter === 'chilloutvr' ? [cvr] : [vrc, cvr]
+}
+
 /** The subset of a friends query the list view consumes. */
 export type FriendQuery = Pick<
   UseQueryResult<Friend[], Error>,
@@ -66,7 +77,7 @@ export function combineFriendQueries(
   vrc: FriendQuery,
   cvr: FriendQuery
 ): CombinedFriendsView {
-  const scoped = filter === 'vrchat' ? [vrc] : filter === 'chilloutvr' ? [cvr] : [vrc, cvr]
+  const scoped = scopeByPlatformFilter(filter, vrc, cvr)
   const anyData = scoped.some((q) => q.data !== undefined)
   return {
     friends: anyData ? scoped.flatMap((q) => q.data ?? []) : undefined,

@@ -13,7 +13,11 @@ import { useUiStore } from '../stores/ui'
 import TopBar from './TopBar'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
-vi.mock('../queries/friends', () => ({ useFriends: useFriendsMock }))
+// Keep the real `scopeByPlatformFilter` (pure) — only the hook is stubbed.
+vi.mock('../queries/friends', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/friends')>()),
+  useFriends: useFriendsMock
+}))
 
 // jsdom has no ResizeObserver (the bubble-measuring effect observes the track).
 class ResizeObserverStub {
