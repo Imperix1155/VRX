@@ -1,15 +1,16 @@
 import { useTranslation } from 'react-i18next'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
-import { useFriendsStore } from '../stores/friends'
+import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
-/** Platform filter for the segmented control (local shape; the canonical
- *  `PlatformFilter` + its state live in `stores/friends.ts`, VRX-66). */
-type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
+// `PlatformFilter` (the segmented control's value type) is the store's canonical
+// union — imported, not redefined, so it can't drift (VRX-66). The type import
+// and the local `PlatformFilter` component below share a name harmlessly (type
+// vs value namespace; `import type` is erased).
 
 // Order: VRChat | All | ChilloutVR — "All" sits in the MIDDLE because it mixes the
 // two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only

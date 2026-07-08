@@ -81,7 +81,10 @@ export function combineFriendQueries(
   const anyData = scoped.some((q) => q.data !== undefined)
   return {
     friends: anyData ? scoped.flatMap((q) => q.data ?? []) : undefined,
-    isPending: scoped.every((q) => q.isPending),
+    // Loading until the FIRST scoped query returns data — so `all` mode still
+    // shows "loading" when one platform errored while the other is mid-load
+    // (rather than a blank frame). Once any data is in, it's no longer pending.
+    isPending: !anyData && scoped.some((q) => q.isPending),
     isError: scoped.every((q) => q.isError),
     isFetching: scoped.some((q) => q.isFetching),
     refetch: () => {

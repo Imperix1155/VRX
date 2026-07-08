@@ -395,17 +395,35 @@ describe('combineFriendQueries', () => {
     expect(view.isPending).toBe(false)
   })
 
-  it('all filter stays blank (friends undefined) until at least one query returns', () => {
+  it('all filter keeps loading while one query is pending even if the other errored', () => {
+    // No data yet + one platform still loading → stay in the loading state (not a
+    // blank frame) until the first data arrives (CodeRabbit VRX-66).
     const view = combineFriendQueries('all', q({ isError: true }), q({ isPending: true }))
     expect(view.friends).toBeUndefined()
     expect(view.isError).toBe(false) // not EVERY scoped query errored → no error yet
-    expect(view.isPending).toBe(false)
+    expect(view.isPending).toBe(true)
   })
 
   it('all filter surfaces error only when every scoped query erred with no data', () => {
     const view = combineFriendQueries('all', q({ isError: true }), q({ isError: true }))
     expect(view.isError).toBe(true)
+    expect(view.isPending).toBe(false) // both settled (errored) → not loading
     expect(view.friends).toBeUndefined()
+  })
+
+  it('all filter keeps stale cached data AND flags isError on a background refetch failure (SWR)', () => {
+    // The stale-while-revalidate contract FriendsList depends on: when both
+    // platforms have cached data but a background refetch failed, keep showing
+    // the data (friends defined) and surface the error separately — the render's
+    // `isError && !friends` guard then suppresses the error text (CodeRabbit).
+    const view = combineFriendQueries(
+      'all',
+      q({ data: [vrcFriend], isError: true }),
+      q({ data: [cvrFriend], isError: true })
+    )
+    expect(view.friends).toEqual([vrcFriend, cvrFriend])
+    expect(view.isError).toBe(true)
+    expect(view.isPending).toBe(false)
   })
 
   it('isFetching is true if ANY scoped query is fetching; refetch fans out to all scoped', () => {
