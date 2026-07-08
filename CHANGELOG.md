@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Your ChilloutVR friends now load, show correct presence, and stay accurate.** The first real ChilloutVR session surfaced several places where our code assumed the wrong shape for CVR's (undocumented) API, so the friends list either failed to load or showed everyone offline. All fixed: the list loads (a `null` status field no longer breaks the whole fetch); friends show the right **online / in-game** state and their **world names**; presence updates live as friends move between worlds instead of flipping everyone offline; and instance types (**Public / Friends / Group / Invite**) read correctly. Presence also no longer gets stuck showing a stale "in-game" while the live connection is down. (CVR live-data hardening)
+
 ### Added
+
+- **Friends are now sorted online-first.** The list orders in-game friends at the top, then online, then offline — alphabetically within each group — so you're not scrolling past offline friends to find who's around. Applies to both platforms.
 
 - **The platform filter now works — everywhere.** The VRC / ALL / CVR slider in the top bar is now a global filter across every social view: VRC shows only VRChat, CVR shows only ChilloutVR, ALL shows both. It filters the **friends list** (your ChilloutVR friends now appear — ALL lists VRChat first, then ChilloutVR), the **Dashboard** stat cards and hot instances, and the **online count**. Before, the slider was cosmetic and the friends list only ever showed VRChat. The selection is remembered as you move between views; Settings is the only place it doesn't apply (it's app settings, not social data). (VRX-66)
 

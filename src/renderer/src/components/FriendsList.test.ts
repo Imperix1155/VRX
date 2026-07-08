@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Friend, InstanceInfo } from '@shared/types'
+import type { Friend, InstanceInfo, PresenceState } from '@shared/types'
 import '../i18n'
 
 const { useFriends } = vi.hoisted(() => ({ useFriends: vi.fn() }))
@@ -342,6 +342,32 @@ describe('FriendsList', () => {
     expect(markup).toContain('var(--cvr)')
     expect(markup).toContain('var(--ingame)')
     expect(markup).toContain('aria-label="In-game"')
+  })
+
+  // ─── Online-first ordering (VRX-67 slice) ────────────────────────────────────
+
+  it('orders friends in-game → active → offline, alphabetical within each band', () => {
+    const mk = (name: string, state: PresenceState): Friend => ({
+      ...friend,
+      platformUserId: `usr_${name}`,
+      displayName: name,
+      status: 'online',
+      statusDescription: null,
+      instance: null,
+      presence: { state }
+    })
+    // Deliberately unsorted input across all three bands.
+    mock([
+      mk('Zed', 'offline'),
+      mk('Yara', 'in-game'),
+      mk('Xander', 'active'),
+      mk('Anna', 'in-game')
+    ])
+    const markup = render()
+    // Expected render order: Anna, Yara (in-game, alpha) → Xander (active) → Zed (offline).
+    const positions = ['Anna', 'Yara', 'Xander', 'Zed'].map((n) => markup.indexOf(`>${n}<`))
+    expect(positions.every((i) => i >= 0)).toBe(true) // all rendered
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions) // strictly in that order
   })
 })
 

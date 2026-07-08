@@ -68,7 +68,7 @@
         "connecting": "Connecting…",
         "error": {
           "invalidCredentials": "Incorrect username or password. Please try again.",
-          "networkError": "Couldn't reach ChilloutVR. Check your connection and try again.",
+          "networkError": "Could not reach ChilloutVR. Check your connection and try again.",
           "unknown": "Something went wrong. Please try again."
         }
       }
@@ -86,7 +86,7 @@
     "loading": "Loading...",
     "empty": "No friends online",
     "refresh": "Refresh",
-    "error": "Couldn't load friends",
+    "error": "Could not load friends",
     "status": {
       "joinMe": "Join Me",
       "online": "Online",
@@ -121,7 +121,7 @@
   },
   "dashboard": {
     "loading": "Loading...",
-    "error": "Couldn't load your friends right now",
+    "error": "Could not load your friends right now",
     "retry": "Retry",
     "statOnlineLabel": "Friends online",
     "statInGameLabel": "In game right now",
@@ -146,7 +146,7 @@
     "disclaimer": "Connects to VRChat on your behalf. Your credentials are stored securely on this device.",
     "error": {
       "invalidCredentials": "Incorrect username or password. Please try again.",
-      "networkError": "Couldn't reach VRChat. Check your connection and try again.",
+      "networkError": "Could not reach VRChat. Check your connection and try again.",
       "invalid2faCode": "Incorrect verification code. Please try again.",
       "unknown": "Something went wrong. Please try again."
     },

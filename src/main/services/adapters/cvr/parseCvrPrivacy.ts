@@ -42,8 +42,31 @@ const UNKNOWN_ACCESS: CvrInstanceAccess = {
   isGroup: false
 }
 
-export function parseCvrPrivacy(privacy: string | null | undefined): CvrInstanceAccess {
+/**
+ * The WS wire (and `/1/instances/{id}`) sends privacy as an INTEGER enum.
+ * Mapping follows the owner's prior WORKING app (Social-VR-Companion
+ * `cvrx-friends-reader.js`): 0=public, 1|2=friends, 3|6=group, 4|5=private.
+ * `0`, `2`, `7` are additionally confirmed LIVE 2026-07-08 (a known public,
+ * friends, and group instance rendered correctly); `7` is a group value newer
+ * than the prior app knew (0–6). Values without live confirmation follow the
+ * reference and understate on doubt (friends narrower than friends-of-friends,
+ * private narrower than everyone-can-invite) — the safe direction. Unknown
+ * numbers degrade restrictive, same convention as unknown strings.
+ */
+const PRIVACY_MAP_NUMERIC: Record<number, CvrInstanceAccess> = {
+  0: PRIVACY_MAP['public']!, // live-confirmed
+  1: PRIVACY_MAP['friends']!, // reference (1|2=friends); no live capture
+  2: PRIVACY_MAP['friends']!, // live-confirmed
+  3: PRIVACY_MAP['groupsonly']!, // reference (3|6=group)
+  4: PRIVACY_MAP['ownermustinvite']!, // reference (4|5=private)
+  5: PRIVACY_MAP['ownermustinvite']!, // reference (4|5=private)
+  6: PRIVACY_MAP['groupsonly']!, // reference
+  7: PRIVACY_MAP['groupsonly']! // live-confirmed (newer than the prior app)
+}
+
+export function parseCvrPrivacy(privacy: string | number | null | undefined): CvrInstanceAccess {
   if (privacy == null) return UNKNOWN_ACCESS
+  if (typeof privacy === 'number') return PRIVACY_MAP_NUMERIC[privacy] ?? UNKNOWN_ACCESS
   // Case/punctuation-insensitive: wire captures show PascalCase ("FriendsOfFriends");
   // normalize so casing drift can't silently unknown-ify a verified value.
   // Digits stay significant — a future "Friends2" must NOT alias to 'friends'
