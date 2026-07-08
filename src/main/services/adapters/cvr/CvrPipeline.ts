@@ -42,6 +42,7 @@ import {
   type PipelineSocket
 } from '../ReconnectingPipeline'
 import { parseCvrPrivacy } from './parseCvrPrivacy'
+import { extractCvrPlatformUserId } from './cvrPlatformUserId'
 
 // ─── Injected surfaces ────────────────────────────────────────────────────────
 
@@ -110,19 +111,45 @@ const envelopeSchema = z
  * friend would wrongly flip OFFLINE (the W4 severity ladder: presence is the
  * critical payload, instance is enrichment; null renders as "Private").
  */
-const onlineFriendSchema = z.object({
-  id: z.string(),
-  isOnline: z.boolean().optional(),
-  instance: z
-    .object({
-      id: z.string(),
-      name: z.string().nullable().catch(null),
-      privacy: z.string().nullable().catch(null)
-    })
-    .nullable()
-    .catch(null)
-    .optional()
-})
+// CVR's WS sends PascalCase on the wire (`Id`/`IsOnline`/`Instance`; the nested
+// Instance is `Id`/`Name`/`Privacy`, `Privacy` a NUMERIC enum), while CVRX docs
+// show camelCase — so accept BOTH casings and normalize, mirroring the envelope's
+// dual-casing handling above (real capture 2026-07-07). Instance is enrichment:
+// any mismatch (incl. the numeric `Privacy`, whose enum is unconfirmed — VRX-130)
+// degrades that field to null ⇒ "Private", never dropping the entry.
+const onlineInstanceSchema = z
+  .object({
+    Id: z.string().optional(),
+    id: z.string().optional(),
+    Name: z.string().nullable().catch(null).optional(),
+    name: z.string().nullable().catch(null).optional(),
+    // NUMERIC enum on the live wire (0=public … 6=group, parseCvrPrivacy);
+    // string kept for the CVRX-documented casing. Mismatch degrades to null.
+    Privacy: z.union([z.number(), z.string()]).nullable().catch(null).optional(),
+    privacy: z.union([z.number(), z.string()]).nullable().catch(null).optional()
+  })
+  .transform((v) => {
+    const id = v.Id ?? v.id
+    // An instance with no id is useless (can't key/join it) — degrade the whole
+    // instance to null (⇒ "Private") rather than emit a bogus empty-worldId one.
+    if (id === undefined) return null
+    return { id, name: v.Name ?? v.name ?? null, privacy: v.Privacy ?? v.privacy ?? null }
+  })
+
+const onlineFriendSchema = z
+  .object({
+    Id: z.string().optional(),
+    id: z.string().optional(),
+    IsOnline: z.boolean().optional(),
+    isOnline: z.boolean().optional(),
+    Instance: onlineInstanceSchema.nullable().catch(null).optional(),
+    instance: onlineInstanceSchema.nullable().catch(null).optional()
+  })
+  .transform((v) => ({
+    id: v.Id ?? v.id,
+    isOnline: v.IsOnline ?? v.isOnline,
+    instance: v.Instance ?? v.instance ?? null
+  }))
 
 const onlineFriendsSchema = z.array(z.unknown())
 
@@ -134,6 +161,19 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   private readonly headersProvider: () => Promise<Record<string, string> | null>
   private readonly socketFactory: (url: string, headers: Record<string, string>) => PipelineSocket
 
+  /**
+   * Merged current-online set. ONLINE_FRIENDS is a FULL set only on connect —
+   * afterwards CVR sends 1-entry DELTAS (live capture 2026-07-07: an 11-entry
+   * connect push, then `total: 1` updates). Treating a delta as a full snapshot
+   * flipped everyone else offline (absent ⇒ offline). So deltas merge here
+   * (IsOnline:false evicts) and every emit is the full merged set — the
+   * renderer's snapshot contract stays exactly as before.
+   */
+  private readonly onlineSet = new Map<
+    string,
+    { platformUserId: string; presence: { state: 'in-game' }; instance: InstanceInfo | null }
+  >()
+
   constructor(deps: CvrPipelineDeps) {
     super({ onEvent: deps.onEvent, sleepFn: deps.sleepFn, log: deps.log })
     this.headersProvider = deps.headersProvider
@@ -141,6 +181,9 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   }
 
   protected prepareConnection(): Promise<Record<string, string> | null> {
+    // Fresh (re)connect ⇒ CVR will push a fresh FULL set; drop the stale merge
+    // so friends who went offline while we were disconnected don't linger.
+    this.onlineSet.clear()
     return this.headersProvider()
   }
 
@@ -256,10 +299,13 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   }
 
   /**
-   * ONLINE_FRIENDS → presence-snapshot: a FULL current-online-set push of
-   * ids + instances (no profiles). Per-entry validation — one malformed entry
-   * is skipped, the rest survive (the W4 lesson). CVR has no 'active' state
-   * and no status/trust — never fabricated (§5).
+   * ONLINE_FRIENDS → presence-snapshot. The wire message is a FULL set only on
+   * connect; afterwards it carries 1-entry DELTAS. Entries merge into
+   * `onlineSet` (IsOnline:false evicts) and the event emitted downstream is
+   * always the full merged set, so the renderer's absent-⇒-offline snapshot
+   * semantics stay correct. Per-entry validation — one malformed entry is
+   * skipped, the rest survive (the W4 lesson). CVR has no 'active' state and
+   * no status/trust — never fabricated (§5).
    */
   private onlineFriendsEvent(payload: unknown): AdapterEvent | null {
     const list = onlineFriendsSchema.safeParse(payload)
@@ -268,35 +314,42 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       return null
     }
 
-    const entries: Array<{
-      platformUserId: string
-      presence: { state: 'in-game' | 'offline' }
-      instance: InstanceInfo | null
-    }> = []
     let skipped = 0
     for (const raw of list.data) {
       const parsed = onlineFriendSchema.safeParse(raw)
-      if (!parsed.success) {
+      if (!parsed.success || parsed.data.id === undefined) {
         skipped++
         continue
       }
-      // isOnline:false inside the ONLINE set is contradictory but observed in
-      // CVRX handling — honor the flag over set membership.
-      const online = parsed.data.isOnline !== false
-      entries.push({
-        platformUserId: parsed.data.id,
-        presence: { state: online ? 'in-game' : 'offline' },
-        instance: online ? this.instanceOf(parsed.data.instance ?? null) : null
+      // Normalize the id EXACTLY as the REST roster does (VRX-61): the roster
+      // lowercases+validates the GUID, so the raw WS id must go through the same
+      // extractor or presence-snapshot entries won't match any cached friend and
+      // EVERYONE flips offline (the join key is platformUserId).
+      const idResult = extractCvrPlatformUserId(parsed.data.id)
+      if (!idResult.ok) {
+        skipped++
+        continue
+      }
+      // isOnline:false marks a friend LEAVING in a delta — evict from the set.
+      if (parsed.data.isOnline === false) {
+        this.onlineSet.delete(idResult.platformUserId)
+        continue
+      }
+      this.onlineSet.set(idResult.platformUserId, {
+        platformUserId: idResult.platformUserId,
+        presence: { state: 'in-game' },
+        instance: this.instanceOf(parsed.data.instance ?? null)
       })
     }
     if (skipped > 0) {
       this.log('debug', 'cvr pipeline: skipped malformed ONLINE_FRIENDS entries', { skipped })
     }
+    const entries = [...this.onlineSet.values()]
     return { type: 'presence-snapshot', platform: 'chilloutvr', entries }
   }
 
   private instanceOf(
-    instance: { id: string; name: string | null; privacy: string | null } | null
+    instance: { id: string; name: string | null; privacy: string | number | null } | null
   ): InstanceInfo | null {
     if (instance === null) return null
     const access = parseCvrPrivacy(instance.privacy)

@@ -72,6 +72,12 @@ function rig(opts: { headers?: Record<string, string> | null } = {}): Rig {
 
 const frame = (envelope: unknown): string => JSON.stringify(envelope)
 
+// Real CVR ids are GUIDs; the roster + pipeline both normalize via
+// extractCvrPlatformUserId (lowercase + GUID-validate), so fixtures MUST be
+// valid GUIDs or they're (correctly) skipped.
+const G1 = '11111111-1111-1111-1111-111111111111'
+const G2 = '22222222-2222-2222-2222-222222222222'
+
 describe('CvrPipeline', () => {
   it('dials the CVR WS URL with the auth headers on the upgrade (never a query token)', async () => {
     const r = rig()
@@ -85,7 +91,7 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
-  it('maps ONLINE_FRIENDS to a presence-snapshot: in-game + parsed instance, null instance kept null', async () => {
+  it('maps a full ONLINE_FRIENDS set to a presence-snapshot (real PascalCase + numeric privacy)', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -95,14 +101,15 @@ describe('CvrPipeline', () => {
       'message',
       frame({
         ResponseType: 10,
-        Message: '',
+        Message: null, // CVR sends null here — must not reject the payload
         Data: [
           {
-            id: 'cvr_1',
-            isOnline: true,
-            instance: { id: 'i_abc', name: 'Chill Lounge', privacy: 'FriendsOfFriends' }
+            Id: G1,
+            IsOnline: true,
+            IsConnected: true,
+            Instance: { Id: 'i_abc', Name: 'Chill Lounge', Privacy: 2 } // 2 = friends (live-confirmed)
           },
-          { id: 'cvr_2', isOnline: true, instance: null }
+          { Id: G2, IsOnline: true, Instance: null }
         ]
       })
     )
@@ -112,28 +119,28 @@ describe('CvrPipeline', () => {
       platform: 'chilloutvr',
       entries: [
         {
-          platformUserId: 'cvr_1',
+          platformUserId: G1,
           presence: { state: 'in-game' },
           instance: {
             worldId: 'i_abc',
             instanceId: 'i_abc',
             worldName: 'Chill Lounge',
             thumbnailUrl: null,
-            type: 'friends-of-friends',
-            openness: 'friends-plus',
+            type: 'friends',
+            openness: 'friends',
             isGroup: false,
             groupName: null,
             region: null,
             userCount: null
           }
         },
-        { platformUserId: 'cvr_2', presence: { state: 'in-game' }, instance: null }
+        { platformUserId: G2, presence: { state: 'in-game' }, instance: null }
       ]
     })
     r.pipeline.stop()
   })
 
-  it('accepts the lowercase envelope casing (responseType/data — chilloutvr_rs report)', async () => {
+  it('accepts the camelCase entry casing too (CVRX-documented shape)', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -141,17 +148,53 @@ describe('CvrPipeline', () => {
 
     r.sockets[0]!.fire(
       'message',
-      frame({ responseType: 10, data: [{ id: 'cvr_low', isOnline: true, instance: null }] })
+      frame({ responseType: 10, data: [{ id: G1, isOnline: true, instance: null }] })
     )
 
     expect(r.events.at(-1)).toMatchObject({
       type: 'presence-snapshot',
-      entries: [{ platformUserId: 'cvr_low' }]
+      entries: [{ platformUserId: G1 }]
     })
     r.pipeline.stop()
   })
 
-  it('honors isOnline:false inside the set (offline, instance cleared)', async () => {
+  it('DELTA updates merge into the online set — full set re-emitted, not replaced (the offline-flip bug)', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+
+    // Connect: full set of two.
+    r.sockets[0]!.fire(
+      'message',
+      frame({
+        ResponseType: 10,
+        Data: [
+          { Id: G1, IsOnline: true, Instance: null },
+          { Id: G2, IsOnline: true, Instance: null }
+        ]
+      })
+    )
+    // Delta: a SINGLE entry (G1 changed worlds). G2 must NOT vanish.
+    r.sockets[0]!.fire(
+      'message',
+      frame({
+        ResponseType: 10,
+        Data: [{ Id: G1, IsOnline: true, Instance: { Id: 'i_new', Name: 'New World', Privacy: 0 } }]
+      })
+    )
+
+    const e = r.events.at(-1)
+    if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect([...e.entries.map((x) => x.platformUserId)].sort()).toEqual([G1, G2].sort())
+    expect(e.entries.find((x) => x.platformUserId === G1)!.instance).toMatchObject({
+      worldName: 'New World',
+      type: 'public'
+    })
+    r.pipeline.stop()
+  })
+
+  it('IsOnline:false in a delta EVICTS the friend from the set (they went offline)', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -162,18 +205,20 @@ describe('CvrPipeline', () => {
       frame({
         ResponseType: 10,
         Data: [
-          { id: 'cvr_1', isOnline: false, instance: { id: 'i', name: 'x', privacy: 'Public' } }
+          { Id: G1, IsOnline: true, Instance: null },
+          { Id: G2, IsOnline: true, Instance: null }
         ]
       })
     )
+    r.sockets[0]!.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: false }] }))
 
-    expect(r.events.at(-1)).toMatchObject({
-      entries: [{ presence: { state: 'offline' }, instance: null }]
-    })
+    const e = r.events.at(-1)
+    if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(e.entries.map((x) => x.platformUserId)).toEqual([G2])
     r.pipeline.stop()
   })
 
-  it('a MALFORMED instance degrades to null — presence SURVIVES (W4 ladder: never skip the entry)', async () => {
+  it('a MALFORMED instance degrades to null — presence SURVIVES (never skip the entry)', async () => {
     // A skipped entry would read as absent-from-snapshot ⇒ wrongly OFFLINE.
     const r = rig()
     r.pipeline.start()
@@ -185,8 +230,8 @@ describe('CvrPipeline', () => {
       frame({
         ResponseType: 10,
         Data: [
-          { id: 'cvr_1', isOnline: true, instance: 42 }, // instance not an object
-          { id: 'cvr_2', isOnline: true, instance: { name: 'no id' } } // missing required id
+          { Id: G1, IsOnline: true, Instance: 42 }, // instance not an object → null
+          { Id: G2, IsOnline: true, Instance: { Name: 'no id' } } // id-less object → null (not worldId:'')
         ]
       })
     )
@@ -198,7 +243,7 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
-  it('a GroupsOnly instance carries the Group chip modifier (isGroup)', async () => {
+  it('numeric Privacy 7 (group, unknown to the prior app) maps to the Group chip type', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -208,13 +253,7 @@ describe('CvrPipeline', () => {
       'message',
       frame({
         ResponseType: 10,
-        Data: [
-          {
-            id: 'cvr_g',
-            isOnline: true,
-            instance: { id: 'i_g', name: 'Guild Hall', privacy: 'GroupsOnly' }
-          }
-        ]
+        Data: [{ Id: G1, IsOnline: true, Instance: { Id: 'i_g', Name: 'Guild Hall', Privacy: 7 } }]
       })
     )
 
@@ -263,7 +302,7 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
-  it('skips malformed ONLINE_FRIENDS entries — the rest survive (per-entry validation)', async () => {
+  it('skips entries with a missing or non-GUID id; valid GUIDs survive (per-entry validation)', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
@@ -273,14 +312,19 @@ describe('CvrPipeline', () => {
       'message',
       frame({
         ResponseType: 10,
-        Data: [{ nope: true }, { id: 'cvr_ok', isOnline: true, instance: null }, 42]
+        Data: [
+          { nope: true }, // no id at all
+          { Id: 'not-a-guid', IsOnline: true }, // id present but not a GUID → skipped
+          { Id: G1, IsOnline: true, Instance: null }, // valid
+          42 // not an object
+        ]
       })
     )
 
     const e = r.events.at(-1)
     if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
     expect(e.entries).toHaveLength(1)
-    expect(e.entries[0]!.platformUserId).toBe('cvr_ok')
+    expect(e.entries[0]!.platformUserId).toBe(G1)
     r.pipeline.stop()
   })
 

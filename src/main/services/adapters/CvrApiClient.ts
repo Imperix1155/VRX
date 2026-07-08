@@ -29,7 +29,7 @@ export type CVRUserAuth = z.infer<typeof cvrUserAuthSchema>
 /** CVR's `{ message, data }` envelope around the auth payload — exported so the
  *  adapter's raw (circuit-breaker-free) login leg can parse responses itself. */
 export const cvrAuthEnvelopeSchema = z.object({
-  message: z.string(),
+  message: z.string().nullish(), // discarded; CVR can send null — see requestData
   data: cvrUserAuthSchema
 })
 
@@ -96,7 +96,10 @@ export abstract class CvrApiClient extends BaseAdapter {
     try {
       const envelope = await this.request(
         CVR_API_BASE + path,
-        z.object({ message: z.string(), data: schema }),
+        // `message` is CVR's human-readable status string, which we discard — and
+        // it comes back `null` on some endpoints (e.g. /friends), so accept
+        // null/missing rather than rejecting the whole (valid) `data` payload.
+        z.object({ message: z.string().nullish(), data: schema }),
         options
       )
       return envelope.data
