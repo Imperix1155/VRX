@@ -32,9 +32,9 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 | `GET /users/{userId}` | User profile (used for bulk enrichment) | 🟡 Endpoint verified, rarely called | Missing fields → partial user data; non-critical for presence UI |
 | **Pipeline WS** `wss://pipeline.vrchat.cloud/?authToken=…` | Real-time friend events: `{type, content}` envelope with DOUBLE-ENCODED content; friend-online/active/offline/location/add/delete/update types; `GET /auth` token exchange | 🟡 Wire format verified vs community docs + VRChat's dev blog; mock-verified in code (VRX-146) — confirm event shapes on first live session | Unknown event types → logged + ignored; malformed frames dropped; undecodable content dropped; connect failure → backoff + retry, presence degrades to the slow REST reconcile (VRX-22) |
 | **CVR `POST /users/auth`** | Login response (username, accessKey, userId, avatar, home world) | 🟡 Endpoint verified, schema drift possible | Missing accessKey → login fails; missing userId → non-functional |
-| **CVR data envelope** | `{message: string, data: T}` wrapper on all responses | ✅ Verified | Unexpected shape → Zod validation fails; entire request treated as failed |
-| **CVR `instanceSettingPrivacy`** | Instance access level (public, friends, invite, etc.) | 🟡 6 values verified, 4 missing from live capture | Unknown value → MOST RESTRICTIVE access (`owner-must-invite`) via `parseCvrPrivacy` (VRX-147) |
-| **CVR WS** `wss://api.chilloutvr.net/1/users/ws` | Real-time friend presence: header auth on upgrade; `{ResponseType, Data}` clean-JSON envelope; ONLINE_FRIENDS full-online-set snapshots; outgoing `{RequestType, Data}` actions | 🟡 Event model verified vs CVRX + chilloutvr_rs source (2026-06-02); envelope CASING and outgoing Data shapes are mock-verified — confirm on first live CVR session | Unknown ResponseTypes → logged + ignored; malformed entries skipped per-entry; both envelope casings accepted; connect failure → backoff + retry |
+| **CVR data envelope** | `{message, data: T}` wrapper on all responses | ✅ Verified live 2026-07-08 — **`message` is nullable/optional** (`/friends` returns `message:null`); we discard it, so `z.string().nullish()` | Requiring `message:string` rejected every `/friends` fetch → circuit-breaker lockout (fixed). Shape change beyond `message` → Zod fails, request treated as failed |
+| **CVR `instanceSettingPrivacy` / WS `Instance.Privacy`** | Instance access level | ✅ WS wire is a **NUMERIC enum** (live 2026-07-08): `0`=public, `2`=friends, `7`=group confirmed live; `1`=friends, `3`/`6`=group, `4`/`5`=private from the owner's prior app. String form also accepted (CVRX docs) | `parseCvrPrivacy` maps both number + string; unknown → MOST RESTRICTIVE (`owner-must-invite`). Unverified numbers understate (safe). New enum value → restrictive default (VRX-147) |
+| **CVR WS** `wss://api.chilloutvr.net/1/users/ws` | Real-time friend presence: header auth on upgrade; `{ResponseType, Data}` clean-JSON envelope; outgoing `{RequestType, Data}` actions | ✅ Verified LIVE 2026-07-08. **ONLINE_FRIENDS (10) is a FULL set on connect, then 1-entry DELTAS** (not a full snapshot each time — merged in the pipeline). Entries are **PascalCase** (`Id`/`IsOnline`/`Instance{Id,Name,Privacy}`), `Privacy` numeric. Open: does a full-offline friend get an explicit `IsOnline:false` delta or just vanish? (VRX-193) | Unknown ResponseTypes → logged + ignored; malformed/non-GUID entries skipped per-entry; both casings accepted; deltas merge into a running online-set (cleared on reconnect); connect failure → backoff + retry |
 
 ---
 
@@ -218,19 +218,19 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 ### ChilloutVR Data Envelope
 
-**Endpoint:** All authenticated CVR endpoints return `{message: string, data: T}`.
+**Endpoint:** All authenticated CVR endpoints return `{message, data: T}`.
 
 **What VRX depends on:**
-- Message: `message: string` (status/debug message)
+- Message: **`message: string | null` (nullable/optional)** — status/debug message, **discarded** by VRX. Live 2026-07-08: `/friends` returns `message: null`. The schema is `z.string().nullish()`; validating the payload only depends on `data`.
 - Data: `data: T` (the actual response payload, validated against an inner schema)
 
-**Verification:** ✅ Verified in implementation and confirmed across multiple endpoints.
+**Verification:** ✅ Verified live 2026-07-08. Earlier the schema required `message: string`, which rejected the (valid) `/friends` response whose `message` was `null` — every fetch failed validation and tripped the shared circuit breaker into a "cannot load" lockout. Fixed by making `message` nullish (we never read it).
 
 **Degradation if changed:**
 - **Envelope structure changes (e.g., `{status, result}` instead of `{message, data}`):** All CVR requests fail validation. Entire adapter is broken until code is updated.
-- **New or removed envelope fields:** Zod ignores extra fields; missing fields cause validation failure only if required (currently: none are strictly required beyond the two above). Non-breaking if only `data` structure changes.
+- **`message` type drift (string/null/absent):** Non-breaking — `nullish()` tolerates all three, and the value is discarded.
 
-**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (lines 86–91: envelope validation).
+**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (`requestData` envelope + `cvrAuthEnvelopeSchema`).
 
 ---
 
@@ -239,26 +239,25 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** Present in user, instance, and friend response objects.
 
 **What VRX depends on:**
-- Privacy value: `instanceSettingPrivacy: string` (one of 10 known values mapping to VRX's privacy tiers)
+- Privacy value: **numeric enum on the WS wire** (`Instance.Privacy: number`); string form also handled (CVRX docs). `parseCvrPrivacy` accepts both.
 
-**Known values (verified):**
-- `"public"` → public
-- `"friendsoffriends"` → friends-of-friends / extended
-- `"friends"` → friends only
-- `"group"` → group members only
-- `"everyonecaninvite"` → public with invite
-- `"ownermustinvite"` → invite only
+**Numeric enum (the live WS + `/1/instances` wire):**
+- `0` → public — **live-confirmed 2026-07-08**
+- `1` → friends — reference (owner's prior app: `1|2`=friends); no live capture
+- `2` → friends — **live-confirmed**
+- `3`, `6` → group (members-only + group chip) — reference
+- `4`, `5` → private/invite (`owner-must-invite`) — reference (prior app: `4|5`=private)
+- `7` → group — **live-confirmed** (newer than the prior app's 0–6)
 
-**Unknown values (observed but not yet mapped):** 4 additional values exist but have not been captured in live API responses (VRX-130).
+**String values (also mapped):** `public`, `friendsoffriends`, `friends`, `groupsonly`, `everyonecaninvite`, `ownermustinvite` (case/punctuation-insensitive).
 
-**Verification:** 🟡 6 values verified via reverse-eng and testing; 4 values still unverified.
+**Verification:** ✅ `0`/`2`/`7` confirmed live 2026-07-08 against known instances (owner ground truth); the rest follow the owner's working prior app and **understate on doubt** (the safe direction — friends narrower than friends-of-friends, private narrower than everyone-can-invite).
 
 **Degradation if changed:**
-- **Unknown privacy value encountered:** VRX logs the unknown value and renders it as "unknown privacy" or a neutral icon. Non-breaking; user can still see the instance exists.
-- **New privacy type added by API:** Treated as unknown. Non-breaking until mapping is needed for correct UI display.
-- **Value name changes (e.g., `"public"` → `"public_world"`):** Treated as unknown. Non-breaking but semantic drift may occur.
+- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`), never crashes. Non-breaking; instance still shows.
+- **New enum value:** treated as unknown → restrictive. Non-breaking; capture it live and add to the map.
 
-**Code reference:** Mapping logic TBD (not yet fully integrated; flagged in VRX-130).
+**Code reference:** `/src/main/services/adapters/cvr/parseCvrPrivacy.ts` (`PRIVACY_MAP_NUMERIC` + string map).
 
 ---
 
