@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-08
+
 ### Fixed
 
 - **Your ChilloutVR friends now load, show correct presence, and stay accurate.** The first real ChilloutVR session surfaced several places where our code assumed the wrong shape for CVR's (undocumented) API, so the friends list either failed to load or showed everyone offline. All fixed: the list loads (a `null` status field no longer breaks the whole fetch); friends show the right **online / in-game** state and their **world names**; presence updates live as friends move between worlds instead of flipping everyone offline; and instance types (**Public / Friends / Group / Invite**) read correctly. Presence also no longer gets stuck showing a stale "in-game" while the live connection is down. (CVR live-data hardening)
