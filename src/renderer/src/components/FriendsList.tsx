@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, InstanceType } from '@shared/types'
+import type { Friend, InstanceType, PresenceState } from '@shared/types'
 import { useFriends, combineFriendQueries } from '../queries/friends'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -298,6 +298,9 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
   )
 })
 
+/** Sort rank for the online-first list order: lower = higher on the list. */
+const PRESENCE_ORDER: Record<PresenceState, number> = { 'in-game': 0, active: 1, offline: 2 }
+
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
   // Server data comes from the TanStack Query cache (VRX-22); the Zustand store
@@ -309,6 +312,19 @@ export default function FriendsList(): React.JSX.Element {
     useFriends('vrchat'),
     useFriends('chilloutvr')
   )
+
+  // Online-first ordering (a thin slice of VRX-67's presence sections — the
+  // roster arrives in adapter/alphabetical order, burying who's actually on):
+  // in-game, then active (VRChat web-online), then offline; alphabetical within
+  // each band. Applied to BOTH platforms identically (platform-parity rule).
+  const sortedFriends =
+    friends === undefined
+      ? undefined
+      : [...friends].sort(
+          (a, b) =>
+            PRESENCE_ORDER[a.presence.state] - PRESENCE_ORDER[b.presence.state] ||
+            a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
+        )
 
   return (
     <section
@@ -340,7 +356,7 @@ export default function FriendsList(): React.JSX.Element {
         <p className="text-sm text-[var(--text-faint)]">{t('friends.empty')}</p>
       )}
       <ul className="flex flex-col gap-[var(--space-1)]">
-        {friends?.map((f) => (
+        {sortedFriends?.map((f) => (
           <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
         ))}
       </ul>
