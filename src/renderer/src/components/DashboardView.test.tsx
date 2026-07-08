@@ -16,10 +16,15 @@ import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
+import { useFriendsStore } from '../stores/friends'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
-vi.mock('../queries/friends', () => ({ useFriends: useFriendsMock }))
+// Keep the real `scopeByPlatformFilter` (pure) — only the hook is stubbed.
+vi.mock('../queries/friends', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/friends')>()),
+  useFriends: useFriendsMock
+}))
 
 // Assertions go through i18n.t so a copy tweak doesn't break behavior tests.
 const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)
@@ -55,6 +60,7 @@ function makeFriend(overrides: Partial<VrcFriend> = {}): Friend {
 afterEach(() => {
   cleanup()
   useFriendsMock.mockReset()
+  useFriendsStore.setState({ platformFilter: 'all' }) // reset the global filter
 })
 
 describe('DashboardView states (W5)', () => {
@@ -89,6 +95,31 @@ describe('DashboardView states (W5)', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('dashboard.retry') }))
     expect(vrcRefetch).toHaveBeenCalledTimes(1)
     expect(cvrRefetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('scopes the stats to the selected platform filter (VRX-66)', () => {
+    const vrcOnline = (id: string): Friend =>
+      makeFriend({ platformUserId: id, presence: { state: 'active' } })
+    const cvrOnline = {
+      ...makeFriend(),
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_1',
+      presence: { state: 'active' },
+      status: null,
+      statusDescription: null
+    } as unknown as Friend
+    stubQueries(
+      { data: [vrcOnline('v1'), vrcOnline('v2'), vrcOnline('v3')], isPending: false },
+      { data: [cvrOnline], isPending: false }
+    )
+    act(() => {
+      useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    })
+    render(<DashboardView />)
+    // Only the single ChilloutVR friend counts online — the 3 VRChat friends are
+    // filtered out (an unscoped dashboard would show 4).
+    expect(screen.getByText('1')).toBeTruthy()
+    expect(screen.queryByText('4')).toBeNull()
   })
 
   it('renders stats from partial data when one platform errored', () => {

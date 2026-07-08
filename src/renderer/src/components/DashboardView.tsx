@@ -10,7 +10,8 @@
  */
 import { Trans, useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
-import { useFriends } from '../queries/friends'
+import { useFriends, scopeByPlatformFilter } from '../queries/friends'
+import { useFriendsStore } from '../stores/friends'
 import NumberStepper from './NumberStepper'
 import OpennessIcon from './OpennessIcon'
 import {
@@ -201,11 +202,17 @@ export default function DashboardView(): React.JSX.Element {
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
-  const hasData = vrcQuery.data != null || cvrQuery.data != null
+  // The Dashboard is a social surface, so it honors the global platform filter
+  // (VRX-66): the stats + hot instances reflect only the selected platform(s).
+  const platformFilter = useFriendsStore((s) => s.platformFilter)
+  const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+
+  const hasData = scoped.some((q) => q.data != null)
   if (!hasData) {
-    // Loading while ANY query is still pending (don't flash an error while the
-    // other platform may yet deliver); error only when every source has failed.
-    if (vrcQuery.isPending || cvrQuery.isPending) {
+    // Loading while ANY scoped query is still pending (don't flash an error
+    // while the other platform may yet deliver); error only when every scoped
+    // source has settled with nothing.
+    if (scoped.some((q) => q.isPending)) {
       return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
     }
     // Manual retry (same affordance as FriendsList's Refresh) — without it the
@@ -216,8 +223,7 @@ export default function DashboardView(): React.JSX.Element {
         <button
           type="button"
           onClick={() => {
-            void vrcQuery.refetch()
-            void cvrQuery.refetch()
+            for (const q of scoped) void q.refetch()
           }}
           className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
         >
@@ -227,12 +233,10 @@ export default function DashboardView(): React.JSX.Element {
     )
   }
 
-  const vrcFriends = vrcQuery.data ?? []
-  const cvrFriends = cvrQuery.data ?? []
-  const allFriends = [...vrcFriends, ...cvrFriends]
+  const friends = scoped.flatMap((q) => q.data ?? [])
 
-  const hotInstances = getHotInstances(allFriends, hotThreshold)
-  const stats = getDashboardStats(allFriends, hotInstances.length)
+  const hotInstances = getHotInstances(friends, hotThreshold)
+  const stats = getDashboardStats(friends, hotInstances.length)
 
   return (
     <div>

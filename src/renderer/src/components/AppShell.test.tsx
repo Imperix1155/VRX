@@ -16,7 +16,8 @@ import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import AppShell from './AppShell'
 
-vi.mock('../queries/friends', () => ({
+vi.mock('../queries/friends', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: () => ({ data: [], isPending: false, isError: false })
 }))
 

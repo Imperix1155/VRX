@@ -1,7 +1,8 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceType } from '@shared/types'
-import { useFriends } from '../queries/friends'
+import { useFriends, combineFriendQueries } from '../queries/friends'
+import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 
@@ -300,8 +301,14 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
   // Server data comes from the TanStack Query cache (VRX-22); the Zustand store
-  // holds only view state (search/filter/selection).
-  const { data: friends, isPending, isError, isFetching, refetch } = useFriends('vrchat')
+  // holds only view state (search/filter/selection). Both platforms are fetched
+  // (cached, shared with the Dashboard/TopBar); the filter selects which to show.
+  const platformFilter = useFriendsStore((s) => s.platformFilter)
+  const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
+    platformFilter,
+    useFriends('vrchat'),
+    useFriends('chilloutvr')
+  )
 
   return (
     <section
