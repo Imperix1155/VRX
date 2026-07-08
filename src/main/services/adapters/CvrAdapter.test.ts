@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AdapterEvent } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
@@ -373,6 +374,34 @@ describe('CvrAdapter', () => {
       )
       await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
       expect(store.deleted).toBe(0) // a 5xx blip must not log the user out
+    })
+
+    it('a 401 on getFriends EMITS auth-invalidated so the renderer re-checks auth (VRX-195)', async () => {
+      const events: AdapterEvent[] = []
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'chilloutvr' })
+    })
+
+    it('a 5xx on getFriends does NOT emit auth-invalidated (the session is still valid)', async () => {
+      const events: AdapterEvent[] = []
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'oops' }, { status: 500 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
     })
   })
 

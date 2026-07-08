@@ -437,6 +437,26 @@ describe('combineFriendQueries', () => {
     expect(view.friends).toBeUndefined()
   })
 
+  it('all filter surfaces error (NOT empty) when one platform succeeds empty and the other errors', () => {
+    // VRX-196: a failing platform must not hide behind the other's empty-but-
+    // successful list — otherwise the user sees a false "no friends".
+    const view = combineFriendQueries('all', q({ data: [] }), q({ isError: true }))
+    expect(view.friends).toBeUndefined()
+    expect(view.isError).toBe(true)
+  })
+
+  it('all filter keeps the empty state when both succeed empty (genuinely no friends, no error)', () => {
+    const view = combineFriendQueries('all', q({ data: [] }), q({ data: [] }))
+    expect(view.friends).toEqual([])
+    expect(view.isError).toBe(false)
+  })
+
+  it('all filter keeps showing data on a partial failure (one has friends, other errors)', () => {
+    const view = combineFriendQueries('all', q({ data: [vrcFriend] }), q({ isError: true }))
+    expect(view.friends).toEqual([vrcFriend])
+    expect(view.isError).toBe(false)
+  })
+
   it('all filter keeps stale cached data AND flags isError on a background refetch failure (SWR)', () => {
     // The stale-while-revalidate contract FriendsList depends on: when both
     // platforms have cached data but a background refetch failed, keep showing

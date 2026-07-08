@@ -10,7 +10,7 @@ import type {
 } from '@shared/types'
 import type { Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
-import { NetworkError } from './errors'
+import { AuthError, NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
@@ -293,39 +293,69 @@ export class VrcAdapter extends VrcApiClient {
     return Promise.resolve(false)
   }
 
-  async getFriends(): Promise<Friend[]> {
-    const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
-      this.get(path, schema)
-    )
-    // If anything failed (page fetches OR schema-drifted records) AND we got
-    // nothing, surface an error rather than a misleading empty list (the UI shows
-    // "couldn't load" instead of "no friends"). A partial result is still returned
-    // as graceful degradation; signalling partial failure to the UI is a follow-up.
-    if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
-      // Carry both counters so logs can tell transport failure from pure schema
-      // drift (failedPages=0, skippedRecords>0 means the wire was fine).
-      throw new NetworkError(
-        `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
-      )
-    }
-
-    // Enrich friends with world names via the shared resolver (VRX-163).
-    // fetchWorldMetadata deduplicates ids and swallows failures to null, so a
-    // world-resolution failure does NOT break the friend list — friends are
-    // returned as-is with worldName/thumbnailUrl staying null.
-    const worlds = await fetchWorldMetadata(
-      friends.map((f) => f.instance?.worldId ?? null),
-      this.worldResolver
-    )
-    for (const friend of friends) {
-      if (friend.instance) {
-        const meta = worlds.get(friend.instance.worldId)
-        friend.instance.worldName = meta?.name ?? null
-        friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+  /** Fan an event out to all live subscribers — one throwing handler must not
+   *  starve the others. Used by the pipeline AND for out-of-band signals like
+   *  `auth-invalidated` (VRX-195). */
+  private emit(event: AdapterEvent): void {
+    for (const subscriber of this.subscribers) {
+      try {
+        subscriber(event)
+      } catch (err) {
+        this.live?.log?.('warn', 'vrc adapter: subscriber threw', {
+          message: err instanceof Error ? err.message : String(err)
+        })
       }
     }
+  }
 
-    return friends
+  async getFriends(): Promise<Friend[]> {
+    try {
+      const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
+        this.get(path, schema)
+      )
+      // If anything failed (page fetches OR schema-drifted records) AND we got
+      // nothing, surface an error rather than a misleading empty list (the UI shows
+      // "couldn't load" instead of "no friends"). A partial result is still returned
+      // as graceful degradation; signalling partial failure to the UI is a follow-up.
+      if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
+        // Carry both counters so logs can tell transport failure from pure schema
+        // drift (failedPages=0, skippedRecords>0 means the wire was fine).
+        throw new NetworkError(
+          `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+        )
+      }
+
+      // Enrich friends with world names via the shared resolver (VRX-163).
+      // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
+      // so a world-resolution failure does NOT break the friend list — friends are
+      // returned as-is with worldName/thumbnailUrl staying null. A dead-session
+      // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
+      // catch below and emits auth-invalidated (VRX-197).
+      const worlds = await fetchWorldMetadata(
+        friends.map((f) => f.instance?.worldId ?? null),
+        this.worldResolver
+      )
+      for (const friend of friends) {
+        if (friend.instance) {
+          const meta = worlds.get(friend.instance.worldId)
+          friend.instance.worldName = meta?.name ?? null
+          friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+        }
+      }
+
+      return friends
+    } catch (error) {
+      // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
+      // friend page, OR world-name enrichment — means the cookie is dead/2FA-
+      // expired. One emit point for the whole flow: signal the renderer to
+      // re-check auth + quarantine so a stale "connected" card flips to reconnect
+      // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
+      // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
+      // unauthenticated; a blunt clear would force a full re-login. NetworkError
+      // and other failures just propagate untouched.
+      if (error instanceof AuthError) this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      throw error
+    }
   }
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('VrcAdapter.getInstanceDetails not implemented'))
@@ -356,20 +386,7 @@ export class VrcAdapter extends VrcApiClient {
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
     this.pipeline ??= new VrcPipeline({
       tokenProvider: () => this.pipelineToken(),
-      onEvent: (event) => {
-        // Isolate subscribers: one throwing handler must not starve the others
-        // in a shared fan-out (VrcPipeline.emit wraps the whole call, so an
-        // unisolated throw here would abort the loop). CodeRabbit.
-        for (const subscriber of this.subscribers) {
-          try {
-            subscriber(event)
-          } catch (err) {
-            this.live?.log?.('warn', 'pipeline: subscriber threw', {
-              message: err instanceof Error ? err.message : String(err)
-            })
-          }
-        }
-      },
+      onEvent: (event) => this.emit(event),
       socketFactory:
         this.live?.socketFactory ??
         (() => {

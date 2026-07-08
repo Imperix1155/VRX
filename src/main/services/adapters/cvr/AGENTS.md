@@ -5,6 +5,10 @@ CVR-specific transforms, the friend fetcher/id extractor, and the real-time
 WebSocket client, mirroring the `vrchat/` directory's contract: electron-free,
 dependency-injected, unit-testable in isolation. Consumed by the concrete
 `CvrAdapter` (`../CvrAdapter.ts`), now registered alongside VRChat (VRX-37/58).
+A data-path 401 in `getFriends` clears the session AND emits an `auth-invalidated`
+`AdapterEvent` (VRX-195) — the renderer's only signal that auth changed out of
+band, so the Accounts card stops showing a stale "connected"; the shared `emit()`
+fans out to `subscribers` (reused by the pipeline). A 5xx does NOT clear/emit.
 The renderer auth GATE stays VRChat-first by design — CVR sign-in lives in
 Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 

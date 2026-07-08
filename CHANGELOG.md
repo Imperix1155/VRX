@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-08
+
+### Fixed
+
+- **Neither account shows "Connected" after the session quietly expires.** If your ChilloutVR or VRChat session died while the app was open, Settings → Accounts kept saying you were connected — showing a stale friends list with no way to reconnect. Now the app notices the moment a request is rejected, drops the stale roster, and flips the account back to a sign-in prompt. (VRX-195, VRX-197)
+- **The friends list no longer says "no friends" when a platform actually failed to load.** With the filter on ALL, if one platform errored while the other had nobody online, you'd see a misleading empty list instead of an error. It now surfaces the failure so you know to retry. (VRX-196)
+
 ## [0.5.0] - 2026-07-08
 
 ### Fixed

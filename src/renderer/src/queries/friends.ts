@@ -79,13 +79,21 @@ export function combineFriendQueries(
 ): CombinedFriendsView {
   const scoped = scopeByPlatformFilter(filter, vrc, cvr)
   const anyData = scoped.some((q) => q.data !== undefined)
+  const anyPending = scoped.some((q) => q.isPending)
+  const combined = scoped.flatMap((q) => q.data ?? [])
+  // A scoped query errored and, once everything has settled, the combined list
+  // is EMPTY → surface the error instead of a misleading "no friends" empty
+  // state (Codex VRX-196): in `all` mode a failing platform must not be hidden
+  // behind the other platform's empty-but-successful list. If there ARE friends
+  // to show, we keep showing them (stale-while-revalidate) and don't error.
+  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
   return {
-    friends: anyData ? scoped.flatMap((q) => q.data ?? []) : undefined,
+    friends: anyData && !errorMasksEmpty ? combined : undefined,
     // Loading until the FIRST scoped query returns data — so `all` mode still
     // shows "loading" when one platform errored while the other is mid-load
     // (rather than a blank frame). Once any data is in, it's no longer pending.
-    isPending: !anyData && scoped.some((q) => q.isPending),
-    isError: scoped.every((q) => q.isError),
+    isPending: !anyData && anyPending,
+    isError: errorMasksEmpty || scoped.every((q) => q.isError),
     isFetching: scoped.some((q) => q.isFetching),
     refetch: () => {
       for (const q of scoped) void q.refetch()

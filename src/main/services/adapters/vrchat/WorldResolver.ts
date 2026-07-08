@@ -8,7 +8,8 @@
  * Designed to be:
  * - Electron-free and unit-testable (injected fetcher + injected clock)
  * - Dependency-injected (does NOT subclass or import VrcApiClient/VrcAdapter)
- * - Defensive (unknown / deleted world → null, never throws)
+ * - Defensive (unknown / deleted world → null); the ONE exception is a dead
+ *   session (AuthError), which propagates so the adapter can react (VRX-197)
  *
  * Injected fetcher contract:
  *   (worldId: string) => Promise<unknown>
@@ -21,6 +22,7 @@
  */
 
 import { z } from 'zod'
+import { AuthError } from '../errors'
 
 /** 24-hour TTL for cached world metadata (ms). */
 export const WORLD_CACHE_TTL_MS = 24 * 60 * 60 * 1000
@@ -87,7 +89,12 @@ export class WorldResolver {
     let raw: unknown
     try {
       raw = await this.fetcher(worldId)
-    } catch {
+    } catch (error) {
+      // A dead cookie (AuthError) mid-enrichment must NOT be swallowed to null —
+      // it propagates so VrcAdapter.getFriends can emit auth-invalidated (Codex,
+      // VRX-197). Every OTHER failure (deleted world, 404, network blip) still
+      // degrades to null so world resolution never breaks the friend list.
+      if (error instanceof AuthError) throw error
       return null
     }
 

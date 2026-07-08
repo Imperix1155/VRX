@@ -89,6 +89,7 @@ Cache semantics are implemented (and unit-tested) in
 | `friends-snapshot` | `scope: 'all' \| 'online'`, `Friend[]` | *currently producer-less* (CVR moved to `presence-snapshot`) | `'all'`: full replacement; `'online'`: absentees offline + upsert |
 | `roster-changed` | platform only | CVR `FRIEND_LIST_UPDATED` | None — the hook invalidates the friends query (REST refetch) |
 | `connection` | `health: ConnectionHealth` | Both pipelines (`live` on open, `reconnecting` on close, `down` with no session) | `live` → invalidate friends (the on-reconnect REST reconcile); others no-op today (VRX-79 will surface them) |
+| `auth-invalidated` | platform only | A data-path 401 on either platform: `CvrAdapter.getFriends` (after `clearSession`) — VRX-195; `VrcAdapter.getFriends` from ANY phase — buckets probe, friend page, or world enrichment (no `clearSession`; `getAuthStatus` is 2FA-aware) — VRX-197 | The hook QUARANTINES the platform: forces its roster to `[]`, cancels in-flight friends queries, re-checks `authStatusQueryKey(platform)` (stale "connected" Accounts card flips to reconnect / 2FA), and drops all live/refetch events for it until it re-authenticates. Quarantine lifts ONLY on an authenticated `auth-status` success — not on `connection:'live'` |
 
 **Rules when extending:** events must be honest to the wire (don't fabricate
 fields the platform doesn't send — that's why `presence-snapshot` exists);
@@ -131,7 +132,7 @@ VRX-58).
 | --- | --- | --- |
 | `useFriends(platform)` | `queries/friends.ts` | SWR; `staleTime`/`refetchInterval` = `FRIENDS_RECONCILE_MS` (the slow reconcile — WS is the live path) |
 | `friendsQueryKey(platform)` | `queries/friends.ts` | `['friends', platform]` — use THIS for any cache read/write, never a literal |
-| `combineFriendQueries(filter, vrc, cvr)` | `queries/friends.ts` | Pure fold of the two per-platform `useFriends` results by `PlatformFilter` (VRX-66). Single-platform = pass-through; `all` = VRChat-then-CVR concat. `friends` stays `undefined` until one query returns (no empty/error flash). Consumed by `FriendsList` |
+| `combineFriendQueries(filter, vrc, cvr)` | `queries/friends.ts` | Pure fold of the two per-platform `useFriends` results by `PlatformFilter` (VRX-66). Single-platform = pass-through; `all` = VRChat-then-CVR concat. `friends` stays `undefined` until one query returns (no empty/error flash). In `all`, if a scoped query errored and the settled combined list is EMPTY it surfaces `isError` instead of a false "no friends" (VRX-196). Consumed by `FriendsList` |
 | `scopeByPlatformFilter(filter, vrc, cvr)` | `queries/friends.ts` | The ONE definition of "which platforms a `PlatformFilter` selects" (generic over the item), so every social surface filters identically (VRX-66). Used by `combineFriendQueries` (Friends), `DashboardView` (stats + hot instances), and TopBar's online count |
 | `useAuthStatus(platform?)` | `queries/auth.ts` | Invalidation-driven, never polled. Defaults to `'vrchat'` (the App gate); `'chilloutvr'` drives the Settings → Accounts card (VRX-37) |
 | `authStatusQueryKey(platform?)` | `queries/auth.ts` | Per-platform key; invalidate after login/verify to re-check that platform's status |
@@ -141,7 +142,7 @@ VRX-58).
 
 | Hook | File | Purpose |
 | --- | --- | --- |
-| `useLiveFriendEvents()` | `hooks/useLiveFriendEvents.ts` | The live bridge — mount ONCE (App.tsx). Applies `AdapterEvent`s to the cache; invalidates on `connection:'live'` and `roster-changed` |
+| `useLiveFriendEvents()` | `hooks/useLiveFriendEvents.ts` | The live bridge — mount ONCE (App.tsx). Applies `AdapterEvent`s to the cache; invalidates friends on `connection:'live'`/`roster-changed`; buffers the CVR presence-snapshot and re-applies it on the roster fetch (snapshot-beats-roster race), clearing it on any WS drop so a stale snapshot can't resurrect presence during an outage. On `auth-invalidated` (VRX-195/197) it QUARANTINES the platform — roster forced to `[]`, in-flight fetches cancelled, auth re-checked, all live/refetch events dropped — until an authenticated `auth-status` success lifts it (`connection:'live'` alone does not) |
 | `useApplyTheme()` | `hooks/useApplyTheme.ts` | Applies `data-theme` pre-paint; System follows `prefers-color-scheme` |
 | `useSegmentedBubble(activeIndex)` | `hooks/useSegmentedBubble.ts` | Sliding-bubble geometry for segmented controls — measures the active button (unequal label widths); returns `{ trackRef, bubble }`. Used by TopBar + SettingsView (VRX-183) |
 | `useSettingsPersistence()` | `hooks/useSettingsPersistence.ts` | Mount ONCE (App.tsx): loads persisted settings on boot (`get-settings` → `setSettings`), saves on the store's `dirty` flag (`save-settings` → `markSaved`); failed saves stay dirty and retry on the next change (VRX-184) |
