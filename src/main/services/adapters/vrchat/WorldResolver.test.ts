@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WorldResolver, WORLD_CACHE_TTL_MS, worldShortLink } from './WorldResolver'
+import { AuthError } from '../errors'
 
 const VALID_WORLD_RAW = {
   name: 'The Great Pug',
@@ -126,6 +127,14 @@ describe('WorldResolver', () => {
     const fetcher = vi.fn().mockRejectedValue(new Error('404 not found'))
     const resolver = new WorldResolver(fetcher)
     expect(await resolver.resolve('wrld_abc')).toBeNull()
+  })
+
+  it('RETHROWS an AuthError (dead session) instead of degrading to null (VRX-197, Codex)', async () => {
+    // A dead cookie mid-enrichment must propagate so VrcAdapter.getFriends can
+    // emit auth-invalidated — unlike every other failure, which degrades to null.
+    const fetcher = vi.fn().mockRejectedValue(new AuthError('session expired'))
+    const resolver = new WorldResolver(fetcher)
+    await expect(resolver.resolve('wrld_abc')).rejects.toBeInstanceOf(AuthError)
   })
 
   it('does not cache a null result — retries fetcher on next call', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { VrcFetcher } from './fetchFriends'
 import { fetchFriends } from './fetchFriends'
+import { AuthError } from '../errors'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -356,6 +357,29 @@ describe('fetchFriends', () => {
       expect(result.friends).toHaveLength(0)
       expect(result.failedPages).toBe(0)
       expect(result.skippedRecords).toBe(0)
+    })
+
+    it('RETHROWS an AuthError from the buckets probe instead of degrading to empty (VRX-195/197)', async () => {
+      // The flip side of graceful degradation: a dead cookie (AuthError) on the
+      // /auth/user session-probe must NOT be swallowed into an all-offline roster
+      // — it propagates so VrcAdapter can emit auth-invalidated. Only NON-auth
+      // failures degrade (test above).
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.reject(new AuthError('session expired'))
+        return Promise.resolve([] as T)
+      }
+      await expect(fetchFriends(fetcher)).rejects.toBeInstanceOf(AuthError)
+    })
+
+    it('RETHROWS an AuthError from a FRIEND PAGE, not just the buckets probe (VRX-197, Codex)', async () => {
+      // The session can die AFTER /auth/user succeeds — a 401 on a friend page
+      // must also propagate (not be swallowed as failedPages++), or a mid-fetch
+      // VRChat session death would never emit auth-invalidated.
+      const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
+        if (path === '/auth/user') return Promise.resolve(BUCKETS as T)
+        return Promise.reject(new AuthError('session expired mid-fetch'))
+      }
+      await expect(fetchFriends(fetcher)).rejects.toBeInstanceOf(AuthError)
     })
   })
 

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AdapterEvent } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
@@ -625,6 +626,39 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
 
+    it('a 401 on the buckets probe EMITS auth-invalidated so the renderer re-checks auth (VRX-195/197)', async () => {
+      // VRChat parity with CVR: a data-path 401 (dead cookie / expired 2FA) must
+      // surface as auth-invalidated so the renderer quarantines + re-checks auth,
+      // not silently degrade to an empty roster. The buckets probe is /auth/user.
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
+      )
+
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+    })
+
+    it('a 5xx on the buckets probe does NOT emit auth-invalidated (session still valid)', async () => {
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'oops' }, { status: 500 }))
+      )
+
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
+    })
+
     it('one malformed record does not kill the page OR the circuit (audit W4)', async () => {
       // End-to-end through the real request<T> path: before W4, one bad record
       // failed the page's array schema → NetworkError + a circuit-breaker failure
@@ -765,6 +799,53 @@ describe('VrcAdapter', () => {
       expect(friends).toHaveLength(1)
       expect(friends[0]!.instance?.worldName).toBe('The Grid')
       expect(friends[0]!.instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+    })
+
+    it('a 401 during WORLD enrichment (session dies mid-fetch) EMITS auth-invalidated (VRX-197, Codex)', async () => {
+      // Buckets + friend pages succeed, then the session dies before /worlds/:id.
+      // The world 401 must propagate (WorldResolver rethrows AuthError) up to
+      // getFriends and emit — not be swallowed to null world metadata.
+      const worldId = 'wrld_abc123'
+      const events: AdapterEvent[] = []
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes(`/worlds/${worldId}`)) {
+          return Promise.resolve(jsonResponse({ error: 'unauthorized' }, { status: 401 }))
+        }
+        if (url.includes('/auth/user/friends')) {
+          if (url.includes('offline=true')) return Promise.resolve(jsonResponse([]))
+          return Promise.resolve(
+            jsonResponse([
+              {
+                id: 'usr_111',
+                displayName: 'Bob',
+                currentAvatarThumbnailImageUrl: null,
+                status: 'active',
+                statusDescription: null,
+                tags: [],
+                location: `${worldId}:11111~private(usr_self)`
+              }
+            ])
+          )
+        }
+        // /auth/user — buckets
+        return Promise.resolve(
+          jsonResponse({
+            id: 'usr_self',
+            displayName: 'Self',
+            onlineFriends: ['usr_111'],
+            activeFriends: [],
+            offlineFriends: []
+          })
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
     })
 
     it('leaves worldName null for a friend with no instance (VRX-163)', async () => {

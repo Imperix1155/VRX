@@ -288,3 +288,10 @@ export type AdapterEvent =
    */
   | { type: 'roster-changed'; platform: Platform }
   | { type: 'connection'; platform: Platform; health: ConnectionHealth }
+  /**
+   * The platform's session was invalidated OUT OF BAND — a data-path request
+   * (e.g. getFriends) hit a 401, so the adapter cleared / distrusts the session
+   * (VRX-195). Trigger-only: the consumer re-checks that platform's auth status
+   * so a stale "connected" account card flips to the reconnect / 2FA prompt.
+   */
+  | { type: 'auth-invalidated'; platform: Platform }
