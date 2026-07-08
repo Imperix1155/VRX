@@ -258,7 +258,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       // trusts the session without re-authing, so a 401 here IS the signal that
       // the accessKey died — clear it so the UI reflects logged-out, then let
       // the error propagate for the "couldn't load" state.
-      if (error instanceof CVRAuthError) this.clearSession()
+      if (error instanceof CVRAuthError) {
+        // Dead access key on the data path — clear the session AND tell the
+        // renderer, which has no other signal that auth changed out of band, so
+        // the Accounts card stops showing a stale "connected" (VRX-195).
+        this.clearSession()
+        this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+      }
       throw error
     }
     // Everything was dropped as malformed → surface an error rather than a
@@ -288,19 +294,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // Mirrors VrcAdapter.subscribe (VRX-146c).
     this.pipeline ??= new CvrPipeline({
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
-      onEvent: (event) => {
-        // Isolate subscribers: one throwing handler must not starve the others
-        // in the shared fan-out.
-        for (const subscriber of this.subscribers) {
-          try {
-            subscriber(event)
-          } catch (err) {
-            this.live?.log?.('warn', 'cvr pipeline: subscriber threw', {
-              message: err instanceof Error ? err.message : String(err)
-            })
-          }
-        }
-      },
+      onEvent: (event) => this.emit(event),
       socketFactory:
         this.live?.socketFactory ??
         (() => {
@@ -317,6 +311,21 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.subscribers.delete(handler)
       if (this.subscribers.size === 0) {
         this.pipeline?.stop()
+      }
+    }
+  }
+
+  /** Fan an event out to all live subscribers — one throwing handler must not
+   *  starve the others. Used by the pipeline AND for out-of-band signals like
+   *  `auth-invalidated` (VRX-195). */
+  private emit(event: AdapterEvent): void {
+    for (const subscriber of this.subscribers) {
+      try {
+        subscriber(event)
+      } catch (err) {
+        this.live?.log?.('warn', 'cvr adapter: subscriber threw', {
+          message: err instanceof Error ? err.message : String(err)
+        })
       }
     }
   }

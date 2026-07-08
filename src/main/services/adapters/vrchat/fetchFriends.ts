@@ -12,6 +12,7 @@
 
 import { z } from 'zod'
 import type { VrcFriend } from '@shared/types'
+import { AuthError } from '../errors'
 import { parsePresence } from './parsePresence'
 import type { VrcCurrentUserBuckets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
@@ -131,7 +132,11 @@ async function fetchPass(
     let page: unknown[]
     try {
       page = await fetcher(path, friendPageSchema)
-    } catch {
+    } catch (error) {
+      // A 401/403 anywhere in the pass (not just the /auth/user probe) means the
+      // cookie died mid-fetch — rethrow it so the adapter emits auth-invalidated
+      // instead of silently degrading to a partial/empty roster (Codex, VRX-197).
+      if (error instanceof AuthError) throw error
       // Skip-and-continue (the api-volatility.md promise): count the failure,
       // skip past the failed window, and try the next page — one transient blip
       // must not discard every page behind it. Give up only after
@@ -180,11 +185,15 @@ async function fetchPass(
  * @param fetcher - Injected HTTP helper (e.g. `(path, schema) => this.get(path, schema)`).
  */
 export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsResult> {
-  // Step 1: fetch buckets (graceful degradation on failure → all offline)
+  // Step 1: fetch buckets (graceful degradation on failure → all offline).
+  // EXCEPTION: a 401/403 on this session-probe call means the cookie is dead —
+  // rethrow it so the adapter can signal auth-invalidated instead of silently
+  // degrading to an empty roster while the session is actually gone (VRX-195).
   let buckets: VrcCurrentUserBuckets
   try {
     buckets = await fetcher('/auth/user', currentUserBucketsSchema)
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthError) throw error
     buckets = { onlineFriends: [], activeFriends: [], offlineFriends: [] }
   }
 

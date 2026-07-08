@@ -147,6 +147,10 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       // Trigger-only: the hook invalidates the friends query (REST refetch).
       return friends
 
+    case 'auth-invalidated':
+      // Trigger-only: the hook invalidates that platform's auth query (VRX-195).
+      return friends
+
     case 'connection':
       return friends
   }
