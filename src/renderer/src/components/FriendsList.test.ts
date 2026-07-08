@@ -6,7 +6,12 @@ import '../i18n'
 
 const { useFriends } = vi.hoisted(() => ({ useFriends: vi.fn() }))
 
-vi.mock('../queries/friends', () => ({ useFriends }))
+// Mock only the hook; keep the real `combineFriendQueries` (pure) so its own
+// suite below exercises the actual fold logic (VRX-66).
+vi.mock('../queries/friends', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/friends')>()),
+  useFriends
+}))
 
 // renderToStaticMarkup is SSR: zustand serves the store's INITIAL state to
 // useSyncExternalStore's server snapshot, so setState never reaches the render.
@@ -17,7 +22,18 @@ vi.mock('../stores/settings', () => ({
     selector({ settings: { labelScheme: scheme.current } })
 }))
 
+// Pin the platform filter so the render tests exercise ONE scoped query (the
+// `useFriends` mock returns the same value for both platforms; the default 'all'
+// would merge them and render every fixture twice). The merge/scope logic itself
+// is unit-tested against `combineFriendQueries` below (VRX-66).
+const platformFilter = vi.hoisted(() => ({ current: 'vrchat' }))
+vi.mock('../stores/friends', () => ({
+  useFriendsStore: <T>(selector: (state: unknown) => T): T =>
+    selector({ platformFilter: platformFilter.current })
+}))
+
 import FriendsList from './FriendsList'
+import { combineFriendQueries } from '../queries/friends'
 
 const friend: Friend = {
   platformUserId: 'usr_fixture',
@@ -326,5 +342,105 @@ describe('FriendsList', () => {
     expect(markup).toContain('var(--cvr)')
     expect(markup).toContain('var(--ingame)')
     expect(markup).toContain('aria-label="In-game"')
+  })
+})
+
+// ─── combineFriendQueries — platform-filter fold (VRX-66) ─────────────────────
+
+describe('combineFriendQueries', () => {
+  const vrcFriend = { ...friend, platformUserId: 'usr_vrc', platform: 'vrchat' } as Friend
+  const cvrFriend = { ...friend, platformUserId: 'usr_cvr', platform: 'chilloutvr' } as Friend
+
+  type Q = Parameters<typeof combineFriendQueries>[1]
+  const q = (over: Partial<Q> = {}): Q => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    isFetching: false,
+    refetch: vi.fn(),
+    ...over
+  })
+
+  it('vrchat filter passes only the VRChat query through', () => {
+    const view = combineFriendQueries('vrchat', q({ data: [vrcFriend] }), q({ data: [cvrFriend] }))
+    expect(view.friends).toEqual([vrcFriend])
+  })
+
+  it('chilloutvr filter passes only the ChilloutVR query through', () => {
+    const view = combineFriendQueries(
+      'chilloutvr',
+      q({ data: [vrcFriend] }),
+      q({ data: [cvrFriend] })
+    )
+    expect(view.friends).toEqual([cvrFriend])
+  })
+
+  it('all filter concatenates VRChat-then-ChilloutVR in order', () => {
+    const view = combineFriendQueries('all', q({ data: [vrcFriend] }), q({ data: [cvrFriend] }))
+    expect(view.friends).toEqual([vrcFriend, cvrFriend])
+  })
+
+  it('all filter with both empty yields an empty list (not undefined → shows empty state)', () => {
+    const view = combineFriendQueries('all', q({ data: [] }), q({ data: [] }))
+    expect(view.friends).toEqual([])
+  })
+
+  it('all filter shows loaded data even while the other platform is still pending', () => {
+    const view = combineFriendQueries(
+      'all',
+      q({ data: [vrcFriend] }),
+      q({ data: undefined, isPending: true })
+    )
+    expect(view.friends).toEqual([vrcFriend])
+    expect(view.isPending).toBe(false)
+  })
+
+  it('all filter keeps loading while one query is pending even if the other errored', () => {
+    // No data yet + one platform still loading → stay in the loading state (not a
+    // blank frame) until the first data arrives (CodeRabbit VRX-66).
+    const view = combineFriendQueries('all', q({ isError: true }), q({ isPending: true }))
+    expect(view.friends).toBeUndefined()
+    expect(view.isError).toBe(false) // not EVERY scoped query errored → no error yet
+    expect(view.isPending).toBe(true)
+  })
+
+  it('all filter surfaces error only when every scoped query erred with no data', () => {
+    const view = combineFriendQueries('all', q({ isError: true }), q({ isError: true }))
+    expect(view.isError).toBe(true)
+    expect(view.isPending).toBe(false) // both settled (errored) → not loading
+    expect(view.friends).toBeUndefined()
+  })
+
+  it('all filter keeps stale cached data AND flags isError on a background refetch failure (SWR)', () => {
+    // The stale-while-revalidate contract FriendsList depends on: when both
+    // platforms have cached data but a background refetch failed, keep showing
+    // the data (friends defined) and surface the error separately — the render's
+    // `isError && !friends` guard then suppresses the error text (CodeRabbit).
+    const view = combineFriendQueries(
+      'all',
+      q({ data: [vrcFriend], isError: true }),
+      q({ data: [cvrFriend], isError: true })
+    )
+    expect(view.friends).toEqual([vrcFriend, cvrFriend])
+    expect(view.isError).toBe(true)
+    expect(view.isPending).toBe(false)
+  })
+
+  it('isFetching is true if ANY scoped query is fetching; refetch fans out to all scoped', () => {
+    const vrc = q({ data: [vrcFriend], isFetching: true })
+    const cvr = q({ data: [cvrFriend] })
+    const view = combineFriendQueries('all', vrc, cvr)
+    expect(view.isFetching).toBe(true)
+    view.refetch()
+    expect(vrc.refetch).toHaveBeenCalledOnce()
+    expect(cvr.refetch).toHaveBeenCalledOnce()
+  })
+
+  it('single-platform refetch does not touch the out-of-scope query', () => {
+    const vrc = q({ data: [vrcFriend] })
+    const cvr = q({ data: [cvrFriend] })
+    combineFriendQueries('vrchat', vrc, cvr).refetch()
+    expect(vrc.refetch).toHaveBeenCalledOnce()
+    expect(cvr.refetch).not.toHaveBeenCalled()
   })
 })

@@ -1,14 +1,16 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
-import { useFriends } from '../queries/friends'
+import { useFriendsStore, type PlatformFilter } from '../stores/friends'
+import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 
-/** Platform filter for the segmented control. */
-export type PlatformFilter = 'all' | 'vrchat' | 'chilloutvr'
+// `PlatformFilter` (the segmented control's value type) is the store's canonical
+// union — imported, not redefined, so it can't drift (VRX-66). The type import
+// and the local `PlatformFilter` component below share a name harmlessly (type
+// vs value namespace; `import type` is erased).
 
 // Order: VRChat | All | ChilloutVR — "All" sits in the MIDDLE because it mixes the
 // two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only
@@ -113,17 +115,24 @@ export default function TopBar(): React.JSX.Element {
   const activeTab = useUiStore((s) => s.activeTab)
   const settingsCategory = useUiStore((s) => s.settingsCategory)
   const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
-  const [platform, setPlatform] = useState<PlatformFilter>('all')
+  // Platform filter lives in the friends VIEW store (VRX-66) so the selection
+  // survives view switches AND is readable by FriendsList — it was local state
+  // here before, which made the slider cosmetic.
+  const platform = useFriendsStore((s) => s.platformFilter)
+  const setPlatform = useFriendsStore((s) => s.setPlatformFilter)
 
-  // Real online count for the §8 status indicator — total across platforms.
-  // Online = active OR in-game presence (same definition as the dashboard's
-  // getDashboardStats). The friends queries are already cached (Friends/Dashboard
-  // views), so this re-uses them rather than fetching again.
-  const vrcFriends = useFriends('vrchat').data ?? []
-  const cvrFriends = useFriends('chilloutvr').data ?? []
-  const onlineCount = [...vrcFriends, ...cvrFriends].filter(
-    (f) => f.presence.state === 'active' || f.presence.state === 'in-game'
-  ).length
+  // Real online count for the §8 status indicator. Online = active OR in-game
+  // presence (same definition as the dashboard's getDashboardStats). The friends
+  // queries are already cached (Friends/Dashboard views), so this re-uses them
+  // rather than fetching again. Scoped to the platform filter (VRX-66) so the
+  // count reflects whichever platform(s) the user is currently viewing.
+  const onlineCount = scopeByPlatformFilter(
+    platform,
+    useFriends('vrchat'),
+    useFriends('chilloutvr')
+  )
+    .flatMap((q) => q.data ?? [])
+    .filter((f) => f.presence.state === 'active' || f.presence.state === 'in-game').length
 
   return (
     <div className="flex items-center gap-[18px] mb-[22px]">
