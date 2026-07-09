@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.1] - 2026-07-08
+## [0.6.0] - 2026-07-09
+
+### Changed
+
+- **The Dashboard's "hot instance" cards got a cleaner, more consistent redesign.** Each card now leads with the **world name** (bigger, up top), shows the **instance type** as the same pill you already see on the Friends tab (so they match everywhere), lists **who's actually there** by name (the first few, then "+N more") instead of a bare count, and tucks the platform into a quiet label in the corner — the card's color already tells you VRChat vs ChilloutVR. The old "C"/"V" box and the long instance-ID number on the card face are gone (the number moves to a details view later). Reads clearer at a glance. (VRX-198)
 
 ### Fixed
 

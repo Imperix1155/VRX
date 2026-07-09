@@ -46,6 +46,12 @@ export interface HotInstance {
   instanceType: InstanceInfo['type']
   platform: Platform
   friendCount: number
+  /**
+   * Display names of the friends here, sorted alphabetically for a stable order
+   * (VRX-198). `friendNames.length === friendCount`; the card shows the first few
+   * then "+N". (Favorites-first ordering is a future nicety once favorites wire up.)
+   */
+  friendNames: string[]
 }
 
 const MAX_HOT_INSTANCES = 6
@@ -77,16 +83,21 @@ export function getHotInstances(
     const existing = map.get(worldId)
     if (existing) {
       existing.friendCount++
+      existing.friendNames.push(f.displayName)
     } else {
       map.set(worldId, {
         worldId,
         worldName,
         instanceType: type,
         platform: f.platform,
-        friendCount: 1
+        friendCount: 1,
+        friendNames: [f.displayName]
       })
     }
   }
+
+  // Stable alphabetical order per world so the "first few + N" is deterministic.
+  for (const h of map.values()) h.friendNames.sort((a, b) => a.localeCompare(b))
 
   return (
     [...map.values()]
