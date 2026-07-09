@@ -115,10 +115,16 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
           minHeight: '96px'
         }}
       >
-        {/* World name — top-left, matched to the pill height, truncates */}
+        {/* World name — top-left. 25px with descender room (line-height 1.5) so
+            'y'/'g'/'p' tails aren't clipped; relaxes VRX-198's exact-pill-height
+            rule (the 26px/leading-none match sliced 5.5px of descender). Shares
+            the line with the pill ("lined paper"); truncates with ellipsis. */}
         <div
-          className="col-start-1 row-start-1 self-center min-w-0 text-[26px] font-bold leading-none text-[var(--text)] overflow-hidden text-ellipsis whitespace-nowrap"
-          title={worldName}
+          className="col-start-1 row-start-1 self-center min-w-0 text-[25px] font-bold leading-[1.5] text-[var(--text)] overflow-hidden text-ellipsis whitespace-nowrap"
+          // Tooltip shows the FULL untrimmed name (VRX-199) — reveals both a
+          // truncated long name AND the stripped `(#…)` suffix on hover, until the
+          // detail panel (VRX-59) lands. Falls back to the stripped/unknown label.
+          title={instance.worldName ?? worldName}
         >
           {worldName}
         </div>
@@ -258,7 +264,7 @@ export default function DashboardView(): React.JSX.Element {
         <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
       </div>
 
-      {/* Hot instances section — a labelled landmark (audit W5) */}
+      {/* Hot instances section — a labelled landmark (audit W5). */}
       <section aria-labelledby="dashboard-hot-heading">
         {/* Header row: heading + the quick-access threshold stepper (VRX-78).
             The issue AC said "Friends panel header", but the control belongs
@@ -277,17 +283,16 @@ export default function DashboardView(): React.JSX.Element {
         {hotInstances.length === 0 ? (
           <DashboardEmpty threshold={hotThreshold} />
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '14px',
-              marginBottom: '26px'
-            }}
-          >
-            {hotInstances.map((inst) => (
-              <HotInstanceCard key={inst.worldId} instance={inst} />
-            ))}
+          // `.hotwrap` = the container-query context (grid-only, so its `contain:
+          // layout` never touches the heading/stepper); `.hot-grid` = max 2 columns
+          // that fill the row → 1 column on a narrow pane, a lone card full-width.
+          // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
+          <div className="hotwrap">
+            <div className="hot-grid">
+              {hotInstances.map((inst) => (
+                <HotInstanceCard key={inst.worldId} instance={inst} />
+              ))}
+            </div>
           </div>
         )}
       </section>

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The Dashboard hot-instance cards read better at every window size.** They now lay out **two to a row** and fill the width (instead of three cards squished together), collapse to a single column on a narrow window, and a lone hot instance stretches to fill the row. The world name is sized so the tails on letters like "y" and "g" are no longer clipped. (VRX-199)
+
+### Fixed
+
+- **The window and taskbar now read "VRX" instead of "Electron."** (VRX-199)
+- **Custom instance tags in a world name are tucked away on the card face** (e.g. "Bono's Movie Night (#teehee)" shows as just "Bono's Movie Night"), the same as the plain instance numbers already were — the full name still shows on hover. (VRX-199)
+
 ## [0.6.0] - 2026-07-09
 
 ### Changed
