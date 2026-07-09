@@ -21,12 +21,20 @@ describe('stripInstanceSuffix', () => {
     expect(stripInstanceSuffix('')).toBe('')
   })
 
-  it('only strips a parens-hash-digits group at the very END', () => {
+  it('strips a custom (non-numeric) trailing (#tag) too (owner call, VRX-199)', () => {
+    expect(stripInstanceSuffix(withInstance("Bono's Movie Night", 'teehee'))).toBe(
+      "Bono's Movie Night"
+    )
+    expect(stripInstanceSuffix(withInstance('Tag', 'alpha'))).toBe('Tag')
+  })
+
+  it('only strips a (#…) group at the very END, never a name-internal hashtag', () => {
     // mid-name group is real content, not an instance id
     expect(stripInstanceSuffix(`Room ${withInstance('', '2').trim()} Lounge`)).toBe(
       'Room (#2) Lounge'
     )
-    // non-numeric hash is not an instance id
-    expect(stripInstanceSuffix('Tag (#alpha)')).toBe('Tag (#alpha)')
+    // a hashtag that's PART of the name (not wrapped in trailing parens) is kept
+    expect(stripInstanceSuffix('Room #5')).toBe('Room #5')
+    expect(stripInstanceSuffix('#Neon Club')).toBe('#Neon Club')
   })
 })
