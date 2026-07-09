@@ -143,6 +143,20 @@ describe('getHotInstances', () => {
     expect(result[0]!.worldName).toBe('The Great Pug')
   })
 
+  it('collects the friend display names, sorted alphabetically (VRX-198)', () => {
+    const inst = instance('wrld_1', 'The Great Pug')
+    // deliberately out of order → the aggregation must sort them
+    const friends: Friend[] = [
+      vrcFriend('c', 'in-game', inst),
+      vrcFriend('a', 'in-game', inst),
+      vrcFriend('b', 'in-game', inst)
+    ]
+    const result = getHotInstances(friends)
+    expect(result[0]!.friendNames).toEqual(['User a', 'User b', 'User c'])
+    // one name per friend — the card slices the first few and derives "+N" from the count
+    expect(result[0]!.friendNames).toHaveLength(result[0]!.friendCount)
+  })
+
   it('excludes instances with only 1 friend (a lone friend is not "hot")', () => {
     const solo = instance('wrld_solo', 'Lonely World')
     const pair = instance('wrld_pair', 'Busy World')

@@ -175,6 +175,45 @@ describe('DashboardView states (W5)', () => {
     }
   })
 
+  it('hot card shows the stripped world name, first-4 names + overflow, and the platform pill (VRX-198)', () => {
+    // Instance # built via interpolation so a literal "#816332" doesn't trip the
+    // design-token raw-color guard.
+    const hotWorldName = `SunDown (#${816332})`
+    const inWorld = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_sun',
+          instanceId: 'wrld_sun:1~public',
+          worldName: hotWorldName,
+          thumbnailUrl: null,
+          type: 'public',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          region: 'us',
+          userCount: 6
+        }
+      })
+    // 6 friends → sorted alphabetically: Amy, GrayCoat, Kettle, Nyx, Vex, Zoe.
+    const names = ['Nyx', 'Kettle', 'GrayCoat', 'Vex', 'Zoe', 'Amy']
+    stubQueries(
+      { data: names.map((n, i) => inWorld(`usr_${i}`, n)), isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    // World name shows WITHOUT the CVR (#instanceNumber) suffix.
+    expect(screen.getByText('SunDown')).toBeTruthy()
+    expect(screen.queryByText(hotWorldName)).toBeNull()
+    // First four names (alphabetical), then "+2".
+    expect(screen.getByText(/Amy, GrayCoat, Kettle, Nyx/)).toBeTruthy()
+    expect(screen.getByText(msg('dashboard.friendsOverflow', { count: 2 }))).toBeTruthy()
+    // The quiet platform pill carries the full platform name (a11y label).
+    expect(screen.getByText(msg('dashboard.platformVrc'))).toBeTruthy()
+  })
+
   it('hot grid follows the hotInstanceThreshold setting immediately (VRX-78)', () => {
     const solo = makeFriend({
       platformUserId: 'usr_solo',
