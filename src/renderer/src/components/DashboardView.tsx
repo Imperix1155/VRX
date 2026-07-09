@@ -3,17 +3,19 @@
  *
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
- *  - Hot-instance grid: top 6 worlds by friend count, glass + platform tint, openness badge.
+ *  - Hot-instance grid: top 6 worlds by friend count — the VRX-198 card (world name +
+ *    shared instance pill hero + who's-here names + quiet platform pill).
  *  - Empty state when no friends are online.
  *
- * Deferred: avatar stack (VRX-48), Join button (`joinInstance` IPC).
+ * Deferred: world thumbnail (VRX-48) + whole-card click → detail panel (VRX-59).
  */
-import { Trans, useTranslation } from 'react-i18next'
-import type { Platform } from '@shared/types'
+import { useTranslation } from 'react-i18next'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useFriendsStore } from '../stores/friends'
 import NumberStepper from './NumberStepper'
-import OpennessIcon from './OpennessIcon'
+import InstancePill from './InstancePill'
+import { OPENNESS_TIER } from '../utils/instancePill'
+import PlatformPill from './PlatformPill'
 import {
   getDashboardStats,
   getHotInstances,
@@ -21,7 +23,11 @@ import {
 } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { stripInstanceSuffix } from '../utils/worldName'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
+
+/** How many friend names show on a card before collapsing to "+N" (VRX-198). */
+const WHO_HERE_MAX_NAMES = 4
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -56,93 +62,91 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
   )
 }
 
-// ─── Platform glyph badge inside hot-instance card ────────────────────────────
-
-function HotCardGlyph({ platform }: { platform: Platform }): React.JSX.Element {
-  const isVrc = platform === 'vrchat'
-  // bg: 22% platform color into transparent; text: 74% into white (same ratio as PlatformGlyph).
-  // border: 40% platform color into transparent — all via color-mix so tokens flip in light mode.
-  const bgClass = isVrc
-    ? 'bg-[color-mix(in_srgb,var(--vrc)_22%,transparent)]'
-    : 'bg-[color-mix(in_srgb,var(--cvr)_22%,transparent)]'
-  const textClass = isVrc
-    ? 'text-[color-mix(in_srgb,var(--vrc)_74%,white)]'
-    : 'text-[color-mix(in_srgb,var(--cvr)_74%,white)]'
-  const borderClass = isVrc
-    ? 'border border-[color-mix(in_srgb,var(--vrc)_40%,transparent)]'
-    : 'border border-[color-mix(in_srgb,var(--cvr)_42%,transparent)]'
-  return (
-    <span
-      aria-hidden="true"
-      className={[
-        'shrink-0 w-[24px] h-[24px] rounded-[7px] grid place-items-center',
-        'font-[family-name:var(--font-mono)] text-[12px] font-extrabold',
-        bgClass,
-        textClass,
-        borderClass
-      ].join(' ')}
-    >
-      {isVrc ? 'V' : 'C'}
-    </span>
-  )
-}
-
-// ─── HotInstanceCard ──────────────────────────────────────────────────────────
+// ─── HotInstanceCard (§9, VRX-198) ────────────────────────────────────────────
+//
+// Visual-weight order, top to bottom: world name → instance pill (hero) →
+// who's-here → platform (quiet a11y label). A 2×2 grid: the world name (r1c1) and
+// who's-here (r2c1) share the left 1fr column; the instance pill (r1c2) and platform
+// pill (r2c2) share a right column floored at 78px and grown to `max-content`, so the
+// two pills are always the SAME width and their edges line up (a clean rectangle).
+// The whole-card click → detail panel (world image, full who's-here, the instance
+// number) is deferred to VRX-59; the card is intentionally NOT clickable yet.
 
 function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Element {
   const { t } = useTranslation()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const isVrc = instance.platform === 'vrchat'
 
-  const opennessLabelKey = LABEL_KEYS_BY_SCHEME[labelScheme][instance.instanceType]
-  const opennessLabel = t(opennessLabelKey)
-  const platformLabel = isVrc ? t('dashboard.platformVrc') : t('dashboard.platformCvr')
-  const platformColor = isVrc ? 'text-[var(--vrc)]' : 'text-[var(--cvr)]'
+  const opennessLabel = t(LABEL_KEYS_BY_SCHEME[labelScheme][instance.instanceType])
+  const tier = OPENNESS_TIER[instance.instanceType] ?? null
+  // Display-only: drop the CVR "(#instanceNumber)" from the face (VRX-198).
+  const worldName = instance.worldName
+    ? stripInstanceSuffix(instance.worldName)
+    : t('friends.instance.unknownWorld')
   const tintClass = isVrc ? 'tint-vrc' : 'tint-cvr'
-  // 4px top edge gradient: platform → transparent (§9 spec)
   const topEdgeStyle = {
     background: isVrc
       ? 'linear-gradient(90deg, var(--vrc), transparent)'
       : 'linear-gradient(90deg, var(--cvr), transparent)'
   }
 
+  // Who's-here: first WHO_HERE_MAX_NAMES names, then "+N". The full list feeds the
+  // screen-reader label so nobody is hidden from assistive tech (audit W5 pattern).
+  const shownNames = instance.friendNames.slice(0, WHO_HERE_MAX_NAMES)
+  const overflow = instance.friendCount - shownNames.length
+  const whoHereAria = t('dashboard.friendsHereAria', {
+    count: instance.friendCount,
+    names: instance.friendNames.join(', ')
+  })
+
   return (
     <div className={`glass ${tintClass} overflow-hidden`}>
       {/* 4px top-edge platform stripe */}
       <div aria-hidden="true" className="h-[4px]" style={topEdgeStyle} />
 
-      <div className="p-[15px_16px_16px]">
-        {/* Row 1: platform glyph + openness badge */}
-        <div className="flex items-center gap-[9px] mb-[12px]">
-          <HotCardGlyph platform={instance.platform} />
-          <span className="ml-auto">
-            <OpennessIcon instanceType={instance.instanceType} label={opennessLabel} />
-          </span>
-        </div>
-
-        {/* World title */}
+      <div
+        className="p-[14px_16px]"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) minmax(78px, max-content)',
+          gridTemplateRows: 'auto 1fr',
+          columnGap: '12px',
+          rowGap: '16px',
+          minHeight: '96px'
+        }}
+      >
+        {/* World name — top-left, matched to the pill height, truncates */}
         <div
-          className="text-[16px] font-bold text-[var(--text)] overflow-hidden text-ellipsis whitespace-nowrap"
-          title={instance.worldName ?? t('friends.instance.unknownWorld')}
+          className="col-start-1 row-start-1 self-center min-w-0 text-[26px] font-bold leading-none text-[var(--text)] overflow-hidden text-ellipsis whitespace-nowrap"
+          title={worldName}
         >
-          {instance.worldName ?? t('friends.instance.unknownWorld')}
+          {worldName}
         </div>
 
-        {/* Platform subtitle (platform-tinted) */}
-        <div className={`text-[11.5px] mt-[2px] ${platformColor}`}>{platformLabel}</div>
+        {/* Instance pill (hero) — top-right, pinned */}
+        <InstancePill
+          label={opennessLabel}
+          tier={tier}
+          className="col-start-2 row-start-1 self-center"
+        />
 
-        {/* Footer: friend count (avatar stack deferred — VRX-48) */}
-        <div className="flex items-center gap-[9px] mt-[14px]">
-          {/* Avatar stack deferred (VRX-48) */}
-          <span className="text-[12px] text-[var(--text-dim)]">
-            <Trans
-              i18nKey="dashboard.friendsHere"
-              values={{ count: instance.friendCount }}
-              components={{ bold: <strong className="text-[var(--text)]" /> }}
-            />
-          </span>
-          {/* Join button deferred — joinInstance IPC not yet implemented */}
+        {/* Who's-here — bottom-left; names truncate BEFORE the shrink-proof "+N" so
+            the overflow count never gets clipped on a narrow card. Full list is in
+            the aria-label so screen readers get everyone. */}
+        <div
+          className="col-start-1 row-start-2 self-end flex min-w-0 items-baseline text-[13.5px] leading-[1.2]"
+          aria-label={whoHereAria}
+        >
+          <span className="min-w-0 truncate text-[var(--names-lift)]">{shownNames.join(', ')}</span>
+          {overflow > 0 && (
+            <span className="ml-[4px] shrink-0 font-bold text-[var(--text)]">
+              {t('dashboard.friendsOverflow', { count: overflow })}
+            </span>
+          )}
         </div>
+
+        {/* Platform pill (quiet a11y label) — bottom-right */}
+        <PlatformPill platform={instance.platform} className="col-start-2 row-start-2 self-end" />
       </div>
     </div>
   )

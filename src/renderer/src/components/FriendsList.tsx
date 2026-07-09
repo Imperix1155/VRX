@@ -1,44 +1,12 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, InstanceType, PresenceState } from '@shared/types'
+import type { Friend, PresenceState } from '@shared/types'
 import { useFriends, combineFriendQueries } from '../queries/friends'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
-
-/**
- * Openness-ladder tier per InstanceType (DESIGN.md §6) — keys the pill's `--op-*`
- * color tokens. Friend ladder green→orange (open→locked); groups purple (lighter =
- * more open). `null` = neutral pill (CVR Offline Instance — not joinable).
- */
-type OpennessTier =
-  | 'public'
-  | 'friends-plus'
-  | 'friends'
-  | 'invite-plus'
-  | 'invite'
-  | 'group-public'
-  | 'group-plus'
-  | 'group'
-
-const OPENNESS_TIER: Record<InstanceType, OpennessTier | null> = {
-  // VRChat types
-  public: 'public',
-  'friends-plus': 'friends-plus',
-  friends: 'friends',
-  'invite-plus': 'invite-plus',
-  invite: 'invite',
-  'group-public': 'group-public',
-  'group-plus': 'group-plus',
-  group: 'group',
-  // CVR types (same §6 tiers, platform-true labels)
-  'friends-of-friends': 'friends-plus',
-  'everyone-can-invite': 'invite-plus',
-  'owner-must-invite': 'invite',
-  'friends-of-members': 'group-plus',
-  'members-only': 'group',
-  offline: null
-}
+import InstancePill from './InstancePill'
+import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + glyph REPLACE the old presence-dot + status-pill
@@ -270,27 +238,7 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
           can't emit it). Neutral (Private / CVR Offline Instance) pills stay hueless
           but readable. Visual affordance now; the clickable join lands with VRX-166. */}
       {instancePill != null ? (
-        <span
-          className={[
-            'inline-flex h-[28px] min-w-[78px] shrink-0 items-center justify-center',
-            'rounded-[10px] border px-[12px] text-[12px] font-semibold whitespace-nowrap'
-          ].join(' ')}
-          style={
-            pillTier != null
-              ? {
-                  color: `var(--op-${pillTier}-text)`,
-                  background: `color-mix(in srgb, var(--op-${pillTier}) 13%, transparent)`,
-                  borderColor: `color-mix(in srgb, var(--op-${pillTier}) 36%, transparent)`
-                }
-              : {
-                  color: 'var(--text-dim)',
-                  background: 'color-mix(in srgb, var(--text) 7%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--text) 16%, transparent)'
-                }
-          }
-        >
-          {instancePill}
-        </span>
+        <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />
       ) : (
         <span aria-hidden="true" />
       )}

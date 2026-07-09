@@ -74,6 +74,19 @@
   /* Group's deep hue reads dim as text on the dark tint — lifted for readability */
   --op-group-text: #b795ff;
 
+  /* DASHBOARD HOT-INSTANCE CARD (§9, VRX-198). Visual-weight order is
+     world name → instance pill (hero) → who's-here → platform (quiet a11y label).
+     --names-lift: who's-here text, one step brighter than --text-dim so the people
+       out-weigh the platform chrome.
+     --plat-*-ghost-*: the platform pill is the NON-COLOR platform signifier (§5) for
+       users who can't read the tint — kept a dim outline (recedes) but the LABEL must
+       stay legible (WCAG AA verified: CVR 6.2:1, VRC 5.5:1 dark). */
+  --names-lift: rgba(233, 228, 250, 0.88);
+  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 76%, white);
+  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 15%, transparent);
+  --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
+  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
+
   --glass-blur: blur(26px) saturate(165%);
 
   /* GLASS material (§3) — rgba extracted as vars so .glass class uses no raw rgba */
@@ -161,6 +174,15 @@
   --op-group-public-text: #5b429e;
   --op-group-plus-text: #4f38a0;
   --op-group-text: #452f96;
+
+  /* DASHBOARD CARD — light (§9/VRX-198). Ghost label mixes toward BLACK (light
+     --cvr/--vrc are already darkened) so it stays legible on the light card;
+     names-lift is a darker/more-opaque dim. WCAG AA re-verified in light. */
+  --names-lift: rgba(30, 28, 42, 0.86);
+  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 76%, black);
+  --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 30%, transparent);
+  --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 76%, black);
+  --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 32%, transparent);
 
   --glass-blur: blur(24px) saturate(142%);
 
