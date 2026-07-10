@@ -11,7 +11,12 @@ import type { PipelineSocket } from './ReconnectingPipeline'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
 import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
+import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
+import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
 import { CVRAuthError, CVRNetworkError } from './errors'
+
+/** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
+type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
 
 /** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
@@ -76,6 +81,20 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+
+  // ── Instance enrichment (VRX-59) ──
+  // The WS wire has no world id/thumbnail and only the creator-set instance
+  // label; the resolver fills those from GET /instances/{id} (TTL-cached).
+  // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
+  private readonly instanceResolver = createCvrInstanceResolver({
+    fetcher: (path, schema) => this.get(path, schema)
+  })
+  /** Last snapshot from the pipeline — re-enriched + re-emitted as resolutions land. */
+  private lastSnapshot: PresenceSnapshotEvent | null = null
+  /** Ids with a re-emit callback already attached — in-flight ids still `peek()`
+   *  as undefined, so without this every rapid delta snapshot would stack another
+   *  callback on the same promise → N×M duplicate re-emits (Sol review, High). */
+  private readonly pendingResolutions = new Set<string>()
 
   constructor(
     private readonly store: CvrCredentialStore,
@@ -277,8 +296,32 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
     return result.friends
   }
-  getInstanceDetails(): Promise<InstanceInfo> {
-    return Promise.reject(new Error('CvrAdapter.getInstanceDetails not implemented — VRX-59'))
+  /**
+   * Resolve full instance details on demand (VRX-59) — the detail-panel path.
+   * Unresolvable (private/hidden/gone/API failure) REJECTS per the interface
+   * contract (`Promise<InstanceInfo>` has no null); the enrichment path is the
+   * one with graceful-null semantics.
+   */
+  async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
+    const resolved = await this.instanceResolver.resolve(instanceId)
+    if (resolved === null) {
+      throw new CVRNetworkError('CVR instance is private or could not be resolved')
+    }
+    const access = parseCvrPrivacy(resolved.privacy)
+    return {
+      // True world id when the API supplied one; the instance id otherwise
+      // (same fallback the WS path uses — keys stay consistent either way).
+      worldId: resolved.worldId ?? instanceId,
+      instanceId,
+      worldName: resolved.worldName ?? resolved.instanceName,
+      thumbnailUrl: resolved.worldImageUrl,
+      type: access.type,
+      openness: access.openness,
+      isGroup: access.isGroup,
+      groupName: null,
+      region: null,
+      userCount: resolved.playerCount
+    }
   }
   joinInstance(): Promise<void> {
     return Promise.reject(new Error('CvrAdapter.joinInstance not implemented — VRX-60'))
@@ -294,7 +337,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // Mirrors VrcAdapter.subscribe (VRX-146c).
     this.pipeline ??= new CvrPipeline({
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
-      onEvent: (event) => this.emit(event),
+      onEvent: (event) => this.handlePipelineEvent(event),
       socketFactory:
         this.live?.socketFactory ??
         (() => {
@@ -311,7 +354,85 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.subscribers.delete(handler)
       if (this.subscribers.size === 0) {
         this.pipeline?.stop()
+        // A resolution landing after the pipeline stops must not re-emit the
+        // dead connection's roster to a future subscriber (VRX-59): the next
+        // connect delivers a fresh full set anyway (CVR ONLINE_FRIENDS).
+        this.lastSnapshot = null
       }
+    }
+  }
+
+  /**
+   * Pipeline events pass through UNLESS they're presence snapshots, which get
+   * world enrichment (VRX-59): emit immediately with whatever the resolver
+   * cache already knows (never delay presence on network I/O), then resolve any
+   * unseen instance ids and RE-EMIT the enriched snapshot as answers land.
+   * Snapshots are idempotent full-sets, so re-emits are safe by contract.
+   */
+  private handlePipelineEvent(event: AdapterEvent): void {
+    if (event.type !== 'presence-snapshot' || event.platform !== 'chilloutvr') {
+      this.emit(event)
+      return
+    }
+    this.lastSnapshot = event
+    this.emit(this.enrichSnapshot(event))
+    this.kickResolutions(event)
+  }
+
+  /** Patch entries with any CACHED resolution — synchronous, cache-only. */
+  private enrichSnapshot(snapshot: PresenceSnapshotEvent): PresenceSnapshotEvent {
+    return {
+      ...snapshot,
+      entries: snapshot.entries.map((entry) => {
+        if (entry.instance == null) return entry
+        const resolved = this.instanceResolver.peek(entry.instance.instanceId)
+        if (resolved == null) return entry // unknown or unresolvable → wire values
+        return { ...entry, instance: this.mergeResolved(entry.instance, resolved) }
+      })
+    }
+  }
+
+  /** Resolved fields win where present; WS values remain the fallback. Privacy
+   *  stays the WS value — it's fresher than a cached REST read. */
+  private mergeResolved(instance: InstanceInfo, resolved: ResolvedCvrInstance): InstanceInfo {
+    return {
+      ...instance,
+      worldId: resolved.worldId ?? instance.worldId,
+      worldName: resolved.worldName ?? instance.worldName,
+      thumbnailUrl: resolved.worldImageUrl ?? instance.thumbnailUrl,
+      userCount: resolved.playerCount ?? instance.userCount
+    }
+  }
+
+  /**
+   * Fire resolution for every DISTINCT unseen instance id in the snapshot; when
+   * any resolution yields data, re-enrich + re-emit the CURRENT last snapshot
+   * (which may be newer than the one that kicked this — fine: enrichment is
+   * per-instance-id, not per-snapshot). Failures resolve null and are
+   * negative-cached inside the resolver; nothing to re-emit for them.
+   */
+  private kickResolutions(snapshot: PresenceSnapshotEvent): void {
+    const unseen = new Set<string>()
+    for (const entry of snapshot.entries) {
+      if (entry.instance == null) continue
+      const id = entry.instance.instanceId
+      if (this.instanceResolver.peek(id) === undefined && !this.pendingResolutions.has(id)) {
+        unseen.add(id)
+      }
+    }
+    for (const id of unseen) {
+      this.pendingResolutions.add(id)
+      void this.instanceResolver
+        .resolve(id)
+        .then((resolved) => {
+          if (resolved === null || this.lastSnapshot === null) return
+          // Only re-emit if the id is still present in the current snapshot.
+          const relevant = this.lastSnapshot.entries.some((e) => e.instance?.instanceId === id)
+          if (relevant) this.emit(this.enrichSnapshot(this.lastSnapshot))
+        })
+        .finally(() => {
+          this.pendingResolutions.delete(id)
+        })
     }
   }
 
@@ -350,6 +471,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.setCredentials(null)
     this.displayName = null
     this.validated = false
+    // Drop the enrichment re-emit source (VRX-59): a resolution landing AFTER
+    // the session died must not re-emit the pre-quarantine roster and undo the
+    // VRX-195 stale-roster drop.
+    this.lastSnapshot = null
     try {
       this.store.delete()
     } catch {
