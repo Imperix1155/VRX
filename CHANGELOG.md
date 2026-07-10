@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Desktop notifications when friends come online or join a world.** "FriendName is now online" / "FriendName joined WorldName" — real transitions only (no spam when the app first connects or reconnects), mass-login bursts are rate-limited, and each alert type has its own switch on the new **Settings → Notifications** page (friend-offline alerts exist but start off — they're noisy). Clicking a notification brings VRX to the front. (VRX-84)
+- **Real avatars in the friends list.** Friend profile pictures now load (both platforms) — lazily, only as rows scroll into view, cached for the session, with the letter placeholder staying in place while loading or if an image fails. (VRX-48)
+
+### Fixed
+
+- **A flaky network can no longer briefly block a correct login.** Background session checks that failed due to network hiccups could trip a safety breaker that then rejected a real login attempt for up to a minute. Automatic checks no longer count against that breaker. (VRX-189)
+
 ## [0.7.0] - 2026-07-10
 
 ### Added
