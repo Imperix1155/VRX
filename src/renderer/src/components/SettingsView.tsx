@@ -6,6 +6,7 @@ import { useUiStore } from '../stores/ui'
 import ChilloutVrAccountCard from './ChilloutVrAccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
+import Toggle from './Toggle'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
@@ -35,6 +36,9 @@ export default function SettingsView(): React.JSX.Element {
   const theme = useSettingsStore((s) => s.settings.theme)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
+  const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
+  const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -119,6 +123,63 @@ export default function SettingsView(): React.JSX.Element {
                 max={HOT_INSTANCE_THRESHOLD_MAX}
                 onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
                 ariaLabel={t('settings.hotThreshold.aria')}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* ── Notifications page (VRX-84) ── */}
+        {category === 'notifications' && (
+          <section aria-labelledby="settings-notifications-heading">
+            <h2 id="settings-notifications-heading" className="sr-only">
+              {t('settings.notifications.heading')}
+            </h2>
+
+            <div className="flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.notifications.online.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.notifications.online.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={notifyFriendOnline}
+                ariaLabel={t('settings.notifications.online.aria')}
+                onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
+              />
+            </div>
+
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.notifications.inGame.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.notifications.inGame.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={notifyFriendInGame}
+                ariaLabel={t('settings.notifications.inGame.aria')}
+                onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
+              />
+            </div>
+
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.notifications.offline.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.notifications.offline.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={notifyFriendOffline}
+                ariaLabel={t('settings.notifications.offline.aria')}
+                onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
               />
             </div>
           </section>

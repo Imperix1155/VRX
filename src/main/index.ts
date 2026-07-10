@@ -1,4 +1,11 @@
-import { app, shell, BrowserWindow, dialog, session } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  session,
+  Notification as NativeNotification
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -21,6 +28,7 @@ import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
+import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -291,6 +299,74 @@ app
     ])
     registerIpcHandlers(adapters)
 
+    const focusMainWindow = (): void => {
+      const window =
+        currentWindow !== null && !currentWindow.isDestroyed()
+          ? currentWindow
+          : BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      if (window === undefined || window.isDestroyed()) return
+      if (window.isMinimized()) window.restore()
+      window.show()
+      window.focus()
+    }
+
+    const showFriendAlert = (alert: FriendAlert): void => {
+      if (!NativeNotification.isSupported()) return
+
+      let title: string
+      let body: string
+      switch (alert.type) {
+        case 'online':
+          title = 'Friend online'
+          body = `${alert.displayName} is online`
+          break
+        case 'in-game':
+          title = 'Friend in game'
+          body =
+            alert.worldName === null
+              ? `${alert.displayName} joined a world`
+              : `${alert.displayName} joined ${alert.worldName}`
+          break
+        case 'offline':
+          title = 'Friend offline'
+          body = `${alert.displayName} went offline`
+          break
+      }
+
+      try {
+        const notification = new NativeNotification({ title, body })
+        notification.on('click', focusMainWindow)
+        notification.show()
+      } catch {
+        // Native notification failure must never interrupt the shared adapter
+        // subscription path. Do not log the alert/error contents: both may
+        // contain a friend's display name.
+        log.warn('friend notification failed')
+      }
+    }
+
+    const alertSettingEnabled = (type: FriendAlertType): boolean => {
+      // loadSettings reads electron-store's current in-memory value. Calling it
+      // here (at fire time) means save-settings affects the very next event.
+      const current = loadSettings()
+      switch (type) {
+        case 'online':
+          return current.notifyFriendOnline
+        case 'in-game':
+          return current.notifyFriendInGame
+        case 'offline':
+          return current.notifyFriendOffline
+      }
+    }
+
+    const friendAlerts = new FriendAlerts({
+      notify: showFriendAlert,
+      clock: Date.now,
+      isEnabled: alertSettingEnabled,
+      resolveName: (platform, platformUserId) =>
+        platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
+    })
+
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
     // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
@@ -301,8 +377,12 @@ app
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
       }
     }
-    const unsubscribeVrcLive = vrcAdapter.subscribe(broadcast)
-    const unsubscribeCvrLive = cvrAdapter.subscribe(broadcast)
+    const handleAdapterEvent = (event: AdapterEvent): void => {
+      friendAlerts.consume(event)
+      broadcast(event)
+    }
+    const unsubscribeVrcLive = vrcAdapter.subscribe(handleAdapterEvent)
+    const unsubscribeCvrLive = cvrAdapter.subscribe(handleAdapterEvent)
     app.on('before-quit', () => {
       // Close both sockets and halt the reconnect loops so quit is clean.
       unsubscribeVrcLive()

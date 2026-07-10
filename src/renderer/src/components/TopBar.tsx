@@ -26,6 +26,7 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
 const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   appearance: 'settings.appearance.heading',
   dashboard: 'settings.dashboard.heading',
+  notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading'
 }
 

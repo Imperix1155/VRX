@@ -338,6 +338,31 @@ describe('CvrAdapter', () => {
       expect(friends[0]?.platformUserId).toBe('a1b2c3d4-0000-0000-0000-000000000001')
     })
 
+    it('caches display names from the latest successful roster for id-only live snapshots', async () => {
+      const adapter = sessioned()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            message: 'ok',
+            data: [
+              {
+                id: 'A1B2C3D4-0000-0000-0000-000000000001',
+                name: 'Neo',
+                imageUrl: null,
+                categories: []
+              }
+            ]
+          })
+        )
+      )
+
+      await adapter.getFriends()
+
+      expect(adapter.resolveFriendName('a1b2c3d4-0000-0000-0000-000000000001')).toBe('Neo')
+      expect(adapter.resolveFriendName('missing')).toBeNull()
+    })
+
     it('throws rather than returning a misleading empty list when every entry is malformed', async () => {
       vi.stubGlobal(
         'fetch',
