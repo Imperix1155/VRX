@@ -178,7 +178,13 @@
   .ic svg { display: block; }
 
   /* ---------- Hot instances ---------- */
-  .hot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 26px; }
+  /* VRX-199: max 2 columns that FILL the row; the app collapses to 1 column on a
+     narrow pane via a container query on the section, and a lone card spans full
+     width (:only-child). Shown here at its 2-col resting state. */
+  .hotwrap { container-type: inline-size; }
+  .hot { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 26px; }
+  @container (max-width: 620px) { .hot { grid-template-columns: 1fr; } }
+  .hot > .gcard:only-child { grid-column: 1 / -1; }
   .gcard { overflow: hidden; }
   .gtop { height: 4px; }
   .gcard.vrc .gtop { background: linear-gradient(90deg, var(--vrc), transparent); }
@@ -186,8 +192,9 @@
   /* VRX-198 redesign — 2×2 grid; the two pills share a floored max-content column. */
   .gbody { display: grid; grid-template-columns: minmax(0,1fr) minmax(78px, max-content);
     grid-template-rows: auto 1fr; column-gap: 12px; row-gap: 16px; padding: 14px 16px; min-height: 96px; }
-  .gworld { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; font-size: 26px; font-weight: 700;
-    line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* VRX-199: 25px / line-height 1.5 — descender room ("lined paper"); 26px/1 clipped y,g. */
+  .gworld { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; font-size: 25px; font-weight: 700;
+    line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gnames { grid-column: 1; grid-row: 2; align-self: end; min-width: 0; font-size: 13.5px; line-height: 1.2;
     color: var(--names-lift); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gnames b { color: var(--text); font-weight: 700; margin-left: 4px; }
@@ -385,14 +392,14 @@
 
       <div class="secline" style="display:flex;align-items:center;gap:12px"><span class="kick">Hot Instances</span> <span class="hint">sorts blue VRChat from orange ChilloutVR at a glance — glass tinted by platform</span>
         <span class="stepper glass" style="margin-left:auto" title="Hot instance threshold (VRX-78): min friends in one world; 1–10, default 2"><button disabled>−</button><span class="val">2</span><button>+</button></span></div>
-      <div class="hot">
+      <div class="hotwrap"><div class="hot">
         <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">The Great Pug</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Aria, Sam, Jules, Kai <b>+10</b></span><span class="ppill">VRChat</span></div></div>
         <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">The Black Cat</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Milo, Kira, Otto, Pax <b>+2</b></span><span class="ppill">ChilloutVR</span></div></div>
         <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">Murder 4</div><span class="opill" style="--op: var(--op-group-plus)">Group+</span><span class="gnames">Nova, Rex, Tia, Uma <b>+4</b></span><span class="ppill">VRChat</span></div></div>
         <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">Movie Night</div><span class="opill" style="--op: var(--op-friends)">Friends</span><span class="gnames">Bea, Pip, Quill, Rue <b>+1</b></span><span class="ppill">ChilloutVR</span></div></div>
         <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">Prismic</div><span class="opill" style="--op: var(--op-friends-plus)">Friends+</span><span class="gnames">Quinn, Lux, Dot, Eve <b>+7</b></span><span class="ppill">VRChat</span></div></div>
         <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">Spawn Zone</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Kit, Ada, Bo, Cy</span><span class="ppill">ChilloutVR</span></div></div>
-      </div>
+      </div></div>
 
       <div class="secline"><span class="kick">Friends</span> <span class="hint">§9.1 row: avatar status-ring + glyph · custom status beside the name · world subline · §6.1 tier-colored instance pill (Private when hidden; none when not in a world)</span></div>
       <div class="flist glass">

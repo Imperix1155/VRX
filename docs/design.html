@@ -202,7 +202,7 @@
   .gcard.cvr .gtop { background: linear-gradient(90deg, var(--cvr), transparent); }
   /* VRX-198 redesign — 2×2 grid; the two pills share a floored max-content column. */
   .gbody { display: grid; grid-template-columns: minmax(0,1fr) minmax(78px, max-content); grid-template-rows: auto 1fr; column-gap: 12px; row-gap: 16px; padding: 14px 16px; min-height: 96px; }
-  .gworld { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; font-size: 26px; font-weight: 700; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gworld { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; font-size: 25px; font-weight: 700; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* VRX-199: 25/1.5 descender room (26/1 clipped y,g) */
   .gnames { grid-column: 1; grid-row: 2; align-self: end; min-width: 0; font-size: 13.5px; line-height: 1.2; color: var(--names-lift); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .gnames b { color: var(--text); font-weight: 700; margin-left: 4px; }
   .gbody .opill { grid-column: 2; grid-row: 1; align-self: center; min-width: 0; }
@@ -697,7 +697,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.3</span> Hot-instance card</div>
-          <div class="el-sum">Platform-tinted glass · 4px top edge · world name (hero) · shared instance pill · who's-here names + "+N" · quiet platform pill.</div>
+          <div class="el-sum">Platform-tinted glass · 4px top edge · world name (hero, 25px/1.5) · shared instance pill · who's-here names + "+N" · quiet platform pill. Grid: max 2 cols that fill the row, container-query responsive → 1 col on a narrow pane, lone card full-width (VRX-199). Trailing <code>(#…)</code> stripped from the face (numeric + custom tags).</div>
           <div class="demo">
             <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">The Great Pug</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Aria, Sam, Jules, Kai <b>+10</b></span><span class="ppill">VRChat</span></div></div>
             <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">Movie Night</div><span class="opill" style="--op: var(--op-friends)">Friends</span><span class="gnames">Bea, Pip, Quill, Rue <b>+1</b></span><span class="ppill">ChilloutVR</span></div></div>

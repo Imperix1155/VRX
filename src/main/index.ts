@@ -44,6 +44,10 @@ function createWindow(): BrowserWindow {
     width: 900,
     height: 670,
     show: false,
+    // Window/taskbar name. Without this the title bar reads the renderer's
+    // <title> — which is "VRX", but only after the page loads; set it here so
+    // the window says VRX from creation, not "Electron" for the first frame.
+    title: 'VRX',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
