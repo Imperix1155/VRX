@@ -17,9 +17,20 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 // useSyncExternalStore's server snapshot, so setState never reaches the render.
 // Mock the store with a mutable ref instead (verified empirically — VRX-183).
 const scheme = vi.hoisted(() => ({ current: 'vrchat' }))
+// Defaults to nothing collapsed so the pre-existing tests below (status rings,
+// pills, ordering) see every fixture friend regardless of its section — the
+// collapse behavior itself is exercised in the `presence sections` describe
+// block below (and interactively in FriendsList.sections.test.tsx).
+const collapsedFriendSections = vi.hoisted(() => ({ current: [] as string[] }))
 vi.mock('../stores/settings', () => ({
   useSettingsStore: <T>(selector: (state: unknown) => T): T =>
-    selector({ settings: { labelScheme: scheme.current } })
+    selector({
+      settings: {
+        labelScheme: scheme.current,
+        collapsedFriendSections: collapsedFriendSections.current
+      },
+      updateSettings: () => {}
+    })
 }))
 
 // Pin the platform filter so the render tests exercise ONE scoped query (the
@@ -368,6 +379,55 @@ describe('FriendsList', () => {
     const positions = ['Anna', 'Yara', 'Xander', 'Zed'].map((n) => markup.indexOf(`>${n}<`))
     expect(positions.every((i) => i >= 0)).toBe(true) // all rendered
     expect([...positions].sort((a, b) => a - b)).toEqual(positions) // strictly in that order
+  })
+
+  // ─── Presence sections (VRX-67) ────────────────────────────────────────────
+
+  describe('presence sections', () => {
+    afterEach(() => {
+      collapsedFriendSections.current = []
+    })
+
+    const mk = (name: string, state: PresenceState): Friend => ({
+      ...friend,
+      platformUserId: `usr_${name}`,
+      displayName: name,
+      status: 'online',
+      statusDescription: null,
+      instance: null,
+      presence: { state }
+    })
+
+    it('renders the three section headers, in order, each with its live count', () => {
+      mock([mk('Anna', 'in-game'), mk('Ben', 'in-game'), mk('Cara', 'active')])
+      const markup = render()
+      const inGamePos = markup.indexOf('In-Game (2)')
+      const onlinePos = markup.indexOf('Online (1)')
+      const offlinePos = markup.indexOf('Offline (0)')
+      expect([inGamePos, onlinePos, offlinePos].every((i) => i >= 0)).toBe(true)
+      expect(inGamePos).toBeLessThan(onlinePos)
+      expect(onlinePos).toBeLessThan(offlinePos)
+    })
+
+    it('renders each section header as a button with aria-expanded reflecting its collapsed state', () => {
+      collapsedFriendSections.current = ['offline']
+      mock([mk('Anna', 'in-game'), mk('Zed', 'offline')])
+      const markup = render()
+      const buttons = [...markup.matchAll(/<button[\s\S]*?<\/button>/g)].map((m) => m[0])
+      const inGameButton = buttons.find((b) => b.includes('In-Game'))
+      const offlineButton = buttons.find((b) => b.includes('Offline'))
+      expect(inGameButton).toContain('aria-expanded="true"')
+      expect(offlineButton).toContain('aria-expanded="false"')
+    })
+
+    it('a collapsed section keeps its header (with count) but drops its rows from the list', () => {
+      collapsedFriendSections.current = ['offline']
+      mock([mk('Anna', 'in-game'), mk('Zed', 'offline')])
+      const markup = render()
+      expect(markup).toContain('Offline (1)') // header stays, count still live
+      expect(markup).not.toContain('>Zed<') // row is gone
+      expect(markup).toContain('>Anna<') // the expanded section's row still renders
+    })
   })
 })
 

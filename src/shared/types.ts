@@ -191,6 +191,15 @@ export type Theme = (typeof THEMES)[number]
 export const LABEL_SCHEMES = ['vrchat', 'platform-native', 'chilloutvr'] as const
 export type LabelScheme = (typeof LABEL_SCHEMES)[number]
 
+// ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
+/** Collapsible section grouping in the friends list — DISPLAY order. Distinct
+ *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the
+ *  `online` section, matching the §5 axis split (state vs status). Single
+ *  source for both the `FriendSection` type and the settings schema's
+ *  `collapsedFriendSections` array element enum. */
+export const FRIEND_SECTIONS = ['in-game', 'online', 'offline'] as const
+export type FriendSection = (typeof FRIEND_SECTIONS)[number]
+
 // ─── Auth (VRX-16/18 — direct login + hybrid import) ─────────────────────────
 export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'error'
 
