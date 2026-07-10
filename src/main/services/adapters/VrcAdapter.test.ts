@@ -323,6 +323,22 @@ describe('VrcAdapter', () => {
       expect(loginFetch).toHaveBeenCalledTimes(1)
     })
 
+    it('login punches through an OPEN circuit breaker tripped by DATA calls (VRX-190 parity)', async () => {
+      // Trip the shared breaker via the guarded data path (getFriends), then
+      // prove a deliberate login still reaches the wire — resetCircuit() runs
+      // first, mirroring CvrAdapter.login (parity gap caught on VRX-189).
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      }
+
+      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      vi.stubGlobal('fetch', loginFetch)
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+      expect(loginFetch).toHaveBeenCalled()
+    })
+
     it('maps an unparseable 200 body to unauthenticated WITHOUT clearing the session', async () => {
       // The body is garbage but the server said 200 — the cookie may be fine
       // (transient drift); nuking the persisted session here would force a full
