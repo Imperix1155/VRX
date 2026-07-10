@@ -60,21 +60,26 @@ export abstract class BaseAdapter implements IPlatformAdapter {
    * Auth flows use this directly so a 401 is a clean "wrong password" result —
    * NOT an `AuthError` plus a circuit-breaker lockout after 3 wrong attempts.
    */
-  protected async rawRequest(url: string, options: RequestInit = {}): Promise<Response> {
+  protected async rawRequest(
+    url: string,
+    options: RequestInit = {},
+    { recordCircuitFailure = true }: { recordCircuitFailure?: boolean } = {}
+  ): Promise<Response> {
     if (
       this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD &&
       Date.now() - this.lastFailureAt < CIRCUIT_RESET_MS
     ) {
       throw new NetworkError('Circuit open: too many consecutive failures')
     }
-    return this.attemptRaw(url, options, 0, null)
+    return this.attemptRaw(url, options, 0, null, recordCircuitFailure)
   }
 
   private async attemptRaw(
     url: string,
     options: RequestInit,
     retryCount: number,
-    reservedRetryAt: number | null
+    reservedRetryAt: number | null,
+    recordCircuitFailure: boolean
   ): Promise<Response> {
     if (reservedRetryAt === null) {
       await this.waitForRequestSlot()
@@ -91,7 +96,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         signal: AbortSignal.timeout(API_TIMEOUT_MS)
       })
     } catch (err) {
-      this.recordFailure()
+      if (recordCircuitFailure) this.recordFailure()
       throw new NetworkError('Request failed', err)
     }
 
@@ -104,7 +109,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       }
       const retryAt = this.applyCooldown(delay, true)
       await this.sleep(Math.max(0, retryAt - Date.now()))
-      return this.attemptRaw(url, options, retryCount + 1, retryAt)
+      return this.attemptRaw(url, options, retryCount + 1, retryAt, recordCircuitFailure)
     }
 
     return response
