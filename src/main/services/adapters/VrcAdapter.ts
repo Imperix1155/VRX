@@ -248,10 +248,14 @@ export class VrcAdapter extends VrcApiClient {
 
     let response: Response
     try {
-      response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
-        method: 'GET',
-        headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-      })
+      response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        {
+          method: 'GET',
+          headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+        },
+        { recordCircuitFailure: false }
+      )
     } catch {
       return this.status('error')
     }
