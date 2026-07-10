@@ -302,7 +302,6 @@ describe('CvrAdapter', () => {
     it('importSession is false (CVRX import = VRX-56); unimplemented methods reject with their issue', async () => {
       const adapter = new CvrAdapter(fakeStore(), noopSleep)
       expect(await adapter.importSession()).toBe(false)
-      await expect(adapter.getInstanceDetails()).rejects.toThrow('VRX-59')
       await expect(adapter.joinInstance()).rejects.toThrow('VRX-60')
       await expect(adapter.selfInvite()).rejects.toThrow('not supported')
     })
@@ -440,6 +439,261 @@ describe('CvrAdapter', () => {
       await new Promise((r) => setImmediate(r))
       expect(dials).toBe(0) // no credentials → pipelineHeaders() null → no socket
       unsub()
+    })
+  })
+
+  describe('instance enrichment (VRX-59)', () => {
+    // Minimal drivable socket (CvrPipeline.test pattern).
+    type Listener = (...args: unknown[]) => void
+    function drivableSocket(): {
+      socket: { on: (e: string, l: Listener) => void; close: () => void; send: () => void }
+      fire: (event: string, ...args: unknown[]) => void
+    } {
+      const listeners = new Map<string, Listener[]>()
+      return {
+        socket: {
+          on: (event: string, listener: Listener) => {
+            listeners.set(event, [...(listeners.get(event) ?? []), listener])
+          },
+          close: () => {},
+          send: () => {}
+        },
+        fire: (event: string, ...args: unknown[]) => {
+          for (const l of listeners.get(event) ?? []) l(...args)
+        }
+      }
+    }
+
+    // Instance tag via interpolation (design-token raw-color guard).
+    const taggedName = `SunDown (#${816332})`
+    const instanceDetail = {
+      id: 'i_abc',
+      name: taggedName,
+      world: { id: 'wrld-real', name: 'SunDown', imageUrl: 'https://img.example/w.png' },
+      currentPlayerCount: 5,
+      instanceSettingPrivacy: 2 // friends (live-confirmed numeric)
+    }
+
+    it('re-emits an enriched presence-snapshot once the instance resolves (world id + clean name)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(instanceDetail))))
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
+      const unsub = adapter.subscribe((e) => {
+        if (e.type === 'presence-snapshot') snapshots.push(e)
+      })
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      rig.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_abc', Name: taggedName, Privacy: 0 }
+            }
+          ]
+        })
+      )
+
+      // Immediate snapshot carries the WIRE values (worldId = instance id).
+      expect(snapshots[0]!.entries[0]!.instance).toMatchObject({
+        worldId: 'i_abc',
+        worldName: taggedName
+      })
+
+      // The resolution lands → a re-emitted snapshot carries the TRUE world.
+      await vi.waitFor(() => {
+        const last = snapshots.at(-1)!
+        expect(last.entries[0]!.instance).toMatchObject({
+          worldId: 'wrld-real',
+          worldName: 'SunDown',
+          thumbnailUrl: 'https://img.example/w.png',
+          userCount: 5
+        })
+      })
+      // instanceId and WS-fresh privacy classification are untouched.
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        instanceId: 'i_abc',
+        type: 'public'
+      })
+      unsub()
+    })
+
+    it('rapid snapshots while a resolution is in flight produce ONE re-emit, not N (Sol High)', async () => {
+      let releaseResolution!: (r: Response) => void
+      const held = new Promise<Response>((resolve) => {
+        releaseResolution = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => held)
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const snapshots: AdapterEvent[] = []
+      const unsub = adapter.subscribe((e) => {
+        if (e.type === 'presence-snapshot') snapshots.push(e)
+      })
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      const wsFrame = (): string =>
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_abc', Name: taggedName, Privacy: 0 }
+            }
+          ]
+        })
+      // THREE rapid snapshots while the same instance resolution is held open.
+      rig.fire('message', wsFrame())
+      rig.fire('message', wsFrame())
+      rig.fire('message', wsFrame())
+      expect(snapshots).toHaveLength(3) // pass-through emits, one per frame
+
+      releaseResolution(jsonResponse(envelope(instanceDetail)))
+      await vi.waitFor(() => {
+        const last = snapshots.at(-1)! as Extract<AdapterEvent, { type: 'presence-snapshot' }>
+        expect(last.entries[0]!.instance?.worldId).toBe('wrld-real')
+      })
+      // Exactly ONE enrichment re-emit (4 total) — not one per queued snapshot.
+      await new Promise((r) => setTimeout(r, 20))
+      expect(snapshots).toHaveLength(4)
+      unsub()
+    })
+
+    it('resolution failure leaves wire values standing (no re-emit, no throw)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'nope' }, { status: 404 })))
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const snapshots: AdapterEvent[] = []
+      const unsub = adapter.subscribe((e) => {
+        if (e.type === 'presence-snapshot') snapshots.push(e)
+      })
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      rig.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_dead', Name: 'Hidden', Privacy: 7 }
+            }
+          ]
+        })
+      )
+      // Give the (failing) resolution time to settle; still exactly ONE snapshot.
+      await new Promise((r) => setTimeout(r, 20))
+      expect(snapshots).toHaveLength(1)
+      unsub()
+    })
+
+    it('a late resolution cannot re-emit the pre-quarantine roster after auth dies (VRX-195 guard)', async () => {
+      // fetch: the instance resolution is HELD until after the 401 clears the
+      // session — then released. No re-emit may follow.
+      let releaseResolution!: (r: Response) => void
+      const held = new Promise<Response>((resolve) => {
+        releaseResolution = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL) => {
+          const u = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          if (u.includes('/instances/')) return held
+          // getFriends path → 401 (kills the session, VRX-195)
+          return Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 }))
+        })
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const events: AdapterEvent[] = []
+      const unsub = adapter.subscribe((e) => events.push(e))
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      rig.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_abc', Name: taggedName, Privacy: 0 }
+            }
+          ]
+        })
+      )
+      const snapshotsBefore = events.filter((e) => e.type === 'presence-snapshot').length
+      expect(snapshotsBefore).toBe(1)
+
+      // The session dies on the data path (401 → clearSession + auth-invalidated).
+      await expect(adapter.getFriends()).rejects.toThrow()
+      expect(events.some((e) => e.type === 'auth-invalidated')).toBe(true)
+
+      // NOW the held resolution lands — it must not resurrect the old roster.
+      releaseResolution(jsonResponse(envelope(instanceDetail)))
+      await new Promise((r) => setTimeout(r, 20))
+      const snapshotsAfter = events.filter((e) => e.type === 'presence-snapshot').length
+      expect(snapshotsAfter).toBe(snapshotsBefore) // no post-quarantine re-emit
+      unsub()
+    })
+
+    it('getInstanceDetails maps the resolved detail to a full InstanceInfo', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(instanceDetail))))
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      const info = await adapter.getInstanceDetails('i_abc')
+      expect(info).toEqual({
+        worldId: 'wrld-real',
+        instanceId: 'i_abc',
+        worldName: 'SunDown',
+        thumbnailUrl: 'https://img.example/w.png',
+        type: 'friends', // privacy 2 via parseCvrPrivacy
+        openness: 'friends',
+        isGroup: false,
+        groupName: null,
+        region: null,
+        userCount: 5
+      })
+    })
+
+    it('getInstanceDetails rejects (does not return null) when unresolvable', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'gone' }, { status: 404 })))
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      await expect(adapter.getInstanceDetails('i_gone')).rejects.toThrow(
+        'private or could not be resolved'
+      )
     })
   })
 })
