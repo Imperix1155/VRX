@@ -140,6 +140,12 @@ export class VrcAdapter extends VrcApiClient {
     // Second leg of a 2FA flow: the renderer re-calls login with the code.
     if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode)
 
+    // A deliberate login must always reach the wire — background data-call
+    // failures can open the shared breaker and fast-fail this as a network
+    // error for the 60s window even with correct credentials. Platform parity
+    // with CvrAdapter.login (VRX-190; gap caught by CodeRabbit on VRX-189).
+    this.resetCircuit()
+
     let response: Response
     try {
       response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
@@ -248,10 +254,14 @@ export class VrcAdapter extends VrcApiClient {
 
     let response: Response
     try {
-      response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
-        method: 'GET',
-        headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-      })
+      response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        {
+          method: 'GET',
+          headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+        },
+        { recordCircuitFailure: false }
+      )
     } catch {
       return this.status('error')
     }
