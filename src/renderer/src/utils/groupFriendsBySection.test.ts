@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Friend } from '@shared/types'
-import { FRIEND_SECTION_ORDER, groupFriendsBySection } from './groupFriendsBySection'
+import { FRIEND_SECTIONS } from '@shared/types'
+import { groupFriendsBySection } from './groupFriendsBySection'
 
 const mk = (id: string, displayName: string, state: Friend['presence']['state']): Friend => ({
   platformUserId: id,
@@ -24,8 +25,8 @@ describe('groupFriendsBySection', () => {
     expect(groups.every((g) => g.friends.length === 0)).toBe(true)
   })
 
-  it('matches the exported FRIEND_SECTION_ORDER', () => {
-    expect(groupFriendsBySection([]).map((g) => g.section)).toEqual(FRIEND_SECTION_ORDER)
+  it('matches the shared FRIEND_SECTIONS display order', () => {
+    expect(groupFriendsBySection([]).map((g) => g.section)).toEqual([...FRIEND_SECTIONS])
   })
 
   it('buckets by presence state — "active" maps to the "online" section', () => {
