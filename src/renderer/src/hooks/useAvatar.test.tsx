@@ -78,4 +78,47 @@ describe('useAvatar', () => {
     observers[0]?.intersect(true)
     expect(screen.getByTestId('target').textContent).toBe('placeholder')
   })
+
+  it('does not cache a null result, so a later mount retries successfully', async () => {
+    const getAvatar = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ok: true, dataUrl: 'data:image/png;base64,cmV0cnk=' })
+    window.vrx = { getAvatar } as unknown as Window['vrx']
+    const url = 'https://files.vrchat.cloud/avatar/retry-after-null.png'
+
+    const first = render(<Harness url={url} />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(getAvatar).toHaveBeenCalledTimes(1))
+    first.unmount()
+
+    render(<Harness url={url} />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
+    expect(getAvatar).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds successful renderer entries with least-recently-used eviction', async () => {
+    const getAvatar = vi.fn(async (url: string) => ({
+      ok: true as const,
+      dataUrl: `data:image/png;base64,${url}`
+    }))
+    window.vrx = { getAvatar } as unknown as Window['vrx']
+    const urls = Array.from(
+      { length: 201 },
+      (_, index) => `https://files.abinteractive.net/avatar/lru-${index}.png`
+    )
+
+    for (const url of urls) {
+      const view = render(<Harness url={url} />)
+      observers.at(-1)?.intersect(true)
+      await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
+      view.unmount()
+    }
+    render(<Harness url={urls[0]!} />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
+
+    expect(getAvatar).toHaveBeenCalledTimes(urls.length + 1)
+  })
 })

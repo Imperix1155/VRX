@@ -1,19 +1,44 @@
 import { useEffect, useState, type RefObject } from 'react'
 
+const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
+
+const avatarData = new Map<string, string>()
 const avatarRequests = new Map<string, Promise<string | null>>()
 
+function cacheSuccessfulAvatar(url: string, dataUrl: string): void {
+  avatarData.delete(url)
+  avatarData.set(url, dataUrl)
+  while (avatarData.size > AVATAR_RENDERER_CACHE_MAX_ENTRIES) {
+    const oldest = avatarData.keys().next().value
+    if (oldest === undefined) return
+    avatarData.delete(oldest)
+  }
+}
+
 function requestAvatar(url: string): Promise<string | null> {
-  const cached = avatarRequests.get(url)
-  if (cached) return cached
+  const cached = avatarData.get(url)
+  if (cached) {
+    avatarData.delete(url)
+    avatarData.set(url, cached)
+    return Promise.resolve(cached)
+  }
+
+  const pending = avatarRequests.get(url)
+  if (pending) return pending
 
   const request =
     typeof window === 'undefined' || typeof window.vrx === 'undefined'
       ? Promise.resolve(null)
       : window.vrx
           .getAvatar(url)
-          .then((result) => result?.dataUrl ?? null)
+          .then((result) => {
+            const dataUrl = result?.dataUrl ?? null
+            if (dataUrl !== null) cacheSuccessfulAvatar(url, dataUrl)
+            return dataUrl
+          })
           .catch(() => null)
   avatarRequests.set(url, request)
+  void request.finally(() => avatarRequests.delete(url))
   return request
 }
 
