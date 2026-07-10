@@ -85,6 +85,9 @@
     "title": "Friends",
     "loading": "Loading...",
     "empty": "No friends online",
+    "searchPlaceholder": "Search friends",
+    "clearSearch": "Clear search",
+    "searchNoResults": "No friends match your search",
     "refresh": "Refresh",
     "error": "Could not load friends",
     "status": {
