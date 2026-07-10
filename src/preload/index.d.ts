@@ -2,6 +2,7 @@ import type { IpcEvents, IpcInvoke } from '@shared/ipc'
 
 type VrxBridge = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
+  getAvatar: (url: string) => Promise<IpcInvoke['get-avatar']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']

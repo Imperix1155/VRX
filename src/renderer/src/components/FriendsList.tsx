@@ -10,6 +10,7 @@ import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
 import { splitByMatch } from '../utils/splitByMatch'
+import { useAvatar } from '../hooks/useAvatar'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + glyph REPLACE the old presence-dot + status-pill
@@ -135,26 +136,42 @@ function PlatformSpine({ platform }: { platform: Friend['platform'] }): React.JS
 }
 
 /**
- * Avatar disc — initial placeholder (real images are VRX-48; the renderer CSP blocks
- * remote `img-src`), wrapped in the status-color ring with a status glyph badge.
+ * Avatar disc — main-fetched data URL with the initial placeholder retained for
+ * loading/failure, wrapped in the status-color ring with a status glyph badge.
  */
-function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
+export function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
   const { t } = useTranslation()
   const ring = ringFor(friend)
   const initial = friend.displayName.trim().charAt(0).toUpperCase() || '?'
+  const avatarRef = useRef<HTMLSpanElement>(null)
+  const dataUrl = useAvatar(friend.avatarUrl, avatarRef)
+  const [failedImageKey, setFailedImageKey] = useState<string | null>(null)
+  const imageKey = dataUrl ? `${friend.avatarUrl ?? ''}\u0000${dataUrl}` : null
 
   return (
     <span
+      ref={avatarRef}
       role="img"
       aria-label={t(ring.labelKey)}
       className="relative block h-[42px] w-[42px] shrink-0"
     >
-      <span
-        className="grid h-[42px] w-[42px] place-items-center rounded-full text-sm font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
-        style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
-      >
-        {initial}
-      </span>
+      {dataUrl && imageKey !== failedImageKey ? (
+        <img
+          src={dataUrl}
+          alt=""
+          aria-hidden="true"
+          onError={() => setFailedImageKey(imageKey)}
+          className="h-[42px] w-[42px] rounded-full object-cover"
+          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
+        />
+      ) : (
+        <span
+          className="grid h-[42px] w-[42px] place-items-center rounded-full text-sm font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
+          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
+        >
+          {initial}
+        </span>
+      )}
       {ring.glyph && (
         <span
           className="absolute -right-px -bottom-px grid h-[16px] w-[16px] place-items-center rounded-full border-2 border-[var(--bg-base)] [&>svg]:block [&>svg]:h-[10px] [&>svg]:w-[10px]"
