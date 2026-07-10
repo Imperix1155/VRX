@@ -19,6 +19,7 @@
  *   telemetryEnabled      → privacy-first default OFF (cf. VRX-96 opt-in telemetry)
  *   labelScheme           → DESIGN.md §6 label rule (VRX-183; VRChat-scheme default per VRX-182)
  *   hotInstanceThreshold  → §9 dashboard hot grid (VRX-78; default from HOT_INSTANCE_THRESHOLD)
+ *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  */
 import { z } from 'zod'
 import {
@@ -26,7 +27,7 @@ import {
   HOT_INSTANCE_THRESHOLD_MAX,
   HOT_INSTANCE_THRESHOLD_MIN
 } from './constants'
-import { LABEL_SCHEMES, THEMES } from './types'
+import { FRIEND_SECTIONS, LABEL_SCHEMES, THEMES } from './types'
 
 /** Bump ONLY when a field needs a transforming migration (not a plain add/remove —
  *  additive fields are covered by schema defaults, removed fields by key stripping). */
@@ -53,7 +54,10 @@ export const SettingsSchema = z.object({
     .int()
     .min(HOT_INSTANCE_THRESHOLD_MIN)
     .max(HOT_INSTANCE_THRESHOLD_MAX)
-    .catch(HOT_INSTANCE_THRESHOLD)
+    .catch(HOT_INSTANCE_THRESHOLD),
+  /** Friends-list presence sections the user collapsed (VRX-67). Offline is
+   *  collapsed by default; additive field — no version bump (VRX-183 precedent). */
+  collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline'])
 })
 
 export type Settings = z.infer<typeof SettingsSchema>

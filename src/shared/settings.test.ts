@@ -19,7 +19,8 @@ describe('settings schema', () => {
       firstRunDisclaimerAcknowledged: false,
       telemetryEnabled: false,
       labelScheme: 'vrchat',
-      hotInstanceThreshold: 2
+      hotInstanceThreshold: 2,
+      collapsedFriendSections: ['offline']
     })
   })
 
@@ -61,6 +62,20 @@ describe('settings schema', () => {
     expect(parseSettings({ labelScheme: 'platform-native' }).labelScheme).toBe('platform-native')
     expect(parseSettings({ theme: 'dark' }).labelScheme).toBe('vrchat')
     expect(parseSettings({ labelScheme: 'klingon' }).labelScheme).toBe('vrchat')
+  })
+
+  it('collapsedFriendSections: accepts valid sections, defaults missing/invalid to ["offline"]', () => {
+    expect(parseSettings({ collapsedFriendSections: [] }).collapsedFriendSections).toEqual([])
+    expect(
+      parseSettings({ collapsedFriendSections: ['in-game', 'online'] }).collapsedFriendSections
+    ).toEqual(['in-game', 'online'])
+    expect(parseSettings({ theme: 'dark' }).collapsedFriendSections).toEqual(['offline'])
+    expect(parseSettings({ collapsedFriendSections: ['bogus'] }).collapsedFriendSections).toEqual([
+      'offline'
+    ])
+    expect(parseSettings({ collapsedFriendSections: 'offline' }).collapsedFriendSections).toEqual([
+      'offline'
+    ])
   })
 
   it('coerces non-object input to defaults', () => {

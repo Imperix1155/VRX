@@ -98,6 +98,11 @@
       "active": "Active",
       "offline": "Offline"
     },
+    "section": {
+      "inGame": "In-Game ({{count}})",
+      "online": "Online ({{count}})",
+      "offline": "Offline ({{count}})"
+    },
     "instance": {
       "unknownWorld": "Unknown World",
       "private": "Private",
