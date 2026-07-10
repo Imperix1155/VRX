@@ -24,9 +24,10 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `services/adapters/CvrApiClient.test.ts` — unit tests for CVR headers, envelope validation, auth flows, typed errors, and 429 retry behavior (VRX-55).
 - `services/settings.ts` — electron-store-backed settings persistence (VRX-23): `loadSettings()` (migrate + validate on read, then persist the normalized form back) and `saveSettings(patch)`. Schema/migration/defaults live in `@shared/settings`; this is the thin wiring. electron-store@11 is ESM-only, so it is **bundled** into the main process (not externalized) via `externalizeDepsPlugin({ exclude: ['electron-store'] })` in `electron.vite.config.ts` — a CJS `require()` of it would throw at runtime.
 - `services/credentials.ts` — main-only credential persistence (VRX-34): encrypts values with Electron `safeStorage`, stores only base64-encoded encrypted blobs in the `credentials` electron-store, and exposes save/load/delete operations for main-process auth and logout flows.
+- `services/avatarCache.ts` — session-only avatar image fetch/cache (VRX-48), separate from adapter rate-limit queues: exact HTTPS host allowlist (`files.vrchat.cloud`, `api.vrchat.cloud`, `assets.vrchat.com`, `files.abinteractive.net`), redirects rejected, 200-entry LRU, in-flight dedupe, and 30-second negative cache. Returns `data:` URLs so the sandboxed renderer stays within its existing CSP.
 - `ipc/` — all `IpcInvoke` channel handlers; see [`ipc/AGENTS.md`](ipc/AGENTS.md) for the full index (VRX-19/20/25).
 - `platform/` — placeholder until real platform adapters land.
-- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers via `contextBridge`; `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
+- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers via `contextBridge`, including `getAvatar(url)` (VRX-48); `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
 
 ## Local Contracts
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in CLAUDE.md). Trinity applied in VRX-25.
@@ -42,7 +43,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 `npm run typecheck && npm run lint && npm test`
 
 ## Child DOX Index
-- [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (10 files, VRX-19/20/25)
+- [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (11 production files, VRX-19/20/25/48)
 - `services/adapters/` — adapter interface, shared HTTP base, VRChat/CVR API clients, errors, and the concrete `VrcAdapter` (10 files, VRX-16/17/41/55/157); no child doc yet. (The dev-stub `FakeVrcAdapter` was retired when `VrcAdapter` was wired into the registry.) Add one if the adapter set grows further.
 - [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md) — CVR parsers + the CvrPipeline WS client (VRX-147; built UNWIRED — no concrete CVR adapter exists yet).
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md) — VRChat parsers/builders + fetchers: presence, instance-type + openness, trust-rank, join-URL (VRX-44/45/49/50), `parseLocation` (VRX-162), `fetchFriends` (VRX-43), `WorldResolver` (VRX-46), `fetchWorldMetadata` (VRX-47).
