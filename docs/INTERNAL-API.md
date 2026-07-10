@@ -23,6 +23,7 @@ or should be added.
 | `window.vrx.…` | IPC channel | Returns |
 | --- | --- | --- |
 | `getFriends({ platform })` | `get-friends` | `Promise<Friend[]>` |
+| `get-avatar` | `{ url }` | `{ ok, dataUrl } \| null` — allowlisted main-process avatar fetch (VRX-48); see §6 AvatarCache |
 | `getAccounts()` | `get-accounts` | `Promise<Account[]>` |
 | `getAuthStatus({ platform })` | `get-auth-status` | `Promise<AuthStatus>` |
 | `login({ platform, credentials })` | `login` | `Promise<LoginResult>` |
@@ -171,6 +172,8 @@ VRX-58).
 | `SegmentedControl` | `components/SegmentedControl.tsx` | Generic one-Tab-stop segmented radiogroup (measured bubble); used by SettingsView rows + TopBar's contextual category nav (VRX-186). TopBar's platform filter keeps its bespoke colored variant |
 | `NumberStepper` | `components/NumberStepper.tsx` | Reusable −/value/+ control for bounded integer settings; one Tab stop (spinbutton + arrow keys); used by Dashboard hot header + SettingsView (VRX-78) |
 | `ChilloutVrAccountCard` | `components/ChilloutVrAccountCard.tsx` | Settings → Accounts sign-in card (VRX-37): `useAuthStatus('chilloutvr')` → connect form (calls `window.vrx.login({ platform:'chilloutvr', … })`, clears the password after each attempt, no fabricated 2FA) or connected state; §5 CVR-orange tint via glyph only |
+| `useAvatar(url)` | `hooks/useAvatar.ts` | VRX-48: IntersectionObserver-lazy avatar loading via `window.vrx.getAvatar`; module-level cache (a URL round-trips once per session); null → caller keeps its placeholder |
+| `Toggle` | `components/Toggle.tsx` | VRX-84: accessible boolean switch (`role="switch"`, one Tab stop, token-only; knob position = non-color state signifier) — Settings rows |
 | `splitByMatch(name, query)` | `utils/splitByMatch.ts` | VRX-65: case- + diacritic-insensitive substring matcher returning `{text, isMatch}` segments (NFD fold with index-mapping back to the original) — ONE matcher drives both the friends-search filter and the name highlight |
 | `segArrowTarget` / `focusRadioSibling` | `utils/segmented.ts` | Radiogroup keyboard vocabulary (both segmented controls) |
 | `VIEW_TITLE_KEYS` | `utils/viewTitles.ts` | Tab → title i18n key (TopBar H1 + `<main>` label) |
@@ -203,6 +206,11 @@ VRX-58).
 | `createCvrInstanceResolver({fetcher,…})` → `{resolve, peek}` (+ `CVR_INSTANCE_TTL_MS`/`_NEGATIVE_TTL_MS`/`_CACHE_MAX`) | `resolveCvrInstance.ts` (VRX-59): TTL-cached `GET /instances/{id}` → `{worldId, worldName, worldImageUrl, playerCount, instanceName, privacy}` — the TRUE world identity the WS lacks. Failures resolve null (never throw), negative-cached 60s; bounded cache; in-flight dedupe; id URI-encoded. `CvrAdapter` enriches presence snapshots with it (worldId ← `world.id` fixes CVR hot-card world-grouping; clean `world.name` on card faces — the `stripInstanceSuffix` regex remains the unresolved-instance fallback) |
 
 ### Cross-cutting (`main/`)
+
+| Function | Purpose |
+| --- | --- |
+| `AvatarCache` / `avatarCache.get(url)` (`services/avatarCache.ts`) | VRX-48: session-memory avatar image cache (LRU 200, in-flight dedupe, 30s negative cache) behind a hard host allowlist (VRC files/api/assets + CVR files; https-only, no port/credentials, redirects rejected). Serves `get-avatar` as data: URLs; separate from adapters so images never consume API rate budget |
+| `FriendAlerts` (`services/friendAlerts.ts`) | VRX-84: pure presence-transition engine (injected clock/notify/isEnabled/resolveName) — first-sight + per-platform snapshot baselining, CVR absent=offline diffing, 3-per-10s per-type sliding-window rate limit, toggles read at fire time. Wired in `main/index.ts` to Electron Notification |
 
 | Function | File | Purpose |
 | --- | --- | --- |
