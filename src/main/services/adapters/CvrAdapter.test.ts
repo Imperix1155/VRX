@@ -493,6 +493,38 @@ describe('CvrAdapter', () => {
       expect(adapter.resolveFriendName(id)).toBe('Newer roster name')
     })
 
+    it('lets the only SUCCESSFUL roster populate names when a newer request failed', async () => {
+      const id = 'a1b2c3d4-0000-0000-0000-000000000001'
+      let releaseOlder!: (response: Response) => void
+      const older = new Promise<Response>((resolve) => {
+        releaseOlder = resolve
+      })
+      let calls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          calls += 1
+          return calls === 1 ? older : Promise.reject(new TypeError('network down'))
+        })
+      )
+      const adapter = sessioned()
+
+      const first = adapter.getFriends()
+      await vi.waitFor(() => expect(calls).toBe(1))
+      await expect(adapter.getFriends()).rejects.toThrow()
+
+      // The newer request FAILED — a committed-sequence fence (not a started-
+      // sequence one) must still allow the older success to land.
+      releaseOlder(
+        jsonResponse({
+          message: 'ok',
+          data: [{ id, name: 'Only successful roster', imageUrl: null, categories: [] }]
+        })
+      )
+      await first
+      expect(adapter.resolveFriendName(id)).toBe('Only successful roster')
+    })
+
     it('throws rather than returning a misleading empty list when every entry is malformed', async () => {
       vi.stubGlobal(
         'fetch',
@@ -684,11 +716,12 @@ describe('CvrAdapter', () => {
         })
       )
 
-      // Immediate snapshot keeps the wire identity but not the creator-set
-      // instance label, which is not an authoritative world name.
+      // Immediate snapshot carries the WIRE values (worldId = instance id;
+      // worldName = the creator-set label, the UI's fallback until resolution —
+      // FriendAlerts independently strips it from alert copy).
       expect(snapshots[0]!.entries[0]!.instance).toMatchObject({
         worldId: 'i_abc',
-        worldName: null
+        worldName: taggedName
       })
 
       // The resolution lands → a re-emitted snapshot carries the TRUE world.
@@ -882,10 +915,11 @@ describe('CvrAdapter', () => {
       // Give the (failing) resolution time to settle; still exactly ONE snapshot.
       await new Promise((r) => setTimeout(r, 20))
       expect(snapshots).toHaveLength(1)
+      // Wire label stays as the UI fallback when resolution fails (VRX-59 UX).
       expect(
         (snapshots[0] as Extract<AdapterEvent, { type: 'presence-snapshot' }>).entries[0]!.instance
           ?.worldName
-      ).toBeNull()
+      ).toBe('Hidden')
       unsub()
     })
 

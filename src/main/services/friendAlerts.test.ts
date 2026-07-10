@@ -208,9 +208,14 @@ describe('FriendAlerts transitions', () => {
       )
     }
     const liveState = live.engine as unknown as {
+      presence: Map<Platform, Map<string, unknown>>
       names: Map<Platform, Map<string, string>>
     }
     expect(liveState.names.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
+    // Live-only streams are hard-capped too: with silent first-sight
+    // baselining, evicting the oldest live entry can only MISS an alert at
+    // pathological roster scale, never fabricate one.
+    expect(liveState.presence.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
 
     const replay = harness()
     for (let index = 0; index < 10_000; index++) {

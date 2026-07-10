@@ -90,6 +90,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private readonly friendNames = new Map<string, string>()
   /** Monotonic order fence: only the newest same-generation roster may write names. */
   private friendNamesRequestSequence = 0
+  private friendNamesCommittedSequence = 0
 
   // ── Instance enrichment (VRX-59) ──
   // The WS wire has no world id/thumbnail and only the creator-set instance
@@ -321,8 +322,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
       // Overlapping renderer and socket-warm fetches are expected. Both callers
       // may use their own result, but an older response must not overwrite the
-      // name cache established by the newest request in this generation.
-      if (requestSequence === this.friendNamesRequestSequence) {
+      // name cache established by a newer SUCCESSFUL request — track the highest
+      // committed sequence, not the highest started one, so a failed newer
+      // request can't forbid the only successful roster from populating names.
+      if (requestSequence > this.friendNamesCommittedSequence) {
+        this.friendNamesCommittedSequence = requestSequence
         this.friendNames.clear()
         for (const friend of result.friends) {
           this.friendNames.set(friend.platformUserId, friend.displayName)
@@ -453,10 +457,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         if (entry.instance == null) return entry
         const resolved = this.instanceResolver.peek(entry.instance.instanceId)
         if (resolved == null) {
-          // Instance.Name is creator-set copy, not a world name. Preserve the
-          // immediate event but omit world copy until the authoritative resolver
-          // supplies world.name for this instance id.
-          return { ...entry, instance: { ...entry.instance, worldName: null } }
+          // Unresolved: keep the wire values — the creator-set Instance.Name
+          // stays as the UI's world-line fallback (VRX-59 UX; display strips
+          // the (#…) suffix). FriendAlerts independently nulls it for alert
+          // copy via the worldId===instanceId unresolved marker, so the label
+          // can never reach a notification body.
+          return entry
         }
         return { ...entry, instance: this.mergeResolved(entry.instance, resolved) }
       })
@@ -575,6 +581,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.sessionGeneration += 1
     this.friendNames.clear()
     this.friendNamesRequestSequence = 0
+    this.friendNamesCommittedSequence = 0
     this.instanceResolver.clear()
     this.lastSnapshot = null
     this.pendingResolutions.clear()
