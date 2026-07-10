@@ -308,6 +308,21 @@ describe('VrcAdapter', () => {
       })
     })
 
+    it('repeated network validation failures do not block a subsequent correct login', async () => {
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+
+      for (let i = 0; i < 3; i++) {
+        expect((await adapter.getAuthStatus()).state).toBe('error')
+      }
+
+      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      vi.stubGlobal('fetch', loginFetch)
+
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+      expect(loginFetch).toHaveBeenCalledTimes(1)
+    })
+
     it('maps an unparseable 200 body to unauthenticated WITHOUT clearing the session', async () => {
       // The body is garbage but the server said 200 — the cookie may be fine
       // (transient drift); nuking the persisted session here would force a full
