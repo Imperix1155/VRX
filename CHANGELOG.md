@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-10
+
 ### Added
 
 - **You can now search your friends list.** A search box above the sections filters as you type (accent-insensitive — "Chloe" finds "Chloé"), highlights the matching part of each name, and clears instantly with the × or by emptying the box. Press `/` anywhere in the list to jump to it. While you're searching, collapsed sections open up so a match can never hide. (VRX-65)
