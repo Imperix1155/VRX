@@ -53,10 +53,10 @@ describe('TopBar onlineCount (W6)', () => {
     expect(screen.getByText(i18n.t('shell.onlineCount', { count: 3 }))).toBeTruthy()
   })
 
-  it('uses the singular form for exactly one friend online', () => {
+  it('uses the singular "N online" form for exactly one online friend', () => {
     stubFriends([friend('active')], [])
     render(<TopBar />)
-    expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+    expect(screen.getByText('1 online')).toBeTruthy()
   })
 
   it('renders zero (plural form) when queries have no data yet', () => {
@@ -74,6 +74,11 @@ describe('TopBar contextual slot (VRX-186)', () => {
     render(<TopBar />)
     expect(screen.getByRole('radiogroup', { name: msg('shell.seg.aria') })).toBeTruthy()
     expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()
+    expect(screen.getByTestId('topbar-contextual-dock').parentElement?.className).toContain(
+      'ml-auto'
+    )
+    expect(screen.getByRole('status').className).toContain('min-w-[78px]')
+    expect(screen.getByRole('status').className).toContain('tabular-nums')
   })
 
   it('on Settings, swaps in the category nav and drops the platform filter', () => {
