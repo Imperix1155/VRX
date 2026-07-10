@@ -152,7 +152,7 @@ VRX-58).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**accounts**/notifications) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**notifications**/accounts) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter` (VRX-66: a GLOBAL social filter — TopBar's slider writes it; `FriendsList`, `DashboardView`, and the TopBar online count all read it. Settings is the only social-exempt surface), `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |

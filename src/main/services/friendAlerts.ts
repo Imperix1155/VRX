@@ -258,20 +258,27 @@ export class FriendAlerts {
 
   private setPresence(platform: Platform, platformUserId: string, presence: KnownPresence): void {
     const platformPresence = this.platformPresence(platform)
-    // Only tombstones are safe to evict: dropping a live baseline would turn an
-    // identical snapshot replay into a synthetic transition. Live-only maps may
-    // exceed this soft cap, while the separate names map remains hard-bounded.
+    // Prefer evicting tombstones; with silent first-sight baselining a re-seen
+    // evicted id baselines quietly (never a synthetic alert), so when every
+    // entry is live the oldest live entry goes — the map stays hard-bounded
+    // even against a hostile/buggy event stream (worst case: a MISSED alert at
+    // >cap roster scale, never a false one).
     if (
       !platformPresence.has(platformUserId) &&
       platformPresence.size >= MAX_PRESENCE_ENTRIES_PER_PLATFORM
     ) {
+      let evictId: string | undefined
       for (const [knownId, known] of platformPresence) {
         if (known.state === 'offline') {
-          platformPresence.delete(knownId)
-          // A name is account/presence state too; evict the pair together.
-          this.platformNames(platform).delete(knownId)
+          evictId = knownId
           break
         }
+      }
+      evictId ??= platformPresence.keys().next().value
+      if (evictId !== undefined) {
+        platformPresence.delete(evictId)
+        // A name is account/presence state too; evict the pair together.
+        this.platformNames(platform).delete(evictId)
       }
     }
     platformPresence.set(platformUserId, presence)
