@@ -84,6 +84,9 @@
     "title": "フレンド",
     "loading": "読み込み中...",
     "empty": "オンラインのフレンドはいません",
+    "searchPlaceholder": "フレンドを検索",
+    "clearSearch": "検索をクリア",
+    "searchNoResults": "検索に一致するフレンドはいません",
     "refresh": "更新",
     "error": "フレンドを読み込めませんでした",
     "status": {
