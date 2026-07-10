@@ -52,14 +52,13 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * Concrete ChilloutVR adapter (VRX-37) — direct login + session persistence and
  * restore (VRX-174).
  *
- * BOTH auth legs use `authenticateRaw` (no circuit breaker): a wrong password is
+ * BOTH auth legs use `authenticateRaw`: a wrong password is
  * a clean `invalid_credentials`, and an automatic session validation that fails
  * with a NON-2xx (401/5xx) or a schema-drifted body records NO breaker failure —
  * so it can't fast-fail a later correct-password login (the guarded-reauth-
  * poisons-login bug Codex caught, 2026-07-06; the guarded path only protects the
- * DATA methods). A genuine network OUTAGE still backs off all raw calls incl.
- * login for the 60s reset window — same as VrcAdapter, self-healing (a
- * cross-adapter breaker-exemption cleanup is tracked as a follow-up).
+ * DATA methods). Network throws from automatic validation are likewise exempt;
+ * interactive login retains its normal circuit behavior after resetting it.
  * A dead key (401) clears the session; other trouble reports `error` WITHOUT
  * clearing, so a flaky boot never logs the user out.
  *
@@ -213,7 +212,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // 2026-07-06), exactly as VrcAdapter.getAuthStatus interprets rawRequest.
     let response: Response
     try {
-      response = await this.authenticateRaw(1, validated.username, validated.accessKey)
+      response = await this.authenticateRaw(1, validated.username, validated.accessKey, {
+        recordCircuitFailure: false
+      })
     } catch {
       // Network trouble or an already-open circuit — the session may still be
       // fine; report error WITHOUT clearing (a flaky boot must not log out).

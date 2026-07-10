@@ -27,6 +27,7 @@ import type { Settings } from '@shared/settings'
  */
 export interface IpcInvoke {
   'get-friends': { req: { platform: Platform }; res: Friend[] }
+  'get-avatar': { req: { url: string }; res: { ok: true; dataUrl: string } | null }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
