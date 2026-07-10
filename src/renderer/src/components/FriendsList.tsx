@@ -303,7 +303,10 @@ function SectionHeader({
       type="button"
       onClick={onToggle}
       aria-expanded={!collapsed}
-      aria-controls={`friends-section-${section}`}
+      // Only reference the list while it EXISTS — a collapsed section unmounts
+      // its <ul> (per AC), and a dangling aria-controls id is an a11y defect
+      // (Sol review, Med). aria-expanded alone carries the collapsed state.
+      aria-controls={collapsed ? undefined : `friends-section-${section}`}
       className={[
         'sticky top-0 z-10 flex w-full items-center gap-[var(--space-2)]',
         'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
@@ -388,6 +391,12 @@ export default function FriendsList(): React.JSX.Element {
                 {!collapsed && (
                   <ul
                     id={`friends-section-${section}`}
+                    // Name the list so SR list navigation identifies WHICH
+                    // presence section it is (Sol review, Med) — count included,
+                    // same string as the visible header.
+                    aria-label={t(SECTION_LABEL_KEY[section], {
+                      count: sectionFriends.length
+                    })}
                     className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
                   >
                     {sectionFriends.map((f) => (
