@@ -18,8 +18,8 @@
       "allShort": "ALL",
       "aria": "Platform filter"
     },
-    "onlineCount_one": "{{count}} friend online",
-    "onlineCount_other": "{{count}} friends online",
+    "onlineCount_one": "{{count}} online",
+    "onlineCount_other": "{{count}} online",
     "comingSoon": "Coming soon"
   },
   "settings": {

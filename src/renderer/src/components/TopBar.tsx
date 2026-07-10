@@ -135,40 +135,50 @@ export default function TopBar(): React.JSX.Element {
     .filter((f) => f.presence.state === 'active' || f.presence.state === 'in-game').length
 
   return (
-    <div className="flex items-center gap-[18px] mb-[22px]">
+    <div className="flex items-center mb-[22px]">
       {/* View title */}
       <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 
-      {/* CONTEXTUAL SLOT (owner, VRX-186): the top-bar control belongs to the
-          active view. Settings has no use for a platform filter — it shows the
-          settings CATEGORY nav here instead (mini-pages, §8 no-scroll rule). */}
-      {activeTab === 'settings' ? (
-        <div className="ml-[6px]">
-          <SegmentedControl
-            values={SETTINGS_CATEGORIES}
-            active={settingsCategory}
-            labelKeys={CATEGORY_LABEL_KEYS}
-            ariaLabel={t('settings.categories.aria')}
-            onChange={setSettingsCategory}
-          />
+      {/* The contextual control and count share one right dock, so a longer
+          title cannot move either. Settings intentionally occupies this same
+          slot with its category nav (owner confirmation pending, VRX-188). */}
+      <div className="ml-auto flex items-center gap-[18px]">
+        {/* CONTEXTUAL SLOT (owner, VRX-186): the top-bar control belongs to the
+            active view. Settings has no use for a platform filter — it shows the
+            settings CATEGORY nav here instead (mini-pages, §8 no-scroll rule). */}
+        <div data-testid="topbar-contextual-dock" className="shrink-0">
+          {activeTab === 'settings' ? (
+            <SegmentedControl
+              values={SETTINGS_CATEGORIES}
+              active={settingsCategory}
+              labelKeys={CATEGORY_LABEL_KEYS}
+              ariaLabel={t('settings.categories.aria')}
+              onChange={setSettingsCategory}
+            />
+          ) : (
+            <PlatformFilter platform={platform} onChange={setPlatform} />
+          )}
         </div>
-      ) : (
-        <PlatformFilter platform={platform} onChange={setPlatform} />
-      )}
-      {/* Online count with green pulse (§8) */}
-      <div className="ml-auto text-[13px] text-[var(--text-dim)] flex items-center gap-[8px]">
-        {/* Pulse dot — no keyframes in v1; motion-safe guard if animation is added later */}
-        <span
-          className="w-[8px] h-[8px] rounded-full flex-none"
-          style={{
-            background: 'var(--ingame)',
-            boxShadow: '0 0 10px var(--ingame)'
-          }}
-          aria-hidden="true"
-        />
-        {t('shell.onlineCount', { count: onlineCount })}
+        {/* Reserve a three-digit cell so the contextual dock stays fixed as the
+            live count changes. Tabular figures and right alignment mirror the
+            NumberStepper's stable value cell. */}
+        <div
+          role="status"
+          className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
+        >
+          {/* Pulse dot — no keyframes in v1; motion-safe guard if animation is added later */}
+          <span
+            className="w-[8px] h-[8px] rounded-full flex-none"
+            style={{
+              background: 'var(--ingame)',
+              boxShadow: '0 0 10px var(--ingame)'
+            }}
+            aria-hidden="true"
+          />
+          {t('shell.onlineCount', { count: onlineCount })}
+        </div>
       </div>
     </div>
   )
