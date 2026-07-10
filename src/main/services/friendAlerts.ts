@@ -302,8 +302,9 @@ export class FriendAlerts {
       instanceId: instance?.instanceId ?? null,
       worldId: instance?.worldId ?? null,
       // CVR's unresolved worldId fallback equals its instanceId, so its wire
-      // worldName is still creator-set instance copy. The adapter normally
-      // removes it; this keeps the alert engine safe if called directly too.
+      // worldName is still creator-set instance copy. The adapter PRESERVES it
+      // for rendering (the UI's world-line fallback); this engine-side strip is
+      // what keeps it out of alert copy.
       worldName:
         platform === 'chilloutvr' && instance !== null && instance.worldId === instance.instanceId
           ? null
