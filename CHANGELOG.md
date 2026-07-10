@@ -9,11 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **You can now search your friends list.** A search box above the sections filters as you type (accent-insensitive — "Chloe" finds "Chloé"), highlights the matching part of each name, and clears instantly with the × or by emptying the box. Press `/` anywhere in the list to jump to it. While you're searching, collapsed sections open up so a match can never hide. (VRX-65)
+
 - **The friends list is now grouped into In-Game / Online / Offline sections** with live counts in each header. Every section can be collapsed (Offline starts collapsed so the people you can actually join lead the list), the headers stay pinned while you scroll, and your collapse choices are remembered across restarts. (VRX-67)
 - **ChilloutVR worlds now show their real name and group correctly on the Dashboard.** The app looks up each CVR instance's details, so hot-instance cards use the world's actual name (no more instance tags sneaking in) and friends in different instances of the same world finally merge into one card — matching how VRChat behaves. Also fetches the world image and player count for upcoming features. (VRX-59)
 
 ### Changed
 
+- **The top bar's platform switch no longer shifts around.** It now sits anchored to the right edge next to the online counter — which reads "N online" (we dropped the word "friends" — it's assumed) and reserves fixed space so a growing number can't nudge anything. Same position on every view. (VRX-188)
 - **The Dashboard hot-instance cards read better at every window size.** They now lay out **two to a row** and fill the width (instead of three cards squished together), collapse to a single column on a narrow window, and a lone hot instance stretches to fill the row. The world name is sized so the tails on letters like "y" and "g" are no longer clipped. (VRX-199)
 
 ### Fixed
