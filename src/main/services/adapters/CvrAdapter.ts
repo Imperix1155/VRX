@@ -81,6 +81,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+  // Snapshot entries intentionally carry ids only. Keep the latest successful
+  // REST roster's names in main so native notifications can resolve readable
+  // copy without fabricating profile fields on AdapterEvent.
+  private readonly friendNames = new Map<string, string>()
 
   // ── Instance enrichment (VRX-59) ──
   // The WS wire has no world id/thumbnail and only the creator-set instance
@@ -294,7 +298,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
       )
     }
+    this.friendNames.clear()
+    for (const friend of result.friends) {
+      this.friendNames.set(friend.platformUserId, friend.displayName)
+    }
     return result.friends
+  }
+
+  /** Resolve an id-only CVR presence entry against the latest REST roster. */
+  resolveFriendName(platformUserId: string): string | null {
+    return this.friendNames.get(platformUserId) ?? null
   }
   /**
    * Resolve full instance details on demand (VRX-59) — the detail-panel path.
@@ -452,6 +465,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private adoptSession(credentials: CVRCredentials): void {
+    // A deliberate login can switch accounts. Never carry the prior account's
+    // id→display-name roster into native alert copy for the new session.
+    this.friendNames.clear()
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
@@ -467,6 +483,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private clearSession(): void {
+    this.friendNames.clear()
     this.session = null
     this.setCredentials(null)
     this.displayName = null
