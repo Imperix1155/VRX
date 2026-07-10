@@ -1,6 +1,7 @@
-import { memo } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
+import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { useFriends, combineFriendQueries } from '../queries/friends'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -8,6 +9,7 @@ import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
+import { splitByMatch } from '../utils/splitByMatch'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + glyph REPLACE the old presence-dot + status-pill
@@ -170,7 +172,13 @@ function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
 // references across refetches, so memoizing the row skips re-rendering every
 // unchanged friend on each reconcile tick (audit W5 stopgap; virtualization is
 // the real fix and lands with VRX-64).
-const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React.JSX.Element {
+const FriendRow = memo(function FriendRow({
+  friend,
+  searchQuery
+}: {
+  friend: Friend
+  searchQuery: string
+}): React.JSX.Element {
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
@@ -222,7 +230,18 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
       <div className="min-w-0">
         <div className="flex min-w-0 items-baseline gap-[8px]">
           <span className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]">
-            {friend.displayName}
+            {splitByMatch(friend.displayName, searchQuery).map((segment, index) =>
+              segment.isMatch ? (
+                <span
+                  key={index}
+                  className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
+                >
+                  {segment.text}
+                </span>
+              ) : (
+                segment.text
+              )
+            )}
           </span>
           {customStatus && (
             <span className="min-w-0 truncate text-xs text-[var(--text-dim)]">{customStatus}</span>
@@ -290,18 +309,21 @@ function SectionHeader({
   section,
   count,
   collapsed,
-  onToggle
+  onToggle,
+  collapseIgnored
 }: {
   section: FriendSection
   count: number
   collapsed: boolean
   onToggle: () => void
+  collapseIgnored: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <button
       type="button"
       onClick={onToggle}
+      disabled={collapseIgnored}
       aria-expanded={!collapsed}
       // Only reference the list while it EXISTS — a collapsed section unmounts
       // its <ul> (per AC), and a dangling aria-controls id is an a11y defect
@@ -312,7 +334,7 @@ function SectionHeader({
         'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
         'bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] backdrop-blur-md',
         'text-xs font-semibold tracking-widest text-[var(--text-dim)] uppercase',
-        'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
+        'hover:bg-[var(--surface-hover)] disabled:cursor-default disabled:hover:bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] motion-safe:transition-colors'
       ].join(' ')}
     >
       <ChevronGlyph collapsed={collapsed} />
@@ -327,6 +349,10 @@ export default function FriendsList(): React.JSX.Element {
   // holds only view state (search/filter/selection). Both platforms are fetched
   // (cached, shared with the Dashboard/TopBar); the filter selects which to show.
   const platformFilter = useFriendsStore((s) => s.platformFilter)
+  const search = useFriendsStore((s) => s.search)
+  const setSearch = useFriendsStore((s) => s.setSearch)
+  const [appliedSearch, setAppliedSearch] = useState(search)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
     platformFilter,
     useFriends('vrchat'),
@@ -336,15 +362,60 @@ export default function FriendsList(): React.JSX.Element {
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
   // within each section — SUPERSEDES the old flat online-first ordering. Counts
   // reflect `friends` (already scoped to the global platform filter above).
+  useEffect(() => {
+    // Clearing is applied synchronously in updateSearch; no timer is needed.
+    if (search.length === 0) return
+
+    const timeout = window.setTimeout(() => setAppliedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
+    function focusSearch(event: KeyboardEvent): void {
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        const tagName = target.tagName
+        const isEditable =
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.closest('[contenteditable]:not([contenteditable="false"])') !== null
+        if (isEditable) return
+      }
+
+      event.preventDefault()
+      searchInputRef.current?.focus()
+    }
+
+    document.addEventListener('keydown', focusSearch)
+    return () => document.removeEventListener('keydown', focusSearch)
+  }, [])
+
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-  const sections = friends === undefined ? undefined : groupFriendsBySection(friends)
+  const searchActive = appliedSearch.length > 0
+  const filteredFriends =
+    friends === undefined
+      ? undefined
+      : searchActive
+        ? friends.filter((friend) =>
+            splitByMatch(friend.displayName, appliedSearch).some((segment) => segment.isMatch)
+          )
+        : friends
+  const sections =
+    filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
 
   function toggleSection(section: FriendSection): void {
     const next = collapsedSections.includes(section)
       ? collapsedSections.filter((s) => s !== section)
       : [...collapsedSections, section]
     updateSettings({ collapsedFriendSections: next })
+  }
+
+  function updateSearch(value: string): void {
+    setSearch(value)
+    if (value.length === 0) setAppliedSearch('')
   }
 
   return (
@@ -369,24 +440,52 @@ export default function FriendsList(): React.JSX.Element {
           {t('friends.refresh')}
         </button>
       </div>
+      <div className="relative mb-[var(--space-3)]">
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={search}
+          onChange={(event) => updateSearch(event.target.value)}
+          aria-label={t('friends.searchPlaceholder')}
+          placeholder={t('friends.searchPlaceholder')}
+          className="w-full rounded-control border border-[var(--border)] bg-[var(--control-fill)] py-[var(--space-2)] pr-[var(--space-10)] pl-[var(--space-3)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+        />
+        {search.length > 0 && (
+          <button
+            type="button"
+            onClick={() => updateSearch('')}
+            aria-label={t('friends.clearSearch')}
+            className="absolute top-1/2 right-[var(--space-2)] grid h-[24px] w-[24px] -translate-y-1/2 place-items-center rounded-control text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        )}
+      </div>
       {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
       {/* Stale-while-revalidate: only surface the error when there's no cached data;
           a background refetch failure keeps showing the last good list. */}
       {isError && !friends && <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>}
-      {friends && friends.length === 0 && (
-        <p className="text-sm text-[var(--text-faint)]">{t('friends.empty')}</p>
+      {filteredFriends && filteredFriends.length === 0 && (
+        <p className="text-sm text-[var(--text-faint)]">
+          {searchActive ? t('friends.searchNoResults') : t('friends.empty')}
+        </p>
       )}
       {friends && friends.length > 0 && sections && (
         <div className="flex flex-col gap-[var(--space-2)]">
           {sections.map(({ section, friends: sectionFriends }) => {
-            const collapsed = collapsedSections.includes(section)
+            // VRX-65 decision: an active search ignores persisted collapse so
+            // every match is visible. The setting itself remains untouched.
+            const collapsed = !searchActive && collapsedSections.includes(section)
             return (
               <div key={section}>
                 <SectionHeader
                   section={section}
                   count={sectionFriends.length}
                   collapsed={collapsed}
-                  onToggle={() => toggleSection(section)}
+                  onToggle={() => {
+                    if (!searchActive) toggleSection(section)
+                  }}
+                  collapseIgnored={searchActive}
                 />
                 {!collapsed && (
                   <ul
@@ -400,7 +499,11 @@ export default function FriendsList(): React.JSX.Element {
                     className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
                   >
                     {sectionFriends.map((f) => (
-                      <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
+                      <FriendRow
+                        key={`${f.platform}:${f.platformUserId}`}
+                        friend={f}
+                        searchQuery={appliedSearch}
+                      />
                     ))}
                   </ul>
                 )}
