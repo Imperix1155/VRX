@@ -9,7 +9,7 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 
 - `security.ts` — `isTrustedIpcSender()`: dev=origin-exact, prod=file://+top-frame (VRX-25).
 - `friends.ts` — `get-friends`: delegates to the platform adapter (VRX-19/20).
-- `avatar.ts` — `get-avatar`: shape-validates the URL request after the sender guard, delegates to the main-process avatar cache, and returns a CSP-safe `data:` URL result or `null` (VRX-48).
+- `avatar.ts` / `avatar.test.ts` — `get-avatar`: shape-validates the URL request and rejects strings over 2,048 characters after the sender guard, delegates to the main-process avatar cache, and returns a CSP-safe `data:` URL result or `null` (VRX-48).
 - `auth.ts` — `get-auth-status`, `login`, `verify-2fa`: delegates to adapter. `login` shape-validates the payload before use — `username`/`password` must be strings and `twoFactorCode`, when present, must be a string (audit W3) — and is never logged (VRX-20); `verify-2fa` (VRX-159) takes only `{code}` and routes to `adapter.verify2fa`, so the renderer completes the 2FA leg via the session cookie without resending/holding the password.
 - `accounts.ts` — `get-accounts`: stub returning `[]` until VRX-24 lands the AccountStore.
 - `instance.ts` — `join-instance`, `self-invite`: delegates to adapter (VRX-20).
