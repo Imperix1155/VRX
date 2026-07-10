@@ -32,12 +32,18 @@ import { registerAuthHandlers } from './auth'
 const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
 
 let adapter: IPlatformAdapter
+const createLoginSuccessMock = (): ReturnType<typeof vi.fn<(platform: Platform) => void>> =>
+  vi.fn<(platform: Platform) => void>()
+let onLoginSuccess = createLoginSuccessMock()
 
 beforeEach(() => {
   handlers.clear()
   trusted.value = true
   adapter = stubPlatformAdapter()
-  registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]))
+  onLoginSuccess = createLoginSuccessMock()
+  registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), {
+    onLoginSuccess
+  })
 })
 
 const call = (channel: string, req: unknown): unknown => handlers.get(channel)!(event, req)
@@ -72,6 +78,18 @@ describe('login handler boundary', () => {
   it('accepts a valid request and delegates to the adapter', async () => {
     await expect(call('login', validReq)).resolves.toEqual({ ok: true })
     expect(adapter.login).toHaveBeenCalledWith(validReq.credentials)
+    expect(onLoginSuccess).toHaveBeenCalledWith('vrchat')
+  })
+
+  it('does not reset alert state when login fails', async () => {
+    vi.mocked(adapter.login).mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: 'invalid_credentials'
+    })
+
+    await expect(call('login', validReq)).resolves.toMatchObject({ ok: false })
+    expect(onLoginSuccess).not.toHaveBeenCalled()
   })
 
   it('accepts an omitted twoFactorCode and a string one', async () => {
@@ -103,6 +121,7 @@ describe('verify-2fa handler boundary', () => {
       ok: true
     })
     expect(adapter.verify2fa).toHaveBeenCalledWith('123456')
+    expect(onLoginSuccess).toHaveBeenCalledWith('vrchat')
   })
 
   it('rejects an untrusted sender', () => {

@@ -20,6 +20,7 @@ import {
 import log from '../logger'
 
 let store: Store<Record<string, unknown>> | undefined
+let settingsSnapshot: Settings | undefined
 
 // Lazy: electron-store resolves the userData path via `app`, which is only ready
 // after `app.whenReady()`. Constructing on first use keeps this import side-effect-free.
@@ -45,6 +46,7 @@ export function loadSettings(): Settings {
     if (shouldPersistSettings(raw)) {
       getStore().store = settings
     }
+    settingsSnapshot = settings
     return settings
   } catch (err) {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
@@ -53,8 +55,15 @@ export function loadSettings(): Settings {
       'settings: load failed; using in-memory defaults, on-disk file left intact',
       err instanceof Error ? err.message : String(err)
     )
-    return { ...DEFAULT_SETTINGS }
+    settingsSnapshot = { ...DEFAULT_SETTINGS }
+    return settingsSnapshot
   }
+}
+
+/** Cheap fire-time view for hot paths. Startup's first load populates it; the
+ *  fallback keeps direct/test callers safe without changing IPC behavior. */
+export function getSettingsSnapshot(): Settings {
+  return settingsSnapshot ?? loadSettings()
 }
 
 /** Merge a partial patch over the current settings, validate, and persist. */
@@ -67,5 +76,8 @@ export function saveSettings(patch: Partial<Settings>): Settings {
   }
   const next = parseSettings({ ...raw, ...patch })
   getStore().store = next
+  // electron-store writes synchronously; update the hot-path view in the same
+  // call so the very next alert observes the saved toggle.
+  settingsSnapshot = next
   return next
 }
