@@ -48,6 +48,9 @@ let currentWindow: import('electron').BrowserWindow | null = null
 const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
+// Trailing creator-set instance label, e.g. "Bono's Movie Night (#teehee)" —
+// matches the renderer's display strip (utils/worldName).
+const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
 
 function releaseRetainedFriendNotification(notification: NativeNotification): void {
   const timer = retainedFriendNotifications.get(notification)
@@ -348,7 +351,7 @@ app
           // Match the renderer's trailing instance-label cleanup. Notifications
           // are deliberately one-shot: later true-world enrichment corrects the
           // baseline but does not attempt to replace an already delivered toast.
-          const strippedWorldName = alert.worldName?.replace(/\s*\(#[^)]*\)\s*$/, '').trim() ?? ''
+          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
           const worldName = strippedWorldName === '' ? null : strippedWorldName
           body =
             worldName === null

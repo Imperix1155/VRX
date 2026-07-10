@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import log from 'electron-log'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
@@ -37,7 +38,15 @@ export function registerAuthHandlers(
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     return adapter.login(req.credentials).then((result) => {
-      if (result.ok) options.onLoginSuccess?.(req.platform)
+      // The side-effect callback must never turn a successful login into a
+      // renderer-visible failure.
+      if (result.ok) {
+        try {
+          options.onLoginSuccess?.(req.platform)
+        } catch {
+          log.warn(`onLoginSuccess callback failed for ${req.platform}`)
+        }
+      }
       return result
     })
   })
@@ -50,7 +59,13 @@ export function registerAuthHandlers(
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     return adapter.verify2fa(req.code).then((result) => {
-      if (result.ok) options.onLoginSuccess?.(req.platform)
+      if (result.ok) {
+        try {
+          options.onLoginSuccess?.(req.platform)
+        } catch {
+          log.warn(`onLoginSuccess callback failed for ${req.platform}`)
+        }
+      }
       return result
     })
   })
