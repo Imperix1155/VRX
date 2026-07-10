@@ -97,6 +97,11 @@
       "active": "アクティブ",
       "offline": "オフライン"
     },
+    "section": {
+      "inGame": "ゲーム中 ({{count}})",
+      "online": "オンライン ({{count}})",
+      "offline": "オフライン ({{count}})"
+    },
     "instance": {
       "unknownWorld": "不明なワールド",
       "private": "プライベート",
