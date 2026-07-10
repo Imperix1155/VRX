@@ -48,6 +48,23 @@ describe('get-avatar handler boundary', () => {
     expect(service.get).not.toHaveBeenCalled()
   })
 
+  it('rejects hostile payloads from a TRUSTED sender (null, non-string url, missing field)', async () => {
+    for (const hostile of [null, undefined, 42, 'bare-string', {}, { url: 42 }, { url: null }]) {
+      await expect(call(hostile)).rejects.toThrow('Invalid avatar URL')
+    }
+    expect(service.get).not.toHaveBeenCalled()
+  })
+
+  it('propagates a cache failure as a rejection (never a fake success)', async () => {
+    service.get.mockRejectedValue(new Error('boom'))
+    await expect(call({ url: 'https://files.vrchat.cloud/a.png' })).rejects.toThrow('boom')
+  })
+
+  it('maps a cache null (unresolvable/denied) to a null response', async () => {
+    service.get.mockResolvedValue(null)
+    await expect(call({ url: 'https://files.vrchat.cloud/a.png' })).resolves.toBeNull()
+  })
+
   it('delegates a valid string URL', async () => {
     const url = 'https://files.vrchat.cloud/avatar.png'
     service.get.mockResolvedValue('data:image/png;base64,eA==')
