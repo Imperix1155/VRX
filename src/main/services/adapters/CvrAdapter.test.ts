@@ -514,6 +514,31 @@ describe('CvrAdapter', () => {
       expect(dials).toBe(0) // no credentials → pipelineHeaders() null → no socket
       unsub()
     })
+
+    it('a failed CVR roster warm clears its gate so the next live edge retries', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ message: 'oops' }, { status: 500 }))
+        .mockResolvedValueOnce(jsonResponse({ message: 'ok', data: [] }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      const drive = adapter as unknown as {
+        handlePipelineEvent: (event: AdapterEvent) => void
+      }
+      const live: AdapterEvent = {
+        type: 'connection',
+        platform: 'chilloutvr',
+        health: 'live'
+      }
+
+      drive.handlePipelineEvent(live)
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() =>
+        expect((adapter as unknown as { rosterWarmStarted: boolean }).rosterWarmStarted).toBe(false)
+      )
+      drive.handlePipelineEvent(live)
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    })
   })
 
   describe('instance enrichment (VRX-59)', () => {
@@ -609,7 +634,12 @@ describe('CvrAdapter', () => {
       })
       vi.stubGlobal(
         'fetch',
-        vi.fn(() => held)
+        vi.fn((url: RequestInfo | URL) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          return href.endsWith('/friends')
+            ? Promise.resolve(jsonResponse({ message: 'ok', data: [] }))
+            : held
+        })
       )
       const rig = drivableSocket()
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
@@ -823,6 +853,105 @@ describe('CvrAdapter', () => {
       await new Promise((r) => setTimeout(r, 20))
       const snapshotsAfter = events.filter((e) => e.type === 'presence-snapshot').length
       expect(snapshotsAfter).toBe(snapshotsBefore) // no post-quarantine re-emit
+      unsub()
+    })
+
+    it('adoptSession A→B drops a late A resolution and a late A socket event everywhere', async () => {
+      let releaseAccountAResolution!: (response: Response) => void
+      const heldResolution = new Promise<Response>((resolve) => {
+        releaseAccountAResolution = resolve
+      })
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.endsWith('/friends')) {
+          return Promise.resolve(jsonResponse({ message: 'ok', data: [] }))
+        }
+        if (href.includes('/instances/')) return heldResolution
+        return Promise.resolve(
+          jsonResponse(envelope(authPayload({ username: 'account-b', accessKey: 'key-b' })))
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const rigs = [drivableSocket(), drivableSocket()]
+      let dial = 0
+      const alerts: FriendAlert[] = []
+      const friendAlerts = new FriendAlerts({
+        notify: (alert) => alerts.push(alert),
+        clock: () => 0,
+        isEnabled: () => true,
+        resolveName: () => 'Account A Friend'
+      })
+      const events: AdapterEvent[] = []
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'account-a', accessKey: 'key-a' }),
+        noopSleep,
+        {
+          socketFactory: () => rigs[dial++]!.socket,
+          onSessionBoundary: () => friendAlerts.resetPlatform('chilloutvr')
+        }
+      )
+      const unsub = adapter.subscribe((event) => {
+        events.push(event)
+        friendAlerts.consume(event)
+      })
+      await vi.waitFor(() => expect(dial).toBe(1))
+      rigs[0]!.fire('open')
+      rigs[0]!.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_account_a', Name: 'Account A World', Privacy: 0 }
+            }
+          ]
+        })
+      )
+      await vi.waitFor(() => {
+        const requestedAccountAInstance = fetchMock.mock.calls.some(([url]) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          return href.includes('/instances/i_account_a')
+        })
+        expect(requestedAccountAInstance).toBe(true)
+      })
+
+      events.length = 0
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+      await vi.waitFor(() => expect(dial).toBe(2))
+
+      releaseAccountAResolution(jsonResponse(envelope(instanceDetail)))
+      rigs[0]!.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: null
+            }
+          ]
+        })
+      )
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(events.filter((event) => event.type === 'presence-snapshot')).toEqual([])
+      expect(alerts).toEqual([])
+      const engineState = friendAlerts as unknown as {
+        presence: Map<string, Map<string, unknown>>
+      }
+      expect(engineState.presence.get('chilloutvr')?.size ?? 0).toBe(0)
+      const resolver = (
+        adapter as unknown as {
+          instanceResolver: { peek: (id: string) => unknown }
+        }
+      ).instanceResolver
+      expect(resolver.peek('i_account_a')).toBeUndefined()
       unsub()
     })
 

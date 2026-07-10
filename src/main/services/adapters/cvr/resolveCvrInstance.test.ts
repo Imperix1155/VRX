@@ -107,6 +107,25 @@ describe('createCvrInstanceResolver', () => {
     expect(ra).toEqual(rb)
   })
 
+  it('clear drops cache state and prevents an older in-flight result from repopulating it', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const fetcher: CvrFetcher = async <T>(_path: string, schema: z.ZodType<T>): Promise<T> => {
+      await gate
+      return schema.parse(fullDetail)
+    }
+    const resolver = createCvrInstanceResolver({ fetcher })
+
+    const stale = resolver.resolve('shared-id')
+    resolver.clear()
+    release()
+    await stale
+
+    expect(resolver.peek('shared-id')).toBeUndefined()
+  })
+
   it('returns null (never throws) on fetch failure and negative-caches it briefly', async () => {
     let now = 5_000_000
     let fail = true

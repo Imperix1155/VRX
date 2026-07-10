@@ -30,6 +30,13 @@ export interface VrcCredentialStore {
   delete(): void
 }
 
+export interface VrcLiveWiring {
+  socketFactory?: (url: string) => PipelineSocket
+  log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+  /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
+  onSessionBoundary?: () => void
+}
+
 /** Minimal current-user shape we rely on (the API returns much more). */
 const currentUserSchema = z.object({ id: z.string(), displayName: z.string() })
 /** The 2FA-required branch of `GET /auth/user`. */
@@ -104,6 +111,7 @@ export class VrcAdapter extends VrcApiClient {
   private cookie: string | null = null
   private displayName: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
+  private sessionGeneration = 0
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
     this.get(`/worlds/${worldId}`, z.unknown())
@@ -121,16 +129,13 @@ export class VrcAdapter extends VrcApiClient {
      * stays electron-free: the real socketFactory (ws + User-Agent) and the
      * electron-log bridge live in main/index.ts; tests inject fakes.
      */
-    private readonly live?: {
-      socketFactory?: (url: string) => PipelineSocket
-      log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
-    }
+    private readonly live?: VrcLiveWiring
   ) {
     super(sleepFn)
     // Session restore — adopt any persisted cookie; tolerate a missing/locked store.
     try {
       const stored = this.credentials.load()
-      if (stored) this.setCookie(stored)
+      if (stored) this.adoptSession(stored)
     } catch {
       /* no usable persisted session */
     }
@@ -175,6 +180,7 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     this.displayName = parsed.data.displayName
+    this.bumpSessionGeneration()
     this.persist()
     return { ok: true }
   }
@@ -238,6 +244,7 @@ export class VrcAdapter extends VrcApiClient {
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 
+    this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
     return { ok: true }
@@ -353,7 +360,10 @@ export class VrcAdapter extends VrcApiClient {
       // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
       // unauthenticated; a blunt clear would force a full re-login. NetworkError
       // and other failures just propagate untouched.
-      if (error instanceof AuthError) this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      if (error instanceof AuthError) {
+        this.bumpSessionGeneration()
+        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      }
       throw error
     }
   }
@@ -384,16 +394,7 @@ export class VrcAdapter extends VrcApiClient {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
-    this.pipeline ??= new VrcPipeline({
-      tokenProvider: () => this.pipelineToken(),
-      onEvent: (event) => this.emit(event),
-      socketFactory:
-        this.live?.socketFactory ??
-        (() => {
-          throw new Error('VrcAdapter: no socketFactory wired for the live pipeline')
-        }),
-      log: this.live?.log
-    })
+    this.pipeline ??= this.createPipeline()
     this.pipeline.start()
 
     let active = true
@@ -403,8 +404,26 @@ export class VrcAdapter extends VrcApiClient {
       this.subscribers.delete(handler)
       if (this.subscribers.size === 0) {
         this.pipeline?.stop()
+        this.pipeline = null
       }
     }
+  }
+
+  /** A pipeline object is stamped with the account generation that created it. */
+  private createPipeline(): VrcPipeline {
+    const generation = this.sessionGeneration
+    return new VrcPipeline({
+      tokenProvider: () => this.pipelineToken(),
+      onEvent: (event) => {
+        if (generation === this.sessionGeneration) this.emit(event)
+      },
+      socketFactory:
+        this.live?.socketFactory ??
+        (() => {
+          throw new Error('VrcAdapter: no socketFactory wired for the live pipeline')
+        }),
+      log: this.live?.log
+    })
   }
 
   /**
@@ -444,6 +463,29 @@ export class VrcAdapter extends VrcApiClient {
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
 
+  private adoptSession(cookie: string): void {
+    this.setCookie(cookie)
+    this.bumpSessionGeneration()
+  }
+
+  /**
+   * Fence every account boundary before replacing the live pipeline. Any late
+   * callback from the stopped object keeps its captured old generation and is
+   * dropped by createPipeline's event handler.
+   */
+  private bumpSessionGeneration(): void {
+    this.sessionGeneration += 1
+    this.live?.onSessionBoundary?.()
+
+    const wasRunning = this.subscribers.size > 0
+    this.pipeline?.stop()
+    this.pipeline = null
+    if (wasRunning) {
+      this.pipeline = this.createPipeline()
+      this.pipeline.start()
+    }
+  }
+
   /**
    * Tear down a dead session everywhere it lives: the in-memory cookie, the
    * VrcApiClient mirror it feeds onto every authed request, the cached display
@@ -454,6 +496,8 @@ export class VrcAdapter extends VrcApiClient {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
+    this.pendingTwoFactorMethod = null
+    this.bumpSessionGeneration()
     try {
       this.credentials.delete()
     } catch {
@@ -475,6 +519,7 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private async refreshDisplayName(): Promise<void> {
+    const generation = this.sessionGeneration
     try {
       const response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
         method: 'GET',
@@ -482,7 +527,9 @@ export class VrcAdapter extends VrcApiClient {
       })
       if (!response.ok) return
       const parsed = currentUserSchema.safeParse(await response.json())
-      if (parsed.success) this.displayName = parsed.data.displayName
+      if (parsed.success && generation === this.sessionGeneration) {
+        this.displayName = parsed.data.displayName
+      }
     } catch {
       /* non-fatal */
     }

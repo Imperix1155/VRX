@@ -225,6 +225,9 @@ describe('FriendAlerts CVR snapshot diffing', () => {
 
   it('re-baselines the first snapshot after connection live', () => {
     const { engine, alerts } = harness({ names: { [CVR_ID]: 'Trinity' } })
+    engine.consume(
+      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('initial') }])
+    )
     engine.consume(snapshot([]))
     engine.consume(
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('a') }])
@@ -240,6 +243,9 @@ describe('FriendAlerts CVR snapshot diffing', () => {
 
   it('does not treat asynchronous CVR world enrichment as a movement transition', () => {
     const { engine, alerts } = harness({ names: { [CVR_ID]: 'Trinity' } })
+    engine.consume(
+      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('initial') }])
+    )
     engine.consume(snapshot([]))
     engine.consume(
       snapshot([
@@ -264,20 +270,47 @@ describe('FriendAlerts CVR snapshot diffing', () => {
     expect(alerts).toHaveLength(2)
   })
 
-  it('silently baselines the next new id after a roster-changed trigger', () => {
-    const { engine, alerts } = harness({ names: { [CVR_ID]: 'Trinity' } })
+  it('silently baselines every never-seen id in a multi-add snapshot', () => {
+    const secondId = 'a1b2c3d4-0000-0000-0000-000000000002'
+    const { engine, alerts } = harness({
+      names: { [CVR_ID]: 'Trinity', [secondId]: 'Morpheus' }
+    })
     engine.consume(snapshot([]))
     engine.consume({ type: 'roster-changed', platform: 'chilloutvr' })
     engine.consume(
-      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('accepted') }])
+      snapshot([
+        { platformUserId: CVR_ID, state: 'in-game', instance: instance('accepted') },
+        { platformUserId: secondId, state: 'in-game', instance: instance('also-accepted') }
+      ])
     )
     expect(alerts).toEqual([])
 
     engine.consume(snapshot([]))
     engine.consume(
-      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('returned') }])
+      snapshot([
+        { platformUserId: CVR_ID, state: 'in-game', instance: instance('returned') },
+        { platformUserId: secondId, state: 'in-game', instance: instance('also-returned') }
+      ])
     )
-    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game', 'online', 'in-game'])
+  })
+
+  it('replaying an identical 2049-entry live snapshot produces zero alerts', () => {
+    const entries = Array.from({ length: 2_049 }, (_, index) => ({
+      platformUserId: `cvr-${index}`,
+      state: 'in-game' as const,
+      instance: instance(`instance-${index}`)
+    }))
+    const { engine, alerts } = harness({
+      names: Object.fromEntries(
+        entries.map((entry) => [entry.platformUserId, entry.platformUserId])
+      )
+    })
+
+    engine.consume(snapshot(entries))
+    engine.consume(snapshot(entries))
+
+    expect(alerts).toEqual([])
   })
 })
 
