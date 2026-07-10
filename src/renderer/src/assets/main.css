@@ -304,6 +304,38 @@ body::after {
 }
 
 /**
+ * §9 Dashboard hot-instance grid (VRX-199). Max TWO columns that FILL the row;
+ * container-query responsive so a narrow pane drops to one column and a lone card
+ * spans the full row. `.hotwrap` (a grid-only wrapper) establishes the query
+ * container — the sidebar insets the content pane, so a viewport media query would
+ * measure the wrong width. Anchored on the WRAPPER, not the section: `container-type`
+ * implies `contain: layout` (a new containing block for abspos descendants), so it
+ * must NOT wrap the heading/stepper — only the grid. Inline styles can't express
+ * `@container` / `:only-child`, so the rules live here.
+ */
+.hotwrap {
+  container-type: inline-size;
+}
+
+.hot-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+@container (min-width: 620px) {
+  .hot-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* A single hot instance fills the full row instead of sitting half-width. */
+.hot-grid > :only-child {
+  grid-column: 1 / -1;
+}
+
+/**
  * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
  * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`
  * variant (e.g. `motion-safe:transition`) so reduced-motion users get none — with
