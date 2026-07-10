@@ -38,7 +38,6 @@ export class FriendAlerts {
   private readonly presence = new Map<Platform, Map<string, KnownPresence>>()
   private readonly names = new Map<Platform, Map<string, string>>()
   private readonly snapshotBaselined = new Map<Platform, boolean>()
-  private readonly baselineNextNewId = new Set<Platform>()
   private readonly emittedAt: Record<FriendAlertType, number[]> = {
     online: [],
     'in-game': [],
@@ -97,10 +96,9 @@ export class FriendAlerts {
         this.consumePresenceSnapshot(event)
         return
       case 'roster-changed':
-        // The event is trigger-only: the new roster arrives asynchronously over
-        // REST, so we cannot safely evict ids yet. Silence exactly the next new
-        // id instead; accepting an already-online friend is not a transition.
-        this.baselineNextNewId.add(event.platform)
+        // Trigger-only. Snapshot diffing baselines every never-seen id, while an
+        // already-known online id that becomes absent still produces the accepted
+        // offline transition (the offline alert setting is default-off).
         return
       case 'auth-invalidated':
         this.resetPlatform(event.platform)
@@ -119,7 +117,6 @@ export class FriendAlerts {
     this.platformPresence(platform).clear()
     this.platformNames(platform).clear()
     this.snapshotBaselined.set(platform, false)
-    this.baselineNextNewId.delete(platform)
   }
 
   private consumePresenceSnapshot(
@@ -161,7 +158,7 @@ export class FriendAlerts {
         event.platform,
         entry.platformUserId,
         this.fromPresence(entry.presence.state, entry.instance),
-        false
+        true
       )
     }
   }
@@ -177,8 +174,7 @@ export class FriendAlerts {
     this.setPresence(platformPresence, platformUserId, next)
 
     if (previous === undefined) {
-      const rosterBaseline = this.baselineNextNewId.delete(platform)
-      if (baselineOnFirstSight || rosterBaseline) return
+      if (baselineOnFirstSight) return
     }
 
     const before = previous ?? {
@@ -236,9 +232,6 @@ export class FriendAlerts {
     if (!RATE_LIMITED_TYPES.has(type)) return true
 
     const limitedType = type
-    // Intentional wall-clock semantics: the injected production clock is
-    // Date.now(), so manual clock rollback can extend suppression. A monotonic
-    // refactor is separate from this bounded burst-control fix.
     const now = this.options.clock()
     const cutoff = now - RATE_LIMIT_WINDOW_MS
     const recent = this.emittedAt[limitedType].filter((timestamp) => timestamp > cutoff)
@@ -260,15 +253,20 @@ export class FriendAlerts {
     platformUserId: string,
     presence: KnownPresence
   ): void {
-    // Full-snapshot absence leaves offline tombstones behind. Bound them so
-    // long-running sessions/account churn cannot grow this map without limit;
-    // Map insertion order gives us a cheap oldest-first eviction policy.
+    // Full-snapshot absence leaves offline tombstones behind. Only those are
+    // safe to evict: dropping an online/in-game baseline would turn an identical
+    // replay into a synthetic offline→online alert. If every entry is live, the
+    // map may exceed the soft cap to preserve transition correctness.
     if (
       !platformPresence.has(platformUserId) &&
       platformPresence.size >= MAX_PRESENCE_ENTRIES_PER_PLATFORM
     ) {
-      const oldest = platformPresence.keys().next().value
-      if (oldest !== undefined) platformPresence.delete(oldest)
+      for (const [knownId, known] of platformPresence) {
+        if (known.state === 'offline') {
+          platformPresence.delete(knownId)
+          break
+        }
+      }
     }
     platformPresence.set(platformUserId, presence)
   }

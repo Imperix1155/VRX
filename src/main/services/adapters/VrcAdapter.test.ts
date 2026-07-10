@@ -3,6 +3,7 @@ import type { AdapterEvent } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -24,6 +25,35 @@ function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; de
 }
 
 const creds = { username: 'neo', password: 'redpill' }
+
+type SocketListener = (...args: unknown[]) => void
+class DrivableVrcSocket {
+  private readonly listeners = new Map<string, SocketListener[]>()
+
+  on(event: string, listener: SocketListener): void {
+    this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
+  }
+
+  close(): void {
+    this.fire('close')
+  }
+
+  fire(event: string, ...args: unknown[]): void {
+    for (const listener of this.listeners.get(event) ?? []) listener(...args)
+  }
+}
+
+const pipelineFrame = (type: string, content: unknown): string =>
+  JSON.stringify({ type, content: JSON.stringify(content) })
+
+const pipelineUser = {
+  id: 'usr_late',
+  displayName: 'Late Friend',
+  currentAvatarThumbnailImageUrl: null,
+  status: 'active',
+  statusDescription: null,
+  tags: []
+}
 
 function lastCall(mock: ReturnType<typeof vi.fn>): [string, RequestInit] {
   return mock.mock.calls[mock.mock.calls.length - 1] as [string, RequestInit]
@@ -554,6 +584,144 @@ describe('VrcAdapter', () => {
       const unsub = adapter.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
       expect(dials).toBe(0)
+      unsub()
+    })
+
+    it('401 auth invalidation fences two late old-socket events out of subscribers and alert state', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      const alerts: FriendAlert[] = []
+      const engine = new FriendAlerts({
+        notify: (alert) => alerts.push(alert),
+        clock: () => 0,
+        isEnabled: () => true,
+        resolveName: () => 'Late Friend'
+      })
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        },
+        onSessionBoundary: () => engine.resetPlatform('vrchat')
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          return Promise.resolve(
+            href.endsWith('/auth')
+              ? jsonResponse({ token: 'account-a' })
+              : jsonResponse({ error: 'expired' }, { status: 401 })
+          )
+        })
+      )
+      const unsub = adapter.subscribe((event) => {
+        events.push(event)
+        engine.consume(event)
+      })
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const oldSocket = sockets[0]!
+      oldSocket.fire('open')
+      events.length = 0
+
+      await expect(adapter.getFriends()).rejects.toThrow()
+      expect(events).toEqual([{ type: 'auth-invalidated', platform: 'vrchat' }])
+
+      oldSocket.fire(
+        'message',
+        pipelineFrame('friend-active', { userId: pipelineUser.id, user: pipelineUser })
+      )
+      oldSocket.fire(
+        'message',
+        pipelineFrame('friend-online', {
+          userId: pipelineUser.id,
+          user: pipelineUser,
+          location: 'wrld_old:1'
+        })
+      )
+
+      expect(events).toEqual([{ type: 'auth-invalidated', platform: 'vrchat' }])
+      expect(alerts).toEqual([])
+      const state = engine as unknown as { presence: Map<string, Map<string, unknown>> }
+      expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
+      unsub()
+    })
+
+    it('successful 2FA bumps the session generation, resets alerts, and drops old-pipeline events', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      let authUserCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'partial' }))
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          authUserCalls += 1
+          return Promise.resolve(
+            authUserCalls === 1
+              ? jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=partial'] })
+              : jsonResponse({ id: 'usr_self', displayName: 'Neo' })
+          )
+        })
+      )
+      const alerts: FriendAlert[] = []
+      const engine = new FriendAlerts({
+        notify: (alert) => alerts.push(alert),
+        clock: () => 0,
+        isEnabled: () => true,
+        resolveName: () => 'Late Friend'
+      })
+      const reset = vi.spyOn(engine, 'resetPlatform')
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore(), noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        },
+        onSessionBoundary: () => engine.resetPlatform('vrchat')
+      })
+
+      expect(await adapter.login(creds)).toMatchObject({ needs2fa: true })
+      const before = (adapter as unknown as { sessionGeneration: number }).sessionGeneration
+      const unsub = adapter.subscribe((event) => {
+        events.push(event)
+        engine.consume(event)
+      })
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const oldSocket = sockets[0]!
+      oldSocket.fire('open')
+      oldSocket.fire(
+        'message',
+        pipelineFrame('friend-active', { userId: pipelineUser.id, user: pipelineUser })
+      )
+      const state = engine as unknown as { presence: Map<string, Map<string, unknown>> }
+      expect(state.presence.get('vrchat')?.size).toBe(1)
+      events.length = 0
+
+      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+      expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
+        before + 1
+      )
+      expect(reset).toHaveBeenCalledWith('vrchat')
+      expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
+
+      oldSocket.fire(
+        'message',
+        pipelineFrame('friend-online', {
+          userId: pipelineUser.id,
+          user: pipelineUser,
+          location: 'wrld_old:2'
+        })
+      )
+      expect(events).toEqual([])
+      expect(alerts).toEqual([])
+      expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
       unsub()
     })
 

@@ -75,9 +75,10 @@ export function saveSettings(patch: Partial<Settings>): Settings {
     throw new Error('settings: refusing to overwrite settings written by a newer version')
   }
   const next = parseSettings({ ...raw, ...patch })
-  getStore().store = next
-  // electron-store writes synchronously; update the hot-path view in the same
-  // call so the very next alert observes the saved toggle.
+  // Apply the validated value to this session before persistence. If the
+  // synchronous disk write fails, the caller still receives that same failure,
+  // while the UI's accepted local state and the alert engine remain consistent.
   settingsSnapshot = next
+  getStore().store = next
   return next
 }

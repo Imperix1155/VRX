@@ -45,9 +45,15 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
-const retainedFriendNotifications = new Set<NativeNotification>()
+const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
+
+function releaseRetainedFriendNotification(notification: NativeNotification): void {
+  const timer = retainedFriendNotifications.get(notification)
+  if (timer !== undefined) clearTimeout(timer)
+  retainedFriendNotifications.delete(notification)
+}
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -281,9 +287,11 @@ app
     // Live-pipeline wiring (VRX-146): the real socket carries the required
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
+    const friendAlertBoundary: { current?: FriendAlerts } = {}
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
-      log: (level, message, meta) => log[level](message, meta)
+      log: (level, message, meta) => log[level](message, meta),
+      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('vrchat')
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
     // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
@@ -316,7 +324,8 @@ app
     // socketFactory forwards them verbatim; logs route through the redaction hook.
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       socketFactory: (url, headers) => new WebSocket(url, { headers }),
-      log: (level, message, meta) => log[level](message, meta)
+      log: (level, message, meta) => log[level](message, meta),
+      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('chilloutvr')
     })
 
     const adapters = new Map<Platform, IPlatformAdapter>([
@@ -339,7 +348,8 @@ app
           // Match the renderer's trailing instance-label cleanup. Notifications
           // are deliberately one-shot: later true-world enrichment corrects the
           // baseline but does not attempt to replace an already delivered toast.
-          const worldName = alert.worldName?.replace(/\s*\(#[^)]*\)\s*$/, '') ?? null
+          const strippedWorldName = alert.worldName?.replace(/\s*\(#[^)]*\)\s*$/, '').trim() ?? ''
+          const worldName = strippedWorldName === '' ? null : strippedWorldName
           body =
             worldName === null
               ? `${alert.displayName} joined a world`
@@ -355,10 +365,7 @@ app
       try {
         const notification = new NativeNotification({ title, body })
         notification.on('click', focusMainWindow)
-        const cleanup = (): void => {
-          clearTimeout(cleanupTimer)
-          retainedFriendNotifications.delete(notification)
-        }
+        const cleanup = (): void => releaseRetainedFriendNotification(notification)
         notification.once('close', cleanup)
         notification.once('failed', () => {
           // Never log native error text: platform messages can echo body copy,
@@ -366,14 +373,19 @@ app
           log.warn('friend notification failed')
           cleanup()
         })
-        retainedFriendNotifications.add(notification)
-        if (retainedFriendNotifications.size > MAX_RETAINED_FRIEND_NOTIFICATIONS) {
-          const oldest = retainedFriendNotifications.values().next().value
-          if (oldest !== undefined) retainedFriendNotifications.delete(oldest)
-        }
         const cleanupTimer = setTimeout(cleanup, FRIEND_NOTIFICATION_RETENTION_MS)
         cleanupTimer.unref()
-        notification.show()
+        retainedFriendNotifications.set(notification, cleanupTimer)
+        if (retainedFriendNotifications.size > MAX_RETAINED_FRIEND_NOTIFICATIONS) {
+          const oldest = retainedFriendNotifications.keys().next().value
+          if (oldest !== undefined) releaseRetainedFriendNotification(oldest)
+        }
+        try {
+          notification.show()
+        } catch (error) {
+          cleanup()
+          throw error
+        }
       } catch {
         // Native notification failure must never interrupt the shared adapter
         // subscription path. Do not log the alert/error contents: both may
@@ -398,15 +410,15 @@ app
 
     const friendAlerts = new FriendAlerts({
       notify: showFriendAlert,
-      clock: Date.now,
+      // Monotonic time keeps limiter windows correct across wall-clock adjustments.
+      clock: () => performance.now(),
       isEnabled: alertSettingEnabled,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
+    friendAlertBoundary.current = friendAlerts
 
-    registerIpcHandlers(adapters, {
-      onLoginSuccess: (platform) => friendAlerts.resetPlatform(platform)
-    })
+    registerIpcHandlers(adapters)
 
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
@@ -418,22 +430,7 @@ app
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
       }
     }
-    const rosterWarmStarted = new Set<Platform>()
     const handleAdapterEvent = (event: AdapterEvent): void => {
-      if (
-        event.type === 'connection' &&
-        event.health === 'live' &&
-        !rosterWarmStarted.has(event.platform)
-      ) {
-        rosterWarmStarted.add(event.platform)
-        // Narrow the startup name-cache gap without delaying the live stream.
-        // A residual transition before this request completes still has no safe
-        // readable name and is intentionally dropped by FriendAlerts.
-        void adapters
-          .get(event.platform)
-          ?.getFriends()
-          .catch(() => {})
-      }
       friendAlerts.consume(event)
       broadcast(event)
     }

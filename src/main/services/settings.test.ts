@@ -13,11 +13,13 @@ import { FriendAlerts } from './friendAlerts'
 const storeState = vi.hoisted(
   (): {
     throwOnRead: boolean
+    throwOnWrite: boolean
     reads: number
     data: Record<string, unknown>
     written: Record<string, unknown>[]
   } => ({
     throwOnRead: false,
+    throwOnWrite: false,
     reads: 0,
     data: {},
     written: []
@@ -32,6 +34,7 @@ vi.mock('electron-store', () => ({
       return storeState.data
     }
     set store(value: Record<string, unknown>) {
+      if (storeState.throwOnWrite) throw new Error('disk full')
       storeState.written.push(value)
     }
   }
@@ -43,6 +46,7 @@ import { getSettingsSnapshot, loadSettings, saveSettings } from './settings'
 
 beforeEach(() => {
   storeState.throwOnRead = false
+  storeState.throwOnWrite = false
   storeState.reads = 0
   storeState.data = {}
   storeState.written = []
@@ -129,5 +133,14 @@ describe('loadSettings (W7 M1)', () => {
     saveSettings({ notifyFriendOffline: true })
 
     expect(getSettingsSnapshot().notifyFriendOffline).toBe(true)
+  })
+
+  it('keeps the validated in-memory snapshot when persistence fails, while rethrowing', () => {
+    storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOnline: false }
+    loadSettings()
+    storeState.throwOnWrite = true
+
+    expect(() => saveSettings({ notifyFriendOnline: true })).toThrow('disk full')
+    expect(getSettingsSnapshot().notifyFriendOnline).toBe(true)
   })
 })
