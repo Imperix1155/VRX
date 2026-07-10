@@ -69,16 +69,18 @@ export function getSettingsSnapshot(): Settings {
 /** Merge a partial patch over the current settings, validate, and persist. */
 export function saveSettings(patch: Partial<Settings>): Settings {
   const raw = getStore().store
+  const next = parseSettings({ ...raw, ...patch })
+  // The renderer has already accepted the patch locally before this call. Keep
+  // native fire-time policy coherent even when persistence must be refused.
+  settingsSnapshot = next
   if (!shouldPersistSettings(raw)) {
     // Merging an old-shaped patch over a newer-version file would drop the newer
     // build's fields. Refuse rather than lose data — VRX-21 will own the UX.
     throw new Error('settings: refusing to overwrite settings written by a newer version')
   }
-  const next = parseSettings({ ...raw, ...patch })
   // Apply the validated value to this session before persistence. If the
   // synchronous disk write fails, the caller still receives that same failure,
   // while the UI's accepted local state and the alert engine remain consistent.
-  settingsSnapshot = next
   getStore().store = next
   return next
 }

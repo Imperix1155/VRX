@@ -129,9 +129,9 @@ export class FriendAlerts {
       current.clear()
       for (const entry of event.entries) {
         this.setPresence(
-          current,
+          event.platform,
           entry.platformUserId,
-          this.fromPresence(entry.presence.state, entry.instance)
+          this.fromPresence(event.platform, entry.presence.state, entry.instance)
         )
       }
       this.snapshotBaselined.set(event.platform, true)
@@ -157,7 +157,7 @@ export class FriendAlerts {
       this.applyPresence(
         event.platform,
         entry.platformUserId,
-        this.fromPresence(entry.presence.state, entry.instance),
+        this.fromPresence(event.platform, entry.presence.state, entry.instance),
         true
       )
     }
@@ -171,7 +171,7 @@ export class FriendAlerts {
   ): void {
     const platformPresence = this.platformPresence(platform)
     const previous = platformPresence.get(platformUserId)
-    this.setPresence(platformPresence, platformUserId, next)
+    this.setPresence(platform, platformUserId, next)
 
     if (previous === undefined) {
       if (baselineOnFirstSight) return
@@ -219,7 +219,7 @@ export class FriendAlerts {
       this.platformNames(platform).get(platformUserId) ??
       this.options.resolveName(platform, platformUserId)
     // Never fall back to an opaque platform id in a user-facing notification.
-    // The main process warms the roster on first live connection to narrow this
+    // The CVR adapter warms its roster on first live connection to narrow this
     // window; a transition that still arrives before a readable name is known is
     // intentionally not replayed later because presence has already advanced.
     if (displayName == null || displayName.trim() === '') return
@@ -245,18 +245,22 @@ export class FriendAlerts {
   }
 
   private rememberName(friend: Friend): void {
-    this.platformNames(friend.platform).set(friend.platformUserId, friend.displayName)
+    const platformNames = this.platformNames(friend.platform)
+    if (!platformNames.has(friend.platformUserId)) {
+      while (platformNames.size >= MAX_PRESENCE_ENTRIES_PER_PLATFORM) {
+        const oldest = platformNames.keys().next().value
+        if (oldest === undefined) break
+        platformNames.delete(oldest)
+      }
+    }
+    platformNames.set(friend.platformUserId, friend.displayName)
   }
 
-  private setPresence(
-    platformPresence: Map<string, KnownPresence>,
-    platformUserId: string,
-    presence: KnownPresence
-  ): void {
-    // Full-snapshot absence leaves offline tombstones behind. Only those are
-    // safe to evict: dropping an online/in-game baseline would turn an identical
-    // replay into a synthetic offline→online alert. If every entry is live, the
-    // map may exceed the soft cap to preserve transition correctness.
+  private setPresence(platform: Platform, platformUserId: string, presence: KnownPresence): void {
+    const platformPresence = this.platformPresence(platform)
+    // Only tombstones are safe to evict: dropping a live baseline would turn an
+    // identical snapshot replay into a synthetic transition. Live-only maps may
+    // exceed this soft cap, while the separate names map remains hard-bounded.
     if (
       !platformPresence.has(platformUserId) &&
       platformPresence.size >= MAX_PRESENCE_ENTRIES_PER_PLATFORM
@@ -264,6 +268,8 @@ export class FriendAlerts {
       for (const [knownId, known] of platformPresence) {
         if (known.state === 'offline') {
           platformPresence.delete(knownId)
+          // A name is account/presence state too; evict the pair together.
+          this.platformNames(platform).delete(knownId)
           break
         }
       }
@@ -272,10 +278,14 @@ export class FriendAlerts {
   }
 
   private fromFriend(friend: Friend): KnownPresence {
-    return this.fromPresence(friend.presence.state, friend.instance)
+    return this.fromPresence(friend.platform, friend.presence.state, friend.instance)
   }
 
-  private fromPresence(state: PresenceState, instance: InstanceInfo | null): KnownPresence {
+  private fromPresence(
+    platform: Platform,
+    state: PresenceState,
+    instance: InstanceInfo | null
+  ): KnownPresence {
     return {
       state,
       // instanceId is stable while CVR enriches the same snapshot's worldId and
@@ -284,7 +294,13 @@ export class FriendAlerts {
       // null here and is detected by the state comparison above.
       instanceId: instance?.instanceId ?? null,
       worldId: instance?.worldId ?? null,
-      worldName: instance?.worldName ?? null
+      // CVR's unresolved worldId fallback equals its instanceId, so its wire
+      // worldName is still creator-set instance copy. The adapter normally
+      // removes it; this keeps the alert engine safe if called directly too.
+      worldName:
+        platform === 'chilloutvr' && instance !== null && instance.worldId === instance.instanceId
+          ? null
+          : (instance?.worldName ?? null)
     }
   }
 

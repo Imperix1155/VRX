@@ -143,4 +143,21 @@ describe('loadSettings (W7 M1)', () => {
     expect(() => saveSettings({ notifyFriendOnline: true })).toThrow('disk full')
     expect(getSettingsSnapshot().notifyFriendOnline).toBe(true)
   })
+
+  it('keeps native policy aligned with the UI when a newer-version file refuses persistence', () => {
+    storeState.data = {
+      ...DEFAULT_SETTINGS,
+      version: 9999,
+      notifyFriendInGame: false,
+      futureField: 'keep-me'
+    }
+    loadSettings()
+
+    expect(() => saveSettings({ notifyFriendInGame: true })).toThrow(
+      'refusing to overwrite settings written by a newer version'
+    )
+    expect(getSettingsSnapshot().notifyFriendInGame).toBe(true)
+    expect(getSettingsSnapshot().version).toBe(9999)
+    expect(storeState.written).toHaveLength(0)
+  })
 })
