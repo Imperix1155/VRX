@@ -109,12 +109,12 @@ every platform must implement. Registered per-platform in `main/index.ts`
 | `verify2fa(code)` | Second leg via session cookie (no password) | ✅ |
 | `importSession()` | VRCX session import (VRX-54) | stub |
 | `getFriends()` | Paginated normalized list + world enrichment; per-unit degradation | ✅ |
-| `getInstanceDetails(id)` | — | stub |
+| `getInstanceDetails(id)` | Full `InstanceInfo` on demand — CVR: via the VRX-59 resolver (rejects when unresolvable); VRChat: still a stub | CVR ✅ / VRC stub |
 | `joinInstance(id, mode)` | — (VRX-166) | stub |
 | `selfInvite(id)` | Invite self to a non-public instance | ✅ |
 | `subscribe(handler)` | Live `AdapterEvent` stream; returns `Unsubscribe`. One shared pipeline per adapter | ✅ |
 
-**ChilloutVR adapter** ([`CvrAdapter`](../src/main/services/adapters/CvrAdapter.ts), VRX-37/58/174) is now concrete and registered alongside VRChat. Parity notes: `login` (password → AuthType 2) and session validation (`getAuthStatus` → AuthType 1 reauth) both use the **breaker-free** `authenticateRaw` so validation failures can't lock out login; a dead key (401) clears the session everywhere; accessKey rotation is persisted; `getFriends` returns the roster (below), presence arrives via `subscribe` → `CvrPipeline`. CVR has **no 2FA** (`verify2fa` rejects); `importSession` = stub (VRX-56); instances = stub (VRX-59/60); `selfInvite` unsupported. Session `{username, accessKey}` persists as one `safeStorage` blob (`CHILLOUTVR_PRIMARY`, shape-guarded); the password never persists/logs.
+**ChilloutVR adapter** ([`CvrAdapter`](../src/main/services/adapters/CvrAdapter.ts), VRX-37/58/174) is now concrete and registered alongside VRChat. Parity notes: `login` (password → AuthType 2) and session validation (`getAuthStatus` → AuthType 1 reauth) both use the **breaker-free** `authenticateRaw` so validation failures can't lock out login; a dead key (401) clears the session everywhere; accessKey rotation is persisted; `getFriends` returns the roster (below), presence arrives via `subscribe` → `CvrPipeline`. CVR has **no 2FA** (`verify2fa` rejects); `importSession` = stub (VRX-56); `getInstanceDetails` is LIVE via the VRX-59 instance resolver (presence snapshots are also world-enriched at the adapter boundary — see §6); `joinInstance` = stub (VRX-60); `selfInvite` unsupported. Session `{username, accessKey}` persists as one `safeStorage` blob (`CHILLOUTVR_PRIMARY`, shape-guarded); the password never persists/logs.
 
 **WS clients:** [`ReconnectingPipeline`](../src/main/services/adapters/ReconnectingPipeline.ts)
 is the shared lifecycle base (backoff, generation counter, `isOpen` send gate)
@@ -163,6 +163,7 @@ VRX-58).
 | `applyFriendEvent(friends, event)` | `utils/applyFriendEvent.ts` | Pure cache transition for every `AdapterEvent` (see §3 table) |
 | `mapLoginError(code)` | `utils/loginError.ts` | Adapter error code → i18n key; unknown codes collapse to generic (raw codes never reach users) |
 | `getDashboardStats` / `getHotInstances(friends, threshold?)` | `utils/dashboardAggregations.ts` | §9 dashboard numbers; hot = ≥`threshold` friends in one WORLD (`settings.hotInstanceThreshold`, default `HOT_INSTANCE_THRESHOLD`). `HotInstance` carries `friendNames` (alphabetical) so the card shows first-few + "+N" (VRX-198) |
+| `groupFriendsBySection(friends)` | `utils/groupFriendsBySection.ts` | VRX-67: friends → ordered `[{section, friends}]` (In-Game / Online / Offline; alphabetical within); drives the collapsible FriendsList sections. Collapsed set persists via `settings.collapsedFriendSections` (additive field, offline collapsed by default) |
 | `InstancePill` | `components/InstancePill.tsx` | THE canonical instance-type ("openness") pill — word-only, `rounded-[10px]`, tier-colored via `--op-*` (VRX-198). Shared by FriendsList + DashboardView so the pill is identical everywhere. Takes `label` + `tier`; geometry-only (`PILL_BASE`), consumer owns the width floor |
 | `OPENNESS_TIER` / `PILL_BASE` | `utils/instancePill.ts` | `InstanceType`→openness tier map + the shared pill geometry class string (kept out of the component file per react-refresh) |
 | `PlatformPill` | `components/PlatformPill.tsx` | Dashboard card's quiet platform label — the §5 NON-COLOR platform signifier (a11y); shared `PILL_BASE` geometry but a dim ghost outline (`--plat-*-ghost-*` tokens), label WCAG-AA legible both themes (VRX-198) |
@@ -198,6 +199,7 @@ VRX-58).
 | `CvrPipeline` (+ `CVR_RESPONSE` / `CVR_REQUEST` catalogs) | The live WS client + wire type constants (see §4) |
 | `fetchCvrFriends(fetcher)` | Single flat `GET /friends` → normalized `CvrFriend[]` (presence offline until the WS updates); per-entry defensive skip with counts; total failure throws (VRX-57). Pure, DI'd |
 | `extractCvrPlatformUserId(id)` | CVR GUID → stable lowercased `platformUserId` (survives display-name changes); rejects malformed (VRX-61) |
+| `createCvrInstanceResolver({fetcher,…})` → `{resolve, peek}` (+ `CVR_INSTANCE_TTL_MS`/`_NEGATIVE_TTL_MS`/`_CACHE_MAX`) | `resolveCvrInstance.ts` (VRX-59): TTL-cached `GET /instances/{id}` → `{worldId, worldName, worldImageUrl, playerCount, instanceName, privacy}` — the TRUE world identity the WS lacks. Failures resolve null (never throw), negative-cached 60s; bounded cache; in-flight dedupe; id URI-encoded. `CvrAdapter` enriches presence snapshots with it (worldId ← `world.id` fixes CVR hot-card world-grouping; clean `world.name` on card faces — the `stripInstanceSuffix` regex remains the unresolved-instance fallback) |
 
 ### Cross-cutting (`main/`)
 
