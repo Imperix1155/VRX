@@ -69,6 +69,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
+  /** Fences async account-scoped cache writes across session replacement. */
+  private sessionGeneration = 0
   // True once the current session has been proven this launch — by a fresh
   // login (AuthType 2 just succeeded) or ONE successful restore validation.
   // Gates the reauth in getAuthStatus so we never re-login on every status
@@ -273,6 +275,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   async getFriends(): Promise<Friend[]> {
     // Static roster only (VRX-57); live presence arrives via the pipeline below.
+    const generation = this.sessionGeneration
     let result: { friends: Friend[]; skippedRecords: number }
     try {
       result = await fetchCvrFriends((path, schema) => this.get(path, schema))
@@ -298,9 +301,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
       )
     }
-    this.friendNames.clear()
-    for (const friend of result.friends) {
-      this.friendNames.set(friend.platformUserId, friend.displayName)
+    // A login can replace the session while this roster request is in flight.
+    // Discard that stale account's names just like validateSession discards a
+    // stale auth result through currentStatusIfSwapped.
+    if (generation === this.sessionGeneration) {
+      this.friendNames.clear()
+      for (const friend of result.friends) {
+        this.friendNames.set(friend.platformUserId, friend.displayName)
+      }
     }
     return result.friends
   }
@@ -371,6 +379,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         // dead connection's roster to a future subscriber (VRX-59): the next
         // connect delivers a fresh full set anyway (CVR ONLINE_FRIENDS).
         this.lastSnapshot = null
+        this.pendingResolutions.clear()
       }
     }
   }
@@ -383,6 +392,15 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * Snapshots are idempotent full-sets, so re-emits are safe by contract.
    */
   private handlePipelineEvent(event: AdapterEvent): void {
+    if (event.type === 'connection' && event.platform === 'chilloutvr') {
+      // Every socket boundary invalidates the enrichment source, including
+      // `live`: a resolution from the previous connection must never re-emit
+      // its old full set into the fresh baseline window.
+      this.lastSnapshot = null
+      this.pendingResolutions.clear()
+      this.emit(event)
+      return
+    }
     if (event.type !== 'presence-snapshot' || event.platform !== 'chilloutvr') {
       this.emit(event)
       return
@@ -468,6 +486,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // A deliberate login can switch accounts. Never carry the prior account's
     // id→display-name roster into native alert copy for the new session.
     this.friendNames.clear()
+    this.sessionGeneration += 1
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
@@ -484,6 +503,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   private clearSession(): void {
     this.friendNames.clear()
+    this.sessionGeneration += 1
     this.session = null
     this.setCredentials(null)
     this.displayName = null
@@ -492,6 +512,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // the session died must not re-emit the pre-quarantine roster and undo the
     // VRX-195 stale-roster drop.
     this.lastSnapshot = null
+    this.pendingResolutions.clear()
     try {
       this.store.delete()
     } catch {

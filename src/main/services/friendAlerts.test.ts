@@ -134,14 +134,20 @@ describe('FriendAlerts transitions', () => {
     ])
   })
 
-  it('offline to in-game emits both online and in-game, including the worldless variant data', () => {
+  it('offline to an unknown in-game destination emits online only', () => {
     const { engine, alerts } = harness()
     engine.consume(presenceEvent(friend('offline')))
-    engine.consume(presenceEvent(friend('in-game', instance('private', null))))
-    expect(alerts).toEqual([
-      expect.objectContaining({ type: 'online', displayName: 'FriendName' }),
-      expect.objectContaining({ type: 'in-game', displayName: 'FriendName', worldName: null })
-    ])
+    engine.consume(presenceEvent(friend('in-game', null)))
+    expect(alerts).toEqual([expect.objectContaining({ type: 'online', displayName: 'FriendName' })])
+  })
+
+  it('A → traveling (unknown) → B emits exactly one in-game alert for B', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    engine.consume(presenceEvent(friend('in-game', null)))
+    engine.consume(presenceEvent(friend('in-game', instance('b', 'World B'))))
+
+    expect(alerts).toEqual([expect.objectContaining({ type: 'in-game', worldName: 'World B' })])
   })
 
   it('offline alerts exist but are disabled by default', () => {
@@ -168,6 +174,30 @@ describe('FriendAlerts transitions', () => {
     engine.consume({ type: 'friend-offline', platform: 'vrchat', platformUserId: ID })
     engine.consume(presenceEvent(friend('active')))
     expect(alerts.map((alert) => alert.type)).toEqual(['online', 'online'])
+  })
+
+  it('auth invalidation fully resets names and silently baselines a late old-socket event', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('active')))
+    expect(alerts).toHaveLength(1)
+
+    engine.consume({ type: 'auth-invalidated', platform: 'vrchat' })
+    engine.consume(presenceEvent(friend('in-game', instance('late'))))
+
+    expect(alerts).toHaveLength(1)
+  })
+
+  it('bounds per-platform presence tombstones with oldest-first eviction', () => {
+    const { engine, alerts } = harness()
+    for (let index = 0; index <= 2_048; index++) {
+      engine.consume(presenceEvent(friend('offline', null, `usr_${index}`, `Friend ${index}`)))
+    }
+
+    // usr_0 was the oldest entry and was evicted; seeing it again is a silent
+    // first sight instead of a synthetic offline→online transition.
+    engine.consume(presenceEvent(friend('active', null, 'usr_0', 'Friend 0')))
+    expect(alerts).toEqual([])
   })
 })
 
@@ -233,6 +263,22 @@ describe('FriendAlerts CVR snapshot diffing', () => {
     )
     expect(alerts).toHaveLength(2)
   })
+
+  it('silently baselines the next new id after a roster-changed trigger', () => {
+    const { engine, alerts } = harness({ names: { [CVR_ID]: 'Trinity' } })
+    engine.consume(snapshot([]))
+    engine.consume({ type: 'roster-changed', platform: 'chilloutvr' })
+    engine.consume(
+      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('accepted') }])
+    )
+    expect(alerts).toEqual([])
+
+    engine.consume(snapshot([]))
+    engine.consume(
+      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('returned') }])
+    )
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+  })
 })
 
 describe('FriendAlerts policy injection', () => {
@@ -268,5 +314,18 @@ describe('FriendAlerts policy injection', () => {
     engine.consume(presenceEvent(friend('offline', null, 'usr_4', 'Friend 4')))
     engine.consume(presenceEvent(friend('active', null, 'usr_4', 'Friend 4')))
     expect(alerts.filter((alert) => alert.type === 'online')).toHaveLength(4)
+  })
+
+  it('rate-limits enabled offline alerts to 3 per 10 seconds and counts drops', () => {
+    const { engine, alerts } = harness({ enabled: { offline: true } })
+    for (let index = 0; index < 4; index++) {
+      const id = `usr_offline_${index}`
+      engine.consume(presenceEvent(friend('active', null, id, `Friend ${index}`)))
+      engine.consume({ type: 'friend-offline', platform: 'vrchat', platformUserId: id })
+    }
+
+    expect(alerts.filter((alert) => alert.type === 'offline')).toHaveLength(3)
+    expect(engine.getDroppedCount('offline')).toBe(1)
+    expect(engine.getDroppedCount()).toBe(1)
   })
 })

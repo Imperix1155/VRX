@@ -4,6 +4,7 @@ import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 
 /** In-memory credential store recording persisted sessions + delete calls. */
 function fakeStore(
@@ -363,6 +364,54 @@ describe('CvrAdapter', () => {
       expect(adapter.resolveFriendName('missing')).toBeNull()
     })
 
+    it('discards an account-A roster cache write after account B is adopted', async () => {
+      const accountAId = 'a1b2c3d4-0000-0000-0000-000000000001'
+      const accountBId = 'a1b2c3d4-0000-0000-0000-000000000002'
+      let releaseAccountARoster!: (response: Response) => void
+      const accountARoster = new Promise<Response>((resolve) => {
+        releaseAccountARoster = resolve
+      })
+      let friendsCalls = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.endsWith('/friends')) {
+          friendsCalls += 1
+          if (friendsCalls === 1) return accountARoster
+          return Promise.resolve(
+            jsonResponse({
+              message: 'ok',
+              data: [{ id: accountBId, name: 'Account B Friend', imageUrl: null, categories: [] }]
+            })
+          )
+        }
+        return Promise.resolve(
+          jsonResponse(envelope(authPayload({ username: 'account-b', accessKey: 'key-b' })))
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'account-a', accessKey: 'key-a' }),
+        noopSleep
+      )
+
+      const staleRoster = adapter.getFriends()
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      releaseAccountARoster(
+        jsonResponse({
+          message: 'ok',
+          data: [{ id: accountAId, name: 'Account A Friend', imageUrl: null, categories: [] }]
+        })
+      )
+      await staleRoster
+      expect(adapter.resolveFriendName(accountAId)).toBeNull()
+
+      await adapter.getFriends()
+      expect(adapter.resolveFriendName(accountAId)).toBeNull()
+      expect(adapter.resolveFriendName(accountBId)).toBe('Account B Friend')
+    })
+
     it('throws rather than returning a misleading empty list when every entry is malformed', async () => {
       vi.stubGlobal(
         'fetch',
@@ -598,6 +647,94 @@ describe('CvrAdapter', () => {
       // Exactly ONE enrichment re-emit (4 total) — not one per queued snapshot.
       await new Promise((r) => setTimeout(r, 20))
       expect(snapshots).toHaveLength(4)
+      unsub()
+    })
+
+    it('cannot re-emit an old snapshot between reconnect live and the fresh baseline', async () => {
+      let releaseResolution!: (response: Response) => void
+      const held = new Promise<Response>((resolve) => {
+        releaseResolution = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => held)
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const alerts: FriendAlert[] = []
+      const friendAlerts = new FriendAlerts({
+        notify: (alert) => alerts.push(alert),
+        clock: () => 0,
+        isEnabled: () => true,
+        resolveName: () => 'Known Friend'
+      })
+      const snapshots: AdapterEvent[] = []
+      const unsub = adapter.subscribe((event) => {
+        friendAlerts.consume(event)
+        if (event.type === 'presence-snapshot') snapshots.push(event)
+      })
+      const drive = adapter as unknown as {
+        handlePipelineEvent: (event: AdapterEvent) => void
+      }
+      const oldSnapshot: AdapterEvent = {
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: [
+          {
+            platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+            presence: { state: 'in-game' },
+            instance: {
+              worldId: 'i_old',
+              instanceId: 'i_old',
+              worldName: taggedName,
+              thumbnailUrl: null,
+              type: 'public',
+              openness: 'public',
+              isGroup: false,
+              groupName: null,
+              region: null,
+              userCount: null
+            }
+          }
+        ]
+      }
+
+      drive.handlePipelineEvent({
+        type: 'connection',
+        platform: 'chilloutvr',
+        health: 'live'
+      })
+      drive.handlePipelineEvent(oldSnapshot)
+      drive.handlePipelineEvent({
+        type: 'connection',
+        platform: 'chilloutvr',
+        health: 'reconnecting'
+      })
+      drive.handlePipelineEvent({
+        type: 'connection',
+        platform: 'chilloutvr',
+        health: 'live'
+      })
+
+      // The old lookup settles inside the vulnerable live→new-snapshot gap.
+      releaseResolution(jsonResponse(envelope(instanceDetail)))
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(snapshots).toHaveLength(1)
+
+      drive.handlePipelineEvent({
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: [
+          {
+            platformUserId: 'a1b2c3d4-0000-0000-0000-000000000002',
+            presence: { state: 'in-game' },
+            instance: null
+          }
+        ]
+      })
+      expect(snapshots).toHaveLength(2)
+      expect(alerts).toEqual([])
       unsub()
     })
 

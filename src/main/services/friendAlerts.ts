@@ -26,7 +26,8 @@ interface FriendAlertsOptions {
 
 const RATE_LIMIT_COUNT = 3
 const RATE_LIMIT_WINDOW_MS = 10_000
-const RATE_LIMITED_TYPES: ReadonlySet<FriendAlertType> = new Set(['online', 'in-game'])
+const RATE_LIMITED_TYPES: ReadonlySet<FriendAlertType> = new Set(['online', 'in-game', 'offline'])
+const MAX_PRESENCE_ENTRIES_PER_PLATFORM = 2_048
 
 /**
  * Pure friend-presence transition engine (VRX-84). It consumes the same
@@ -37,13 +38,16 @@ export class FriendAlerts {
   private readonly presence = new Map<Platform, Map<string, KnownPresence>>()
   private readonly names = new Map<Platform, Map<string, string>>()
   private readonly snapshotBaselined = new Map<Platform, boolean>()
-  private readonly emittedAt: Record<'online' | 'in-game', number[]> = {
+  private readonly baselineNextNewId = new Set<Platform>()
+  private readonly emittedAt: Record<FriendAlertType, number[]> = {
     online: [],
-    'in-game': []
+    'in-game': [],
+    offline: []
   }
-  private readonly dropped: Record<'online' | 'in-game', number> = {
+  private readonly dropped: Record<FriendAlertType, number> = {
     online: 0,
-    'in-game': 0
+    'in-game': 0,
+    offline: 0
   }
 
   constructor(private readonly options: FriendAlertsOptions) {}
@@ -93,13 +97,29 @@ export class FriendAlerts {
         this.consumePresenceSnapshot(event)
         return
       case 'roster-changed':
+        // The event is trigger-only: the new roster arrives asynchronously over
+        // REST, so we cannot safely evict ids yet. Silence exactly the next new
+        // id instead; accepting an already-online friend is not a transition.
+        this.baselineNextNewId.add(event.platform)
+        return
       case 'auth-invalidated':
+        this.resetPlatform(event.platform)
         return
     }
   }
 
-  getDroppedCount(type?: 'online' | 'in-game'): number {
-    return type === undefined ? this.dropped.online + this.dropped['in-game'] : this.dropped[type]
+  getDroppedCount(type?: FriendAlertType): number {
+    return type === undefined
+      ? this.dropped.online + this.dropped['in-game'] + this.dropped.offline
+      : this.dropped[type]
+  }
+
+  /** Clear all alert state at an authentication/account boundary. */
+  resetPlatform(platform: Platform): void {
+    this.platformPresence(platform).clear()
+    this.platformNames(platform).clear()
+    this.snapshotBaselined.set(platform, false)
+    this.baselineNextNewId.delete(platform)
   }
 
   private consumePresenceSnapshot(
@@ -111,7 +131,11 @@ export class FriendAlerts {
     if (firstSnapshot) {
       current.clear()
       for (const entry of event.entries) {
-        current.set(entry.platformUserId, this.fromPresence(entry.presence.state, entry.instance))
+        this.setPresence(
+          current,
+          entry.platformUserId,
+          this.fromPresence(entry.presence.state, entry.instance)
+        )
       }
       this.snapshotBaselined.set(event.platform, true)
       return
@@ -133,16 +157,6 @@ export class FriendAlerts {
     }
 
     for (const entry of event.entries) {
-      // After the full baseline, a newly appearing snapshot id was absent from
-      // the preceding full set, which is CVR's representation of offline.
-      if (!current.has(entry.platformUserId)) {
-        current.set(entry.platformUserId, {
-          state: 'offline',
-          instanceId: null,
-          worldId: null,
-          worldName: null
-        })
-      }
       this.applyPresence(
         event.platform,
         entry.platformUserId,
@@ -160,9 +174,12 @@ export class FriendAlerts {
   ): void {
     const platformPresence = this.platformPresence(platform)
     const previous = platformPresence.get(platformUserId)
-    platformPresence.set(platformUserId, next)
+    this.setPresence(platformPresence, platformUserId, next)
 
-    if (previous === undefined && baselineOnFirstSight) return
+    if (previous === undefined) {
+      const rosterBaseline = this.baselineNextNewId.delete(platform)
+      if (baselineOnFirstSight || rosterBaseline) return
+    }
 
     const before = previous ?? {
       state: 'offline',
@@ -179,7 +196,10 @@ export class FriendAlerts {
 
     const enteredDifferentInstance =
       next.state === 'in-game' &&
-      (before.state !== 'in-game' || !this.isSameInstance(platform, before, next))
+      next.instanceId !== null &&
+      (before.state !== 'in-game' ||
+        before.instanceId === null ||
+        !this.isSameInstance(platform, before, next))
     if (enteredDifferentInstance) {
       this.fire('in-game', platform, platformUserId, next.worldName)
     }
@@ -203,6 +223,9 @@ export class FriendAlerts {
       this.platformNames(platform).get(platformUserId) ??
       this.options.resolveName(platform, platformUserId)
     // Never fall back to an opaque platform id in a user-facing notification.
+    // The main process warms the roster on first live connection to narrow this
+    // window; a transition that still arrives before a readable name is known is
+    // intentionally not replayed later because presence has already advanced.
     if (displayName == null || displayName.trim() === '') return
 
     if (!this.withinRateLimit(type)) return
@@ -212,7 +235,10 @@ export class FriendAlerts {
   private withinRateLimit(type: FriendAlertType): boolean {
     if (!RATE_LIMITED_TYPES.has(type)) return true
 
-    const limitedType = type as 'online' | 'in-game'
+    const limitedType = type
+    // Intentional wall-clock semantics: the injected production clock is
+    // Date.now(), so manual clock rollback can extend suppression. A monotonic
+    // refactor is separate from this bounded burst-control fix.
     const now = this.options.clock()
     const cutoff = now - RATE_LIMIT_WINDOW_MS
     const recent = this.emittedAt[limitedType].filter((timestamp) => timestamp > cutoff)
@@ -225,13 +251,26 @@ export class FriendAlerts {
     return true
   }
 
-  private resetPlatform(platform: Platform): void {
-    this.platformPresence(platform).clear()
-    this.snapshotBaselined.set(platform, false)
-  }
-
   private rememberName(friend: Friend): void {
     this.platformNames(friend.platform).set(friend.platformUserId, friend.displayName)
+  }
+
+  private setPresence(
+    platformPresence: Map<string, KnownPresence>,
+    platformUserId: string,
+    presence: KnownPresence
+  ): void {
+    // Full-snapshot absence leaves offline tombstones behind. Bound them so
+    // long-running sessions/account churn cannot grow this map without limit;
+    // Map insertion order gives us a cheap oldest-first eviction policy.
+    if (
+      !platformPresence.has(platformUserId) &&
+      platformPresence.size >= MAX_PRESENCE_ENTRIES_PER_PLATFORM
+    ) {
+      const oldest = platformPresence.keys().next().value
+      if (oldest !== undefined) platformPresence.delete(oldest)
+    }
+    platformPresence.set(platformUserId, presence)
   }
 
   private fromFriend(friend: Friend): KnownPresence {
