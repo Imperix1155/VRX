@@ -1,10 +1,11 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, PresenceState } from '@shared/types'
+import type { Friend, FriendSection } from '@shared/types'
 import { useFriends, combineFriendQueries } from '../queries/friends'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
 
@@ -246,8 +247,79 @@ const FriendRow = memo(function FriendRow({ friend }: { friend: Friend }): React
   )
 })
 
-/** Sort rank for the online-first list order: lower = higher on the list. */
-const PRESENCE_ORDER: Record<PresenceState, number> = { 'in-game': 0, active: 1, offline: 2 }
+/** Section header i18n keys (VRX-67) — a lookup map, not template-literal keys,
+ *  so the i18n key-existence scan (parity.test.ts) can see them (quoted literals). */
+const SECTION_LABEL_KEY: Record<FriendSection, string> = {
+  'in-game': 'friends.section.inGame',
+  online: 'friends.section.online',
+  offline: 'friends.section.offline'
+}
+
+/**
+ * Chevron glyph for a collapsible section header — rotates -90° when
+ * collapsed (§5: a non-color signifier, `aria-expanded` is the real a11y
+ * state; this is the visual echo).
+ */
+function ChevronGlyph({ collapsed }: { collapsed: boolean }): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`h-[14px] w-[14px] shrink-0 motion-safe:transition-transform ${
+        collapsed ? '-rotate-90' : ''
+      }`}
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
+/**
+ * Sticky, collapsible presence-section header (VRX-67). A real `<button>` with
+ * `aria-expanded` — keyboard accessible for free. Sticks to the top of the
+ * existing `<main>` scroll container; the background is opaque enough (a
+ * `--bg-base` color-mix, not the translucent `.glass` recipe) that rows don't
+ * bleed through as they scroll underneath.
+ */
+function SectionHeader({
+  section,
+  count,
+  collapsed,
+  onToggle
+}: {
+  section: FriendSection
+  count: number
+  collapsed: boolean
+  onToggle: () => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      // Only reference the list while it EXISTS — a collapsed section unmounts
+      // its <ul> (per AC), and a dangling aria-controls id is an a11y defect
+      // (Sol review, Med). aria-expanded alone carries the collapsed state.
+      aria-controls={collapsed ? undefined : `friends-section-${section}`}
+      className={[
+        'sticky top-0 z-10 flex w-full items-center gap-[var(--space-2)]',
+        'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
+        'bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] backdrop-blur-md',
+        'text-xs font-semibold tracking-widest text-[var(--text-dim)] uppercase',
+        'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
+      ].join(' ')}
+    >
+      <ChevronGlyph collapsed={collapsed} />
+      {t(SECTION_LABEL_KEY[section], { count })}
+    </button>
+  )
+}
 
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
@@ -261,18 +333,19 @@ export default function FriendsList(): React.JSX.Element {
     useFriends('chilloutvr')
   )
 
-  // Online-first ordering (a thin slice of VRX-67's presence sections — the
-  // roster arrives in adapter/alphabetical order, burying who's actually on):
-  // in-game, then active (VRChat web-online), then offline; alphabetical within
-  // each band. Applied to BOTH platforms identically (platform-parity rule).
-  const sortedFriends =
-    friends === undefined
-      ? undefined
-      : [...friends].sort(
-          (a, b) =>
-            PRESENCE_ORDER[a.presence.state] - PRESENCE_ORDER[b.presence.state] ||
-            a.displayName.localeCompare(b.displayName, undefined, { sensitivity: 'base' })
-        )
+  // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
+  // within each section — SUPERSEDES the old flat online-first ordering. Counts
+  // reflect `friends` (already scoped to the global platform filter above).
+  const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const sections = friends === undefined ? undefined : groupFriendsBySection(friends)
+
+  function toggleSection(section: FriendSection): void {
+    const next = collapsedSections.includes(section)
+      ? collapsedSections.filter((s) => s !== section)
+      : [...collapsedSections, section]
+    updateSettings({ collapsedFriendSections: next })
+  }
 
   return (
     <section
@@ -303,11 +376,39 @@ export default function FriendsList(): React.JSX.Element {
       {friends && friends.length === 0 && (
         <p className="text-sm text-[var(--text-faint)]">{t('friends.empty')}</p>
       )}
-      <ul className="flex flex-col gap-[var(--space-1)]">
-        {sortedFriends?.map((f) => (
-          <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
-        ))}
-      </ul>
+      {friends && friends.length > 0 && sections && (
+        <div className="flex flex-col gap-[var(--space-2)]">
+          {sections.map(({ section, friends: sectionFriends }) => {
+            const collapsed = collapsedSections.includes(section)
+            return (
+              <div key={section}>
+                <SectionHeader
+                  section={section}
+                  count={sectionFriends.length}
+                  collapsed={collapsed}
+                  onToggle={() => toggleSection(section)}
+                />
+                {!collapsed && (
+                  <ul
+                    id={`friends-section-${section}`}
+                    // Name the list so SR list navigation identifies WHICH
+                    // presence section it is (Sol review, Med) — count included,
+                    // same string as the visible header.
+                    aria-label={t(SECTION_LABEL_KEY[section], {
+                      count: sectionFriends.length
+                    })}
+                    className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
+                  >
+                    {sectionFriends.map((f) => (
+                      <FriendRow key={`${f.platform}:${f.platformUserId}`} friend={f} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }
