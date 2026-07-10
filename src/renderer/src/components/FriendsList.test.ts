@@ -40,7 +40,7 @@ vi.mock('../stores/settings', () => ({
 const platformFilter = vi.hoisted(() => ({ current: 'vrchat' }))
 vi.mock('../stores/friends', () => ({
   useFriendsStore: <T>(selector: (state: unknown) => T): T =>
-    selector({ platformFilter: platformFilter.current })
+    selector({ platformFilter: platformFilter.current, search: '', setSearch: () => {} })
 }))
 
 import FriendsList from './FriendsList'
