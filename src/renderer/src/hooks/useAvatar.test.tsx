@@ -66,7 +66,7 @@ describe('useAvatar', () => {
 
     first.unmount()
     render(<Harness url={url} />)
-    observers[observers.length - 1]?.intersect(true)
+    observers.at(-1)?.intersect(true)
     await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
     expect(getAvatar).toHaveBeenCalledTimes(1)
   })
