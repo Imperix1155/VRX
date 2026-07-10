@@ -10,6 +10,7 @@ function invoke<K extends keyof IpcInvoke>(
 
 const vrx = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
+  getAvatar: (url: string) => invoke('get-avatar', { url }),
   getAccounts: () => invoke('get-accounts', undefined),
   getAuthStatus: (req: IpcInvoke['get-auth-status']['req']) => invoke('get-auth-status', req),
   login: (req: IpcInvoke['login']['req']) => invoke('login', req),

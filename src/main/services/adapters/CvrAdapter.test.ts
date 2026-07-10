@@ -1051,6 +1051,25 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
     expect(await adapter.login(creds)).toEqual({ ok: true })
   })
 
+  it('repeated network validation failures do not block a subsequent correct login', async () => {
+    const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+    const adapter = new CvrAdapter(store, noopSleep)
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('offline')))
+    )
+    for (let i = 0; i < 3; i++) {
+      expect((await adapter.getAuthStatus()).state).toBe('error')
+    }
+
+    const loginFetch = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+    vi.stubGlobal('fetch', loginFetch)
+
+    expect(await adapter.login(creds)).toEqual({ ok: true })
+    expect(loginFetch).toHaveBeenCalledTimes(1)
+  })
+
   it('schema-drifted validation reports error without clearing or poisoning login', async () => {
     const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
     const adapter = new CvrAdapter(store, noopSleep)

@@ -67,25 +67,27 @@ export abstract class CvrApiClient extends BaseAdapter {
   }
 
   /**
-   * Raw CVR auth call for BOTH legs — interactive password login (AuthType 2)
-   * and session-restore reauth (AuthType 1). Bypasses `request<T>` so auth
-   * NEVER touches the circuit breaker: a wrong password / dead key comes back as
-   * a clean non-2xx for the caller to interpret, and an AUTOMATIC session
-   * validation failure (flaky boot, schema drift) can't record breaker failures
-   * that would later lock out an interactive login (VRX-157/VRX-37; the
-   * guarded-reauth-poisons-login bug Codex caught, 2026-07-06). The caller
-   * parses the `{ message, data }` envelope via `cvrAuthEnvelopeSchema`.
+   * Raw CVR auth call for both interactive password login (AuthType 2) and
+   * session-restore reauth (AuthType 1). It bypasses `request<T>` so non-2xx
+   * responses remain available for the caller to interpret. Automatic
+   * validation additionally opts out of recording network throws against the
+   * shared circuit breaker; interactive login retains the default behavior.
    */
   protected authenticateRaw(
     authType: 1 | 2,
     username: string,
-    password: string
+    password: string,
+    options?: { recordCircuitFailure?: boolean }
   ): Promise<Response> {
-    return this.rawRequest(CVR_API_BASE + '/users/auth', {
-      method: 'POST',
-      headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
-    })
+    return this.rawRequest(
+      CVR_API_BASE + '/users/auth',
+      {
+        method: 'POST',
+        headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
+      },
+      options
+    )
   }
 
   private async requestData<T>(

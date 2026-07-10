@@ -119,10 +119,11 @@ describe('FriendsList presence sections — interaction (VRX-67)', () => {
   })
 
   it('section header counts update live as the friend data changes', () => {
+    let vrchatFriends = [mk('Anna', 'in-game'), mk('Ben', 'in-game')]
     useFriendsMock.mockImplementation((platform: string) =>
       platform === 'vrchat'
         ? {
-            data: [mk('Anna', 'in-game'), mk('Ben', 'in-game')],
+            data: vrchatFriends,
             isPending: false,
             isError: false,
             isFetching: false,
@@ -130,8 +131,15 @@ describe('FriendsList presence sections — interaction (VRX-67)', () => {
           }
         : { data: [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }
     )
-    render(<FriendsList />)
+    const { rerender } = render(<FriendsList />)
     expect(screen.getByRole('button', { name: /In-Game \(2\)/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Online \(0\)/ })).toBeTruthy()
+
+    vrchatFriends = [mk('Chris', 'active'), mk('Drew', 'offline')]
+    rerender(<FriendsList />)
+
+    expect(screen.getByRole('button', { name: /In-Game \(0\)/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Online \(1\)/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Offline \(1\)/ })).toBeTruthy()
   })
 })
