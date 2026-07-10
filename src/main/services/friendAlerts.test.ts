@@ -199,6 +199,32 @@ describe('FriendAlerts transitions', () => {
     engine.consume(presenceEvent(friend('active', null, 'usr_0', 'Friend 0')))
     expect(alerts).toEqual([])
   })
+
+  it('bounds retained names in the reviewer 10000-id online-to-offline replay shape', () => {
+    const live = harness()
+    for (let index = 0; index < 10_000; index++) {
+      live.engine.consume(
+        presenceEvent(friend('active', null, `usr_live_${index}`, `Live Friend ${index}`))
+      )
+    }
+    const liveState = live.engine as unknown as {
+      names: Map<Platform, Map<string, string>>
+    }
+    expect(liveState.names.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
+
+    const replay = harness()
+    for (let index = 0; index < 10_000; index++) {
+      const id = `usr_${index}`
+      replay.engine.consume(presenceEvent(friend('active', null, id, `Friend ${index}`)))
+      replay.engine.consume({ type: 'friend-offline', platform: 'vrchat', platformUserId: id })
+    }
+    const state = replay.engine as unknown as {
+      presence: Map<Platform, Map<string, unknown>>
+      names: Map<Platform, Map<string, string>>
+    }
+    expect(state.presence.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
+    expect(state.names.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
+  })
 })
 
 describe('FriendAlerts CVR snapshot diffing', () => {
@@ -257,6 +283,7 @@ describe('FriendAlerts CVR snapshot diffing', () => {
       ])
     )
     expect(alerts).toHaveLength(2)
+    expect(alerts.find((alert) => alert.type === 'in-game')).toMatchObject({ worldName: null })
 
     engine.consume(
       snapshot([

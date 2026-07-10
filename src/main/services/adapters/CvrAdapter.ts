@@ -88,6 +88,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // REST roster's names in main so native notifications can resolve readable
   // copy without fabricating profile fields on AdapterEvent.
   private readonly friendNames = new Map<string, string>()
+  /** Monotonic order fence: only the newest same-generation roster may write names. */
+  private friendNamesRequestSequence = 0
 
   // ── Instance enrichment (VRX-59) ──
   // The WS wire has no world id/thumbnail and only the creator-set instance
@@ -279,43 +281,55 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async getFriends(): Promise<Friend[]> {
-    // Static roster only (VRX-57); live presence arrives via the pipeline below.
-    const generation = this.sessionGeneration
-    let result: { friends: Friend[]; skippedRecords: number }
-    try {
-      result = await fetchCvrFriends((path, schema) => this.get(path, schema))
-    } catch (error) {
-      // The data path is where a dead session surfaces (VRX-190): getAuthStatus
-      // trusts the session without re-authing, so a 401 here IS the signal that
-      // the accessKey died — clear it so the UI reflects logged-out, then let
-      // the error propagate for the "couldn't load" state.
-      if (error instanceof CVRAuthError) {
-        // Dead access key on the data path — clear the session AND tell the
-        // renderer, which has no other signal that auth changed out of band, so
-        // the Accounts card stops showing a stale "connected" (VRX-195).
-        this.clearSession()
-        this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+    for (;;) {
+      // Static roster only (VRX-57); live presence arrives via the pipeline below.
+      const generation = this.sessionGeneration
+      const requestSequence = ++this.friendNamesRequestSequence
+      let result: { friends: Friend[]; skippedRecords: number }
+      try {
+        result = await fetchCvrFriends((path, schema) => this.get(path, schema))
+      } catch (error) {
+        // A different account landed while this request was in flight. Its error
+        // must neither clear the current session nor fail the current caller.
+        if (generation !== this.sessionGeneration) continue
+
+        // The data path is where a dead session surfaces (VRX-190): getAuthStatus
+        // trusts the session without re-authing, so a 401 here IS the signal that
+        // the accessKey died — clear it so the UI reflects logged-out, then let
+        // the error propagate for the "couldn't load" state.
+        if (error instanceof CVRAuthError) {
+          // Dead access key on the data path — clear the session AND tell the
+          // renderer, which has no other signal that auth changed out of band, so
+          // the Accounts card stops showing a stale "connected" (VRX-195).
+          this.clearSession()
+          this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+        }
+        throw error
       }
-      throw error
-    }
-    // Everything was dropped as malformed → surface an error rather than a
-    // misleading empty list (UI shows "couldn't load", not "no friends"), the
-    // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
-    if (result.skippedRecords > 0 && result.friends.length === 0) {
-      throw new CVRNetworkError(
-        `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
-      )
-    }
-    // A login can replace the session while this roster request is in flight.
-    // Discard that stale account's names just like validateSession discards a
-    // stale auth result through currentStatusIfSwapped.
-    if (generation === this.sessionGeneration) {
-      this.friendNames.clear()
-      for (const friend of result.friends) {
-        this.friendNames.set(friend.platformUserId, friend.displayName)
+
+      // Check staleness before normalization errors or returning account data.
+      if (generation !== this.sessionGeneration) continue
+
+      // Everything was dropped as malformed → surface an error rather than a
+      // misleading empty list (UI shows "couldn't load", not "no friends"), the
+      // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
+      if (result.skippedRecords > 0 && result.friends.length === 0) {
+        throw new CVRNetworkError(
+          `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
+        )
       }
+
+      // Overlapping renderer and socket-warm fetches are expected. Both callers
+      // may use their own result, but an older response must not overwrite the
+      // name cache established by the newest request in this generation.
+      if (requestSequence === this.friendNamesRequestSequence) {
+        this.friendNames.clear()
+        for (const friend of result.friends) {
+          this.friendNames.set(friend.platformUserId, friend.displayName)
+        }
+      }
+      return result.friends
     }
-    return result.friends
   }
 
   /** Resolve an id-only CVR presence entry against the latest REST roster. */
@@ -329,28 +343,30 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * one with graceful-null semantics.
    */
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
-    const generation = this.sessionGeneration
-    const resolved = await this.instanceResolver.resolve(instanceId)
-    if (generation !== this.sessionGeneration) {
-      throw new CVRNetworkError('CVR session changed while resolving the instance')
-    }
-    if (resolved === null) {
-      throw new CVRNetworkError('CVR instance is private or could not be resolved')
-    }
-    const access = parseCvrPrivacy(resolved.privacy)
-    return {
-      // True world id when the API supplied one; the instance id otherwise
-      // (same fallback the WS path uses — keys stay consistent either way).
-      worldId: resolved.worldId ?? instanceId,
-      instanceId,
-      worldName: resolved.worldName ?? resolved.instanceName,
-      thumbnailUrl: resolved.worldImageUrl,
-      type: access.type,
-      openness: access.openness,
-      isGroup: access.isGroup,
-      groupName: null,
-      region: null,
-      userCount: resolved.playerCount
+    for (;;) {
+      const generation = this.sessionGeneration
+      const resolved = await this.instanceResolver.resolve(instanceId)
+      // Never return an old session's success or surface its null/failure as the
+      // current call's outcome. Resolve again through the current session.
+      if (generation !== this.sessionGeneration) continue
+      if (resolved === null) {
+        throw new CVRNetworkError('CVR instance is private or could not be resolved')
+      }
+      const access = parseCvrPrivacy(resolved.privacy)
+      return {
+        // True world id when the API supplied one; the instance id otherwise
+        // (same fallback the WS path uses — keys stay consistent either way).
+        worldId: resolved.worldId ?? instanceId,
+        instanceId,
+        worldName: resolved.worldName ?? resolved.instanceName,
+        thumbnailUrl: resolved.worldImageUrl,
+        type: access.type,
+        openness: access.openness,
+        isGroup: access.isGroup,
+        groupName: null,
+        region: null,
+        userCount: resolved.playerCount
+      }
     }
   }
   joinInstance(): Promise<void> {
@@ -436,7 +452,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       entries: snapshot.entries.map((entry) => {
         if (entry.instance == null) return entry
         const resolved = this.instanceResolver.peek(entry.instance.instanceId)
-        if (resolved == null) return entry // unknown or unresolvable → wire values
+        if (resolved == null) {
+          // Instance.Name is creator-set copy, not a world name. Preserve the
+          // immediate event but omit world copy until the authoritative resolver
+          // supplies world.name for this instance id.
+          return { ...entry, instance: { ...entry.instance, worldName: null } }
+        }
         return { ...entry, instance: this.mergeResolved(entry.instance, resolved) }
       })
     }
@@ -448,7 +469,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return {
       ...instance,
       worldId: resolved.worldId ?? instance.worldId,
-      worldName: resolved.worldName ?? instance.worldName,
+      // Only resolver world.name is authoritative; instanceName is a label.
+      worldName: resolved.worldName,
       thumbnailUrl: resolved.worldImageUrl ?? instance.thumbnailUrl,
       userCount: resolved.playerCount ?? instance.userCount
     }
@@ -552,6 +574,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private bumpSessionGeneration(): void {
     this.sessionGeneration += 1
     this.friendNames.clear()
+    this.friendNamesRequestSequence = 0
     this.instanceResolver.clear()
     this.lastSnapshot = null
     this.pendingResolutions.clear()

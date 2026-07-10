@@ -152,7 +152,7 @@ VRX-58).
 
 | Store | State | Actions |
 | --- | --- | --- |
-| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**accounts**) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
+| `useUiStore` (`stores/ui.ts`) | `activeTab: ActiveTab`, `drawerOpen`, `settingsCategory: SettingsCategory` (session-only, VRX-186; `SETTINGS_CATEGORIES` = appearance/dashboard/**accounts**/notifications) | `setActiveTab`, `setDrawerOpen`, `toggleDrawer`, `setSettingsCategory` · constant: `SETTINGS_CATEGORIES` |
 | `useSettingsStore` (`stores/settings.ts`) | `settings: Settings`, `dirty` | `setSettings`, `updateSettings(patch)`, `markSaved` — persisted via `useSettingsPersistence` (VRX-184) |
 | `useFriendsStore` (`stores/friends.ts`) | `search`, `platformFilter` (VRX-66: a GLOBAL social filter — TopBar's slider writes it; `FriendsList`, `DashboardView`, and the TopBar online count all read it. Settings is the only social-exempt surface), `selectedFriendId` | `setSearch`, `setPlatformFilter`, `setSelectedFriendId` |
 | `useAccountsStore` (`stores/accounts.ts`) | `accounts[]` | `fetchAccounts()`, `activeAccount(platform)` |
@@ -203,7 +203,7 @@ VRX-58).
 | `CvrPipeline` (+ `CVR_RESPONSE` / `CVR_REQUEST` catalogs) | The live WS client + wire type constants (see §4) |
 | `fetchCvrFriends(fetcher)` | Single flat `GET /friends` → normalized `CvrFriend[]` (presence offline until the WS updates); per-entry defensive skip with counts; total failure throws (VRX-57). Pure, DI'd |
 | `extractCvrPlatformUserId(id)` | CVR GUID → stable lowercased `platformUserId` (survives display-name changes); rejects malformed (VRX-61) |
-| `createCvrInstanceResolver({fetcher,…})` → `{resolve, peek}` (+ `CVR_INSTANCE_TTL_MS`/`_NEGATIVE_TTL_MS`/`_CACHE_MAX`) | `resolveCvrInstance.ts` (VRX-59): TTL-cached `GET /instances/{id}` → `{worldId, worldName, worldImageUrl, playerCount, instanceName, privacy}` — the TRUE world identity the WS lacks. Failures resolve null (never throw), negative-cached 60s; bounded cache; in-flight dedupe; id URI-encoded. `CvrAdapter` enriches presence snapshots with it (worldId ← `world.id` fixes CVR hot-card world-grouping; clean `world.name` on card faces — the `stripInstanceSuffix` regex remains the unresolved-instance fallback) |
+| `createCvrInstanceResolver({fetcher,…})` → `{resolve, peek, clear}` (+ `CVR_INSTANCE_TTL_MS`/`_NEGATIVE_TTL_MS`/`_CACHE_MAX`) | `resolveCvrInstance.ts` (VRX-59): TTL-cached `GET /instances/{id}` → `{worldId, worldName, worldImageUrl, playerCount, instanceName, privacy}` — the TRUE world identity the WS lacks. Failures resolve null (never throw), negative-cached 60s; bounded cache; in-flight dedupe; id URI-encoded. `CvrAdapter` enriches presence snapshots with it (worldId ← `world.id` fixes CVR hot-card world-grouping; clean `world.name` on card faces — the `stripInstanceSuffix` regex remains the unresolved-instance fallback) |
 
 ### Cross-cutting (`main/`)
 

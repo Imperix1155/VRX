@@ -168,8 +168,16 @@ export class VrcAdapter extends VrcApiClient {
     if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
 
     // The `auth` cookie is needed for the 2FA verify call AND the authed session.
+    // Installing it replaces the account boundary immediately — including when
+    // the body below says 2FA is still required. Fence and replace the old
+    // account's pipeline before returning control to the renderer's 2FA prompt.
     const authCookie = extractCookie(response.headers.getSetCookie(), 'auth')
-    if (authCookie) this.setCookie(authCookie)
+    if (authCookie) {
+      this.setCookie(authCookie)
+      this.displayName = null
+      this.pendingTwoFactorMethod = null
+      this.bumpSessionGeneration()
+    }
 
     let body: unknown
     try {
@@ -186,7 +194,9 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     this.displayName = parsed.data.displayName
-    this.bumpSessionGeneration()
+    // A response without a replacement cookie still completed a deliberate
+    // login, so preserve the established successful-login boundary behavior.
+    if (!authCookie) this.bumpSessionGeneration()
     this.persist()
     return { ok: true }
   }
@@ -250,6 +260,9 @@ export class VrcAdapter extends VrcApiClient {
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 
+    // A failed refresh must not expose an own-account name cached before this
+    // 2FA boundary (including a name from a different prior account).
+    this.displayName = null
     this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
@@ -326,55 +339,65 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   async getFriends(): Promise<Friend[]> {
-    try {
-      const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
-        this.get(path, schema)
-      )
-      // If anything failed (page fetches OR schema-drifted records) AND we got
-      // nothing, surface an error rather than a misleading empty list (the UI shows
-      // "couldn't load" instead of "no friends"). A partial result is still returned
-      // as graceful degradation; signalling partial failure to the UI is a follow-up.
-      if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
-        // Carry both counters so logs can tell transport failure from pure schema
-        // drift (failedPages=0, skippedRecords>0 means the wire was fine).
-        throw new NetworkError(
-          `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+    for (;;) {
+      const generation = this.sessionGeneration
+      try {
+        const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
+          this.get(path, schema)
         )
-      }
-
-      // Enrich friends with world names via the shared resolver (VRX-163).
-      // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
-      // so a world-resolution failure does NOT break the friend list — friends are
-      // returned as-is with worldName/thumbnailUrl staying null. A dead-session
-      // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
-      // catch below and emits auth-invalidated (VRX-197).
-      const worlds = await fetchWorldMetadata(
-        friends.map((f) => f.instance?.worldId ?? null),
-        this.worldResolver
-      )
-      for (const friend of friends) {
-        if (friend.instance) {
-          const meta = worlds.get(friend.instance.worldId)
-          friend.instance.worldName = meta?.name ?? null
-          friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+        // If anything failed (page fetches OR schema-drifted records) AND we got
+        // nothing, surface an error rather than a misleading empty list (the UI shows
+        // "couldn't load" instead of "no friends"). A partial result is still returned
+        // as graceful degradation; signalling partial failure to the UI is a follow-up.
+        if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
+          // Carry both counters so logs can tell transport failure from pure schema
+          // drift (failedPages=0, skippedRecords>0 means the wire was fine).
+          throw new NetworkError(
+            `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+          )
         }
-      }
 
-      return friends
-    } catch (error) {
-      // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
-      // friend page, OR world-name enrichment — means the cookie is dead/2FA-
-      // expired. One emit point for the whole flow: signal the renderer to
-      // re-check auth + quarantine so a stale "connected" card flips to reconnect
-      // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
-      // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
-      // unauthenticated; a blunt clear would force a full re-login. NetworkError
-      // and other failures just propagate untouched.
-      if (error instanceof AuthError) {
-        this.bumpSessionGeneration()
-        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        // Enrich friends with world names via the shared resolver (VRX-163).
+        // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
+        // so a world-resolution failure does NOT break the friend list — friends are
+        // returned as-is with worldName/thumbnailUrl staying null. A dead-session
+        // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
+        // catch below and emits auth-invalidated (VRX-197).
+        const worlds = await fetchWorldMetadata(
+          friends.map((f) => f.instance?.worldId ?? null),
+          this.worldResolver
+        )
+        for (const friend of friends) {
+          if (friend.instance) {
+            const meta = worlds.get(friend.instance.worldId)
+            friend.instance.worldName = meta?.name ?? null
+            friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+          }
+        }
+
+        // A different account landed while this roster was in flight. Never
+        // return the old account's success; retry using the current session.
+        if (generation !== this.sessionGeneration) continue
+        return friends
+      } catch (error) {
+        // Staleness is checked before auth invalidation or any other outcome.
+        // The old account's failure is irrelevant to the current session.
+        if (generation !== this.sessionGeneration) continue
+
+        // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
+        // friend page, OR world-name enrichment — means the cookie is dead/2FA-
+        // expired. One emit point for the whole flow: signal the renderer to
+        // re-check auth + quarantine so a stale "connected" card flips to reconnect
+        // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
+        // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
+        // unauthenticated; a blunt clear would force a full re-login. NetworkError
+        // and other failures just propagate untouched.
+        if (error instanceof AuthError) {
+          this.bumpSessionGeneration()
+          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        }
+        throw error
       }
-      throw error
     }
   }
   getInstanceDetails(): Promise<InstanceInfo> {
