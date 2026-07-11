@@ -26,6 +26,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
+import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
@@ -455,6 +456,10 @@ app
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
     friendAlertBoundary.current = friendAlerts
+
+    // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
+    // endpoint 401s unauthenticated). Late-wired so logout/rotation apply on read.
+    avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
 
     registerIpcHandlers(adapters)
 
