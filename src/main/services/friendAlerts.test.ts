@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
-import { FriendAlerts, type FriendAlert, type FriendAlertType } from './friendAlerts'
+import {
+  FriendAlerts,
+  type FriendAlert,
+  type FriendAlertType,
+  type HotInstanceAlert
+} from './friendAlerts'
 
 const ID = 'usr_friend'
 
@@ -74,19 +79,23 @@ function snapshot(
 function harness(options?: {
   enabled?: Partial<Record<FriendAlertType, boolean>>
   names?: Record<string, string>
+  threshold?: number
 }): {
   engine: FriendAlerts
   alerts: FriendAlert[]
   setNow: (next: number) => void
+  setThreshold: (next: number) => void
   enabled: Record<FriendAlertType, boolean>
   isEnabled: ReturnType<typeof vi.fn>
 } {
   let now = 0
+  let threshold = options?.threshold ?? 2
   const alerts: FriendAlert[] = []
   const enabled = {
     online: true,
     'in-game': true,
     offline: false,
+    'hot-instance': true,
     ...options?.enabled
   }
   const isEnabled = vi.fn((type: FriendAlertType) => enabled[type])
@@ -95,15 +104,23 @@ function harness(options?: {
       notify: (alert) => alerts.push(alert),
       clock: () => now,
       isEnabled,
+      hotInstanceThreshold: () => threshold,
       resolveName: (_platform: Platform, id: string) => options?.names?.[id] ?? null
     }),
     alerts,
     setNow: (next) => {
       now = next
     },
+    setThreshold: (next) => {
+      threshold = next
+    },
     enabled,
     isEnabled
   }
+}
+
+function hotAlerts(alerts: FriendAlert[]): HotInstanceAlert[] {
+  return alerts.filter((alert): alert is HotInstanceAlert => alert.type === 'hot-instance')
 }
 
 describe('FriendAlerts transitions', () => {
@@ -392,5 +409,170 @@ describe('FriendAlerts policy injection', () => {
     expect(alerts.filter((alert) => alert.type === 'offline')).toHaveLength(3)
     expect(engine.getDroppedCount('offline')).toBe(1)
     expect(engine.getDroppedCount()).toBe(1)
+  })
+})
+
+describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
+  it('fires exactly once on a 1→2 crossing and stays quiet while at or above the threshold', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_3', 'Three')))
+
+    expect(hotAlerts(alerts)).toEqual([
+      {
+        type: 'hot-instance',
+        platform: 'vrchat',
+        instanceId: 'party',
+        friendCount: 2,
+        worldName: 'The Great Pug'
+      }
+    ])
+  })
+
+  it('resets below the threshold and re-fires on the next crossing', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+
+    expect(hotAlerts(alerts).map((alert) => alert.friendCount)).toEqual([2, 2])
+  })
+
+  it('reads threshold changes at the crossing decision', () => {
+    const { engine, alerts, setThreshold } = harness({ threshold: 3 })
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    setThreshold(2)
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+
+    expect(hotAlerts(alerts)).toHaveLength(1)
+    expect(hotAlerts(alerts)[0]?.friendCount).toBe(2)
+  })
+
+  it('advances crossing state while the hot-instance toggle is off and never fires while disabled', () => {
+    const { engine, alerts, enabled, isEnabled } = harness({
+      enabled: { 'hot-instance': false }
+    })
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    enabled['hot-instance'] = true
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_3', 'Three')))
+
+    expect(hotAlerts(alerts)).toEqual([])
+    expect(isEnabled).toHaveBeenCalledWith('hot-instance')
+  })
+
+  it('uses worldless hot-alert data for an unresolved CVR world', () => {
+    const secondId = 'a1b2c3d4-0000-0000-0000-000000000002'
+    const { engine, alerts } = harness()
+    const unresolved = inWorld('instance-guid', 'instance-guid', 'Creator Instance Copy')
+    engine.consume(
+      snapshot([
+        {
+          platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          state: 'in-game',
+          instance: unresolved
+        }
+      ])
+    )
+    engine.consume(
+      snapshot([
+        {
+          platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          state: 'in-game',
+          instance: unresolved
+        },
+        { platformUserId: secondId, state: 'in-game', instance: unresolved }
+      ])
+    )
+
+    expect(hotAlerts(alerts)).toEqual([
+      expect.objectContaining({
+        platform: 'chilloutvr',
+        friendCount: 2,
+        worldName: null
+      })
+    ])
+  })
+
+  it('clears hot-instance counts at an account boundary', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_old', 'Old')))
+    engine.resetPlatform('vrchat')
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_new_1', 'New One')))
+    expect(hotAlerts(alerts)).toEqual([])
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_new_2', 'New Two')))
+    expect(hotAlerts(alerts)).toHaveLength(1)
+  })
+
+  it('keeps per-platform counts isolated', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_vrc', 'VRC')))
+    engine.consume(
+      snapshot([
+        {
+          platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          state: 'in-game',
+          instance: instance('party')
+        }
+      ])
+    )
+    expect(hotAlerts(alerts)).toEqual([])
+  })
+
+  it('hard-caps instance-count state under many distinct instances', () => {
+    const { engine } = harness({ threshold: 10 })
+    for (let index = 0; index < 10_000; index++) {
+      engine.consume(
+        presenceEvent(
+          friend('in-game', instance(`instance_${index}`), `usr_${index}`, `Friend ${index}`)
+        )
+      )
+    }
+
+    const state = engine as unknown as {
+      instances: Map<Platform, Map<string, unknown>>
+    }
+    expect(state.instances.get('vrchat')?.size ?? 0).toBeLessThanOrEqual(2_048)
+  })
+
+  it('suppresses rather than fabricates a crossing after a live-entry cap eviction', () => {
+    const { engine, alerts, enabled } = harness({
+      threshold: 1,
+      enabled: { 'hot-instance': false }
+    })
+    for (let index = 0; index <= 2_048; index++) {
+      engine.consume(
+        presenceEvent(
+          friend('in-game', instance(`instance_${index}`), `usr_${index}`, `Friend ${index}`)
+        )
+      )
+    }
+
+    enabled['hot-instance'] = true
+    engine.consume(presenceEvent(friend('in-game', instance('instance_0'), 'usr_0', 'Friend 0')))
+    expect(hotAlerts(alerts)).toEqual([])
+  })
+
+  it('rate-limits hot-instance alerts in an independent 3-per-10-second bucket', () => {
+    const { engine, alerts, setNow } = harness()
+    for (let group = 0; group < 4; group++) {
+      for (let member = 0; member < 2; member++) {
+        const id = `usr_${group}_${member}`
+        engine.consume(
+          presenceEvent(friend('in-game', instance(`party_${group}`), id, `Friend ${id}`))
+        )
+      }
+    }
+
+    expect(hotAlerts(alerts)).toHaveLength(3)
+    expect(engine.getDroppedCount('hot-instance')).toBe(1)
+
+    setNow(10_000)
+    engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_1', 'Later One')))
+    engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_2', 'Later Two')))
+    expect(hotAlerts(alerts)).toHaveLength(4)
   })
 })

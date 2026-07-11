@@ -21,6 +21,7 @@
  *   hotInstanceThreshold  → §9 dashboard hot grid (VRX-78; default from HOT_INSTANCE_THRESHOLD)
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  *   notifyFriend*          → native friend transition alerts (VRX-84; offline opt-in)
+ *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; default on)
  */
 import { z } from 'zod'
 import {
@@ -62,7 +63,9 @@ export const SettingsSchema = z.object({
   /** Native alert toggles (VRX-84). Additive fields — no version bump. */
   notifyFriendOnline: z.boolean().catch(true),
   notifyFriendInGame: z.boolean().catch(true),
-  notifyFriendOffline: z.boolean().catch(false)
+  notifyFriendOffline: z.boolean().catch(false),
+  /** Native hot-instance crossing alert (VRX-85). Additive; enabled by default. */
+  notifyHotInstance: z.boolean().catch(true)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>

@@ -23,7 +23,8 @@ describe('settings schema', () => {
       collapsedFriendSections: ['offline'],
       notifyFriendOnline: true,
       notifyFriendInGame: true,
-      notifyFriendOffline: false
+      notifyFriendOffline: false,
+      notifyHotInstance: true
     })
   })
 
@@ -104,6 +105,12 @@ describe('settings schema', () => {
     expect(invalid.notifyFriendOnline).toBe(true)
     expect(invalid.notifyFriendInGame).toBe(true)
     expect(invalid.notifyFriendOffline).toBe(false)
+  })
+
+  it('hot-instance notifications: additive default is on and invalid values fall back on', () => {
+    expect(parseSettings({ theme: 'dark' }).notifyHotInstance).toBe(true)
+    expect(parseSettings({ notifyHotInstance: false }).notifyHotInstance).toBe(false)
+    expect(parseSettings({ notifyHotInstance: 'no' }).notifyHotInstance).toBe(true)
   })
 
   it('coerces non-object input to defaults', () => {

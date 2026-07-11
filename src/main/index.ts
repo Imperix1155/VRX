@@ -207,11 +207,17 @@ function getOrCreateMainWindow(): BrowserWindow {
   return currentWindow
 }
 
-function focusMainWindow(): void {
+function focusMainWindow(): BrowserWindow {
   const window = getOrCreateMainWindow()
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()
+  return window
+}
+
+function focusDashboard(): void {
+  const window = focusMainWindow()
+  window.webContents.send('navigate-to-dashboard')
 }
 
 // ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
@@ -363,11 +369,21 @@ app
           title = 'Friend offline'
           body = `${alert.displayName} went offline`
           break
+        case 'hot-instance': {
+          title = 'Hot instance'
+          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
+          body =
+            strippedWorldName === ''
+              ? `${alert.friendCount} friends are in the same world — join them?`
+              : `${alert.friendCount} friends are in ${strippedWorldName} — join them?`
+          break
+        }
       }
 
       try {
-        const notification = new NativeNotification({ title, body })
-        notification.on('click', focusMainWindow)
+        // VRX-82: native toasts carry the packaged app icon.
+        const notification = new NativeNotification({ title, body, icon })
+        notification.on('click', alert.type === 'hot-instance' ? focusDashboard : focusMainWindow)
         const cleanup = (): void => releaseRetainedFriendNotification(notification)
         notification.once('close', cleanup)
         notification.once('failed', () => {
@@ -408,6 +424,8 @@ app
           return current.notifyFriendInGame
         case 'offline':
           return current.notifyFriendOffline
+        case 'hot-instance':
+          return current.notifyHotInstance
       }
     }
 
@@ -416,6 +434,7 @@ app
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: alertSettingEnabled,
+      hotInstanceThreshold: () => getSettingsSnapshot().hotInstanceThreshold,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
