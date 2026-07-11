@@ -69,7 +69,7 @@ export const SettingsSchema = z.object({
   notifyFriendOnline: z.boolean().catch(false),
   notifyFriendInGame: z.boolean().catch(false),
   notifyFriendOffline: z.boolean().catch(false),
-  /** Native hot-instance crossing alert (VRX-85). Enabled by default. */
+  /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false)
 })
 
