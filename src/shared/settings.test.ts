@@ -20,7 +20,10 @@ describe('settings schema', () => {
       telemetryEnabled: false,
       labelScheme: 'vrchat',
       hotInstanceThreshold: 2,
-      collapsedFriendSections: ['offline']
+      collapsedFriendSections: ['offline'],
+      notifyFriendOnline: true,
+      notifyFriendInGame: true,
+      notifyFriendOffline: false
     })
   })
 
@@ -76,6 +79,31 @@ describe('settings schema', () => {
     expect(parseSettings({ collapsedFriendSections: 'offline' }).collapsedFriendSections).toEqual([
       'offline'
     ])
+  })
+
+  it('friend notifications: additive defaults are online/in-game on and offline off', () => {
+    const legacy = parseSettings({ theme: 'dark' })
+    expect(legacy.notifyFriendOnline).toBe(true)
+    expect(legacy.notifyFriendInGame).toBe(true)
+    expect(legacy.notifyFriendOffline).toBe(false)
+
+    const customized = parseSettings({
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true
+    })
+    expect(customized.notifyFriendOnline).toBe(false)
+    expect(customized.notifyFriendInGame).toBe(false)
+    expect(customized.notifyFriendOffline).toBe(true)
+
+    const invalid = parseSettings({
+      notifyFriendOnline: 'yes',
+      notifyFriendInGame: null,
+      notifyFriendOffline: 1
+    })
+    expect(invalid.notifyFriendOnline).toBe(true)
+    expect(invalid.notifyFriendInGame).toBe(true)
+    expect(invalid.notifyFriendOffline).toBe(false)
   })
 
   it('coerces non-object input to defaults', () => {

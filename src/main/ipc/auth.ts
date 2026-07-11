@@ -2,11 +2,19 @@ import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import log from 'electron-log'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 
-export function registerAuthHandlers(adapters: Map<Platform, IPlatformAdapter>): void {
+export interface AuthHandlerOptions {
+  onLoginSuccess?: (platform: Platform) => void
+}
+
+export function registerAuthHandlers(
+  adapters: Map<Platform, IPlatformAdapter>,
+  options: AuthHandlerOptions = {}
+): void {
   ipcMain.handle('get-auth-status', (event, req: IpcInvoke['get-auth-status']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid platform')
@@ -29,7 +37,18 @@ export function registerAuthHandlers(adapters: Map<Platform, IPlatformAdapter>):
     }
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    return adapter.login(req.credentials)
+    return adapter.login(req.credentials).then((result) => {
+      // The side-effect callback must never turn a successful login into a
+      // renderer-visible failure.
+      if (result.ok) {
+        try {
+          options.onLoginSuccess?.(req.platform)
+        } catch {
+          log.warn(`onLoginSuccess callback failed for ${req.platform}`)
+        }
+      }
+      return result
+    })
   })
 
   ipcMain.handle('verify-2fa', (event, req: IpcInvoke['verify-2fa']['req']) => {
@@ -39,6 +58,15 @@ export function registerAuthHandlers(adapters: Map<Platform, IPlatformAdapter>):
     }
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    return adapter.verify2fa(req.code)
+    return adapter.verify2fa(req.code).then((result) => {
+      if (result.ok) {
+        try {
+          options.onLoginSuccess?.(req.platform)
+        } catch {
+          log.warn(`onLoginSuccess callback failed for ${req.platform}`)
+        }
+      }
+      return result
+    })
   })
 }

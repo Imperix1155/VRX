@@ -69,6 +69,11 @@ export interface CvrInstanceResolver {
    * (or its entry expired) — callers treat `undefined` as "kick `resolve`".
    */
   peek(instanceId: string): ResolvedCvrInstance | null | undefined
+  /**
+   * Drop every account-scoped cache entry and detach in-flight work. Results
+   * from requests started before the clear are discarded when they settle.
+   */
+  clear(): void
 }
 
 // ─── Cache tuning ─────────────────────────────────────────────────────────────
@@ -111,6 +116,7 @@ export function createCvrInstanceResolver(options: {
 
   const cache = new Map<string, CacheEntry>()
   const inFlight = new Map<string, Promise<ResolvedCvrInstance | null>>()
+  let generation = 0
 
   function fresh(entry: CacheEntry | undefined): entry is CacheEntry {
     return entry !== undefined && entry.expiresAt > clock()
@@ -133,7 +139,10 @@ export function createCvrInstanceResolver(options: {
     cache.set(instanceId, entry)
   }
 
-  async function fetchAndCache(instanceId: string): Promise<ResolvedCvrInstance | null> {
+  async function fetchAndCache(
+    instanceId: string,
+    requestGeneration: number
+  ): Promise<ResolvedCvrInstance | null> {
     try {
       // Encode: the id arrives from the WS wire — it must never be able to
       // rewrite the authenticated request path (VRX-51 path-injection class).
@@ -150,13 +159,17 @@ export function createCvrInstanceResolver(options: {
         playerCount: raw.currentPlayerCount ?? null,
         privacy: raw.instanceSettingPrivacy ?? null
       }
-      store(instanceId, { expiresAt: clock() + ttlMs, value })
+      if (requestGeneration === generation) {
+        store(instanceId, { expiresAt: clock() + ttlMs, value })
+      }
       return value
     } catch {
       // Private/hidden/deleted instances and transient failures all land here —
       // the resolve contract is null-not-throw (VRX-59 AC), negative-cached so
       // repeated snapshots don't hammer the API.
-      store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
+      if (requestGeneration === generation) {
+        store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
+      }
       return null
     }
   }
@@ -169,8 +182,9 @@ export function createCvrInstanceResolver(options: {
       const pending = inFlight.get(instanceId)
       if (pending) return pending
 
-      const request = fetchAndCache(instanceId).finally(() => {
-        inFlight.delete(instanceId)
+      const requestGeneration = generation
+      const request = fetchAndCache(instanceId, requestGeneration).finally(() => {
+        if (inFlight.get(instanceId) === request) inFlight.delete(instanceId)
       })
       inFlight.set(instanceId, request)
       return request
@@ -179,6 +193,12 @@ export function createCvrInstanceResolver(options: {
     peek(instanceId: string): ResolvedCvrInstance | null | undefined {
       const cached = cache.get(instanceId)
       return fresh(cached) ? cached.value : undefined
+    },
+
+    clear(): void {
+      generation += 1
+      cache.clear()
+      inFlight.clear()
     }
   }
 }

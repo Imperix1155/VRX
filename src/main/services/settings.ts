@@ -20,6 +20,7 @@ import {
 import log from '../logger'
 
 let store: Store<Record<string, unknown>> | undefined
+let settingsSnapshot: Settings | undefined
 
 // Lazy: electron-store resolves the userData path via `app`, which is only ready
 // after `app.whenReady()`. Constructing on first use keeps this import side-effect-free.
@@ -45,6 +46,7 @@ export function loadSettings(): Settings {
     if (shouldPersistSettings(raw)) {
       getStore().store = settings
     }
+    settingsSnapshot = settings
     return settings
   } catch (err) {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
@@ -53,19 +55,32 @@ export function loadSettings(): Settings {
       'settings: load failed; using in-memory defaults, on-disk file left intact',
       err instanceof Error ? err.message : String(err)
     )
-    return { ...DEFAULT_SETTINGS }
+    settingsSnapshot = { ...DEFAULT_SETTINGS }
+    return settingsSnapshot
   }
+}
+
+/** Cheap fire-time view for hot paths. Startup's first load populates it; the
+ *  fallback keeps direct/test callers safe without changing IPC behavior. */
+export function getSettingsSnapshot(): Settings {
+  return settingsSnapshot ?? loadSettings()
 }
 
 /** Merge a partial patch over the current settings, validate, and persist. */
 export function saveSettings(patch: Partial<Settings>): Settings {
   const raw = getStore().store
+  const next = parseSettings({ ...raw, ...patch })
+  // The renderer has already accepted the patch locally before this call. Keep
+  // native fire-time policy coherent even when persistence must be refused.
+  settingsSnapshot = next
   if (!shouldPersistSettings(raw)) {
     // Merging an old-shaped patch over a newer-version file would drop the newer
     // build's fields. Refuse rather than lose data — VRX-21 will own the UX.
     throw new Error('settings: refusing to overwrite settings written by a newer version')
   }
-  const next = parseSettings({ ...raw, ...patch })
+  // Apply the validated value to this session before persistence. If the
+  // synchronous disk write fails, the caller still receives that same failure,
+  // while the UI's accepted local state and the alert engine remain consistent.
   getStore().store = next
   return next
 }

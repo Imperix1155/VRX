@@ -10,7 +10,7 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - `security.ts` — `isTrustedIpcSender()`: dev=origin-exact, prod=file://+top-frame (VRX-25).
 - `friends.ts` — `get-friends`: delegates to the platform adapter (VRX-19/20).
 - `avatar.ts` / `avatar.test.ts` — `get-avatar`: shape-validates the URL request and rejects strings over 2,048 characters after the sender guard, delegates to the main-process avatar cache, and returns a CSP-safe `data:` URL result or `null` (VRX-48).
-- `auth.ts` — `get-auth-status`, `login`, `verify-2fa`: delegates to adapter. `login` shape-validates the payload before use — `username`/`password` must be strings and `twoFactorCode`, when present, must be a string (audit W3) — and is never logged (VRX-20); `verify-2fa` (VRX-159) takes only `{code}` and routes to `adapter.verify2fa`, so the renderer completes the 2FA leg via the session cookie without resending/holding the password.
+- `auth.ts` — `get-auth-status`, `login`, `verify-2fa`: delegates to adapter. `login` shape-validates the payload before use — `username`/`password` must be strings and `twoFactorCode`, when present, must be a string (audit W3) — and is never logged (VRX-20); `verify-2fa` (VRX-159) takes only `{code}` and routes to `adapter.verify2fa`, so the renderer completes the 2FA leg via the session cookie without resending/holding the password. `registerAuthHandlers` retains an optional `onLoginSuccess(platform)` callback for callers/tests; production account-boundary alert resets are wired directly through the adapters so non-IPC boundaries receive the same reset (VRX-84).
 - `accounts.ts` — `get-accounts`: stub returning `[]` until VRX-24 lands the AccountStore.
 - `instance.ts` — `join-instance`, `self-invite`: delegates to adapter (VRX-20).
 - `app-status.ts` — `get-app-status`: stub returning all-'ok' until VRX-79/146/147 wire WS health (VRX-20).
@@ -21,7 +21,7 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20; W6 added Cyrillic-homoglyph + protocol-relative denials).
 - `security.test.ts` — unit tests for `isTrustedIpcSender` (audit W6 — the guard on every channel finally has coverage): dev exact-origin incl. the `localhost:5173.evil.com` prefix-spoof, port/scheme mismatch, unset-env fail-closed, malformed URLs; prod top-frame-file:// incl. the subframe rejection. Mocks `@electron-toolkit/utils` (`is.dev` is read per call).
 - `auth.test.ts` — handler boundary tests (audit W6): captures handlers via a mocked `ipcMain.handle`, then drives them with hostile payloads — untrusted sender, bad platform, non-string credentials/twoFactorCode (the W3 pin), no-adapter platform — plus happy-path delegation. Uses `stubPlatformAdapter` from the adapters' `__testutils__/adapterTestKit`.
-- `index.ts` — `registerIpcHandlers(adapters)`: wires all handlers; imported once in `src/main/index.ts`.
+- `index.ts` — `registerIpcHandlers(adapters, options?)`: wires all handlers (options carries the `onLoginSuccess` callback threaded to `auth.ts`, VRX-84); imported once in `src/main/index.ts`.
 - **Push channel `'friend-event'`** (typed in `@shared/ipc` `IpcEvents`) is LIVE as of VRX-146: main broadcasts normalized `AdapterEvent`s via `webContents.send`; the preload exposes `onFriendEvent(cb) → unsubscribe`; the renderer applies them to the TanStack cache. Push-only — no sender guard applies (main → renderer direction).
 
 ## Local Contracts

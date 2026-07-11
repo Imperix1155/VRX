@@ -8,11 +8,15 @@ import { registerFriendsHandlers } from './friends'
 import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
 import { registerSettingsHandlers } from './settings'
+import type { AuthHandlerOptions } from './auth'
 
-export function registerIpcHandlers(adapters: Map<Platform, IPlatformAdapter>): void {
+export function registerIpcHandlers(
+  adapters: Map<Platform, IPlatformAdapter>,
+  options: AuthHandlerOptions = {}
+): void {
   registerFriendsHandlers(adapters)
   registerAvatarHandlers()
-  registerAuthHandlers(adapters)
+  registerAuthHandlers(adapters, options)
   registerAccountsHandlers()
   registerInstanceHandlers(adapters)
   registerAppStatusHandlers()

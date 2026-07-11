@@ -53,6 +53,24 @@
     "categories": {
       "aria": "Settings category"
     },
+    "notifications": {
+      "heading": "Notifications",
+      "online": {
+        "label": "Friend comes online",
+        "description": "Alert when an offline friend comes online.",
+        "aria": "Notify when a friend comes online"
+      },
+      "inGame": {
+        "label": "Friend joins a world",
+        "description": "Alert when a friend enters a different world or instance.",
+        "aria": "Notify when a friend joins a world"
+      },
+      "offline": {
+        "label": "Friend goes offline",
+        "description": "Alert when an online friend goes offline.",
+        "aria": "Notify when a friend goes offline"
+      }
+    },
     "accounts": {
       "heading": "Accounts",
       "chilloutvr": {
