@@ -45,6 +45,7 @@ export function stubPlatformAdapter(overrides: Partial<IPlatformAdapter> = {}): 
       .mockResolvedValue({ platform: 'vrchat', state: 'unauthenticated', displayName: null }),
     login: vi.fn().mockResolvedValue({ ok: true }),
     verify2fa: vi.fn().mockResolvedValue({ ok: true }),
+    clearSession: vi.fn(),
     importSession: vi.fn().mockResolvedValue(false),
     getFriends: vi.fn().mockResolvedValue([]),
     getInstanceDetails: vi.fn(),

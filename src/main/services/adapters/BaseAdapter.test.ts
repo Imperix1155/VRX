@@ -46,6 +46,9 @@ class TestAdapter extends BaseAdapter {
   verify2fa(): Promise<LoginResult> {
     return Promise.resolve({ ok: true })
   }
+  clearSession(): void {
+    return
+  }
   importSession(): Promise<boolean> {
     return Promise.resolve(false)
   }
