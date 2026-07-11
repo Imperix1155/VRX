@@ -395,6 +395,7 @@ describe('FriendsList', () => {
     mock([{ ...friend, status: null, statusDescription: null, presence: { state: 'in-game' } }])
     const markup = render()
     expect(markup).toContain('var(--st-online)')
+    expect(markup).toContain('aria-label="Online"')
     expect(markup).not.toContain('var(--ingame)')
   })
 
