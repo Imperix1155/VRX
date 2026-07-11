@@ -186,4 +186,12 @@ describe('logout handler boundary', () => {
     expect(cvrAdapter.clearSession).toHaveBeenCalledTimes(1)
     expect(vrcAdapter.clearSession).not.toHaveBeenCalled()
   })
+
+  it('propagates credential deletion failure so the renderer invoke rejects', () => {
+    vi.mocked(adapter.clearSession).mockImplementation(() => {
+      throw new Error('credential deletion failed')
+    })
+
+    expect(() => call('logout', { platform: 'vrchat' })).toThrow('credential deletion failed')
+  })
 })

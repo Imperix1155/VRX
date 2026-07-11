@@ -16,28 +16,31 @@ function App(): React.JSX.Element {
   // fetch has populated the cache (which only happens once authenticated).
   useLiveFriendEvents()
 
-  const { data: authStatus, isPending } = useAuthStatus()
+  const { data: vrcAuthStatus, isPending: isVrcPending } = useAuthStatus('vrchat')
+  const { data: cvrAuthStatus, isPending: isCvrPending } = useAuthStatus('chilloutvr')
 
-  // While the auth check is in flight, render nothing (avoids flashing login
-  // form for an already-authenticated session).
-  if (isPending) return <></>
-
-  if (authStatus?.state !== 'authenticated') {
-    // needs-2fa: the session's auth cookie is alive, only the second factor
-    // expired — jump straight to the code prompt (no password re-entry, VRX-173).
-    return (
-      <LoginScreen
-        // key: a needs-2fa ↔ unauthenticated transition while mounted must
-        // remount (re-seed) the screen — the seed is read once at first render.
-        key={authStatus?.state ?? 'pending'}
-        initialTwoFactor={
-          authStatus?.state === 'needs-2fa' ? (authStatus.twoFactorMethod ?? 'totp') : null
-        }
-      />
-    )
+  // Platform parity: keep account management reachable while either platform is
+  // connected. A VRChat 2FA reprompt is handled inside its AccountCard in-shell.
+  if (vrcAuthStatus?.state === 'authenticated' || cvrAuthStatus?.state === 'authenticated') {
+    return <AppShell />
   }
 
-  return <AppShell />
+  // While either unknown auth check is in flight, render nothing (avoids flashing
+  // login before discovering an authenticated session on the other platform).
+  if (isVrcPending || isCvrPending) return <></>
+
+  // Neither platform is connected. needs-2fa keeps the existing direct VRChat
+  // code-prompt route; otherwise LoginScreen starts on credentials as before.
+  return (
+    <LoginScreen
+      // key: a needs-2fa ↔ unauthenticated transition while mounted must
+      // remount (re-seed) the screen — the seed is read once at first render.
+      key={vrcAuthStatus?.state ?? 'pending'}
+      initialTwoFactor={
+        vrcAuthStatus?.state === 'needs-2fa' ? (vrcAuthStatus.twoFactorMethod ?? 'totp') : null
+      }
+    />
+  )
 }
 
 export default App

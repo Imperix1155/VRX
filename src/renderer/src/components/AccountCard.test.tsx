@@ -19,7 +19,7 @@ function setBridge(bridge: TestBridge | undefined): void {
   ;(window as unknown as { vrx?: TestBridge }).vrx = bridge
 }
 
-function renderCard(platform: Platform, bridge: TestBridge): void {
+function renderCard(platform: Platform, bridge: TestBridge): QueryClient {
   setBridge(bridge)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -27,6 +27,7 @@ function renderCard(platform: Platform, bridge: TestBridge): void {
       <AccountCard platform={platform} />
     </QueryClientProvider>
   )
+  return queryClient
 }
 
 function bridgeFor(status: AuthStatus): TestBridge {
@@ -66,7 +67,30 @@ describe.each([
     expect((password as HTMLInputElement).value).toBe('')
   })
 
-  it('shows the green check, connected name, and a working Disconnect', async () => {
+  it('drops the password before post-login query invalidations settle', async () => {
+    const bridge = bridgeFor({ platform, state: 'unauthenticated', displayName: null })
+    const queryClient = renderCard(platform, bridge)
+    let releaseInvalidations!: () => void
+    const heldInvalidations = new Promise<void>((resolve) => {
+      releaseInvalidations = resolve
+    })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(heldInvalidations)
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.username')), {
+      target: { value: 'user@example.com' }
+    })
+    const password = screen.getByLabelText<HTMLInputElement>(msg('settings.accounts.password'))
+    fireEvent.change(password, { target: { value: 'secret' } })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalled())
+    // The refresh is still held open: this only passes when the password is
+    // cleared immediately after the login IPC, before refreshPlatformState().
+    expect(password.value).toBe('')
+    releaseInvalidations()
+  })
+
+  it('shows a neutral connected check, connected name, and a working Disconnect', async () => {
     let state: AuthStatus = { platform, state: 'authenticated', displayName }
     const bridge = bridgeFor(state)
     bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
@@ -80,12 +104,31 @@ describe.each([
       msg('settings.accounts.connectedAs', { name: displayName })
     )
     expect(connected.parentElement?.textContent).toContain('✓')
+    expect(connected.parentElement?.className).toContain('text-[var(--text)]')
+    expect(connected.parentElement?.className).not.toContain('--st-online-text')
     const disconnect = screen.getByRole('button', { name: msg('settings.accounts.disconnect') })
     expect(disconnect).toHaveProperty('disabled', false)
     fireEvent.click(disconnect)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+  })
+
+  it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
+    const bridge = bridgeFor({ platform, state: 'authenticated', displayName })
+    bridge.logout.mockRejectedValue(new Error('credential deletion failed'))
+    renderCard(platform, bridge)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.accounts.disconnect') })
+    )
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('settings.accounts.error.disconnect')
+    )
+    expect(
+      screen.getByText(msg('settings.accounts.connectedAs', { name: displayName }))
+    ).toBeTruthy()
   })
 })
 

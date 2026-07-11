@@ -75,6 +75,6 @@ export function registerAuthHandlers(
     if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid logout request')
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    adapter.clearSession()
+    return adapter.clearSession()
   })
 }
