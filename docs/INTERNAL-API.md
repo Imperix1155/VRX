@@ -216,7 +216,7 @@ VRX-58).
 | Function | Purpose |
 | --- | --- |
 | `AvatarCache` / `avatarCache.get(url)` (`services/avatarCache.ts`) | VRX-48: session-memory avatar image cache (LRU 200, in-flight dedupe, 30s negative cache) behind a hard host allowlist (VRC files/api/assets + CVR files; https-only, no port/credentials, redirects rejected). Serves `get-avatar` as data: URLs; separate from adapters so images never consume API rate budget |
-| `FriendAlerts` (`services/friendAlerts.ts`) | VRX-84/85: pure presence-transition + hot-instance engine (injected clock/notify/isEnabled/resolveName/threshold) — first-sight + per-platform snapshot baselining, CVR absent=offline diffing, aggregate atomic crossing detection, platform-aware instance keys (VRChat `[worldId, instanceId]`; CVR instance id), 3-per-10s per-type sliding-window rate limit, and fire-time toggles. `hot-instance` baselines first sight silently, fires only when an aggregate crosses the threshold, and is enabled by `settings.notifyHotInstance`; wired in `main/index.ts` to Electron Notification |
+| `FriendAlerts` (`services/friendAlerts.ts`) | VRX-84/85: pure presence-transition + hot-instance engine (injected clock/notify/isEnabled/resolveName/threshold) — first-sight + per-platform snapshot baselining, CVR absent=offline diffing, aggregate atomic crossing detection, platform-aware instance keys (VRChat `[worldId, instanceId]`; CVR instance id), 3-per-10s per-type sliding-window rate limit, and fire-time toggles. `hot-instance` baselines first sight silently, fires only when an aggregate crosses the threshold, and is enabled by `settings.notifyHotInstance` (ships OFF like every alert, VRX-205); wired in `main/index.ts` to Electron Notification |
 
 | Function | File | Purpose |
 | --- | --- | --- |
@@ -261,4 +261,4 @@ the friend ladder with `isGroup` as the modifier) · `TrustRank` ·
 `AuthStatus`/`AuthState` (incl. `needs-2fa` + `twoFactorMethod`) ·
 `Credentials` (⚠️ never log) · `LoginResult` · `TwoFactorMethod` ·
 `AdapterEvent` (§3) · `ConnectionHealth` · `AppStatus` · `Account` ·
-`Settings` (`@shared/settings`, `SETTINGS_VERSION`=2; `notifyHotInstance` defaults on and v1→v2 is identity-migrated to prevent old-build strip-and-rewrite downgrade loss, VRX-85) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
+`Settings` (`@shared/settings`, `SETTINGS_VERSION`=2; all notify* alerts default OFF (VRX-205 quiet defaults) and v1→v2 is identity-migrated to prevent old-build strip-and-rewrite downgrade loss, VRX-85) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
