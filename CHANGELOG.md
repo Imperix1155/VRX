@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Both accounts now work the same way.** Settings → Accounts shows a card for VRChat and ChilloutVR, including a real Disconnect button; VRChat keeps its 2FA step. You now stay in VRX while either account is connected — the full login screen appears only when neither is connected. (VRX-191)
+- **A platform filter now tells you how to connect.** If you select VRChat or ChilloutVR before that account is connected, Friends and Dashboard show a Connect action that takes you straight to Settings → Accounts instead of a generic load error. (VRX-192)
+- **VRX can alert you when a world gets hot.** When enough friends gather in the same instance, you can receive a desktop notification and turn it on or off in Settings → Notifications. Clicking it opens Dashboard; notification toasts now also use the VRX app icon. (VRX-85, VRX-82)
 - **Desktop notifications when friends come online or join a world.** "FriendName is now online" / "FriendName joined WorldName" — real transitions only (no spam when the app first connects or reconnects), mass-login bursts are rate-limited, and each alert type has its own switch on the new **Settings → Notifications** page (friend-offline alerts exist but start off — they're noisy). Clicking a notification brings VRX to the front. (VRX-84)
 - **Real avatars in the friends list.** Friend profile pictures now load (both platforms) — lazily, only as rows scroll into view, cached for the session, with the letter placeholder staying in place while loading or if an image fails. (VRX-48)
 
