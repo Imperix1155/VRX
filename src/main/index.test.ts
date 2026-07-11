@@ -15,4 +15,17 @@ describe('main native notification wiring', () => {
     )
     expect(source).toContain('`${alert.friendCount} friends are in the same world — join them?`')
   })
+
+  it('keeps cold/GC Windows activations focused without treating every activation as a click', () => {
+    expect(source).toContain('NativeNotification.handleActivation(focusMainWindow)')
+    expect(source).not.toContain('NativeNotification.handleActivation(focusDashboard)')
+  })
+
+  it('queues a dashboard click until the recreated renderer finishes loading', () => {
+    expect(source).toContain(
+      'dashboardNavigation.request(window, rendererReadyWindows.has(window))'
+    )
+    expect(source).toContain("mainWindow.webContents.on('did-finish-load'")
+    expect(source).toContain('dashboardNavigation.rendererReady(mainWindow)')
+  })
 })

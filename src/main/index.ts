@@ -29,6 +29,7 @@ import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
+import { PendingNavigation } from './pendingNavigation'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -45,6 +46,10 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
+const rendererReadyWindows = new WeakSet<BrowserWindow>()
+const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
+  if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
+})
 const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
@@ -99,6 +104,17 @@ function createWindow(): BrowserWindow {
       }
     }
     return { action: 'deny' }
+  })
+
+  // A notification click can recreate a window whose renderer has not mounted
+  // its push listener yet. Keep one pending dashboard intent until this load is
+  // complete, then replay it exactly once. A reload clears readiness first.
+  mainWindow.webContents.on('did-start-loading', () => {
+    rendererReadyWindows.delete(mainWindow)
+  })
+  mainWindow.webContents.on('did-finish-load', () => {
+    rendererReadyWindows.add(mainWindow)
+    if (currentWindow === mainWindow) dashboardNavigation.rendererReady(mainWindow)
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -217,7 +233,7 @@ function focusMainWindow(): BrowserWindow {
 
 function focusDashboard(): void {
   const window = focusMainWindow()
-  window.webContents.send('navigate-to-dashboard')
+  dashboardNavigation.request(window, rendererReadyWindows.has(window))
 }
 
 // ── Main-process crash handlers (VRX-127) ─────────────────────────────────────

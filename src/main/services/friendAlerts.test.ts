@@ -415,6 +415,9 @@ describe('FriendAlerts policy injection', () => {
 describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
   it('fires exactly once on a 1→2 crossing and stays quiet while at or above the threshold', () => {
     const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_3', 'Three')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
@@ -433,6 +436,8 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
 
   it('resets below the threshold and re-fires on the next crossing', () => {
     const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
     engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
@@ -443,6 +448,8 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
 
   it('reads threshold changes at the crossing decision', () => {
     const { engine, alerts, setThreshold } = harness({ threshold: 3 })
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
     setThreshold(2)
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
@@ -455,6 +462,9 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     const { engine, alerts, enabled, isEnabled } = harness({
       enabled: { 'hot-instance': false }
     })
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_3', 'Three')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
     enabled['hot-instance'] = true
@@ -477,6 +487,7 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
         }
       ])
     )
+    engine.consume({ type: 'friend-offline', platform: 'chilloutvr', platformUserId: secondId })
     engine.consume(
       snapshot([
         {
@@ -495,6 +506,19 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
         worldName: null
       })
     ])
+
+    const resolved = inWorld('world-guid', 'instance-guid', 'Authoritative World')
+    engine.consume(
+      snapshot([
+        {
+          platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+          state: 'in-game',
+          instance: resolved
+        },
+        { platformUserId: secondId, state: 'in-game', instance: resolved }
+      ])
+    )
+    expect(hotAlerts(alerts)).toHaveLength(1)
   })
 
   it('clears hot-instance counts at an account boundary', () => {
@@ -502,6 +526,7 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_old', 'Old')))
     engine.resetPlatform('vrchat')
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_new_1', 'New One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_new_2', 'New Two')))
     expect(hotAlerts(alerts)).toEqual([])
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_new_2', 'New Two')))
     expect(hotAlerts(alerts)).toHaveLength(1)
@@ -520,6 +545,69 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
       ])
     )
     expect(hotAlerts(alerts)).toEqual([])
+  })
+
+  it('keys VRChat identity by worldId + instanceId, so equal suffixes in different worlds do not collide', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+
+    engine.consume(
+      presenceEvent(friend('in-game', inWorld('wrld_a', 'same', 'World A'), 'usr_1', 'One'))
+    )
+    engine.consume(
+      presenceEvent(friend('in-game', inWorld('wrld_b', 'same', 'World B'), 'usr_2', 'Two'))
+    )
+
+    expect(hotAlerts(alerts)).toEqual([])
+  })
+
+  it('compares a CVR snapshot swap atomically instead of firing on a transient sequential count', () => {
+    const { engine, alerts } = harness()
+    const c1 = 'a1b2c3d4-0000-0000-0000-000000000001'
+    const c2 = 'a1b2c3d4-0000-0000-0000-000000000002'
+
+    engine.consume(
+      snapshot([
+        { platformUserId: c1, state: 'in-game', instance: instance('x') },
+        { platformUserId: c2, state: 'in-game', instance: instance('y') }
+      ])
+    )
+    engine.consume(
+      snapshot([
+        { platformUserId: c1, state: 'in-game', instance: instance('y') },
+        { platformUserId: c2, state: 'in-game', instance: instance('x') }
+      ])
+    )
+
+    expect(hotAlerts(alerts)).toEqual([])
+  })
+
+  it('silently baselines threshold-1 first presence and two never-seen friends after reset', () => {
+    const thresholdOne = harness({ threshold: 1 })
+    thresholdOne.engine.resetPlatform('vrchat')
+    thresholdOne.engine.consume(
+      presenceEvent(friend('in-game', instance('party'), 'usr_first', 'First'))
+    )
+    expect(hotAlerts(thresholdOne.alerts)).toEqual([])
+
+    const thresholdTwo = harness({ threshold: 2 })
+    thresholdTwo.engine.resetPlatform('vrchat')
+    thresholdTwo.engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    thresholdTwo.engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    expect(hotAlerts(thresholdTwo.alerts)).toEqual([])
+  })
+
+  it('still fires a 1→2 crossing when the joining friend was previously known offline', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+
+    expect(hotAlerts(alerts)).toEqual([
+      expect.objectContaining({ instanceId: 'party', friendCount: 2 })
+    ])
   })
 
   it('hard-caps instance-count state under many distinct instances', () => {
@@ -561,6 +649,12 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     for (let group = 0; group < 4; group++) {
       for (let member = 0; member < 2; member++) {
         const id = `usr_${group}_${member}`
+        engine.consume(presenceEvent(friend('offline', null, id, `Friend ${id}`)))
+      }
+    }
+    for (let group = 0; group < 4; group++) {
+      for (let member = 0; member < 2; member++) {
+        const id = `usr_${group}_${member}`
         engine.consume(
           presenceEvent(friend('in-game', instance(`party_${group}`), id, `Friend ${id}`))
         )
@@ -571,6 +665,8 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     expect(engine.getDroppedCount('hot-instance')).toBe(1)
 
     setNow(10_000)
+    engine.consume(presenceEvent(friend('offline', null, 'usr_later_1', 'Later One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_later_2', 'Later Two')))
     engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_1', 'Later One')))
     engine.consume(presenceEvent(friend('in-game', instance('later'), 'usr_later_2', 'Later Two')))
     expect(hotAlerts(alerts)).toHaveLength(4)
