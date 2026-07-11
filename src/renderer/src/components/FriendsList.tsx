@@ -374,7 +374,15 @@ export default function FriendsList(): React.JSX.Element {
   const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   const selectedPlatform: Platform | null = platformFilter === 'all' ? null : platformFilter
   const authStatus = useAuthStatus(selectedPlatform ?? 'vrchat')
-  const isNotConnected = selectedPlatform !== null && authStatus.data?.state === 'unauthenticated'
+  // The Connect CTA is trustworthy only after the filtered platform's auth query
+  // has settled. Initial auth loading takes precedence over a friends failure, and
+  // stale unauthenticated data must not flash the CTA during its post-login refetch.
+  const isAuthStatusPending =
+    selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
+  const isNotConnected =
+    selectedPlatform !== null &&
+    authStatus.data?.state === 'unauthenticated' &&
+    !authStatus.isFetching
   const [appliedSearch, setAppliedSearch] = useState(search)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
@@ -490,7 +498,9 @@ export default function FriendsList(): React.JSX.Element {
           </button>
         )}
       </div>
-      {isNotConnected ? (
+      {isAuthStatusPending ? (
+        <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>
+      ) : isNotConnected ? (
         <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {t(`friends.notConnected.${selectedPlatform}`)}

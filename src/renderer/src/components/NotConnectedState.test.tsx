@@ -21,6 +21,26 @@ vi.mock('../queries/auth', () => ({ useAuthStatus: useAuthStatusMock }))
 
 const accountCta = 'Go to Accounts'
 
+const socialSurfaces = [
+  {
+    name: 'Friends list',
+    Component: FriendsList,
+    loading: 'Loading...',
+    error: 'Could not load friends'
+  },
+  {
+    name: 'Dashboard',
+    Component: DashboardView,
+    loading: 'Loading...',
+    error: 'Could not load your friends right now'
+  }
+] as const
+
+const platforms = [
+  ['vrchat', 'VRChat'],
+  ['chilloutvr', 'ChilloutVR']
+] as const
+
 function setQueries(vrc: Record<string, unknown>, cvr: Record<string, unknown>): void {
   useFriendsMock.mockImplementation((platform: Platform) => (platform === 'vrchat' ? vrc : cvr))
 }
@@ -35,15 +55,45 @@ function failedQuery(): Record<string, unknown> {
   }
 }
 
+function loadingQuery(): Record<string, unknown> {
+  return {
+    data: undefined,
+    isPending: true,
+    isError: false,
+    isFetching: true,
+    refetch: vi.fn()
+  }
+}
+
 function connected(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'authenticated', displayName: 'Test User' }
+    data: { platform, state: 'authenticated', displayName: 'Test User' },
+    isPending: false,
+    isFetching: false
   })
 }
 
 function unauthenticated(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'unauthenticated', displayName: null }
+    data: { platform, state: 'unauthenticated', displayName: null },
+    isPending: false,
+    isFetching: false
+  })
+}
+
+function pendingAuth(): void {
+  useAuthStatusMock.mockReturnValue({
+    data: undefined,
+    isPending: true,
+    isFetching: true
+  })
+}
+
+function refetchingUnauthenticated(platform: Platform): void {
+  useAuthStatusMock.mockReturnValue({
+    data: { platform, state: 'unauthenticated', displayName: null },
+    isPending: false,
+    isFetching: true
   })
 }
 
@@ -75,10 +125,58 @@ afterEach(() => {
 })
 
 describe('not-connected social states (VRX-192)', () => {
+  for (const { name, Component, loading, error } of socialSurfaces) {
+    describe(name, () => {
+      it.each(platforms)(
+        'shows loading, not an error or CTA, while %s auth has no cached status',
+        (platform) => {
+          useFriendsStore.setState({ platformFilter: platform })
+          setQueries(failedQuery(), failedQuery())
+          pendingAuth()
+
+          render(<Component />)
+
+          expect(screen.getByText(loading)).toBeTruthy()
+          expect(screen.queryByText(error)).toBeNull()
+          expect(screen.queryByRole('button', { name: accountCta })).toBeNull()
+        }
+      )
+
+      it.each(platforms)(
+        'does not flash the CTA while stale unauthenticated %s auth is refetching after login',
+        (platform) => {
+          useFriendsStore.setState({ platformFilter: platform })
+          setQueries(loadingQuery(), loadingQuery())
+          refetchingUnauthenticated(platform)
+
+          render(<Component />)
+
+          expect(screen.getByText(loading)).toBeTruthy()
+          expect(screen.queryByRole('button', { name: accountCta })).toBeNull()
+        }
+      )
+
+      it.each(platforms)(
+        'shows the %s account CTA once auth is settled unauthenticated',
+        (platform, platformName) => {
+          useFriendsStore.setState({ platformFilter: platform })
+          setQueries(failedQuery(), failedQuery())
+          unauthenticated(platform)
+
+          render(<Component />)
+
+          expect(screen.getByText(`Connect ${platformName} to see your friends here`)).toBeTruthy()
+          expect(screen.queryByText(error)).toBeNull()
+          expect(screen.getByRole('button', { name: accountCta })).toBeTruthy()
+        }
+      )
+    })
+  }
+
   it.each([
     ['Friends list', FriendsList],
     ['Dashboard', DashboardView]
-  ] as const)('%s shows the VRChat account CTA and opens Accounts', (_name, Component) => {
+  ] as const)('%s opens Accounts from the VRChat CTA', (_name, Component) => {
     useFriendsStore.setState({ platformFilter: 'vrchat' })
     setQueries(failedQuery(), failedQuery())
     unauthenticated('vrchat')

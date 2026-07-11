@@ -223,7 +223,15 @@ export default function DashboardView(): React.JSX.Element {
   const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
   const selectedPlatform: Platform | null = platformFilter === 'all' ? null : platformFilter
   const authStatus = useAuthStatus(selectedPlatform ?? 'vrchat')
-  const isNotConnected = selectedPlatform !== null && authStatus.data?.state === 'unauthenticated'
+  // The Connect CTA is trustworthy only after the filtered platform's auth query
+  // has settled. Initial auth loading takes precedence over a friends failure, and
+  // stale unauthenticated data must not flash the CTA during its post-login refetch.
+  const isAuthStatusPending =
+    selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
+  const isNotConnected =
+    selectedPlatform !== null &&
+    authStatus.data?.state === 'unauthenticated' &&
+    !authStatus.isFetching
 
   function openAccounts(): void {
     setActiveTab('settings')
@@ -231,6 +239,9 @@ export default function DashboardView(): React.JSX.Element {
   }
 
   const hasData = scoped.some((q) => q.data != null)
+  if (isAuthStatusPending) {
+    return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+  }
   if (isNotConnected) {
     return (
       <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
