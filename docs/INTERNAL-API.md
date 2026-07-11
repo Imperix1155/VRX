@@ -28,6 +28,7 @@ or should be added.
 | `getAuthStatus({ platform })` | `get-auth-status` | `Promise<AuthStatus>` |
 | `login({ platform, credentials })` | `login` | `Promise<LoginResult>` |
 | `verify2fa({ platform, code })` | `verify-2fa` | `Promise<LoginResult>` |
+| `logout({ platform })` | `logout` | `Promise<void>` — clears that platform session (VRX-191) |
 | `joinInstance({ platform, instanceId, mode })` | `join-instance` | `Promise<void>` |
 | `selfInvite({ platform, instanceId })` | `self-invite` | `Promise<void>` |
 | `getAppStatus()` | `get-app-status` | `Promise<AppStatus>` |
@@ -35,6 +36,7 @@ or should be added.
 | `getSettings()` | `get-settings` | `Promise<Settings>` |
 | `saveSettings({ patch })` | `save-settings` | `Promise<Settings>` (normalized) |
 | `onFriendEvent(callback)` | `friend-event` (push) | `() => void` (unsubscribe) |
+| `onNavigateToDashboard(callback)` | `navigate-to-dashboard` (push) | `() => void` (unsubscribe; hot-instance toast click, VRX-85) |
 
 Guard rule: any renderer code calling the bridge must tolerate `window.vrx`
 being absent (Preview/tests) — see the query fetchers for the pattern.
@@ -54,6 +56,7 @@ per domain, every handler behind `isTrustedIpcSender` first.
 | `get-auth-status` | `{ platform }` | `AuthStatus` | `ipc/auth.ts` | `needs-2fa` state carries `twoFactorMethod` (VRX-173) |
 | `login` | `{ platform, credentials }` | `LoginResult` | `ipc/auth.ts` | Shape-validated (username/password strings; `twoFactorCode` string when present). NEVER logged |
 | `verify-2fa` | `{ platform, code }` | `LoginResult` | `ipc/auth.ts` | Second 2FA leg — authenticates via the session cookie, no password |
+| `logout` | `{ platform }` | `void` | `ipc/auth.ts` | Sender guard first; platform-validated; delegates to `adapter.clearSession()` (VRX-191) |
 | `join-instance` | `{ platform, instanceId, mode }` | `void` | `ipc/instance.ts` | Adapter stub until VRX-166 |
 | `self-invite` | `{ platform, instanceId }` | `void` | `ipc/instance.ts` | Location validated against path-injection (VRX-51) |
 | `get-app-status` | — | `AppStatus` | `ipc/app-status.ts` | Stub all-'ok' until VRX-79 wires WS health |
@@ -66,6 +69,7 @@ per domain, every handler behind `isTrustedIpcSender` first.
 | Channel | Payload | Producer | Consumer |
 | --- | --- | --- | --- |
 | `friend-event` | `AdapterEvent` | `main/index.ts` broadcasts every adapter `subscribe()` event to all windows | `useLiveFriendEvents` applies it to the query cache |
+| `navigate-to-dashboard` | — | `main/index.ts` after a hot-instance native-toast click; `PendingNavigation` retains one intent until renderer load completes | `App.tsx` sets the active tab to Dashboard through `onNavigateToDashboard` (VRX-85) |
 
 ### Deferred channels (typed on purpose only when built)
 
@@ -131,7 +135,7 @@ VRX-58).
 
 | Surface | File | Notes |
 | --- | --- | --- |
-| `useFriends(platform)` | `queries/friends.ts` | SWR; `staleTime`/`refetchInterval` = `FRIENDS_RECONCILE_MS` (the slow reconcile — WS is the live path) |
+| `useFriends(platform)` | `queries/friends.ts` | Auth-gated SWR: `enabled` only when that platform's `auth-status` is `authenticated`; `staleTime`/`refetchInterval` = `FRIENDS_RECONCILE_MS` (the slow reconcile — WS is the live path) |
 | `friendsQueryKey(platform)` | `queries/friends.ts` | `['friends', platform]` — use THIS for any cache read/write, never a literal |
 | `combineFriendQueries(filter, vrc, cvr)` | `queries/friends.ts` | Pure fold of the two per-platform `useFriends` results by `PlatformFilter` (VRX-66). Single-platform = pass-through; `all` = VRChat-then-CVR concat. `friends` stays `undefined` until one query returns (no empty/error flash). In `all`, if a scoped query errored and the settled combined list is EMPTY it surfaces `isError` instead of a false "no friends" (VRX-196). Consumed by `FriendsList` |
 | `scopeByPlatformFilter(filter, vrc, cvr)` | `queries/friends.ts` | The ONE definition of "which platforms a `PlatformFilter` selects" (generic over the item), so every social surface filters identically (VRX-66). Used by `combineFriendQueries` (Friends), `DashboardView` (stats + hot instances), and TopBar's online count |
@@ -147,6 +151,7 @@ VRX-58).
 | `useApplyTheme()` | `hooks/useApplyTheme.ts` | Applies `data-theme` pre-paint; System follows `prefers-color-scheme` |
 | `useSegmentedBubble(activeIndex)` | `hooks/useSegmentedBubble.ts` | Sliding-bubble geometry for segmented controls — measures the active button (unequal label widths); returns `{ trackRef, bubble }`. Used by TopBar + SettingsView (VRX-183) |
 | `useSettingsPersistence()` | `hooks/useSettingsPersistence.ts` | Mount ONCE (App.tsx): loads persisted settings on boot (`get-settings` → `setSettings`), saves on the store's `dirty` flag (`save-settings` → `markSaved`); failed saves stay dirty and retry on the next change (VRX-184) |
+| `useNotConnectedGate(platformFilter)` | `hooks/useNotConnectedGate.ts` | VRX-192's single-platform discriminator shared by FriendsList + Dashboard: waits for a settled successful auth-status before declaring the selected platform unauthenticated, then opens Settings → Accounts; `all` never gates |
 
 ### Zustand stores (VIEW state only — never server data; stores never import each other)
 
@@ -171,7 +176,8 @@ VRX-58).
 | `stripInstanceSuffix(worldName)` | `utils/worldName.ts` | Display-only strip of a trailing CVR `(#instanceNumber)` from a world name for the card face; data keeps the full name (VRX-198) |
 | `SegmentedControl` | `components/SegmentedControl.tsx` | Generic one-Tab-stop segmented radiogroup (measured bubble); used by SettingsView rows + TopBar's contextual category nav (VRX-186). TopBar's platform filter keeps its bespoke colored variant |
 | `NumberStepper` | `components/NumberStepper.tsx` | Reusable −/value/+ control for bounded integer settings; one Tab stop (spinbutton + arrow keys); used by Dashboard hot header + SettingsView (VRX-78) |
-| `ChilloutVrAccountCard` | `components/ChilloutVrAccountCard.tsx` | Settings → Accounts sign-in card (VRX-37): `useAuthStatus('chilloutvr')` → connect form (calls `window.vrx.login({ platform:'chilloutvr', … })`, clears the password after each attempt, no fabricated 2FA) or connected state; §5 CVR-orange tint via glyph only |
+| `AccountCard` | `components/AccountCard.tsx` | Shared, platform-parameterized Settings → Accounts card for VRChat + ChilloutVR (VRX-191): auth status → sign-in or connected state; VRChat alone has the method-aware 2FA leg; successful Disconnect calls `window.vrx.logout`, settles auth, then removes that platform's friends cache so a later account cannot inherit it. Replaces `ChilloutVrAccountCard`; `PlatformGlyph` no longer exists |
+| `NotConnectedState` (inline) | `components/FriendsList.tsx` + `DashboardView.tsx` | VRX-192 glass Connect CTA for a single filtered, settled unauthenticated platform; routes to Settings → Accounts via `useNotConnectedGate` rather than masking loading/auth errors |
 | `useAvatar(url)` | `hooks/useAvatar.ts` | VRX-48: IntersectionObserver-lazy avatar loading via `window.vrx.getAvatar`; module-level cache (a URL round-trips once per session); null → caller keeps its placeholder |
 | `Toggle` | `components/Toggle.tsx` | VRX-84: accessible boolean switch (`role="switch"`, one Tab stop, token-only; knob position = non-color state signifier) — Settings rows |
 | `splitByMatch(name, query)` | `utils/splitByMatch.ts` | VRX-65: case- + diacritic-insensitive substring matcher returning `{text, isMatch}` segments (NFD fold with index-mapping back to the original) — ONE matcher drives both the friends-search filter and the name highlight |
@@ -210,7 +216,7 @@ VRX-58).
 | Function | Purpose |
 | --- | --- |
 | `AvatarCache` / `avatarCache.get(url)` (`services/avatarCache.ts`) | VRX-48: session-memory avatar image cache (LRU 200, in-flight dedupe, 30s negative cache) behind a hard host allowlist (VRC files/api/assets + CVR files; https-only, no port/credentials, redirects rejected). Serves `get-avatar` as data: URLs; separate from adapters so images never consume API rate budget |
-| `FriendAlerts` (`services/friendAlerts.ts`) | VRX-84: pure presence-transition engine (injected clock/notify/isEnabled/resolveName) — first-sight + per-platform snapshot baselining, CVR absent=offline diffing, 3-per-10s per-type sliding-window rate limit, toggles read at fire time. Wired in `main/index.ts` to Electron Notification |
+| `FriendAlerts` (`services/friendAlerts.ts`) | VRX-84/85: pure presence-transition + hot-instance engine (injected clock/notify/isEnabled/resolveName/threshold) — first-sight + per-platform snapshot baselining, CVR absent=offline diffing, aggregate atomic crossing detection, platform-aware instance keys (VRChat `[worldId, instanceId]`; CVR instance id), 3-per-10s per-type sliding-window rate limit, and fire-time toggles. `hot-instance` baselines first sight silently, fires only when an aggregate crosses the threshold, and is enabled by `settings.notifyHotInstance`; wired in `main/index.ts` to Electron Notification |
 
 | Function | File | Purpose |
 | --- | --- | --- |
@@ -220,6 +226,7 @@ VRX-58).
 | `saveCredential` / `loadCredential` / `clearCredential` | `services/credentials.ts` | The ONLY path for persisted secrets (safeStorage; keys in `CREDENTIAL_KEYS`) |
 | `loadSettings` / `saveSettings` | `services/settings.ts` | Persisted settings (migrate+validate on read; never throws) |
 | `buildTrayMenuTemplate` / `createTray` | `tray.ts` | System tray (VRX-112): pure menu-template builder (testable) + Tray/Menu wiring — Show/Hide toggle, Quit; double-click shows; close-to-tray on Win/Linux via the `quitting` flag |
+| `PendingNavigation` | `pendingNavigation.ts` | Pure one-slot renderer-navigation intent queue: sends immediately when ready or replays exactly once on `rendererReady`; used for hot-instance toast → Dashboard across window creation/reload (VRX-85) |
 | `log` / `initLogger` / `getLogFilePath` | `logger.ts` | electron-log with the redaction hook — never `console.*` in main |
 
 ## 7. Shared constants ([`src/shared/constants.ts`](../src/shared/constants.ts))
@@ -254,4 +261,4 @@ the friend ladder with `isGroup` as the modifier) · `TrustRank` ·
 `AuthStatus`/`AuthState` (incl. `needs-2fa` + `twoFactorMethod`) ·
 `Credentials` (⚠️ never log) · `LoginResult` · `TwoFactorMethod` ·
 `AdapterEvent` (§3) · `ConnectionHealth` · `AppStatus` · `Account` ·
-`Settings` (`@shared/settings`) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
+`Settings` (`@shared/settings`, `SETTINGS_VERSION`=2; `notifyHotInstance` defaults on and v1→v2 is identity-migrated to prevent old-build strip-and-rewrite downgrade loss, VRX-85) · `THEMES`/`Theme` (`@shared/types`) · `LABEL_SCHEMES`/`LabelScheme` (`@shared/types`, VRX-183) · `JoinMode`.
