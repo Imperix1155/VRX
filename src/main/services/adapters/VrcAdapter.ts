@@ -30,6 +30,13 @@ export interface VrcCredentialStore {
   delete(): void
 }
 
+export interface VrcLiveWiring {
+  socketFactory?: (url: string) => PipelineSocket
+  log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+  /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
+  onSessionBoundary?: () => void
+}
+
 /** Minimal current-user shape we rely on (the API returns much more). */
 const currentUserSchema = z.object({ id: z.string(), displayName: z.string() })
 /** The 2FA-required branch of `GET /auth/user`. */
@@ -104,6 +111,7 @@ export class VrcAdapter extends VrcApiClient {
   private cookie: string | null = null
   private displayName: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
+  private sessionGeneration = 0
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
     this.get(`/worlds/${worldId}`, z.unknown())
@@ -121,16 +129,13 @@ export class VrcAdapter extends VrcApiClient {
      * stays electron-free: the real socketFactory (ws + User-Agent) and the
      * electron-log bridge live in main/index.ts; tests inject fakes.
      */
-    private readonly live?: {
-      socketFactory?: (url: string) => PipelineSocket
-      log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
-    }
+    private readonly live?: VrcLiveWiring
   ) {
     super(sleepFn)
     // Session restore — adopt any persisted cookie; tolerate a missing/locked store.
     try {
       const stored = this.credentials.load()
-      if (stored) this.setCookie(stored)
+      if (stored) this.adoptSession(stored)
     } catch {
       /* no usable persisted session */
     }
@@ -163,8 +168,16 @@ export class VrcAdapter extends VrcApiClient {
     if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
 
     // The `auth` cookie is needed for the 2FA verify call AND the authed session.
+    // Installing it replaces the account boundary immediately — including when
+    // the body below says 2FA is still required. Fence and replace the old
+    // account's pipeline before returning control to the renderer's 2FA prompt.
     const authCookie = extractCookie(response.headers.getSetCookie(), 'auth')
-    if (authCookie) this.setCookie(authCookie)
+    if (authCookie) {
+      this.setCookie(authCookie)
+      this.displayName = null
+      this.pendingTwoFactorMethod = null
+      this.bumpSessionGeneration()
+    }
 
     let body: unknown
     try {
@@ -181,6 +194,9 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     this.displayName = parsed.data.displayName
+    // A response without a replacement cookie still completed a deliberate
+    // login, so preserve the established successful-login boundary behavior.
+    if (!authCookie) this.bumpSessionGeneration()
     this.persist()
     return { ok: true }
   }
@@ -244,6 +260,10 @@ export class VrcAdapter extends VrcApiClient {
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 
+    // A failed refresh must not expose an own-account name cached before this
+    // 2FA boundary (including a name from a different prior account).
+    this.displayName = null
+    this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
     return { ok: true }
@@ -319,52 +339,65 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   async getFriends(): Promise<Friend[]> {
-    try {
-      const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
-        this.get(path, schema)
-      )
-      // If anything failed (page fetches OR schema-drifted records) AND we got
-      // nothing, surface an error rather than a misleading empty list (the UI shows
-      // "couldn't load" instead of "no friends"). A partial result is still returned
-      // as graceful degradation; signalling partial failure to the UI is a follow-up.
-      if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
-        // Carry both counters so logs can tell transport failure from pure schema
-        // drift (failedPages=0, skippedRecords>0 means the wire was fine).
-        throw new NetworkError(
-          `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+    for (;;) {
+      const generation = this.sessionGeneration
+      try {
+        const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
+          this.get(path, schema)
         )
-      }
-
-      // Enrich friends with world names via the shared resolver (VRX-163).
-      // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
-      // so a world-resolution failure does NOT break the friend list — friends are
-      // returned as-is with worldName/thumbnailUrl staying null. A dead-session
-      // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
-      // catch below and emits auth-invalidated (VRX-197).
-      const worlds = await fetchWorldMetadata(
-        friends.map((f) => f.instance?.worldId ?? null),
-        this.worldResolver
-      )
-      for (const friend of friends) {
-        if (friend.instance) {
-          const meta = worlds.get(friend.instance.worldId)
-          friend.instance.worldName = meta?.name ?? null
-          friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+        // If anything failed (page fetches OR schema-drifted records) AND we got
+        // nothing, surface an error rather than a misleading empty list (the UI shows
+        // "couldn't load" instead of "no friends"). A partial result is still returned
+        // as graceful degradation; signalling partial failure to the UI is a follow-up.
+        if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
+          // Carry both counters so logs can tell transport failure from pure schema
+          // drift (failedPages=0, skippedRecords>0 means the wire was fine).
+          throw new NetworkError(
+            `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+          )
         }
-      }
 
-      return friends
-    } catch (error) {
-      // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
-      // friend page, OR world-name enrichment — means the cookie is dead/2FA-
-      // expired. One emit point for the whole flow: signal the renderer to
-      // re-check auth + quarantine so a stale "connected" card flips to reconnect
-      // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
-      // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
-      // unauthenticated; a blunt clear would force a full re-login. NetworkError
-      // and other failures just propagate untouched.
-      if (error instanceof AuthError) this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-      throw error
+        // Enrich friends with world names via the shared resolver (VRX-163).
+        // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
+        // so a world-resolution failure does NOT break the friend list — friends are
+        // returned as-is with worldName/thumbnailUrl staying null. A dead-session
+        // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
+        // catch below and emits auth-invalidated (VRX-197).
+        const worlds = await fetchWorldMetadata(
+          friends.map((f) => f.instance?.worldId ?? null),
+          this.worldResolver
+        )
+        for (const friend of friends) {
+          if (friend.instance) {
+            const meta = worlds.get(friend.instance.worldId)
+            friend.instance.worldName = meta?.name ?? null
+            friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
+          }
+        }
+
+        // A different account landed while this roster was in flight. Never
+        // return the old account's success; retry using the current session.
+        if (generation !== this.sessionGeneration) continue
+        return friends
+      } catch (error) {
+        // Staleness is checked before auth invalidation or any other outcome.
+        // The old account's failure is irrelevant to the current session.
+        if (generation !== this.sessionGeneration) continue
+
+        // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
+        // friend page, OR world-name enrichment — means the cookie is dead/2FA-
+        // expired. One emit point for the whole flow: signal the renderer to
+        // re-check auth + quarantine so a stale "connected" card flips to reconnect
+        // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
+        // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
+        // unauthenticated; a blunt clear would force a full re-login. NetworkError
+        // and other failures just propagate untouched.
+        if (error instanceof AuthError) {
+          this.bumpSessionGeneration()
+          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        }
+        throw error
+      }
     }
   }
   getInstanceDetails(): Promise<InstanceInfo> {
@@ -394,16 +427,7 @@ export class VrcAdapter extends VrcApiClient {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
-    this.pipeline ??= new VrcPipeline({
-      tokenProvider: () => this.pipelineToken(),
-      onEvent: (event) => this.emit(event),
-      socketFactory:
-        this.live?.socketFactory ??
-        (() => {
-          throw new Error('VrcAdapter: no socketFactory wired for the live pipeline')
-        }),
-      log: this.live?.log
-    })
+    this.pipeline ??= this.createPipeline()
     this.pipeline.start()
 
     let active = true
@@ -413,8 +437,26 @@ export class VrcAdapter extends VrcApiClient {
       this.subscribers.delete(handler)
       if (this.subscribers.size === 0) {
         this.pipeline?.stop()
+        this.pipeline = null
       }
     }
+  }
+
+  /** A pipeline object is stamped with the account generation that created it. */
+  private createPipeline(): VrcPipeline {
+    const generation = this.sessionGeneration
+    return new VrcPipeline({
+      tokenProvider: () => this.pipelineToken(),
+      onEvent: (event) => {
+        if (generation === this.sessionGeneration) this.emit(event)
+      },
+      socketFactory:
+        this.live?.socketFactory ??
+        (() => {
+          throw new Error('VrcAdapter: no socketFactory wired for the live pipeline')
+        }),
+      log: this.live?.log
+    })
   }
 
   /**
@@ -454,6 +496,29 @@ export class VrcAdapter extends VrcApiClient {
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
 
+  private adoptSession(cookie: string): void {
+    this.setCookie(cookie)
+    this.bumpSessionGeneration()
+  }
+
+  /**
+   * Fence every account boundary before replacing the live pipeline. Any late
+   * callback from the stopped object keeps its captured old generation and is
+   * dropped by createPipeline's event handler.
+   */
+  private bumpSessionGeneration(): void {
+    this.sessionGeneration += 1
+    this.live?.onSessionBoundary?.()
+
+    const wasRunning = this.subscribers.size > 0
+    this.pipeline?.stop()
+    this.pipeline = null
+    if (wasRunning) {
+      this.pipeline = this.createPipeline()
+      this.pipeline.start()
+    }
+  }
+
   /**
    * Tear down a dead session everywhere it lives: the in-memory cookie, the
    * VrcApiClient mirror it feeds onto every authed request, the cached display
@@ -464,6 +529,8 @@ export class VrcAdapter extends VrcApiClient {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
+    this.pendingTwoFactorMethod = null
+    this.bumpSessionGeneration()
     try {
       this.credentials.delete()
     } catch {
@@ -485,6 +552,7 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private async refreshDisplayName(): Promise<void> {
+    const generation = this.sessionGeneration
     try {
       const response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
         method: 'GET',
@@ -492,7 +560,9 @@ export class VrcAdapter extends VrcApiClient {
       })
       if (!response.ok) return
       const parsed = currentUserSchema.safeParse(await response.json())
-      if (parsed.success) this.displayName = parsed.data.displayName
+      if (parsed.success && generation === this.sessionGeneration) {
+        this.displayName = parsed.data.displayName
+      }
     } catch {
       /* non-fatal */
     }

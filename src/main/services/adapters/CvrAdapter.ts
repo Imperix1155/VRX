@@ -24,6 +24,8 @@ type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }
 export interface CvrLiveWiring {
   socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
+  /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
+  onSessionBoundary?: () => void
 }
 
 /**
@@ -68,6 +70,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
+  /** Fences async account-scoped cache writes across session replacement. */
+  private sessionGeneration = 0
   // True once the current session has been proven this launch — by a fresh
   // login (AuthType 2 just succeeded) or ONE successful restore validation.
   // Gates the reauth in getAuthStatus so we never re-login on every status
@@ -80,6 +84,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
   private pipeline: CvrPipeline | null = null
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+  // Snapshot entries intentionally carry ids only. Keep the latest successful
+  // REST roster's names in main so native notifications can resolve readable
+  // copy without fabricating profile fields on AdapterEvent.
+  private readonly friendNames = new Map<string, string>()
+  /** Monotonic order fence: only the newest same-generation roster may write names. */
+  private friendNamesRequestSequence = 0
+  private friendNamesCommittedSequence = 0
 
   // ── Instance enrichment (VRX-59) ──
   // The WS wire has no world id/thumbnail and only the creator-set instance
@@ -94,6 +105,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    *  as undefined, so without this every rapid delta snapshot would stack another
    *  callback on the same promise → N×M duplicate re-emits (Sol review, High). */
   private readonly pendingResolutions = new Set<string>()
+  /** One best-effort REST name warm per session; failures remain retryable. */
+  private rosterWarmStarted = false
 
   constructor(
     private readonly store: CvrCredentialStore,
@@ -269,33 +282,63 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async getFriends(): Promise<Friend[]> {
-    // Static roster only (VRX-57); live presence arrives via the pipeline below.
-    let result: { friends: Friend[]; skippedRecords: number }
-    try {
-      result = await fetchCvrFriends((path, schema) => this.get(path, schema))
-    } catch (error) {
-      // The data path is where a dead session surfaces (VRX-190): getAuthStatus
-      // trusts the session without re-authing, so a 401 here IS the signal that
-      // the accessKey died — clear it so the UI reflects logged-out, then let
-      // the error propagate for the "couldn't load" state.
-      if (error instanceof CVRAuthError) {
-        // Dead access key on the data path — clear the session AND tell the
-        // renderer, which has no other signal that auth changed out of band, so
-        // the Accounts card stops showing a stale "connected" (VRX-195).
-        this.clearSession()
-        this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+    for (;;) {
+      // Static roster only (VRX-57); live presence arrives via the pipeline below.
+      const generation = this.sessionGeneration
+      const requestSequence = ++this.friendNamesRequestSequence
+      let result: { friends: Friend[]; skippedRecords: number }
+      try {
+        result = await fetchCvrFriends((path, schema) => this.get(path, schema))
+      } catch (error) {
+        // A different account landed while this request was in flight. Its error
+        // must neither clear the current session nor fail the current caller.
+        if (generation !== this.sessionGeneration) continue
+
+        // The data path is where a dead session surfaces (VRX-190): getAuthStatus
+        // trusts the session without re-authing, so a 401 here IS the signal that
+        // the accessKey died — clear it so the UI reflects logged-out, then let
+        // the error propagate for the "couldn't load" state.
+        if (error instanceof CVRAuthError) {
+          // Dead access key on the data path — clear the session AND tell the
+          // renderer, which has no other signal that auth changed out of band, so
+          // the Accounts card stops showing a stale "connected" (VRX-195).
+          this.clearSession()
+          this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+        }
+        throw error
       }
-      throw error
+
+      // Check staleness before normalization errors or returning account data.
+      if (generation !== this.sessionGeneration) continue
+
+      // Everything was dropped as malformed → surface an error rather than a
+      // misleading empty list (UI shows "couldn't load", not "no friends"), the
+      // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
+      if (result.skippedRecords > 0 && result.friends.length === 0) {
+        throw new CVRNetworkError(
+          `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
+        )
+      }
+
+      // Overlapping renderer and socket-warm fetches are expected. Both callers
+      // may use their own result, but an older response must not overwrite the
+      // name cache established by a newer SUCCESSFUL request — track the highest
+      // committed sequence, not the highest started one, so a failed newer
+      // request can't forbid the only successful roster from populating names.
+      if (requestSequence > this.friendNamesCommittedSequence) {
+        this.friendNamesCommittedSequence = requestSequence
+        this.friendNames.clear()
+        for (const friend of result.friends) {
+          this.friendNames.set(friend.platformUserId, friend.displayName)
+        }
+      }
+      return result.friends
     }
-    // Everything was dropped as malformed → surface an error rather than a
-    // misleading empty list (UI shows "couldn't load", not "no friends"), the
-    // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
-    if (result.skippedRecords > 0 && result.friends.length === 0) {
-      throw new CVRNetworkError(
-        `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
-      )
-    }
-    return result.friends
+  }
+
+  /** Resolve an id-only CVR presence entry against the latest REST roster. */
+  resolveFriendName(platformUserId: string): string | null {
+    return this.friendNames.get(platformUserId) ?? null
   }
   /**
    * Resolve full instance details on demand (VRX-59) — the detail-panel path.
@@ -304,24 +347,30 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * one with graceful-null semantics.
    */
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
-    const resolved = await this.instanceResolver.resolve(instanceId)
-    if (resolved === null) {
-      throw new CVRNetworkError('CVR instance is private or could not be resolved')
-    }
-    const access = parseCvrPrivacy(resolved.privacy)
-    return {
-      // True world id when the API supplied one; the instance id otherwise
-      // (same fallback the WS path uses — keys stay consistent either way).
-      worldId: resolved.worldId ?? instanceId,
-      instanceId,
-      worldName: resolved.worldName ?? resolved.instanceName,
-      thumbnailUrl: resolved.worldImageUrl,
-      type: access.type,
-      openness: access.openness,
-      isGroup: access.isGroup,
-      groupName: null,
-      region: null,
-      userCount: resolved.playerCount
+    for (;;) {
+      const generation = this.sessionGeneration
+      const resolved = await this.instanceResolver.resolve(instanceId)
+      // Never return an old session's success or surface its null/failure as the
+      // current call's outcome. Resolve again through the current session.
+      if (generation !== this.sessionGeneration) continue
+      if (resolved === null) {
+        throw new CVRNetworkError('CVR instance is private or could not be resolved')
+      }
+      const access = parseCvrPrivacy(resolved.privacy)
+      return {
+        // True world id when the API supplied one; the instance id otherwise
+        // (same fallback the WS path uses — keys stay consistent either way).
+        worldId: resolved.worldId ?? instanceId,
+        instanceId,
+        worldName: resolved.worldName ?? resolved.instanceName,
+        thumbnailUrl: resolved.worldImageUrl,
+        type: access.type,
+        openness: access.openness,
+        isGroup: access.isGroup,
+        groupName: null,
+        region: null,
+        userCount: resolved.playerCount
+      }
     }
   }
   joinInstance(): Promise<void> {
@@ -336,16 +385,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
     // Mirrors VrcAdapter.subscribe (VRX-146c).
-    this.pipeline ??= new CvrPipeline({
-      headersProvider: () => Promise.resolve(this.pipelineHeaders()),
-      onEvent: (event) => this.handlePipelineEvent(event),
-      socketFactory:
-        this.live?.socketFactory ??
-        (() => {
-          throw new Error('CvrAdapter: no socketFactory wired for the live pipeline')
-        }),
-      log: this.live?.log
-    })
+    this.pipeline ??= this.createPipeline()
     this.pipeline.start()
 
     let active = true
@@ -355,12 +395,29 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.subscribers.delete(handler)
       if (this.subscribers.size === 0) {
         this.pipeline?.stop()
+        this.pipeline = null
         // A resolution landing after the pipeline stops must not re-emit the
         // dead connection's roster to a future subscriber (VRX-59): the next
         // connect delivers a fresh full set anyway (CVR ONLINE_FRIENDS).
         this.lastSnapshot = null
+        this.pendingResolutions.clear()
       }
     }
+  }
+
+  /** A pipeline object is stamped with the account generation that created it. */
+  private createPipeline(): CvrPipeline {
+    const generation = this.sessionGeneration
+    return new CvrPipeline({
+      headersProvider: () => Promise.resolve(this.pipelineHeaders()),
+      onEvent: (event) => this.handlePipelineEvent(event, generation),
+      socketFactory:
+        this.live?.socketFactory ??
+        (() => {
+          throw new Error('CvrAdapter: no socketFactory wired for the live pipeline')
+        }),
+      log: this.live?.log
+    })
   }
 
   /**
@@ -370,14 +427,26 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * unseen instance ids and RE-EMIT the enriched snapshot as answers land.
    * Snapshots are idempotent full-sets, so re-emits are safe by contract.
    */
-  private handlePipelineEvent(event: AdapterEvent): void {
+  private handlePipelineEvent(event: AdapterEvent, generation = this.sessionGeneration): void {
+    if (generation !== this.sessionGeneration) return
+
+    if (event.type === 'connection' && event.platform === 'chilloutvr') {
+      // Every socket boundary invalidates the enrichment source, including
+      // `live`: a resolution from the previous connection must never re-emit
+      // its old full set into the fresh baseline window.
+      this.lastSnapshot = null
+      this.pendingResolutions.clear()
+      this.emit(event)
+      if (event.health === 'live') this.warmFriendNames()
+      return
+    }
     if (event.type !== 'presence-snapshot' || event.platform !== 'chilloutvr') {
       this.emit(event)
       return
     }
     this.lastSnapshot = event
     this.emit(this.enrichSnapshot(event))
-    this.kickResolutions(event)
+    this.kickResolutions(event, generation)
   }
 
   /** Patch entries with any CACHED resolution — synchronous, cache-only. */
@@ -387,7 +456,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       entries: snapshot.entries.map((entry) => {
         if (entry.instance == null) return entry
         const resolved = this.instanceResolver.peek(entry.instance.instanceId)
-        if (resolved == null) return entry // unknown or unresolvable → wire values
+        if (resolved == null) {
+          // Unresolved: keep the wire values — the creator-set Instance.Name
+          // stays as the UI's world-line fallback (VRX-59 UX; display strips
+          // the (#…) suffix). FriendAlerts independently nulls it for alert
+          // copy via the worldId===instanceId unresolved marker, so the label
+          // can never reach a notification body.
+          return entry
+        }
         return { ...entry, instance: this.mergeResolved(entry.instance, resolved) }
       })
     }
@@ -399,7 +475,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return {
       ...instance,
       worldId: resolved.worldId ?? instance.worldId,
-      worldName: resolved.worldName ?? instance.worldName,
+      // Only resolver world.name is authoritative; instanceName is a label.
+      worldName: resolved.worldName,
       thumbnailUrl: resolved.worldImageUrl ?? instance.thumbnailUrl,
       userCount: resolved.playerCount ?? instance.userCount
     }
@@ -412,7 +489,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * per-instance-id, not per-snapshot). Failures resolve null and are
    * negative-cached inside the resolver; nothing to re-emit for them.
    */
-  private kickResolutions(snapshot: PresenceSnapshotEvent): void {
+  private kickResolutions(snapshot: PresenceSnapshotEvent, generation: number): void {
     const unseen = new Set<string>()
     for (const entry of snapshot.entries) {
       if (entry.instance == null) continue
@@ -426,13 +503,19 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       void this.instanceResolver
         .resolve(id)
         .then((resolved) => {
-          if (resolved === null || this.lastSnapshot === null) return
+          if (
+            generation !== this.sessionGeneration ||
+            resolved === null ||
+            this.lastSnapshot === null
+          ) {
+            return
+          }
           // Only re-emit if the id is still present in the current snapshot.
           const relevant = this.lastSnapshot.entries.some((e) => e.instance?.instanceId === id)
           if (relevant) this.emit(this.enrichSnapshot(this.lastSnapshot))
         })
         .finally(() => {
-          this.pendingResolutions.delete(id)
+          if (generation === this.sessionGeneration) this.pendingResolutions.delete(id)
         })
     }
   }
@@ -456,6 +539,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
+    this.bumpSessionGeneration()
   }
 
   private persist(): void {
@@ -472,14 +556,44 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.setCredentials(null)
     this.displayName = null
     this.validated = false
-    // Drop the enrichment re-emit source (VRX-59): a resolution landing AFTER
-    // the session died must not re-emit the pre-quarantine roster and undo the
-    // VRX-195 stale-roster drop.
-    this.lastSnapshot = null
+    this.bumpSessionGeneration()
     try {
       this.store.delete()
     } catch {
       /* ignore — nothing recoverable to do */
+    }
+  }
+
+  private warmFriendNames(): void {
+    if (this.rosterWarmStarted) return
+    this.rosterWarmStarted = true
+    const generation = this.sessionGeneration
+    // Name warming is best-effort and never delays the socket. getFriends fences
+    // its cache write; this generation check also makes the warm's result a no-op
+    // after an account switch. A failure re-opens the gate for the next live edge.
+    void this.getFriends().catch(() => {
+      if (generation === this.sessionGeneration) this.rosterWarmStarted = false
+    })
+  }
+
+  /** Reset every account-scoped cache and replace a running socket pipeline. */
+  private bumpSessionGeneration(): void {
+    this.sessionGeneration += 1
+    this.friendNames.clear()
+    this.friendNamesRequestSequence = 0
+    this.friendNamesCommittedSequence = 0
+    this.instanceResolver.clear()
+    this.lastSnapshot = null
+    this.pendingResolutions.clear()
+    this.rosterWarmStarted = false
+    this.live?.onSessionBoundary?.()
+
+    const wasRunning = this.subscribers.size > 0
+    this.pipeline?.stop()
+    this.pipeline = null
+    if (wasRunning) {
+      this.pipeline = this.createPipeline()
+      this.pipeline.start()
     }
   }
 

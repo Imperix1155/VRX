@@ -1,10 +1,17 @@
-import { app, shell, BrowserWindow, dialog, session } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  session,
+  Notification as NativeNotification
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
-import { loadSettings } from './services/settings'
+import { getSettingsSnapshot, loadSettings } from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -21,6 +28,7 @@ import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
+import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -37,6 +45,18 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
+const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
+const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
+const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
+// Trailing creator-set instance label, e.g. "Bono's Movie Night (#teehee)" —
+// matches the renderer's display strip (utils/worldName).
+const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
+
+function releaseRetainedFriendNotification(notification: NativeNotification): void {
+  const timer = retainedFriendNotifications.get(notification)
+  if (timer !== undefined) clearTimeout(timer)
+  retainedFriendNotifications.delete(notification)
+}
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -171,6 +191,29 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
+/** Resolve the current main window at activation time, recreating and rewiring
+ *  it through the same VRX-112 lifecycle when every prior window was destroyed. */
+function getOrCreateMainWindow(): BrowserWindow {
+  if (currentWindow !== null && !currentWindow.isDestroyed()) return currentWindow
+
+  const existing = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+  if (existing !== undefined) {
+    currentWindow = existing
+    return existing
+  }
+
+  currentWindow = createWindow()
+  trayHandle?.wireWindow(currentWindow)
+  return currentWindow
+}
+
+function focusMainWindow(): void {
+  const window = getOrCreateMainWindow()
+  if (window.isMinimized()) window.restore()
+  window.show()
+  window.focus()
+}
+
 // ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
 // Registered at module scope BEFORE app.whenReady() so they are active for the
 // earliest boot errors — including a synchronous throw during startup, which
@@ -247,9 +290,11 @@ app
     // Live-pipeline wiring (VRX-146): the real socket carries the required
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
+    const friendAlertBoundary: { current?: FriendAlerts } = {}
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
-      log: (level, message, meta) => log[level](message, meta)
+      log: (level, message, meta) => log[level](message, meta),
+      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('vrchat')
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
     // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
@@ -282,13 +327,100 @@ app
     // socketFactory forwards them verbatim; logs route through the redaction hook.
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       socketFactory: (url, headers) => new WebSocket(url, { headers }),
-      log: (level, message, meta) => log[level](message, meta)
+      log: (level, message, meta) => log[level](message, meta),
+      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('chilloutvr')
     })
 
     const adapters = new Map<Platform, IPlatformAdapter>([
       ['vrchat', vrcAdapter],
       ['chilloutvr', cvrAdapter]
     ])
+
+    const showFriendAlert = (alert: FriendAlert): void => {
+      if (!NativeNotification.isSupported()) return
+
+      let title: string
+      let body: string
+      switch (alert.type) {
+        case 'online':
+          title = 'Friend online'
+          body = `${alert.displayName} is online`
+          break
+        case 'in-game': {
+          title = 'Friend in game'
+          // Match the renderer's trailing instance-label cleanup. Notifications
+          // are deliberately one-shot: later true-world enrichment corrects the
+          // baseline but does not attempt to replace an already delivered toast.
+          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
+          const worldName = strippedWorldName === '' ? null : strippedWorldName
+          body =
+            worldName === null
+              ? `${alert.displayName} joined a world`
+              : `${alert.displayName} joined ${worldName}`
+          break
+        }
+        case 'offline':
+          title = 'Friend offline'
+          body = `${alert.displayName} went offline`
+          break
+      }
+
+      try {
+        const notification = new NativeNotification({ title, body })
+        notification.on('click', focusMainWindow)
+        const cleanup = (): void => releaseRetainedFriendNotification(notification)
+        notification.once('close', cleanup)
+        notification.once('failed', () => {
+          // Never log native error text: platform messages can echo body copy,
+          // which contains a friend's display name.
+          log.warn('friend notification failed')
+          cleanup()
+        })
+        const cleanupTimer = setTimeout(cleanup, FRIEND_NOTIFICATION_RETENTION_MS)
+        cleanupTimer.unref()
+        retainedFriendNotifications.set(notification, cleanupTimer)
+        if (retainedFriendNotifications.size > MAX_RETAINED_FRIEND_NOTIFICATIONS) {
+          const oldest = retainedFriendNotifications.keys().next().value
+          if (oldest !== undefined) releaseRetainedFriendNotification(oldest)
+        }
+        try {
+          notification.show()
+        } catch (error) {
+          cleanup()
+          throw error
+        }
+      } catch {
+        // Native notification failure must never interrupt the shared adapter
+        // subscription path. Do not log the alert/error contents: both may
+        // contain a friend's display name.
+        log.warn('friend notification failed')
+      }
+    }
+
+    const alertSettingEnabled = (type: FriendAlertType): boolean => {
+      // The settings service updates this in-memory snapshot synchronously on
+      // save, so fire-time decisions stay current without store I/O in the WS path.
+      const current = getSettingsSnapshot()
+      switch (type) {
+        case 'online':
+          return current.notifyFriendOnline
+        case 'in-game':
+          return current.notifyFriendInGame
+        case 'offline':
+          return current.notifyFriendOffline
+      }
+    }
+
+    const friendAlerts = new FriendAlerts({
+      notify: showFriendAlert,
+      // Monotonic time keeps limiter windows correct across wall-clock adjustments.
+      clock: () => performance.now(),
+      isEnabled: alertSettingEnabled,
+      resolveName: (platform, platformUserId) =>
+        platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
+    })
+    friendAlertBoundary.current = friendAlerts
+
     registerIpcHandlers(adapters)
 
     // Broadcast live adapter events to every window over the typed push
@@ -301,8 +433,12 @@ app
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
       }
     }
-    const unsubscribeVrcLive = vrcAdapter.subscribe(broadcast)
-    const unsubscribeCvrLive = cvrAdapter.subscribe(broadcast)
+    const handleAdapterEvent = (event: AdapterEvent): void => {
+      friendAlerts.consume(event)
+      broadcast(event)
+    }
+    const unsubscribeVrcLive = vrcAdapter.subscribe(handleAdapterEvent)
+    const unsubscribeCvrLive = cvrAdapter.subscribe(handleAdapterEvent)
     app.on('before-quit', () => {
       // Close both sockets and halt the reconnect loops so quit is clean.
       unsubscribeVrcLive()
@@ -318,6 +454,11 @@ app
     currentWindow = createWindow()
     trayHandle = createTray(() => currentWindow)
     trayHandle.wireWindow(currentWindow)
+    if (process.platform === 'win32') {
+      // Windows can activate a toast after its instance object was collected or
+      // after a cold start; the central handler complements the instance click.
+      NativeNotification.handleActivation(focusMainWindow)
+    }
 
     // Check GitHub Releases for updates on startup (packaged builds only).
     // Own try/catch: a sync throw here would otherwise reach the bootstrap

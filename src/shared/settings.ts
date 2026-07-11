@@ -20,6 +20,7 @@
  *   labelScheme           → DESIGN.md §6 label rule (VRX-183; VRChat-scheme default per VRX-182)
  *   hotInstanceThreshold  → §9 dashboard hot grid (VRX-78; default from HOT_INSTANCE_THRESHOLD)
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
+ *   notifyFriend*          → native friend transition alerts (VRX-84; offline opt-in)
  */
 import { z } from 'zod'
 import {
@@ -57,7 +58,11 @@ export const SettingsSchema = z.object({
     .catch(HOT_INSTANCE_THRESHOLD),
   /** Friends-list presence sections the user collapsed (VRX-67). Offline is
    *  collapsed by default; additive field — no version bump (VRX-183 precedent). */
-  collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline'])
+  collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline']),
+  /** Native alert toggles (VRX-84). Additive fields — no version bump. */
+  notifyFriendOnline: z.boolean().catch(true),
+  notifyFriendInGame: z.boolean().catch(true),
+  notifyFriendOffline: z.boolean().catch(false)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
