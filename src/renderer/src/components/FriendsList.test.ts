@@ -12,6 +12,11 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends
 }))
+vi.mock('../queries/auth', () => ({
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
+    data: { platform, state: 'authenticated', displayName: 'Test User' }
+  })
+}))
 
 // renderToStaticMarkup is SSR: zustand serves the store's INITIAL state to
 // useSyncExternalStore's server snapshot, so setState never reaches the render.
