@@ -610,7 +610,9 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     ])
   })
 
-  it('hard-caps instance-count state under many distinct instances', () => {
+  // 10k sequential events full-rescan the capped presence map each time — a
+  // MEMORY-bound assertion that is deliberately slow; CI runners need headroom.
+  it('hard-caps instance-count state under many distinct instances', { timeout: 20_000 }, () => {
     const { engine } = harness({ threshold: 10 })
     for (let index = 0; index < 10_000; index++) {
       engine.consume(

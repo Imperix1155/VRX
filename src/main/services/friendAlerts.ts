@@ -432,8 +432,11 @@ export class FriendAlerts {
     if (presence.state !== 'in-game' || presence.instanceId === null) return null
     // VRChat's instance suffix is only unique inside a world. CVR instance ids
     // are globally unique and must remain stable while world metadata enriches.
+    // NUL separator: cheap and collision-free for the API's id charsets (this
+    // runs once per presence entry on EVERY event — JSON.stringify was the
+    // hot spot that timed CI out at 10k events).
     return platform === 'vrchat'
-      ? JSON.stringify([presence.worldId, presence.instanceId])
+      ? `${presence.worldId ?? ''}\u0000${presence.instanceId}`
       : presence.instanceId
   }
 
