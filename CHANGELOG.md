@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A ChilloutVR friend who's online now shows the same green as a VRChat friend who's online.** Previously CVR friends got a slightly different (mintier) ring and a gamepad icon — an internal modeling difference leaking into the UI as an inconsistency. Statuses are now an ordered cross-platform "privacy tier" (Join Me < Online < Ask Me < Do Not Disturb), and a platform without statuses maps its plain online onto the Online tier. (VRX-207, VRX-208)
+- **Friend profile pictures actually load now.** The avatar fetcher was rejecting exactly what the real services send: VRChat's image links need your login session and answer with a redirect (both now handled, with the session sent only to VRChat's own API host), and ChilloutVR's pictures live on a host that wasn't on the security allowlist (now added). Failures still fall back to the letter placeholder. (VRX-202)
 
 ### Changed
 
+- **All notifications now start switched off.** Fresh installs get no friend or hot-instance alerts until you enable them in Settings → Notifications — quiet by default, opt in to what you want. If you've already changed any switch, your choice is kept. (VRX-205)
 - **The friends list now names each friend's platform.** The thin colored edge on each friend row grew into a small vertical "VRC" / "CVR" tab on the row's left end — readable even in black and white, so you can tell platforms apart without relying on color (colorblind-safe). Owner-designed in a live mock round. (VRX-206)
 
 ## [0.8.0] - 2026-07-11

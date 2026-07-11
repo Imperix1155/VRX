@@ -36,6 +36,16 @@ export abstract class VrcApiClient extends BaseAdapter {
     this.authCookie = cookie
   }
 
+  /**
+   * The current auth Cookie header value, for the main-process avatar fetch
+   * (VRX-202 — the image endpoint 401s unauthenticated). Main-process only:
+   * never log it, never hand it to the renderer; avatarCache sends it to
+   * `api.vrchat.cloud` exclusively (AVATAR_COOKIE_HOST).
+   */
+  getAuthCookieHeader(): string | null {
+    return this.authCookie
+  }
+
   /** GET `path` (relative to VRC_API_BASE), validated against `schema`. */
   protected get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.request(VRC_API_BASE + path, schema, {

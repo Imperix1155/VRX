@@ -5,8 +5,18 @@ export const AVATAR_ALLOWED_HOSTS = new Set([
   'files.vrchat.cloud',
   'api.vrchat.cloud',
   'assets.vrchat.com',
-  'files.abinteractive.net'
+  'files.abinteractive.net',
+  // CVR's live avatar CDN (VRX-202): real rosters serve `imageUrl` from
+  // files.abidata.io (verified against CVRX api_cvr_http.js + chilloutvr_rs).
+  'files.abidata.io'
 ])
+/** The only host that ever receives the VRChat auth cookie (VRX-202). */
+export const AVATAR_COOKIE_HOST = 'api.vrchat.cloud'
+/**
+ * VRChat's image endpoint answers with a 302 to a signed CDN URL, so one
+ * delegated hop is the NORMAL path; 2 leaves headroom without allowing chains.
+ */
+export const AVATAR_MAX_REDIRECTS = 2
 export const AVATAR_ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/jpeg',
@@ -33,6 +43,13 @@ interface AvatarCacheOptions {
   negativeCacheMs?: number
   positiveCacheMs?: number
   maxConcurrency?: number
+  /**
+   * Returns the CURRENT VRChat auth Cookie header value, or null when logged
+   * out (VRX-202: the image endpoint 401s unauthenticated). Read at fetch time
+   * so rotation/logout apply immediately. Sent ONLY to AVATAR_COOKIE_HOST —
+   * never forwarded on redirects. Never log its value.
+   */
+  vrcCookieProvider?: () => string | null
 }
 
 function parseAllowedAvatarUrl(value: string): URL | null {
@@ -57,6 +74,18 @@ function parseAllowedAvatarUrl(value: string): URL | null {
   }
 }
 
+const IPV4_LITERAL_RE = /^\d{1,3}(\.\d{1,3}){3}$/
+
+/** Reject IP-literal and localhost redirect targets (SSRF hardening, VRX-202). */
+function isForbiddenRedirectHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.includes(':') || // WHATWG keeps IPv6 literals bracket-stripped with colons
+    IPV4_LITERAL_RE.test(hostname)
+  )
+}
+
 /**
  * Session-only avatar image cache. This deliberately does not use a platform
  * adapter: image traffic has its own cache/dedupe lifecycle and must not consume
@@ -73,6 +102,7 @@ export class AvatarCache {
   private readonly maxConcurrency: number
   private activeFetches = 0
   private readonly fetchWaiters: Array<() => void> = []
+  private vrcCookieProvider: (() => string | null) | null
 
   constructor(options: AvatarCacheOptions = {}) {
     this.fetchFn = options.fetchFn ?? fetch
@@ -81,6 +111,26 @@ export class AvatarCache {
     this.negativeCacheMs = options.negativeCacheMs ?? AVATAR_NEGATIVE_CACHE_MS
     this.positiveCacheMs = options.positiveCacheMs ?? AVATAR_POSITIVE_CACHE_MS
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
+    this.vrcCookieProvider = options.vrcCookieProvider ?? null
+  }
+
+  /** Late wiring for the module singleton: index.ts registers the adapter's
+   *  cookie accessor after the adapters are constructed (VRX-202). */
+  setVrcCookieProvider(provider: (() => string | null) | null): void {
+    this.vrcCookieProvider = provider
+  }
+
+  /**
+   * Drop cached FAILURES (auth-boundary hook, VRX-202/Codex): a fetch that
+   * 401'd around a login/logout/rotation would otherwise pin the placeholder
+   * for the negative TTL. Positive entries stay — images are auth-invariant.
+   * Residual (accepted): a fetch IN FLIGHT across the boundary can still write
+   * one stale failure after the clear; it self-heals within the 30s TTL.
+   */
+  clearNegativeEntries(): void {
+    for (const [url, entry] of this.cache) {
+      if (entry.dataUrl === null) this.cache.delete(url)
+    }
   }
 
   get(value: string): Promise<string | null> {
@@ -127,13 +177,72 @@ export class AvatarCache {
     return dataUrl
   }
 
+  /**
+   * Fetch the image, following the VRChat image endpoint's redirect shape
+   * (VRX-202): the API host requires the auth cookie and answers 302 with a
+   * signed CDN URL. Redirect rules — every one load-bearing:
+   *  - ONLY the API host (AVATAR_COOKIE_HOST) may issue a followed redirect —
+   *    the one host that legitimately 302s (Codex review tightening: CDN hosts
+   *    serve images directly, so giving them delegation was pure SSRF surface).
+   *    The TARGET is not allowlist-checked (VRChat rotates signed-CDN hosts
+   *    freely), but it cannot redirect again, which kills chains.
+   *  - Targets must be bare https (no port, no credentials) on a NAMED public
+   *    host (IP literals and localhost names rejected). Residual: a DNS name
+   *    resolving privately is only reachable via an api.vrchat.cloud open
+   *    redirect — accepted, documented.
+   *  - The auth cookie is attached ONLY when the CURRENT hop is the API host —
+   *    it is never forwarded to a redirect target.
+   *  - At most AVATAR_MAX_REDIRECTS hops.
+   */
   private async fetchAvatar(url: string): Promise<string | null> {
-    const controller = new AbortController()
-    const response = await this.fetchFn(url, {
-      headers: { 'User-Agent': VRC_USER_AGENT },
-      redirect: 'error',
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
-    })
+    let target = new URL(url)
+    for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
+      const headers: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
+      if (target.hostname === AVATAR_COOKIE_HOST) {
+        const cookie = this.vrcCookieProvider?.() ?? null
+        if (cookie !== null) headers['Cookie'] = cookie
+      }
+      const controller = new AbortController()
+      const response = await this.fetchFn(target.href, {
+        headers,
+        redirect: 'manual',
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
+      })
+
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        await response.body?.cancel()
+        if (target.hostname !== AVATAR_COOKIE_HOST) return null
+        const location = response.headers.get('location')
+        if (location === null) return null
+        let next: URL
+        try {
+          next = new URL(location, target)
+        } catch {
+          return null
+        }
+        if (
+          next.protocol !== 'https:' ||
+          next.port !== '' ||
+          next.username !== '' ||
+          next.password !== '' ||
+          isForbiddenRedirectHost(next.hostname)
+        ) {
+          return null
+        }
+        next.hash = ''
+        target = next
+        continue
+      }
+
+      return await this.readImageBody(response, controller)
+    }
+    return null
+  }
+
+  private async readImageBody(
+    response: Response,
+    controller: AbortController
+  ): Promise<string | null> {
     const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
     if (!response.ok || !contentType || !AVATAR_ALLOWED_MIME_TYPES.has(contentType)) {
       controller.abort()

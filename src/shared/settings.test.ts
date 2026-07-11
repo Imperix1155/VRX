@@ -21,10 +21,10 @@ describe('settings schema', () => {
       labelScheme: 'vrchat',
       hotInstanceThreshold: 2,
       collapsedFriendSections: ['offline'],
-      notifyFriendOnline: true,
-      notifyFriendInGame: true,
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
       notifyFriendOffline: false,
-      notifyHotInstance: true
+      notifyHotInstance: false
     })
   })
 
@@ -82,19 +82,20 @@ describe('settings schema', () => {
     ])
   })
 
-  it('friend notifications: additive defaults are online/in-game on and offline off', () => {
+  it('friend notifications: quiet defaults — every alert type ships OFF (VRX-205)', () => {
     const legacy = parseSettings({ theme: 'dark' })
-    expect(legacy.notifyFriendOnline).toBe(true)
-    expect(legacy.notifyFriendInGame).toBe(true)
+    expect(legacy.notifyFriendOnline).toBe(false)
+    expect(legacy.notifyFriendInGame).toBe(false)
     expect(legacy.notifyFriendOffline).toBe(false)
 
+    // Persisted explicit values always win — existing users keep their choices.
     const customized = parseSettings({
-      notifyFriendOnline: false,
-      notifyFriendInGame: false,
+      notifyFriendOnline: true,
+      notifyFriendInGame: true,
       notifyFriendOffline: true
     })
-    expect(customized.notifyFriendOnline).toBe(false)
-    expect(customized.notifyFriendInGame).toBe(false)
+    expect(customized.notifyFriendOnline).toBe(true)
+    expect(customized.notifyFriendInGame).toBe(true)
     expect(customized.notifyFriendOffline).toBe(true)
 
     const invalid = parseSettings({
@@ -102,15 +103,15 @@ describe('settings schema', () => {
       notifyFriendInGame: null,
       notifyFriendOffline: 1
     })
-    expect(invalid.notifyFriendOnline).toBe(true)
-    expect(invalid.notifyFriendInGame).toBe(true)
+    expect(invalid.notifyFriendOnline).toBe(false)
+    expect(invalid.notifyFriendInGame).toBe(false)
     expect(invalid.notifyFriendOffline).toBe(false)
   })
 
-  it('hot-instance notifications: additive default is on and invalid values fall back on', () => {
-    expect(parseSettings({ theme: 'dark' }).notifyHotInstance).toBe(true)
-    expect(parseSettings({ notifyHotInstance: false }).notifyHotInstance).toBe(false)
-    expect(parseSettings({ notifyHotInstance: 'no' }).notifyHotInstance).toBe(true)
+  it('hot-instance notifications: quiet default — ships OFF, invalid falls back off (VRX-205)', () => {
+    expect(parseSettings({ theme: 'dark' }).notifyHotInstance).toBe(false)
+    expect(parseSettings({ notifyHotInstance: true }).notifyHotInstance).toBe(true)
+    expect(parseSettings({ notifyHotInstance: 'no' }).notifyHotInstance).toBe(false)
   })
 
   it('coerces non-object input to defaults', () => {
