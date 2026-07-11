@@ -232,7 +232,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       // The key WE SENT was rejected — the session is dead. Clear it everywhere
       // so session restore can't re-adopt it next launch and 401 forever
       // (mirrors the VrcAdapter dead-cookie rule).
-      this.clearSession()
+      this.clearSessionState()
       return this.status('unauthenticated')
     }
     if (!response.ok) return this.status('error') // 5xx etc — transient, don't clear
@@ -303,7 +303,6 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
           // renderer, which has no other signal that auth changed out of band, so
           // the Accounts card stops showing a stale "connected" (VRX-195).
           this.clearSession()
-          this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
         }
         throw error
       }
@@ -551,7 +550,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
-  private clearSession(): void {
+  clearSession(): void {
+    this.clearSessionState()
+    this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+  }
+
+  private clearSessionState(): void {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
