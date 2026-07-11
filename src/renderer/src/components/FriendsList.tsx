@@ -381,7 +381,8 @@ export default function FriendsList(): React.JSX.Element {
     selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
   const isNotConnected =
     selectedPlatform !== null &&
-    authStatus.data?.state === 'unauthenticated' &&
+    authStatus.isSuccess &&
+    authStatus.data.state === 'unauthenticated' &&
     !authStatus.isFetching
   const [appliedSearch, setAppliedSearch] = useState(search)
   const searchInputRef = useRef<HTMLInputElement>(null)
