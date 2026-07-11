@@ -25,6 +25,11 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
 }))
+vi.mock('../queries/auth', () => ({
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
+    data: { platform, state: 'authenticated', displayName: 'Test User' }
+  })
+}))
 
 // Assertions go through i18n.t so a copy tweak doesn't break behavior tests.
 const msg = (key: string, opts?: Record<string, unknown>): string => i18n.t(key, opts)

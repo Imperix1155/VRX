@@ -107,6 +107,11 @@
     "searchNoResults": "検索に一致するフレンドはいません",
     "refresh": "更新",
     "error": "フレンドを読み込めませんでした",
+    "notConnected": {
+      "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
+    },
     "status": {
       "joinMe": "Join Me",
       "online": "オンライン",
@@ -148,6 +153,11 @@
     "loading": "読み込み中...",
     "error": "フレンドを読み込めませんでした",
     "retry": "再試行",
+    "notConnected": {
+      "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
+    },
     "statOnlineLabel": "オンラインのフレンド",
     "statInGameLabel": "ゲーム中",
     "statHotLabel": "ホットインスタンス",
