@@ -26,6 +26,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
+import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
@@ -316,7 +317,12 @@ app
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta),
-      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('vrchat')
+      onSessionBoundary: () => {
+        friendAlertBoundary.current?.resetPlatform('vrchat')
+        // VRX-202: auth changed — cached avatar FAILURES (401s from the old
+        // auth state) are stale; successes are auth-invariant and stay.
+        avatarCache.clearNegativeEntries()
+      }
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
     // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
@@ -455,6 +461,10 @@ app
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
     friendAlertBoundary.current = friendAlerts
+
+    // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
+    // endpoint 401s unauthenticated). Late-wired so logout/rotation apply on read.
+    avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
 
     registerIpcHandlers(adapters)
 
