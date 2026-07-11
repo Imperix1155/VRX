@@ -9,6 +9,25 @@ describe('main native notification wiring', () => {
     expect(source).toContain('new NativeNotification({ title, body, icon })')
   })
 
+  it('pins the VRX-204 Title Case toast headers (owner: headers capitalize every word)', () => {
+    expect(source).toContain("title = 'Friend Online'")
+    expect(source).toContain("title = 'Friend Joined a World'")
+    expect(source).toContain("title = 'Friend Offline'")
+    expect(source).toContain("title = 'Friends Gathering'")
+  })
+
+  it('pins the VRX-204 body templates + the load-bearing in-game label strip', () => {
+    expect(source).toContain('`${alert.displayName} came online`')
+    expect(source).toContain('`${alert.displayName} joined ${worldName}`')
+    expect(source).toContain('`${alert.displayName} joined a world`')
+    expect(source).toContain('`${alert.displayName} went offline`')
+    // The wire instance label must never reach alert copy (VRX-85 review finding):
+    // both world-bearing paths strip it before templating.
+    expect(
+      (source.match(/alert\.worldName\?\.replace\(INSTANCE_LABEL_SUFFIX, ''\)/g) ?? []).length
+    ).toBe(2)
+  })
+
   it('keeps the owner-authored hot-instance world and worldless copy (VRX-85)', () => {
     expect(source).toContain(
       '`${alert.friendCount} friends are in ${strippedWorldName} — join them?`'
