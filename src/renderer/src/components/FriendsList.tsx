@@ -117,22 +117,36 @@ function StatusGlyph({ kind }: { kind: GlyphKind }): React.JSX.Element | null {
 }
 
 /**
- * Platform spine — 3px glowing left edge, VRChat blue or CVR orange (DESIGN.md §9/§9.1).
- * After §9.1 this is the row's PRIMARY platform signal (the V/C glyph was dropped).
+ * Platform tab — the row's platform signal, color AND non-color (VRX-206; owner-
+ * approved design round 2026-07-11, reversing the §9.1 R10 color-only carve-out).
+ * A vertical platform-tinted pill stacked onto the card's left end per the stack
+ * model: even 3px inset on the attached sides, radius concentric with the card
+ * (13px card − 1px border − 3px gap = 9px), sideways VRC/CVR acronym so the
+ * platform survives the §5 black-and-white test.
+ *
+ * Geometry couples to the row's frame: grid col 14px + row pl-[10px] → -ml-[7px]
+ * lands the tab 3px off the card's inner left edge; -mt-[5px]/-mb-[5px] bleed
+ * through py-[8px] to the same 3px inset top and bottom. PHYSICAL margins only:
+ * -my-* emits logical margin-block, which [writing-mode:vertical-rl] rotates onto
+ * the HORIZONTAL axis (review-caught High) — same trap for any future -m*.
  */
-function PlatformSpine({ platform }: { platform: Friend['platform'] }): React.JSX.Element {
+function PlatformTab({ platform }: { platform: Friend['platform'] }): React.JSX.Element {
+  const { t } = useTranslation()
   const isVrc = platform === 'vrchat'
-  const colorClass = isVrc ? 'bg-[var(--vrc)]' : 'bg-[var(--cvr)]'
-  // Glow: 50% platform color into transparent — color-mix avoids raw rgba literals.
-  const glowClass = isVrc
-    ? 'shadow-[0_0_10px_color-mix(in_srgb,var(--vrc)_50%,transparent)]'
-    : 'shadow-[0_0_10px_color-mix(in_srgb,var(--cvr)_50%,transparent)]'
-
+  const pvar = isVrc ? '--vrc' : '--cvr'
   return (
     <span
-      aria-hidden="true"
-      className={`block shrink-0 w-[3px] h-[26px] rounded-r-[3px] ${colorClass} ${glowClass}`}
-    />
+      role="img"
+      aria-label={isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
+      className="grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180"
+      style={{
+        background: `color-mix(in srgb, var(${pvar}) 13%, transparent)`,
+        borderColor: `color-mix(in srgb, var(${pvar}) 36%, transparent)`,
+        color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)'
+      }}
+    >
+      {isVrc ? t('friends.platform.vrchatShort') : t('friends.platform.chilloutvrShort')}
+    </span>
   )
 }
 
@@ -233,15 +247,15 @@ const FriendRow = memo(function FriendRow({
   return (
     <li
       className={[
-        // grid: 3px spine · 42px avatar · 1fr content · auto instance pill
-        'grid grid-cols-[3px_42px_1fr_auto] items-center gap-x-[12px]',
+        // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
+        'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
       ].join(' ')}
     >
-      <PlatformSpine platform={friend.platform} />
+      <PlatformTab platform={friend.platform} />
       <Avatar friend={friend} />
 
       {/* Content — name + custom status (beside), world beneath */}

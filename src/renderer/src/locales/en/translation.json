@@ -171,6 +171,12 @@
         "members-only": "Members Only",
         "offline": "Offline Instance"
       }
+    },
+    "platform": {
+      "vrchat": "VRChat",
+      "chilloutvr": "ChilloutVR",
+      "vrchatShort": "VRC",
+      "chilloutvrShort": "CVR"
     }
   },
   "dashboard": {

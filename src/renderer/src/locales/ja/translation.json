@@ -170,6 +170,12 @@
         "members-only": "メンバーのみ",
         "offline": "オフラインインスタンス"
       }
+    },
+    "platform": {
+      "vrchat": "VRChat",
+      "chilloutvr": "ChilloutVR",
+      "vrchatShort": "VRC",
+      "chilloutvrShort": "CVR"
     }
   },
   "dashboard": {
