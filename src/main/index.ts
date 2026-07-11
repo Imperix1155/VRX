@@ -317,7 +317,12 @@ app
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta),
-      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('vrchat')
+      onSessionBoundary: () => {
+        friendAlertBoundary.current?.resetPlatform('vrchat')
+        // VRX-202: auth changed — cached avatar FAILURES (401s from the old
+        // auth state) are stale; successes are auth-invariant and stay.
+        avatarCache.clearNegativeEntries()
+      }
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
     // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"

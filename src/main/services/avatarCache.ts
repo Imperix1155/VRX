@@ -74,6 +74,16 @@ function parseAllowedAvatarUrl(value: string): URL | null {
   }
 }
 
+/** Reject IP-literal and localhost redirect targets (SSRF hardening, VRX-202). */
+function isForbiddenRedirectHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.includes(':') || // WHATWG keeps IPv6 literals bracket-stripped with colons
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
+  )
+}
+
 /**
  * Session-only avatar image cache. This deliberately does not use a platform
  * adapter: image traffic has its own cache/dedupe lifecycle and must not consume
@@ -106,6 +116,19 @@ export class AvatarCache {
    *  cookie accessor after the adapters are constructed (VRX-202). */
   setVrcCookieProvider(provider: (() => string | null) | null): void {
     this.vrcCookieProvider = provider
+  }
+
+  /**
+   * Drop cached FAILURES (auth-boundary hook, VRX-202/Codex): a fetch that
+   * 401'd around a login/logout/rotation would otherwise pin the placeholder
+   * for the negative TTL. Positive entries stay — images are auth-invariant.
+   * Residual (accepted): a fetch IN FLIGHT across the boundary can still write
+   * one stale failure after the clear; it self-heals within the 30s TTL.
+   */
+  clearNegativeEntries(): void {
+    for (const [url, entry] of this.cache) {
+      if (entry.dataUrl === null) this.cache.delete(url)
+    }
   }
 
   get(value: string): Promise<string | null> {
@@ -156,11 +179,15 @@ export class AvatarCache {
    * Fetch the image, following the VRChat image endpoint's redirect shape
    * (VRX-202): the API host requires the auth cookie and answers 302 with a
    * signed CDN URL. Redirect rules — every one load-bearing:
-   *  - Only an ALLOWLISTED host's redirect is followed (trust delegation: the
-   *    API may point at CDN hosts VRChat rotates freely, so the TARGET is not
-   *    allowlist-checked — but a non-allowlisted target cannot redirect again,
-   *    which kills chains through arbitrary hosts).
-   *  - Targets must be bare https (no port, no credentials), like origins.
+   *  - ONLY the API host (AVATAR_COOKIE_HOST) may issue a followed redirect —
+   *    the one host that legitimately 302s (Codex review tightening: CDN hosts
+   *    serve images directly, so giving them delegation was pure SSRF surface).
+   *    The TARGET is not allowlist-checked (VRChat rotates signed-CDN hosts
+   *    freely), but it cannot redirect again, which kills chains.
+   *  - Targets must be bare https (no port, no credentials) on a NAMED public
+   *    host (IP literals and localhost names rejected). Residual: a DNS name
+   *    resolving privately is only reachable via an api.vrchat.cloud open
+   *    redirect — accepted, documented.
    *  - The auth cookie is attached ONLY when the CURRENT hop is the API host —
    *    it is never forwarded to a redirect target.
    *  - At most AVATAR_MAX_REDIRECTS hops.
@@ -182,7 +209,7 @@ export class AvatarCache {
 
       if ([301, 302, 303, 307, 308].includes(response.status)) {
         await response.body?.cancel()
-        if (!AVATAR_ALLOWED_HOSTS.has(target.hostname)) return null
+        if (target.hostname !== AVATAR_COOKIE_HOST) return null
         const location = response.headers.get('location')
         if (location === null) return null
         let next: URL
@@ -195,7 +222,8 @@ export class AvatarCache {
           next.protocol !== 'https:' ||
           next.port !== '' ||
           next.username !== '' ||
-          next.password !== ''
+          next.password !== '' ||
+          isForbiddenRedirectHost(next.hostname)
         ) {
           return null
         }

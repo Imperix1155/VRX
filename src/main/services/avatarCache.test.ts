@@ -68,7 +68,7 @@ describe('AvatarCache', () => {
     ).toBeUndefined()
   })
 
-  it('refuses a redirect ISSUED by a non-allowlisted host (no chains through the CDN)', async () => {
+  it('refuses a redirect ISSUED by any host but api.vrchat.cloud (no CDN chains)', async () => {
     const fetchFn = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(redirectResponse(CDN_URL))
@@ -89,6 +89,62 @@ describe('AvatarCache', () => {
 
     await expect(cache.get(VRC_IMAGE_URL)).resolves.toBeNull()
     expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a redirect issued by an ALLOWLISTED CDN host (only the API host delegates)', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValueOnce(redirectResponse(CDN_URL))
+    const cache = new AvatarCache({ fetchFn })
+
+    await expect(cache.get('https://files.abidata.io/user_images/00-0000.png')).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['IPv4 literal', 'https://10.0.0.7/x.png'],
+    ['IPv6 literal', 'https://[::1]/x.png'],
+    ['localhost', 'https://localhost/x.png'],
+    ['.localhost subdomain', 'https://evil.localhost/x.png']
+  ])('refuses a redirect target that is a %s (SSRF hardening)', async (_name, location) => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValueOnce(redirectResponse(location))
+    const cache = new AvatarCache({ fetchFn })
+
+    await expect(cache.get(VRC_IMAGE_URL)).resolves.toBeNull()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('withholds the cookie from sibling VRChat hosts (exact-host attach, not suffix match)', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
+    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+
+    await expect(cache.get('https://files.vrchat.cloud/avatar/file_2.png')).resolves.toMatch(
+      /^data:image\/png;base64,/
+    )
+    expect(
+      (fetchFn.mock.calls[0]?.[1]?.headers as Record<string, string>)['Cookie']
+    ).toBeUndefined()
+  })
+
+  it('clearNegativeEntries drops cached failures but keeps cached images (auth boundary)', async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(imageResponse())
+      .mockResolvedValueOnce(redirectResponse(CDN_URL))
+      .mockResolvedValueOnce(imageResponse())
+    const cache = new AvatarCache({ fetchFn })
+
+    await expect(cache.get(VRC_IMAGE_URL)).resolves.toBeNull()
+    const positive = await cache.get('https://files.abidata.io/user_images/00-0000.png')
+    expect(positive).toMatch(/^data:image\/png;base64,/)
+
+    cache.clearNegativeEntries()
+
+    // The failure refetches (now succeeding via the 302 path); the image stays cached.
+    await expect(cache.get(VRC_IMAGE_URL)).resolves.toMatch(/^data:image\/png;base64,/)
+    await expect(cache.get('https://files.abidata.io/user_images/00-0000.png')).resolves.toBe(
+      positive
+    )
+    expect(fetchFn).toHaveBeenCalledTimes(4)
   })
 
   it('gives up after the redirect cap instead of looping', async () => {
