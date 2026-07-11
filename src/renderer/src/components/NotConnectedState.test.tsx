@@ -69,6 +69,7 @@ function connected(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
     data: { platform, state: 'authenticated', displayName: 'Test User' },
     isPending: false,
+    isSuccess: true,
     isFetching: false
   })
 }
@@ -77,6 +78,20 @@ function unauthenticated(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
     data: { platform, state: 'unauthenticated', displayName: null },
     isPending: false,
+    isSuccess: true,
+    isFetching: false
+  })
+}
+
+function failedRefetchStaleUnauthenticated(platform: Platform): void {
+  // A post-login auth refetch that exhausted retries: TanStack keeps the stale
+  // 'unauthenticated' data with isError:true / isSuccess:false. The CTA must
+  // NOT render — it would mask the auth-status failure as "not connected".
+  useAuthStatusMock.mockReturnValue({
+    data: { platform, state: 'unauthenticated', displayName: null },
+    isPending: false,
+    isSuccess: false,
+    isError: true,
     isFetching: false
   })
 }
@@ -93,6 +108,7 @@ function refetchingUnauthenticated(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
     data: { platform, state: 'unauthenticated', displayName: null },
     isPending: false,
+    isSuccess: true,
     isFetching: true
   })
 }
@@ -152,6 +168,19 @@ describe('not-connected social states (VRX-192)', () => {
           render(<Component />)
 
           expect(screen.getByText(loading)).toBeTruthy()
+          expect(screen.queryByRole('button', { name: accountCta })).toBeNull()
+        }
+      )
+
+      it.each(platforms)(
+        'does not show the CTA when the %s auth refetch FAILED with stale unauthenticated data',
+        (platform) => {
+          useFriendsStore.setState({ platformFilter: platform })
+          setQueries(failedQuery(), failedQuery())
+          failedRefetchStaleUnauthenticated(platform)
+
+          render(<Component />)
+
           expect(screen.queryByRole('button', { name: accountCta })).toBeNull()
         }
       )

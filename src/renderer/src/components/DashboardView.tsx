@@ -230,7 +230,8 @@ export default function DashboardView(): React.JSX.Element {
     selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
   const isNotConnected =
     selectedPlatform !== null &&
-    authStatus.data?.state === 'unauthenticated' &&
+    authStatus.isSuccess &&
+    authStatus.data.state === 'unauthenticated' &&
     !authStatus.isFetching
 
   function openAccounts(): void {
