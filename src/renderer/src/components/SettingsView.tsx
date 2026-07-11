@@ -39,6 +39,7 @@ export default function SettingsView(): React.JSX.Element {
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
+  const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -180,6 +181,22 @@ export default function SettingsView(): React.JSX.Element {
                 checked={notifyFriendOffline}
                 ariaLabel={t('settings.notifications.offline.aria')}
                 onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
+              />
+            </div>
+
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.notifications.hotInstance.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.notifications.hotInstance.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={notifyHotInstance}
+                ariaLabel={t('settings.notifications.hotInstance.aria')}
+                onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
               />
             </div>
           </section>

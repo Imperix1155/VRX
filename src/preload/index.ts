@@ -34,6 +34,12 @@ const vrx = {
     ): void => callback(payload)
     ipcRenderer.on('friend-event', listener)
     return () => ipcRenderer.removeListener('friend-event', listener)
+  },
+  /** Native hot-instance toast click → Dashboard (VRX-85). */
+  onNavigateToDashboard: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('navigate-to-dashboard', listener)
+    return () => ipcRenderer.removeListener('navigate-to-dashboard', listener)
   }
 }
 

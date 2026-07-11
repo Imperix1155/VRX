@@ -1,14 +1,25 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
+import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 
-export type FriendAlertType = 'online' | 'in-game' | 'offline'
+export type FriendAlertType = 'online' | 'in-game' | 'offline' | 'hot-instance'
 
-export interface FriendAlert {
-  type: FriendAlertType
+export interface FriendTransitionAlert {
+  type: Exclude<FriendAlertType, 'hot-instance'>
   platform: Platform
   platformUserId: string
   displayName: string
   worldName: string | null
 }
+
+export interface HotInstanceAlert {
+  type: 'hot-instance'
+  platform: Platform
+  instanceId: string
+  friendCount: number
+  worldName: string | null
+}
+
+export type FriendAlert = FriendTransitionAlert | HotInstanceAlert
 
 interface KnownPresence {
   state: PresenceState
@@ -17,36 +28,55 @@ interface KnownPresence {
   worldName: string | null
 }
 
+interface KnownInstanceCount {
+  count: number
+  worldName: string | null
+}
+
 interface FriendAlertsOptions {
   notify: (alert: FriendAlert) => void
   clock: () => number
   isEnabled: (type: FriendAlertType) => boolean
+  hotInstanceThreshold?: () => number
   resolveName: (platform: Platform, platformUserId: string) => string | null
 }
 
 const RATE_LIMIT_COUNT = 3
 const RATE_LIMIT_WINDOW_MS = 10_000
-const RATE_LIMITED_TYPES: ReadonlySet<FriendAlertType> = new Set(['online', 'in-game', 'offline'])
+const RATE_LIMITED_TYPES: ReadonlySet<FriendAlertType> = new Set([
+  'online',
+  'in-game',
+  'offline',
+  'hot-instance'
+])
 const MAX_PRESENCE_ENTRIES_PER_PLATFORM = 2_048
+const MAX_INSTANCE_ENTRIES_PER_PLATFORM = 2_048
 
 /**
- * Pure friend-presence transition engine (VRX-84). It consumes the same
+ * Pure friend-presence transition engine (VRX-84/85). It consumes the same
  * normalized AdapterEvent stream as the renderer, owns only an in-memory
  * baseline, and delegates both settings and side effects through injections.
  */
 export class FriendAlerts {
   private readonly presence = new Map<Platform, Map<string, KnownPresence>>()
   private readonly names = new Map<Platform, Map<string, string>>()
+  private readonly instances = new Map<Platform, Map<string, KnownInstanceCount>>()
+  /** Once a live presence entry is evicted, any instance count on that platform
+   *  could be incomplete. Suppress hot alerts until the next boundary reset;
+   *  a missed alert at pathological roster scale is safer than a fabricated one. */
+  private readonly unreliableInstanceCounts = new Set<Platform>()
   private readonly snapshotBaselined = new Map<Platform, boolean>()
   private readonly emittedAt: Record<FriendAlertType, number[]> = {
     online: [],
     'in-game': [],
-    offline: []
+    offline: [],
+    'hot-instance': []
   }
   private readonly dropped: Record<FriendAlertType, number> = {
     online: 0,
     'in-game': 0,
-    offline: 0
+    offline: 0,
+    'hot-instance': 0
   }
 
   constructor(private readonly options: FriendAlertsOptions) {}
@@ -86,7 +116,7 @@ export class FriendAlerts {
         )
         return
       case 'friend-removed':
-        this.platformPresence(event.platform).delete(event.platformUserId)
+        this.removePresence(event.platform, event.platformUserId)
         this.platformNames(event.platform).delete(event.platformUserId)
         return
       case 'friends-snapshot':
@@ -108,7 +138,10 @@ export class FriendAlerts {
 
   getDroppedCount(type?: FriendAlertType): number {
     return type === undefined
-      ? this.dropped.online + this.dropped['in-game'] + this.dropped.offline
+      ? this.dropped.online +
+          this.dropped['in-game'] +
+          this.dropped.offline +
+          this.dropped['hot-instance']
       : this.dropped[type]
   }
 
@@ -116,6 +149,8 @@ export class FriendAlerts {
   resetPlatform(platform: Platform): void {
     this.platformPresence(platform).clear()
     this.platformNames(platform).clear()
+    this.platformInstances(platform).clear()
+    this.unreliableInstanceCounts.delete(platform)
     this.snapshotBaselined.set(platform, false)
   }
 
@@ -134,6 +169,7 @@ export class FriendAlerts {
           this.fromPresence(event.platform, entry.presence.state, entry.instance)
         )
       }
+      this.rebuildInstanceCounts(event.platform)
       this.snapshotBaselined.set(event.platform, true)
       return
     }
@@ -171,7 +207,16 @@ export class FriendAlerts {
   ): void {
     const platformPresence = this.platformPresence(platform)
     const previous = platformPresence.get(platformUserId)
-    this.setPresence(platform, platformUserId, next)
+    const evicted = this.setPresence(platform, platformUserId, next)
+    if (evicted !== null) {
+      this.leaveInstance(platform, evicted)
+    }
+
+    // Hot-instance counts include accepted first-sight deltas. That lets a
+    // normal 1→2 stream cross the threshold while the per-friend notification
+    // still preserves its established silent first-sight baseline. Full CVR
+    // snapshots take the separate silent rebuild path above.
+    this.applyInstanceTransition(platform, previous, next)
 
     if (previous === undefined) {
       if (baselineOnFirstSight) return
@@ -187,7 +232,7 @@ export class FriendAlerts {
     const isOnline = next.state === 'active' || next.state === 'in-game'
 
     if (!wasOnline && isOnline) {
-      this.fire('online', platform, platformUserId, next.worldName)
+      this.fireFriend('online', platform, platformUserId, next.worldName)
     }
 
     const enteredDifferentInstance =
@@ -197,16 +242,16 @@ export class FriendAlerts {
         before.instanceId === null ||
         !this.isSameInstance(platform, before, next))
     if (enteredDifferentInstance) {
-      this.fire('in-game', platform, platformUserId, next.worldName)
+      this.fireFriend('in-game', platform, platformUserId, next.worldName)
     }
 
     if (wasOnline && next.state === 'offline') {
-      this.fire('offline', platform, platformUserId, null)
+      this.fireFriend('offline', platform, platformUserId, null)
     }
   }
 
-  private fire(
-    type: FriendAlertType,
+  private fireFriend(
+    type: FriendTransitionAlert['type'],
     platform: Platform,
     platformUserId: string,
     worldName: string | null
@@ -226,6 +271,25 @@ export class FriendAlerts {
 
     if (!this.withinRateLimit(type)) return
     this.options.notify({ type, platform, platformUserId, displayName, worldName })
+  }
+
+  private fireHotInstance(
+    platform: Platform,
+    instanceId: string,
+    friendCount: number,
+    worldName: string | null
+  ): void {
+    // Like the friend toggles, both policy reads happen at the crossing decision
+    // rather than being cached in the engine.
+    if (!this.options.isEnabled('hot-instance')) return
+    if (!this.withinRateLimit('hot-instance')) return
+    this.options.notify({
+      type: 'hot-instance',
+      platform,
+      instanceId,
+      friendCount,
+      worldName
+    })
   }
 
   private withinRateLimit(type: FriendAlertType): boolean {
@@ -256,7 +320,11 @@ export class FriendAlerts {
     platformNames.set(friend.platformUserId, friend.displayName)
   }
 
-  private setPresence(platform: Platform, platformUserId: string, presence: KnownPresence): void {
+  private setPresence(
+    platform: Platform,
+    platformUserId: string,
+    presence: KnownPresence
+  ): KnownPresence | null {
     const platformPresence = this.platformPresence(platform)
     // Prefer evicting tombstones; with silent first-sight baselining a re-seen
     // evicted id baselines quietly (never a synthetic alert), so when every
@@ -276,12 +344,110 @@ export class FriendAlerts {
       }
       evictId ??= platformPresence.keys().next().value
       if (evictId !== undefined) {
+        const evictedPresence = platformPresence.get(evictId)
         platformPresence.delete(evictId)
         // A name is account/presence state too; evict the pair together.
         this.platformNames(platform).delete(evictId)
+        platformPresence.set(platformUserId, presence)
+        if (evictedPresence?.state === 'in-game') {
+          this.unreliableInstanceCounts.add(platform)
+        }
+        return evictedPresence ?? null
       }
     }
     platformPresence.set(platformUserId, presence)
+    return null
+  }
+
+  private removePresence(platform: Platform, platformUserId: string): void {
+    const platformPresence = this.platformPresence(platform)
+    const previous = platformPresence.get(platformUserId)
+    platformPresence.delete(platformUserId)
+    if (previous !== undefined) this.leaveInstance(platform, previous)
+  }
+
+  private applyInstanceTransition(
+    platform: Platform,
+    previous: KnownPresence | undefined,
+    next: KnownPresence
+  ): void {
+    if (
+      previous !== undefined &&
+      previous.state === 'in-game' &&
+      previous.instanceId !== null &&
+      next.state === 'in-game' &&
+      next.instanceId !== null &&
+      this.isSameInstance(platform, previous, next)
+    ) {
+      const known = this.platformInstances(platform).get(next.instanceId)
+      if (known !== undefined && next.worldName !== null) known.worldName = next.worldName
+      return
+    }
+
+    if (previous !== undefined) this.leaveInstance(platform, previous)
+    this.enterInstance(platform, next)
+  }
+
+  private enterInstance(platform: Platform, presence: KnownPresence): void {
+    if (presence.state !== 'in-game' || presence.instanceId === null) return
+
+    const instances = this.platformInstances(platform)
+    let known = instances.get(presence.instanceId)
+    if (known === undefined) {
+      // One live presence entry backs every instance entry, so the presence-map
+      // hard cap normally makes this loop unreachable. Keep an explicit cap as
+      // defense-in-depth against future callers changing that invariant.
+      while (instances.size >= MAX_INSTANCE_ENTRIES_PER_PLATFORM) {
+        const oldest = instances.keys().next().value
+        if (oldest === undefined) break
+        instances.delete(oldest)
+        this.unreliableInstanceCounts.add(platform)
+      }
+      known = { count: 0, worldName: presence.worldName }
+      instances.set(presence.instanceId, known)
+    }
+
+    const previousCount = known.count
+    known.count += 1
+    if (presence.worldName !== null) known.worldName = presence.worldName
+
+    const threshold = this.options.hotInstanceThreshold?.() ?? HOT_INSTANCE_THRESHOLD
+    if (
+      !this.unreliableInstanceCounts.has(platform) &&
+      previousCount < threshold &&
+      known.count >= threshold
+    ) {
+      this.fireHotInstance(platform, presence.instanceId, known.count, known.worldName)
+    }
+  }
+
+  private leaveInstance(platform: Platform, presence: KnownPresence): void {
+    if (presence.state !== 'in-game' || presence.instanceId === null) return
+
+    const instances = this.platformInstances(platform)
+    const known = instances.get(presence.instanceId)
+    if (known === undefined) return
+    known.count -= 1
+    if (known.count <= 0) instances.delete(presence.instanceId)
+  }
+
+  private rebuildInstanceCounts(platform: Platform): void {
+    const instances = this.platformInstances(platform)
+    instances.clear()
+    for (const presence of this.platformPresence(platform).values()) {
+      if (presence.state !== 'in-game' || presence.instanceId === null) continue
+      const known = instances.get(presence.instanceId)
+      if (known === undefined) {
+        if (instances.size >= MAX_INSTANCE_ENTRIES_PER_PLATFORM) continue
+        instances.set(presence.instanceId, {
+          count: 1,
+          worldName: presence.worldName
+        })
+      } else {
+        known.count += 1
+        if (presence.worldName !== null) known.worldName = presence.worldName
+      }
+    }
   }
 
   private fromFriend(friend: Friend): KnownPresence {
@@ -344,6 +510,15 @@ export class FriendAlerts {
     if (known === undefined) {
       known = new Map()
       this.names.set(platform, known)
+    }
+    return known
+  }
+
+  private platformInstances(platform: Platform): Map<string, KnownInstanceCount> {
+    let known = this.instances.get(platform)
+    if (known === undefined) {
+      known = new Map()
+      this.instances.set(platform, known)
     }
     return known
   }

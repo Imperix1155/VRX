@@ -8,11 +8,12 @@
  * AppShell is stubbed because its full tree is covered by component tests.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { act, render, screen, cleanup } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AuthStatus, Platform } from '@shared/types'
 import i18n from './i18n'
 import App from './App'
+import { useUiStore } from './stores/ui'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
 vi.mock('./queries/auth', () => ({
@@ -59,9 +60,28 @@ function renderApp(): void {
   )
 }
 
+let navigateToDashboard: (() => void) | undefined
+
+function stubDashboardNavigation(): void {
+  Object.assign(window, {
+    vrx: {
+      getSettings: () => new Promise(() => undefined),
+      onNavigateToDashboard: (callback: () => void) => {
+        navigateToDashboard = callback
+        return () => {
+          navigateToDashboard = undefined
+        }
+      }
+    }
+  })
+}
+
 afterEach(() => {
   cleanup()
   useAuthStatusMock.mockReset()
+  navigateToDashboard = undefined
+  Object.assign(window, { vrx: undefined })
+  useUiStore.setState({ activeTab: 'dashboard' })
 })
 
 describe('App auth gate (VRX-173, platform parity)', () => {
@@ -141,5 +161,19 @@ describe('App auth gate (VRX-173, platform parity)', () => {
 
     expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
     expect(screen.queryByTestId('app-shell')).toBeNull()
+  })
+
+  it('routes a native hot-instance toast click to the Dashboard', () => {
+    stubDashboardNavigation()
+    useUiStore.setState({ activeTab: 'settings' })
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    act(() => navigateToDashboard?.())
+
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
   })
 })

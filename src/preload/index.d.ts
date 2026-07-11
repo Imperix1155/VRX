@@ -22,6 +22,8 @@ type VrxBridge = {
   ) => Promise<IpcInvoke['save-settings']['res']>
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */
   onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => () => void
+  /** Native hot-instance toast click → Dashboard (VRX-85). */
+  onNavigateToDashboard: (callback: () => void) => () => void
 }
 
 declare global {
