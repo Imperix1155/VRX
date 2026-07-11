@@ -31,9 +31,11 @@ import {
 } from './constants'
 import { FRIEND_SECTIONS, LABEL_SCHEMES, THEMES } from './types'
 
-/** Bump ONLY when a field needs a transforming migration (not a plain add/remove —
- *  additive fields are covered by schema defaults, removed fields by key stripping). */
-export const SETTINGS_VERSION = 1 as const
+/** Additive-at-the-same-version fields can be silently stripped and rewritten by
+ *  an older build during a downgrade round-trip. Versioning the addition makes
+ *  that older build refuse persistence via shouldPersistSettings, preserving the
+ *  user's newer choice even though the migration itself is identity-only. */
+export const SETTINGS_VERSION = 2 as const
 
 export const SettingsSchema = z.object({
   /** Schema version of the persisted object; drives {@link runMigrations}. */
@@ -57,14 +59,13 @@ export const SettingsSchema = z.object({
     .min(HOT_INSTANCE_THRESHOLD_MIN)
     .max(HOT_INSTANCE_THRESHOLD_MAX)
     .catch(HOT_INSTANCE_THRESHOLD),
-  /** Friends-list presence sections the user collapsed (VRX-67). Offline is
-   *  collapsed by default; additive field — no version bump (VRX-183 precedent). */
+  /** Friends-list presence sections the user collapsed (VRX-67). Offline is collapsed by default. */
   collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline']),
-  /** Native alert toggles (VRX-84). Additive fields — no version bump. */
+  /** Native friend-transition alert toggles (VRX-84). */
   notifyFriendOnline: z.boolean().catch(true),
   notifyFriendInGame: z.boolean().catch(true),
   notifyFriendOffline: z.boolean().catch(false),
-  /** Native hot-instance crossing alert (VRX-85). Additive; enabled by default. */
+  /** Native hot-instance crossing alert (VRX-85). Enabled by default. */
   notifyHotInstance: z.boolean().catch(true)
 })
 
@@ -79,12 +80,13 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * EMPTY by design: there is no prior released schema to migrate from yet, and
- * additive/removed fields are handled by the schema (defaults + key stripping).
- * Register a function here only when a field's *meaning* changes and old data
- * must be transformed.
+ * v1 → v2 is deliberately identity-only: the shape remains schema-compatible,
+ * while the version boundary protects notifyHotInstance from older-build key
+ * stripping during rollback.
  */
-export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {}
+export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
+  1: (prev) => ({ ...prev })
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -152,6 +154,9 @@ export function parseSettings(raw: unknown): Settings {
  * the on-disk file came from a NEWER build — persisting the parsed (down-leveled)
  * form would strip its forward-compatible fields and lose data on a rollback.
  */
-export function shouldPersistSettings(raw: unknown): boolean {
-  return readVersion(isRecord(raw) ? raw : {}) <= SETTINGS_VERSION
+export function shouldPersistSettings(
+  raw: unknown,
+  currentVersion: number = SETTINGS_VERSION
+): boolean {
+  return readVersion(isRecord(raw) ? raw : {}) <= currentVersion
 }

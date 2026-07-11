@@ -132,8 +132,8 @@ describe('migration runner', () => {
   })
 
   it('applies registered migrations in order on a version mismatch', () => {
-    // A synthetic registry proves the runner mechanism; the production registry
-    // is empty by design (no released prior schema yet).
+    // A synthetic registry proves the runner mechanism independently of the
+    // production v1 → v2 identity migration.
     const migrations: Record<number, SettingsMigration> = {
       0: (prev) => ({ ...prev, theme: 'dark', version: 1 }),
       1: (prev) => ({ ...prev, density: 'compact', version: 2 })
@@ -151,6 +151,26 @@ describe('migration runner', () => {
 
   it('throws on a missing migration BETWEEN released versions (never silently stamps)', () => {
     expect(() => runMigrations({ version: 1 }, {}, 2)).toThrow(/no migration/i)
+  })
+
+  it('migrates v1 → v2 without losing or changing any existing field', () => {
+    const v1: Settings = {
+      version: 1,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false
+    }
+
+    expect(parseSettings(v1)).toEqual({ ...v1, version: 2 })
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
@@ -179,5 +199,26 @@ describe('shouldPersistSettings (rollback safety)', () => {
   it('refuses to persist a file written by a newer build', () => {
     expect(shouldPersistSettings({ version: SETTINGS_VERSION + 1 })).toBe(false)
     expect(shouldPersistSettings({ version: 99 })).toBe(false)
+  })
+
+  it('makes an older v1 build refuse a v2 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 2 }, 1)).toBe(false)
+  })
+
+  it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 2,
+      notifyHotInstance: false
+    }
+    const oldV1Normalized = { ...disk, version: 1 }
+    Reflect.deleteProperty(oldV1Normalized, 'notifyHotInstance')
+
+    // This is the old build's load-and-tidy write. The v2 boundary must block
+    // the write that would otherwise strip notifyHotInstance from disk.
+    if (shouldPersistSettings(disk, 1)) disk = oldV1Normalized
+
+    expect(disk.notifyHotInstance).toBe(false)
+    expect(parseSettings(disk).notifyHotInstance).toBe(false)
   })
 })
