@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-11
+
 ### Added
 
 - **Both accounts now work the same way.** Settings → Accounts shows a card for VRChat and ChilloutVR, including a real Disconnect button; VRChat keeps its 2FA step. You now stay in VRX while either account is connected — the full login screen appears only when neither is connected. (VRX-191)
