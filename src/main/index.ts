@@ -29,6 +29,7 @@ import { registerIpcHandlers } from './ipc'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
+import { PendingNavigation } from './pendingNavigation'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -45,6 +46,10 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
+const rendererReadyWindows = new WeakSet<BrowserWindow>()
+const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
+  if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
+})
 const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
@@ -99,6 +104,17 @@ function createWindow(): BrowserWindow {
       }
     }
     return { action: 'deny' }
+  })
+
+  // A notification click can recreate a window whose renderer has not mounted
+  // its push listener yet. Keep one pending dashboard intent until this load is
+  // complete, then replay it exactly once. A reload clears readiness first.
+  mainWindow.webContents.on('did-start-loading', () => {
+    rendererReadyWindows.delete(mainWindow)
+  })
+  mainWindow.webContents.on('did-finish-load', () => {
+    rendererReadyWindows.add(mainWindow)
+    if (currentWindow === mainWindow) dashboardNavigation.rendererReady(mainWindow)
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -207,11 +223,17 @@ function getOrCreateMainWindow(): BrowserWindow {
   return currentWindow
 }
 
-function focusMainWindow(): void {
+function focusMainWindow(): BrowserWindow {
   const window = getOrCreateMainWindow()
   if (window.isMinimized()) window.restore()
   window.show()
   window.focus()
+  return window
+}
+
+function focusDashboard(): void {
+  const window = focusMainWindow()
+  dashboardNavigation.request(window, rendererReadyWindows.has(window))
 }
 
 // ── Main-process crash handlers (VRX-127) ─────────────────────────────────────
@@ -363,11 +385,21 @@ app
           title = 'Friend offline'
           body = `${alert.displayName} went offline`
           break
+        case 'hot-instance': {
+          title = 'Hot instance'
+          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
+          body =
+            strippedWorldName === ''
+              ? `${alert.friendCount} friends are in the same world — join them?`
+              : `${alert.friendCount} friends are in ${strippedWorldName} — join them?`
+          break
+        }
       }
 
       try {
-        const notification = new NativeNotification({ title, body })
-        notification.on('click', focusMainWindow)
+        // VRX-82: native toasts carry the packaged app icon.
+        const notification = new NativeNotification({ title, body, icon })
+        notification.on('click', alert.type === 'hot-instance' ? focusDashboard : focusMainWindow)
         const cleanup = (): void => releaseRetainedFriendNotification(notification)
         notification.once('close', cleanup)
         notification.once('failed', () => {
@@ -408,6 +440,8 @@ app
           return current.notifyFriendInGame
         case 'offline':
           return current.notifyFriendOffline
+        case 'hot-instance':
+          return current.notifyHotInstance
       }
     }
 
@@ -416,6 +450,7 @@ app
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: alertSettingEnabled,
+      hotInstanceThreshold: () => getSettingsSnapshot().hotInstanceThreshold,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })

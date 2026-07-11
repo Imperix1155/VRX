@@ -48,6 +48,7 @@ export interface IpcInvoke {
  */
 export interface IpcEvents {
   'friend-event': AdapterEvent
+  'navigate-to-dashboard': void
 }
 
 export type IpcInvokeChannel = keyof IpcInvoke

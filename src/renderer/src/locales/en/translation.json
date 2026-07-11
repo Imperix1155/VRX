@@ -69,6 +69,11 @@
         "label": "Friend goes offline",
         "description": "Alert when an online friend goes offline.",
         "aria": "Notify when a friend goes offline"
+      },
+      "hotInstance": {
+        "label": "Hot instance",
+        "description": "Alert when enough friends gather in the same instance.",
+        "aria": "Notify when an instance becomes hot"
       }
     },
     "accounts": {

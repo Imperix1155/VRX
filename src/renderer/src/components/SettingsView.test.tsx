@@ -118,8 +118,8 @@ describe('SettingsView — Dashboard section (VRX-78)', () => {
   })
 })
 
-describe('SettingsView — Notifications section (VRX-84)', () => {
-  it('renders all three accessible toggles and writes changes to the settings store', () => {
+describe('SettingsView — Notifications section (VRX-84/85)', () => {
+  it('renders all four accessible toggles and writes changes to the settings store', () => {
     useUiStore.setState({ settingsCategory: 'notifications' })
     renderSettings()
 
@@ -132,14 +132,20 @@ describe('SettingsView — Notifications section (VRX-84)', () => {
     const offline = screen.getByRole('switch', {
       name: msg('settings.notifications.offline.aria')
     })
+    const hotInstance = screen.getByRole('switch', {
+      name: msg('settings.notifications.hotInstance.aria')
+    })
     expect(online.getAttribute('aria-checked')).toBe('true')
     expect(inGame.getAttribute('aria-checked')).toBe('true')
     expect(offline.getAttribute('aria-checked')).toBe('false')
+    expect(hotInstance.getAttribute('aria-checked')).toBe('true')
 
     fireEvent.click(online)
     fireEvent.click(offline)
+    fireEvent.click(hotInstance)
     expect(useSettingsStore.getState().settings.notifyFriendOnline).toBe(false)
     expect(useSettingsStore.getState().settings.notifyFriendOffline).toBe(true)
+    expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(false)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 })
