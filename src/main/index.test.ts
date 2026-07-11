@@ -9,6 +9,13 @@ describe('main native notification wiring', () => {
     expect(source).toContain('new NativeNotification({ title, body, icon })')
   })
 
+  it('pins the VRX-204 Title Case toast headers (owner: headers capitalize every word)', () => {
+    expect(source).toContain("title = 'Friend Online'")
+    expect(source).toContain("title = 'Friend Joined a World'")
+    expect(source).toContain("title = 'Friend Offline'")
+    expect(source).toContain("title = 'Friends Gathering'")
+  })
+
   it('keeps the owner-authored hot-instance world and worldless copy (VRX-85)', () => {
     expect(source).toContain(
       '`${alert.friendCount} friends are in ${strippedWorldName} — join them?`'
