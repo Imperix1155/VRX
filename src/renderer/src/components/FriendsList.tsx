@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { useFriends, combineFriendQueries } from '../queries/friends'
+import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
@@ -368,6 +369,8 @@ export default function FriendsList(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const search = useFriendsStore((s) => s.search)
   const setSearch = useFriendsStore((s) => s.setSearch)
+  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
+    useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
@@ -478,56 +481,77 @@ export default function FriendsList(): React.JSX.Element {
           </button>
         )}
       </div>
-      {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
-      {/* Stale-while-revalidate: only surface the error when there's no cached data;
-          a background refetch failure keeps showing the last good list. */}
-      {isError && !friends && <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>}
-      {filteredFriends && filteredFriends.length === 0 && (
-        <p className="text-sm text-[var(--text-faint)]">
-          {searchActive ? t('friends.searchNoResults') : t('friends.empty')}
-        </p>
-      )}
-      {friends && friends.length > 0 && sections && (
-        <div className="flex flex-col gap-[var(--space-2)]">
-          {sections.map(({ section, friends: sectionFriends }) => {
-            // VRX-65 decision: an active search ignores persisted collapse so
-            // every match is visible. The setting itself remains untouched.
-            const collapsed = !searchActive && collapsedSections.includes(section)
-            return (
-              <div key={section}>
-                <SectionHeader
-                  section={section}
-                  count={sectionFriends.length}
-                  collapsed={collapsed}
-                  onToggle={() => {
-                    if (!searchActive) toggleSection(section)
-                  }}
-                  collapseIgnored={searchActive}
-                />
-                {!collapsed && (
-                  <ul
-                    id={`friends-section-${section}`}
-                    // Name the list so SR list navigation identifies WHICH
-                    // presence section it is (Sol review, Med) — count included,
-                    // same string as the visible header.
-                    aria-label={t(SECTION_LABEL_KEY[section], {
-                      count: sectionFriends.length
-                    })}
-                    className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
-                  >
-                    {sectionFriends.map((f) => (
-                      <FriendRow
-                        key={`${f.platform}:${f.platformUserId}`}
-                        friend={f}
-                        searchQuery={appliedSearch}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
+      {isAuthStatusPending ? (
+        <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>
+      ) : isNotConnected ? (
+        <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
+          <p className="text-sm font-semibold text-[var(--text-dim)]">
+            {t(`friends.notConnected.${selectedPlatform}`)}
+          </p>
+          <button
+            type="button"
+            onClick={openAccounts}
+            className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+          >
+            {t('friends.notConnected.openAccounts')}
+          </button>
         </div>
+      ) : (
+        <>
+          {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
+          {/* Stale-while-revalidate: only surface the error when there's no cached data;
+          a background refetch failure keeps showing the last good list. */}
+          {isError && !friends && (
+            <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
+          )}
+          {filteredFriends && filteredFriends.length === 0 && (
+            <p className="text-sm text-[var(--text-faint)]">
+              {searchActive ? t('friends.searchNoResults') : t('friends.empty')}
+            </p>
+          )}
+          {friends && friends.length > 0 && sections && (
+            <div className="flex flex-col gap-[var(--space-2)]">
+              {sections.map(({ section, friends: sectionFriends }) => {
+                // VRX-65 decision: an active search ignores persisted collapse so
+                // every match is visible. The setting itself remains untouched.
+                const collapsed = !searchActive && collapsedSections.includes(section)
+                return (
+                  <div key={section}>
+                    <SectionHeader
+                      section={section}
+                      count={sectionFriends.length}
+                      collapsed={collapsed}
+                      onToggle={() => {
+                        if (!searchActive) toggleSection(section)
+                      }}
+                      collapseIgnored={searchActive}
+                    />
+                    {!collapsed && (
+                      <ul
+                        id={`friends-section-${section}`}
+                        // Name the list so SR list navigation identifies WHICH
+                        // presence section it is (Sol review, Med) — count included,
+                        // same string as the visible header.
+                        aria-label={t(SECTION_LABEL_KEY[section], {
+                          count: sectionFriends.length
+                        })}
+                        className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
+                      >
+                        {sectionFriends.map((f) => (
+                          <FriendRow
+                            key={`${f.platform}:${f.platformUserId}`}
+                            friend={f}
+                            searchQuery={appliedSearch}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </section>
   )

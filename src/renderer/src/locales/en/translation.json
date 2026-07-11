@@ -126,6 +126,11 @@
     "searchNoResults": "No friends match your search",
     "refresh": "Refresh",
     "error": "Could not load friends",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your friends here",
+      "chilloutvr": "Connect ChilloutVR to see your friends here",
+      "openAccounts": "Go to Accounts"
+    },
     "status": {
       "joinMe": "Join Me",
       "online": "Online",
@@ -167,6 +172,11 @@
     "loading": "Loading...",
     "error": "Could not load your friends right now",
     "retry": "Retry",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your friends here",
+      "chilloutvr": "Connect ChilloutVR to see your friends here",
+      "openAccounts": "Go to Accounts"
+    },
     "statOnlineLabel": "Friends online",
     "statInGameLabel": "In game right now",
     "statHotLabel": "Hot instances",

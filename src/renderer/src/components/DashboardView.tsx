@@ -11,6 +11,7 @@
  */
 import { useTranslation } from 'react-i18next'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
+import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import NumberStepper from './NumberStepper'
 import InstancePill from './InstancePill'
@@ -216,8 +217,29 @@ export default function DashboardView(): React.JSX.Element {
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
+    useNotConnectedGate(platformFilter)
 
   const hasData = scoped.some((q) => q.data != null)
+  if (isAuthStatusPending) {
+    return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+  }
+  if (isNotConnected) {
+    return (
+      <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+        <p className="text-sm font-semibold text-[var(--text-dim)]">
+          {t(`dashboard.notConnected.${selectedPlatform}`)}
+        </p>
+        <button
+          type="button"
+          onClick={openAccounts}
+          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+        >
+          {t('dashboard.notConnected.openAccounts')}
+        </button>
+      </div>
+    )
+  }
   if (!hasData) {
     // Loading while ANY scoped query is still pending (don't flash an error
     // while the other platform may yet deliver); error only when every scoped

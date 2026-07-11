@@ -14,6 +14,11 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
 }))
+vi.mock('../queries/auth', () => ({
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
+    data: { platform, state: 'authenticated', displayName: 'Test User' }
+  })
+}))
 
 function friend(name: string, state: Friend['presence']['state'] = 'active'): Friend {
   return {
