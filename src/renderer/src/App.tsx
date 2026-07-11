@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
+import { useUiStore } from './stores/ui'
 
 function App(): React.JSX.Element {
   // Load persisted settings + save changes (VRX-184) — before useApplyTheme
@@ -15,6 +17,14 @@ function App(): React.JSX.Element {
   // subscription is idempotent and event application no-ops until a friends
   // fetch has populated the cache (which only happens once authenticated).
   useLiveFriendEvents()
+  // Native hot-instance toast clicks focus the window in main, then push this
+  // one-shot navigation request through the preload bridge (VRX-85).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.vrx?.onNavigateToDashboard) return
+    return window.vrx.onNavigateToDashboard(() => {
+      useUiStore.getState().setActiveTab('dashboard')
+    })
+  }, [])
 
   const { data: vrcAuthStatus, isPending: isVrcPending } = useAuthStatus('vrchat')
   const { data: cvrAuthStatus, isPending: isCvrPending } = useAuthStatus('chilloutvr')
