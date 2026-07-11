@@ -216,6 +216,14 @@
   .frow .fspine { width: 3px; height: 26px; border-radius: 0 3px 3px 0; }
   .frow.vrc .fspine { background: var(--vrc); box-shadow: 0 0 10px rgba(43,124,232,0.5); }
   .frow.cvr .fspine { background: var(--cvr); box-shadow: 0 0 10px rgba(243,113,30,0.5); }
+  /* Platform tab (VRX-206): stacked onto the card's left end — even 3px inset, radius 9 = 13 − 1 − 3 (§3 stack model). */
+  .frow .ftab { align-self: stretch; width: 21px; margin: -5px 0 -5px -7px; display: grid; place-items: center;
+    border-radius: 9px; border: 1px solid; font-size: 10.5px; font-weight: 600; letter-spacing: .09em;
+    writing-mode: vertical-rl; transform: rotate(180deg); }
+  .frow.vrc .ftab { background: color-mix(in srgb, var(--vrc) 13%, transparent); border-color: color-mix(in srgb, var(--vrc) 36%, transparent); color: var(--plat-vrc-ghost-text); }
+  .frow.cvr .ftab { background: color-mix(in srgb, var(--cvr) 13%, transparent); border-color: color-mix(in srgb, var(--cvr) 36%, transparent); color: var(--plat-cvr-ghost-text); }
+  /* 5.1 demo rows only: the tab's -7/-5 meld is tuned to the BUILT row's box (14px col · 10px pad-left · 8px pad-y). */
+  .frow.ftabrow { grid-template-columns: 14px 42px 1fr auto; padding: 8px 12px 8px 10px; gap: 12px; }
   .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
   .av2 .st { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2.5px solid #0c0a1c; }
   .st-ingame { background: var(--ingame); } .st-active { background: var(--active); } .st-offline { background: var(--offline); }
@@ -457,21 +465,21 @@ body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
         </div>
 
         <div class="el">
-          <div class="el-name"><span class="ix">5.1</span> Platform — tint + spine + glyph</div>
-          <div class="el-sum">Platform is said three ways at once, none of them a lone dot: the glass tint, a glowing left spine, and a little V/C glyph.</div>
+          <div class="el-name"><span class="ix">5.1</span> Platform — tint + tab + text label</div>
+          <div class="el-sum">Platform is said three ways at once, none of them a lone dot: the glass tint, the stacked left tab, and the tab’s own VRC/CVR text (VRX-206 — it survives black &amp; white, R12).</div>
           <div class="demo">
-            <div class="frow vrc glass" style="width:300px;"><span class="fspine"></span><div class="av2">A</div><div><div class="fname">AlexVR <span class="fglyph">V</span></div><div class="fsub">VRChat</div></div><span></span></div>
-            <div class="frow cvr glass" style="width:300px;"><span class="fspine"></span><div class="av2">M</div><div><div class="fname">Mika <span class="fglyph">C</span></div><div class="fsub">ChilloutVR</div></div><span></span></div>
+            <div class="frow ftabrow vrc glass" style="width:300px;"><span class="ftab">VRC</span><div class="av2">A</div><div><div class="fname">AlexVR</div><div class="fsub">VRChat</div></div><span></span></div>
+            <div class="frow ftabrow cvr glass" style="width:300px;"><span class="ftab">CVR</span><div class="av2">M</div><div><div class="fname">Mika</div><div class="fsub">ChilloutVR</div></div><span></span></div>
           </div>
           <div class="grid2">
-            <div><div class="box-label how">How</div><div class="code"><span class="c">&lt;!-- glowing platform spine --&gt;</span>
-.frow.vrc .fspine {
-  background: <span class="v">var(--vrc)</span>;
-  box-shadow: <span class="v">0 0 10px rgba(43,124,232,.5)</span>;
-}
-<span class="c">&lt;!-- V/C glyph, VT323 --&gt;</span>
-.fglyph { font-family: <span class="v">var(--font-mono)</span>; }</div></div>
-            <div><div class="box-label why">Why</div><div class="why">Because platform is carried by <b>tint + spine + glyph</b>, no other element ever needs to be blue or orange to say "which platform." That frees blue/orange to mean <b>only</b> platform, everywhere.</div></div>
+            <div><div class="box-label how">How</div><div class="code"><span class="c">&lt;!-- platform tab: stacked on the card (§3), text = the R12 signifier --&gt;</span>
+.ftab {
+  background: <span class="v">color-mix(in srgb, var(--vrc) 13%, transparent)</span>;
+  border: <span class="v">1px solid color-mix(in srgb, var(--vrc) 36%, transparent)</span>;
+  border-radius: <span class="v">9px</span>; <span class="c">/* card 13 − 1 border − 3 gap */</span>
+  writing-mode: <span class="v">vertical-rl</span>; transform: <span class="v">rotate(180deg)</span>;
+}</div></div>
+            <div><div class="box-label why">Why</div><div class="why">Because platform is carried by <b>tint + tab + text</b>, no other element ever needs to be blue or orange to say "which platform." That frees blue/orange to mean <b>only</b> platform, everywhere.</div></div>
           </div>
         </div>
 
