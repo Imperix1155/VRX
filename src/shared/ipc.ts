@@ -32,6 +32,7 @@ export interface IpcInvoke {
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
   'verify-2fa': { req: { platform: Platform; code: string }; res: LoginResult }
+  logout: { req: { platform: Platform }; res: void }
   'join-instance': { req: { platform: Platform; instanceId: string; mode: JoinMode }; res: void }
   'self-invite': { req: { platform: Platform; instanceId: string }; res: void }
   'get-app-status': { req: void; res: AppStatus }

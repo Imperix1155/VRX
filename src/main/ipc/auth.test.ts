@@ -149,3 +149,41 @@ describe('get-auth-status handler boundary', () => {
     expect(adapter.getAuthStatus).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('logout handler boundary', () => {
+  it('rejects an untrusted sender before touching the payload', () => {
+    trusted.value = false
+    const req = Object.defineProperty({}, 'platform', {
+      get: vi.fn(() => 'vrchat')
+    })
+
+    expect(() => call('logout', req)).toThrow('Untrusted IPC sender')
+    expect(Object.getOwnPropertyDescriptor(req, 'platform')?.get).not.toHaveBeenCalled()
+    expect(adapter.clearSession).not.toHaveBeenCalled()
+  })
+
+  it.each([null, {}, { platform: 'steam' }])('rejects a malformed request: %o', (req) => {
+    expect(() => call('logout', req)).toThrow('Invalid logout request')
+    expect(adapter.clearSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects a platform with no registered adapter', () => {
+    expect(() => call('logout', { platform: 'chilloutvr' })).toThrow('No adapter registered')
+  })
+
+  it('delegates only to the requested platform adapter', () => {
+    const vrcAdapter = stubPlatformAdapter({ platform: 'vrchat' })
+    const cvrAdapter = stubPlatformAdapter({ platform: 'chilloutvr' })
+    handlers.clear()
+    registerAuthHandlers(
+      new Map<Platform, IPlatformAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ])
+    )
+
+    expect(call('logout', { platform: 'chilloutvr' })).toBeUndefined()
+    expect(cvrAdapter.clearSession).toHaveBeenCalledTimes(1)
+    expect(vrcAdapter.clearSession).not.toHaveBeenCalled()
+  })
+})

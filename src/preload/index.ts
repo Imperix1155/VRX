@@ -15,6 +15,7 @@ const vrx = {
   getAuthStatus: (req: IpcInvoke['get-auth-status']['req']) => invoke('get-auth-status', req),
   login: (req: IpcInvoke['login']['req']) => invoke('login', req),
   verify2fa: (req: IpcInvoke['verify-2fa']['req']) => invoke('verify-2fa', req),
+  logout: (req: IpcInvoke['logout']['req']) => invoke('logout', req),
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getAppStatus: () => invoke('get-app-status', undefined),

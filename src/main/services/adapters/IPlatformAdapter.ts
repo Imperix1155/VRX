@@ -34,6 +34,8 @@ export interface IPlatformAdapter {
    * the password. Platforms without a 2-leg 2FA flow reject this.
    */
   verify2fa(code: string): Promise<LoginResult>
+  /** Clear the active platform session from memory and persisted storage. */
+  clearSession(): void
   /** Hybrid auth: import an existing VRCX/CVRX session if present. True if imported. */
   importSession(): Promise<boolean>
 

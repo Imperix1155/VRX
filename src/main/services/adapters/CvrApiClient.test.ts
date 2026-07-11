@@ -48,6 +48,9 @@ class TestClient extends CvrApiClient {
   verify2fa(): Promise<LoginResult> {
     throw new Error('stub')
   }
+  clearSession(): void {
+    return
+  }
   importSession(): Promise<boolean> {
     throw new Error('stub')
   }

@@ -289,7 +289,7 @@ export class VrcAdapter extends VrcApiClient {
     // (memory, VrcApiClient mirror, persisted blob) so session restore can't
     // re-adopt it on the next launch and 401 forever.
     if (response.status === 401) {
-      this.clearSession()
+      this.clearSessionState()
       return this.status('unauthenticated')
     }
     if (!response.ok) return this.status('error')
@@ -525,7 +525,12 @@ export class VrcAdapter extends VrcApiClient {
    * name, AND the persisted safeStorage blob. The delete is best-effort — a
    * locked/unavailable store must never turn a routine 401 into a crash.
    */
-  private clearSession(): void {
+  clearSession(): void {
+    this.clearSessionState()
+    this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+  }
+
+  private clearSessionState(): void {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
