@@ -10,11 +10,9 @@
  * Deferred: world thumbnail (VRX-48) + whole-card click → detail panel (VRX-59).
  */
 import { useTranslation } from 'react-i18next'
-import type { Platform } from '@shared/types'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
-import { useAuthStatus } from '../queries/auth'
+import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
-import { useUiStore } from '../stores/ui'
 import NumberStepper from './NumberStepper'
 import InstancePill from './InstancePill'
 import { OPENNESS_TIER } from '../utils/instancePill'
@@ -219,25 +217,9 @@ export default function DashboardView(): React.JSX.Element {
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
-  const selectedPlatform: Platform | null = platformFilter === 'all' ? null : platformFilter
-  const authStatus = useAuthStatus(selectedPlatform ?? 'vrchat')
-  // The Connect CTA is trustworthy only after the filtered platform's auth query
-  // has settled. Initial auth loading takes precedence over a friends failure, and
-  // stale unauthenticated data must not flash the CTA during its post-login refetch.
-  const isAuthStatusPending =
-    selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
-  const isNotConnected =
-    selectedPlatform !== null &&
-    authStatus.isSuccess &&
-    authStatus.data.state === 'unauthenticated' &&
-    !authStatus.isFetching
+  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
+    useNotConnectedGate(platformFilter)
 
-  function openAccounts(): void {
-    setActiveTab('settings')
-    setSettingsCategory('accounts')
-  }
 
   const hasData = scoped.some((q) => q.data != null)
   if (isAuthStatusPending) {

@@ -1,12 +1,11 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, FriendSection, Platform } from '@shared/types'
+import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { useFriends, combineFriendQueries } from '../queries/friends'
-import { useAuthStatus } from '../queries/auth'
+import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
-import { useUiStore } from '../stores/ui'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
@@ -370,20 +369,8 @@ export default function FriendsList(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const search = useFriendsStore((s) => s.search)
   const setSearch = useFriendsStore((s) => s.setSearch)
-  const setActiveTab = useUiStore((s) => s.setActiveTab)
-  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
-  const selectedPlatform: Platform | null = platformFilter === 'all' ? null : platformFilter
-  const authStatus = useAuthStatus(selectedPlatform ?? 'vrchat')
-  // The Connect CTA is trustworthy only after the filtered platform's auth query
-  // has settled. Initial auth loading takes precedence over a friends failure, and
-  // stale unauthenticated data must not flash the CTA during its post-login refetch.
-  const isAuthStatusPending =
-    selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending
-  const isNotConnected =
-    selectedPlatform !== null &&
-    authStatus.isSuccess &&
-    authStatus.data.state === 'unauthenticated' &&
-    !authStatus.isFetching
+  const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
+    useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
@@ -451,10 +438,6 @@ export default function FriendsList(): React.JSX.Element {
     if (value.length === 0) setAppliedSearch('')
   }
 
-  function openAccounts(): void {
-    setActiveTab('settings')
-    setSettingsCategory('accounts')
-  }
 
   return (
     <section
