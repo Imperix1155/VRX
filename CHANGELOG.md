@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **All notifications now start switched off.** Fresh installs get no friend or hot-instance alerts until you enable them in Settings → Notifications — quiet by default, opt in to what you want. If you've already changed any switch, your choice is kept. (VRX-205)
 - **The friends list now names each friend's platform.** The thin colored edge on each friend row grew into a small vertical "VRC" / "CVR" tab on the row's left end — readable even in black and white, so you can tell platforms apart without relying on color (colorblind-safe). Owner-designed in a live mock round. (VRX-206)
 
 ## [0.8.0] - 2026-07-11
