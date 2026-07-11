@@ -20,8 +20,8 @@
  *   labelScheme           → DESIGN.md §6 label rule (VRX-183; VRChat-scheme default per VRX-182)
  *   hotInstanceThreshold  → §9 dashboard hot grid (VRX-78; default from HOT_INSTANCE_THRESHOLD)
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
- *   notifyFriend*          → native friend transition alerts (VRX-84; offline opt-in)
- *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; default on)
+ *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
+ *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
  */
 import { z } from 'zod'
 import {
@@ -62,11 +62,15 @@ export const SettingsSchema = z.object({
   /** Friends-list presence sections the user collapsed (VRX-67). Offline is collapsed by default. */
   collapsedFriendSections: z.array(z.enum(FRIEND_SECTIONS)).catch(['offline']),
   /** Native friend-transition alert toggles (VRX-84). */
-  notifyFriendOnline: z.boolean().catch(true),
-  notifyFriendInGame: z.boolean().catch(true),
+  // VRX-205 (owner, 2026-07-11): QUIET DEFAULTS — every alert ships OFF; the
+  // user opts in (and VRX-203's follow-a-friend becomes the natural opt-in
+  // path). Default-value change only: no shape change, no SETTINGS_VERSION
+  // bump; persisted files keep their explicit values.
+  notifyFriendOnline: z.boolean().catch(false),
+  notifyFriendInGame: z.boolean().catch(false),
   notifyFriendOffline: z.boolean().catch(false),
-  /** Native hot-instance crossing alert (VRX-85). Enabled by default. */
-  notifyHotInstance: z.boolean().catch(true)
+  /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
+  notifyHotInstance: z.boolean().catch(false)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>

@@ -135,17 +135,18 @@ describe('SettingsView — Notifications section (VRX-84/85)', () => {
     const hotInstance = screen.getByRole('switch', {
       name: msg('settings.notifications.hotInstance.aria')
     })
-    expect(online.getAttribute('aria-checked')).toBe('true')
-    expect(inGame.getAttribute('aria-checked')).toBe('true')
+    // VRX-205 quiet defaults: every switch ships OFF.
+    expect(online.getAttribute('aria-checked')).toBe('false')
+    expect(inGame.getAttribute('aria-checked')).toBe('false')
     expect(offline.getAttribute('aria-checked')).toBe('false')
-    expect(hotInstance.getAttribute('aria-checked')).toBe('true')
+    expect(hotInstance.getAttribute('aria-checked')).toBe('false')
 
     fireEvent.click(online)
     fireEvent.click(offline)
     fireEvent.click(hotInstance)
-    expect(useSettingsStore.getState().settings.notifyFriendOnline).toBe(false)
+    expect(useSettingsStore.getState().settings.notifyFriendOnline).toBe(true)
     expect(useSettingsStore.getState().settings.notifyFriendOffline).toBe(true)
-    expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(false)
+    expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(true)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 })
