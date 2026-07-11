@@ -438,7 +438,6 @@ export default function FriendsList(): React.JSX.Element {
     if (value.length === 0) setAppliedSearch('')
   }
 
-
   return (
     <section
       aria-labelledby="friends-list-heading"

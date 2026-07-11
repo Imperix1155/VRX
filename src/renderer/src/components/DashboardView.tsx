@@ -220,7 +220,6 @@ export default function DashboardView(): React.JSX.Element {
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
 
-
   const hasData = scoped.some((q) => q.data != null)
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
