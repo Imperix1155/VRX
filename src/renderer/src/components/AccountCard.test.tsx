@@ -117,6 +117,9 @@ describe.each([
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toBeUndefined()
+    // Removal must not have woken a doomed refetch: auth settles unauthenticated
+    // BEFORE the cache drop, so the (now-disabled) friends query stays silent.
+    expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
   })
 
   it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
