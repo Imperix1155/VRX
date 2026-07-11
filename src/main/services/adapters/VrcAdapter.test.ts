@@ -401,6 +401,68 @@ describe('VrcAdapter', () => {
       expect(headerOf(lastCall(fetchMock)[1], 'Cookie')).toBe('auth=restored')
     })
 
+    it.each([
+      ['200 from the old account', 200],
+      ['401 from the old account', 401]
+    ])('fences a held %s across logout and relogin', async (_label, staleStatus) => {
+      let releaseOldStatus!: (response: Response) => void
+      const heldOldStatus = new Promise<Response>((resolve) => {
+        releaseOldStatus = resolve
+      })
+      let oldStatusStarted = false
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'usr_new', displayName: 'New Account' },
+              { setCookies: ['auth=new-account'] }
+            )
+          )
+        }
+        if (href.endsWith('/auth/user') && headers.Cookie === 'auth=old-account') {
+          oldStatusStarted = true
+          return heldOldStatus
+        }
+        if (href.endsWith('/auth/user') && headers.Cookie === 'auth=new-account') {
+          return Promise.resolve(jsonResponse({ id: 'usr_new', displayName: 'New Account' }))
+        }
+        return Promise.reject(new Error('unexpected request'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore('auth=old-account')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      const status = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(oldStatusStarted).toBe(true))
+      adapter.clearSession()
+      expect(await adapter.login({ username: 'new-account', password: 'pw' })).toEqual({ ok: true })
+
+      releaseOldStatus(
+        staleStatus === 401
+          ? jsonResponse({ error: 'old session expired' }, { status: 401 })
+          : jsonResponse({ id: 'usr_old', displayName: 'Old Account' })
+      )
+
+      await expect(status).resolves.toEqual({
+        platform: 'vrchat',
+        state: 'authenticated',
+        displayName: 'New Account'
+      })
+      const statusCookies = fetchMock.mock.calls
+        .map((call) => call as [RequestInfo | URL, RequestInit | undefined])
+        .filter(([, options]) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          return headers.Authorization === undefined && headers.Cookie !== undefined
+        })
+        .map(([, options]) => ((options?.headers ?? {}) as Record<string, string>).Cookie)
+      expect(statusCookies).toEqual(['auth=old-account', 'auth=new-account'])
+      // Only the deliberate logout deleted credentials; the stale 401 did not
+      // delete or otherwise invalidate the replacement session.
+      expect(store.deleted).toBe(1)
+    })
+
     it('reports unauthenticated WITHOUT a network call when there is no cookie', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -554,6 +616,45 @@ describe('VrcAdapter', () => {
       const relaunched = new VrcAdapter(store, noopSleep)
       expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps automatic 401 deletion best-effort when the credential store is unavailable', async () => {
+      const store: VrcCredentialStore = {
+        load: () => 'auth=expired',
+        save: () => {},
+        delete: () => {
+          throw new Error('safeStorage unavailable')
+        }
+      }
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      fetchMock.mockClear()
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('propagates explicit logout deletion failure without clearing the live session', async () => {
+      const store: VrcCredentialStore = {
+        load: () => 'auth=current',
+        save: () => {},
+        delete: () => {
+          throw new Error('credential deletion failed')
+        }
+      }
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ id: 'usr_current', displayName: 'Current' }))
+      )
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      expect(() => adapter.clearSession()).toThrow('credential deletion failed')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        displayName: 'Current'
+      })
     })
   })
 
@@ -966,6 +1067,43 @@ describe('VrcAdapter', () => {
         expect.objectContaining({ platformUserId: 'usr_b_friend', displayName: 'Account B Friend' })
       ])
       expect(boundary).toHaveBeenCalledTimes(boundariesAfterLogin)
+    })
+
+    it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {
+      let releaseRoster!: (response: Response) => void
+      const heldRoster = new Promise<Response>((resolve) => {
+        releaseRoster = resolve
+      })
+      let rosterCalls = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.endsWith('/auth')) {
+          return Promise.resolve(jsonResponse({ token: 'account-a' }))
+        }
+        if (href.endsWith('/auth/user')) {
+          rosterCalls += 1
+          return heldRoster
+        }
+        return Promise.reject(new Error('unexpected roster retry'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(rosterCalls).toBe(1))
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+
+      adapter.clearSession()
+      releaseRoster(jsonResponse({ error: 'old session expired' }, { status: 401 }))
+
+      await expect(roster).rejects.toThrow('Session ended')
+      expect(rosterCalls).toBe(1)
+      expect(events.filter((event) => event.type === 'auth-invalidated')).toEqual([
+        { type: 'auth-invalidated', platform: 'vrchat' }
+      ])
+      unsubscribe()
     })
 
     it('throws (not a misleading empty list) when all friend fetches fail (VRX-43)', async () => {

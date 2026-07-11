@@ -49,7 +49,9 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     try {
       const result = pending2fa
         ? await window.vrx.verify2fa({ platform: 'vrchat', code: twoFactorCode })
-        : await window.vrx.login({ platform, credentials: { username, password } })
+        : await window.vrx
+            .login({ platform, credentials: { username, password } })
+            .finally(() => setPassword(''))
 
       if (result.ok) {
         setTwoFactorOverride(null)
@@ -110,7 +112,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
       {isConnected ? (
         <div className="relative mt-[var(--space-4)]">
           <div className="flex items-center justify-between gap-[var(--space-6)]">
-            <p className="flex items-center gap-[var(--space-2)] text-sm text-[var(--st-online-text)]">
+            <p className="flex items-center gap-[var(--space-2)] text-sm text-[var(--text)]">
               <span aria-hidden="true">✓</span>
               <span>
                 {t('settings.accounts.connectedAs', { name: authStatus.displayName ?? '' })}
