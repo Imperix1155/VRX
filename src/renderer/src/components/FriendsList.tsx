@@ -35,6 +35,8 @@ const STATUS_RING: Record<NonNullable<Friend['status']>, Ring> = {
   dnd: { colorVar: '--st-dnd', glyph: 'minus', labelKey: 'friends.status.dnd' }
 }
 
+// The 'in-game' entry is type-required (exhaustive Record) but unreachable via
+// ringFor since VRX-207 folds statusless in-game onto STATUS_RING.online.
 const PRESENCE_RING: Record<Friend['presence']['state'], Ring> = {
   'in-game': { colorVar: '--ingame', glyph: 'gamepad', labelKey: 'friends.presence.inGame' },
   active: { colorVar: '--active', glyph: 'dot', labelKey: 'friends.presence.active' },
@@ -42,11 +44,17 @@ const PRESENCE_RING: Record<Friend['presence']['state'], Ring> = {
 }
 
 /**
- * The ring for a friend: VRChat folds its STATUS into the ring; CVR (and any friend
- * without a status, e.g. offline) falls back to the PRESENCE state.
+ * The ring for a friend: VRChat folds its STATUS into the ring; a statusless
+ * friend who is IN A WORLD takes the same "Online" ring as VRChat status:online
+ * (VRX-207/208: CVR's single online state IS privacy tier 2 — the state palette
+ * must not leak into the ring only for CVR, where it read as a broken green
+ * next to a VRChat friend in the same state). In-game-ness stays carried by the
+ * world subline + instance pill, exactly as it is for VRChat rows. Only the
+ * true state-only cases remain on the presence palette (web-active, offline).
  */
 function ringFor(friend: Friend): Ring {
   if (friend.platform === 'vrchat' && friend.status) return STATUS_RING[friend.status]
+  if (friend.presence.state === 'in-game') return STATUS_RING.online
   return PRESENCE_RING[friend.presence.state]
 }
 

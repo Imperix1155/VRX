@@ -34,6 +34,17 @@ interface Presence {
  * ⚠️ VRChat API string "active" maps to 'online' here (displays "Online", green);
  *    do not confuse with PresenceState 'active'. "busy" maps to 'dnd'.
  */
+/**
+ * The status axis IS an ordered cross-platform PRIVACY TIER (owner-ratified
+ * 2026-07-11, VRX-208) — least→most private: join-me (1: location shown, join
+ * requests auto-invited) < online (2: default visibility; a statusless
+ * platform's only online state maps HERE — CVR today) < ask-me (3: location
+ * hidden, joins routed through an ask) < dnd (4: location hidden, everything
+ * auto-declined). `offline`/`active` are the OTHER §5 axis (presence state),
+ * not tiers. Future platform statuses map by MECHANICS, not by name. Raw-API
+ * guard: VRChat's raw `status:"active"` is our tier-2 `online` (renamed at the
+ * parser boundary) — never confuse it with `state:"active"`.
+ */
 export type UserStatus = 'join-me' | 'online' | 'ask-me' | 'dnd' | null
 
 /** VRChat trust rank (opt-in, off by default — DESIGN.md §5). Null on CVR / when hidden. */
