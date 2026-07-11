@@ -270,52 +270,79 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
-    if (!this.cookie) return this.status('unauthenticated')
+    for (;;) {
+      if (!this.cookie) return this.status('unauthenticated')
+      const generation = this.sessionGeneration
 
-    let response: Response
-    try {
-      response = await this.rawRequest(
-        `${VRC_API_BASE}/auth/user`,
-        {
-          method: 'GET',
-          headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-        },
-        { recordCircuitFailure: false }
-      )
-    } catch {
-      return this.status('error')
-    }
-    // The cookie WE SENT was rejected — the session is dead. Clear it everywhere
-    // (memory, VrcApiClient mirror, persisted blob) so session restore can't
-    // re-adopt it on the next launch and 401 forever.
-    if (response.status === 401) {
-      this.clearSession()
-      return this.status('unauthenticated')
-    }
-    if (!response.ok) return this.status('error')
+      let response: Response
+      try {
+        response = await this.rawRequest(
+          `${VRC_API_BASE}/auth/user`,
+          {
+            method: 'GET',
+            headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+          },
+          { recordCircuitFailure: false }
+        )
+      } catch {
+        // A replacement session landed while the request was in flight: retry
+        // against it. A logout landed instead: report the current logged-out state.
+        if (generation !== this.sessionGeneration) {
+          if (this.cookie) continue
+          return this.status('unauthenticated')
+        }
+        return this.status('error')
+      }
+      // Fence every response outcome before it can describe or mutate the current
+      // session. In particular, an old 401 must never clear a newly logged-in user.
+      if (generation !== this.sessionGeneration) {
+        if (this.cookie) continue
+        return this.status('unauthenticated')
+      }
 
-    let body: unknown
-    try {
-      body = await response.json()
-    } catch {
-      return this.status('error')
-    }
-    // The union covers BOTH branches VRChat returns on 200: the current user, or
-    // `requiresTwoFactorAuth` when the auth cookie is alive but the twoFactorAuth
-    // cookie expired (~weeks). The latter must NOT read as plain unauthenticated —
-    // the session is recoverable with just a code, no password (VRX-173).
-    const parsed = authUserResponseSchema.safeParse(body)
-    if (!parsed.success) return this.status('unauthenticated')
+      // The cookie WE SENT was rejected — the session is dead. Clear it everywhere
+      // (memory, VrcApiClient mirror, persisted blob) so session restore can't
+      // re-adopt it on the next launch and 401 forever.
+      if (response.status === 401) {
+        this.invalidateSession()
+        return this.status('unauthenticated')
+      }
+      if (!response.ok) return this.status('error')
 
-    if ('requiresTwoFactorAuth' in parsed.data) {
-      // Remember the method so a verify2fa() from the reprompt hits the right
-      // endpoint (email OTP vs TOTP) — login() isn't part of this flow.
-      this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
-      return this.status('needs-2fa', this.pendingTwoFactorMethod)
-    }
+      let body: unknown
+      try {
+        body = await response.json()
+      } catch {
+        if (generation !== this.sessionGeneration) {
+          if (this.cookie) continue
+          return this.status('unauthenticated')
+        }
+        return this.status('error')
+      }
+      // response.json() is another account-boundary await: fence it before
+      // updating displayName or the pending 2FA method.
+      if (generation !== this.sessionGeneration) {
+        if (this.cookie) continue
+        return this.status('unauthenticated')
+      }
 
-    this.displayName = parsed.data.displayName
-    return this.status('authenticated')
+      // The union covers BOTH branches VRChat returns on 200: the current user, or
+      // `requiresTwoFactorAuth` when the auth cookie is alive but the twoFactorAuth
+      // cookie expired (~weeks). The latter must NOT read as plain unauthenticated —
+      // the session is recoverable with just a code, no password (VRX-173).
+      const parsed = authUserResponseSchema.safeParse(body)
+      if (!parsed.success) return this.status('unauthenticated')
+
+      if ('requiresTwoFactorAuth' in parsed.data) {
+        // Remember the method so a verify2fa() from the reprompt hits the right
+        // endpoint (email OTP vs TOTP) — login() isn't part of this flow.
+        this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
+        return this.status('needs-2fa', this.pendingTwoFactorMethod)
+      }
+
+      this.displayName = parsed.data.displayName
+      return this.status('authenticated')
+    }
   }
 
   importSession(): Promise<boolean> {
@@ -376,13 +403,21 @@ export class VrcAdapter extends VrcApiClient {
         }
 
         // A different account landed while this roster was in flight. Never
-        // return the old account's success; retry using the current session.
-        if (generation !== this.sessionGeneration) continue
+        // return the old account's success: retry a replacement session, but
+        // abort when logout left no session to retry.
+        if (generation !== this.sessionGeneration) {
+          if (this.cookie) continue
+          throw new Error('Session ended')
+        }
         return friends
       } catch (error) {
         // Staleness is checked before auth invalidation or any other outcome.
-        // The old account's failure is irrelevant to the current session.
-        if (generation !== this.sessionGeneration) continue
+        // The old account's failure is irrelevant to a replacement session; a
+        // completed logout aborts instead of manufacturing a second auth failure.
+        if (generation !== this.sessionGeneration) {
+          if (this.cookie) continue
+          throw new Error('Session ended')
+        }
 
         // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
         // friend page, OR world-name enrichment — means the cookie is dead/2FA-
@@ -519,18 +554,26 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  /**
-   * Tear down a dead session everywhere it lives: the in-memory cookie, the
-   * VrcApiClient mirror it feeds onto every authed request, the cached display
-   * name, AND the persisted safeStorage blob. The delete is best-effort — a
-   * locked/unavailable store must never turn a routine 401 into a crash.
-   */
-  private clearSession(): void {
+  /** Explicit logout is durable-or-fails: do not report a disconnect while the
+   * persisted credential could resurrect the account on restart. */
+  clearSession(): void {
+    this.credentials.delete()
+    this.clearSessionState()
+    this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+  }
+
+  private clearSessionState(): void {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
     this.pendingTwoFactorMethod = null
     this.bumpSessionGeneration()
+  }
+
+  /** Automatic auth invalidation must clear memory even when safeStorage is
+   * unavailable; persisted deletion remains best-effort on this non-interactive path. */
+  private invalidateSession(): void {
+    this.clearSessionState()
     try {
       this.credentials.delete()
     } catch {

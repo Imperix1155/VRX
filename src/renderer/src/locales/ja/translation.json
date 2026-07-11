@@ -72,21 +72,39 @@
     },
     "accounts": {
       "heading": "アカウント",
+      "connectedAs": "{{name}} として接続中",
+      "disconnect": "接続解除",
+      "disconnecting": "接続解除中…",
+      "username": "ユーザー名またはメールアドレス",
+      "usernamePlaceholder": "you@example.com",
+      "password": "パスワード",
+      "passwordPlaceholder": "••••••••",
+      "connect": "接続",
+      "connecting": "接続中…",
+      "twoFactor": {
+        "promptTotp": "認証アプリを開き、6桁のコードを入力してください。",
+        "promptEmail": "メールアドレスに送信されたコードを入力してください。",
+        "code": "確認コード",
+        "placeholder": "000000",
+        "verify": "確認",
+        "back": "戻る"
+      },
+      "error": {
+        "invalidCredentials": "ユーザー名またはパスワードが正しくありません。もう一度お試しください。",
+        "invalid2faCode": "確認コードが正しくありません。もう一度お試しください。",
+        "disconnect": "アカウントの接続を解除できませんでした。もう一度お試しください。",
+        "unknown": "問題が発生しました。もう一度お試しください。"
+      },
+      "vrchat": {
+        "label": "VRChat",
+        "error": {
+          "networkError": "VRChatに接続できませんでした。接続を確認してもう一度お試しください。"
+        }
+      },
       "chilloutvr": {
         "label": "ChilloutVR",
-        "connectedAs": "{{name}} として接続中",
-        "disconnect": "接続解除",
-        "disconnectTitle": "VRX-89で対応予定",
-        "username": "ユーザー名またはメールアドレス",
-        "usernamePlaceholder": "you@example.com",
-        "password": "パスワード",
-        "passwordPlaceholder": "••••••••",
-        "connect": "接続",
-        "connecting": "接続中…",
         "error": {
-          "invalidCredentials": "ユーザー名またはパスワードが正しくありません。もう一度お試しください。",
-          "networkError": "ChilloutVRに接続できませんでした。接続を確認してもう一度お試しください。",
-          "unknown": "問題が発生しました。もう一度お試しください。"
+          "networkError": "ChilloutVRに接続できませんでした。接続を確認してもう一度お試しください。"
         }
       }
     }

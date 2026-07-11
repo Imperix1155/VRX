@@ -3,7 +3,7 @@ import type { LabelScheme, Theme } from '@shared/types'
 import { LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
-import ChilloutVrAccountCard from './ChilloutVrAccountCard'
+import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
@@ -192,7 +192,10 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.accounts.heading')}
             </h2>
 
-            <ChilloutVrAccountCard />
+            <div className="grid grid-cols-2 gap-[var(--space-6)]">
+              <AccountCard platform="vrchat" />
+              <AccountCard platform="chilloutvr" />
+            </div>
           </section>
         )}
       </div>

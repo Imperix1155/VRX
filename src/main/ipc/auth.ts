@@ -69,4 +69,12 @@ export function registerAuthHandlers(
       return result
     })
   })
+
+  ipcMain.handle('logout', (event, req: IpcInvoke['logout']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid logout request')
+    const adapter = adapters.get(req.platform)
+    if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
+    return adapter.clearSession()
+  })
 }

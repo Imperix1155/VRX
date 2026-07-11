@@ -78,7 +78,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // check: CVR's /users/auth rotates/rate-limits, and re-authing on each
   // navigation churned the session and logged the user out (VRX-190). After
   // this, the session is trusted in-memory; a dead key surfaces on the data
-  // path (getFriends 401 → clearSession).
+  // path (getFriends 401 → automatic session invalidation).
   private validated = false
 
   // ── Live pipeline state (VRX-58) — one shared socket per account ──
@@ -232,7 +232,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       // The key WE SENT was rejected — the session is dead. Clear it everywhere
       // so session restore can't re-adopt it next launch and 401 forever
       // (mirrors the VrcAdapter dead-cookie rule).
-      this.clearSession()
+      this.invalidateSession(false)
       return this.status('unauthenticated')
     }
     if (!response.ok) return this.status('error') // 5xx etc — transient, don't clear
@@ -290,9 +290,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       try {
         result = await fetchCvrFriends((path, schema) => this.get(path, schema))
       } catch (error) {
-        // A different account landed while this request was in flight. Its error
-        // must neither clear the current session nor fail the current caller.
-        if (generation !== this.sessionGeneration) continue
+        // A different account landed while this request was in flight. Retry a
+        // replacement session, but abort when logout left no session to retry.
+        if (generation !== this.sessionGeneration) {
+          if (this.session) continue
+          throw new Error('Session ended')
+        }
 
         // The data path is where a dead session surfaces (VRX-190): getAuthStatus
         // trusts the session without re-authing, so a 401 here IS the signal that
@@ -302,14 +305,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
           // Dead access key on the data path — clear the session AND tell the
           // renderer, which has no other signal that auth changed out of band, so
           // the Accounts card stops showing a stale "connected" (VRX-195).
-          this.clearSession()
-          this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+          this.invalidateSession(true)
         }
         throw error
       }
 
       // Check staleness before normalization errors or returning account data.
-      if (generation !== this.sessionGeneration) continue
+      if (generation !== this.sessionGeneration) {
+        if (this.session) continue
+        throw new Error('Session ended')
+      }
 
       // Everything was dropped as malformed → surface an error rather than a
       // misleading empty list (UI shows "couldn't load", not "no friends"), the
@@ -551,17 +556,30 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
-  private clearSession(): void {
+  clearSession(): void {
+    this.store.delete()
+    this.clearSessionState()
+    this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+  }
+
+  private clearSessionState(): void {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
     this.validated = false
     this.bumpSessionGeneration()
+  }
+
+  /** Automatic 401 invalidation is best-effort on disk: the dead session must
+   * still be removed from memory and announced when safeStorage is unavailable. */
+  private invalidateSession(emit: boolean): void {
+    this.clearSessionState()
     try {
       this.store.delete()
     } catch {
       /* ignore — nothing recoverable to do */
     }
+    if (emit) this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
 
   private warmFriendNames(): void {

@@ -297,6 +297,42 @@ describe('CvrAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: true })
       expect((await adapter.getAuthStatus()).state).toBe('authenticated')
     })
+
+    it('keeps automatic 401 deletion best-effort when the credential store is unavailable', async () => {
+      const store: CvrCredentialStore = {
+        load: () => ({ username: 'trinity', accessKey: 'expired' }),
+        save: () => {},
+        delete: () => {
+          throw new Error('safeStorage unavailable')
+        }
+      }
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      const adapter = new CvrAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('propagates explicit logout deletion failure without clearing the live session', async () => {
+      const store: CvrCredentialStore = {
+        load: () => ({ username: 'trinity', accessKey: 'key-1' }),
+        save: () => {},
+        delete: () => {
+          throw new Error('credential deletion failed')
+        }
+      }
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
+      const adapter = new CvrAdapter(store, noopSleep)
+
+      expect(() => adapter.clearSession()).toThrow('credential deletion failed')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        displayName: 'trinity'
+      })
+    })
   })
 
   describe('contract surface', () => {
@@ -453,6 +489,34 @@ describe('CvrAdapter', () => {
       expect(store.deleted).toBe(0)
       expect((await adapter.getAuthStatus()).state).toBe('authenticated')
       expect(adapter.resolveFriendName(accountBId)).toBe('Account B Friend')
+    })
+
+    it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {
+      let releaseRoster!: (response: Response) => void
+      const heldRoster = new Promise<Response>((resolve) => {
+        releaseRoster = resolve
+      })
+      const fetchMock = vi.fn(() => heldRoster)
+      vi.stubGlobal('fetch', fetchMock)
+      const events: AdapterEvent[] = []
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'account-a', accessKey: 'key-a' }),
+        noopSleep,
+        { socketFactory: () => ({ on: () => {}, close: () => {} }) }
+      )
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+
+      adapter.clearSession()
+      releaseRoster(jsonResponse({ message: 'denied' }, { status: 401 }))
+
+      await expect(roster).rejects.toThrow('Session ended')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(events.filter((event) => event.type === 'auth-invalidated')).toEqual([
+        { type: 'auth-invalidated', platform: 'chilloutvr' }
+      ])
+      unsubscribe()
     })
 
     it('keeps the newest same-generation roster name cache when an older request settles last', async () => {
