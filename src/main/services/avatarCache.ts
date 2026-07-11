@@ -74,13 +74,15 @@ function parseAllowedAvatarUrl(value: string): URL | null {
   }
 }
 
+const IPV4_LITERAL_RE = /^\d{1,3}(\.\d{1,3}){3}$/
+
 /** Reject IP-literal and localhost redirect targets (SSRF hardening, VRX-202). */
 function isForbiddenRedirectHost(hostname: string): boolean {
   return (
     hostname === 'localhost' ||
     hostname.endsWith('.localhost') ||
     hostname.includes(':') || // WHATWG keeps IPv6 literals bracket-stripped with colons
-    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
+    IPV4_LITERAL_RE.test(hostname)
   )
 }
 
