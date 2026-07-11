@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tabmock",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "-d",
+        "/private/tmp/claude-501/-Users-imperix-dev-vrx/a7dd2dbd-9538-47dd-80db-0e14d51da173/scratchpad/tabmock"
+      ],
+      "port": 4173
+    }
+  ]
+}
