@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Platform } from '@shared/types'
+import { friendsQueryKey } from '../queries/friends'
 import i18n from '../i18n'
 import AccountCard from './AccountCard'
 
@@ -98,7 +99,7 @@ describe.each([
       state = { platform, state: 'unauthenticated', displayName: null }
       return Promise.resolve()
     })
-    renderCard(platform, bridge)
+    const queryClient = renderCard(platform, bridge)
 
     const connected = await screen.findByText(
       msg('settings.accounts.connectedAs', { name: displayName })
@@ -108,10 +109,14 @@ describe.each([
     expect(connected.parentElement?.className).not.toContain('--st-online-text')
     const disconnect = screen.getByRole('button', { name: msg('settings.accounts.disconnect') })
     expect(disconnect).toHaveProperty('disabled', false)
+    // Cached social data for this platform must be REMOVED on logout (a later
+    // login may be a different account), not merely marked stale.
+    queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
     fireEvent.click(disconnect)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(queryClient.getQueryData(friendsQueryKey(platform))).toBeUndefined()
   })
 
   it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
