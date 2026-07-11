@@ -384,8 +384,18 @@ describe('FriendsList', () => {
     expect(markup).toContain('var(--cvr)')
     expect(markup).toContain('>CVR<')
     expect(markup).toContain('aria-label="ChilloutVR"')
-    expect(markup).toContain('var(--ingame)')
-    expect(markup).toContain('aria-label="In-game"')
+    // VRX-207: CVR online = privacy tier 2 — the SAME ring as VRChat status:online,
+    // never the state palette (the two-greens defect from the owner's smoke test).
+    expect(markup).toContain('var(--st-online)')
+    expect(markup).toContain('aria-label="Online"')
+    expect(markup).not.toContain('var(--ingame)')
+  })
+
+  it('folds a statusless VRChat in-game friend onto the online ring too (platform parity)', () => {
+    mock([{ ...friend, status: null, statusDescription: null, presence: { state: 'in-game' } }])
+    const markup = render()
+    expect(markup).toContain('var(--st-online)')
+    expect(markup).not.toContain('var(--ingame)')
   })
 
   // ─── Online-first ordering (VRX-67 slice) ────────────────────────────────────
