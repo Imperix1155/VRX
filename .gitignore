@@ -51,3 +51,6 @@ coverage
 # (its source of truth is src/renderer/src/assets/main.css + docs/). If you'd rather
 # version it as a design reference, drop this line and commit the folder instead.
 vrx-design/
+
+# Claude Code session-local tooling (mock-server launch configs etc.) — machine-specific, never shipped
+/.claude/

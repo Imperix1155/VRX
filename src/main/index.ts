@@ -367,15 +367,20 @@ app
     const showFriendAlert = (alert: FriendAlert): void => {
       if (!NativeNotification.isSupported()) return
 
+      // Copy shape (VRX-204, owner feedback on live toasts): Title Case headers
+      // ("headers generally have all of the words capitalized"), header = the
+      // general event category, body = the specifics. Exact wording is
+      // owner-adjustable — flagged in the PR; strings stay main-side pending
+      // the parked notification-i18n follow-up.
       let title: string
       let body: string
       switch (alert.type) {
         case 'online':
-          title = 'Friend online'
-          body = `${alert.displayName} is online`
+          title = 'Friend Online'
+          body = `${alert.displayName} came online`
           break
         case 'in-game': {
-          title = 'Friend in game'
+          title = 'Friend Joined a World'
           // Match the renderer's trailing instance-label cleanup. Notifications
           // are deliberately one-shot: later true-world enrichment corrects the
           // baseline but does not attempt to replace an already delivered toast.
@@ -388,11 +393,11 @@ app
           break
         }
         case 'offline':
-          title = 'Friend offline'
+          title = 'Friend Offline'
           body = `${alert.displayName} went offline`
           break
         case 'hot-instance': {
-          title = 'Hot instance'
+          title = 'Friends Gathering'
           const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
           body =
             strippedWorldName === ''
