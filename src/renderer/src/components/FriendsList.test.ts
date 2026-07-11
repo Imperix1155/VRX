@@ -113,12 +113,35 @@ describe('FriendsList', () => {
     }
   )
 
-  it('drops the V/C platform glyph from the row (spine carries platform)', () => {
-    // The old PlatformGlyph rendered an aria-labelled V/C square; the avatar now
-    // carries a STATUS aria-label instead, and platform is the spine color only.
+  it('carries a non-color platform signifier on the row (VRX-206 B&W test)', () => {
+    // Reverses the old R10 carve-out (platform = spine color only): the platform
+    // tab is aria-labelled with the full platform name AND shows the acronym as
+    // text, so the platform survives with color removed (§5 black-and-white test).
     const markup = render()
-    expect(markup).not.toContain('aria-label="VRChat"')
-    expect(markup).not.toContain('aria-label="ChilloutVR"')
+    expect(markup).toContain('aria-label="VRChat"')
+    expect((markup.match(/VRC</g) ?? []).length).toBe(1)
+  })
+
+  it('pins the platform-tab geometry contract (VRX-206 bake values)', () => {
+    // The tab's layout is a coupled system (grid col + PHYSICAL negative margins +
+    // writing mode); losing any class silently degrades it to an inline label.
+    // -mt/-mb must stay physical: -my-* emits margin-block, which the tab's
+    // vertical writing mode rotates onto the horizontal axis (review-caught High).
+    const markup = render()
+    expect(markup).toContain('grid-cols-[14px_42px_1fr_auto]')
+    for (const cls of [
+      '[writing-mode:vertical-rl]',
+      'rotate-180',
+      '-mt-[5px]',
+      '-mb-[5px]',
+      '-ml-[7px]',
+      'w-[calc(100%+7px)]',
+      'rounded-[9px]',
+      'self-stretch'
+    ]) {
+      expect(markup).toContain(cls)
+    }
+    expect(markup).not.toContain('-my-[5px]')
   })
 
   // ─── Custom status — beside the name, exactly once (§9.1) ────────────────────
@@ -338,13 +361,16 @@ describe('FriendsList', () => {
     expect(markup).not.toContain('Public')
   })
 
-  // ─── Platform spine + CVR presence ring ──────────────────────────────────────
+  // ─── Platform tab + CVR presence ring ────────────────────────────────────────
 
-  it('renders the VRChat spine (--vrc) for a VRChat friend', () => {
-    expect(render()).toContain('var(--vrc)')
+  it('renders the VRChat platform tab (--vrc tint + VRC acronym) for a VRChat friend', () => {
+    const markup = render()
+    expect(markup).toContain('var(--vrc)')
+    expect(markup).toContain('var(--plat-vrc-ghost-text)')
+    expect(markup).toContain('>VRC<')
   })
 
-  it('renders the CVR spine + an in-game presence ring for a CVR friend', () => {
+  it('renders the CVR platform tab + an in-game presence ring for a CVR friend', () => {
     mock([
       {
         ...friend,
@@ -356,6 +382,8 @@ describe('FriendsList', () => {
     ])
     const markup = render()
     expect(markup).toContain('var(--cvr)')
+    expect(markup).toContain('>CVR<')
+    expect(markup).toContain('aria-label="ChilloutVR"')
     expect(markup).toContain('var(--ingame)')
     expect(markup).toContain('aria-label="In-game"')
   })

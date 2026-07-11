@@ -33,7 +33,7 @@
   --space-10: 40px;
   --friend-status-description-width: 160px;
 
-  /* PLATFORM — deep + saturated (spine/tint/glyph only) */
+  /* PLATFORM — deep + saturated (tab/pill/tint only) */
   --vrc: #2b7ce8; /* VRChat / blue */
   --cvr: #f3711e; /* ChilloutVR / orange */
   --bridge: #e8e8f0; /* neutral merge accent (silver) */
