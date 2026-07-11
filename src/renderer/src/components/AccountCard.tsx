@@ -84,6 +84,9 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     setIsDisconnecting(true)
     try {
       await window.vrx.logout({ platform })
+      // Logout means the platform's social data must GO, not merely refetch —
+      // a later login may be a different account (cross-account cache leakage).
+      queryClient.removeQueries({ queryKey: friendsQueryKey(platform) })
       await queryClient.invalidateQueries({ queryKey: authStatusQueryKey(platform) })
     } catch {
       setErrorKey('settings.accounts.error.disconnect')
