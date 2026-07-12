@@ -31,4 +31,12 @@ describe('accountKey', () => {
   it.each(['', '   '])('rejects an empty account id (%j)', (accountId) => {
     expect(() => accountKey('vrchat', accountId)).toThrow('accountId must not be empty')
   })
+
+  it.each([
+    ['a colon', 'account:id'],
+    ['a control character', 'account\nid'],
+    ['whitespace', 'account id']
+  ])('preserves %s in the account id', (_label, accountId) => {
+    expect(accountKey('vrchat', accountId)).toBe(`vrchat:${accountId}`)
+  })
 })

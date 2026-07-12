@@ -5,6 +5,7 @@ import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
+import { AccountSession } from '../accountSession'
 
 /** In-memory credential store recording persisted sessions + delete calls. */
 function fakeStore(
@@ -51,6 +52,118 @@ const creds = { username: 'trinity@example.com', password: 'whiterabbit' }
 describe('CvrAdapter', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  describe('AccountSession boundary ordering', () => {
+    function wiring(
+      accountSession: AccountSession,
+      boundary = vi.fn()
+    ): {
+      onIdentity: (accountId: string | null) => void
+      onSessionBoundary: () => void
+    } {
+      return {
+        onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
+        onSessionBoundary: () => {
+          expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+          boundary()
+        }
+      }
+    }
+
+    it('clears AccountSession before restored-session adoption', () => {
+      const accountSession = new AccountSession()
+      accountSession.setIdentity('chilloutvr', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+      const boundary = vi.fn()
+
+      new CvrAdapter(fakeStore({ username: 'restored', accessKey: 'key-a' }), noopSleep, {
+        onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
+        onSessionBoundary: () => {
+          expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+          boundary()
+        }
+      })
+
+      expect(boundary).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears AccountSession before fresh-login adoption', async () => {
+      const accountSession = new AccountSession()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            envelope(
+              authPayload({
+                username: 'morpheus',
+                accessKey: 'key-2',
+                userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+              })
+            )
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, wiring(accountSession, boundary))
+
+      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      expect(accountSession.getAccountId('chilloutvr')).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before access-key rotation adoption', async () => {
+      const accountSession = new AccountSession()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ accessKey: 'rotated-key' }))))
+      )
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'old-key' }),
+        noopSleep,
+        wiring(accountSession, boundary)
+      )
+      accountSession.setIdentity('chilloutvr', authPayload().userId as string)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before non-emitting invalidation', async () => {
+      const accountSession = new AccountSession()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'dead-key' }),
+        noopSleep,
+        wiring(accountSession, boundary)
+      )
+      accountSession.setIdentity('chilloutvr', authPayload().userId as string)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before emitting invalidation', async () => {
+      const accountSession = new AccountSession()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(jsonResponse({ message: 'denied' }, { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, wiring(accountSession, boundary))
+
+      await adapter.login(creds)
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
   })
 
   describe('login (password leg — raw, breaker-free)', () => {
@@ -189,6 +302,24 @@ describe('CvrAdapter', () => {
       })
       expect(store.saved).toEqual([])
     })
+
+    it.each(['bad:id', 'bad id', 'bad\nid'])(
+      'rejects malformed current-user userId %j',
+      async (userId) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ userId }))))
+        )
+        const store = fakeStore()
+
+        expect(await new CvrAdapter(store, noopSleep).login(creds)).toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response'
+        })
+        expect(store.saved).toEqual([])
+      }
+    )
 
     it('control characters in credentials are rejected BEFORE any request (header injection guard)', async () => {
       const fetchMock = vi.fn()

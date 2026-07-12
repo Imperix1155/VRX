@@ -1,6 +1,9 @@
 import type { Platform } from '@shared/types'
 
-/** Main-process registry of the identity currently authenticated per platform. */
+/**
+ * Main-process registry of the identity currently authenticated per platform.
+ * During `onSessionBoundary`, AccountSession never answers the outgoing account.
+ */
 export class AccountSession {
   private readonly identities: Record<Platform, string | null> = {
     vrchat: null,

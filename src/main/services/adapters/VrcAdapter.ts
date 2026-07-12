@@ -41,8 +41,17 @@ export interface VrcLiveWiring {
   onIdentity?: (accountId: string | null) => void
 }
 
+const canonicalVrcUserId = /^usr_[0-9a-f-]{36}$/
+// No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
+// conservative: non-empty, at most 64 characters, and no whitespace, control
+// characters, colon, or malformed canonical `usr_` prefix.
+// eslint-disable-next-line no-control-regex -- rejecting control chars is the contract
+const conservativeLegacyVrcUserId = /^(?!usr_)[^\s\u0000-\u001f\u007f:]{1,64}$/
+const vrcUserIdSchema = z
+  .string()
+  .refine((id) => canonicalVrcUserId.test(id) || conservativeLegacyVrcUserId.test(id))
 /** Minimal current-user shape we rely on (the API returns much more). */
-const currentUserSchema = z.object({ id: z.string(), displayName: z.string() })
+const currentUserSchema = z.object({ id: vrcUserIdSchema, displayName: z.string() })
 /** The 2FA-required branch of `GET /auth/user`. */
 const twoFactorRequiredSchema = z.object({ requiresTwoFactorAuth: z.array(z.string()).min(1) })
 const authUserResponseSchema = z.union([twoFactorRequiredSchema, currentUserSchema])
@@ -182,8 +191,8 @@ export class VrcAdapter extends VrcApiClient {
       this.displayName = null
       this.accountId = null
       this.pendingTwoFactorMethod = null
-      this.bumpSessionGeneration()
       this.live?.onIdentity?.(null)
+      this.bumpSessionGeneration()
     }
 
     let body: unknown
@@ -200,12 +209,15 @@ export class VrcAdapter extends VrcApiClient {
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
 
+    // A response without a replacement cookie still completed a deliberate
+    // login, so preserve the established successful-login boundary behavior.
+    if (!authCookie) {
+      this.live?.onIdentity?.(null)
+      this.bumpSessionGeneration()
+    }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
     this.live?.onIdentity?.(this.accountId)
-    // A response without a replacement cookie still completed a deliberate
-    // login, so preserve the established successful-login boundary behavior.
-    if (!authCookie) this.bumpSessionGeneration()
     this.persist()
     return { ok: true }
   }
@@ -273,8 +285,8 @@ export class VrcAdapter extends VrcApiClient {
     // 2FA boundary (including a name from a different prior account).
     this.displayName = null
     this.accountId = null
-    this.bumpSessionGeneration()
     this.live?.onIdentity?.(null)
+    this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
     return { ok: true }
@@ -441,6 +453,8 @@ export class VrcAdapter extends VrcApiClient {
         // unauthenticated; a blunt clear would force a full re-login. NetworkError
         // and other failures just propagate untouched.
         if (error instanceof AuthError) {
+          // Ordering exemption: a data-path AuthError may mean only that 2FA
+          // expired, so this boundary deliberately retains the current identity.
           this.bumpSessionGeneration()
           this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
         }
@@ -548,6 +562,7 @@ export class VrcAdapter extends VrcApiClient {
 
   private adoptSession(cookie: string): void {
     this.setCookie(cookie)
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
@@ -583,8 +598,8 @@ export class VrcAdapter extends VrcApiClient {
     this.displayName = null
     this.accountId = null
     this.pendingTwoFactorMethod = null
-    this.bumpSessionGeneration()
     this.live?.onIdentity?.(null)
+    this.bumpSessionGeneration()
   }
 
   /** Automatic auth invalidation must clear memory even when safeStorage is
