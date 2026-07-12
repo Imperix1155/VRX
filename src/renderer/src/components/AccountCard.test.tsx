@@ -50,7 +50,12 @@ describe.each([
   ['chilloutvr', 'Trinity']
 ] as const)('AccountCard — %s parity', (platform, displayName) => {
   it('shows the connect form when disconnected and delegates credentials to that platform', async () => {
-    const bridge = bridgeFor({ platform, state: 'unauthenticated', displayName: null })
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
     renderCard(platform, bridge)
 
     const username = await screen.findByLabelText(msg('settings.accounts.username'))
@@ -69,7 +74,12 @@ describe.each([
   })
 
   it('drops the password before post-login query invalidations settle', async () => {
-    const bridge = bridgeFor({ platform, state: 'unauthenticated', displayName: null })
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
     const queryClient = renderCard(platform, bridge)
     let releaseInvalidations!: () => void
     const heldInvalidations = new Promise<void>((resolve) => {
@@ -92,11 +102,16 @@ describe.each([
   })
 
   it('shows a neutral connected check, connected name, and a working Disconnect', async () => {
-    let state: AuthStatus = { platform, state: 'authenticated', displayName }
+    let state: AuthStatus = {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-account`,
+      displayName
+    }
     const bridge = bridgeFor(state)
     bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
     bridge.logout.mockImplementation(() => {
-      state = { platform, state: 'unauthenticated', displayName: null }
+      state = { platform, state: 'unauthenticated', accountId: null, displayName: null }
       return Promise.resolve()
     })
     const queryClient = renderCard(platform, bridge)
@@ -123,7 +138,12 @@ describe.each([
   })
 
   it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
-    const bridge = bridgeFor({ platform, state: 'authenticated', displayName })
+    const bridge = bridgeFor({
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-account`,
+      displayName
+    })
     bridge.logout.mockRejectedValue(new Error('credential deletion failed'))
     renderCard(platform, bridge)
 
@@ -142,7 +162,12 @@ describe.each([
 
 describe('AccountCard — VRChat two-factor flow', () => {
   it('uses the existing verify-2fa second leg without resending the password', async () => {
-    const bridge = bridgeFor({ platform: 'vrchat', state: 'unauthenticated', displayName: null })
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
     bridge.login.mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
     renderCard('vrchat', bridge)
 

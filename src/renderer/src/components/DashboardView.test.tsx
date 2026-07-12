@@ -27,7 +27,12 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 }))
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
-    data: { platform, state: 'authenticated', displayName: 'Test User' }
+    data: {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-test`,
+      displayName: 'Test User'
+    }
   })
 }))
 
@@ -181,8 +186,8 @@ describe('DashboardView states (W5)', () => {
   })
 
   it('hot card shows the stripped world name, first-4 names + overflow, and the platform pill (VRX-198)', () => {
-    // Instance # built via interpolation so a literal "#816332" doesn't trip the
-    // design-token raw-color guard.
+    // Instance # built via interpolation so a literal hex-like value doesn't trip
+    // the design-token raw-color guard.
     const hotWorldName = `SunDown (#${816332})`
     const inWorld = (id: string, name: string): Friend =>
       makeFriend({

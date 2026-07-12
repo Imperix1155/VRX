@@ -7,6 +7,7 @@ import type {
   JoinMode,
   LoginResult
 } from '@shared/types'
+import { z } from 'zod'
 import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
@@ -16,9 +17,19 @@ import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
 import { CVRAuthError, CVRNetworkError } from './errors'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
+import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
+
+const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
+  data: cvrAuthEnvelopeSchema.shape.data.extend({
+    userId: z.string().refine((userId) => {
+      const parsed = extractCvrPlatformUserId(userId)
+      return parsed.ok && parsed.platformUserId === userId.toLowerCase()
+    })
+  })
+})
 
 /** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
@@ -28,6 +39,8 @@ export interface CvrLiveWiring {
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
   onSessionBoundary?: () => void
+  /** Publishes the current platform identity after adapter state settles. */
+  onIdentity?: (accountId: string | null) => void
 }
 
 /**
@@ -71,6 +84,7 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
+  private accountId: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
@@ -169,7 +183,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     } catch {
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
-    const parsed = cvrAuthEnvelopeSchema.safeParse(body)
+    const parsed = cvrCurrentUserSchema.safeParse(body)
     if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
 
     // The accessKey — not the password — is the session from here on. The
@@ -178,6 +192,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       username: parsed.data.data.username,
       accessKey: parsed.data.data.accessKey
     })
+    this.accountId = parsed.data.data.userId
+    this.live?.onIdentity?.(this.accountId)
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
@@ -249,7 +265,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     const swappedAfterBody = this.currentStatusIfSwapped(validated)
     if (swappedAfterBody) return swappedAfterBody
 
-    const parsed = cvrAuthEnvelopeSchema.safeParse(body)
+    const parsed = cvrCurrentUserSchema.safeParse(body)
     // Schema drift is NOT a dead session — report error without clearing, and
     // (now) without recording a breaker failure that could block login.
     if (!parsed.success) return this.status('error')
@@ -262,6 +278,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.persist()
     }
     this.displayName = username
+    this.accountId = parsed.data.data.userId
+    this.live?.onIdentity?.(this.accountId)
     // Restored session proven once — trust it for the rest of this launch.
     this.validated = true
     return this.status('authenticated')
@@ -546,6 +564,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
+    this.accountId = null
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
@@ -568,7 +588,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
+    this.accountId = null
     this.validated = false
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
@@ -621,6 +643,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return {
       platform: 'chilloutvr',
       state,
+      accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null
     }
   }

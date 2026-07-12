@@ -33,6 +33,7 @@ import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
+import { AccountSession } from './services/accountSession'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -334,6 +335,7 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const accountSession = new AccountSession()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -341,6 +343,7 @@ app
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta),
+      onIdentity: (accountId) => accountSession.setIdentity('vrchat', accountId),
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
@@ -381,6 +384,7 @@ app
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       socketFactory: (url, headers) => new WebSocket(url, { headers }),
       log: (level, message, meta) => log[level](message, meta),
+      onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')

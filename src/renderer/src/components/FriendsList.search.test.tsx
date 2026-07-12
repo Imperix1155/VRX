@@ -16,7 +16,12 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 }))
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
-    data: { platform, state: 'authenticated', displayName: 'Test User' }
+    data: {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-test`,
+      displayName: 'Test User'
+    }
   })
 }))
 
