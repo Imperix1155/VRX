@@ -36,9 +36,7 @@ const fileSchema = z.object({
   entries: z.record(z.string(), entrySchema)
 })
 
-const formatVersionSchema = z
-  .object({ storeFormatVersion: z.number().int().nonnegative() })
-  .passthrough()
+const formatVersionSchema = z.looseObject({ storeFormatVersion: z.number().int().nonnegative() })
 
 class ElectronAccountRegistryStorage implements AccountRegistryStorage {
   private store: Store<Record<string, unknown>> | null = null

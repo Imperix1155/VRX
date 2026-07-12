@@ -13,8 +13,11 @@ export const PER_FRIEND_OPT_OUTS_MAX = 5_000
 export const HISTORY_RING_CAPACITY = 200
 
 const FRIEND_ID_PATTERN = /^[A-Za-z0-9_-]+$/
+const SERIALIZED_FORMAT_VERSION_PATTERN = /["']storeFormatVersion["']\s*:\s*(\d+)/
+const PLATFORM_VALUES = ['vrchat', 'chilloutvr'] as const satisfies readonly Platform[]
 const platformAccountIdSchema = z.string().refine(isPlatformAccountId)
 const friendIdSchema = z.string().min(1).max(256).regex(FRIEND_ID_PATTERN)
+const platformSchema = z.enum(PLATFORM_VALUES)
 
 function cappedRecordSchema<T extends z.ZodType>(valueSchema: T, maximum: number): z.ZodType {
   return z.record(friendIdSchema, valueSchema).superRefine((value, context) => {
@@ -102,6 +105,30 @@ const namespaceSchemas: Record<SmallSocialNamespace, z.ZodType> = {
   perFriendOptOuts: perFriendOptOutsSchema
 }
 
+function createEnvelopeSchema<T extends z.ZodType>(
+  dataSchema: T
+): z.ZodType<{
+  schemaVersion: typeof SOCIAL_NAMESPACE_SCHEMA_VERSION
+  platform: Platform
+  platformAccountId: string
+  data?: z.output<T>
+}> {
+  return z.object({
+    schemaVersion: z.literal(SOCIAL_NAMESPACE_SCHEMA_VERSION),
+    platform: platformSchema,
+    platformAccountId: platformAccountIdSchema,
+    data: dataSchema
+  })
+}
+
+const envelopeSchemas = {
+  favorites: createEnvelopeSchema(favoritesSchema),
+  notes: createEnvelopeSchema(notesSchema),
+  tags: createEnvelopeSchema(tagsSchema),
+  socialPrefs: createEnvelopeSchema(socialPrefsSchema),
+  perFriendOptOuts: createEnvelopeSchema(perFriendOptOutsSchema)
+} satisfies Record<SmallSocialNamespace, z.ZodType>
+
 const rootSchema = z
   .object({
     storeFormatVersion: z.number().int().nonnegative(),
@@ -142,7 +169,7 @@ function emptySocialStoreFile(storeFormatVersion = SOCIAL_STORE_FORMAT_VERSION):
 }
 
 function serializedFormatVersion(raw: string): number | null {
-  const match = /["']storeFormatVersion["']\s*:\s*(\d+)/.exec(raw)
+  const match = SERIALIZED_FORMAT_VERSION_PATTERN.exec(raw)
   if (!match) return null
   const version = Number(match[1])
   return Number.isSafeInteger(version) ? version : null
@@ -225,13 +252,7 @@ export class SocialStore {
     const account = this.file.accounts[key]
     if (!isRecord(account)) return null
 
-    const envelopeSchema = z.object({
-      schemaVersion: z.literal(SOCIAL_NAMESPACE_SCHEMA_VERSION),
-      platform: z.enum(['vrchat', 'chilloutvr']),
-      platformAccountId: platformAccountIdSchema,
-      data: namespaceSchemas[namespace]
-    })
-    const parsed = envelopeSchema.safeParse(account[namespace])
+    const parsed = envelopeSchemas[namespace].safeParse(account[namespace])
     if (
       !parsed.success ||
       parsed.data.platform !== platform ||

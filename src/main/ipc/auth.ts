@@ -24,8 +24,9 @@ export function registerAuthHandlers(
     return adapter.getAuthStatus().then((status) => {
       try {
         options.onAuthStatus?.(status)
-      } catch {
-        log.warn(`onAuthStatus callback failed for ${req.platform}`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.warn(`onAuthStatus callback failed for ${req.platform}: ${message}`)
       }
       return status
     })

@@ -27,6 +27,9 @@ vi.mock('./security', () => ({
   isTrustedIpcSender: vi.fn(() => trusted.value)
 }))
 
+const log = vi.hoisted(() => ({ warn: vi.fn() }))
+vi.mock('electron-log', () => ({ default: log }))
+
 import { registerAuthHandlers } from './auth'
 
 const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
@@ -164,6 +167,25 @@ describe('get-auth-status handler boundary', () => {
     await call('get-auth-status', { platform: 'vrchat' })
 
     expect(onAuthStatus).toHaveBeenCalledWith(status)
+  })
+
+  it('logs an account-registry rejection without propagating it', async () => {
+    const status: AuthStatus = {
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'usr_a',
+      displayName: 'Alice'
+    }
+    vi.mocked(adapter.getAuthStatus).mockResolvedValue(status)
+    onAuthStatus.mockImplementation(() => {
+      throw new Error('account registry rejection')
+    })
+
+    await expect(call('get-auth-status', { platform: 'vrchat' })).resolves.toEqual(status)
+
+    expect(log.warn).toHaveBeenCalledWith(
+      'onAuthStatus callback failed for vrchat: account registry rejection'
+    )
   })
 })
 
