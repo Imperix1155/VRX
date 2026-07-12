@@ -43,11 +43,13 @@ function mockAuthStatuses(
 const vrcUnauthenticated: AuthStatus = {
   platform: 'vrchat',
   state: 'unauthenticated',
+  accountId: null,
   displayName: null
 }
 const cvrUnauthenticated: AuthStatus = {
   platform: 'chilloutvr',
   state: 'unauthenticated',
+  accountId: null,
   displayName: null
 }
 
@@ -90,6 +92,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
       {
         platform: 'vrchat',
         state: 'needs-2fa',
+        accountId: null,
         displayName: null,
         twoFactorMethod: 'email'
       },
@@ -103,7 +106,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
 
   it('falls back to totp copy when needs-2fa carries no method', () => {
     mockAuthStatuses(
-      { platform: 'vrchat', state: 'needs-2fa', displayName: null },
+      { platform: 'vrchat', state: 'needs-2fa', accountId: null, displayName: null },
       cvrUnauthenticated
     )
     renderApp()
@@ -120,7 +123,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
 
   it('renders the shell when VRChat alone is authenticated', () => {
     mockAuthStatuses(
-      { platform: 'vrchat', state: 'authenticated', displayName: 'Neo' },
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
       cvrUnauthenticated
     )
     renderApp()
@@ -132,6 +135,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     mockAuthStatuses(vrcUnauthenticated, {
       platform: 'chilloutvr',
       state: 'authenticated',
+      accountId: 'cvr_trinity',
       displayName: 'Trinity'
     })
     renderApp()
@@ -144,10 +148,16 @@ describe('App auth gate (VRX-173, platform parity)', () => {
       {
         platform: 'vrchat',
         state: 'needs-2fa',
+        accountId: null,
         displayName: null,
         twoFactorMethod: 'totp'
       },
-      { platform: 'chilloutvr', state: 'authenticated', displayName: 'Trinity' }
+      {
+        platform: 'chilloutvr',
+        state: 'authenticated',
+        accountId: 'cvr_trinity',
+        displayName: 'Trinity'
+      }
     )
     renderApp()
 
@@ -167,7 +177,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     stubDashboardNavigation()
     useUiStore.setState({ activeTab: 'settings' })
     mockAuthStatuses(
-      { platform: 'vrchat', state: 'authenticated', displayName: 'Neo' },
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
       cvrUnauthenticated
     )
     renderApp()

@@ -217,6 +217,8 @@ export type AuthState = 'authenticated' | 'unauthenticated' | 'needs-2fa' | 'err
 export interface AuthStatus {
   platform: Platform
   state: AuthState
+  /** Signed-in platform identity; never a credential-storage key. Null unless authenticated. */
+  accountId: string | null
   /** Signed-in account's display name, when authenticated; null otherwise. */
   displayName: string | null
   /**

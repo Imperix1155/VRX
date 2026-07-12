@@ -40,9 +40,12 @@ export function jsonResponse(
 export function stubPlatformAdapter(overrides: Partial<IPlatformAdapter> = {}): IPlatformAdapter {
   return {
     platform: 'vrchat',
-    getAuthStatus: vi
-      .fn()
-      .mockResolvedValue({ platform: 'vrchat', state: 'unauthenticated', displayName: null }),
+    getAuthStatus: vi.fn().mockResolvedValue({
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    }),
     login: vi.fn().mockResolvedValue({ ok: true }),
     verify2fa: vi.fn().mockResolvedValue({ ok: true }),
     clearSession: vi.fn(),

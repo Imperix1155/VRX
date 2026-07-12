@@ -160,7 +160,7 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
   it('renders both platform account cards when selected', async () => {
     setBridge({
       getAuthStatus: vi.fn(({ platform }: { platform: string }) =>
-        Promise.resolve({ platform, state: 'unauthenticated', displayName: null })
+        Promise.resolve({ platform, state: 'unauthenticated', accountId: null, displayName: null })
       ),
       login: vi.fn(),
       verify2fa: vi.fn(),

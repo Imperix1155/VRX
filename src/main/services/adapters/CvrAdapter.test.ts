@@ -5,6 +5,7 @@ import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
+import { AccountSession } from '../accountSession'
 
 /** In-memory credential store recording persisted sessions + delete calls. */
 function fakeStore(
@@ -53,12 +54,127 @@ describe('CvrAdapter', () => {
     vi.unstubAllGlobals()
   })
 
+  describe('AccountSession boundary ordering', () => {
+    function wiring(
+      accountSession: AccountSession,
+      boundary = vi.fn()
+    ): {
+      onIdentity: (accountId: string | null) => void
+      onSessionBoundary: () => void
+    } {
+      return {
+        onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
+        onSessionBoundary: () => {
+          expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+          boundary()
+        }
+      }
+    }
+
+    it('clears AccountSession before restored-session adoption', () => {
+      const accountSession = new AccountSession()
+      accountSession.setIdentity('chilloutvr', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+      const boundary = vi.fn()
+
+      new CvrAdapter(fakeStore({ username: 'restored', accessKey: 'key-a' }), noopSleep, {
+        onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
+        onSessionBoundary: () => {
+          expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+          boundary()
+        }
+      })
+
+      expect(boundary).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears AccountSession before fresh-login adoption', async () => {
+      const accountSession = new AccountSession()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            envelope(
+              authPayload({
+                username: 'morpheus',
+                accessKey: 'key-2',
+                userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+              })
+            )
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, wiring(accountSession, boundary))
+
+      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      expect(accountSession.getAccountId('chilloutvr')).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before access-key rotation adoption', async () => {
+      const accountSession = new AccountSession()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ accessKey: 'rotated-key' }))))
+      )
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'old-key' }),
+        noopSleep,
+        wiring(accountSession, boundary)
+      )
+      accountSession.setIdentity('chilloutvr', authPayload().userId as string)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before non-emitting invalidation', async () => {
+      const accountSession = new AccountSession()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'dead-key' }),
+        noopSleep,
+        wiring(accountSession, boundary)
+      )
+      accountSession.setIdentity('chilloutvr', authPayload().userId as string)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('clears AccountSession before emitting invalidation', async () => {
+      const accountSession = new AccountSession()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(jsonResponse({ message: 'denied' }, { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const boundary = vi.fn()
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, wiring(accountSession, boundary))
+
+      await adapter.login(creds)
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
+      expect(accountSession.getAccountId('chilloutvr')).toBeNull()
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+  })
+
   describe('login (password leg — raw, breaker-free)', () => {
     it('authenticates, persists ONLY username+accessKey, reports authenticated status', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       const result = await adapter.login(creds)
 
@@ -73,12 +189,31 @@ describe('CvrAdapter', () => {
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'authenticated',
-        displayName: 'trinity'
+        displayName: 'trinity',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
       })
+      expect(identities.at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000001')
       expect(fetchMock).toHaveBeenCalledTimes(1) // login only — no reauth probe
       const loginCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       const loginBody = JSON.parse(loginCall[1].body as string) as Record<string, unknown>
       expect(loginBody.AuthType).toBe(2) // password login leg
+    })
+
+    it('clears captured identity on logout', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+      )
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      await adapter.login(creds)
+      adapter.clearSession()
+
+      expect(identities).toEqual([null, 'a1b2c3d4-0000-0000-0000-000000000001', null])
+      expect(await adapter.getAuthStatus()).toMatchObject({ accountId: null })
     })
 
     it('the session STICKS across repeated status checks — no reauth churn (VRX-190)', async () => {
@@ -168,6 +303,24 @@ describe('CvrAdapter', () => {
       expect(store.saved).toEqual([])
     })
 
+    it.each(['bad:id', 'bad id', 'bad\nid'])(
+      'rejects malformed current-user userId %j',
+      async (userId) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ userId }))))
+        )
+        const store = fakeStore()
+
+        expect(await new CvrAdapter(store, noopSleep).login(creds)).toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response'
+        })
+        expect(store.saved).toEqual([])
+      }
+    )
+
     it('control characters in credentials are rejected BEFORE any request (header injection guard)', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -217,7 +370,8 @@ describe('CvrAdapter', () => {
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'authenticated',
-        displayName: 'trinity'
+        displayName: 'trinity',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
       })
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
@@ -228,10 +382,14 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' })))))
       )
       const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       await adapter.getAuthStatus()
       expect(store.saved).toEqual([{ username: 'trinity', accessKey: 'key-2' }])
+      expect(identities).toEqual([null, null, 'a1b2c3d4-0000-0000-0000-000000000001'])
     })
 
     it('a rejected accessKey (401) clears the persisted session — no zombie restore', async () => {
@@ -240,15 +398,20 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 })))
       )
       const store = fakeStore({ username: 'trinity', accessKey: 'dead-key' })
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       const status = await adapter.getAuthStatus()
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'unauthenticated',
-        displayName: null
+        displayName: null,
+        accountId: null
       })
       expect(store.deleted).toBe(1)
+      expect(identities.at(-1)).toBeNull()
       // A second probe must NOT re-send the dead key.
       const second = await adapter.getAuthStatus()
       expect(second.state).toBe('unauthenticated')
@@ -330,6 +493,7 @@ describe('CvrAdapter', () => {
       expect(() => adapter.clearSession()).toThrow('credential deletion failed')
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({
         state: 'authenticated',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001',
         displayName: 'trinity'
       })
     })

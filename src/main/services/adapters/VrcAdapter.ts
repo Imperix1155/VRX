@@ -37,10 +37,21 @@ export interface VrcLiveWiring {
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
   onSessionBoundary?: () => void
+  /** Publishes the current platform identity after adapter state settles. */
+  onIdentity?: (accountId: string | null) => void
 }
 
+const canonicalVrcUserId = /^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+// No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
+// conservative: non-empty, at most 64 characters, and no whitespace, control
+// characters, colon, or malformed canonical `usr_` prefix.
+// eslint-disable-next-line no-control-regex -- rejecting control chars is the contract
+const conservativeLegacyVrcUserId = /^(?!usr_)[^\s\u0000-\u001f\u007f:]{1,64}$/
+const vrcUserIdSchema = z
+  .string()
+  .refine((id) => canonicalVrcUserId.test(id) || conservativeLegacyVrcUserId.test(id))
 /** Minimal current-user shape we rely on (the API returns much more). */
-const currentUserSchema = z.object({ id: z.string(), displayName: z.string() })
+const currentUserSchema = z.object({ id: vrcUserIdSchema, displayName: z.string() })
 /** The 2FA-required branch of `GET /auth/user`. */
 const twoFactorRequiredSchema = z.object({ requiresTwoFactorAuth: z.array(z.string()).min(1) })
 const authUserResponseSchema = z.union([twoFactorRequiredSchema, currentUserSchema])
@@ -112,6 +123,7 @@ function isInstanceLocation(location: string): boolean {
 export class VrcAdapter extends VrcApiClient {
   private cookie: string | null = null
   private displayName: string | null = null
+  private accountId: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
   private sessionGeneration = 0
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
@@ -177,7 +189,9 @@ export class VrcAdapter extends VrcApiClient {
     if (authCookie) {
       this.setCookie(authCookie)
       this.displayName = null
+      this.accountId = null
       this.pendingTwoFactorMethod = null
+      this.live?.onIdentity?.(null)
       this.bumpSessionGeneration()
     }
 
@@ -195,10 +209,15 @@ export class VrcAdapter extends VrcApiClient {
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
 
-    this.displayName = parsed.data.displayName
     // A response without a replacement cookie still completed a deliberate
     // login, so preserve the established successful-login boundary behavior.
-    if (!authCookie) this.bumpSessionGeneration()
+    if (!authCookie) {
+      this.live?.onIdentity?.(null)
+      this.bumpSessionGeneration()
+    }
+    this.displayName = parsed.data.displayName
+    this.accountId = parsed.data.id
+    this.live?.onIdentity?.(this.accountId)
     this.persist()
     return { ok: true }
   }
@@ -265,6 +284,8 @@ export class VrcAdapter extends VrcApiClient {
     // A failed refresh must not expose an own-account name cached before this
     // 2FA boundary (including a name from a different prior account).
     this.displayName = null
+    this.accountId = null
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
@@ -343,6 +364,8 @@ export class VrcAdapter extends VrcApiClient {
       }
 
       this.displayName = parsed.data.displayName
+      this.accountId = parsed.data.id
+      this.live?.onIdentity?.(this.accountId)
       return this.status('authenticated')
     }
   }
@@ -430,6 +453,8 @@ export class VrcAdapter extends VrcApiClient {
         // unauthenticated; a blunt clear would force a full re-login. NetworkError
         // and other failures just propagate untouched.
         if (error instanceof AuthError) {
+          // Ordering exemption: a data-path AuthError may mean only that 2FA
+          // expired, so this boundary deliberately retains the current identity.
           this.bumpSessionGeneration()
           this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
         }
@@ -537,6 +562,7 @@ export class VrcAdapter extends VrcApiClient {
 
   private adoptSession(cookie: string): void {
     this.setCookie(cookie)
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
@@ -570,7 +596,9 @@ export class VrcAdapter extends VrcApiClient {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
+    this.accountId = null
     this.pendingTwoFactorMethod = null
+    this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
@@ -609,6 +637,8 @@ export class VrcAdapter extends VrcApiClient {
       const parsed = currentUserSchema.safeParse(await response.json())
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
+        this.accountId = parsed.data.id
+        this.live?.onIdentity?.(this.accountId)
       }
     } catch {
       /* non-fatal */
@@ -619,6 +649,7 @@ export class VrcAdapter extends VrcApiClient {
     return {
       platform: 'vrchat',
       state,
+      accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null,
       ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {})
     }

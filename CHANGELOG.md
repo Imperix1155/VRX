@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Internal identity groundwork now tracks each platform's authenticated account id in main for future favorites and multi-account work, with no UI or persistence changes yet. (VRX-24)
 - **You can now join a friend directly from the Friends list.** A joinable friend's instance-type pill is a keyboard-accessible button that launches the correct game; if the join is denied, the pill briefly says it couldn't join and then restores its usual label. Private, offline, and otherwise unavailable locations remain non-interactive. (VRX-166)
 
 ### Fixed
