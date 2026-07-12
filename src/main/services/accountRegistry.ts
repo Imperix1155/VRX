@@ -41,45 +41,93 @@ const formatVersionSchema = z
   .passthrough()
 
 class ElectronAccountRegistryStorage implements AccountRegistryStorage {
-  private readonly store = new Store<Record<string, unknown>>({
-    name: 'accounts',
-    accessPropertiesByDotNotation: false
-  })
+  private store: Store<Record<string, unknown>> | null = null
 
   read(): unknown {
-    return this.store.store
+    return this.getStore().store
   }
 
   write(value: AccountRegistryFile): void {
-    this.store.store = { ...value }
+    this.getStore().store = { ...value }
+  }
+
+  private getStore(): Store<Record<string, unknown>> {
+    this.store ??= new Store<Record<string, unknown>>({
+      name: 'accounts',
+      accessPropertiesByDotNotation: false
+    })
+    return this.store
   }
 }
 
-function parseRegistryFile(raw: unknown): AccountRegistryFile {
-  const formatVersion = formatVersionSchema.safeParse(raw)
+interface AccountRegistryLoadResult {
+  file: AccountRegistryFile
+  loadValid: boolean
+}
+
+function emptyRegistryFile(
+  storeFormatVersion = ACCOUNT_REGISTRY_FORMAT_VERSION
+): AccountRegistryFile {
+  return { storeFormatVersion, entries: {} }
+}
+
+function serializedFormatVersion(raw: string): number | null {
+  const match = /["']storeFormatVersion["']\s*:\s*(\d+)/.exec(raw)
+  if (!match) return null
+  const version = Number(match[1])
+  return Number.isSafeInteger(version) ? version : null
+}
+
+function parseRegistryFile(raw: unknown): AccountRegistryLoadResult {
   if (
-    formatVersion.success &&
-    formatVersion.data.storeFormatVersion > ACCOUNT_REGISTRY_FORMAT_VERSION
+    typeof raw === 'object' &&
+    raw !== null &&
+    !Array.isArray(raw) &&
+    Object.keys(raw).length === 0
   ) {
-    return { storeFormatVersion: formatVersion.data.storeFormatVersion, entries: {} }
+    return { file: emptyRegistryFile(), loadValid: true }
   }
 
-  const parsed = fileSchema.safeParse(raw)
+  let candidate = raw
+  if (typeof raw === 'string') {
+    try {
+      candidate = JSON.parse(raw) as unknown
+    } catch {
+      return {
+        file: emptyRegistryFile(serializedFormatVersion(raw) ?? ACCOUNT_REGISTRY_FORMAT_VERSION),
+        loadValid: false
+      }
+    }
+  }
+
+  const parsed = fileSchema.safeParse(candidate)
   if (!parsed.success) {
-    return { storeFormatVersion: ACCOUNT_REGISTRY_FORMAT_VERSION, entries: {} }
+    const formatVersion = formatVersionSchema.safeParse(candidate)
+    return {
+      file: emptyRegistryFile(
+        formatVersion.success
+          ? formatVersion.data.storeFormatVersion
+          : ACCOUNT_REGISTRY_FORMAT_VERSION
+      ),
+      loadValid: false
+    }
   }
 
   const entries: Record<string, AccountRegistryEntry> = {}
   for (const [key, entry] of Object.entries(parsed.data.entries)) {
     if (key === accountKey(entry.platform, entry.platformAccountId)) entries[key] = entry
   }
-  return { storeFormatVersion: parsed.data.storeFormatVersion, entries }
+  return {
+    file: { storeFormatVersion: parsed.data.storeFormatVersion, entries },
+    loadValid: true
+  }
 }
 
 /** Durable source of truth for known accounts; only remove() creates tombstones. */
 export class AccountRegistry {
   private readonly storage: AccountRegistryStorage
   private file: AccountRegistryFile
+  private readonly loadValid: boolean
 
   constructor(
     private readonly accountSession: AccountSession,
@@ -87,9 +135,12 @@ export class AccountRegistry {
   ) {
     this.storage = storage ?? new ElectronAccountRegistryStorage()
     try {
-      this.file = parseRegistryFile(this.storage.read())
+      const loaded = parseRegistryFile(this.storage.read())
+      this.file = loaded.file
+      this.loadValid = loaded.loadValid
     } catch {
-      this.file = { storeFormatVersion: ACCOUNT_REGISTRY_FORMAT_VERSION, entries: {} }
+      this.file = emptyRegistryFile()
+      this.loadValid = false
     }
   }
 
@@ -158,6 +209,11 @@ export class AccountRegistry {
   private assertWritable(): void {
     if (this.file.storeFormatVersion > ACCOUNT_REGISTRY_FORMAT_VERSION) {
       throw new Error('account registry: refusing to overwrite data written by a newer version')
+    }
+    if (!this.loadValid) {
+      throw new Error(
+        'account registry: storage could not be loaded; explicit recovery/reset required'
+      )
     }
   }
 

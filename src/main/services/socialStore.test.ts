@@ -13,10 +13,12 @@ import {
 vi.mock('electron-store', () => ({ default: class {} }))
 
 class MemorySocialStorage implements SocialStoreStorage {
-  value: unknown = undefined
+  value: unknown = {}
+  readError: Error | null = null
   writes: SocialStoreFile[] = []
 
   read(): unknown {
+    if (this.readError) throw this.readError
     return this.value
   }
 
@@ -172,6 +174,53 @@ describe('SocialStore', () => {
       )
     ).toThrow('refusing to overwrite social data written by a newer version')
     expect(storage.writes).toHaveLength(0)
+  })
+
+  it('stays read-only after storage read throws and refuses every subsequent write', () => {
+    storage.readError = new Error('corrupt storage')
+    store = new SocialStore(session, storage)
+
+    expect(store.read('vrchat', 'usr_a', 'favorites')).toBeNull()
+    const attempts: Array<Record<string, true>> = [{ friend_a: true }, { friend_b: true }]
+    for (const data of attempts) {
+      expect(() =>
+        store.write(
+          { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+          'favorites',
+          data
+        )
+      ).toThrow('storage could not be loaded')
+    }
+    expect(storage.writes).toHaveLength(0)
+  })
+
+  it('preserves a newer marker in malformed serialized content and never overwrites it', () => {
+    storage.value = '{"storeFormatVersion":999,"accounts":'
+    store = new SocialStore(session, storage)
+
+    expect(store.read('vrchat', 'usr_a', 'favorites')).toBeNull()
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+        'favorites',
+        {}
+      )
+    ).toThrow('refusing to overwrite social data written by a newer version')
+    expect(storage.writes).toHaveLength(0)
+  })
+
+  it('initializes a positively absent file as a writable empty store', () => {
+    storage.value = {}
+    store = new SocialStore(session, storage)
+
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+        'favorites',
+        { friend_a: true }
+      )
+    ).not.toThrow()
+    expect(storage.writes).toHaveLength(1)
   })
 
   it('treats malformed persisted namespace data as absent', () => {

@@ -113,36 +113,74 @@ const formatVersionSchema = z
   .passthrough()
 
 class ElectronSocialStoreStorage implements SocialStoreStorage {
-  private readonly store = new Store<Record<string, unknown>>({
-    name: 'social',
-    accessPropertiesByDotNotation: false
-  })
+  private store: Store<Record<string, unknown>> | null = null
 
   read(): unknown {
-    return this.store.store
+    return this.getStore().store
   }
 
   write(value: SocialStoreFile): void {
-    this.store.store = { ...value }
+    this.getStore().store = { ...value }
+  }
+
+  private getStore(): Store<Record<string, unknown>> {
+    this.store ??= new Store<Record<string, unknown>>({
+      name: 'social',
+      accessPropertiesByDotNotation: false
+    })
+    return this.store
   }
 }
 
-function parseRoot(raw: unknown): SocialStoreFile {
-  const formatVersion = formatVersionSchema.safeParse(raw)
-  if (
-    formatVersion.success &&
-    formatVersion.data.storeFormatVersion > SOCIAL_STORE_FORMAT_VERSION
-  ) {
-    return { storeFormatVersion: formatVersion.data.storeFormatVersion, accounts: {} }
+interface SocialStoreLoadResult {
+  file: SocialStoreFile
+  loadValid: boolean
+}
+
+function emptySocialStoreFile(storeFormatVersion = SOCIAL_STORE_FORMAT_VERSION): SocialStoreFile {
+  return { storeFormatVersion, accounts: {} }
+}
+
+function serializedFormatVersion(raw: string): number | null {
+  const match = /["']storeFormatVersion["']\s*:\s*(\d+)/.exec(raw)
+  if (!match) return null
+  const version = Number(match[1])
+  return Number.isSafeInteger(version) ? version : null
+}
+
+function parseRoot(raw: unknown): SocialStoreLoadResult {
+  if (isRecord(raw) && Object.keys(raw).length === 0) {
+    return { file: emptySocialStoreFile(), loadValid: true }
   }
 
-  const parsed = rootSchema.safeParse(raw)
+  let candidate = raw
+  if (typeof raw === 'string') {
+    try {
+      candidate = JSON.parse(raw) as unknown
+    } catch {
+      return {
+        file: emptySocialStoreFile(serializedFormatVersion(raw) ?? SOCIAL_STORE_FORMAT_VERSION),
+        loadValid: false
+      }
+    }
+  }
+
+  const parsed = rootSchema.safeParse(candidate)
   if (!parsed.success) {
-    return { storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION, accounts: {} }
+    const formatVersion = formatVersionSchema.safeParse(candidate)
+    return {
+      file: emptySocialStoreFile(
+        formatVersion.success ? formatVersion.data.storeFormatVersion : SOCIAL_STORE_FORMAT_VERSION
+      ),
+      loadValid: false
+    }
   }
   return {
-    storeFormatVersion: parsed.data.storeFormatVersion,
-    accounts: parsed.data.accounts
+    file: {
+      storeFormatVersion: parsed.data.storeFormatVersion,
+      accounts: parsed.data.accounts
+    },
+    loadValid: true
   }
 }
 
@@ -160,6 +198,7 @@ function requirePlatformAccountId(platformAccountId: string): void {
 export class SocialStore {
   private readonly storage: SocialStoreStorage
   private file: SocialStoreFile
+  private readonly loadValid: boolean
 
   constructor(
     private readonly accountSession: AccountSession,
@@ -167,9 +206,12 @@ export class SocialStore {
   ) {
     this.storage = storage ?? new ElectronSocialStoreStorage()
     try {
-      this.file = parseRoot(this.storage.read())
+      const loaded = parseRoot(this.storage.read())
+      this.file = loaded.file
+      this.loadValid = loaded.loadValid
     } catch {
-      this.file = { storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION, accounts: {} }
+      this.file = emptySocialStoreFile()
+      this.loadValid = false
     }
   }
 
@@ -220,6 +262,9 @@ export class SocialStore {
     }
     if (this.file.storeFormatVersion > SOCIAL_STORE_FORMAT_VERSION) {
       throw new Error('social store: refusing to overwrite social data written by a newer version')
+    }
+    if (!this.loadValid) {
+      throw new Error('social store: storage could not be loaded; explicit recovery/reset required')
     }
 
     const smallNamespace: SmallSocialNamespace = namespace

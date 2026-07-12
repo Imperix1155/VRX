@@ -10,10 +10,12 @@ import {
 vi.mock('electron-store', () => ({ default: class {} }))
 
 class MemoryRegistryStorage implements AccountRegistryStorage {
-  value: unknown = undefined
+  value: unknown = {}
+  readError: Error | null = null
   writes: AccountRegistryFile[] = []
 
   read(): unknown {
+    if (this.readError) throw this.readError
     return this.value
   }
 
@@ -179,6 +181,38 @@ describe('AccountRegistry', () => {
       'refusing to overwrite data written by a newer version'
     )
     expect(storage.writes).toHaveLength(0)
+  })
+
+  it('stays read-only after storage read throws and refuses every subsequent persist', () => {
+    storage.readError = new Error('corrupt storage')
+    registry = new AccountRegistry(session, storage)
+    session.setIdentity('vrchat', 'usr_a')
+
+    expect(registry.listAccounts()).toEqual([])
+    expect(() => recordCurrent('vrchat', 'Alice')).toThrow('storage could not be loaded')
+    expect(() => recordCurrent('vrchat', 'Alice again')).toThrow('storage could not be loaded')
+    expect(storage.writes).toHaveLength(0)
+  })
+
+  it('preserves a newer marker in malformed serialized content and never overwrites it', () => {
+    storage.value = '{"storeFormatVersion":999,"entries":'
+    registry = new AccountRegistry(session, storage)
+    session.setIdentity('vrchat', 'usr_a')
+
+    expect(registry.listAccounts()).toEqual([])
+    expect(() => recordCurrent('vrchat', 'Alice')).toThrow(
+      'refusing to overwrite data written by a newer version'
+    )
+    expect(storage.writes).toHaveLength(0)
+  })
+
+  it('initializes a positively absent file as a writable empty registry', () => {
+    storage.value = {}
+    registry = new AccountRegistry(session, storage)
+    session.setIdentity('vrchat', 'usr_a')
+
+    expect(() => recordCurrent('vrchat', 'Alice')).not.toThrow()
+    expect(storage.writes).toHaveLength(1)
   })
 
   it.each(['account:id', 'account.id', 'account id', 'account\nid', 'a'.repeat(129)])(
