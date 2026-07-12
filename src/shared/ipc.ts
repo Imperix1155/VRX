@@ -25,7 +25,14 @@ export type InstanceActionResult =
   | { ok: true }
   | {
       ok: false
-      reason: 'unknown-friend' | 'stale' | 'not-joinable' | 'invalid-url' | 'cooldown'
+      reason:
+        | 'unknown-friend'
+        | 'stale'
+        | 'not-joinable'
+        | 'invalid-url'
+        | 'cooldown'
+        | 'launch-failed'
+        | 'invite-failed'
     }
 
 /**

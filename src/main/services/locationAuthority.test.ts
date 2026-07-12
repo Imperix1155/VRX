@@ -42,9 +42,9 @@ describe('LocationAuthority', () => {
 
   it('resolves only after a successful seed and live connection', () => {
     const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     const revision = authority.captureSeedRevision('vrchat')
     authority.seed('vrchat', [friend('vrchat', 'usr_1')], revision)
-    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
 
     expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
       ok: true,
@@ -58,9 +58,9 @@ describe('LocationAuthority', () => {
 
   it('applies live deltas synchronously', () => {
     const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     const revision = authority.captureSeedRevision('vrchat')
     authority.seed('vrchat', [friend('vrchat', 'usr_1')], revision)
-    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     authority.consume({
       type: 'friend-presence',
       platform: 'vrchat',
@@ -73,6 +73,7 @@ describe('LocationAuthority', () => {
 
   it('never lets an older seed clobber a newer delta or re-add a removed friend', () => {
     const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     const oldSeed = authority.captureSeedRevision('vrchat')
     authority.consume({
       type: 'friend-presence',
@@ -85,7 +86,6 @@ describe('LocationAuthority', () => {
       [friend('vrchat', 'usr_1', 'instance-old'), friend('vrchat', 'usr_2')],
       oldSeed
     )
-    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
 
     const first = authority.resolve('vrchat', 'usr_1')
     expect(first.ok && first.friend.instance?.instanceId).toBe('instance-new')
@@ -94,6 +94,7 @@ describe('LocationAuthority', () => {
 
   it('merges an id-only CVR presence delta that arrives before its roster seed', () => {
     const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
     const seedRevision = authority.captureSeedRevision('chilloutvr')
     const live = friend('chilloutvr', 'cvr_1', 'i+live-instance').instance!
     authority.consume({
@@ -102,7 +103,6 @@ describe('LocationAuthority', () => {
       entries: [{ platformUserId: 'cvr_1', presence: { state: 'in-game' }, instance: live }]
     })
     authority.seed('chilloutvr', [friend('chilloutvr', 'cvr_1', 'i+stale-roster')], seedRevision)
-    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
 
     const resolved = authority.resolve('chilloutvr', 'cvr_1')
     expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('i+live-instance')
@@ -119,6 +119,36 @@ describe('LocationAuthority', () => {
       expect(authority.resolve('chilloutvr', 'cvr_1')).toEqual({ ok: false, reason: 'stale' })
     }
   )
+
+  it('remains stale after reconnecting live until a post-transition seed lands', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const seedARevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-a')], seedARevision)
+
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    expect(authority.resolve('vrchat', 'usr_1')).toEqual({ ok: false, reason: 'stale' })
+
+    const seedBRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-b')], seedBRevision)
+    const resolved = authority.resolve('vrchat', 'usr_1')
+    expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('instance-b')
+  })
+
+  it('rejects a seed captured before the live transition even when it lands afterward', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const initialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-a')], initialRevision)
+
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    const preLiveRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-pre-live')], preLiveRevision)
+
+    expect(authority.resolve('vrchat', 'usr_1')).toEqual({ ok: false, reason: 'stale' })
+  })
 
   it('clears one platform at a session boundary and uses injected clock/log', () => {
     const log = vi.fn()

@@ -16,6 +16,7 @@ interface PlatformState {
   seeded: boolean
   stale: boolean
   minimumSeedRevision: number
+  liveSeedRevision: number | null
 }
 
 export type LocationResolution =
@@ -32,8 +33,20 @@ export class LocationAuthority {
   private readonly clock: () => number
   private readonly log: AuthorityLog
   private readonly states: Record<Platform, PlatformState> = {
-    vrchat: { friends: new Map(), seeded: false, stale: true, minimumSeedRevision: 0 },
-    chilloutvr: { friends: new Map(), seeded: false, stale: true, minimumSeedRevision: 0 }
+    vrchat: {
+      friends: new Map(),
+      seeded: false,
+      stale: true,
+      minimumSeedRevision: 0,
+      liveSeedRevision: null
+    },
+    chilloutvr: {
+      friends: new Map(),
+      seeded: false,
+      stale: true,
+      minimumSeedRevision: 0,
+      liveSeedRevision: null
+    }
   }
 
   constructor(options: LocationAuthorityOptions = {}) {
@@ -71,17 +84,23 @@ export class LocationAuthority {
       }
     }
     state.seeded = true
+    if (state.liveSeedRevision !== null && capturedRevision >= state.liveSeedRevision) {
+      state.stale = false
+      state.liveSeedRevision = null
+    }
   }
 
   /** Synchronous by design: call before alert/broadcast fan-out. */
   consume(event: AdapterEvent): void {
     const state = this.states[event.platform]
     if (event.type === 'connection') {
-      state.stale = event.health !== 'live'
+      state.stale = true
+      state.liveSeedRevision = event.health === 'live' ? ++this.revision : null
       return
     }
     if (event.type === 'auth-invalidated') {
       state.stale = true
+      state.liveSeedRevision = null
       return
     }
 
@@ -166,6 +185,7 @@ export class LocationAuthority {
     state.seeded = false
     state.stale = true
     state.minimumSeedRevision = ++this.revision
+    state.liveSeedRevision = null
     this.log('debug', 'location authority cleared', { platform, at: this.clock() })
   }
 }

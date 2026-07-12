@@ -34,9 +34,19 @@ function friend(overrides: Partial<Friend> = {}): Friend {
 }
 
 describe('isFriendJoinable', () => {
-  it('accepts an in-game friend with a visible networked instance', () => {
-    expect(isFriendJoinable(friend())).toBe(true)
-  })
+  it.each(['online', 'join-me'] as const)(
+    'accepts an in-game VRChat friend with %s status and a visible networked instance',
+    (status) => {
+      expect(isFriendJoinable(friend({ status }))).toBe(true)
+    }
+  )
+
+  it.each(['ask-me', 'dnd'] as const)(
+    'rejects an in-game VRChat friend with %s status despite a real instance',
+    (status) => {
+      expect(isFriendJoinable(friend({ status }))).toBe(false)
+    }
+  )
 
   it.each(['active', 'offline'] as const)('rejects %s presence', (state) => {
     expect(isFriendJoinable(friend({ presence: { state } }))).toBe(false)

@@ -78,9 +78,9 @@ beforeEach(() => {
 })
 
 function seed(target = friend()): void {
+  authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
   const revision = authority.captureSeedRevision('vrchat')
   authority.seed('vrchat', [target], revision)
-  authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
 }
 
 describe('join-instance handler', () => {
@@ -158,6 +158,34 @@ describe('join-instance handler', () => {
     ).resolves.toEqual({ ok: true })
   })
 
+  it('returns launch-failed without leaking the rejection and releases the lock', async () => {
+    seed()
+    let rejectLaunch!: (error: Error) => void
+    openExternal.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectLaunch = reject
+        })
+    )
+
+    const first = call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    rejectLaunch(new Error(`could not launch ${launchUrl}`))
+    await expect(first).resolves.toEqual({ ok: false, reason: 'launch-failed' })
+
+    openExternal.mockResolvedValueOnce(undefined)
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: true })
+    expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
+      platform: 'vrchat',
+      reason: 'launch-failed'
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain(launchUrl)
+  })
+
   it('logs only platform and denial reason', async () => {
     await call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
     expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
@@ -175,8 +203,56 @@ describe('self-invite handler', () => {
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: true })
     expect(adapter.selfInvite).toHaveBeenCalledWith('wrld_example:instance-1')
-    expect(() => call('self-invite', { platform: 'chilloutvr', friendId: 'usr_friend' })).toThrow(
-      'Invalid self-invite request'
+    await expect(
+      call('self-invite', { platform: 'chilloutvr', friendId: 'usr_friend' })
+    ).rejects.toThrow('Invalid self-invite request')
+  })
+
+  it('serializes concurrent calls with an action-specific cooldown', async () => {
+    seed()
+    let release!: () => void
+    vi.mocked(adapter.selfInvite).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        })
     )
+
+    const first = call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    expect(adapter.selfInvite).toHaveBeenCalledTimes(1)
+    release()
+    await expect(first).resolves.toEqual({ ok: true })
+  })
+
+  it('does not share its cooldown with join', async () => {
+    seed()
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('returns invite-failed without leaking the rejection and releases the lock', async () => {
+    seed()
+    vi.mocked(adapter.selfInvite).mockRejectedValueOnce(
+      new Error('invite failed for wrld_example:instance-1')
+    )
+
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: false, reason: 'invite-failed' })
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: true })
+    expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
+      platform: 'vrchat',
+      reason: 'invite-failed'
+    })
+    expect(JSON.stringify(log.mock.calls)).not.toContain('wrld_example:instance-1')
   })
 })

@@ -10,6 +10,7 @@ import { isAllowedLaunchUrl } from './url-allowlist'
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 const VALID_JOIN_MODES = new Set<JoinMode>(['desktop', 'vr'])
 const JOIN_COOLDOWN_MS = 3_000
+type InstanceAction = 'join' | 'self-invite'
 
 type InstanceLog = (
   level: 'warn',
@@ -29,8 +30,8 @@ export function registerInstanceHandlers(
 ): void {
   const clock = options.clock ?? Date.now
   const log = options.log ?? (() => undefined)
-  const inFlight = new Set<Platform>()
-  const lastLaunchAt = new Map<Platform, number>()
+  const inFlight = new Set<string>()
+  const lastActionAt = new Map<string, number>()
   const denied = (
     platform: Platform,
     reason: Exclude<InstanceActionResult, { ok: true }>['reason']
@@ -59,25 +60,30 @@ export function registerInstanceHandlers(
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
 
-    const previous = lastLaunchAt.get(req.platform)
+    const actionKey = `${req.platform}:join` satisfies `${Platform}:${InstanceAction}`
+    const previous = lastActionAt.get(actionKey)
     if (
-      inFlight.has(req.platform) ||
+      inFlight.has(actionKey) ||
       (previous !== undefined && clock() - previous < JOIN_COOLDOWN_MS)
     ) {
       return denied(req.platform, 'cooldown')
     }
 
-    inFlight.add(req.platform)
+    inFlight.add(actionKey)
     try {
-      await shell.openExternal(url)
-      lastLaunchAt.set(req.platform, clock())
+      try {
+        await shell.openExternal(url)
+      } catch {
+        return denied(req.platform, 'launch-failed')
+      }
+      lastActionAt.set(actionKey, clock())
       return { ok: true }
     } finally {
-      inFlight.delete(req.platform)
+      inFlight.delete(actionKey)
     }
   })
 
-  ipcMain.handle('self-invite', (event, req: IpcInvoke['self-invite']['req']) => {
+  ipcMain.handle('self-invite', async (event, req: IpcInvoke['self-invite']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     if (!req || req.platform !== 'vrchat' || typeof req.friendId !== 'string' || !req.friendId) {
       throw new Error('Invalid self-invite request')
@@ -89,6 +95,26 @@ export function registerInstanceHandlers(
     if (!isFriendJoinable(resolved.friend)) return denied(req.platform, 'not-joinable')
     const instance = resolved.friend.instance!
     const location = `${instance.worldId}:${instance.instanceId}`
-    return adapter.selfInvite(location).then(() => ({ ok: true }) as const)
+    const actionKey = `${req.platform}:self-invite` satisfies `${Platform}:${InstanceAction}`
+    const previous = lastActionAt.get(actionKey)
+    if (
+      inFlight.has(actionKey) ||
+      (previous !== undefined && clock() - previous < JOIN_COOLDOWN_MS)
+    ) {
+      return denied(req.platform, 'cooldown')
+    }
+
+    inFlight.add(actionKey)
+    try {
+      try {
+        await adapter.selfInvite(location)
+      } catch {
+        return denied(req.platform, 'invite-failed')
+      }
+      lastActionAt.set(actionKey, clock())
+      return { ok: true }
+    } finally {
+      inFlight.delete(actionKey)
+    }
   })
 }
