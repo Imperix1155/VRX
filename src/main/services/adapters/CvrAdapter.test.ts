@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent } from '@shared/types'
+import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
@@ -336,10 +336,17 @@ describe('CvrAdapter', () => {
   })
 
   describe('contract surface', () => {
-    it('importSession is false (CVRX import = VRX-56); unimplemented methods reject with their issue', async () => {
+    it('importSession is false, join URLs are pure, and self-invite stays unsupported', async () => {
       const adapter = new CvrAdapter(fakeStore(), noopSleep)
       expect(await adapter.importSession()).toBe(false)
-      await expect(adapter.joinInstance()).rejects.toThrow('VRX-60')
+      expect(
+        adapter.buildJoinUrl(
+          { instanceId: 'i+bab275f822c020a0-152002-e81321-1fe976f9' } as InstanceInfo,
+          'vr'
+        )
+      ).toBe(
+        'chilloutvr://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true'
+      )
       await expect(adapter.selfInvite()).rejects.toThrow('not supported')
     })
   })

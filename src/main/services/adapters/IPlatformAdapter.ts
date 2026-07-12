@@ -42,7 +42,8 @@ export interface IPlatformAdapter {
   // ── Data (REST) ──
   getFriends(): Promise<Friend[]>
   getInstanceDetails(instanceId: string): Promise<InstanceInfo>
-  joinInstance(instanceId: string, mode: JoinMode): Promise<void>
+  /** Pure platform-specific deep-link builder. Launching is owned by IPC. */
+  buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null
   /** Send yourself an invite to an instance you can access (VRChat `inviteMyselfTo`) — distinct from launching to join. */
   selfInvite(instanceId: string): Promise<void>
 

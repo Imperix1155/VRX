@@ -1,6 +1,7 @@
 # src/main/services/adapters/cvr — ChilloutVR parsers & pipeline
 
 ## Purpose
+
 CVR-specific transforms, the friend fetcher/id extractor, and the real-time
 WebSocket client, mirroring the `vrchat/` directory's contract: electron-free,
 dependency-injected, unit-testable in isolation. Consumed by the concrete
@@ -14,6 +15,7 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Ownership
 
+- `buildCvrJoinUrl.ts` — pure strict builder for the documented `chilloutvr://instance/join?instanceId=<encoded>&startInVR=<bool>` contract (VRX-166). Accepts only the official `i+` 16-6-6-8 hex id shape, percent-encodes `+` as `%2B`, maps desktop→false / vr→true, and returns null for malformed input.
 - `fetchCvrFriends.ts` — `fetchCvrFriends(fetcher)` → `{ friends: CvrFriend[], skippedRecords }` (VRX-57). Pure, DI'd: ONE flat `GET /friends` (never paginated, never per-friend polled), per-entry defensive parse (a drifted entry is skipped + counted, never sinks the roster), total failure throws (no misleading `[]`). Presence initialized offline — real presence is the pipeline's job. Never logs.
 - `cvrPlatformUserId.ts` — `extractCvrPlatformUserId(id)` → stable lowercased `platformUserId` from the CVR GUID (VRX-61): survives display-name changes; validates GUID shape, rejects malformed. Pure.
 - `parseCvrPrivacy.ts` — `parseCvrPrivacy(privacy: string | number | null)` → `{ type, openness, isGroup }` (VRX-147). Pure parser for CVR's instance `Privacy`. The **live WS wire is a NUMERIC enum** (`PRIVACY_MAP_NUMERIC`, 0–7; `0`/`2`/`7` live-confirmed 2026-07-08, the rest from the owner's prior working app, understating on doubt); the string form (CVRX docs) is also mapped, case/punctuation-insensitive. Unknown number OR string → MOST RESTRICTIVE (`owner-must-invite`, the api-volatility convention). Never throws.
@@ -24,8 +26,10 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 - `resolveCvrInstance.test.ts` — field mapping (clean world name/id/image/count/privacy), defensive world-less degrade, TTL + negative-TTL clock tests, in-flight dedupe, null-not-throw failures, URI-encoded path, peek's tri-state.
 
 ## Local Contracts
+
 - Same as `vrchat/`: no electron imports; injected socketFactory/headers/log; defensive parsing — unknown values degrade, never throw; CVR has NO status/trust (§5) — never fabricate them.
 - The shared lifecycle machinery lives in `../ReconnectingPipeline.ts` — don't fork it; extend it.
 
 ## Verification
+
 `npm run typecheck && npm run lint && npm test`

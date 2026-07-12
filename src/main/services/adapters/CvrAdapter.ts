@@ -4,6 +4,7 @@ import type {
   Credentials,
   Friend,
   InstanceInfo,
+  JoinMode,
   LoginResult
 } from '@shared/types'
 import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
@@ -14,6 +15,7 @@ import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
 import { CVRAuthError, CVRNetworkError } from './errors'
+import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -378,8 +380,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       }
     }
   }
-  joinInstance(): Promise<void> {
-    return Promise.reject(new Error('CvrAdapter.joinInstance not implemented — VRX-60'))
+  buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null {
+    return buildCvrJoinUrl(instance.instanceId, mode)
   }
   selfInvite(): Promise<void> {
     return Promise.reject(new Error('CvrAdapter.selfInvite not supported on ChilloutVR'))

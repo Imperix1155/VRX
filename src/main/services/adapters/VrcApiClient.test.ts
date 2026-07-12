@@ -44,8 +44,8 @@ class TestClient extends VrcApiClient {
   getInstanceDetails(): Promise<InstanceInfo> {
     throw new Error('stub')
   }
-  joinInstance(): Promise<void> {
-    throw new Error('stub')
+  buildJoinUrl(): string | null {
+    return null
   }
   selfInvite(): Promise<void> {
     throw new Error('stub')

@@ -58,8 +58,8 @@ class TestAdapter extends BaseAdapter {
   getInstanceDetails(): Promise<never> {
     return Promise.reject(new Error('not implemented'))
   }
-  joinInstance(): Promise<void> {
-    return Promise.resolve()
+  buildJoinUrl(): string | null {
+    return null
   }
   selfInvite(): Promise<void> {
     return Promise.resolve()

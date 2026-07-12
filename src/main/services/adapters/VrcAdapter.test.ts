@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent } from '@shared/types'
+import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
@@ -67,6 +67,21 @@ function headerOf(options: RequestInit, name: string): string | undefined {
 describe('VrcAdapter', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  describe('join URL contract', () => {
+    it('reuses the canonical URI and treats mode as a documented no-op', () => {
+      const adapter = new VrcAdapter(fakeStore(), noopSleep)
+      const instance = {
+        worldId: 'wrld_abc123',
+        instanceId: '12345~friends(usr_xyz)~region(us)',
+        region: 'us'
+      } as InstanceInfo
+      expect(adapter.buildJoinUrl(instance, 'desktop')).toBe(
+        'vrchat://launch?ref=vrchat.com&id=wrld_abc123:12345~friends(usr_xyz)~region(us)'
+      )
+      expect(adapter.buildJoinUrl(instance, 'vr')).toBe(adapter.buildJoinUrl(instance, 'desktop'))
+    })
   })
 
   describe('login (no 2FA)', () => {

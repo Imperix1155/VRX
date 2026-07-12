@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Groundwork for securely joining a friend's instance is now in place.** VRX can resolve the friend's current location in the trusted main process and safely launch the right game; the clickable button arrives in the next update. (VRX-166)
+
 ### Fixed
 
 - **A ChilloutVR friend who's online now shows the same green as a VRChat friend who's online.** Previously CVR friends got a slightly different (mintier) ring and a gamepad icon — an internal modeling difference leaking into the UI as an inconsistency. Statuses are now an ordered cross-platform "privacy tier" (Join Me < Online < Ask Me < Do Not Disturb), and a platform without statuses maps its plain online onto the Online tier. (VRX-207, VRX-208)

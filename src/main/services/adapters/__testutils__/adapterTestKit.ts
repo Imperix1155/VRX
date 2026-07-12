@@ -49,7 +49,7 @@ export function stubPlatformAdapter(overrides: Partial<IPlatformAdapter> = {}): 
     importSession: vi.fn().mockResolvedValue(false),
     getFriends: vi.fn().mockResolvedValue([]),
     getInstanceDetails: vi.fn(),
-    joinInstance: vi.fn().mockResolvedValue(undefined),
+    buildJoinUrl: vi.fn().mockReturnValue(null),
     selfInvite: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockReturnValue(() => {}),
     ...overrides
