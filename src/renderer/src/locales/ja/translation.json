@@ -130,6 +130,8 @@
     "searchNoResults": "検索に一致するフレンドはいません",
     "refresh": "更新",
     "error": "フレンドを読み込めませんでした",
+    "joinAria": "{{name}}さんがいる{{world}}に参加",
+    "joinFailed": "参加できません",
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",

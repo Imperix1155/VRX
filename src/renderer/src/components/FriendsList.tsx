@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
+import { isFriendJoinable } from '@shared/joinability'
 import { useFriends, combineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
@@ -222,6 +223,15 @@ const FriendRow = memo(function FriendRow({
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  const [joinFailed, setJoinFailed] = useState(false)
+  const joinFailureTimer = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
+    },
+    []
+  )
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
@@ -235,7 +245,7 @@ const FriendRow = memo(function FriendRow({
       : null
 
   // Instance pill (right): the accurate openness label — colored by its §6 tier —
-  // when the instance is visible (the §9.1 join target once join IPC lands, VRX-166).
+  // and, when shared joinability passes, the §9.1 join button (VRX-166).
   // A friend who is IN A WORLD we can't see gets "Private" — REGARDLESS of status:
   // VRChat reports location "private" for any friend in a private instance (not just
   // Ask Me/DND), so `state` is the truth about being in-world, not `status` (owner
@@ -250,6 +260,25 @@ const FriendRow = memo(function FriendRow({
     pillTier = OPENNESS_TIER[instance.type] ?? null
   } else if (friend.presence.state === 'in-game') {
     instancePill = t('friends.instance.private')
+  }
+  const joinable = isFriendJoinable(friend)
+
+  async function joinFriend(event: React.MouseEvent<HTMLButtonElement>): Promise<void> {
+    event.stopPropagation()
+    // VRChat ignores mode; a CVR VR-mode picker is a future setting.
+    const result = await window.vrx.joinInstance({
+      platform: friend.platform,
+      friendId: friend.platformUserId,
+      mode: 'desktop'
+    })
+    if (result.ok) return
+
+    setJoinFailed(true)
+    if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
+    joinFailureTimer.current = window.setTimeout(() => {
+      setJoinFailed(false)
+      joinFailureTimer.current = null
+    }, 2_500)
   }
 
   return (
@@ -296,9 +325,24 @@ const FriendRow = memo(function FriendRow({
       {/* Instance pill — same width column, centered (§9.1); tier-colored per the §6
           openness ladder (inline style: tier→token is runtime lookup, so Tailwind
           can't emit it). Neutral (Private / CVR Offline Instance) pills stay hueless
-          but readable. Visual affordance now; the clickable join lands with VRX-166. */}
+          but readable. Joinable friends receive the button variant (VRX-166). */}
       {instancePill != null ? (
-        <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />
+        joinable ? (
+          <span aria-live="polite">
+            <InstancePill
+              label={joinFailed ? t('friends.joinFailed') : instancePill}
+              tier={pillTier}
+              className="min-w-[78px]"
+              onJoin={(event) => void joinFriend(event)}
+              aria-label={t('friends.joinAria', {
+                name: friend.displayName,
+                world: instance?.worldName ?? instancePill
+              })}
+            />
+          </span>
+        ) : (
+          <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />
+        )
       ) : (
         <span aria-hidden="true" />
       )}
