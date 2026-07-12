@@ -272,20 +272,25 @@ const FriendRow = memo(function FriendRow({
     joinInFlight.current = true
     setIsJoining(true)
     // VRChat ignores mode; a CVR VR-mode picker is a future setting.
-    try {
-      const result = await window.vrx.joinInstance({
-        platform: friend.platform,
-        friendId: friend.platformUserId,
-        mode: 'desktop'
-      })
-      if (result.ok) return
-
+    const showFailureBlip = (): void => {
       setJoinFailed(true)
       if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
       joinFailureTimer.current = window.setTimeout(() => {
         setJoinFailed(false)
         joinFailureTimer.current = null
       }, 2_500)
+    }
+    try {
+      const result = await window.vrx.joinInstance({
+        platform: friend.platform,
+        friendId: friend.platformUserId,
+        mode: 'desktop'
+      })
+      if (!result.ok) showFailureBlip()
+    } catch {
+      // Bridge exceptions (guard throws, missing bridge in exotic states) are
+      // user-equivalent to a denial: blip, never an unhandled rejection.
+      showFailureBlip()
     } finally {
       joinInFlight.current = false
       setIsJoining(false)
