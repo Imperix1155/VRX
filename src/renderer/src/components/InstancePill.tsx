@@ -21,30 +21,53 @@ interface InstancePillProps {
   tier: OpennessTier | null
   /** Layout extras from the consumer (width floor, grid placement). */
   className?: string
+  /** Present only for actionable friend-row pills. */
+  onJoin?: React.MouseEventHandler<HTMLButtonElement>
+  /** Disables the actionable variant while its row's join request is pending. */
+  disabled?: boolean
+  /** Accessible action name for the button variant. */
+  'aria-label'?: string
 }
 
 export default function InstancePill({
   label,
   tier,
-  className = ''
+  className = '',
+  onJoin,
+  disabled = false,
+  'aria-label': ariaLabel
 }: InstancePillProps): React.JSX.Element {
+  const style: React.CSSProperties & { '--instance-pill-bg': string } =
+    tier != null
+      ? {
+          color: `var(--op-${tier}-text)`,
+          '--instance-pill-bg': `color-mix(in srgb, var(--op-${tier}) 13%, transparent)`,
+          borderColor: `color-mix(in srgb, var(--op-${tier}) 36%, transparent)`
+        }
+      : {
+          color: 'var(--text-dim)',
+          '--instance-pill-bg': 'color-mix(in srgb, var(--text) 7%, transparent)',
+          borderColor: 'color-mix(in srgb, var(--text) 16%, transparent)'
+        }
+  const pillClass = `${PILL_BASE} bg-[var(--instance-pill-bg)] ${className}`
+
+  if (onJoin) {
+    return (
+      <button
+        type="button"
+        onClick={onJoin}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter,color]`}
+        style={style}
+      >
+        {label}
+      </button>
+    )
+  }
+
   return (
-    <span
-      className={`${PILL_BASE} ${className}`}
-      style={
-        tier != null
-          ? {
-              color: `var(--op-${tier}-text)`,
-              background: `color-mix(in srgb, var(--op-${tier}) 13%, transparent)`,
-              borderColor: `color-mix(in srgb, var(--op-${tier}) 36%, transparent)`
-            }
-          : {
-              color: 'var(--text-dim)',
-              background: 'color-mix(in srgb, var(--text) 7%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--text) 16%, transparent)'
-            }
-      }
-    >
+    <span className={pillClass} style={style}>
       {label}
     </span>
   )

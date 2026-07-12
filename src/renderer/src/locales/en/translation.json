@@ -131,6 +131,8 @@
     "searchNoResults": "No friends match your search",
     "refresh": "Refresh",
     "error": "Could not load friends",
+    "joinAria": "Join {{name}} in {{world}}",
+    "joinFailed": "Couldn't join",
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
       "chilloutvr": "Connect ChilloutVR to see your friends here",
