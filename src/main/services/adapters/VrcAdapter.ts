@@ -37,6 +37,8 @@ export interface VrcLiveWiring {
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
   onSessionBoundary?: () => void
+  /** Publishes the current platform identity after adapter state settles. */
+  onIdentity?: (accountId: string | null) => void
 }
 
 /** Minimal current-user shape we rely on (the API returns much more). */
@@ -112,6 +114,7 @@ function isInstanceLocation(location: string): boolean {
 export class VrcAdapter extends VrcApiClient {
   private cookie: string | null = null
   private displayName: string | null = null
+  private accountId: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
   private sessionGeneration = 0
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
@@ -177,8 +180,10 @@ export class VrcAdapter extends VrcApiClient {
     if (authCookie) {
       this.setCookie(authCookie)
       this.displayName = null
+      this.accountId = null
       this.pendingTwoFactorMethod = null
       this.bumpSessionGeneration()
+      this.live?.onIdentity?.(null)
     }
 
     let body: unknown
@@ -196,6 +201,8 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     this.displayName = parsed.data.displayName
+    this.accountId = parsed.data.id
+    this.live?.onIdentity?.(this.accountId)
     // A response without a replacement cookie still completed a deliberate
     // login, so preserve the established successful-login boundary behavior.
     if (!authCookie) this.bumpSessionGeneration()
@@ -265,7 +272,9 @@ export class VrcAdapter extends VrcApiClient {
     // A failed refresh must not expose an own-account name cached before this
     // 2FA boundary (including a name from a different prior account).
     this.displayName = null
+    this.accountId = null
     this.bumpSessionGeneration()
+    this.live?.onIdentity?.(null)
     await this.refreshDisplayName()
     this.persist()
     return { ok: true }
@@ -343,6 +352,8 @@ export class VrcAdapter extends VrcApiClient {
       }
 
       this.displayName = parsed.data.displayName
+      this.accountId = parsed.data.id
+      this.live?.onIdentity?.(this.accountId)
       return this.status('authenticated')
     }
   }
@@ -570,8 +581,10 @@ export class VrcAdapter extends VrcApiClient {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
+    this.accountId = null
     this.pendingTwoFactorMethod = null
     this.bumpSessionGeneration()
+    this.live?.onIdentity?.(null)
   }
 
   /** Automatic auth invalidation must clear memory even when safeStorage is
@@ -609,6 +622,8 @@ export class VrcAdapter extends VrcApiClient {
       const parsed = currentUserSchema.safeParse(await response.json())
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
+        this.accountId = parsed.data.id
+        this.live?.onIdentity?.(this.accountId)
       }
     } catch {
       /* non-fatal */
@@ -619,6 +634,7 @@ export class VrcAdapter extends VrcApiClient {
     return {
       platform: 'vrchat',
       state,
+      accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null,
       ...(twoFactorMethod !== undefined ? { twoFactorMethod } : {})
     }

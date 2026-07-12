@@ -30,9 +30,12 @@ describe('query bridge guards', () => {
   })
 
   it('fetchAuthStatus passes the platform through the bridge', async () => {
-    const getAuthStatus = vi
-      .fn()
-      .mockResolvedValue({ platform: 'vrchat', state: 'authenticated', displayName: 'N' })
+    const getAuthStatus = vi.fn().mockResolvedValue({
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'usr_n',
+      displayName: 'N'
+    })
     setBridge({ getAuthStatus })
 
     await expect(fetchAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
@@ -40,9 +43,12 @@ describe('query bridge guards', () => {
   })
 
   it('fetchAuthStatus accepts a platform param (VRX-37, mirrors fetchFriends)', async () => {
-    const getAuthStatus = vi
-      .fn()
-      .mockResolvedValue({ platform: 'chilloutvr', state: 'unauthenticated', displayName: null })
+    const getAuthStatus = vi.fn().mockResolvedValue({
+      platform: 'chilloutvr',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
     setBridge({ getAuthStatus })
 
     await expect(fetchAuthStatus('chilloutvr')).resolves.toMatchObject({

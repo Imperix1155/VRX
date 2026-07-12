@@ -98,14 +98,47 @@ describe('VrcAdapter', () => {
       )
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
-      const adapter = new VrcAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       const result = await adapter.login(creds)
 
       expect(result).toEqual({ ok: true })
       expect(store.saved).toEqual(['auth=abc123']) // attributes stripped, password never stored
       const status = await adapter.getAuthStatus()
-      expect(status).toEqual({ platform: 'vrchat', state: 'authenticated', displayName: 'Neo' })
+      expect(status).toEqual({
+        platform: 'vrchat',
+        state: 'authenticated',
+        displayName: 'Neo',
+        accountId: 'usr_1'
+      })
+      expect(identities.at(-1)).toBe('usr_1')
+    })
+
+    it('clears captured identity on logout', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(
+              { id: 'usr_logout', displayName: 'Logout' },
+              { setCookies: ['auth=logout'] }
+            )
+          )
+      )
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(fakeStore(), noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      await adapter.login(creds)
+      adapter.clearSession()
+
+      expect(identities).toEqual([null, 'usr_logout', null])
+      expect(await adapter.getAuthStatus()).toMatchObject({ accountId: null })
     })
 
     it('sends Basic auth with url-encoded username:password', async () => {
@@ -233,13 +266,15 @@ describe('VrcAdapter', () => {
         resolveName: () => 'Account A Friend'
       })
       const events: AdapterEvent[] = []
+      const identities: Array<string | null> = []
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
         socketFactory: () => {
           const socket = new DrivableVrcSocket()
           sockets.push(socket)
           return socket
         },
-        onSessionBoundary: () => engine.resetPlatform('vrchat')
+        onSessionBoundary: () => engine.resetPlatform('vrchat'),
+        onIdentity: (accountId) => identities.push(accountId)
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ displayName: 'Account A' })
@@ -262,6 +297,7 @@ describe('VrcAdapter', () => {
       expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
         generationBeforeLogin + 1
       )
+      expect(identities.at(-1)).toBeNull()
       expect(oldSocket.closed).toBe(true)
 
       oldSocket.fire(
@@ -281,6 +317,7 @@ describe('VrcAdapter', () => {
 
       expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
       expect((adapter as unknown as { displayName: string | null }).displayName).toBeNull()
+      expect(identities.slice(-2)).toEqual([null, null])
       unsubscribe()
     })
 
@@ -411,7 +448,8 @@ describe('VrcAdapter', () => {
       expect(status).toEqual({
         platform: 'vrchat',
         state: 'authenticated',
-        displayName: 'Restored'
+        displayName: 'Restored',
+        accountId: 'usr'
       })
       expect(headerOf(lastCall(fetchMock)[1], 'Cookie')).toBe('auth=restored')
     })
@@ -463,7 +501,8 @@ describe('VrcAdapter', () => {
       await expect(status).resolves.toEqual({
         platform: 'vrchat',
         state: 'authenticated',
-        displayName: 'New Account'
+        displayName: 'New Account',
+        accountId: 'usr_new'
       })
       const statusCookies = fetchMock.mock.calls
         .map((call) => call as [RequestInfo | URL, RequestInit | undefined])
@@ -484,7 +523,12 @@ describe('VrcAdapter', () => {
 
       const status = await new VrcAdapter(fakeStore(), noopSleep).getAuthStatus()
 
-      expect(status).toEqual({ platform: 'vrchat', state: 'unauthenticated', displayName: null })
+      expect(status).toEqual({
+        platform: 'vrchat',
+        state: 'unauthenticated',
+        displayName: null,
+        accountId: null
+      })
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
@@ -558,6 +602,7 @@ describe('VrcAdapter', () => {
         platform: 'vrchat',
         state: 'needs-2fa',
         displayName: null,
+        accountId: null,
         twoFactorMethod: 'totp'
       })
       // The auth cookie is ALIVE — recoverable with just a code. Never clear.
@@ -609,12 +654,16 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, { status: 401 }))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore('auth=expired')
-      const adapter = new VrcAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
       // The dead cookie was wiped from disk so session restore can't re-adopt it.
       expect(store.deleted).toBe(1)
       expect(store.load()).toBeUndefined()
+      expect(identities.at(-1)).toBeNull()
 
       // Proof the in-memory cookie + VrcApiClient mirror are gone: the next
       // status check short-circuits to unauthenticated with NO network call.
@@ -622,7 +671,8 @@ describe('VrcAdapter', () => {
       expect(await adapter.getAuthStatus()).toEqual({
         platform: 'vrchat',
         state: 'unauthenticated',
-        displayName: null
+        displayName: null,
+        accountId: null
       })
       expect(fetchMock).not.toHaveBeenCalled()
 
@@ -668,6 +718,7 @@ describe('VrcAdapter', () => {
       expect(() => adapter.clearSession()).toThrow('credential deletion failed')
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({
         state: 'authenticated',
+        accountId: 'usr_current',
         displayName: 'Current'
       })
     })

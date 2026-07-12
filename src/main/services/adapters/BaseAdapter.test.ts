@@ -38,7 +38,12 @@ class TestAdapter extends BaseAdapter {
   }
 
   getAuthStatus(): Promise<AuthStatus> {
-    return Promise.resolve({ platform: 'vrchat', state: 'unauthenticated', displayName: null })
+    return Promise.resolve({
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
   }
   login(): Promise<LoginResult> {
     return Promise.resolve({ ok: true })

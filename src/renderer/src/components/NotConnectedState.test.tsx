@@ -67,7 +67,12 @@ function loadingQuery(): Record<string, unknown> {
 
 function connected(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'authenticated', displayName: 'Test User' },
+    data: {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-test`,
+      displayName: 'Test User'
+    },
     isPending: false,
     isSuccess: true,
     isFetching: false
@@ -76,7 +81,7 @@ function connected(platform: Platform): void {
 
 function unauthenticated(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'unauthenticated', displayName: null },
+    data: { platform, state: 'unauthenticated', accountId: null, displayName: null },
     isPending: false,
     isSuccess: true,
     isFetching: false
@@ -88,7 +93,7 @@ function failedRefetchStaleUnauthenticated(platform: Platform): void {
   // 'unauthenticated' data with isError:true / isSuccess:false. The CTA must
   // NOT render — it would mask the auth-status failure as "not connected".
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'unauthenticated', displayName: null },
+    data: { platform, state: 'unauthenticated', accountId: null, displayName: null },
     isPending: false,
     isSuccess: false,
     isError: true,
@@ -106,7 +111,7 @@ function pendingAuth(): void {
 
 function refetchingUnauthenticated(platform: Platform): void {
   useAuthStatusMock.mockReturnValue({
-    data: { platform, state: 'unauthenticated', displayName: null },
+    data: { platform, state: 'unauthenticated', accountId: null, displayName: null },
     isPending: false,
     isSuccess: true,
     isFetching: true

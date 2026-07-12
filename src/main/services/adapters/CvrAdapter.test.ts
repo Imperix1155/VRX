@@ -58,7 +58,10 @@ describe('CvrAdapter', () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore()
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       const result = await adapter.login(creds)
 
@@ -73,12 +76,31 @@ describe('CvrAdapter', () => {
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'authenticated',
-        displayName: 'trinity'
+        displayName: 'trinity',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
       })
+      expect(identities.at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000001')
       expect(fetchMock).toHaveBeenCalledTimes(1) // login only — no reauth probe
       const loginCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       const loginBody = JSON.parse(loginCall[1].body as string) as Record<string, unknown>
       expect(loginBody.AuthType).toBe(2) // password login leg
+    })
+
+    it('clears captured identity on logout', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
+      )
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      await adapter.login(creds)
+      adapter.clearSession()
+
+      expect(identities).toEqual([null, 'a1b2c3d4-0000-0000-0000-000000000001', null])
+      expect(await adapter.getAuthStatus()).toMatchObject({ accountId: null })
     })
 
     it('the session STICKS across repeated status checks — no reauth churn (VRX-190)', async () => {
@@ -217,7 +239,8 @@ describe('CvrAdapter', () => {
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'authenticated',
-        displayName: 'trinity'
+        displayName: 'trinity',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
       })
       expect(fetchMock).toHaveBeenCalledTimes(1)
     })
@@ -228,10 +251,14 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' })))))
       )
       const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       await adapter.getAuthStatus()
       expect(store.saved).toEqual([{ username: 'trinity', accessKey: 'key-2' }])
+      expect(identities).toEqual([null, null, 'a1b2c3d4-0000-0000-0000-000000000001'])
     })
 
     it('a rejected accessKey (401) clears the persisted session — no zombie restore', async () => {
@@ -240,15 +267,20 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 })))
       )
       const store = fakeStore({ username: 'trinity', accessKey: 'dead-key' })
-      const adapter = new CvrAdapter(store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
 
       const status = await adapter.getAuthStatus()
       expect(status).toEqual({
         platform: 'chilloutvr',
         state: 'unauthenticated',
-        displayName: null
+        displayName: null,
+        accountId: null
       })
       expect(store.deleted).toBe(1)
+      expect(identities.at(-1)).toBeNull()
       // A second probe must NOT re-send the dead key.
       const second = await adapter.getAuthStatus()
       expect(second.state).toBe('unauthenticated')
@@ -330,6 +362,7 @@ describe('CvrAdapter', () => {
       expect(() => adapter.clearSession()).toThrow('credential deletion failed')
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({
         state: 'authenticated',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001',
         displayName: 'trinity'
       })
     })

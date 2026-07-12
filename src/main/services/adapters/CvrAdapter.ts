@@ -28,6 +28,8 @@ export interface CvrLiveWiring {
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
   onSessionBoundary?: () => void
+  /** Publishes the current platform identity after adapter state settles. */
+  onIdentity?: (accountId: string | null) => void
 }
 
 /**
@@ -71,6 +73,7 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
+  private accountId: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
@@ -178,6 +181,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       username: parsed.data.data.username,
       accessKey: parsed.data.data.accessKey
     })
+    this.accountId = parsed.data.data.userId
+    this.live?.onIdentity?.(this.accountId)
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
@@ -262,6 +267,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.persist()
     }
     this.displayName = username
+    this.accountId = parsed.data.data.userId
+    this.live?.onIdentity?.(this.accountId)
     // Restored session proven once — trust it for the rest of this launch.
     this.validated = true
     return this.status('authenticated')
@@ -546,7 +553,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
+    this.accountId = null
     this.bumpSessionGeneration()
+    this.live?.onIdentity?.(null)
   }
 
   private persist(): void {
@@ -568,8 +577,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
+    this.accountId = null
     this.validated = false
     this.bumpSessionGeneration()
+    this.live?.onIdentity?.(null)
   }
 
   /** Automatic 401 invalidation is best-effort on disk: the dead session must
@@ -621,6 +632,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return {
       platform: 'chilloutvr',
       state,
+      accountId: state === 'authenticated' ? this.accountId : null,
       displayName: state === 'authenticated' ? this.displayName : null
     }
   }
