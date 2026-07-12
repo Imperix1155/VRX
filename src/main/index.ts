@@ -34,6 +34,7 @@ import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
+import { AccountRegistry } from './services/accountRegistry'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -336,6 +337,7 @@ app
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const accountSession = new AccountSession()
+    const accountRegistry = new AccountRegistry(accountSession)
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -504,6 +506,24 @@ app
     avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
 
     registerIpcHandlers(adapters, {
+      accountRegistry,
+      accountSession,
+      onAuthStatus: (status) => {
+        if (
+          status.state === 'authenticated' &&
+          status.accountId !== null &&
+          status.displayName !== null
+        ) {
+          const resolution = accountSession.resolve(status.platform)
+          if ('status' in resolution) return
+          accountRegistry.recordAuthenticated(
+            status.platform,
+            status.accountId,
+            resolution.epoch,
+            status.displayName
+          )
+        }
+      },
       locationAuthority,
       instance: {
         clock: () => performance.now(),

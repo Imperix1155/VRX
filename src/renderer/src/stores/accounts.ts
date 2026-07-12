@@ -2,9 +2,8 @@ import { create } from 'zustand'
 import type { Account, Platform } from '@shared/types'
 
 /**
- * Accounts store (VRX-21). Loads the account list over the IPC bridge; the
- * multi-account model itself is VRX-24, so `get-accounts` returns `[]` until
- * then. The active account for a platform is derived from `Account.isActive`
+ * Accounts store (VRX-21/24). Loads the durable non-removed account registry
+ * over the IPC bridge. The active account for a platform is derived from `Account.isActive`
  * (single source of truth — no separate active-id state to drift).
  */
 interface AccountsState {
