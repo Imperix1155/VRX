@@ -54,7 +54,7 @@ export default function InstancePill({
         type="button"
         onClick={onJoin}
         aria-label={ariaLabel}
-        className={`${pillClass} cursor-pointer hover:bg-[var(--control-fill-hover)] active:bg-[var(--control-fill)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors`}
+        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter,color]`}
         style={style}
       >
         {label}
