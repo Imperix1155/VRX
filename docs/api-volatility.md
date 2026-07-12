@@ -7,6 +7,7 @@
 ## Introduction
 
 VRX relies on two unofficial, undocumented APIs:
+
 - **VRChat** (`https://api.vrchat.cloud/api/1`) — endpoint-level documentation exists in community wikis; official schema is absent.
 - **ChilloutVR** (`https://api.abinteractive.net/1`) — no public documentation; reverse-engineered from community libraries and live observation.
 
@@ -18,24 +19,26 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 ## Volatile Surfaces at a Glance
 
-| Endpoint / Field | What VRX uses it for | Verification | Degradation if changed |
-|---|---|---|---|
-| `GET /auth/user` (auth branch) | 2FA detection, user ID, display name | 🟡 Login branch verified; the VRX-173 reprompt branch (200+`requiresTwoFactorAuth` on a live session with expired 2FA cookie, and verify accepting a stale `twoFactorAuth` part in the Cookie header) matches VRChat web-client behavior but is mock-verified only — confirm on the owner's first live reprompt | `requiresTwoFactorAuth` on a live session → `needs-2fa` reprompt (code only, no password — VRX-173); if the API 401s instead, behavior degrades to today's full re-login (safe); unknown shape → treats as unauthenticated |
-| `GET /auth/user` (success branch) | User ID, display name, presence buckets | ✅ Verified | Missing fields → partial login; empty buckets → all friends appear offline |
-| `GET /auth/user/friends` (paginated) | Friend list, status, avatar, trust tags | 🟡 Verified endpoint, field drift observed | Unknown fields ignored; unknown status → `'online'`; empty tags → `'visitor'` trust |
-| `GET /api/1/image/{fileId}/{version}/{size}` | Avatar thumbnails (VRX-202) | 🟡 Requires the auth cookie (401 unauthenticated); 302s to a signed CDN URL on hosts VRChat rotates freely | Redirect followed only when issued by `api.vrchat.cloud` (≤2 hops); any failure → letter placeholder + 30s negative cache, never a crash |
-| `/auth/user/friends` — `status` string | User status pill (join-me, ask-me, busy, etc.) | ✅ Verified | Unknown string → defaults to `'online'` (generic green pill) |
-| `/auth/user/friends` — `tags` array | Trust rank (visitor, new, user, known, trusted, nuisance) | ✅ Verified mapping, field names | Unknown tags ignored; no match → `'visitor'` |
-| `instanceId` / location string | Instance access type (public, friends, invite, group, etc.) | ✅ Verified tag grammar | Unknown tags → `'public'` (most open); unknown access type → most restrictive default |
-| `GET /instances/{worldId}:{instanceId}` | Instance details (capacity, player count, closed status) | 🟡 Endpoint verified, schema drift possible | Missing fields → defaults or skipped (non-critical for UI) |
-| `GET /worlds/{worldId}` | World name, description, thumbnail, capacity | 🟡 Endpoint verified, field drift observed | Missing name → blank; missing thumbnail → placeholder; missing capacity → unknown |
-| `POST /auth/twofactorauth/{type}/verify` | 2FA code verification response shape | ✅ Verified | Unexpected `verified` value → login fails (safe default) |
-| `GET /users/{userId}` | User profile (used for bulk enrichment) | 🟡 Endpoint verified, rarely called | Missing fields → partial user data; non-critical for presence UI |
-| **Pipeline WS** `wss://pipeline.vrchat.cloud/?authToken=…` | Real-time friend events: `{type, content}` envelope with DOUBLE-ENCODED content; friend-online/active/offline/location/add/delete/update types; `GET /auth` token exchange | 🟡 Wire format verified vs community docs + VRChat's dev blog; mock-verified in code (VRX-146) — confirm event shapes on first live session | Unknown event types → logged + ignored; malformed frames dropped; undecodable content dropped; connect failure → backoff + retry, presence degrades to the slow REST reconcile (VRX-22) |
-| **CVR `POST /users/auth`** | Login response (username, accessKey, userId, avatar, home world) | 🟡 Endpoint verified, schema drift possible | Missing accessKey → login fails; missing userId → non-functional |
-| **CVR data envelope** | `{message, data: T}` wrapper on all responses | ✅ Verified live 2026-07-08 — **`message` is nullable/optional** (`/friends` returns `message:null`); we discard it, so `z.string().nullish()` | Requiring `message:string` rejected every `/friends` fetch → circuit-breaker lockout (fixed). Shape change beyond `message` → Zod fails, request treated as failed |
-| **CVR `instanceSettingPrivacy` / WS `Instance.Privacy`** | Instance access level | ✅ WS wire is a **NUMERIC enum** (live 2026-07-08): `0`=public, `2`=friends, `7`=group confirmed live; `1`=friends, `3`/`6`=group, `4`/`5`=private from the owner's prior app. String form also accepted (CVRX docs) | `parseCvrPrivacy` maps both number + string; unknown → MOST RESTRICTIVE (`owner-must-invite`). Unverified numbers understate (safe). New enum value → restrictive default (VRX-147) |
-| **CVR WS** `wss://api.chilloutvr.net/1/users/ws` | Real-time friend presence: header auth on upgrade; `{ResponseType, Data}` clean-JSON envelope; outgoing `{RequestType, Data}` actions | ✅ Verified LIVE 2026-07-08. **ONLINE_FRIENDS (10) is a FULL set on connect, then 1-entry DELTAS** (not a full snapshot each time — merged in the pipeline). Entries are **PascalCase** (`Id`/`IsOnline`/`Instance{Id,Name,Privacy}`), `Privacy` numeric. Open: does a full-offline friend get an explicit `IsOnline:false` delta or just vanish? (VRX-193) | Unknown ResponseTypes → logged + ignored; malformed/non-GUID entries skipped per-entry; both casings accepted; deltas merge into a running online-set (cleared on reconnect); connect failure → backoff + retry |
+| Endpoint / Field                                                                     | What VRX uses it for                                                                                                                                                       | Verification                                                                                                                                                                                                                                                                                                                                                | Degradation if changed                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /auth/user` (auth branch)                                                       | 2FA detection, user ID, display name                                                                                                                                       | 🟡 Login branch verified; the VRX-173 reprompt branch (200+`requiresTwoFactorAuth` on a live session with expired 2FA cookie, and verify accepting a stale `twoFactorAuth` part in the Cookie header) matches VRChat web-client behavior but is mock-verified only — confirm on the owner's first live reprompt                                             | `requiresTwoFactorAuth` on a live session → `needs-2fa` reprompt (code only, no password — VRX-173); if the API 401s instead, behavior degrades to today's full re-login (safe); unknown shape → treats as unauthenticated |
+| `GET /auth/user` (success branch)                                                    | User ID, display name, presence buckets                                                                                                                                    | ✅ Verified                                                                                                                                                                                                                                                                                                                                                 | Missing fields → partial login; empty buckets → all friends appear offline                                                                                                                                                 |
+| `GET /auth/user/friends` (paginated)                                                 | Friend list, status, avatar, trust tags                                                                                                                                    | 🟡 Verified endpoint, field drift observed                                                                                                                                                                                                                                                                                                                  | Unknown fields ignored; unknown status → `'online'`; empty tags → `'visitor'` trust                                                                                                                                        |
+| `GET /api/1/image/{fileId}/{version}/{size}`                                         | Avatar thumbnails (VRX-202)                                                                                                                                                | 🟡 Requires the auth cookie (401 unauthenticated); 302s to a signed CDN URL on hosts VRChat rotates freely                                                                                                                                                                                                                                                  | Redirect followed only when issued by `api.vrchat.cloud` (≤2 hops); any failure → letter placeholder + 30s negative cache, never a crash                                                                                   |
+| `/auth/user/friends` — `status` string                                               | User status pill (join-me, ask-me, busy, etc.)                                                                                                                             | ✅ Verified                                                                                                                                                                                                                                                                                                                                                 | Unknown string → defaults to `'online'` (generic green pill)                                                                                                                                                               |
+| `/auth/user/friends` — `tags` array                                                  | Trust rank (visitor, new, user, known, trusted, nuisance)                                                                                                                  | ✅ Verified mapping, field names                                                                                                                                                                                                                                                                                                                            | Unknown tags ignored; no match → `'visitor'`                                                                                                                                                                               |
+| `instanceId` / location string                                                       | Instance access type (public, friends, invite, group, etc.)                                                                                                                | ✅ Verified tag grammar                                                                                                                                                                                                                                                                                                                                     | Unknown tags → `'public'` (most open); unknown access type → most restrictive default                                                                                                                                      |
+| `GET /instances/{worldId}:{instanceId}`                                              | Instance details (capacity, player count, closed status)                                                                                                                   | 🟡 Endpoint verified, schema drift possible                                                                                                                                                                                                                                                                                                                 | Missing fields → defaults or skipped (non-critical for UI)                                                                                                                                                                 |
+| `GET /worlds/{worldId}`                                                              | World name, description, thumbnail, capacity                                                                                                                               | 🟡 Endpoint verified, field drift observed                                                                                                                                                                                                                                                                                                                  | Missing name → blank; missing thumbnail → placeholder; missing capacity → unknown                                                                                                                                          |
+| `POST /auth/twofactorauth/{type}/verify`                                             | 2FA code verification response shape                                                                                                                                       | ✅ Verified                                                                                                                                                                                                                                                                                                                                                 | Unexpected `verified` value → login fails (safe default)                                                                                                                                                                   |
+| `GET /users/{userId}`                                                                | User profile (used for bulk enrichment)                                                                                                                                    | 🟡 Endpoint verified, rarely called                                                                                                                                                                                                                                                                                                                         | Missing fields → partial user data; non-critical for presence UI                                                                                                                                                           |
+| **VRChat deep link** `vrchat://launch?ref=vrchat.com&id=<worldId>:<instanceId>`      | Launch the client into an authority-resolved friend instance                                                                                                               | 🟡 Existing VRCX/VRChat client contract; mock-verified by builder + strict validator tests                                                                                                                                                                                                                                                                  | Invalid/changed grammar fails closed before `shell.openExternal`. The URI cannot select desktop vs VR: `JoinMode` is intentionally a no-op and the VRChat client setting governs                                           |
+| **Pipeline WS** `wss://pipeline.vrchat.cloud/?authToken=…`                           | Real-time friend events: `{type, content}` envelope with DOUBLE-ENCODED content; friend-online/active/offline/location/add/delete/update types; `GET /auth` token exchange | 🟡 Wire format verified vs community docs + VRChat's dev blog; mock-verified in code (VRX-146) — confirm event shapes on first live session                                                                                                                                                                                                                 | Unknown event types → logged + ignored; malformed frames dropped; undecodable content dropped; connect failure → backoff + retry, presence degrades to the slow REST reconcile (VRX-22)                                    |
+| **CVR `POST /users/auth`**                                                           | Login response (username, accessKey, userId, avatar, home world)                                                                                                           | 🟡 Endpoint verified, schema drift possible                                                                                                                                                                                                                                                                                                                 | Missing accessKey → login fails; missing userId → non-functional                                                                                                                                                           |
+| **CVR data envelope**                                                                | `{message, data: T}` wrapper on all responses                                                                                                                              | ✅ Verified live 2026-07-08 — **`message` is nullable/optional** (`/friends` returns `message:null`); we discard it, so `z.string().nullish()`                                                                                                                                                                                                              | Requiring `message:string` rejected every `/friends` fetch → circuit-breaker lockout (fixed). Shape change beyond `message` → Zod fails, request treated as failed                                                         |
+| **CVR `instanceSettingPrivacy` / WS `Instance.Privacy`**                             | Instance access level                                                                                                                                                      | ✅ WS wire is a **NUMERIC enum** (live 2026-07-08): `0`=public, `2`=friends, `7`=group confirmed live; `1`=friends, `3`/`6`=group, `4`/`5`=private from the owner's prior app. String form also accepted (CVRX docs)                                                                                                                                        | `parseCvrPrivacy` maps both number + string; unknown → MOST RESTRICTIVE (`owner-must-invite`). Unverified numbers understate (safe). New enum value → restrictive default (VRX-147)                                        |
+| **CVR WS** `wss://api.chilloutvr.net/1/users/ws`                                     | Real-time friend presence: header auth on upgrade; `{ResponseType, Data}` clean-JSON envelope; outgoing `{RequestType, Data}` actions                                      | ✅ Verified LIVE 2026-07-08. **ONLINE_FRIENDS (10) is a FULL set on connect, then 1-entry DELTAS** (not a full snapshot each time — merged in the pipeline). Entries are **PascalCase** (`Id`/`IsOnline`/`Instance{Id,Name,Privacy}`), `Privacy` numeric. Open: does a full-offline friend get an explicit `IsOnline:false` delta or just vanish? (VRX-193) | Unknown ResponseTypes → logged + ignored; malformed/non-GUID entries skipped per-entry; both casings accepted; deltas merge into a running online-set (cleared on reconnect); connect failure → backoff + retry            |
+| **CVR deep link** `chilloutvr://instance/join?instanceId=<encoded>&startInVR=<bool>` | Launch the client into an authority-resolved friend instance                                                                                                               | ✅ [Official ChilloutVR deep-link documentation](https://docs.chilloutvr.net/chilloutvr/game/deep-link/) specifies `i+…` ids (`+` encoded as `%2B`) and `startInVR=false\|true`                                                                                                                                                                             | Exact grammar, parameter names, id shape, and boolean are validated; any drift fails closed before launch                                                                                                                  |
 
 ---
 
@@ -46,6 +49,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `GET /auth/user` with HTTP Basic auth (username:password in base64)
 
 **What VRX depends on:**
+
 - 2FA detection: `requiresTwoFactorAuth: string[]` (when 2FA is required, _instead_ of the success response)
 - User ID + display name: `id: string`, `displayName: string` (on successful login)
 - Presence buckets: `onlineFriends: string[]`, `activeFriends: string[]`, `offlineFriends: string[]` (friend IDs grouped by presence state)
@@ -53,6 +57,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** ✅ Verified in VRX code and live against production API (VRX-42, VRX-43).
 
 **Degradation if changed:**
+
 - **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field name or structure, login will not detect 2FA requirement. VRX treats this as a failed 2FA and prompts again. Safe fallback: user re-tries with the code.
 - **Missing presence buckets:** Zod schema `.default([])` ensures empty arrays are substituted. All friends appear offline until a WebSocket `friend-online` event updates them. UI degrades to "loading" state until real-time data arrives.
 - **Missing `id` or `displayName`:** Zod validation fails; entire login fails with an auth error. Safe: user is prompted to log in again.
@@ -66,6 +71,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `GET /auth/user/friends?offset=0&n=100&offline=false` (paginated, online + offline passes)
 
 **What VRX depends on:**
+
 - Friend ID: `id: string` (used as platform identifier and for membership in presence buckets)
 - Display name: `displayName: string` (shown in friend row)
 - Avatar thumbnail: `currentAvatarThumbnailImageUrl: string | null | undefined` (friend avatar in list)
@@ -76,6 +82,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** 🟡 Endpoint verified; field drift observed in past updates (e.g., avatar field handling). Community confirms pagination, offline flag, and tag semantics.
 
 **Degradation if changed:**
+
 - **Unknown `status` value (e.g., `"idle"` added by API):** Defensive mapping in `parsePresence()` falls back to `'online'` (generic green pill). User sees a valid status rather than a crash or unknown value. See `/src/main/services/adapters/vrchat/parsePresence.ts` lines 58–64.
 - **Missing `status` field:** Defaults to `null` (no status pill). UI renders as offline/neutral. Non-breaking.
 - **New trust tags (e.g., `"system_trust_troll"`):** `parseTrustRank()` ignores unknown tags and returns `'visitor'` (safe default, most permissive). Existing tags continue to work. See `/src/main/services/adapters/vrchat/parseTrustRank.ts` lines 40–48.
@@ -86,6 +93,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 - **A failed page fetch (network blip, transient 5xx):** Counted (`failedPages`) and the window skipped; the pass continues to the next page, giving up only after 3 consecutive failures. If NOTHING was fetched and anything failed or drifted, `getFriends` throws instead of returning a misleading empty list.
 
 **Code references:**
+
 - `/src/main/services/adapters/vrchat/fetchFriends.ts` (`rawFriendSchema` with `.default([])`/`.nullable().optional()`; per-record `safeParse` skip+count; `MAX_CONSECUTIVE_PAGE_FAILURES`)
 - `/src/main/services/adapters/vrchat/parsePresence.ts` (unknown status mapping)
 - `/src/main/services/adapters/vrchat/parseTrustRank.ts` (unknown tag handling)
@@ -99,6 +107,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Format:** `wrld_<worldId>:<nonce>[~tag(value)]...` or empty/`private`/`offline`/`traveling`.
 
 **What VRX depends on:**
+
 - Access tags: `~hidden(usr_x)` (Friends+), `~friends(usr_x)` (Friends), `~private(usr_x)` (Invite), `~canRequestInvite` (Invite+)
 - Group tags: `~group(grp_x)~groupAccessType(public|plus|members)` (group instance variants)
 - Absence of tags → public instance
@@ -106,6 +115,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** ✅ Verified. Tag names and semantics confirmed in VRX-45 implementation and VRCX source.
 
 **Degradation if changed:**
+
 - **New access tag added (e.g., `~restricted(…)`):** `parseInstanceType()` does not recognize it; falls through to `'public'` (line 73). Rendered as the most open type; user can attempt to join. Safe fallback for unknown future tags.
 - **Tag name changes (e.g., `~hidden` becomes `~friends-plus`):** Old tag is not recognized; instance is rendered as public. Worst case: user sees a public instance but it's actually restricted; join attempt fails gracefully at the game level (not VRX's responsibility).
 - **Missing or malformed location string:** Returns `'public'` (line 52). Non-breaking.
@@ -119,6 +129,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** Field `tags: string[]` from user objects.
 
 **What VRX depends on:**
+
 - Rank tags: `system_trust_basic` → new, `system_trust_known` → user, `system_trust_trusted` → known, `system_trust_veteran` → trusted
 - Nuisance flag: `system_probable_troll` → nuisance (separate from rank hierarchy)
 - Absence of tags → visitor (default)
@@ -126,6 +137,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** ✅ Verified. Tag semantics confirmed in VRX-49 implementation.
 
 **Degradation if changed:**
+
 - **New trust tag (e.g., `system_trust_elder`):** Not in the rank map; falls through to `'visitor'`. User is rendered at the lowest trust tier. Safe; does not crash.
 - **Nuisance tag is renamed (e.g., `system_account_flagged`):** New tag is not recognized as nuisance; user is rendered with a normal rank (depends on other tags). Worst case: a flagged user shows as trusted if other tags are present. Non-critical; nuisance is a social signal, not a security boundary.
 - **Tag is removed from API:** Empty `tags` array defaults to `'visitor'`. Non-breaking.
@@ -139,11 +151,13 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `POST /auth/twofactorauth/totp/verify` or `/emailotp/verify`
 
 **What VRX depends on:**
+
 - Success signal: `verified: boolean` (true = verified; false or absent = verification failed)
 
 **Verification:** ✅ Verified in VRX-42 code and live testing.
 
 **Degradation if changed:**
+
 - **`verified` field is renamed or removed:** Zod schema expects `verified: boolean` (line 33 in `VrcAdapter.ts`). If the field is missing or the response shape changes entirely, validation fails and login fails. Safe: user is prompted to re-authenticate.
 - **Unexpected `verified` value (e.g., `"pending"` or `null`):** Zod coerces to the nearest type; if not boolean, validation fails. Safe.
 
@@ -156,6 +170,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `GET /worlds/{worldId}`
 
 **What VRX depends on:**
+
 - World name: `name: string`
 - World thumbnail: `imageUrl: string`
 - Capacity: `capacity: int`
@@ -164,6 +179,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** 🟡 Endpoint verified; field names and presence subject to drift.
 
 **Degradation if changed:**
+
 - **Missing `name`:** The one critical field — the whole world resolves to `null` (nothing to show without a name); friends still render with `worldName: null`. Non-breaking.
 - **Missing or wrong-typed `thumbnailImageUrl` / `capacity` / `shortName`:** Each enrichment field independently degrades to `null` via Zod `.catch(null)` — one drifted field never nulls the rest of the world (2026-07 audit W4).
 - **New metadata fields added (e.g., `averageRating`):** Zod ignores them. Non-breaking.
@@ -177,6 +193,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `GET /instances/{worldId}:{instanceId}`
 
 **What VRX depends on:**
+
 - Player count: `n_users: int` or similar
 - Capacity: `capacity: int`
 - Closed status: `closedAt: string | null` (if present, instance is no longer joinable)
@@ -184,6 +201,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** 🟡 Endpoint verified; response shape subject to drift.
 
 **Degradation if changed:**
+
 - **Missing player count or capacity:** UI renders "unknown players". Non-critical.
 - **New or renamed fields:** Zod ignores. Non-breaking.
 - **`closedAt` semantics change:** VRX checks for presence. If null → open; if set → closed. Backward-compatible.
@@ -197,6 +215,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** `POST /users/auth` with JSON body `{AuthType, Username, Password}`
 
 **What VRX depends on:**
+
 - Access key: `accessKey: string` (session token; reused on every authenticated request)
 - User ID: `userId: string` (platform identifier)
 - Username: `username: string` (for re-authentication)
@@ -208,6 +227,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** 🟡 Endpoint verified; response shape from reverse-engineering and live observation.
 
 **Degradation if changed:**
+
 - **Missing `accessKey`:** Zod validation fails (required field). Login fails. Safe: user is prompted to re-authenticate.
 - **Missing `userId`:** Zod validation fails. Login fails. Safe.
 - **New response fields (e.g., `friendCount`):** Zod ignores. Non-breaking.
@@ -222,12 +242,14 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** All authenticated CVR endpoints return `{message, data: T}`.
 
 **What VRX depends on:**
+
 - Message: **`message: string | null` (nullable/optional)** — status/debug message, **discarded** by VRX. Live 2026-07-08: `/friends` returns `message: null`. The schema is `z.string().nullish()`; validating the payload only depends on `data`.
 - Data: `data: T` (the actual response payload, validated against an inner schema)
 
 **Verification:** ✅ Verified live 2026-07-08. Earlier the schema required `message: string`, which rejected the (valid) `/friends` response whose `message` was `null` — every fetch failed validation and tripped the shared circuit breaker into a "cannot load" lockout. Fixed by making `message` nullish (we never read it).
 
 **Degradation if changed:**
+
 - **Envelope structure changes (e.g., `{status, result}` instead of `{message, data}`):** All CVR requests fail validation. Entire adapter is broken until code is updated.
 - **`message` type drift (string/null/absent):** Non-breaking — `nullish()` tolerates all three, and the value is discarded.
 
@@ -240,9 +262,11 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Endpoint:** Present in user, instance, and friend response objects.
 
 **What VRX depends on:**
+
 - Privacy value: **numeric enum on the WS wire** (`Instance.Privacy: number`); string form also handled (CVRX docs). `parseCvrPrivacy` accepts both.
 
 **Numeric enum (the live WS + `/1/instances` wire):**
+
 - `0` → public — **live-confirmed 2026-07-08**
 - `1` → friends — reference (owner's prior app: `1|2`=friends); no live capture
 - `2` → friends — **live-confirmed**
@@ -255,6 +279,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Verification:** ✅ `0`/`2`/`7` confirmed live 2026-07-08 against known instances (owner ground truth); the rest follow the owner's working prior app and **understate on doubt** (the safe direction — friends narrower than friends-of-friends, private narrower than everyone-can-invite).
 
 **Degradation if changed:**
+
 - **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`), never crashes. Non-breaking; instance still shows.
 - **New enum value:** treated as unknown → restrictive. Non-breaking; capture it live and add to the map.
 
@@ -276,6 +301,7 @@ Every API response is validated against a Zod schema **before** being used. Sche
 ### 2. Unknown Enum Values → Safe Defaults
 
 When an unknown enum value is encountered:
+
 - **Unknown `status` string** → `'online'` (generic green pill; never crashes)
 - **Unknown instance-access tag** → `'public'` (most open interpretation; join-attempt may fail gracefully at game level)
 - **Unknown trust tag** → ignored; final rank is either a known tag or `'visitor'` (never crashes)
@@ -284,6 +310,7 @@ When an unknown enum value is encountered:
 ### 3. Graceful Degradation on Parse Failure
 
 If a Zod schema validation fails on a single response:
+
 - **Paginated friend fetch:** The failed page is skipped; subsequent pages continue. VRX returns all friends collected so far + a failure count for logging.
 - **World metadata fetch:** Missing fields → defaults (blank name, placeholder image, unknown capacity). Non-critical data is rendered as "unknown".
 - **Login/auth responses:** If the response shape is unexpected, the entire login fails and the user is re-prompted.
@@ -291,6 +318,7 @@ If a Zod schema validation fails on a single response:
 ### 4. Single-Field Tolerance
 
 Zod tolerance is field-level, not page-level:
+
 - A friend object with an unknown `status` value is still parsed; only that field uses the safe default.
 - A world object with a missing `capacity` field is still parsed; only that field is blank.
 - A parse failure on one optional field does not kill the whole response.
@@ -300,11 +328,13 @@ Zod tolerance is field-level, not page-level:
 ## Known Volatile Areas (Watch List)
 
 ### VRChat
+
 - **Presence bucket structure:** The `onlineFriends`, `activeFriends`, `offlineFriends` arrays in `/auth/user` are core to the two-axis presence model (VRX-44). If the API removes or renames these, presence parsing breaks and requires a code update.
 - **Status enum values:** New values like `"idle"` or `"in-flight"` may be added. VRX degrades to `'online'`, which is safe but loses semantic precision.
 - **Trust tag namespace:** If VRChat phases out visible trust (as suggested in API research), the `tags` field may be deprecated or replaced. VRX currently falls back to `'visitor'` if tags are missing; this is safe but not future-proof.
 
 ### ChilloutVR
+
 - **Data envelope structure:** All CVR endpoints depend on `{message, data}`. If this changes, all authenticated requests break.
 - **Missing `instanceSettingPrivacy` mapping:** 4 of 10 known values are still unverified (VRX-130). When captured, the mapping will be completed and this watch item will close.
 - **Access key lifetime & refresh:** No refresh mechanism is documented. If access keys expire, VRX must detect expiry (via 401 or similar) and trigger re-authentication. Currently handled by treating a 401 as auth failure; safe but not optimized.
@@ -316,6 +346,7 @@ Zod tolerance is field-level, not page-level:
 ### Active Breakage Detection
 
 Currently, VRX degrades gracefully on known schema drift but does not **detect or alert** when an API change occurs. Future work (post-v1.0):
+
 - **Telemetry:** Track failed parses and unknown enum values; alert on novel drift.
 - **API version pinning:** Confirm which API versions VRX supports (if versioning exists).
 - **Community feedback loop:** Integrate user-reported breaking changes (from GitHub Issues) into the degradation logic.

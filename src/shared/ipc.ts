@@ -21,6 +21,13 @@ import type {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 
+export type InstanceActionResult =
+  | { ok: true }
+  | {
+      ok: false
+      reason: 'unknown-friend' | 'stale' | 'not-joinable' | 'invalid-url' | 'cooldown'
+    }
+
 /**
  * Request/response channels — renderer asks, main answers:
  * `ipcRenderer.invoke(channel, req)` ↔ `ipcMain.handle(channel, …) → res`.
@@ -33,8 +40,14 @@ export interface IpcInvoke {
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
   'verify-2fa': { req: { platform: Platform; code: string }; res: LoginResult }
   logout: { req: { platform: Platform }; res: void }
-  'join-instance': { req: { platform: Platform; instanceId: string; mode: JoinMode }; res: void }
-  'self-invite': { req: { platform: Platform; instanceId: string }; res: void }
+  'join-instance': {
+    req: { platform: Platform; friendId: string; mode: JoinMode }
+    res: InstanceActionResult
+  }
+  'self-invite': {
+    req: { platform: 'vrchat'; friendId: string }
+    res: InstanceActionResult
+  }
   'get-app-status': { req: void; res: AppStatus }
   'open-url': { req: { url: string }; res: void }
   'get-settings': { req: void; res: Settings }

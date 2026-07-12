@@ -7,6 +7,7 @@ import {
   Notification as NativeNotification
 } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'node:url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
@@ -31,6 +32,7 @@ import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
+import { LocationAuthority } from './services/locationAuthority'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -107,6 +109,25 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  const rendererPath = join(__dirname, '../renderer/index.html')
+  const hasDevServer = is.dev && Boolean(process.env['ELECTRON_RENDERER_URL'])
+  const rendererEntry =
+    hasDevServer && process.env['ELECTRON_RENDERER_URL']
+      ? process.env['ELECTRON_RENDERER_URL']
+      : pathToFileURL(rendererPath).href
+  const entryUrl = new URL(rendererEntry)
+  const entryOrigin = entryUrl.origin
+  mainWindow.webContents.on('will-frame-navigate', (event) => {
+    try {
+      const url = new URL(event.url)
+      const isOwnEntry =
+        entryUrl.protocol === 'file:' ? url.href === entryUrl.href : url.origin === entryOrigin
+      if (!isOwnEntry) event.preventDefault()
+    } catch {
+      event.preventDefault()
+    }
+  })
+
   // A notification click can recreate a window whose renderer has not mounted
   // its push listener yet. Keep one pending dashboard intent until this load is
   // complete, then replay it exactly once. A reload clears readiness first.
@@ -121,10 +142,9 @@ function createWindow(): BrowserWindow {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   // A load failure means a blank window — log it loudly instead of dropping it.
-  const loaded =
-    is.dev && process.env['ELECTRON_RENDERER_URL']
-      ? mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-      : mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  const loaded = hasDevServer
+    ? mainWindow.loadURL(rendererEntry)
+    : mainWindow.loadFile(rendererPath)
   loaded.catch((err: unknown) => {
     log.error('renderer load failed', { message: String(err) })
   })
@@ -314,11 +334,16 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const locationAuthority = new LocationAuthority({
+      clock: () => performance.now(),
+      log: (level, message, meta) => log[level](message, meta)
+    })
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta),
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
+        locationAuthority.clearPlatform('vrchat')
         // VRX-202: auth changed — cached avatar FAILURES (401s from the old
         // auth state) are stale; successes are auth-invariant and stay.
         avatarCache.clearNegativeEntries()
@@ -356,7 +381,10 @@ app
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       socketFactory: (url, headers) => new WebSocket(url, { headers }),
       log: (level, message, meta) => log[level](message, meta),
-      onSessionBoundary: () => friendAlertBoundary.current?.resetPlatform('chilloutvr')
+      onSessionBoundary: () => {
+        friendAlertBoundary.current?.resetPlatform('chilloutvr')
+        locationAuthority.clearPlatform('chilloutvr')
+      }
     })
 
     const adapters = new Map<Platform, IPlatformAdapter>([
@@ -471,7 +499,13 @@ app
     // endpoint 401s unauthenticated). Late-wired so logout/rotation apply on read.
     avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
 
-    registerIpcHandlers(adapters)
+    registerIpcHandlers(adapters, {
+      locationAuthority,
+      instance: {
+        clock: () => performance.now(),
+        log: (_level, message, meta) => log.warn(message, meta)
+      }
+    })
 
     // Broadcast live adapter events to every window over the typed push
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
@@ -484,6 +518,7 @@ app
       }
     }
     const handleAdapterEvent = (event: AdapterEvent): void => {
+      locationAuthority.consume(event)
       friendAlerts.consume(event)
       broadcast(event)
     }

@@ -48,3 +48,25 @@ describe('main native notification wiring', () => {
     expect(source).toContain('dashboardNavigation.rendererReady(mainWindow)')
   })
 })
+
+describe('main navigation hardening', () => {
+  it('fail-closes renderer frame navigation while preserving the entry origin', () => {
+    expect(source).toContain("mainWindow.webContents.on('will-frame-navigate'")
+    expect(source).toContain('event.preventDefault()')
+    expect(source).toContain("entryUrl.protocol === 'file:'")
+    expect(source).toContain('url.href === entryUrl.href')
+    expect(source).toContain('url.origin === entryOrigin')
+    expect(source).toContain('if (!isOwnEntry) event.preventDefault()')
+  })
+})
+
+describe('main location authority event ordering', () => {
+  it('consumes live deltas before alert and renderer fan-out', () => {
+    const authority = source.indexOf('locationAuthority.consume(event)')
+    const alerts = source.indexOf('friendAlerts.consume(event)')
+    const renderer = source.indexOf('broadcast(event)', authority)
+    expect(authority).toBeGreaterThan(-1)
+    expect(authority).toBeLessThan(alerts)
+    expect(authority).toBeLessThan(renderer)
+  })
+})

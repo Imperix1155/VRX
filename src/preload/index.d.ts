@@ -10,6 +10,7 @@ type VrxBridge = {
   login: (req: IpcInvoke['login']['req']) => Promise<IpcInvoke['login']['res']>
   verify2fa: (req: IpcInvoke['verify-2fa']['req']) => Promise<IpcInvoke['verify-2fa']['res']>
   logout: (req: IpcInvoke['logout']['req']) => Promise<IpcInvoke['logout']['res']>
+  /** Friend IDs only; instance identifiers never cross from the renderer. */
   joinInstance: (
     req: IpcInvoke['join-instance']['req']
   ) => Promise<IpcInvoke['join-instance']['res']>
