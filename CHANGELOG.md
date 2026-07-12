@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added internal multi-account data groundwork: a durable account registry, account-scoped bounded social storage, and epoch guards that reject stale writes across identity changes. (VRX-24)
+
 ## [0.9.0] - 2026-07-12
 
 ### Added

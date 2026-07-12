@@ -159,12 +159,20 @@ export interface LinkedPerson {
 
 // ─── Multi-account (VRX-24) ───────────────────────────────────────────────────
 export interface Account {
-  /** Stable local id for this account (namespaces all per-account data). */
-  accountId: string
+  /** Canonical platform user id; the same identity AuthStatus and AccountSession carry. */
+  platformAccountId: string
   platform: Platform
   displayName: string
   /** Whether this is the active account for its platform. */
   isActive: boolean
+}
+
+/** Versioned envelope for data owned by one canonical platform account. */
+export interface AccountScoped<T> {
+  schemaVersion: number
+  platform: Platform
+  platformAccountId: string
+  data: T
 }
 
 // ─── App-level status / health (dashboard — VRX-79) ──────────────────────────

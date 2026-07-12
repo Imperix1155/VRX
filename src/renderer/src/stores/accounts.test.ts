@@ -3,9 +3,14 @@ import type { Account } from '@shared/types'
 import { useAccountsStore } from './accounts'
 
 const ACCOUNTS: Account[] = [
-  { accountId: 'vrc-1', platform: 'vrchat', displayName: 'Main', isActive: false },
-  { accountId: 'vrc-2', platform: 'vrchat', displayName: 'Alt', isActive: true },
-  { accountId: 'cvr-1', platform: 'chilloutvr', displayName: 'CVR', isActive: false }
+  { platformAccountId: 'vrc-1', platform: 'vrchat', displayName: 'Main', isActive: false },
+  { platformAccountId: 'vrc-2', platform: 'vrchat', displayName: 'Alt', isActive: true },
+  {
+    platformAccountId: 'cvr-1',
+    platform: 'chilloutvr',
+    displayName: 'CVR',
+    isActive: false
+  }
 ]
 
 describe('useAccountsStore', () => {
@@ -22,7 +27,7 @@ describe('useAccountsStore', () => {
 
   it('activeAccount returns the active account for a platform', () => {
     useAccountsStore.setState({ accounts: ACCOUNTS })
-    expect(useAccountsStore.getState().activeAccount('vrchat')?.accountId).toBe('vrc-2')
+    expect(useAccountsStore.getState().activeAccount('vrchat')?.platformAccountId).toBe('vrc-2')
   })
 
   it('activeAccount returns null when no account is active for a platform', () => {

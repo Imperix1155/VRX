@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { AuthStatus, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import log from 'electron-log'
 import { isTrustedIpcSender } from './security'
@@ -9,6 +9,7 @@ const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 
 export interface AuthHandlerOptions {
   onLoginSuccess?: (platform: Platform) => void
+  onAuthStatus?: (status: AuthStatus) => void
 }
 
 export function registerAuthHandlers(
@@ -20,7 +21,15 @@ export function registerAuthHandlers(
     if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid platform')
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    return adapter.getAuthStatus()
+    return adapter.getAuthStatus().then((status) => {
+      try {
+        options.onAuthStatus?.(status)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        log.warn(`onAuthStatus callback failed for ${req.platform}: ${message}`)
+      }
+      return status
+    })
   })
 
   ipcMain.handle('login', (event, req: IpcInvoke['login']['req']) => {

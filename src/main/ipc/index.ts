@@ -11,8 +11,12 @@ import { registerSettingsHandlers } from './settings'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
 import type { InstanceHandlerOptions } from './instance'
+import type { AccountRegistry } from '../services/accountRegistry'
+import type { AccountSession } from '../services/accountSession'
 
 export interface IpcHandlerOptions extends AuthHandlerOptions {
+  accountRegistry: AccountRegistry
+  accountSession: AccountSession
   locationAuthority: LocationAuthority
   instance?: InstanceHandlerOptions
 }
@@ -24,7 +28,7 @@ export function registerIpcHandlers(
   registerFriendsHandlers(adapters, options.locationAuthority)
   registerAvatarHandlers()
   registerAuthHandlers(adapters, options)
-  registerAccountsHandlers()
+  registerAccountsHandlers(options.accountRegistry, options.accountSession)
   registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
   registerAppStatusHandlers()
   registerLaunchHandlers()
