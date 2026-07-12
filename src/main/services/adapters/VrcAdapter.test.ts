@@ -1375,6 +1375,27 @@ describe('VrcAdapter', () => {
       expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
     })
 
+    it('accepts a well-formed grouped-UUID canonical id (positive pin for the tightened regex)', async () => {
+      // Response bodies are single-use — return a fresh Response per call
+      // (login + getAuthStatus both read one).
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(
+            jsonResponse(
+              { id: 'usr_2f8698e3-4bd6-4a30-8c3f-0d2c1a94f60e', displayName: 'Neo' },
+              { setCookies: ['auth=abc123'] }
+            )
+          )
+        )
+      )
+      const adapter = new VrcAdapter(fakeStore(), noopSleep)
+      expect(await adapter.login(creds)).toEqual({ ok: true })
+      expect((await adapter.getAuthStatus()).accountId).toBe(
+        'usr_2f8698e3-4bd6-4a30-8c3f-0d2c1a94f60e'
+      )
+    })
+
     it('one malformed record does not kill the page OR the circuit (audit W4)', async () => {
       // End-to-end through the real request<T> path: before W4, one bad record
       // failed the page's array schema → NetworkError + a circuit-breaker failure

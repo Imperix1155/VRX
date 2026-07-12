@@ -41,7 +41,7 @@ export interface VrcLiveWiring {
   onIdentity?: (accountId: string | null) => void
 }
 
-const canonicalVrcUserId = /^usr_[0-9a-f-]{36}$/
+const canonicalVrcUserId = /^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
 // conservative: non-empty, at most 64 characters, and no whitespace, control
 // characters, colon, or malformed canonical `usr_` prefix.
