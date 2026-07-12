@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-12
+
 ### Added
 
 - Internal identity groundwork now tracks each platform's authenticated account id in main for future favorites and multi-account work, with no UI or persistence changes yet. (VRX-24)
