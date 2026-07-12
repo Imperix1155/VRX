@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
-import type { Platform } from '@shared/types'
+import type { AuthStatus, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 
@@ -35,14 +35,17 @@ let adapter: IPlatformAdapter
 const createLoginSuccessMock = (): ReturnType<typeof vi.fn<(platform: Platform) => void>> =>
   vi.fn<(platform: Platform) => void>()
 let onLoginSuccess = createLoginSuccessMock()
+let onAuthStatus = vi.fn<(status: AuthStatus) => void>()
 
 beforeEach(() => {
   handlers.clear()
   trusted.value = true
   adapter = stubPlatformAdapter()
   onLoginSuccess = createLoginSuccessMock()
+  onAuthStatus = vi.fn<(status: AuthStatus) => void>()
   registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), {
-    onLoginSuccess
+    onLoginSuccess,
+    onAuthStatus
   })
 })
 
@@ -147,6 +150,20 @@ describe('get-auth-status handler boundary', () => {
       state: 'unauthenticated'
     })
     expect(adapter.getAuthStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('publishes the settled auth status for account-registry adoption', async () => {
+    const status: AuthStatus = {
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'usr_a',
+      displayName: 'Alice'
+    }
+    vi.mocked(adapter.getAuthStatus).mockResolvedValue(status)
+
+    await call('get-auth-status', { platform: 'vrchat' })
+
+    expect(onAuthStatus).toHaveBeenCalledWith(status)
   })
 })
 
