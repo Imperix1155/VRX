@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Groundwork for securely joining a friend's instance is now in place.** VRX can resolve the friend's current location in the trusted main process and safely launch the right game; the clickable button arrives in the next update. (VRX-166)
+- **You can now join a friend directly from the Friends list.** A joinable friend's instance-type pill is a keyboard-accessible button that launches the correct game; if the join is denied, the pill briefly says it couldn't join and then restores its usual label. Private, offline, and otherwise unavailable locations remain non-interactive. (VRX-166)
 
 ### Fixed
 
