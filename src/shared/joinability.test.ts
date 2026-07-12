@@ -52,9 +52,12 @@ describe('isFriendJoinable', () => {
     expect(isFriendJoinable(friend({ presence: { state } }))).toBe(false)
   })
 
-  it('rejects a hidden world', () => {
-    expect(isFriendJoinable(friend({ instance: null }))).toBe(false)
-  })
+  it.each(['', 'private', 'offline', 'traveling'])(
+    'rejects hidden world sentinel %j',
+    (worldId) => {
+      expect(isFriendJoinable(friend({ instance: { ...instance, worldId } }))).toBe(false)
+    }
+  )
 
   it('rejects CVR offline instances', () => {
     expect(

@@ -23,7 +23,7 @@ or should be added.
 | `window.vrx.…`                                | IPC channel                    | Returns                                                                                        |
 | --------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
 | `getFriends({ platform })`                    | `get-friends`                  | `Promise<Friend[]>`                                                                            |
-| `get-avatar`                                  | `{ url }`                      | `{ ok, dataUrl } \| null` — allowlisted main-process avatar fetch (VRX-48); see §6 AvatarCache |
+| `getAvatar({ url })`                          | `get-avatar`                   | `Promise<{ ok, dataUrl } \| null>` — allowlisted main-process avatar fetch (VRX-48); see §6 AvatarCache |
 | `getAccounts()`                               | `get-accounts`                 | `Promise<Account[]>`                                                                           |
 | `getAuthStatus({ platform })`                 | `get-auth-status`              | `Promise<AuthStatus>`                                                                          |
 | `login({ platform, credentials })`            | `login`                        | `Promise<LoginResult>`                                                                         |
@@ -104,8 +104,8 @@ carry `status`/`trustRank` (§5).
 ## 4. The platform adapter contract
 
 [`IPlatformAdapter`](../src/main/services/adapters/IPlatformAdapter.ts) — what
-every platform must implement. Registered per-platform in `main/index.ts`
-(currently VRChat only — VRChat-first decision).
+every platform must implement. VRChat and ChilloutVR adapters are registered
+per-platform in `main/index.ts`.
 
 | Method                         | Purpose                                                                                                                                | VRChat status     |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |

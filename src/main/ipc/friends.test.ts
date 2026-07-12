@@ -13,7 +13,8 @@ vi.mock('electron', () => ({
     })
   }
 }))
-vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => true) }))
+const trusted = vi.hoisted(() => ({ value: true }))
+vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => trusted.value) }))
 
 import { registerFriendsHandlers } from './friends'
 
@@ -38,12 +39,30 @@ let authority: LocationAuthority
 
 beforeEach(() => {
   handlers.clear()
+  trusted.value = true
   adapter = stubPlatformAdapter()
   authority = new LocationAuthority()
   registerFriendsHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), authority)
 })
 
 describe('get-friends location seeding', () => {
+  it('rejects an untrusted sender before adapter delegation', async () => {
+    trusted.value = false
+
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).rejects.toThrow(
+      'Untrusted IPC sender'
+    )
+    expect(adapter.getFriends).not.toHaveBeenCalled()
+  })
+
+  it.each([null, {}, { platform: 'steam' }, { platform: 1 }, { platform: null }])(
+    'rejects malformed request %j before adapter delegation',
+    async (req) => {
+      await expect(handlers.get('get-friends')!(event, req)).rejects.toThrow('Invalid platform')
+      expect(adapter.getFriends).not.toHaveBeenCalled()
+    }
+  )
+
   it('captures before awaiting and seeds every successful response', async () => {
     vi.mocked(adapter.getFriends).mockResolvedValue([rosterFriend])
     const capture = vi.spyOn(authority, 'captureSeedRevision')

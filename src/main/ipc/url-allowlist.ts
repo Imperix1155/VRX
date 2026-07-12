@@ -28,6 +28,7 @@ export function isAllowedUrl(raw: string): boolean {
 
 const MAX_LAUNCH_URL_LENGTH = 2048
 const VRC_LAUNCH_ID_RE = /^wrld_[A-Za-z0-9_-]{1,128}:[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$/
+const CVR_START_IN_VR_RE = /^(?:true|false)$/
 
 function hasExactParams(url: URL, allowed: ReadonlySet<string>): boolean {
   const keys = [...url.searchParams.keys()]
@@ -81,7 +82,7 @@ export function isAllowedLaunchUrl(raw: string): boolean {
     if (!hasExactParams(url, new Set(['instanceId', 'startInVR']))) return false
     const instanceId = url.searchParams.get('instanceId') ?? ''
     const startInVR = url.searchParams.get('startInVR') ?? ''
-    if (!CVR_INSTANCE_ID_RE.test(instanceId) || !/^(?:true|false)$/.test(startInVR)) return false
+    if (!CVR_INSTANCE_ID_RE.test(instanceId) || !CVR_START_IN_VR_RE.test(startInVR)) return false
     return url.search === `?instanceId=${encodeURIComponent(instanceId)}&startInVR=${startInVR}`
   }
 
