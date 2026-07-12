@@ -223,7 +223,9 @@ const FriendRow = memo(function FriendRow({
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  const [isJoining, setIsJoining] = useState(false)
   const [joinFailed, setJoinFailed] = useState(false)
+  const joinInFlight = useRef(false)
   const joinFailureTimer = useRef<number | null>(null)
 
   useEffect(
@@ -265,20 +267,29 @@ const FriendRow = memo(function FriendRow({
 
   async function joinFriend(event: React.MouseEvent<HTMLButtonElement>): Promise<void> {
     event.stopPropagation()
-    // VRChat ignores mode; a CVR VR-mode picker is a future setting.
-    const result = await window.vrx.joinInstance({
-      platform: friend.platform,
-      friendId: friend.platformUserId,
-      mode: 'desktop'
-    })
-    if (result.ok) return
+    if (joinInFlight.current) return
 
-    setJoinFailed(true)
-    if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
-    joinFailureTimer.current = window.setTimeout(() => {
-      setJoinFailed(false)
-      joinFailureTimer.current = null
-    }, 2_500)
+    joinInFlight.current = true
+    setIsJoining(true)
+    // VRChat ignores mode; a CVR VR-mode picker is a future setting.
+    try {
+      const result = await window.vrx.joinInstance({
+        platform: friend.platform,
+        friendId: friend.platformUserId,
+        mode: 'desktop'
+      })
+      if (result.ok) return
+
+      setJoinFailed(true)
+      if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
+      joinFailureTimer.current = window.setTimeout(() => {
+        setJoinFailed(false)
+        joinFailureTimer.current = null
+      }, 2_500)
+    } finally {
+      joinInFlight.current = false
+      setIsJoining(false)
+    }
   }
 
   return (
@@ -328,17 +339,24 @@ const FriendRow = memo(function FriendRow({
           but readable. Joinable friends receive the button variant (VRX-166). */}
       {instancePill != null ? (
         joinable ? (
-          <span aria-live="polite">
+          <span className="relative block min-w-[78px]">
             <InstancePill
-              label={joinFailed ? t('friends.joinFailed') : instancePill}
+              label={instancePill}
               tier={pillTier}
               className="min-w-[78px]"
               onJoin={(event) => void joinFriend(event)}
+              disabled={isJoining}
               aria-label={t('friends.joinAria', {
                 name: friend.displayName,
                 world: instance?.worldName ?? instancePill
               })}
             />
+            <span
+              role="status"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
+            >
+              {joinFailed ? t('friends.joinFailed') : ''}
+            </span>
           </span>
         ) : (
           <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />

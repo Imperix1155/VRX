@@ -129,29 +129,60 @@ describe('FriendsList join pill (VRX-166)', () => {
     })
   })
 
-  it('briefly replaces a denied join label, announces it, then restores the pill text', async () => {
+  it('ignores a second activation while a join is pending and keeps the pill label after success', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<FriendsList />)
+
+    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+
+    expect((button as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.queryByText("Couldn't join")).toBeNull()
+    expect(button.textContent).toBe('Public')
+  })
+
+  it('announces a denied join in a sibling status node without changing the button label', async () => {
     vi.useFakeTimers()
     joinInstance.mockResolvedValue({ ok: false, reason: 'not-joinable' })
     render(<FriendsList />)
 
+    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('')
+
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      fireEvent.click(button)
       await Promise.resolve()
     })
 
-    const blip = screen.getByText("Couldn't join")
-    expect(blip.closest('[aria-live="polite"]')).not.toBeNull()
+    expect(status.textContent).toBe("Couldn't join")
+    expect(button.getAttribute('aria-label')).toBe('Join Alex in The Great Pug')
+    expect(button.textContent).toBe('Public')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_499)
     })
-    expect(screen.getByText("Couldn't join")).toBeTruthy()
+    expect(status.textContent).toBe("Couldn't join")
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1)
     })
-    expect(screen.queryByText("Couldn't join")).toBeNull()
-    expect(screen.getByText('Public')).toBeTruthy()
+    expect(status.textContent).toBe('')
   })
 
   it('falls back to the visible pill label in the accessible name when worldName is null', () => {

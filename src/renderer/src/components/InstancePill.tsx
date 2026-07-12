@@ -23,6 +23,8 @@ interface InstancePillProps {
   className?: string
   /** Present only for actionable friend-row pills. */
   onJoin?: React.MouseEventHandler<HTMLButtonElement>
+  /** Disables the actionable variant while its row's join request is pending. */
+  disabled?: boolean
   /** Accessible action name for the button variant. */
   'aria-label'?: string
 }
@@ -32,6 +34,7 @@ export default function InstancePill({
   tier,
   className = '',
   onJoin,
+  disabled = false,
   'aria-label': ariaLabel
 }: InstancePillProps): React.JSX.Element {
   const style: React.CSSProperties & { '--instance-pill-bg': string } =
@@ -53,8 +56,9 @@ export default function InstancePill({
       <button
         type="button"
         onClick={onJoin}
+        disabled={disabled}
         aria-label={ariaLabel}
-        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter,color]`}
+        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter,color]`}
         style={style}
       >
         {label}
