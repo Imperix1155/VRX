@@ -112,6 +112,7 @@ UI, no cache cancellation this milestone.
 1. **History storage** → RATIFIED: bounded JSON ring, no native dep (§5).
 2. **Milestone size** → RATIFIED: build the full duel-hardened surface today
    (types + rename + registry + bounded store + epoch primitive + identity-boundary
-   cache reset + credential owner sidecar). Sequenced as PR-A (data layer) → PR-B
-   (epoch + credential sidecar, auth-adjacent) → PR-C (cache reset, fixes the live
-   stale-roster bug). Each delegated, each through the full gauntlet.
+   cache reset + credential owner sidecar). Sequenced as PR-A (data layer + registry + bounded store + **epoch primitive**, so
+   the store is born epoch-guarded) → PR-B (credential owner sidecar, auth-adjacent)
+   → PR-C (identity-boundary cache reset, fixes the live stale-roster bug). Each
+   delegated, each through the full gauntlet.
