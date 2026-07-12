@@ -70,3 +70,13 @@ describe('main location authority event ordering', () => {
     expect(authority).toBeLessThan(renderer)
   })
 })
+
+describe('main account-registry adoption', () => {
+  it('passes the authenticated status identity and captured session epoch', () => {
+    expect(source).toContain('const resolution = accountSession.resolve(status.platform)')
+    expect(source).toContain('status.accountId !== null')
+    expect(source).toMatch(
+      /accountRegistry\.recordAuthenticated\(\s*status\.platform,\s*status\.accountId,\s*resolution\.epoch,\s*status\.displayName\s*\)/
+    )
+  })
+})

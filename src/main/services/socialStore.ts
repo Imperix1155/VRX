@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { AccountScoped, Platform } from '@shared/types'
-import { AccountSession, accountKey } from './accountSession'
+import { AccountSession, accountKey, isPlatformAccountId } from './accountSession'
 
 export const SOCIAL_STORE_FORMAT_VERSION = 1
 export const SOCIAL_NAMESPACE_SCHEMA_VERSION = 1
@@ -12,9 +12,9 @@ export const TAGS_PER_FRIEND_MAX = 25
 export const PER_FRIEND_OPT_OUTS_MAX = 5_000
 export const HISTORY_RING_CAPACITY = 200
 
-const PLATFORM_ACCOUNT_ID_PATTERN = /^[A-Za-z0-9_-]+$/
-const platformAccountIdSchema = z.string().min(1).max(256).regex(PLATFORM_ACCOUNT_ID_PATTERN)
-const friendIdSchema = z.string().min(1).max(256).regex(PLATFORM_ACCOUNT_ID_PATTERN)
+const FRIEND_ID_PATTERN = /^[A-Za-z0-9_-]+$/
+const platformAccountIdSchema = z.string().refine(isPlatformAccountId)
+const friendIdSchema = z.string().min(1).max(256).regex(FRIEND_ID_PATTERN)
 
 function cappedRecordSchema<T extends z.ZodType>(valueSchema: T, maximum: number): z.ZodType {
   return z.record(friendIdSchema, valueSchema).superRefine((value, context) => {
@@ -108,6 +108,9 @@ const rootSchema = z
     accounts: z.record(z.string(), z.unknown())
   })
   .passthrough()
+const formatVersionSchema = z
+  .object({ storeFormatVersion: z.number().int().nonnegative() })
+  .passthrough()
 
 class ElectronSocialStoreStorage implements SocialStoreStorage {
   private readonly store = new Store<Record<string, unknown>>({
@@ -125,6 +128,14 @@ class ElectronSocialStoreStorage implements SocialStoreStorage {
 }
 
 function parseRoot(raw: unknown): SocialStoreFile {
+  const formatVersion = formatVersionSchema.safeParse(raw)
+  if (
+    formatVersion.success &&
+    formatVersion.data.storeFormatVersion > SOCIAL_STORE_FORMAT_VERSION
+  ) {
+    return { storeFormatVersion: formatVersion.data.storeFormatVersion, accounts: {} }
+  }
+
   const parsed = rootSchema.safeParse(raw)
   if (!parsed.success) {
     return { storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION, accounts: {} }
@@ -140,7 +151,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function requirePlatformAccountId(platformAccountId: string): void {
-  if (!platformAccountIdSchema.safeParse(platformAccountId).success) {
+  if (!isPlatformAccountId(platformAccountId)) {
     throw new Error('social store: invalid platform account id')
   }
 }

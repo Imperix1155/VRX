@@ -16,6 +16,9 @@ interface PlatformSession {
   hasResolvedIdentity: boolean
 }
 
+const PLATFORM_ACCOUNT_ID_PATTERN = /^[A-Za-z0-9_-]+$/
+const PLATFORM_ACCOUNT_ID_MAX_LENGTH = 128
+
 /**
  * Main-process registry of the identity currently authenticated per platform.
  * During `onSessionBoundary`, AccountSession never answers the outgoing account.
@@ -31,6 +34,7 @@ export class AccountSession {
   }
 
   setIdentity(platform: Platform, platformAccountId: string | null): void {
+    if (platformAccountId !== null) accountKey(platform, platformAccountId)
     const session = this.sessions[platform]
     if (session.identity === platformAccountId) return
 
@@ -58,6 +62,13 @@ export class AccountSession {
 
 /** Stable namespace for account-scoped data; the account id is identity, not a credential key. */
 export function accountKey(platform: Platform, platformAccountId: string): string {
-  if (platformAccountId.trim() === '') throw new Error('platformAccountId must not be empty')
+  if (!isPlatformAccountId(platformAccountId)) throw new Error('invalid platformAccountId')
   return `${platform}:${platformAccountId}`
+}
+
+export function isPlatformAccountId(platformAccountId: string): boolean {
+  return (
+    platformAccountId.length <= PLATFORM_ACCOUNT_ID_MAX_LENGTH &&
+    PLATFORM_ACCOUNT_ID_PATTERN.test(platformAccountId)
+  )
 }

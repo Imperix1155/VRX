@@ -507,9 +507,21 @@ app
 
     registerIpcHandlers(adapters, {
       accountRegistry,
+      accountSession,
       onAuthStatus: (status) => {
-        if (status.state === 'authenticated' && status.displayName !== null) {
-          accountRegistry.recordAuthenticated(status.platform, status.displayName)
+        if (
+          status.state === 'authenticated' &&
+          status.accountId !== null &&
+          status.displayName !== null
+        ) {
+          const resolution = accountSession.resolve(status.platform)
+          if ('status' in resolution) return
+          accountRegistry.recordAuthenticated(
+            status.platform,
+            status.accountId,
+            resolution.epoch,
+            status.displayName
+          )
         }
       },
       locationAuthority,

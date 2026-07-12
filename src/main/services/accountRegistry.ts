@@ -1,7 +1,7 @@
 import Store from 'electron-store'
 import { z } from 'zod'
 import type { Account, Platform } from '@shared/types'
-import { AccountSession, accountKey } from './accountSession'
+import { AccountSession, accountKey, isPlatformAccountId } from './accountSession'
 
 export const ACCOUNT_REGISTRY_FORMAT_VERSION = 1
 
@@ -26,7 +26,7 @@ export interface AccountRegistryStorage {
 
 const entrySchema = z.object({
   platform: z.enum(['vrchat', 'chilloutvr']),
-  platformAccountId: z.string().min(1),
+  platformAccountId: z.string().refine(isPlatformAccountId),
   displayName: z.string(),
   state: z.enum(['active', 'known', 'removed'])
 })
@@ -35,6 +35,10 @@ const fileSchema = z.object({
   storeFormatVersion: z.number().int().nonnegative(),
   entries: z.record(z.string(), entrySchema)
 })
+
+const formatVersionSchema = z
+  .object({ storeFormatVersion: z.number().int().nonnegative() })
+  .passthrough()
 
 class ElectronAccountRegistryStorage implements AccountRegistryStorage {
   private readonly store = new Store<Record<string, unknown>>({
@@ -52,6 +56,14 @@ class ElectronAccountRegistryStorage implements AccountRegistryStorage {
 }
 
 function parseRegistryFile(raw: unknown): AccountRegistryFile {
+  const formatVersion = formatVersionSchema.safeParse(raw)
+  if (
+    formatVersion.success &&
+    formatVersion.data.storeFormatVersion > ACCOUNT_REGISTRY_FORMAT_VERSION
+  ) {
+    return { storeFormatVersion: formatVersion.data.storeFormatVersion, entries: {} }
+  }
+
   const parsed = fileSchema.safeParse(raw)
   if (!parsed.success) {
     return { storeFormatVersion: ACCOUNT_REGISTRY_FORMAT_VERSION, entries: {} }
@@ -81,26 +93,32 @@ export class AccountRegistry {
     }
   }
 
-  recordAuthenticated(platform: Platform, displayName: string): void {
+  recordAuthenticated(
+    platform: Platform,
+    platformAccountId: string,
+    epoch: number,
+    displayName: string
+  ): void {
+    const key = accountKey(platform, platformAccountId)
     const resolution = this.accountSession.resolve(platform)
-    if ('status' in resolution) {
-      throw new Error(`account registry: cannot activate while identity is ${resolution.status}`)
+    if ('status' in resolution || resolution.accountKey !== key || resolution.epoch !== epoch) {
+      throw new Error('account registry: stale authenticated identity')
     }
     this.assertWritable()
 
-    for (const entry of Object.values(this.file.entries)) {
+    const entries = structuredClone(this.file.entries)
+    for (const entry of Object.values(entries)) {
       if (entry.platform === platform && entry.state === 'active') entry.state = 'known'
     }
 
-    const platformAccountId = this.accountSession.getAccountId(platform)
-    if (platformAccountId === null)
-      throw new Error('account registry: resolved identity disappeared')
-    this.file.entries[resolution.accountKey] = {
+    entries[key] = {
       platform,
       platformAccountId,
       displayName,
       state: 'active'
     }
+    if (JSON.stringify(entries) === JSON.stringify(this.file.entries)) return
+    this.file.entries = entries
     this.persist()
   }
 

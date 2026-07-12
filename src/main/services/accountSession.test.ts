@@ -67,15 +67,17 @@ describe('accountKey', () => {
     expect(accountKey('chilloutvr', 'cvr_456')).toBe('chilloutvr:cvr_456')
   })
 
-  it.each(['', '   '])('rejects an empty account id (%j)', (accountId) => {
-    expect(() => accountKey('vrchat', accountId)).toThrow('platformAccountId must not be empty')
-  })
+  it.each(['', '   ', 'account:id', 'account.id', 'account id', 'account\nid', 'a'.repeat(129)])(
+    'rejects an unsafe account id (%j)',
+    (accountId) => {
+      expect(() => accountKey('vrchat', accountId)).toThrow('invalid platformAccountId')
+    }
+  )
 
-  it.each([
-    ['a colon', 'account:id'],
-    ['a control character', 'account\nid'],
-    ['whitespace', 'account id']
-  ])('preserves %s in the account id', (_label, accountId) => {
-    expect(accountKey('vrchat', accountId)).toBe(`vrchat:${accountId}`)
+  it('rejects an unsafe identity before storing it in AccountSession', () => {
+    const session = new AccountSession()
+
+    expect(() => session.setIdentity('vrchat', 'account:id')).toThrow('invalid platformAccountId')
+    expect(session.resolve('vrchat')).toEqual({ status: 'no-active' })
   })
 })

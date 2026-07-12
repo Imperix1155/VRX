@@ -78,6 +78,21 @@ describe('SocialStore', () => {
     expect(storage.writes).toHaveLength(0)
   })
 
+  it('rejects a stale write issued before a same-account relogin', () => {
+    const staleEpoch = currentEpoch()
+    session.setIdentity('vrchat', null)
+    session.setIdentity('vrchat', 'usr_a')
+
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: staleEpoch },
+        'favorites',
+        { friend_a: true }
+      )
+    ).toThrow('stale account epoch')
+    expect(storage.writes).toHaveLength(0)
+  })
+
   it.each(['account:id', 'account id', 'account\nid', ''])(
     'strictly rejects unsafe platform account ids (%j)',
     (platformAccountId) => {
@@ -133,6 +148,20 @@ describe('SocialStore', () => {
 
   it('refuses to overwrite a store written by a newer build', () => {
     storage.value = { storeFormatVersion: 999, accounts: {}, futureField: 'preserve' }
+    store = new SocialStore(session, storage)
+
+    expect(() =>
+      store.write(
+        { platform: 'vrchat', platformAccountId: 'usr_a', epoch: currentEpoch() },
+        'favorites',
+        {}
+      )
+    ).toThrow('refusing to overwrite social data written by a newer version')
+    expect(storage.writes).toHaveLength(0)
+  })
+
+  it('preserves a newer format marker when its payload shape is incompatible', () => {
+    storage.value = { storeFormatVersion: 999, accounts: [] }
     store = new SocialStore(session, storage)
 
     expect(() =>
