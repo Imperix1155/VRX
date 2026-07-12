@@ -74,9 +74,8 @@ describe('isAllowedLaunchUrl', () => {
     expect(
       isAllowedLaunchUrl('vrchat://launch?id=wrld_abc123:1~private(usr_xyz)~nonce(abc)~region(us)')
     ).toBe(true)
-    // Uppercase scheme/host — URL parser preserves case for non-special schemes,
-    // but our predicate lowercases before comparing
-    expect(isAllowedLaunchUrl('VRCHAT://LAUNCH?id=wrld_abc123:1')).toBe(true)
+    expect(isAllowedLaunchUrl('VRCHAT://launch?id=wrld_abc123:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://LAUNCH?id=wrld_abc123:1')).toBe(false)
   })
 
   it('denies arbitrary vrchat:// paths (not launch)', () => {
@@ -121,9 +120,53 @@ describe('isAllowedLaunchUrl', () => {
     expect(isAllowedLaunchUrl('not a url')).toBe(false)
   })
 
+  it('accepts only exact VRChat query names and values', () => {
+    expect(isAllowedLaunchUrl('vrchat://launch?ref=vrchat.com&id=wrld_abc123:1')).toBe(true)
+    expect(isAllowedLaunchUrl('vrchat://launch?ref=evil.com&id=wrld_abc123:1')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch?id=wrld_abc123:1&steam=-applaunch')).toBe(false)
+    expect(isAllowedLaunchUrl('vrchat://launch?id=wrld_abc123:1&id=wrld_other:2')).toBe(false)
+  })
+
+  it.each([
+    'vrchat:////launch?id=wrld_abc123:1',
+    'vrchat://launch?id=wrld_abc123%2F1',
+    'vrchat://launch?id=wrld_abc123%252F1',
+    'vrchat://launch?id=wrld_%61bc123:1',
+    'vrchat://launch?id=wrld_abc123:1%26steam=-applaunch',
+    `vrchat://launch?id=wrld_${'a'.repeat(2048)}:1`
+  ])('fails closed for hostile VRChat launch URL %j', (url) => {
+    expect(isAllowedLaunchUrl(url)).toBe(false)
+  })
+
+  it('accepts the exact documented ChilloutVR join grammar', () => {
+    expect(
+      isAllowedLaunchUrl(
+        'chilloutvr://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true'
+      )
+    ).toBe(true)
+  })
+
+  it.each([
+    'CHILLOUTVR://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr://INSTANCE/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr:////instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr://instance/join?instanceId=i%252Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr://instance/join?instanceId=i%2bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9%2Fevil&startInVR=true',
+    'chilloutvr://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=',
+    'chilloutvr://instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true&steam=-applaunch',
+    'chilloutvr://instance/join?startInVR=true&instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9',
+    'chilloutvr://user@instance/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    'chilloutvr://instance:42/join?instanceId=i%2Bbab275f822c020a0-152002-e81321-1fe976f9&startInVR=true',
+    `chilloutvr://instance/join?instanceId=i%2B${'a'.repeat(2048)}&startInVR=true`
+  ])('fails closed for hostile ChilloutVR launch URL %j', (url) => {
+    expect(isAllowedLaunchUrl(url)).toBe(false)
+  })
+
   it('isAllowedUrl still rejects vrchat: scheme (asymmetry preserved)', () => {
     // The web-link path must never accept custom schemes
     expect(isAllowedUrl('vrchat://launch?ref=vrchat.com&id=wrld_abc:1')).toBe(false)
     expect(isAllowedUrl('vrchat://evil')).toBe(false)
+    expect(isAllowedUrl('chilloutvr://instance/join?instanceId=i%2Babc')).toBe(false)
   })
 })

@@ -5,6 +5,7 @@ import type {
   Credentials,
   Friend,
   InstanceInfo,
+  JoinMode,
   LoginResult,
   TwoFactorMethod
 } from '@shared/types'
@@ -17,6 +18,7 @@ import { fetchFriends } from './vrchat/fetchFriends'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
 import { WorldResolver } from './vrchat/WorldResolver'
+import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -438,8 +440,10 @@ export class VrcAdapter extends VrcApiClient {
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('VrcAdapter.getInstanceDetails not implemented'))
   }
-  joinInstance(): Promise<void> {
-    return Promise.reject(new Error('VrcAdapter.joinInstance not implemented'))
+  buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null {
+    // VRChat's URI has no desktop/VR selector; the client's own setting governs.
+    void mode
+    return buildVrcJoinUrl(instance.worldId, instance.instanceId, instance.region ?? undefined)
   }
   async selfInvite(instanceId: string): Promise<void> {
     // Validate the location BEFORE classification or URL use: a crafted instanceId

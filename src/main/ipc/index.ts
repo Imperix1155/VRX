@@ -9,16 +9,23 @@ import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
 import { registerSettingsHandlers } from './settings'
 import type { AuthHandlerOptions } from './auth'
+import type { LocationAuthority } from '../services/locationAuthority'
+import type { InstanceHandlerOptions } from './instance'
+
+export interface IpcHandlerOptions extends AuthHandlerOptions {
+  locationAuthority: LocationAuthority
+  instance?: InstanceHandlerOptions
+}
 
 export function registerIpcHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
-  options: AuthHandlerOptions = {}
+  options: IpcHandlerOptions
 ): void {
-  registerFriendsHandlers(adapters)
+  registerFriendsHandlers(adapters, options.locationAuthority)
   registerAvatarHandlers()
   registerAuthHandlers(adapters, options)
   registerAccountsHandlers()
-  registerInstanceHandlers(adapters)
+  registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
   registerAppStatusHandlers()
   registerLaunchHandlers()
   registerSettingsHandlers()

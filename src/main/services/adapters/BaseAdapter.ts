@@ -210,7 +210,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   abstract importSession(): Promise<boolean>
   abstract getFriends(): Promise<Friend[]>
   abstract getInstanceDetails(instanceId: string): Promise<InstanceInfo>
-  abstract joinInstance(instanceId: string, mode: JoinMode): Promise<void>
+  abstract buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null
   abstract selfInvite(instanceId: string): Promise<void>
   abstract subscribe(handler: (event: AdapterEvent) => void): Unsubscribe
 }
