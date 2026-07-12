@@ -134,9 +134,22 @@ export class LocationAuthority {
       case 'friend-removed':
         store(event.platformUserId, null)
         break
-      case 'friend-updated':
-        // Profile-only event: preserve the authority's location and presence.
+      case 'friend-updated': {
+        const current = state.seeded
+          ? state.friends.get(event.friend.platformUserId)?.friend
+          : undefined
+        if (current === null || current === undefined) break
+        store(event.friend.platformUserId, {
+          ...event.friend,
+          // The wire event says nothing about presence/location or local fields.
+          presence: current.presence,
+          instance: current.instance,
+          isFavorite: current.isFavorite,
+          favoriteGroupIds: current.favoriteGroupIds,
+          linkedPersonId: current.linkedPersonId
+        } as Friend)
         break
+      }
       case 'friends-snapshot': {
         const ids = new Set(event.friends.map((friend) => friend.platformUserId))
         for (const friend of event.friends) store(friend.platformUserId, friend)

@@ -237,6 +237,36 @@ describe('self-invite handler', () => {
     ).resolves.toEqual({ ok: true })
   })
 
+  it('tracks friend-updated status changes for both instance actions', async () => {
+    seed()
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: friend({ status: 'ask-me', presence: { state: 'offline' }, instance: null })
+    })
+
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: false, reason: 'not-joinable' })
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: false, reason: 'not-joinable' })
+    expect(openExternal).not.toHaveBeenCalled()
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: friend({ status: 'online', presence: { state: 'offline' }, instance: null })
+    })
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: true })
+  })
+
   it('returns invite-failed without leaking the rejection and releases the lock', async () => {
     seed()
     vi.mocked(adapter.selfInvite).mockRejectedValueOnce(

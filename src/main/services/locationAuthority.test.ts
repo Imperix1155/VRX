@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Friend, Platform } from '@shared/types'
+import type { CvrFriend, Friend, Platform, VrcFriend } from '@shared/types'
 import { LocationAuthority } from './locationAuthority'
 
+function friend(platform: 'vrchat', id: string, instanceId?: string): VrcFriend
+function friend(platform: 'chilloutvr', id: string, instanceId?: string): CvrFriend
 function friend(platform: Platform, id: string, instanceId = 'instance-old'): Friend {
   const common = {
     platform,
@@ -69,6 +71,106 @@ describe('LocationAuthority', () => {
 
     const resolved = authority.resolve('vrchat', 'usr_1')
     expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('instance-new')
+  })
+
+  it.each(['ask-me', 'dnd'] as const)(
+    'merges a %s profile update while preserving cached presence, instance, and local fields',
+    (status) => {
+      const authority = new LocationAuthority()
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+      const cached = friend('vrchat', 'usr_1', 'instance-live')
+      cached.isFavorite = true
+      cached.favoriteGroupIds = ['group_1']
+      cached.linkedPersonId = 'person_1'
+      const revision = authority.captureSeedRevision('vrchat')
+      authority.seed('vrchat', [cached], revision)
+
+      authority.consume({
+        type: 'friend-updated',
+        platform: 'vrchat',
+        friend: {
+          ...friend('vrchat', 'usr_1', 'instance-untrusted'),
+          displayName: 'Updated Friend',
+          presence: { state: 'offline' },
+          instance: null,
+          status
+        }
+      })
+
+      const resolved = authority.resolve('vrchat', 'usr_1')
+      expect(resolved).toMatchObject({
+        ok: true,
+        friend: {
+          displayName: 'Updated Friend',
+          status,
+          isFavorite: true,
+          favoriteGroupIds: ['group_1'],
+          linkedPersonId: 'person_1'
+        }
+      })
+      expect(resolved.ok && resolved.friend.presence).toBe(cached.presence)
+      expect(resolved.ok && resolved.friend.instance).toBe(cached.instance)
+    }
+  )
+
+  it('ignores profile updates for an unseeded platform and an unknown friend', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const unseededRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: { ...friend('vrchat', 'usr_unseeded'), status: 'ask-me' }
+    })
+    authority.seed('vrchat', [], unseededRevision)
+    expect(authority.resolve('vrchat', 'usr_unseeded')).toEqual({
+      ok: false,
+      reason: 'unknown-friend'
+    })
+
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: { ...friend('vrchat', 'usr_unknown'), status: 'dnd' }
+    })
+    expect(authority.resolve('vrchat', 'usr_unknown')).toEqual({
+      ok: false,
+      reason: 'unknown-friend'
+    })
+  })
+
+  it('revision-fences profile updates between older and newer seeds', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const initialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend('vrchat', 'usr_1')], initialRevision)
+
+    const olderSeedRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: { ...friend('vrchat', 'usr_1'), displayName: 'Live Update', status: 'ask-me' }
+    })
+    authority.seed(
+      'vrchat',
+      [{ ...friend('vrchat', 'usr_1'), displayName: 'Older Seed', status: 'online' }],
+      olderSeedRevision
+    )
+    expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+      ok: true,
+      friend: { displayName: 'Live Update', status: 'ask-me' }
+    })
+
+    const newerSeedRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [{ ...friend('vrchat', 'usr_1'), displayName: 'Newer Seed', status: 'online' }],
+      newerSeedRevision
+    )
+    expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+      ok: true,
+      friend: { displayName: 'Newer Seed', status: 'online' }
+    })
   })
 
   it('never lets an older seed clobber a newer delta or re-add a removed friend', () => {
