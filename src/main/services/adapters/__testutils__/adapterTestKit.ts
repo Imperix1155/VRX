@@ -10,6 +10,52 @@ import type { IPlatformAdapter } from '../IPlatformAdapter'
 /** Instant sleep — skips the rate-limiter's real timers in unit tests. */
 export const noopSleep = (): Promise<void> => Promise.resolve()
 
+/**
+ * In-memory credential store that binds an owner only to a successfully saved
+ * value, so adapter tests can assert fail-closed ownership behavior.
+ */
+export function ownerBindingHarness<T>(initialCredential?: T): {
+  store: {
+    load: () => T | undefined
+    save: (value: T, accountId?: string | null) => void
+    delete: () => void
+  }
+  getOwner: () => string | null
+  getCredential: () => T | undefined
+  getAttemptedAccountIds: () => Array<string | null | undefined>
+  failNextSave: () => void
+} {
+  let credential = initialCredential
+  let owner: { accountId: string; credential: T } | null = null
+  let saveShouldFail = false
+  const attemptedAccountIds: Array<string | null | undefined> = []
+  return {
+    store: {
+      load: () => credential,
+      save: (value, accountId?: string | null) => {
+        attemptedAccountIds.push(accountId)
+        owner = null
+        if (saveShouldFail) {
+          saveShouldFail = false
+          throw new Error('credential write failed')
+        }
+        credential = value
+        if (typeof accountId === 'string') owner = { accountId, credential: value }
+      },
+      delete: () => {
+        credential = undefined
+        owner = null
+      }
+    },
+    getOwner: () => (owner !== null && owner.credential === credential ? owner.accountId : null),
+    getCredential: () => credential,
+    getAttemptedAccountIds: () => attemptedAccountIds,
+    failNextSave: () => {
+      saveShouldFail = true
+    }
+  }
+}
+
 export interface JsonResponseOpts {
   status?: number
   /** Each entry becomes a Set-Cookie header (exercises headers.getSetCookie()). */

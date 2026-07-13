@@ -3,7 +3,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 
@@ -16,7 +16,8 @@ function fakeStore(
     saved: [] as CVRCredentials[],
     deleted: 0,
     load: () => value,
-    save: (credentials: CVRCredentials) => {
+    save: (credentials: CVRCredentials, accountId: string | null) => {
+      void accountId
       value = credentials
       store.saved.push(credentials)
     },
@@ -167,6 +168,69 @@ describe('CvrAdapter', () => {
   })
 
   describe('login (password leg — raw, breaker-free)', () => {
+    it('binds the owner on first login into an empty credential slot', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
+      const binding = ownerBindingHarness<CVRCredentials>()
+      const adapter = new CvrAdapter(binding.store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
+    it('rebinds an A-to-B replacement to B after the new credential is persisted', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            envelope(
+              authPayload({
+                username: 'morpheus',
+                accessKey: 'key-2',
+                userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+              })
+            )
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<CVRCredentials>()
+      const adapter = new CvrAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+    })
+
+    it('fails closed when credential writing throws after owner clearing', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            envelope(
+              authPayload({
+                username: 'morpheus',
+                accessKey: 'key-2',
+                userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+              })
+            )
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<CVRCredentials>()
+      const adapter = new CvrAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      binding.failNextSave()
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getCredential()).toEqual({ username: 'trinity', accessKey: 'key-1' })
+      expect(binding.getOwner()).toBeNull()
+      expect(binding.getAttemptedAccountIds().at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+    })
+
     it('authenticates, persists ONLY username+accessKey, reports authenticated status', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       vi.stubGlobal('fetch', fetchMock)
@@ -360,6 +424,18 @@ describe('CvrAdapter', () => {
   })
 
   describe('session restore + validation (VRX-174)', () => {
+    it('backfills the owner for the restored credential after validation', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
+      const restored = { username: 'trinity', accessKey: 'key-1' }
+      const binding = ownerBindingHarness(restored)
+      const adapter = new CvrAdapter(binding.store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+
+      expect(binding.getCredential()).toEqual(restored)
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
     it('restores a persisted session and validates it via ACCESS_KEY reauth', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       vi.stubGlobal('fetch', fetchMock)

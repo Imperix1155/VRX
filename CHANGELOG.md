@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added internal multi-account data groundwork: a durable account registry, account-scoped bounded social storage, and epoch guards that reject stale writes across identity changes. (VRX-24)
+- Added ciphertext-bound credential-owner groundwork so main can prove offline which account owns the exact currently stored credential and treats overwritten or mismatched slots as unknown. (VRX-24)
+
+### Fixed
+
+- Hardened multi-account isolation: authenticated registry adoption is identity-and-epoch atomic, unsafe account ids are rejected consistently, future store formats remain read-only even with incompatible payloads, logged-out callers cannot enumerate account history, stale same-account writes are fenced, and unchanged auth polls no longer rewrite the registry. (VRX-24)
 
 ## [0.9.0] - 2026-07-12
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 
@@ -13,7 +13,8 @@ function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; de
     saved: [] as string[],
     deleted: 0,
     load: () => value,
-    save: (cookie: string) => {
+    save: (cookie: string, accountId: string | null) => {
+      void accountId
       value = cookie
       store.saved.push(cookie)
     },
@@ -200,6 +201,79 @@ describe('VrcAdapter', () => {
   })
 
   describe('login (no 2FA)', () => {
+    it('binds the owner on first login into an empty credential slot', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse(
+              { id: 'ACCOUNT001', displayName: 'Account A' },
+              { setCookies: ['auth=account-a'] }
+            )
+          )
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('ACCOUNT001')
+    })
+
+    it('rebinds an A-to-B replacement to B after the new credential is persisted', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT001', displayName: 'Account A' },
+            { setCookies: ['auth=account-a'] }
+          )
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT002', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+    })
+
+    it('fails closed when direct-login credential writing throws after owner clearing', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT001', displayName: 'Account A' },
+            { setCookies: ['auth=account-a'] }
+          )
+        )
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT002', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      binding.failNextSave()
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(binding.getOwner()).toBeNull()
+      expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+    })
+
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {
       // A Response body is single-use, and this test fetches twice (login +
       // getAuthStatus) — return a fresh Response per call.
@@ -337,6 +411,56 @@ describe('VrcAdapter', () => {
   })
 
   describe('2FA', () => {
+    it('binds the owner only after the verified 2FA credential is persisted', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'TRINITY09', displayName: 'Trinity' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('TRINITY09')
+    })
+
+    it('fails closed when the 2FA credential write throws after owner clearing', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT001', displayName: 'Account A' },
+            { setCookies: ['auth=account-a'] }
+          )
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await adapter.login(creds)
+      await adapter.login(creds)
+      binding.failNextSave()
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
+
+      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(binding.getOwner()).toBeNull()
+      expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+    })
+
     it('returns needs2fa(totp), then verifies against /totp/verify and combines the cookies', async () => {
       const fetchMock = vi
         .fn()
@@ -570,6 +694,20 @@ describe('VrcAdapter', () => {
   })
 
   describe('getAuthStatus & session restore', () => {
+    it('backfills the owner for the restored ciphertext after validation', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      )
+      const binding = ownerBindingHarness('auth=restored')
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+
+      expect(binding.getCredential()).toBe('auth=restored')
+      expect(binding.getOwner()).toBe('ACCOUNT001')
+    })
+
     it('restores a persisted cookie and sends it on the status check', async () => {
       const fetchMock = vi
         .fn()
