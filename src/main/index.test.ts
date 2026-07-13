@@ -85,14 +85,16 @@ describe('main credential-owner wiring', () => {
   it.each([
     ['vrchat', 'VRCHAT_PRIMARY'],
     ['chilloutvr', 'CHILLOUTVR_PRIMARY']
-  ])(
-    'captures and validates %s identity before recording the ciphertext owner',
-    (platform, key) => {
-      expect(source).toMatch(
-        new RegExp(
-          `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*if \\(accountId !== null\\) \\{\\s*recordCredentialOwner\\(CREDENTIAL_KEYS\\.${key}, accountId\\)`
-        )
+  ])('records the %s owner only inside the successful credential-save closure', (platform, key) => {
+    expect(source).toMatch(
+      new RegExp(
+        `save: \\(.*accountId\\) => \\{\\s*saveCredential\\(CREDENTIAL_KEYS\\.${key},[\\s\\S]*?\\)\\s*if \\(accountId !== null\\) \\{\\s*recordCredentialOwner\\(CREDENTIAL_KEYS\\.${key}, accountId\\)`
       )
-    }
-  )
+    )
+    expect(source).toMatch(
+      new RegExp(
+        `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
+      )
+    )
+  })
 })

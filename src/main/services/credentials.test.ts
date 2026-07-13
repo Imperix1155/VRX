@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   const stores = new Map<string, Record<string, unknown>>()
   const storeOptions: Array<{ name: string; accessPropertiesByDotNotation?: boolean }> = []
+  const setErrors = new Map<string, Error>()
 
   class StoreMock {
     private readonly name: string
@@ -26,6 +27,11 @@ const mocks = vi.hoisted(() => {
     }
 
     set(key: string, value: unknown): void {
+      const error = setErrors.get(this.name)
+      if (error) {
+        setErrors.delete(this.name)
+        throw error
+      }
       this.values[key] = value
     }
 
@@ -37,6 +43,7 @@ const mocks = vi.hoisted(() => {
   return {
     stores,
     storeOptions,
+    setErrors,
     StoreMock,
     isEncryptionAvailable: vi.fn(() => true),
     getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret'),
@@ -72,6 +79,7 @@ describe('credential storage', () => {
     Object.defineProperty(process, 'platform', { value: 'darwin' })
     mocks.stores.clear()
     mocks.storeOptions.length = 0
+    mocks.setErrors.clear()
     mocks.isEncryptionAvailable.mockReturnValue(true)
     mocks.getSelectedStorageBackend.mockReturnValue('gnome_libsecret')
     mocks.getSelectedStorageBackend.mockClear()
@@ -168,6 +176,20 @@ describe('credential storage', () => {
     saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-b-session')
 
     expect(mocks.stores.get('credential-owners')).toEqual({})
+  })
+
+  it('leaves the old ciphertext unowned when its replacement write throws', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
+    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
+    const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
+    mocks.setErrors.set('credentials', new Error('credential write failed'))
+
+    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')).toThrow(
+      'credential write failed'
+    )
+
+    expect(mocks.stores.get('credentials')?.['vrchat:primary']).toBe(oldCiphertext)
+    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
   })
 
   it('clears the credential owner sidecar with the stored credential', () => {

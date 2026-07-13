@@ -330,7 +330,12 @@ app
     // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
     const vrcCredentials: VrcCredentialStore = {
       load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-      save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
+      save: (cookie, accountId) => {
+        saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
+        if (accountId !== null) {
+          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
+        }
+      },
       delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
     }
     // Live-pipeline wiring (VRX-146): the real socket carries the required
@@ -348,9 +353,6 @@ app
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
-        }
       },
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
@@ -382,8 +384,12 @@ app
         }
         return undefined
       },
-      save: (credentials) =>
-        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
+      save: (credentials, accountId) => {
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
+        if (accountId !== null) {
+          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
+        }
+      },
       delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
     }
     // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
@@ -394,9 +400,6 @@ app
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
-        }
       },
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
