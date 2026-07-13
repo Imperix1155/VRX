@@ -27,7 +27,7 @@ import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
  */
 export interface VrcCredentialStore {
   load(): string | undefined
-  save(cookie: string): void
+  save(cookie: string, accountId: string | null): void
   /** Remove the persisted session so an expired cookie can't survive a restart. */
   delete(): void
 }
@@ -217,8 +217,8 @@ export class VrcAdapter extends VrcApiClient {
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
-    this.live?.onIdentity?.(this.accountId)
     this.persist()
+    this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
 
@@ -289,6 +289,7 @@ export class VrcAdapter extends VrcApiClient {
     this.bumpSessionGeneration()
     await this.refreshDisplayName()
     this.persist()
+    if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
 
@@ -365,6 +366,7 @@ export class VrcAdapter extends VrcApiClient {
 
       this.displayName = parsed.data.displayName
       this.accountId = parsed.data.id
+      this.persist()
       this.live?.onIdentity?.(this.accountId)
       return this.status('authenticated')
     }
@@ -620,7 +622,7 @@ export class VrcAdapter extends VrcApiClient {
   private persist(): void {
     if (!this.cookie) return
     try {
-      this.credentials.save(this.cookie)
+      this.credentials.save(this.cookie, this.accountId)
     } catch {
       /* persistence is best-effort; the session still works in-memory this run */
     }
@@ -638,7 +640,6 @@ export class VrcAdapter extends VrcApiClient {
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
         this.accountId = parsed.data.id
-        this.live?.onIdentity?.(this.accountId)
       }
     } catch {
       /* non-fatal */

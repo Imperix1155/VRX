@@ -50,7 +50,7 @@ export interface CvrLiveWiring {
  */
 export interface CvrCredentialStore {
   load(): CVRCredentials | undefined
-  save(credentials: CVRCredentials): void
+  save(credentials: CVRCredentials, accountId: string | null): void
   /** Remove the persisted session so a dead accessKey can't survive a restart. */
   delete(): void
 }
@@ -193,11 +193,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       accessKey: parsed.data.data.accessKey
     })
     this.accountId = parsed.data.data.userId
-    this.live?.onIdentity?.(this.accountId)
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
     this.persist()
+    this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
 
@@ -275,10 +275,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // restore would present the stale key and silently log the user out.
     if (accessKey !== validated.accessKey || username !== validated.username) {
       this.adoptSession({ username, accessKey })
-      this.persist()
     }
     this.displayName = username
     this.accountId = parsed.data.data.userId
+    this.persist()
     this.live?.onIdentity?.(this.accountId)
     // Restored session proven once — trust it for the rest of this launch.
     this.validated = true
@@ -572,7 +572,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private persist(): void {
     if (!this.session) return
     try {
-      this.store.save(this.session)
+      this.store.save(this.session, this.accountId)
     } catch {
       /* locked/unavailable store — the session stays usable in-memory */
     }

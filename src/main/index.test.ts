@@ -80,3 +80,21 @@ describe('main account-registry adoption', () => {
     )
   })
 })
+
+describe('main credential-owner wiring', () => {
+  it.each([
+    ['vrchat', 'VRCHAT_PRIMARY'],
+    ['chilloutvr', 'CHILLOUTVR_PRIMARY']
+  ])('records the %s owner only inside the successful credential-save closure', (platform, key) => {
+    expect(source).toMatch(
+      new RegExp(
+        `save: \\(.*accountId\\) => \\{\\s*saveCredential\\(CREDENTIAL_KEYS\\.${key},[\\s\\S]*?\\)\\s*if \\(accountId !== null\\) \\{\\s*recordCredentialOwner\\(CREDENTIAL_KEYS\\.${key}, accountId\\)`
+      )
+    )
+    expect(source).toMatch(
+      new RegExp(
+        `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
+      )
+    )
+  })
+})
