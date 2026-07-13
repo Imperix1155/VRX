@@ -4,7 +4,6 @@ import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
-import { useIdentityBoundary } from './hooks/useIdentityBoundary'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { useUiStore } from './stores/ui'
 
@@ -14,13 +13,10 @@ function App(): React.JSX.Element {
   useSettingsPersistence()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()
-  // Live WS events → query cache (VRX-146). Top-level like useApplyTheme: the
-  // subscription is idempotent and event application no-ops until a friends
-  // fetch has populated the cache (which only happens once authenticated).
+  // Live WS events + identity boundaries → query cache (VRX-146/24). Top-level
+  // like useApplyTheme: the subscription is idempotent and event application
+  // no-ops until a friends fetch has populated the cache.
   useLiveFriendEvents()
-  // Identity changes are hard cache boundaries: never show the previous
-  // account's roster while the new account loads (VRX-24).
-  useIdentityBoundary()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85).
   useEffect(() => {

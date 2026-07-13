@@ -8,11 +8,12 @@
  * buffers the latest snapshot per platform and re-applies it when the roster
  * fetch resolves. These tests pin that, and the no-re-apply-loop guard.
  */
-import { render, cleanup, act } from '@testing-library/react'
+import { render, cleanup, act, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import type { Friend } from '@shared/types'
-import { friendsQueryKey } from '../queries/friends'
+import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
 import { useLiveFriendEvents } from './useLiveFriendEvents'
 
@@ -35,21 +36,44 @@ function cvrFriend(state: 'in-game' | 'offline'): Friend {
   } as unknown as Friend
 }
 
+function vrcFriend(displayName: string): Friend {
+  return {
+    ...cvrFriend('offline'),
+    platformUserId: `usr_${displayName.toLowerCase()}`,
+    platform: 'vrchat',
+    displayName
+  }
+}
+
 const snapshotEvent = {
   type: 'presence-snapshot',
   platform: 'chilloutvr',
   entries: [{ platformUserId: G1, presence: { state: 'in-game' }, instance: null }]
 }
 
-let fire: ((e: unknown) => void) | undefined
-function stubBridge(): void {
+let fireFriendEvent: ((e: unknown) => void) | undefined
+let fireIdentityBoundary: ((payload: { platform: 'vrchat' | 'chilloutvr' }) => void) | undefined
+const unsubscribeFriendEvent = vi.fn()
+const unsubscribeIdentityBoundary = vi.fn()
+
+function stubBridge(overrides: Record<string, unknown> = {}): void {
   const onFriendEvent = (cb: (e: unknown) => void): (() => void) => {
-    fire = cb
+    fireFriendEvent = cb
     return () => {
-      fire = undefined
+      fireFriendEvent = undefined
+      unsubscribeFriendEvent()
     }
   }
-  Object.assign(window, { vrx: { onFriendEvent } })
+  const onIdentityBoundary = (
+    cb: (payload: { platform: 'vrchat' | 'chilloutvr' }) => void
+  ): (() => void) => {
+    fireIdentityBoundary = cb
+    return () => {
+      fireIdentityBoundary = undefined
+      unsubscribeIdentityBoundary()
+    }
+  }
+  Object.assign(window, { vrx: { onFriendEvent, onIdentityBoundary, ...overrides } })
 }
 
 function Probe(): React.JSX.Element {
@@ -65,9 +89,33 @@ const mount = (client: QueryClient): void => {
   )
 }
 
+function FriendsProbe({
+  onData
+}: {
+  onData: (friends: Friend[] | undefined) => void
+}): React.JSX.Element {
+  useLiveFriendEvents()
+  const friends = useFriends('vrchat').data
+  useEffect(() => onData(friends), [friends, onData])
+  return <></>
+}
+
+const mountFriends = (
+  client: QueryClient,
+  onData: (friends: Friend[] | undefined) => void
+): ReturnType<typeof render> =>
+  render(
+    <QueryClientProvider client={client}>
+      <FriendsProbe onData={onData} />
+    </QueryClientProvider>
+  )
+
 afterEach(() => {
   cleanup()
-  fire = undefined
+  fireFriendEvent = undefined
+  fireIdentityBoundary = undefined
+  unsubscribeFriendEvent.mockClear()
+  unsubscribeIdentityBoundary.mockClear()
   Object.assign(window, { vrx: undefined })
 })
 
@@ -78,7 +126,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     mount(client)
 
     // Snapshot arrives BEFORE the roster is cached → dropped live, but buffered.
-    act(() => fire!(snapshotEvent))
+    act(() => fireFriendEvent!(snapshotEvent))
     expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toBeUndefined()
 
     // Roster fetch resolves (a non-manual 'success') → buffered snapshot re-applies.
@@ -101,7 +149,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
 
     // If the re-apply subscription re-triggered on our own setQueryData writes,
     // this would recurse/hang; it completes because manual writes are filtered.
-    act(() => fire!(snapshotEvent))
+    act(() => fireFriendEvent!(snapshotEvent))
 
     const cached = client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))
     expect(cached?.[0]?.presence.state).toBe('in-game')
@@ -113,7 +161,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     mount(client)
 
     // Snapshot buffered + roster loaded → presence applied (buffer is now active).
-    act(() => fire!(snapshotEvent))
+    act(() => fireFriendEvent!(snapshotEvent))
     await act(async () => {
       await client.fetchQuery({
         queryKey: friendsQueryKey('chilloutvr'),
@@ -125,7 +173,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     )
 
     // WS drops — the buffered snapshot is now stale and must be discarded.
-    act(() => fire!({ type: 'connection', platform: 'chilloutvr', health: 'down' }))
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'chilloutvr', health: 'down' }))
 
     // A periodic REST reconcile during the outage returns everyone offline.
     await act(async () => {
@@ -149,7 +197,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
 
     // (1) auth is re-checked so the Accounts card flips to reconnect.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: authStatusQueryKey('chilloutvr') })
@@ -163,9 +211,9 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const client = new QueryClient()
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     // A late ONLINE_FRIENDS from the still-open dead socket must be ignored (not buffered).
-    act(() => fire!(snapshotEvent))
+    act(() => fireFriendEvent!(snapshotEvent))
     // A roster fetch resolves (reconcile / reconnect attempt) — while quarantined
     // even a successful roster is forced back to [], so there's nothing for the
     // stale snapshot to re-apply onto.
@@ -185,7 +233,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const client = new QueryClient()
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     // A late / in-flight friends request resolves SUCCESSFULLY with the old roster.
     await act(async () => {
       await client.fetchQuery({
@@ -204,7 +252,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const client = new QueryClient()
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toEqual([]) // quarantined
 
     // Re-login writes auth-status directly (a MANUAL setQueryData, not an
@@ -233,7 +281,7 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const client = new QueryClient()
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toEqual([]) // quarantined
 
     // Re-login: the auth query resolves to `authenticated` (no connection:live yet).
@@ -261,12 +309,12 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     const client = new QueryClient()
     mount(client)
 
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     // A socket opens (an in-flight reconnect can open with a STALE token before
     // the server rejects it) → 'live' fires, but that is NOT proof of re-auth.
-    act(() => fire!({ type: 'connection', platform: 'chilloutvr', health: 'live' }))
-    act(() => fire!(snapshotEvent))
+    act(() => fireFriendEvent!({ type: 'connection', platform: 'chilloutvr', health: 'live' }))
+    act(() => fireFriendEvent!(snapshotEvent))
     // 'live' while quarantined must re-verify auth, NOT refetch friends — a friends
     // invalidation would wake the useFriends observer → hit the dead session → 401
     // → auth-invalidated churn (CodeRabbit). Only auth-status is invalidated here.
@@ -290,13 +338,105 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     mount(client)
 
     const invalidate = vi.spyOn(client, 'invalidateQueries')
-    act(() => fire!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
     // The old socket lingers and emits a roster change AFTER the session died.
-    act(() => fire!({ type: 'roster-changed', platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'roster-changed', platform: 'chilloutvr' }))
 
     // It must NOT invalidate (→ refetch → 401) the friends query while quarantined
     // — auth-invalidated only ever invalidates auth-status, never friends.
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+})
+
+describe('useLiveFriendEvents — identity boundary', () => {
+  it('clears a mounted useFriends observer immediately and refetches the new account (real QueryClient)', async () => {
+    const accountA = [vrcFriend('Account A')]
+    let resolveAccountB: ((friends: Friend[]) => void) | undefined
+    const getFriends = vi
+      .fn()
+      .mockResolvedValueOnce(accountA)
+      .mockImplementationOnce(() => new Promise<Friend[]>((resolve) => (resolveAccountB = resolve)))
+    stubBridge({
+      getAuthStatus: vi.fn().mockResolvedValue({ state: 'authenticated' }),
+      getFriends
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const observeData = vi.fn<(friends: Friend[] | undefined) => void>()
+    client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated' })
+    mountFriends(client, observeData)
+
+    await waitFor(() => expect(observeData).toHaveBeenLastCalledWith(accountA))
+
+    await act(async () => {
+      fireIdentityBoundary!({ platform: 'vrchat' })
+      await Promise.resolve()
+    })
+
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+    await waitFor(() => expect(observeData).toHaveBeenLastCalledWith([]))
+    expect(getFriends).toHaveBeenCalledTimes(2)
+
+    await act(async () => resolveAccountB?.([vrcFriend('Account B')]))
+  })
+
+  it('never reapplies account A snapshot when account B roster resolves before connection live (real QueryClient)', async () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+
+    act(() => fireFriendEvent!(snapshotEvent))
+    act(() => fireIdentityBoundary!({ platform: 'chilloutvr' }))
+    await act(async () => {
+      await client.fetchQuery({
+        queryKey: friendsQueryKey('chilloutvr'),
+        queryFn: () => Promise.resolve([cvrFriend('offline')])
+      })
+    })
+
+    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))?.[0]?.presence.state).toBe(
+      'offline'
+    )
+  })
+
+  it('isolates a VRChat boundary from ChilloutVR cache and snapshot buffer', async () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+
+    act(() => fireFriendEvent!(snapshotEvent))
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+    await act(async () => {
+      await client.fetchQuery({
+        queryKey: friendsQueryKey('chilloutvr'),
+        queryFn: () => Promise.resolve([cvrFriend('offline')])
+      })
+    })
+
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))?.[0]?.presence.state).toBe(
+      'in-game'
+    )
+  })
+
+  it('subscribes to identity boundaries once and unsubscribes on unmount', () => {
+    const onIdentityBoundary = vi.fn(
+      (callback: (payload: { platform: 'vrchat' | 'chilloutvr' }) => void) => {
+        fireIdentityBoundary = callback
+        return unsubscribeIdentityBoundary
+      }
+    )
+    stubBridge({ onIdentityBoundary })
+    const client = new QueryClient()
+
+    const mounted = render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>
+    )
+
+    expect(onIdentityBoundary).toHaveBeenCalledOnce()
+    mounted.unmount()
+    expect(unsubscribeIdentityBoundary).toHaveBeenCalledOnce()
   })
 })
