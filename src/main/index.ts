@@ -357,6 +357,11 @@ app
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) {
+            window.webContents.send('identity-boundary', { platform: 'vrchat' })
+          }
+        }
         // VRX-202: auth changed — cached avatar FAILURES (401s from the old
         // auth state) are stale; successes are auth-invariant and stay.
         avatarCache.clearNegativeEntries()
@@ -404,6 +409,11 @@ app
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) {
+            window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
+          }
+        }
       }
     })
 

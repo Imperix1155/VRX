@@ -14,6 +14,8 @@
  *   fetch resolves, so a snapshot that BEATS the slower REST roster isn't dropped
  *   (would leave every CVR friend offline). Buffer is cleared on any connection
  *   drop so a stale snapshot can't be re-applied over a reconcile while blind.
+ * - identity-boundary → clears the affected platform's snapshot and mounted
+ *   friends observer synchronously, then invalidates it to fetch the new roster.
  * - auth-invalidated (a data-path 401 on either platform, VRX-195/197) → the
  *   platform is QUARANTINED: its roster is forced to [], any in-flight fetch is
  *   cancelled, auth-status is re-checked, and every subsequent live/refetch event
@@ -132,6 +134,20 @@ export function useLiveFriendEvents(): void {
       applyToCache(event.platform, event)
     })
 
+    const unsubscribeIdentityBoundary = window.vrx.onIdentityBoundary(({ platform }) => {
+      // Account identity and buffered live state share one boundary. Clearing the
+      // snapshot here prevents account A presence from being re-applied when the
+      // account B roster fetch resolves before B's connection reaches 'live'.
+      latestSnapshot.delete(platform)
+      const queryKey = friendsQueryKey(platform)
+      // removeQueries does not reset a mounted observer in query-core 5.101.2.
+      // Set [] so every mounted consumer clears immediately and B live events
+      // have a cache value to patch, then invalidate to fetch B's roster.
+      void queryClient.cancelQueries({ queryKey })
+      queryClient.setQueryData<Friend[]>(queryKey, [])
+      void queryClient.invalidateQueries({ queryKey })
+    })
+
     // Re-apply the buffered snapshot after a roster FETCH resolves (the fix for
     // the snapshot-beats-roster race), and lift the quarantine on an authenticated
     // auth-status. The FRIENDS re-apply is gated to non-manual 'success' actions so
@@ -184,6 +200,7 @@ export function useLiveFriendEvents(): void {
 
     return () => {
       unsubscribe()
+      unsubscribeIdentityBoundary()
       unsubscribeCache()
     }
   }, [queryClient])
