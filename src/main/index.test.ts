@@ -81,6 +81,25 @@ describe('main account-registry adoption', () => {
   })
 })
 
+describe('main identity-boundary fan-out', () => {
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'broadcasts the %s boundary only to non-destroyed windows',
+    (platform) => {
+      const resetCall = `resetPlatform('${platform}')`
+      const resetIndex = source.indexOf(resetCall)
+      const boundaryStart = source.lastIndexOf('onSessionBoundary:', resetIndex)
+      const boundaryEnd = source.indexOf('\n      }', resetIndex)
+      const boundary = source.slice(boundaryStart, boundaryEnd)
+
+      expect(boundary).toContain('BrowserWindow.getAllWindows()')
+      expect(boundary).toContain('if (!window.isDestroyed())')
+      expect(boundary).toContain(
+        `window.webContents.send('identity-boundary', { platform: '${platform}' })`
+      )
+    }
+  )
+})
+
 describe('main credential-owner wiring', () => {
   it.each([
     ['vrchat', 'VRCHAT_PRIMARY'],

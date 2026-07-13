@@ -13,9 +13,9 @@ function App(): React.JSX.Element {
   useSettingsPersistence()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()
-  // Live WS events → query cache (VRX-146). Top-level like useApplyTheme: the
-  // subscription is idempotent and event application no-ops until a friends
-  // fetch has populated the cache (which only happens once authenticated).
+  // Live WS events + identity boundaries → query cache (VRX-146/24). Top-level
+  // like useApplyTheme: the subscription is idempotent and event application
+  // no-ops until a friends fetch has populated the cache.
   useLiveFriendEvents()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85).

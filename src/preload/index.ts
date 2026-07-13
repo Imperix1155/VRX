@@ -36,6 +36,15 @@ const vrx = {
     ipcRenderer.on('friend-event', listener)
     return () => ipcRenderer.removeListener('friend-event', listener)
   },
+  /** Per-platform identity changes clear renderer-owned account data (VRX-24). */
+  onIdentityBoundary: (callback: (event: IpcEvents['identity-boundary']) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['identity-boundary']
+    ): void => callback(payload)
+    ipcRenderer.on('identity-boundary', listener)
+    return () => ipcRenderer.removeListener('identity-boundary', listener)
+  },
   /** Native hot-instance toast click → Dashboard (VRX-85). */
   onNavigateToDashboard: (callback: () => void) => {
     // Stop buffering: from here the renderer's own listener receives pushes

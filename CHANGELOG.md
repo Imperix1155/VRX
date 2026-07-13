@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Credential ownership is now recorded only after the matching ciphertext write succeeds; failed VRChat, VRChat 2FA, and ChilloutVR saves leave the slot owner unknown instead of binding a new account to old ciphertext. Successful restores backfill ownership through the same write-gated path. (VRX-24)
+- Relogging into a different account now clears the previous account's friends list immediately instead of briefly showing stale friends. (VRX-24)
 - Hardened multi-account isolation: authenticated registry adoption is identity-and-epoch atomic, unsafe account ids are rejected consistently, future store formats remain read-only even with incompatible payloads, logged-out callers cannot enumerate account history, stale same-account writes are fenced, and unchanged auth polls no longer rewrite the registry. (VRX-24)
 
 ## [0.9.0] - 2026-07-12
