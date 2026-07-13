@@ -76,6 +76,7 @@ export function saveCredential(key: CredentialKey, plaintext: string): void {
   requireCredentialKey(key)
   requireEncryption()
   const encrypted = safeStorage.encryptString(plaintext).toString('base64')
+  getOwnerStore().delete(key)
   getStore().set(key, encrypted)
 }
 

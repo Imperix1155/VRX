@@ -28,6 +28,31 @@ function fakeStore(
   return store
 }
 
+function ownerBindingHarness(): {
+  store: CvrCredentialStore
+  onIdentity: (accountId: string | null) => void
+  getOwner: () => string | null
+} {
+  let credential: CVRCredentials | undefined
+  let owner: { accountId: string; credential: CVRCredentials } | null = null
+  return {
+    store: {
+      load: () => credential,
+      save: (value) => {
+        credential = value
+      },
+      delete: () => {
+        credential = undefined
+        owner = null
+      }
+    },
+    onIdentity: (accountId) => {
+      if (accountId !== null && credential !== undefined) owner = { accountId, credential }
+    },
+    getOwner: () => (owner !== null && owner.credential === credential ? owner.accountId : null)
+  }
+}
+
 /** A full CVR auth payload (the schema requires every field). */
 function authPayload(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
@@ -167,6 +192,45 @@ describe('CvrAdapter', () => {
   })
 
   describe('login (password leg — raw, breaker-free)', () => {
+    it('binds the owner on first login into an empty credential slot', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
+      const binding = ownerBindingHarness()
+      const adapter = new CvrAdapter(binding.store, noopSleep, {
+        onIdentity: binding.onIdentity
+      })
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
+    it('rebinds an A-to-B replacement to B after the new credential is persisted', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            envelope(
+              authPayload({
+                username: 'morpheus',
+                accessKey: 'key-2',
+                userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+              })
+            )
+          )
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness()
+      const adapter = new CvrAdapter(binding.store, noopSleep, {
+        onIdentity: binding.onIdentity
+      })
+
+      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+    })
+
     it('authenticates, persists ONLY username+accessKey, reports authenticated status', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       vi.stubGlobal('fetch', fetchMock)

@@ -100,6 +100,7 @@ describe('credential storage', () => {
     expect(JSON.stringify(persisted)).not.toContain('raw-auth-token')
     expect(mocks.encryptString).toHaveBeenCalledWith('raw-auth-token')
     expect(mocks.storeOptions).toEqual([
+      { name: 'credential-owners', accessPropertiesByDotNotation: false },
       { name: 'credentials', accessPropertiesByDotNotation: false }
     ])
   })
@@ -130,6 +131,17 @@ describe('credential storage', () => {
     })
   })
 
+  it('returns B after a completed A-to-B replacement in the same slot', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
+    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
+    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_b')
+
+    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toEqual({
+      platformAccountId: 'usr_account_b'
+    })
+  })
+
   it('returns null when an out-of-band ciphertext overwrite breaks the owner digest binding', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
@@ -138,6 +150,24 @@ describe('credential storage', () => {
     })
 
     expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
+  })
+
+  it('returns null when a save completes but owner recording is interrupted', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
+    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
+
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
+
+    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
+  })
+
+  it('saveCredential clears a pre-existing owner sidecar entry', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-a-session')
+    recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-a')
+
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-b-session')
+
+    expect(mocks.stores.get('credential-owners')).toEqual({})
   })
 
   it('clears the credential owner sidecar with the stored credential', () => {
@@ -159,7 +189,7 @@ describe('credential storage', () => {
       expect(() =>
         recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, platformAccountId)
       ).toThrow('invalid platformAccountId')
-      expect(mocks.stores.get('credential-owners')).toBeUndefined()
+      expect(mocks.stores.get('credential-owners')).toEqual({})
     }
   )
 

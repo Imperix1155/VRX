@@ -217,8 +217,8 @@ export class VrcAdapter extends VrcApiClient {
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
-    this.live?.onIdentity?.(this.accountId)
     this.persist()
+    this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
 
@@ -287,8 +287,8 @@ export class VrcAdapter extends VrcApiClient {
     this.accountId = null
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
-    await this.refreshDisplayName()
     this.persist()
+    await this.refreshDisplayName()
     return { ok: true }
   }
 

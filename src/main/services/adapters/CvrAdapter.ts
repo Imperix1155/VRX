@@ -193,11 +193,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       accessKey: parsed.data.data.accessKey
     })
     this.accountId = parsed.data.data.userId
-    this.live?.onIdentity?.(this.accountId)
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
     this.persist()
+    this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
 
