@@ -23,6 +23,8 @@ type VrxBridge = {
   ) => Promise<IpcInvoke['save-settings']['res']>
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */
   onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => () => void
+  /** Per-platform identity changes clear renderer-owned account data (VRX-24). */
+  onIdentityBoundary: (callback: (event: IpcEvents['identity-boundary']) => void) => () => void
   /** Native hot-instance toast click → Dashboard (VRX-85). */
   onNavigateToDashboard: (callback: () => void) => () => void
 }

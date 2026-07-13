@@ -4,6 +4,7 @@ import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
+import { useIdentityBoundary } from './hooks/useIdentityBoundary'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { useUiStore } from './stores/ui'
 
@@ -17,6 +18,9 @@ function App(): React.JSX.Element {
   // subscription is idempotent and event application no-ops until a friends
   // fetch has populated the cache (which only happens once authenticated).
   useLiveFriendEvents()
+  // Identity changes are hard cache boundaries: never show the previous
+  // account's roster while the new account loads (VRX-24).
+  useIdentityBoundary()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85).
   useEffect(() => {

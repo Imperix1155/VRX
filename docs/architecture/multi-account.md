@@ -11,7 +11,7 @@
 > + the **identity-boundary friends-cache reset** (fixes a LIVE stale-roster bug: relogin as a
 > different account today keeps the old list until a slow refetch) + the ciphertext-bound
 > **credential owner sidecar**. Explicitly NOT built now (seams named in §6):
-> append-heavy history storage, the account-switch UI + renderer cache cancellation, the
+> append-heavy history storage, the account-switch UI, the
 > favorites vertical, credential re-keying, the linking engine.
 
 ## 1. The model in one paragraph
@@ -105,7 +105,8 @@ typed `no-active` / `resolving`. Store operations carry the epoch they were issu
 under; a write whose epoch is stale (an A-issued async write landing after a B
 switch) is REJECTED. This is the primitive the switch consumer (VRX-90) and the
 favorites overlay build on — it exists now so they can't be built racy. No switch
-UI, no cache cancellation this milestone.
+UI lands this milestone; renderer friends-cache cancellation is driven by the
+per-platform identity-boundary push described in D6.
 
 ## 8. Owner decisions (resolved 2026-07-12)
 
