@@ -17,6 +17,7 @@ import {
   CREDENTIAL_KEYS,
   clearCredential,
   loadCredential,
+  recordCredentialOwner,
   saveCredential
 } from './services/credentials'
 import { WebSocket } from 'ws'
@@ -345,7 +346,12 @@ app
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
       log: (level, message, meta) => log[level](message, meta),
-      onIdentity: (accountId) => accountSession.setIdentity('vrchat', accountId),
+      onIdentity: (accountId) => {
+        accountSession.setIdentity('vrchat', accountId)
+        if (accountId !== null) {
+          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
+        }
+      },
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
@@ -386,7 +392,12 @@ app
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       socketFactory: (url, headers) => new WebSocket(url, { headers }),
       log: (level, message, meta) => log[level](message, meta),
-      onIdentity: (accountId) => accountSession.setIdentity('chilloutvr', accountId),
+      onIdentity: (accountId) => {
+        accountSession.setIdentity('chilloutvr', accountId)
+        if (accountId !== null) {
+          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
+        }
+      },
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')

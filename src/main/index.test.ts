@@ -80,3 +80,19 @@ describe('main account-registry adoption', () => {
     )
   })
 })
+
+describe('main credential-owner wiring', () => {
+  it.each([
+    ['vrchat', 'VRCHAT_PRIMARY'],
+    ['chilloutvr', 'CHILLOUTVR_PRIMARY']
+  ])(
+    'captures and validates %s identity before recording the ciphertext owner',
+    (platform, key) => {
+      expect(source).toMatch(
+        new RegExp(
+          `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*if \\(accountId !== null\\) \\{\\s*recordCredentialOwner\\(CREDENTIAL_KEYS\\.${key}, accountId\\)`
+        )
+      )
+    }
+  )
+})

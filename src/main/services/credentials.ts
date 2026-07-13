@@ -1,5 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
+import { createHash } from 'node:crypto'
+import { isPlatformAccountId } from './accountSession'
 
 const ENCRYPTION_UNAVAILABLE_MESSAGE = 'Credential encryption is unavailable'
 const MALFORMED_CREDENTIAL_MESSAGE = 'Stored credential is malformed'
@@ -22,9 +24,23 @@ export class CredentialEncryptionUnavailableError extends Error {
 
 let store: Store<Partial<Record<CredentialKey, string>>> | undefined
 
+interface CredentialOwnerRecord {
+  platformAccountId: string
+  credentialDigest: string
+}
+
+let ownerStore: Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>> | undefined
+
 function getStore(): Store<Partial<Record<CredentialKey, string>>> {
   return (store ??= new Store<Partial<Record<CredentialKey, string>>>({
     name: 'credentials',
+    accessPropertiesByDotNotation: false
+  }))
+}
+
+function getOwnerStore(): Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>> {
+  return (ownerStore ??= new Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>>({
+    name: 'credential-owners',
     accessPropertiesByDotNotation: false
   }))
 }
@@ -52,6 +68,10 @@ function decodeCredential(encrypted: string): Buffer {
   return decoded
 }
 
+function credentialDigest(encrypted: string): string {
+  return createHash('sha256').update(encrypted).digest('hex')
+}
+
 export function saveCredential(key: CredentialKey, plaintext: string): void {
   requireCredentialKey(key)
   requireEncryption()
@@ -69,7 +89,44 @@ export function loadCredential(key: CredentialKey): string | undefined {
   return safeStorage.decryptString(decodeCredential(encrypted))
 }
 
+export function recordCredentialOwner(key: CredentialKey, platformAccountId: string): void {
+  requireCredentialKey(key)
+  if (!isPlatformAccountId(platformAccountId)) throw new Error('invalid platformAccountId')
+
+  const encrypted = getStore().get(key)
+  if (encrypted === undefined) return
+  if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
+
+  getOwnerStore().set(key, {
+    platformAccountId,
+    credentialDigest: credentialDigest(encrypted)
+  })
+}
+
+export function getCredentialOwner(key: CredentialKey): { platformAccountId: string } | null {
+  requireCredentialKey(key)
+  const encrypted = getStore().get(key)
+  if (typeof encrypted !== 'string') return null
+
+  const owner: unknown = getOwnerStore().get(key)
+  if (
+    typeof owner !== 'object' ||
+    owner === null ||
+    !('platformAccountId' in owner) ||
+    !('credentialDigest' in owner) ||
+    typeof owner.platformAccountId !== 'string' ||
+    typeof owner.credentialDigest !== 'string' ||
+    !isPlatformAccountId(owner.platformAccountId) ||
+    credentialDigest(encrypted) !== owner.credentialDigest
+  ) {
+    return null
+  }
+
+  return { platformAccountId: owner.platformAccountId }
+}
+
 export function clearCredential(key: CredentialKey): void {
   requireCredentialKey(key)
   getStore().delete(key)
+  getOwnerStore().delete(key)
 }
