@@ -3,7 +3,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 
@@ -27,44 +27,6 @@ function fakeStore(
     }
   }
   return store
-}
-
-function ownerBindingHarness(initialCredential?: CVRCredentials): {
-  store: CvrCredentialStore
-  getOwner: () => string | null
-  getCredential: () => CVRCredentials | undefined
-  getAttemptedAccountIds: () => Array<string | null | undefined>
-  failNextSave: () => void
-} {
-  let credential = initialCredential
-  let owner: { accountId: string; credential: CVRCredentials } | null = null
-  let saveShouldFail = false
-  const attemptedAccountIds: Array<string | null | undefined> = []
-  return {
-    store: {
-      load: () => credential,
-      save: (value, accountId?: string | null) => {
-        attemptedAccountIds.push(accountId)
-        owner = null
-        if (saveShouldFail) {
-          saveShouldFail = false
-          throw new Error('credential write failed')
-        }
-        credential = value
-        if (typeof accountId === 'string') owner = { accountId, credential: value }
-      },
-      delete: () => {
-        credential = undefined
-        owner = null
-      }
-    },
-    getOwner: () => (owner !== null && owner.credential === credential ? owner.accountId : null),
-    getCredential: () => credential,
-    getAttemptedAccountIds: () => attemptedAccountIds,
-    failNextSave: () => {
-      saveShouldFail = true
-    }
-  }
 }
 
 /** A full CVR auth payload (the schema requires every field). */
@@ -208,7 +170,7 @@ describe('CvrAdapter', () => {
   describe('login (password leg — raw, breaker-free)', () => {
     it('binds the owner on first login into an empty credential slot', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<CVRCredentials>()
       const adapter = new CvrAdapter(binding.store, noopSleep)
 
       await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
@@ -232,7 +194,7 @@ describe('CvrAdapter', () => {
           )
         )
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<CVRCredentials>()
       const adapter = new CvrAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)
@@ -257,7 +219,7 @@ describe('CvrAdapter', () => {
           )
         )
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<CVRCredentials>()
       const adapter = new CvrAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)

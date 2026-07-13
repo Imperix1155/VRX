@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 
@@ -24,44 +24,6 @@ function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; de
     }
   }
   return store
-}
-
-function ownerBindingHarness(initialCredential?: string): {
-  store: VrcCredentialStore
-  getOwner: () => string | null
-  getCredential: () => string | undefined
-  getAttemptedAccountIds: () => Array<string | null | undefined>
-  failNextSave: () => void
-} {
-  let credential = initialCredential
-  let owner: { accountId: string; credential: string } | null = null
-  let saveShouldFail = false
-  const attemptedAccountIds: Array<string | null | undefined> = []
-  return {
-    store: {
-      load: () => credential,
-      save: (value, accountId?: string | null) => {
-        attemptedAccountIds.push(accountId)
-        owner = null
-        if (saveShouldFail) {
-          saveShouldFail = false
-          throw new Error('credential write failed')
-        }
-        credential = value
-        if (typeof accountId === 'string') owner = { accountId, credential: value }
-      },
-      delete: () => {
-        credential = undefined
-        owner = null
-      }
-    },
-    getOwner: () => (owner !== null && owner.credential === credential ? owner.accountId : null),
-    getCredential: () => credential,
-    getAttemptedAccountIds: () => attemptedAccountIds,
-    failNextSave: () => {
-      saveShouldFail = true
-    }
-  }
 }
 
 const creds = { username: 'neo', password: 'redpill' }
@@ -251,7 +213,7 @@ describe('VrcAdapter', () => {
             )
           )
       )
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
       await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
@@ -275,7 +237,7 @@ describe('VrcAdapter', () => {
           )
         )
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)
@@ -300,7 +262,7 @@ describe('VrcAdapter', () => {
           )
         )
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)
@@ -460,7 +422,7 @@ describe('VrcAdapter', () => {
         )
         .mockResolvedValueOnce(jsonResponse({ id: 'TRINITY09', displayName: 'Trinity' }))
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)
@@ -486,7 +448,7 @@ describe('VrcAdapter', () => {
         )
         .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
       vi.stubGlobal('fetch', fetchMock)
-      const binding = ownerBindingHarness()
+      const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
       await adapter.login(creds)
