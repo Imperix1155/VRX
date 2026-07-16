@@ -68,6 +68,18 @@ describe('AvatarCache', () => {
     ).toBeUndefined()
   })
 
+  it('fetches files.chilloutvr.net directly with no cookie (CVR current roster CDN, VRX-62)', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
+    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+
+    await expect(
+      cache.get('https://files.chilloutvr.net/user_images/00-0000.png')
+    ).resolves.toMatch(/^data:image\/png;base64,/)
+    expect(
+      (fetchFn.mock.calls[0]?.[1]?.headers as Record<string, string>)['Cookie']
+    ).toBeUndefined()
+  })
+
   it('refuses a redirect ISSUED by any host but api.vrchat.cloud (no CDN chains)', async () => {
     const fetchFn = vi
       .fn<typeof fetch>()

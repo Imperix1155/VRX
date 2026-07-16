@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- ChilloutVR friends now show their profile pictures — CVR's roster serves images from `files.chilloutvr.net`, which the avatar fetcher's host allowlist didn't include, so every CVR avatar was silently rejected. (VRX-62)
+- VRChat friends with a profile picture set no longer show the default gray robot: the friend list now prefers the user's profile icon/picture over the avatar thumbnail. (VRX-62)
+
 ## [0.9.1] - 2026-07-13
 
 ### Added
