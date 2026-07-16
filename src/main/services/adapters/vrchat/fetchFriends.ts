@@ -51,6 +51,11 @@ const currentUserBucketsSchema = z.object({
 export const rawFriendSchema = z.object({
   id: z.string(),
   displayName: z.string(),
+  // Profile-picture fields (VRX-62): userIcon is the user-set circular profile
+  // icon (VRC+), profilePicOverride the user-set profile picture. Both are ""
+  // when unset (VRChat convention), so the normalizer skips empties.
+  userIcon: z.string().nullable().optional(),
+  profilePicOverride: z.string().nullable().optional(),
   currentAvatarThumbnailImageUrl: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
@@ -77,6 +82,14 @@ export type RawFriend = z.infer<typeof rawFriendSchema>
  * same path as REST; the pipeline passes SYNTHETIC buckets because the event
  * TYPE (online/active/offline) is what carries the presence state there.
  */
+/** First value that is a non-empty string, else null ("" = unset in VRChat payloads). */
+function firstNonEmpty(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value !== '') return value
+  }
+  return null
+}
+
 export function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFriend {
   const { state, status, statusDescription } = parsePresence(
     { id: raw.id, status: raw.status, statusDescription: raw.statusDescription },
@@ -87,7 +100,14 @@ export function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFr
     platform: 'vrchat',
     platformUserId: raw.id,
     displayName: raw.displayName,
-    avatarUrl: raw.currentAvatarThumbnailImageUrl ?? null,
+    // Prefer the user's explicit profile pictures over the avatar thumbnail —
+    // the thumbnail renders as the default gray robot for private/fallback
+    // avatars even when the user has a real profile pic set (VRX-62).
+    avatarUrl: firstNonEmpty(
+      raw.userIcon,
+      raw.profilePicOverride,
+      raw.currentAvatarThumbnailImageUrl
+    ),
     presence: { state },
     status,
     statusDescription,
