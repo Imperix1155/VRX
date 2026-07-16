@@ -199,6 +199,32 @@ describe('fetchFriends', () => {
       expect(f!.linkedPersonId).toBeNull()
     })
 
+    it('prefers userIcon, then profilePicOverrideThumbnail, over the avatar thumbnail (VRX-62)', async () => {
+      const fetcher = buildFetcher(
+        [
+          [
+            {
+              ...makeFriend(1),
+              userIcon: 'https://example.com/icon.png',
+              profilePicOverrideThumbnail: 'https://example.com/pic-256.png'
+            },
+            // "" = unset in VRChat payloads — must fall through, never win.
+            {
+              ...makeFriend(2),
+              userIcon: '',
+              profilePicOverrideThumbnail: 'https://example.com/pic2-256.png'
+            },
+            { ...makeFriend(3), userIcon: '', profilePicOverrideThumbnail: '' }
+          ]
+        ],
+        []
+      )
+      const result = await fetchFriends(fetcher)
+      expect(result.friends[0]!.avatarUrl).toBe('https://example.com/icon.png')
+      expect(result.friends[1]!.avatarUrl).toBe('https://example.com/pic2-256.png')
+      expect(result.friends[2]!.avatarUrl).toBe('https://example.com/avatar3.png')
+    })
+
     it('coerces missing optional fields to null', async () => {
       const fetcher = buildFetcher(
         [

@@ -8,7 +8,11 @@ export const AVATAR_ALLOWED_HOSTS = new Set([
   'files.abinteractive.net',
   // CVR's live avatar CDN (VRX-202): real rosters serve `imageUrl` from
   // files.abidata.io (verified against CVRX api_cvr_http.js + chilloutvr_rs).
-  'files.abidata.io'
+  'files.abidata.io',
+  // CVR's CURRENT roster CDN (VRX-62, live-verified 2026-07-16): a real
+  // GET /friends served all 166 imageUrls from files.chilloutvr.net — the
+  // abidata host above is retained for older/legacy URLs.
+  'files.chilloutvr.net'
 ])
 /** The only host that ever receives the VRChat auth cookie (VRX-202). */
 export const AVATAR_COOKIE_HOST = 'api.vrchat.cloud'
