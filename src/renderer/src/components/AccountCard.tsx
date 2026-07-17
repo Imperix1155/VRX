@@ -21,6 +21,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
 
   const authStatusTwoFactor =
     platform === 'vrchat' && authStatus?.state === 'needs-2fa'
@@ -97,6 +98,18 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     }
   }
 
+  async function handleRetry(): Promise<void> {
+    setErrorKey(null)
+    setIsRetrying(true)
+    try {
+      // Refetch the auth status; on recovery the card settles back to its
+      // connected (or unauthenticated) rendering by itself.
+      await queryClient.invalidateQueries({ queryKey: authStatusQueryKey(platform) })
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
   function handleTwoFactorBack(): void {
     setTwoFactorOverride('credentials')
     setTwoFactorCode('')
@@ -104,6 +117,11 @@ export default function AccountCard({ platform }: { platform: Platform }): React
   }
 
   const isConnected = authStatus?.state === 'authenticated'
+  // `error` = the platform couldn't be reached / its reply couldn't be read
+  // (VRX-201) — the session may be alive, so NEVER show the Connect form here
+  // (re-entering credentials would create a duplicate session). Quiet banner +
+  // Retry + Sign out instead; identical path for both platforms.
+  const isUnreachable = authStatus?.state === 'error'
   const inputClass = `w-full rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 ${config.focusClass} disabled:opacity-50 motion-safe:transition-colors`
 
   return (
@@ -132,6 +150,45 @@ export default function AccountCard({ platform }: { platform: Platform }): React
               {isDisconnecting
                 ? t('settings.accounts.disconnecting')
                 : t('settings.accounts.disconnect')}
+            </button>
+          </div>
+          {errorKey && (
+            <p
+              className="mt-[var(--space-3)] flex items-center gap-[var(--space-2)] text-sm text-[var(--error)]"
+              role="alert"
+            >
+              <span aria-hidden="true">⚠</span>
+              {t(errorKey)}
+            </p>
+          )}
+        </div>
+      ) : isUnreachable ? (
+        <div className="relative mt-[var(--space-4)]">
+          <p
+            className="flex items-center gap-[var(--space-2)] text-sm text-[var(--text-dim)]"
+            role="status"
+          >
+            <span aria-hidden="true">⚠</span>
+            <span>{t('settings.accounts.unreachable', { platform: t(config.labelKey) })}</span>
+          </p>
+          <div className="mt-[var(--space-3)] flex items-center gap-[var(--space-3)]">
+            <button
+              type="button"
+              onClick={() => void handleRetry()}
+              disabled={isRetrying || isDisconnecting}
+              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+            >
+              {isRetrying ? t('settings.accounts.retrying') : t('settings.accounts.retry')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDisconnect()}
+              disabled={isRetrying || isDisconnecting}
+              className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+            >
+              {isDisconnecting
+                ? t('settings.accounts.disconnecting')
+                : t('settings.accounts.signOut')}
             </button>
           </div>
           {errorKey && (

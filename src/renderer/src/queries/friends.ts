@@ -31,13 +31,19 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   // Auth-gated: an unauthenticated platform must not fetch — otherwise every
   // mount/interval/cache-removal wakes a doomed request whose 401 re-broadcasts
   // auth-invalidated (observed end-to-end on logout, VRX-191 review round 2).
+  // `error` DOES fetch (VRX-201): on API drift the session cookie is typically
+  // still valid, so the fetch just works instead of hanging social views on an
+  // indefinite isPending (disabled + no auth polling = never converges). No doom
+  // loop on a genuinely dead session either: the fetch 401s, the adapter clears
+  // the session (existing behavior), auth converges to `unauthenticated`, and
+  // the query re-disables — the VRX-191 gating reason was unauthenticated loops.
   const auth = useAuthStatus(platform)
   return useQuery({
     queryKey: friendsQueryKey(platform),
     queryFn: () => fetchFriends(platform),
     staleTime: FRIENDS_RECONCILE_MS,
     refetchInterval: FRIENDS_RECONCILE_MS,
-    enabled: auth.data?.state === 'authenticated'
+    enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })
 }
 

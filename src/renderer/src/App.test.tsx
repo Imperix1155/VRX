@@ -165,6 +165,29 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     expect(screen.queryByText(msg('login.twoFactor.promptTotp'))).toBeNull()
   })
 
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'renders the shell (NOT LoginScreen) when %s is in error and neither is authenticated',
+    (errorPlatform) => {
+      // VRX-201: `error` means the platform couldn't be reached / its reply
+      // couldn't be read — the session may be ALIVE. Falling to LoginScreen
+      // here invites re-entering credentials → duplicate sessions.
+      const errored: AuthStatus = {
+        platform: errorPlatform,
+        state: 'error',
+        accountId: null,
+        displayName: null
+      }
+      mockAuthStatuses(
+        errorPlatform === 'vrchat' ? errored : vrcUnauthenticated,
+        errorPlatform === 'chilloutvr' ? errored : cvrUnauthenticated
+      )
+      renderApp()
+
+      expect(screen.getByTestId('app-shell')).toBeTruthy()
+      expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+    }
+  )
+
   it('renders nothing while either unresolved platform could still be authenticated', () => {
     mockAuthStatuses(vrcUnauthenticated, cvrUnauthenticated, ['chilloutvr'])
     renderApp()
