@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { AuthState } from '@shared/types'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
@@ -31,7 +32,12 @@ function App(): React.JSX.Element {
 
   // Platform parity: keep account management reachable while either platform is
   // connected. A VRChat 2FA reprompt is handled inside its AccountCard in-shell.
-  if (vrcAuthStatus?.state === 'authenticated' || cvrAuthStatus?.state === 'authenticated') {
+  // An `error` status also enters the shell (VRX-201): the session may be ALIVE
+  // (API outage / schema drift — only the status reply was unreadable), so
+  // falling to LoginScreen would invite re-entering credentials and creating a
+  // duplicate session. The shell (AccountCard) is where the error is presented.
+  const entersShell = (state?: AuthState): boolean => state === 'authenticated' || state === 'error'
+  if (entersShell(vrcAuthStatus?.state) || entersShell(cvrAuthStatus?.state)) {
     return <AppShell />
   }
 

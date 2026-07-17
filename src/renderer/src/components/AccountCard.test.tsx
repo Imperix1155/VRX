@@ -137,6 +137,63 @@ describe.each([
     expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
   })
 
+  it('shows the unreachable banner with Retry and Sign out — never the Connect form — on error (VRX-201)', async () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'error',
+      accountId: null,
+      displayName: null
+    })
+    renderCard(platform, bridge)
+
+    const platformName = msg(`settings.accounts.${platform}.label`)
+    expect(
+      await screen.findByText(msg('settings.accounts.unreachable', { platform: platformName }))
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: msg('settings.accounts.retry') })).toBeTruthy()
+    expect(screen.getByRole('button', { name: msg('settings.accounts.signOut') })).toBeTruthy()
+    // The session may be alive — a Connect form here would invite a duplicate
+    // login. It must NOT render.
+    expect(screen.queryByLabelText(msg('settings.accounts.username'))).toBeNull()
+    expect(screen.queryByLabelText(msg('settings.accounts.password'))).toBeNull()
+  })
+
+  it('Retry refetches auth status and converges the card when the platform recovers', async () => {
+    let state: AuthStatus = { platform, state: 'error', accountId: null, displayName: null }
+    const bridge = bridgeFor(state)
+    bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
+    renderCard(platform, bridge)
+
+    await screen.findByRole('button', { name: msg('settings.accounts.retry') })
+    state = { platform, state: 'authenticated', accountId: `${platform}-account`, displayName }
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.retry') }))
+
+    expect(
+      await screen.findByText(msg('settings.accounts.connectedAs', { name: displayName }))
+    ).toBeTruthy()
+    expect(bridge.getAuthStatus.mock.calls.length).toBeGreaterThanOrEqual(2)
+    // Retry only re-checks status — it must never touch credentials.
+    expect(bridge.login).not.toHaveBeenCalled()
+    expect(bridge.logout).not.toHaveBeenCalled()
+  })
+
+  it('Sign out from the unreachable banner runs the existing logout action', async () => {
+    let state: AuthStatus = { platform, state: 'error', accountId: null, displayName: null }
+    const bridge = bridgeFor(state)
+    bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
+    bridge.logout.mockImplementation(() => {
+      state = { platform, state: 'unauthenticated', accountId: null, displayName: null }
+      return Promise.resolve()
+    })
+    renderCard(platform, bridge)
+
+    fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
+
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
+    // Once signed out, the card settles to the normal Connect form.
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+  })
+
   it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
     const bridge = bridgeFor({
       platform,
