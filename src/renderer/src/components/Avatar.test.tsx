@@ -7,7 +7,7 @@ import '../i18n'
 const avatarData = vi.hoisted(() => ({ current: null as string | null }))
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
 
-import { Avatar } from './FriendsList'
+import { Avatar } from './Avatar'
 
 const friend: Friend = {
   platformUserId: 'usr_avatar',
@@ -27,6 +27,53 @@ const friend: Friend = {
 afterEach(() => {
   cleanup()
   avatarData.current = null
+})
+
+describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
+  const badges = (container: HTMLElement): HTMLElement[] => [
+    ...container.querySelectorAll<HTMLElement>('span.border-2')
+  ]
+
+  it.each([
+    ['join-me', '--st-joinme'],
+    ['online', '--st-online'],
+    ['ask-me', '--st-askme'],
+    ['dnd', '--st-dnd']
+  ] as const)('renders exactly one EMPTY badge in the status color for %s', (status, token) => {
+    const { container } = render(<Avatar friend={{ ...friend, status }} />)
+    const found = badges(container)
+    // Badge presence unchanged: exactly one per status …
+    expect(found).toHaveLength(1)
+    // … but with NO svg glyph inside (count, not find — VRX-69), anywhere.
+    expect(found[0]?.querySelectorAll('svg')).toHaveLength(0)
+    expect(container.querySelectorAll('svg')).toHaveLength(0)
+    // Ring color still keys the badge fill.
+    expect(found[0]?.getAttribute('style') ?? '').toContain(`var(${token})`)
+  })
+
+  it('renders an empty web-active badge on the presence palette', () => {
+    const { container } = render(
+      <Avatar friend={{ ...friend, status: null, presence: { state: 'active' } }} />
+    )
+    const found = badges(container)
+    expect(found).toHaveLength(1)
+    expect(container.querySelectorAll('svg')).toHaveLength(0)
+    expect(found[0]?.getAttribute('style') ?? '').toContain('var(--active)')
+  })
+
+  it('renders NO badge for an offline friend', () => {
+    const { container } = render(
+      <Avatar friend={{ ...friend, status: null, presence: { state: 'offline' } }} />
+    )
+    expect(badges(container)).toHaveLength(0)
+    expect(container.querySelectorAll('svg')).toHaveLength(0)
+  })
+
+  it('renders no badge at the drawer size (64px header avatar)', () => {
+    const { container } = render(<Avatar friend={friend} variant="drawer" />)
+    expect(badges(container)).toHaveLength(0)
+    expect(container.querySelector('.h-\\[64px\\]')).not.toBeNull()
+  })
 })
 
 describe('Avatar', () => {

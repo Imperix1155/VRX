@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
@@ -10,120 +10,21 @@ import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
+import FriendDrawer from './FriendDrawer'
+import { Avatar } from './Avatar'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
+import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
-import { useAvatar } from '../hooks/useAvatar'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
-// The avatar's status-color ring + glyph REPLACE the old presence-dot + status-pill
-// (§5/R6/R10 carve-out): the ring carries the hue, the glyph is the non-color
-// signal, and the avatar's aria-label exposes the status TEXT (so status is never
-// color-only). The two §5 axes stay distinct — STATUS drives the ring; PRESENCE
-// (in a world or not) drives the world subline.
-
-type GlyphKind = 'check' | 'enter' | 'question' | 'minus' | 'gamepad' | 'dot' | null
-
-interface Ring {
-  colorVar: string
-  glyph: GlyphKind
-  labelKey: string
-}
-
-const STATUS_RING: Record<NonNullable<Friend['status']>, Ring> = {
-  'join-me': { colorVar: '--st-joinme', glyph: 'enter', labelKey: 'friends.status.joinMe' },
-  online: { colorVar: '--st-online', glyph: 'check', labelKey: 'friends.status.online' },
-  'ask-me': { colorVar: '--st-askme', glyph: 'question', labelKey: 'friends.status.askMe' },
-  dnd: { colorVar: '--st-dnd', glyph: 'minus', labelKey: 'friends.status.dnd' }
-}
-
-// The 'in-game' entry is type-required (exhaustive Record) but unreachable via
-// ringFor since VRX-207 folds statusless in-game onto STATUS_RING.online.
-const PRESENCE_RING: Record<Friend['presence']['state'], Ring> = {
-  'in-game': { colorVar: '--ingame', glyph: 'gamepad', labelKey: 'friends.presence.inGame' },
-  active: { colorVar: '--active', glyph: 'dot', labelKey: 'friends.presence.active' },
-  offline: { colorVar: '--offline', glyph: null, labelKey: 'friends.presence.offline' }
-}
-
-/**
- * The ring for a friend: VRChat folds its STATUS into the ring; a statusless
- * friend who is IN A WORLD takes the same "Online" ring as VRChat status:online
- * (VRX-207/208: CVR's single online state IS privacy tier 2 — the state palette
- * must not leak into the ring only for CVR, where it read as a broken green
- * next to a VRChat friend in the same state). In-game-ness stays carried by the
- * world subline + instance pill, exactly as it is for VRChat rows. Only the
- * true state-only cases remain on the presence palette (web-active, offline).
- */
-function ringFor(friend: Friend): Ring {
-  if (friend.platform === 'vrchat' && friend.status) return STATUS_RING[friend.status]
-  if (friend.presence.state === 'in-game') return STATUS_RING.online
-  return PRESENCE_RING[friend.presence.state]
-}
-
-/**
- * Whether Ask Me / DND should hide the world (DESIGN.md §5 / R6).
- * Only applies to VRChat — CVR has no status.
- */
-function isWorldHidden(friend: Friend): boolean {
-  return friend.platform === 'vrchat' && (friend.status === 'ask-me' || friend.status === 'dnd')
-}
-
-/** Small inline status glyph (knocked out to the page bg on the colored badge). */
-function StatusGlyph({ kind }: { kind: GlyphKind }): React.JSX.Element | null {
-  if (kind == null) return null
-  const stroke = {
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 2.4,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-    'aria-hidden': true
-  }
-  switch (kind) {
-    case 'check':
-      return (
-        <svg {...stroke}>
-          <path d="M5 12.5l4.5 4.5L19 7" />
-        </svg>
-      )
-    case 'enter':
-      return (
-        <svg {...stroke}>
-          <path d="M4 12h11" />
-          <path d="M11 8l4 4-4 4" />
-        </svg>
-      )
-    case 'question':
-      return (
-        <svg {...stroke}>
-          <path d="M9 9.3a3 3 0 1 1 4 2.8c-1 .5-1.5 1.1-1.5 2.2" />
-          <path d="M11.5 17.6h.01" strokeWidth={3.2} />
-        </svg>
-      )
-    case 'minus':
-      return (
-        <svg {...stroke}>
-          <path d="M6 12h12" />
-        </svg>
-      )
-    case 'gamepad':
-      return (
-        <svg {...stroke}>
-          <rect x="3" y="8.5" width="18" height="8" rx="4" />
-          <path d="M7.3 11v3M5.8 12.5h3" />
-          <path d="M15.6 12h.01M17.6 13.6h.01" strokeWidth={3.2} />
-        </svg>
-      )
-    case 'dot':
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="12" cy="12" r="4.5" />
-        </svg>
-      )
-    default:
-      return null
-  }
-}
+// The avatar's status-color ring + badge REPLACE the old presence-dot + status-
+// pill (§5/R6/R10 carve-out): the ring carries the hue and the avatar's
+// aria-label exposes the status TEXT (so status is never color-only) — the
+// drawer's written status band is the long-form signifier (VRX-69; the badge's
+// svg glyph was retired the same round). The two §5 axes stay distinct — STATUS
+// drives the ring; PRESENCE (in a world or not) drives the world subline.
+// Ring model + fold live in `utils/statusRing.ts`, shared with FriendDrawer.
 
 /**
  * Platform tab — the row's platform signal, color AND non-color (VRX-206; owner-
@@ -159,55 +60,8 @@ function PlatformTab({ platform }: { platform: Friend['platform'] }): React.JSX.
   )
 }
 
-/**
- * Avatar disc — main-fetched data URL with the initial placeholder retained for
- * loading/failure, wrapped in the status-color ring with a status glyph badge.
- */
-export function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
-  const { t } = useTranslation()
-  const ring = ringFor(friend)
-  const initial = friend.displayName.trim().charAt(0).toUpperCase() || '?'
-  const avatarRef = useRef<HTMLSpanElement>(null)
-  const dataUrl = useAvatar(friend.avatarUrl, avatarRef)
-  const [failedImageKey, setFailedImageKey] = useState<string | null>(null)
-  const imageKey = dataUrl ? `${friend.avatarUrl ?? ''}\u0000${dataUrl}` : null
-
-  return (
-    <span
-      ref={avatarRef}
-      role="img"
-      aria-label={t(ring.labelKey)}
-      className="relative block h-[42px] w-[42px] shrink-0"
-    >
-      {dataUrl && imageKey !== failedImageKey ? (
-        <img
-          src={dataUrl}
-          alt=""
-          aria-hidden="true"
-          onError={() => setFailedImageKey(imageKey)}
-          className="h-[42px] w-[42px] rounded-full object-cover"
-          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
-        />
-      ) : (
-        <span
-          className="grid h-[42px] w-[42px] place-items-center rounded-full text-sm font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
-          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
-        >
-          {initial}
-        </span>
-      )}
-      {ring.glyph && (
-        <span
-          className="absolute -right-px -bottom-px grid h-[16px] w-[16px] place-items-center rounded-full border-2 border-[var(--bg-base)] [&>svg]:block [&>svg]:h-[10px] [&>svg]:w-[10px]"
-          style={{ background: `var(${ring.colorVar})`, color: 'var(--bg-base)' }}
-          aria-hidden="true"
-        >
-          <StatusGlyph kind={ring.glyph} />
-        </span>
-      )}
-    </span>
-  )
-}
+// Avatar moved to components/Avatar.tsx (VRX-69) — shared with FriendDrawer
+// without a FriendsList ⇄ FriendDrawer import cycle.
 
 // memo: the query cache's structuralSharing keeps unchanged Friend object
 // references across refetches, so memoizing the row skips re-rendering every
@@ -215,25 +69,19 @@ export function Avatar({ friend }: { friend: Friend }): React.JSX.Element {
 // the real fix and lands with VRX-64).
 const FriendRow = memo(function FriendRow({
   friend,
-  searchQuery
+  searchQuery,
+  onOpen
 }: {
   friend: Friend
   searchQuery: string
+  /** Open the friend drawer (VRX-69). Stable callback so the memo holds. */
+  onOpen: (friend: Friend, opener: HTMLElement) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
-  const [isJoining, setIsJoining] = useState(false)
-  const [joinFailed, setJoinFailed] = useState(false)
-  const joinInFlight = useRef(false)
-  const joinFailureTimer = useRef<number | null>(null)
-
-  useEffect(
-    () => () => {
-      if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
-    },
-    []
-  )
+  // Shared join flow (VRX-166; one implementation with the drawer — VRX-69).
+  const { isJoining, joinFailed, join } = useJoinInstance()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
@@ -265,46 +113,35 @@ const FriendRow = memo(function FriendRow({
   }
   const joinable = isFriendJoinable(friend)
 
-  async function joinFriend(event: React.MouseEvent<HTMLButtonElement>): Promise<void> {
+  function joinFriend(event: React.MouseEvent<HTMLButtonElement>): void {
+    // The pill is an inner button — never let its click open the drawer.
     event.stopPropagation()
-    if (joinInFlight.current) return
-
-    joinInFlight.current = true
-    setIsJoining(true)
-    // VRChat ignores mode; a CVR VR-mode picker is a future setting.
-    const showFailureBlip = (): void => {
-      setJoinFailed(true)
-      if (joinFailureTimer.current != null) window.clearTimeout(joinFailureTimer.current)
-      joinFailureTimer.current = window.setTimeout(() => {
-        setJoinFailed(false)
-        joinFailureTimer.current = null
-      }, 2_500)
-    }
-    try {
-      const result = await window.vrx.joinInstance({
-        platform: friend.platform,
-        friendId: friend.platformUserId,
-        mode: 'desktop'
-      })
-      if (!result.ok) showFailureBlip()
-    } catch {
-      // Bridge exceptions (guard throws, missing bridge in exotic states) are
-      // user-equivalent to a denial: blip, never an unhandled rejection.
-      showFailureBlip()
-    } finally {
-      joinInFlight.current = false
-      setIsJoining(false)
-    }
+    void join(friend)
   }
 
   return (
     <li
+      // The row itself opens the friend drawer (VRX-69): click, or Enter/Space
+      // when the row is focused. The join pill stays an independent inner button
+      // (its click already stopPropagation's; its own keydown never reaches the
+      // row handler because of the currentTarget guard).
+      role="button"
+      tabIndex={0}
+      aria-label={t('friends.openDetails', { name: friend.displayName })}
+      onClick={(event) => onOpen(friend, event.currentTarget)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onOpen(friend, event.currentTarget)
+      }}
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
+        'cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
       ].join(' ')}
     >
@@ -349,7 +186,7 @@ const FriendRow = memo(function FriendRow({
               label={instancePill}
               tier={pillTier}
               className="min-w-[78px]"
-              onJoin={(event) => void joinFriend(event)}
+              onJoin={joinFriend}
               disabled={isJoining}
               aria-label={t('friends.joinAria', {
                 name: friend.displayName,
@@ -458,6 +295,25 @@ export default function FriendsList(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const search = useFriendsStore((s) => s.search)
   const setSearch = useFriendsStore((s) => s.setSearch)
+  // Drawer selection (VRX-69) — the store's existing view-state slot. The id is
+  // the composite row key (platform:platformUserId) so the two platforms can
+  // never collide. The opener element is remembered so focus RETURNS to the row
+  // on close (dialog a11y contract).
+  const selectedFriendId = useFriendsStore((s) => s.selectedFriendId)
+  const setSelectedFriendId = useFriendsStore((s) => s.setSelectedFriendId)
+  const openerRef = useRef<HTMLElement | null>(null)
+  const openDrawer = useCallback(
+    (friend: Friend, opener: HTMLElement) => {
+      openerRef.current = opener
+      setSelectedFriendId(`${friend.platform}:${friend.platformUserId}`)
+    },
+    [setSelectedFriendId]
+  )
+  const closeDrawer = useCallback(() => {
+    setSelectedFriendId(null)
+    openerRef.current?.focus()
+    openerRef.current = null
+  }, [setSelectedFriendId])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
@@ -482,6 +338,9 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     function focusSearch(event: KeyboardEvent): void {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
+      // Never steal focus out of the open friend drawer (VRX-69: the dialog's
+      // focus trap owns the keyboard while it's open).
+      if (useFriendsStore.getState().selectedFriendId !== null) return
       const target = event.target
       if (target instanceof HTMLElement) {
         const tagName = target.tagName
@@ -514,6 +373,25 @@ export default function FriendsList(): React.JSX.Element {
         : friends
   const sections =
     filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
+  // Look up in the UNFILTERED (but platform-scoped) list so an active search
+  // can't close an open drawer. A friend that leaves the roster closes it.
+  const selectedFriend =
+    selectedFriendId === null
+      ? null
+      : (friends?.find((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId) ?? null)
+
+  // A selection whose friend has LEFT the settled roster is stale — clear it,
+  // or the drawer would pop back open uninvited if the friend ever returned
+  // (e.g. platform reconnect). Loading states keep the selection (friends
+  // undefined ≠ friend gone).
+  useEffect(() => {
+    if (selectedFriendId !== null && friends !== undefined) {
+      const stillPresent = friends.some(
+        (f) => `${f.platform}:${f.platformUserId}` === selectedFriendId
+      )
+      if (!stillPresent) setSelectedFriendId(null)
+    }
+  }, [friends, selectedFriendId, setSelectedFriendId])
 
   function toggleSection(section: FriendSection): void {
     const next = collapsedSections.includes(section)
@@ -631,6 +509,7 @@ export default function FriendsList(): React.JSX.Element {
                             key={`${f.platform}:${f.platformUserId}`}
                             friend={f}
                             searchQuery={appliedSearch}
+                            onOpen={openDrawer}
                           />
                         ))}
                       </ul>
@@ -642,6 +521,7 @@ export default function FriendsList(): React.JSX.Element {
           )}
         </>
       )}
+      <FriendDrawer friend={selectedFriend} onClose={closeDrawer} />
     </section>
   )
 }

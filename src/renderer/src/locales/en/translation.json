@@ -183,6 +183,29 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR"
+    },
+    "openDetails": "Open details for {{name}}"
+  },
+  "drawer": {
+    "close": "Close",
+    "where": "Where",
+    "hidden": "Hidden",
+    "join": "Join",
+    "trust": "Trust: {{rank}}",
+    "trustRank": {
+      "visitor": "Visitor",
+      "new": "New User",
+      "user": "User",
+      "known": "Known User",
+      "trusted": "Trusted User",
+      "nuisance": "Nuisance"
+    },
+    "statusDesc": {
+      "joinMe": "Open to joins — hop in freely",
+      "online": "Around and reachable",
+      "askMe": "Ask before joining",
+      "dnd": "Not accepting joins",
+      "offline": "Not connected"
     }
   },
   "dashboard": {
