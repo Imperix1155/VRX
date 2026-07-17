@@ -355,7 +355,10 @@ export class VrcAdapter extends VrcApiClient {
       // cookie expired (~weeks). The latter must NOT read as plain unauthenticated —
       // the session is recoverable with just a code, no password (VRX-173).
       const parsed = authUserResponseSchema.safeParse(body)
-      if (!parsed.success) return this.status('unauthenticated')
+      // Schema drift is NOT a dead session — the cookie was accepted (2xx), we
+      // just couldn't read the reply. Report error without clearing, same as
+      // the other unreadable-response branches above (VRX-201).
+      if (!parsed.success) return this.status('error')
 
       if ('requiresTwoFactorAuth' in parsed.data) {
         // Remember the method so a verify2fa() from the reprompt hits the right

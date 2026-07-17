@@ -847,20 +847,21 @@ describe('VrcAdapter', () => {
       expect(loginFetch).toHaveBeenCalled()
     })
 
-    it('maps an unparseable 200 body to unauthenticated WITHOUT clearing the session', async () => {
+    it('maps a 200 with an unparseable/drifted body to error WITHOUT clearing the session (VRX-201)', async () => {
       // The body is garbage but the server said 200 — the cookie may be fine
-      // (transient drift); nuking the persisted session here would force a full
-      // re-login over a blip.
+      // (a live API outage/schema drift, not a dead session); nuking the
+      // persisted session here would force a full re-login over a blip, and
+      // reporting 'unauthenticated' would wrongly surface the login gate.
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ totally: 'wrong' })))
       const store = fakeStore('auth=x')
 
       expect(await new VrcAdapter(store, noopSleep).getAuthStatus()).toMatchObject({
-        state: 'unauthenticated'
+        state: 'error'
       })
       expect(store.deleted).toBe(0)
     })
 
-    it('returns a null accountId after login when a later 200 auth body is unparseable', async () => {
+    it('returns a null accountId after login when a later 200 auth body is unparseable (VRX-201)', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -878,7 +879,7 @@ describe('VrcAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: true })
       expect(await adapter.getAuthStatus()).toEqual({
         platform: 'vrchat',
-        state: 'unauthenticated',
+        state: 'error',
         displayName: null,
         accountId: null
       })
