@@ -1,18 +1,24 @@
 // @vitest-environment jsdom
 /**
- * Auth-gate routing tests (VRX-173).
+ * Auth-gate routing tests (VRX-173) + settings hydration gate (VRX-212).
  *
  * Pins the two-platform gate: pending-with-no-known-session → blank; either
  * authenticated → AppShell; neither authenticated → LoginScreen, preserving the
  * direct method-aware VRChat 2FA reprompt when CVR is disconnected.
  * AppShell is stubbed because its full tree is covered by component tests.
+ *
+ * VRX-212: the UI also stays blank until the persisted-settings load has
+ * resolved, so a saved non-default theme/glow is applied before anything
+ * visible renders.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { act, render, screen, cleanup } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, render, screen, cleanup, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import type { AuthStatus, Platform } from '@shared/types'
 import i18n from './i18n'
 import App from './App'
+import { useSettingsStore } from './stores/settings'
 import { useUiStore } from './stores/ui'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -20,8 +26,6 @@ vi.mock('./queries/auth', () => ({
   useAuthStatus: useAuthStatusMock,
   authStatusQueryKey: (platform: string = 'vrchat') => ['auth-status', platform]
 }))
-// useApplyTheme touches matchMedia (absent in jsdom) — not under test here.
-vi.mock('./hooks/useApplyTheme', () => ({ useApplyTheme: vi.fn() }))
 // AppShell drags in the whole shell tree — stub it; the gate is what's under test.
 vi.mock('./components/AppShell', () => ({
   default: () => <div data-testid="app-shell" />
@@ -62,12 +66,29 @@ function renderApp(): void {
   )
 }
 
+/** A promise with its resolver exposed, for hand-driven async ordering. */
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
+function stubSettingsLoad(promise: Promise<Settings>): void {
+  Object.assign(window, {
+    vrx: {
+      getSettings: () => promise
+    }
+  })
+}
+
 let navigateToDashboard: (() => void) | undefined
 
 function stubDashboardNavigation(): void {
   Object.assign(window, {
     vrx: {
-      getSettings: () => new Promise(() => undefined),
+      getSettings: () => Promise.resolve({ ...DEFAULT_SETTINGS }),
       onNavigateToDashboard: (callback: () => void) => {
         navigateToDashboard = callback
         return () => {
@@ -78,12 +99,29 @@ function stubDashboardNavigation(): void {
   })
 }
 
+beforeEach(() => {
+  // useApplyTheme reads matchMedia; jsdom does not provide it.
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+  document.documentElement.removeAttribute('data-theme')
+  document.documentElement.removeAttribute('data-glow')
+})
+
 afterEach(() => {
   cleanup()
   useAuthStatusMock.mockReset()
   navigateToDashboard = undefined
   Object.assign(window, { vrx: undefined })
   useUiStore.setState({ activeTab: 'dashboard' })
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
 })
 
 describe('App auth gate (VRX-173, platform parity)', () => {
@@ -208,5 +246,71 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     act(() => navigateToDashboard?.())
 
     expect(useUiStore.getState().activeTab).toBe('dashboard')
+  })
+})
+
+describe('App settings hydration gate (VRX-212)', () => {
+  it('hydrates immediately and renders normally when the preload bridge is absent', async () => {
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    await waitFor(() => expect(useSettingsStore.getState().hydrated).toBe(true))
+    expect(screen.getByTestId('app-shell')).toBeTruthy()
+  })
+
+  it('renders blank while settings load, even when auth would already show the shell', async () => {
+    const load = deferred<Settings>()
+    stubSettingsLoad(load.promise)
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    expect(useSettingsStore.getState().hydrated).toBe(false)
+    expect(screen.queryByTestId('app-shell')).toBeNull()
+    expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+
+    act(() => load.resolve({ ...DEFAULT_SETTINGS }))
+    await waitFor(() => expect(screen.getByTestId('app-shell')).toBeTruthy())
+  })
+
+  it('applies persisted theme/glow attributes before the shell is visible (no flash)', async () => {
+    const load = deferred<Settings>()
+    stubSettingsLoad(load.promise)
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    await waitFor(() => expect(screen.queryByTestId('app-shell')).toBeNull())
+    // Default pre-reveal look: dark canvas (no data-theme) + standard glow (no data-glow).
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false)
+    expect(document.documentElement.hasAttribute('data-glow')).toBe(false)
+
+    act(() =>
+      load.resolve({ ...DEFAULT_SETTINGS, theme: 'light', backgroundGlow: 'muted' })
+    )
+
+    // The attributes must land before (in the same commit as) the shell reveal.
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(document.documentElement.getAttribute('data-glow')).toBe('muted')
+    expect(screen.getByTestId('app-shell')).toBeTruthy()
+  })
+
+  it('renders the shell on the first tick when getSettings resolves immediately with defaults', async () => {
+    stubSettingsLoad(Promise.resolve({ ...DEFAULT_SETTINGS }))
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    await waitFor(() => expect(screen.getByTestId('app-shell')).toBeTruthy())
+    expect(useSettingsStore.getState().hydrated).toBe(true)
   })
 })

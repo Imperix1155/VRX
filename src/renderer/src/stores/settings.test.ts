@@ -4,13 +4,23 @@ import { useSettingsStore } from './settings'
 
 describe('useSettingsStore', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+    useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
   })
 
-  it('seeds from DEFAULT_SETTINGS and starts clean', () => {
+  it('seeds from DEFAULT_SETTINGS and starts clean and unhydrated', () => {
     const state = useSettingsStore.getState()
     expect(state.settings).toEqual(DEFAULT_SETTINGS)
     expect(state.dirty).toBe(false)
+    expect(state.hydrated).toBe(false)
+  })
+
+  it('hydrate marks the store hydrated without changing settings or dirty', () => {
+    useSettingsStore.getState().updateSettings({ theme: 'light' })
+    useSettingsStore.getState().hydrate()
+    const state = useSettingsStore.getState()
+    expect(state.hydrated).toBe(true)
+    expect(state.settings.theme).toBe('light')
+    expect(state.dirty).toBe(true)
   })
 
   it('updateSettings merges a patch and marks dirty', () => {
@@ -52,5 +62,11 @@ describe('useSettingsStore', () => {
     const state = useSettingsStore.getState()
     expect(state.settings).toEqual(replacement)
     expect(state.dirty).toBe(false)
+  })
+
+  it('setSettings preserves the hydrated flag', () => {
+    useSettingsStore.getState().hydrate()
+    useSettingsStore.getState().setSettings({ ...DEFAULT_SETTINGS, theme: 'light' })
+    expect(useSettingsStore.getState().hydrated).toBe(true)
   })
 })

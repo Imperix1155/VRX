@@ -20,14 +20,21 @@ export function applyTheme(theme: Theme, prefersLight: boolean): void {
  * Reads the stored theme choice, applies it immediately, and (in system mode)
  * listens for OS preference changes. Must be called at the top level of a
  * component tree (App.tsx) so it fires before any frame paints.
+ *
+ * Hydration gate (VRX-212): the attribute is only touched once the settings
+ * store has hydrated. Before then the default :root dark styling stays in place,
+ * preventing a system-light preference from flashing over the loading canvas.
  */
 export function useApplyTheme(): void {
   const theme = useSettingsStore((s) => s.settings.theme)
+  const hydrated = useSettingsStore((s) => s.hydrated)
 
   // useLayoutEffect (not useEffect) so the theme attribute is set BEFORE the
   // browser paints — otherwise a stored light/system theme flashes dark on first
   // load (CodeRabbit). Safe here: the renderer is client-only, never SSR.
   useLayoutEffect(() => {
+    if (!hydrated) return undefined
+
     const mq =
       typeof window !== 'undefined' && window.matchMedia
         ? window.matchMedia('(prefers-color-scheme: light)')
@@ -43,5 +50,5 @@ export function useApplyTheme(): void {
     }
 
     return undefined
-  }, [theme])
+  }, [theme, hydrated])
 }
