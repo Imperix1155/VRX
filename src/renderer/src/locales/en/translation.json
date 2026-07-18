@@ -34,6 +34,14 @@
       "light": "Light",
       "system": "System"
     },
+    "backgroundGlow": {
+      "label": "Background glow",
+      "description": "How strong the background aurora appears.",
+      "aria": "Background glow selector",
+      "muted": "Muted",
+      "standard": "Standard",
+      "vivid": "Vivid"
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which platform's terms the instance-type pills use.",
