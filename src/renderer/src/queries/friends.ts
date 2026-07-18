@@ -1,7 +1,8 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
-import { FRIENDS_RECONCILE_MS } from '@shared/constants'
+import { FRIENDS_RECONCILE_MS, RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
+import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 
 /** Per-platform query key for the friends list. */
@@ -28,6 +29,8 @@ export async function fetchFriends(platform: Platform): Promise<Friend[]> {
  *   `data` and surfaces `error` separately — never blanks data on error.
  */
 export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> {
+  const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
+  const reconcileIntervalMs = RECONCILE_INTERVAL_MS[reconcileInterval]
   // Auth-gated: an unauthenticated platform must not fetch — otherwise every
   // mount/interval/cache-removal wakes a doomed request whose 401 re-broadcasts
   // auth-invalidated (observed end-to-end on logout, VRX-191 review round 2).
@@ -41,8 +44,8 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   return useQuery({
     queryKey: friendsQueryKey(platform),
     queryFn: () => fetchFriends(platform),
-    staleTime: FRIENDS_RECONCILE_MS,
-    refetchInterval: FRIENDS_RECONCILE_MS,
+    staleTime: reconcileIntervalMs === false ? FRIENDS_RECONCILE_MS : reconcileIntervalMs,
+    refetchInterval: reconcileIntervalMs,
     enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })
 }
