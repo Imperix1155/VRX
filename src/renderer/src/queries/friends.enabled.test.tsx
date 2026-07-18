@@ -116,6 +116,39 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
     expect(getFriends).toHaveBeenCalledTimes(1)
   })
 
+  it('manual survives a remount long after staleness would have expired (Infinity staleTime — Kimi review)', async () => {
+    // The finite-staleTime fallback let refetchOnMount fire after 5 minutes
+    // despite "manual". Remounting the observer on the SAME client an hour
+    // later must NOT trigger a fetch: exactly ONE call, from the first mount.
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: 'manual' },
+      dirty: false
+    })
+    const getFriends = vi.fn().mockResolvedValue([])
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const first = renderHook(() => useFriends('vrchat'), { wrapper })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_600_000)
+    })
+    first.unmount()
+    renderHook(() => useFriends('vrchat'), { wrapper })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+  })
+
   it('applies a changed cadence immediately to the mounted TanStack observer', async () => {
     vi.useFakeTimers()
     mockAuthState('authenticated')
