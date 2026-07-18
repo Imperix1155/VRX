@@ -185,6 +185,28 @@
       "chilloutvrShort": "CVR"
     }
   },
+  "drawer": {
+    "close": "Close",
+    "where": "Where",
+    "hidden": "Hidden",
+    "join": "Join",
+    "trust": "Trust: {{rank}}",
+    "trustRank": {
+      "visitor": "Visitor",
+      "new": "New User",
+      "user": "User",
+      "known": "Known User",
+      "trusted": "Trusted User",
+      "nuisance": "Nuisance"
+    },
+    "statusDesc": {
+      "joinMe": "Open to joins — hop in freely",
+      "online": "Around and reachable",
+      "askMe": "Ask before joining",
+      "dnd": "Not accepting joins",
+      "offline": "Not connected"
+    }
+  },
   "dashboard": {
     "loading": "Loading...",
     "error": "Could not load your friends right now",
