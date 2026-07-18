@@ -118,7 +118,9 @@ let setFriendNote: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
-  getFriendNote = vi.fn().mockResolvedValue({ note: null })
+  getFriendNote = vi
+    .fn()
+    .mockResolvedValue({ note: null, revision: { platformAccountId: 'self', epoch: 1 } })
   setFriendNote = vi.fn().mockResolvedValue({ ok: true })
   window.vrx = { joinInstance, getFriendNote, setFriendNote } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
@@ -409,7 +411,10 @@ describe('FriendDrawer (VRX-69)', () => {
   })
 
   it('loads and shows the private-notes section for the selected friend', async () => {
-    getFriendNote.mockResolvedValue({ note: 'My private note' })
+    getFriendNote.mockResolvedValue({
+      note: 'My private note',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
     render(<FriendsList />)
     openDrawerFor('Alex')
 
@@ -420,7 +425,10 @@ describe('FriendDrawer (VRX-69)', () => {
   })
 
   it('saves the note on blur only when it changed', async () => {
-    getFriendNote.mockResolvedValue({ note: 'Original' })
+    getFriendNote.mockResolvedValue({
+      note: 'Original',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
     render(<FriendsList />)
     openDrawerFor('Alex')
 
@@ -433,7 +441,8 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(setFriendNote).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      note: 'Updated'
+      note: 'Updated',
+      revision: { platformAccountId: 'self', epoch: 1 }
     })
 
     fireEvent.blur(textarea)
