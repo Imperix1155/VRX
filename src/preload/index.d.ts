@@ -27,6 +27,8 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  /** The settings-backed document attributes are ready for the first reveal. */
+  notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */
   onFriendEvent: (callback: (event: IpcEvents['friend-event']) => void) => () => void
   /** Per-platform identity changes clear renderer-owned account data (VRX-24). */

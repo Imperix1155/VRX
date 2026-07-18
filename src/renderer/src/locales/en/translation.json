@@ -42,6 +42,15 @@
       "standard": "Standard",
       "vivid": "Vivid"
     },
+    "reconcileInterval": {
+      "label": "Friends background re-sync",
+      "note": "Real-time updates come from the live connection; this sets the full re-sync cadence.",
+      "aria": "Friends background re-sync cadence",
+      "5m": "5m",
+      "10m": "10m",
+      "30m": "30m",
+      "manual": "Manual only"
+    },
     "labelScheme": {
       "label": "Instance labels",
       "description": "Which platform's terms the instance-type pills use.",

@@ -8,22 +8,32 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
  * Persisted (VRX-184): `hooks/useSettingsPersistence` (mounted in App.tsx)
  * loads via `get-settings` into `setSettings` on startup and saves on the
  * `dirty` flag over `save-settings`, calling `markSaved` on success.
+ *
+ * Hydration (VRX-212): `hydrated` starts false so the first paint cannot flash
+ * a persisted non-default theme/glow. It flips true once the initial
+ * `getSettings()` load resolves (success or failure), or immediately when the
+ * preload bridge is absent (Preview/tests).
  */
 interface SettingsState {
   settings: Settings
   /** True when in-memory settings differ from the last loaded/persisted state. */
   dirty: boolean
+  /** True once the initial persisted-settings load has resolved. */
+  hydrated: boolean
   /** Replace settings wholesale (e.g. after loading persisted state); clears dirty. */
   setSettings: (settings: Settings) => void
   /** Merge a partial update; marks dirty only when a value actually changes. */
   updateSettings: (patch: Partial<Settings>) => void
   /** Clear the dirty flag (after a successful persist). */
   markSaved: () => void
+  /** Mark the store hydrated so the UI may reveal itself. */
+  hydrate: () => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   settings: DEFAULT_SETTINGS,
   dirty: false,
+  hydrated: false,
   setSettings: (settings) => set({ settings, dirty: false }),
   updateSettings: (patch) =>
     set((state) => {
@@ -33,5 +43,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       )
       return { settings: next, dirty: state.dirty || changed }
     }),
-  markSaved: () => set({ dirty: false })
+  markSaved: () => set({ dirty: false }),
+  hydrate: () => set({ hydrated: true })
 }))
