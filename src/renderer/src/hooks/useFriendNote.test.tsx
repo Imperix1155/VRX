@@ -174,13 +174,13 @@ describe('useFriendNote', () => {
     expect(setFriendNote).not.toHaveBeenCalled()
   })
 
-  it('saves the second draft after a first in-flight save succeeds (disk First never wins)', async () => {
-    let resolveSave: (value: { ok: boolean; reason?: string }) => void = () => {}
+  it('queues a blur during an in-flight save and sends both drafts in order', async () => {
+    const saveResolvers: Array<(value: { ok: boolean }) => void> = []
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('self', 1) })
     setFriendNote.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveSave = resolve
+          saveResolvers.push(resolve)
         })
     )
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
@@ -191,32 +191,91 @@ describe('useFriendNote', () => {
     act(() => result.current.setValue('First'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
-    expect(setFriendNote).toHaveBeenLastCalledWith({
+    expect(setFriendNote).toHaveBeenNthCalledWith(1, {
       platform: 'vrchat',
       friendId: 'usr_a',
       note: 'First',
       revision: makeRevision('self', 1)
     })
 
-    // While still in flight, type "Second".
+    // While "First" is still in flight, type "Second" and blur again.
     act(() => result.current.setValue('Second'))
+    act(() => result.current.onBlur())
 
-    // The save for "First" resolves.
-    act(() => resolveSave({ ok: true }))
-
-    // Draft stays "Second"; loaded reflects what actually persisted.
-    await waitFor(() => expect(result.current.value).toBe('Second'))
+    // "Second" is queued, not sent yet.
     expect(setFriendNote).toHaveBeenCalledTimes(1)
 
-    // Next blur persists "Second".
-    act(() => result.current.onBlur())
+    // Resolve "First" → the queue drains and sends "Second".
+    act(() => saveResolvers[0]({ ok: true }))
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
-    expect(setFriendNote).toHaveBeenLastCalledWith({
+    expect(setFriendNote).toHaveBeenNthCalledWith(2, {
       platform: 'vrchat',
       friendId: 'usr_a',
       note: 'Second',
       revision: makeRevision('self', 1)
     })
+
+    // Resolve "Second" → loaded settles on the final persisted value.
+    act(() => saveResolvers[1]({ ok: true }))
+    await waitFor(() => expect(result.current.value).toBe('Second'))
+
+    // A no-op blur must not trigger a third save.
+    act(() => result.current.onBlur())
+    expect(setFriendNote).toHaveBeenCalledTimes(2)
+  })
+
+  it('carries the sequence counter across friend switches so stale completions never match', async () => {
+    const saveResolvers: Array<(value: { ok: boolean }) => void> = []
+    getFriendNote.mockImplementation((req: { platform: string; friendId: string }) => {
+      const note = req.friendId === 'usr_a' ? 'A-note' : 'B-note'
+      return Promise.resolve({ note, revision: makeRevision('self', 1) })
+    })
+    setFriendNote.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          saveResolvers.push(resolve)
+        })
+    )
+    const { result, rerender } = renderHook(
+      ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
+      { initialProps: { friendId: 'usr_a' } }
+    )
+
+    await waitFor(() => expect(result.current.value).toBe('A-note'))
+
+    // Start a save for friend A (seq 1).
+    act(() => result.current.setValue('A-first'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+
+    // Switch to friend B; the counter carries forward (nextSeq becomes 2).
+    rerender({ friendId: 'usr_b' })
+    await waitFor(() => expect(result.current.value).toBe('B-note'))
+
+    act(() => result.current.setValue('B-save'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+
+    // Switch back to friend A; the counter still carries forward (nextSeq becomes 3).
+    rerender({ friendId: 'usr_a' })
+    await waitFor(() => expect(result.current.value).toBe('A-note'))
+
+    act(() => result.current.setValue('A-third'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(3))
+
+    // The stale completion for the first A save (seq 1) must not affect the
+    // current A save (seq 3).
+    act(() => saveResolvers[0]({ ok: true }))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.value).toBe('A-third')
+    expect(setFriendNote).toHaveBeenCalledTimes(3)
+
+    // Resolve the current A save normally.
+    act(() => saveResolvers[2]({ ok: true }))
+    await waitFor(() => expect(result.current.value).toBe('A-third'))
   })
 
   it('ignores a completion for a previous friend after a fast switch', async () => {

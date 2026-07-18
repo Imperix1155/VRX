@@ -22,6 +22,7 @@ interface NoteState {
   revision: NoteRevision | null
   dirty: boolean
   pending: PendingSave | null
+  queued: string | null
   nextSeq: number
 }
 
@@ -36,8 +37,17 @@ export interface UseFriendNoteResult {
   onBlur: () => void
 }
 
-function initialState(key: string): NoteState {
-  return { key, loaded: null, draft: '', revision: null, dirty: false, pending: null, nextSeq: 1 }
+function initialState(key: string, nextSeq = 1): NoteState {
+  return {
+    key,
+    loaded: null,
+    draft: '',
+    revision: null,
+    dirty: false,
+    pending: null,
+    queued: null,
+    nextSeq
+  }
 }
 
 /** Load and edit a per-account, per-friend private note through the preload bridge. */
@@ -47,9 +57,11 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const [boundaryEpoch, setBoundaryEpoch] = useState(0)
 
   // Reset local state when the target friend changes. Done during render so the
-  // effect body can stay free of synchronous setState calls.
+  // effect body can stay free of synchronous setState calls. The sequence
+  // counter is carried forward so an old in-flight completion can never match a
+  // new pending save after a fast switch.
   if (state.key !== key) {
-    setState(initialState(key))
+    setState(initialState(key, state.nextSeq))
   }
 
   // Clear all note state when the platform's account identity changes.
@@ -60,7 +72,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     return window.vrx.onIdentityBoundary(({ platform: boundaryPlatform }) => {
       if (boundaryPlatform !== platform) return
       setBoundaryEpoch((e) => e + 1)
-      setState((current) => initialState(current.key))
+      setState((current) => initialState(current.key, current.nextSeq))
     })
   }, [platform])
 
@@ -95,58 +107,74 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     }
   }, [platform, friendId, boundaryEpoch, key])
 
-  const onBlur = useCallback(() => {
-    const revision = state.revision
-    if (revision === null) return
-    if (state.pending !== null) return
+  const commitSave = useCallback(
+    (draft: string): void => {
+      setState((current) => {
+        if (current.revision === null || current.pending !== null) return current
+        const seq = current.nextSeq
+        const epoch = boundaryEpoch
+        const revision = current.revision
+        const saveKey = current.key
 
+        window.vrx
+          .setFriendNote({ platform, friendId, note: draft, revision })
+          .then((res) => {
+            setState((inner) => {
+              // Key/epoch/sequence match every completion to the request that
+              // spawned it; boundary crossings or friend switches must not
+              // apply stale responses.
+              if (inner.pending?.seq !== seq || boundaryEpoch !== epoch || inner.key !== saveKey) {
+                return inner
+              }
+              if (!res.ok) {
+                return { ...inner, pending: null }
+              }
+              const loaded = inner.pending.draft
+              const dirty = inner.draft.trimEnd() !== loaded.trimEnd()
+              return { ...inner, loaded, dirty, pending: null }
+            })
+          })
+          .catch(() => {
+            setState((inner) => (inner.pending?.seq === seq ? { ...inner, pending: null } : inner))
+          })
+
+        return {
+          ...current,
+          pending: { seq, key: saveKey, revision, draft },
+          queued: null,
+          nextSeq: seq + 1
+        }
+      })
+    },
+    [platform, friendId, boundaryEpoch]
+  )
+
+  // Drain any save that was queued while another save was in flight. This runs
+  // after the active request settles (success or failure) and whenever a new
+  // queued draft appears while the pipeline is idle.
+  useEffect(() => {
+    if (state.queued === null || state.pending !== null || state.revision === null) return
+    const trimmed = state.queued.trimEnd()
+    if (trimmed === (state.loaded ?? '').trimEnd()) {
+      setState((current) => ({ ...current, queued: null }))
+      return
+    }
+    commitSave(state.queued)
+  }, [state.queued, state.pending, state.revision, state.loaded, commitSave])
+
+  const onBlur = useCallback(() => {
     const trimmed = state.draft.trimEnd()
     if (trimmed === (state.loaded ?? '').trimEnd()) return
+    if (state.revision === null) return
     if (typeof window === 'undefined' || typeof window.vrx?.setFriendNote !== 'function') return
 
-    const seq = state.nextSeq
-    const epoch = boundaryEpoch
-    const payload = state.draft
-    setState((current) => ({
-      ...current,
-      pending: { seq, key: current.key, revision, draft: payload },
-      nextSeq: seq + 1
-    }))
+    if (state.pending !== null) {
+      setState((current) => ({ ...current, queued: current.draft }))
+      return
+    }
 
-    window.vrx
-      .setFriendNote({ platform, friendId, note: payload, revision })
-      .then((res) => {
-        setState((current) => {
-          // Key/revision/sequence match every completion to the request that
-          // spawned it; boundary crossings or friend switches must not apply
-          // stale responses.
-          if (current.pending?.seq !== seq || boundaryEpoch !== epoch || current.key !== key) {
-            return current
-          }
-          if (!res.ok) {
-            return { ...current, pending: null }
-          }
-          const loaded = current.pending.draft
-          const dirty = current.draft.trimEnd() !== loaded.trimEnd()
-          return { ...current, loaded, dirty, pending: null }
-        })
-      })
-      .catch(() => {
-        setState((current) =>
-          current.pending?.seq === seq ? { ...current, pending: null } : current
-        )
-      })
-  }, [
-    state.draft,
-    state.loaded,
-    state.revision,
-    state.pending,
-    state.nextSeq,
-    boundaryEpoch,
-    platform,
-    friendId,
-    key
-  ])
+    commitSave(state.draft)
+  }, [state.draft, state.loaded, state.revision, state.pending, commitSave])
 
   const setValue = useCallback((value: string) => {
     setState((current) => {
