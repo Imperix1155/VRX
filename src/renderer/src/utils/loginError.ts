@@ -10,8 +10,9 @@
  *   bad_response         – JSON parse failure             → generic
  *   unexpected_response  – schema mismatch                → generic
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function mapLoginError(code: string): string {
-  // Security AC (VRX-36): all login failures surface one uniform generic message.
+  // Security AC (VRX-36): all login failures surface one uniform generic message;
+  // the code is deliberately unused (kept for signature stability at call sites).
+  void code
   return 'login.error.unknown'
 }
