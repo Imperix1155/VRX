@@ -1,6 +1,6 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
-import { FRIENDS_RECONCILE_MS, RECONCILE_INTERVAL_MS } from '@shared/constants'
+import { RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
@@ -24,7 +24,8 @@ export async function fetchFriends(platform: Platform): Promise<Friend[]> {
  * for server-side friends data (the Zustand store holds only view state).
  *
  * - Initial load on mount + a slow reconcile (`refetchInterval`); the WS is the
- *   live path, so this is a safety-net cadence, not a poll.
+ *   live path, so this is a safety-net cadence, not a poll. Manual cadence uses
+ *   infinite staleness so time alone cannot reconcile on a later remount.
  * - Stale-while-revalidate: a failed background refetch keeps the last good
  *   `data` and surfaces `error` separately — never blanks data on error.
  */
@@ -44,7 +45,7 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   return useQuery({
     queryKey: friendsQueryKey(platform),
     queryFn: () => fetchFriends(platform),
-    staleTime: reconcileIntervalMs === false ? FRIENDS_RECONCILE_MS : reconcileIntervalMs,
+    staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval: reconcileIntervalMs,
     enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })

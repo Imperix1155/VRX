@@ -138,7 +138,10 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
     // made a fixed two-flush version CI-flaky.
     for (let i = 0; i < 20 && !first.result.current.isSuccess; i++) {
       await act(async () => {
-        await Promise.resolve()
+        // Zero-advance runs due MACROtasks too — part of TanStack's settle path
+        // rides setTimeout(0), which pure microtask flushes never reach under
+        // fake timers (the CI flake's real mechanism).
+        await vi.advanceTimersByTimeAsync(0)
       })
     }
     expect(first.result.current.isSuccess).toBe(true)
@@ -151,7 +154,7 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
     const second = renderHook(() => useFriends('vrchat'), { wrapper })
     for (let i = 0; i < 20 && second.result.current.fetchStatus !== 'idle'; i++) {
       await act(async () => {
-        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(0)
       })
     }
     expect(getFriends).toHaveBeenCalledTimes(1)

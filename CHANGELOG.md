@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **You can now set how often the friends list does its full re-sync.** Settings → General → Re-sync cadence: every 5 minutes (default), 10, 30, or manual-only. Real-time updates still arrive instantly over the live connection — this only controls the background safety-net that catches anything missed while disconnected. (VRX-77)
+- **You can now set how often the friends list does its full re-sync.** Settings → General → Re-sync cadence: every 5 minutes (default), 10, 30, or manual-only. Real-time updates still arrive instantly over the live connection — this only controls the background safety-net that catches anything missed while disconnected. Manual-only also stays quiet after leaving and returning to a social view. (VRX-77)
 
 ### Added
 
