@@ -1,62 +1,61 @@
-import { useEffect, useRef, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import type { Friend } from '@shared/types'
 
-/**
- * MODULE-scoped in-flight latch (VRX-69 review): every Join surface — each
- * row pill AND the drawer button — consults the same latch, so one active
- * join blocks ALL surfaces, not just the hook instance that fired it. The
- * blip display (`joinFailed`) stays per-caller.
- */
-const anyJoinInFlight = { current: false }
+interface JoinSnapshot {
+  /** True while ANY surface's join is in flight. */
+  joining: boolean
+  /** Non-null while the failure blip is showing (the last denial's timestamp). */
+  failedAt: number | null
+}
 
-/**
- * The ONE join-a-friend flow (VRX-166 row pill · VRX-69 drawer button):
- * `window.vrx.joinInstance` with the cross-surface in-flight guard above and
- * the 2.5s failure blip (`joinFailed`) for typed denials — bridge exceptions
- * (guard throws, missing bridge in exotic states) are user-equivalent to a
- * denial: blip, never an unhandled rejection. A NEW attempt clears any
- * previous blip immediately, and a success clears it too (review fix of a
- * lifecycle gap inherited from the original row code). The blip timer is
- * cleaned up on unmount. Callers own event concerns (the row
- * stopPropagation's its click).
- */
-export function useJoinInstance(): {
-  isJoining: boolean
-  joinFailed: boolean
+interface JoinStore {
+  subscribe: (listener: () => void) => () => void
+  getSnapshot: () => JoinSnapshot
   join: (friend: Friend) => Promise<void>
-} {
-  const [isJoining, setIsJoining] = useState(false)
-  const [joinFailed, setJoinFailed] = useState(false)
-  const failureTimer = useRef<number | null>(null)
+}
 
-  useEffect(
-    () => () => {
-      if (failureTimer.current != null) window.clearTimeout(failureTimer.current)
-    },
-    []
-  )
+/**
+ * A tiny module-level external store (no new dependencies — consumed via
+ * `useSyncExternalStore`). Kimi re-review fix, VRX-69: with per-hook state,
+ * OTHER Join buttons looked enabled during a join and their clicks silently
+ * no-op'd against the latch, and a blip on one surface survived a success on
+ * another. One snapshot means every Join surface disables together and one
+ * blip state rules. The factory exists so the singleton below is the ONLY
+ * instance — a per-hook store would resurrect the split-state bug.
+ */
+function createJoinStore(): JoinStore {
+  let snapshot: JoinSnapshot = { joining: false, failedAt: null }
+  const listeners = new Set<() => void>()
+  let failureTimer: number | null = null
+
+  function emit(patch: Partial<JoinSnapshot>): void {
+    snapshot = { ...snapshot, ...patch }
+    for (const listener of listeners) listener()
+  }
 
   function clearFailureBlip(): void {
-    if (failureTimer.current != null) {
-      window.clearTimeout(failureTimer.current)
-      failureTimer.current = null
+    if (failureTimer != null) {
+      window.clearTimeout(failureTimer)
+      failureTimer = null
     }
-    setJoinFailed(false)
+    if (snapshot.failedAt != null) emit({ failedAt: null })
+  }
+
+  function showFailureBlip(): void {
+    if (failureTimer != null) window.clearTimeout(failureTimer)
+    emit({ failedAt: Date.now() })
+    failureTimer = window.setTimeout(() => {
+      failureTimer = null
+      emit({ failedAt: null })
+    }, 2_500)
   }
 
   async function join(friend: Friend): Promise<void> {
-    if (anyJoinInFlight.current) return
-    anyJoinInFlight.current = true
-    setIsJoining(true)
+    // The snapshot IS the cross-surface latch: one active join blocks all.
+    if (snapshot.joining) return
+    emit({ joining: true })
+    // A new attempt clears any lingering blip immediately.
     clearFailureBlip()
-    const showFailureBlip = (): void => {
-      setJoinFailed(true)
-      if (failureTimer.current != null) window.clearTimeout(failureTimer.current)
-      failureTimer.current = window.setTimeout(() => {
-        setJoinFailed(false)
-        failureTimer.current = null
-      }, 2_500)
-    }
     try {
       // Guard the preload bridge explicitly — it is undefined in Preview and
       // tests (house rule), and a missing bridge is user-equivalent to a denial.
@@ -73,12 +72,47 @@ export function useJoinInstance(): {
       if (result.ok) clearFailureBlip()
       else showFailureBlip()
     } catch {
+      // Bridge exceptions are user-equivalent to a denial: blip, never an
+      // unhandled rejection.
       showFailureBlip()
     } finally {
-      anyJoinInFlight.current = false
-      setIsJoining(false)
+      emit({ joining: false })
     }
   }
 
-  return { isJoining, joinFailed, join }
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    getSnapshot: () => snapshot,
+    join
+  }
+}
+
+/** ONE store for the whole renderer — every Join surface shares it. */
+const sharedJoinStore = createJoinStore()
+
+/**
+ * The ONE join-a-friend flow (VRX-166 row pill · VRX-69 drawer button).
+ * All state is GLOBAL via the shared store above: `isJoining` is true on
+ * every surface while any join runs (all Join buttons disable together — no
+ * enabled-looking button whose click silently no-ops), and `joinFailed` is
+ * the one 2.5s failure blip — cleared at the start of a new attempt and on
+ * success. Same public API as before (`isJoining`, `joinFailed`, `join`).
+ * Callers own event concerns (the row stopPropagation's its click).
+ */
+export function useJoinInstance(): {
+  isJoining: boolean
+  joinFailed: boolean
+  join: (friend: Friend) => Promise<void>
+} {
+  const { joining, failedAt } = useSyncExternalStore(
+    sharedJoinStore.subscribe,
+    sharedJoinStore.getSnapshot,
+    // Server snapshot: the SSR-rendered markup tests (renderToStaticMarkup)
+    // read the same module snapshot — no window access happens on read.
+    sharedJoinStore.getSnapshot
+  )
+  return { isJoining: joining, joinFailed: failedAt != null, join: sharedJoinStore.join }
 }

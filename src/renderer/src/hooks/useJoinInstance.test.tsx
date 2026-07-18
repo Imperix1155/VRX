@@ -55,6 +55,11 @@ describe('useJoinInstance', () => {
     act(() => {
       firstJoin = surfaceA.result.current.join(friend)
     })
+    // Visual-disable proof (shared external store): while surface A joins,
+    // EVERY surface reports isJoining — no enabled-looking button whose
+    // click would silently no-op.
+    expect(surfaceA.result.current.isJoining).toBe(true)
+    expect(surfaceB.result.current.isJoining).toBe(true)
     // The OTHER surface fires while the first is still pending → no-op.
     await act(async () => {
       await surfaceB.result.current.join(friend)
@@ -101,20 +106,24 @@ describe('useJoinInstance', () => {
     expect(hook.result.current.joinFailed).toBe(true) // the new denial blips again
   })
 
-  it('a success clears a lingering blip and cancels its timer', async () => {
+  it('a success clears a lingering blip and cancels its timer — on EVERY surface', async () => {
     vi.useFakeTimers()
     joinInstance.mockResolvedValueOnce({ ok: false, reason: 'not-joinable' })
     const hook = renderHook(() => useJoinInstance())
+    const otherSurface = renderHook(() => useJoinInstance())
     await act(async () => {
       await hook.result.current.join(friend)
     })
     expect(hook.result.current.joinFailed).toBe(true)
+    // ONE blip state rules all surfaces (shared external store).
+    expect(otherSurface.result.current.joinFailed).toBe(true)
 
     joinInstance.mockResolvedValueOnce({ ok: true })
     await act(async () => {
       await hook.result.current.join(friend)
     })
     expect(hook.result.current.joinFailed).toBe(false)
+    expect(otherSurface.result.current.joinFailed).toBe(false)
 
     // The old blip timer is cancelled — nothing flips state later.
     await act(async () => {

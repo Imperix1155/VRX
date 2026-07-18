@@ -150,8 +150,9 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(joinButton)
 
     // The composed accessible NAME keeps the §9.1 non-color signals —
-    // name + STATUS + world — nothing is hidden by an overriding aria-label.
-    expect(screen.getByRole('button', { name: 'Alex Online The Great Pug' })).toBe(opener)
+    // name + STATUS + world + PLATFORM — nothing is hidden by an overriding
+    // aria-label (platform added in the Kimi re-review round, VRX-206).
+    expect(screen.getByRole('button', { name: 'Alex Online The Great Pug VRChat' })).toBe(opener)
 
     // The li itself is purely structural again (listitem semantics intact).
     expect(opener.closest('li')?.getAttribute('role')).toBeNull()

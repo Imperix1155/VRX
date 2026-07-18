@@ -40,12 +40,21 @@ import { useJoinInstance } from '../hooks/useJoinInstance'
  * -my-* emits logical margin-block, which [writing-mode:vertical-rl] rotates onto
  * the HORIZONTAL axis (review-caught High) — same trap for any future -m*.
  */
-function PlatformTab({ platform }: { platform: Friend['platform'] }): React.JSX.Element {
+function PlatformTab({
+  platform,
+  labelId
+}: {
+  platform: Friend['platform']
+  /** Stable per-row id so the row's details opener can compose the platform
+   *  into its accessible name via aria-labelledby (VRX-69 re-review). */
+  labelId?: string
+}): React.JSX.Element {
   const { t } = useTranslation()
   const isVrc = platform === 'vrchat'
   const pvar = isVrc ? '--vrc' : '--cvr'
   return (
     <span
+      id={labelId}
       role="img"
       aria-label={isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
       className="grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180"
@@ -144,10 +153,10 @@ const FriendRow = memo(function FriendRow({
       <button
         type="button"
         onClick={(event) => onOpen(friend, event.currentTarget)}
-        aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world`}
+        aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="absolute inset-0 z-0 cursor-pointer rounded-[13px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
       />
-      <PlatformTab platform={friend.platform} />
+      <PlatformTab platform={friend.platform} labelId={`${rowId}-platform`} />
       <span id={`${rowId}-avatar`}>
         <Avatar friend={friend} />
       </span>
