@@ -38,6 +38,7 @@ or should be added.
 | `onFriendEvent(callback)`                     | `friend-event` (push)          | `() => void` (unsubscribe)                                                                              |
 | `onIdentityBoundary(callback)`                | `identity-boundary` (push)     | `() => void` (unsubscribe; per-platform account boundary, VRX-24)                                       |
 | `onNavigateToDashboard(callback)`             | `navigate-to-dashboard` (push) | `() => void` (unsubscribe; hot-instance toast click, VRX-85)                                            |
+| `notifyRendererHydrated()`                    | `renderer-hydrated` (notify)   | `void` — one-way renderer→main: settings hydrated + attributes applied; main's ShowGate reveals the window (3s wedge fallback, VRX-212) |
 
 Guard rule: any renderer code calling the bridge must tolerate `window.vrx`
 being absent (Preview/tests) — see the query fetchers for the pattern.
