@@ -221,6 +221,11 @@
       "askMe": "参加する前に確認してください",
       "dnd": "参加を受け付けていません",
       "offline": "未接続"
+    },
+    "notes": {
+      "heading": "メモ（自分用、非公開）",
+      "placeholder": "非公開メモを追加…",
+      "counter": "{{current}}/500"
     }
   },
   "dashboard": {

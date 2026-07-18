@@ -222,6 +222,11 @@
       "askMe": "Ask before joining",
       "dnd": "Not accepting joins",
       "offline": "Not connected"
+    },
+    "notes": {
+      "heading": "Notes (yours, private)",
+      "placeholder": "Add a private note…",
+      "counter": "{{current}}/500"
     }
   },
   "dashboard": {

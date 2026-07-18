@@ -39,6 +39,7 @@ import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
+import { SocialStore } from './services/socialStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate } from './showGate'
 
@@ -367,6 +368,7 @@ app
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
+    const socialStore = new SocialStore(accountSession)
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -555,6 +557,7 @@ app
     registerIpcHandlers(adapters, {
       accountRegistry,
       accountSession,
+      socialStore,
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&
