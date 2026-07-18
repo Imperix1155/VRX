@@ -133,19 +133,27 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     )
     const first = renderHook(() => useFriends('vrchat'), { wrapper })
-    await act(async () => {
-      await Promise.resolve()
-    })
+    // Deterministic settle under fake timers: flush microtasks until the query
+    // SUCCEEDS — an unsettled query legitimately refetches on remount, which
+    // made a fixed two-flush version CI-flaky.
+    for (let i = 0; i < 20 && !first.result.current.isSuccess; i++) {
+      await act(async () => {
+        await Promise.resolve()
+      })
+    }
+    expect(first.result.current.isSuccess).toBe(true)
     expect(getFriends).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_600_000)
     })
     first.unmount()
-    renderHook(() => useFriends('vrchat'), { wrapper })
-    await act(async () => {
-      await Promise.resolve()
-    })
+    const second = renderHook(() => useFriends('vrchat'), { wrapper })
+    for (let i = 0; i < 20 && second.result.current.fetchStatus !== 'idle'; i++) {
+      await act(async () => {
+        await Promise.resolve()
+      })
+    }
     expect(getFriends).toHaveBeenCalledTimes(1)
   })
 
