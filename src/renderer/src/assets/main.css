@@ -87,6 +87,10 @@
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
 
+  /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17).
+     One value for both themes (dimming layer, not a themed surface). */
+  --scrim: rgba(0, 0, 0, 0.44);
+
   --glass-blur: blur(26px) saturate(165%);
 
   /* GLASS material (§3) — rgba extracted as vars so .glass class uses no raw rgba */

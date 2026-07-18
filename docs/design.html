@@ -223,10 +223,11 @@
   .frow.ftabrow { grid-template-columns: 14px 42px 1fr auto; padding: 8px 12px 8px 10px; gap: 12px; }
   .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
   .st-ingame { background: var(--ingame); } .st-active { background: var(--active); } .st-offline { background: var(--offline); }
+  /* Badge = empty status-color dot (glyph retired 2026-07-17/VRX-69; the drawer's
+     written status band is the non-color signifier now — DESIGN.md §9.2). */
   .rav { position: relative; width: 42px; height: 42px; }
   .rav .disc { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 600; color: var(--text-dim); background: color-mix(in srgb, var(--text) 10%, transparent); box-shadow: 0 0 0 2.5px var(--ring); }
-  .rav .rb { position: absolute; right: -1px; bottom: -1px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--bg-base); display: grid; place-items: center; background: var(--ring); color: var(--bg-base); }
-  .rav .rb svg { width: 10px; height: 10px; }
+  .rav .rb { position: absolute; right: -1px; bottom: -1px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--bg-base); background: var(--ring); }
   .fname { font-size: 14px; font-weight: 600; color: var(--text); }
   .fcs { font-size: 12px; color: var(--text-dim); margin-left: 8px; font-weight: 400; }
   .fworld { font-size: 12.5px; color: var(--text-dim); height: 16px; line-height: 16px; margin-top: 1px; }
@@ -716,20 +717,20 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.4</span> Friend row</div>
-          <div class="el-sum">Grid: <code style="font-family:var(--code)">platform tab | avatar status ring + glyph | name + custom status / world subline | instance pill = join target</code>.</div>
+          <div class="el-sum">Grid: <code style="font-family:var(--code)">platform tab | avatar status ring + badge | name + custom status / world subline | instance pill = join target</code>.</div>
           <div class="demo col">
             <div class="flist glass">
-              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" style="--ring: var(--st-joinme)"><span class="disc">A</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h11"/><path d="M11 8l4 4-4 4"/></svg></span></span><span><span class="fname">AlexVR<span class="fcs">come thru</span></span><span class="fworld" style="display:block">The Great Pug</span></span><span class="opill" style="--op: var(--op-public)">Public</span></div>
-              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" style="--ring: var(--st-askme)"><span class="disc">S</span><span class="rb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9.3a3 3 0 1 1 4 2.8c-1 .5-1.5 1.1-1.5 2.2"/><path d="M11.5 17.6h.01" stroke-width="3.2"/></svg></span></span><span><span class="fname">Sage<span class="fcs">taking commissions</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
-              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" style="--ring: var(--active)"><span class="disc">P</span><span class="rb"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4.5"/></svg></span></span><span><span class="fname">Pixel<span class="fcs">on the web — not in a world, no pill</span></span><span class="fworld" style="display:block"></span></span><span></span></div>
+              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Join Me" style="--ring: var(--st-joinme)"><span class="disc">A</span><span class="rb"></span></span><span><span class="fname">AlexVR<span class="fcs">come thru</span></span><span class="fworld" style="display:block">The Great Pug</span></span><span class="opill" style="--op: var(--op-public)">Public</span></div>
+              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Ask Me" style="--ring: var(--st-askme)"><span class="disc">S</span><span class="rb"></span></span><span><span class="fname">Sage<span class="fcs">taking commissions</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
+              <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Active" style="--ring: var(--active)"><span class="disc">P</span><span class="rb"></span></span><span><span class="fname">Pixel<span class="fcs">on the web — not in a world, no pill</span></span><span class="fworld" style="display:block"></span></span><span></span></div>
             </div>
           </div>
           <div class="grid2">
             <div><div class="box-label how">How</div><div class="code">.frow { grid-template-columns: <span class="v">14px 42px 1fr auto</span>; }
 .ftab { <span class="c">/* platform channel: VRC/CVR text */</span> }
-.rav .disc { box-shadow: <span class="v">0 0 0 2.5px var(--ring)</span>; } <span class="c">/* privacy tier + glyph */</span>
+.rav .disc { box-shadow: <span class="v">0 0 0 2.5px var(--ring)</span>; } <span class="c">/* privacy tier ring */</span>
 .opill { <span class="c">/* openness label; the join target */</span> }</div></div>
-            <div><div class="box-label why">Why</div><div class="why">The tab says which platform in color and text. The avatar ring and glyph say the friend’s privacy tier without a separate status pill. The right-side pill says the instance’s openness and, when joinable, is the single join target; Private stays neutral, and an active friend with no instance has no pill.</div></div>
+            <div><div class="box-label why">Why</div><div class="why">The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; Private stays neutral, and an active friend with no instance has no pill.</div></div>
           </div>
         </div>
       </section>

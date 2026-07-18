@@ -109,14 +109,28 @@ describe('FriendsList', () => {
   ] as const)(
     'renders %s as a status-color ring + aria-label, not a pill',
     (status, label, token) => {
-      mock([{ ...friend, status }])
+      // In-game: status folds into the ring ONLY in a world — presence is
+      // evaluated first since the VRX-69 review fix (a WS-offline friend
+      // retains cached status; it must never paint the ring).
+      mock([{ ...friend, status, presence: { state: 'in-game' } }])
       const markup = render()
-      // Ring hue + glyph badge both reference the status token.
+      // Ring hue + badge dot both reference the status token.
       expect(markup).toContain(`var(--st-${token})`)
       // Status TEXT is exposed via the avatar aria-label (R10 — never color-only).
       expect(markup).toContain(`aria-label="${label}"`)
     }
   )
+
+  it('an offline friend with a RETAINED status keeps the offline ring (presence first)', () => {
+    // Pre-existing latent bug fixed in the VRX-69 review round: the WS
+    // friend-offline path keeps the cached `status`, and the old status-first
+    // fold painted an offline friend with a live status ring.
+    mock([{ ...friend, status: 'ask-me', presence: { state: 'offline' } }])
+    const markup = render()
+    expect(markup).toContain('var(--offline)')
+    expect(markup).not.toContain('var(--st-askme)')
+    expect(markup).toContain('aria-label="Offline"')
+  })
 
   it('carries a non-color platform signifier on the row (VRX-206 B&W test)', () => {
     // Reverses the old R10 carve-out (platform = spine color only): the platform

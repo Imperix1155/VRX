@@ -184,6 +184,28 @@
       "chilloutvrShort": "CVR"
     }
   },
+  "drawer": {
+    "close": "閉じる",
+    "where": "場所",
+    "hidden": "非公開",
+    "join": "参加",
+    "trust": "トラスト: {{rank}}",
+    "trustRank": {
+      "visitor": "Visitor",
+      "new": "New User",
+      "user": "User",
+      "known": "Known User",
+      "trusted": "Trusted User",
+      "nuisance": "Nuisance"
+    },
+    "statusDesc": {
+      "joinMe": "参加歓迎 — 気軽にどうぞ",
+      "online": "オンライン、連絡できます",
+      "askMe": "参加する前に確認してください",
+      "dnd": "参加を受け付けていません",
+      "offline": "未接続"
+    }
+  },
   "dashboard": {
     "loading": "読み込み中...",
     "error": "フレンドを読み込めませんでした",

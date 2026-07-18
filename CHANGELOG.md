@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Click a friend to open their details drawer.** A glass panel slides in from the right with the friend's avatar, name, and platform; their status spelled out in words ("Join Me — Open to joins, hop in freely", "Ask Me — Ask before joining", …); where they are (world + instance type, "Hidden" when their status hides it); their VRChat trust rank when known; and a Join button when they're actually joinable. Fully keyboard-accessible: Enter/Space on a row opens it, Esc or clicking outside closes it, and focus returns to the row. (VRX-69)
+
+### Changed
+
+- Cleaner status dots: the little icon inside the avatar's corner status badge is gone — the badge is now a simple colored dot. The status in words now lives in the friend drawer, so the meaning is still never carried by color alone. (VRX-69)
+
 ### Fixed
 
+- An offline friend can no longer show a live status color: the avatar ring now follows presence first, so a friend who went offline while VRX still remembered their last status ("Ask Me", "Join Me", …) correctly shows the gray offline ring with no badge. A friend browsing the VRChat website shows the teal Active ring the same way. (Pre-existing latent bug caught in the VRX-69 review round.)
 - A VRChat API outage or schema drift now shows a "can't reach platform" state instead of the login screen or endless loading — a live session is no longer mistaken for a dead one just because its status reply couldn't be read. The app stays in the shell, the account card offers Retry and Sign out, and the friends list still tries to load (recovering by itself when the platform comes back). Works identically for ChilloutVR. (VRX-201)
 - ChilloutVR friends now show their profile pictures — CVR's roster serves images from `files.chilloutvr.net`, which the avatar fetcher's host allowlist didn't include, so every CVR avatar was silently rejected. (VRX-62)
 - VRChat friends with a profile picture set no longer show the default gray robot: the friend list now prefers the user's profile icon/picture over the avatar thumbnail. (VRX-62)
