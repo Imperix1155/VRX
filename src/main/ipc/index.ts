@@ -7,17 +7,20 @@ import { registerAvatarHandlers } from './avatar'
 import { registerFriendsHandlers } from './friends'
 import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
+import { registerNotesHandlers } from './notes'
 import { registerSettingsHandlers } from './settings'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
 import type { InstanceHandlerOptions } from './instance'
 import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
+import type { SocialStore } from '../services/socialStore'
 
 export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountRegistry: AccountRegistry
   accountSession: AccountSession
   locationAuthority: LocationAuthority
+  socialStore: SocialStore
   instance?: InstanceHandlerOptions
 }
 
@@ -29,6 +32,10 @@ export function registerIpcHandlers(
   registerAvatarHandlers()
   registerAuthHandlers(adapters, options)
   registerAccountsHandlers(options.accountRegistry, options.accountSession)
+  registerNotesHandlers({
+    accountSession: options.accountSession,
+    socialStore: options.socialStore
+  })
   registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
   registerAppStatusHandlers()
   registerLaunchHandlers()

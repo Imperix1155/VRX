@@ -6,7 +6,7 @@
  * tier in words + the right token (CVR online folds to Online); Join renders
  * only for joinable friends; Ask Me/DND show "Hidden".
  */
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -113,9 +113,16 @@ const dialog = (): HTMLElement => screen.getByRole('dialog')
 
 let joinInstance: ReturnType<typeof vi.fn>
 
+let getFriendNote: ReturnType<typeof vi.fn>
+let setFriendNote: ReturnType<typeof vi.fn>
+
 beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
-  window.vrx = { joinInstance } as unknown as Window['vrx']
+  getFriendNote = vi
+    .fn()
+    .mockResolvedValue({ note: null, revision: { platformAccountId: 'self', epoch: 1 } })
+  setFriendNote = vi.fn().mockResolvedValue({ ok: true })
+  window.vrx = { joinInstance, getFriendNote, setFriendNote } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   mockFriends([joinableFriend])
@@ -198,17 +205,17 @@ describe('FriendDrawer (VRX-69)', () => {
     openDrawerFor('Alex')
 
     const closeButton = within(dialog()).getByRole('button', { name: 'Close' })
-    const joinButton = within(dialog()).getByRole('button', { name: 'Join' })
+    const notesTextarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
     expect(document.activeElement).toBe(closeButton) // initial focus inside
 
     // Tab from the LAST focusable wraps to the first…
-    joinButton.focus()
+    notesTextarea.focus()
     fireEvent.keyDown(document, { key: 'Tab' })
     expect(document.activeElement).toBe(closeButton)
 
     // …and Shift+Tab from the FIRST wraps to the last.
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(joinButton)
+    expect(document.activeElement).toBe(notesTextarea)
   })
 
   it.each([
@@ -401,5 +408,88 @@ describe('FriendDrawer (VRX-69)', () => {
       await Promise.resolve()
     })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('loads and shows the private-notes section for the selected friend', async () => {
+    getFriendNote.mockResolvedValue({
+      note: 'My private note',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    await waitFor(() => expect(scoped.getByDisplayValue('My private note')).toBeTruthy())
+    expect(getFriendNote).toHaveBeenCalledWith({ platform: 'vrchat', friendId: 'usr_alex' })
+    expect(scoped.getByText('Notes (yours, private)')).toBeTruthy()
+  })
+
+  it('saves the note on blur only when it changed', async () => {
+    getFriendNote.mockResolvedValue({
+      note: 'Original',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() => scoped.getByDisplayValue('Original'))
+
+    fireEvent.change(textarea, { target: { value: 'Updated' } })
+    fireEvent.blur(textarea)
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+    expect(setFriendNote).toHaveBeenCalledWith({
+      platform: 'vrchat',
+      friendId: 'usr_alex',
+      note: 'Updated',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
+
+    fireEvent.blur(textarea)
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+  })
+
+  it('shows a live N/500 counter and caps input at 500 chars', async () => {
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() =>
+      scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    )
+
+    fireEvent.change(textarea, { target: { value: 'abc' } })
+    expect(scoped.getByText('3/500')).toBeTruthy()
+
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(501) } })
+    expect((textarea as HTMLTextAreaElement).value).toHaveLength(500)
+    expect(scoped.getByText('500/500')).toBeTruthy()
+  })
+
+  it('closes the drawer with Escape while focus is in the textarea', async () => {
+    render(<FriendsList />)
+    const row = openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() =>
+      scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    )
+    ;(textarea as HTMLTextAreaElement).focus()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('renders empty without crashing when the preload bridge is absent', async () => {
+    Object.defineProperty(window, 'vrx', { configurable: true, value: undefined })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() =>
+      scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    )
+    expect((textarea as HTMLTextAreaElement).value).toBe('')
   })
 })

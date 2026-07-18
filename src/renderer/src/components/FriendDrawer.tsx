@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { useJoinInstance } from '../hooks/useJoinInstance'
+import { useFriendNote } from '../hooks/useFriendNote'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
@@ -150,6 +151,15 @@ export default function FriendDrawer({
   const customStatus = shown?.platform === 'vrchat' ? (shown.statusDescription ?? null) : null
   const joinable = shown != null && isFriendJoinable(shown)
   const isVrc = shown?.platform === 'vrchat'
+
+  const {
+    value: noteValue,
+    setValue: setNoteValue,
+    onBlur: onNoteBlur
+  } = useFriendNote({
+    platform: shown?.platform ?? 'vrchat',
+    friendId: shown?.platformUserId ?? ''
+  })
 
   return (
     <div inert={!open} aria-hidden={!open}>
@@ -277,6 +287,36 @@ export default function FriendDrawer({
                   className="block min-h-[16px] text-center text-[12px] text-[var(--text-dim)]"
                 >
                   {shown && joinFailedFor(shown) ? t('friends.joinFailed') : ''}
+                </span>
+              </div>
+            )}
+
+            {/* 5 · Notes — private, account-scoped (VRX-72). */}
+            {shown && (
+              <div className="flex flex-col gap-[var(--space-1)]">
+                <h3
+                  id="friend-notes-label"
+                  className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase"
+                >
+                  <label htmlFor="friend-notes">{t('drawer.notes.heading')}</label>
+                </h3>
+                <textarea
+                  id="friend-notes"
+                  value={noteValue}
+                  onChange={(event) => setNoteValue(event.target.value)}
+                  onBlur={onNoteBlur}
+                  maxLength={500}
+                  rows={4}
+                  placeholder={t('drawer.notes.placeholder')}
+                  aria-labelledby="friend-notes-label"
+                  className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50"
+                  style={{ borderColor: 'var(--border)' }}
+                />
+                <span
+                  aria-live="polite"
+                  className="text-right text-[11px] text-[var(--text-faint)]"
+                >
+                  {t('drawer.notes.counter', { current: noteValue.length })}
                 </span>
               </div>
             )}

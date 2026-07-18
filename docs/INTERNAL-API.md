@@ -29,6 +29,8 @@ or should be added.
 | `login({ platform, credentials })`            | `login`                        | `Promise<LoginResult>`                                                                                  |
 | `verify2fa({ platform, code })`               | `verify-2fa`                   | `Promise<LoginResult>`                                                                                  |
 | `logout({ platform })`                        | `logout`                       | `Promise<void>` — clears that platform session (VRX-191)                                                |
+| `getFriendNote({ platform, friendId })`       | `get-friend-note`              | `Promise<{ note: string \| null, revision? }>` — account-scoped private note + the account LEASE writes must echo (VRX-72); null/no-lease when logged out          |
+| `setFriendNote({ platform, friendId, note })` | `set-friend-note`              | `Promise<{ ok } \| { ok:false, reason }>` — REQUIRES the read's `revision` lease (re-verified in main before writing); 500-char cap, empty deletes; `stale` on lease/epoch mismatch  |
 | `joinInstance({ platform, friendId, mode })`  | `join-instance`                | `Promise<InstanceActionResult>`                                                                         |
 | `selfInvite({ platform:'vrchat', friendId })` | `self-invite`                  | `Promise<InstanceActionResult>`                                                                         |
 | `getAppStatus()`                              | `get-app-status`               | `Promise<AppStatus>`                                                                                    |
