@@ -39,18 +39,23 @@ const PRESENCE_RING: Record<Friend['presence']['state'], Ring> = {
 }
 
 /**
- * The ring for a friend: VRChat folds its STATUS into the ring; a statusless
- * friend who is IN A WORLD takes the same "Online" ring as VRChat status:online
- * (VRX-207/208: CVR's single online state IS privacy tier 2 — the state palette
- * must not leak into the ring only for CVR, where it read as a broken green
- * next to a VRChat friend in the same state). In-game-ness stays carried by the
- * world subline + instance pill, exactly as it is for VRChat rows. Only the
- * true state-only cases remain on the presence palette (web-active, offline).
+ * The ring for a friend. PRESENCE is evaluated FIRST (VRX-69 review fix of a
+ * pre-existing latent bug: the WS friend-offline path retains the cached
+ * `status`, so a status-first fold could paint an OFFLINE friend with a live
+ * status ring/badge). Offline/web-active always take the presence palette —
+ * they are the OTHER §5 axis, never privacy tiers (VRX-208).
+ *
+ * Only an IN-WORLD friend folds status: VRChat's set status, or for a
+ * statusless in-game friend the tier-2 "Online" ring (VRX-207/208: CVR's
+ * single online state IS privacy tier 2 — the state palette must not leak
+ * into the ring only for CVR, where it read as a broken green next to a
+ * VRChat friend in the same state). In-game-ness stays carried by the world
+ * subline + instance pill, exactly as it is for VRChat rows.
  */
 export function ringFor(friend: Friend): Ring {
+  if (friend.presence.state !== 'in-game') return PRESENCE_RING[friend.presence.state]
   if (friend.platform === 'vrchat' && friend.status) return STATUS_RING[friend.status]
-  if (friend.presence.state === 'in-game') return STATUS_RING.online
-  return PRESENCE_RING[friend.presence.state]
+  return STATUS_RING.online
 }
 
 /**

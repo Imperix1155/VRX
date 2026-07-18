@@ -84,8 +84,16 @@ function mockFriends(friends: Friend[]): void {
   }))
 }
 
+/** The row's details opener — its accessible name COMPOSES from the visible
+ *  name + status + world (aria-labelledby), so match on the leading name. */
+function rowOpener(name: string): HTMLElement {
+  return screen.getByRole('button', {
+    name: (accName) => accName === name || accName.startsWith(`${name} `)
+  })
+}
+
 function openDrawerFor(name: string): HTMLElement {
-  const row = screen.getByRole('button', { name: `Open details for ${name}` })
+  const row = rowOpener(name)
   fireEvent.click(row)
   return row
 }
@@ -126,18 +134,28 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
-  it('opens with Enter and with Space on a focused row', () => {
+  it('the opener is a native button distinct from Join, with a composed accessible name', () => {
     render(<FriendsList />)
-    const row = screen.getByRole('button', { name: 'Open details for Alex' })
+    const opener = rowOpener('Alex')
+    const joinButton = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
 
-    fireEvent.keyDown(row, { key: 'Enter' })
-    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+    // Two DISTINCT focusable controls — the Join pill is never nested inside
+    // an interactive role (VRX-69 review restructure).
+    expect(opener).not.toBe(joinButton)
+    expect(opener.tagName).toBe('BUTTON') // native Enter/Space activation
+    expect(joinButton.tagName).toBe('BUTTON')
+    opener.focus()
+    expect(document.activeElement).toBe(opener)
+    joinButton.focus()
+    expect(document.activeElement).toBe(joinButton)
 
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
+    // The composed accessible NAME keeps the §9.1 non-color signals —
+    // name + STATUS + world — nothing is hidden by an overriding aria-label.
+    expect(screen.getByRole('button', { name: 'Alex Online The Great Pug' })).toBe(opener)
 
-    fireEvent.keyDown(row, { key: ' ' })
-    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+    // The li itself is purely structural again (listitem semantics intact).
+    expect(opener.closest('li')?.getAttribute('role')).toBeNull()
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
   })
 
   it('Esc closes and returns focus to the opening row', () => {
@@ -315,6 +333,9 @@ describe('FriendDrawer (VRX-69)', () => {
     mockFriends([]) // friend removed from the settled roster
     rerender(<FriendsList />)
     expect(screen.queryByRole('dialog')).toBeNull()
+    // The opener row unmounted with the roster — the unified close path must
+    // fall back to the search input, never drop focus to <body>.
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
 
     mockFriends([joinableFriend]) // friend returns — the drawer must NOT reopen
     rerender(<FriendsList />)

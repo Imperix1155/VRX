@@ -119,39 +119,46 @@ const FriendRow = memo(function FriendRow({
     void join(friend)
   }
 
+  // Ids for the opener's composed accessible name (aria-labelledby below).
+  const rowId = `friend-row-${friend.platform}-${friend.platformUserId}`
+
   return (
     <li
-      // The row itself opens the friend drawer (VRX-69): click, or Enter/Space
-      // when the row is focused. The join pill stays an independent inner button
-      // (its click already stopPropagation's; its own keydown never reaches the
-      // row handler because of the currentTarget guard).
-      role="button"
-      tabIndex={0}
-      aria-label={t('friends.openDetails', { name: friend.displayName })}
-      onClick={(event) => onOpen(friend, event.currentTarget)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        if (event.key !== 'Enter' && event.key !== ' ') return
-        event.preventDefault()
-        onOpen(friend, event.currentTarget)
-      }}
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
-        'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
+        'relative grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
-        'cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
       ].join(' ')}
     >
+      {/* Details opener (VRX-69 review restructure): the li stays purely
+          structural (listitem semantics intact — no interactive role nesting
+          the Join button), and this stretched native <button> carries the
+          click/keyboard/focus behavior. Its accessible name COMPOSES from the
+          visible name + status (the avatar's aria-label) + world via
+          aria-labelledby, so screen readers lose nothing (§9.1 non-color
+          contract). Absolutely positioned → not a grid item; the Join pill
+          stacks ABOVE it (z-[1]) and stays independently clickable. */}
+      <button
+        type="button"
+        onClick={(event) => onOpen(friend, event.currentTarget)}
+        aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world`}
+        className="absolute inset-0 z-0 cursor-pointer rounded-[13px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
+      />
       <PlatformTab platform={friend.platform} />
-      <Avatar friend={friend} />
+      <span id={`${rowId}-avatar`}>
+        <Avatar friend={friend} />
+      </span>
 
       {/* Content — name + custom status (beside), world beneath */}
       <div className="min-w-0">
         <div className="flex min-w-0 items-baseline gap-[8px]">
-          <span className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]">
+          <span
+            id={`${rowId}-name`}
+            className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]"
+          >
             {splitByMatch(friend.displayName, searchQuery).map((segment, index) =>
               segment.isMatch ? (
                 <span
@@ -170,7 +177,10 @@ const FriendRow = memo(function FriendRow({
           )}
         </div>
         {/* World subline — fixed height keeps every row the same height (§9.1). */}
-        <span className="mt-[1px] block h-[16px] truncate text-[12.5px] leading-[16px] text-[var(--text-dim)]">
+        <span
+          id={`${rowId}-world`}
+          className="mt-[1px] block h-[16px] truncate text-[12.5px] leading-[16px] text-[var(--text-dim)]"
+        >
           {worldText}
         </span>
       </div>
@@ -181,7 +191,7 @@ const FriendRow = memo(function FriendRow({
           but readable. Joinable friends receive the button variant (VRX-166). */}
       {instancePill != null ? (
         joinable ? (
-          <span className="relative block min-w-[78px]">
+          <span className="relative z-[1] block min-w-[78px]">
             <InstancePill
               label={instancePill}
               tier={pillTier}
@@ -302,6 +312,7 @@ export default function FriendsList(): React.JSX.Element {
   const selectedFriendId = useFriendsStore((s) => s.selectedFriendId)
   const setSelectedFriendId = useFriendsStore((s) => s.setSelectedFriendId)
   const openerRef = useRef<HTMLElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const openDrawer = useCallback(
     (friend: Friend, opener: HTMLElement) => {
       openerRef.current = opener
@@ -309,15 +320,20 @@ export default function FriendsList(): React.JSX.Element {
     },
     [setSelectedFriendId]
   )
+  // The ONE close path for EVERY way the drawer shuts (Esc / scrim / ✕ /
+  // stale-selection cleanup). Focus returns to the opener row only if it is
+  // still in the document; otherwise it falls back to the search input so
+  // focus never silently drops to <body> (VRX-69 review).
   const closeDrawer = useCallback(() => {
     setSelectedFriendId(null)
-    openerRef.current?.focus()
+    const opener = openerRef.current
     openerRef.current = null
+    if (opener?.isConnected) opener.focus()
+    else searchInputRef.current?.focus()
   }, [setSelectedFriendId])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
     platformFilter,
     useFriends('vrchat'),
@@ -380,18 +396,18 @@ export default function FriendsList(): React.JSX.Element {
       ? null
       : (friends?.find((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId) ?? null)
 
-  // A selection whose friend has LEFT the settled roster is stale — clear it,
-  // or the drawer would pop back open uninvited if the friend ever returned
-  // (e.g. platform reconnect). Loading states keep the selection (friends
-  // undefined ≠ friend gone).
+  // A selection whose friend has LEFT the settled roster is stale — close the
+  // drawer (through the one close path, so focus lands somewhere sane), or it
+  // would pop back open uninvited if the friend ever returned (e.g. platform
+  // reconnect). Loading states keep the selection (friends undefined ≠ gone).
   useEffect(() => {
     if (selectedFriendId !== null && friends !== undefined) {
       const stillPresent = friends.some(
         (f) => `${f.platform}:${f.platformUserId}` === selectedFriendId
       )
-      if (!stillPresent) setSelectedFriendId(null)
+      if (!stillPresent) closeDrawer()
     }
-  }, [friends, selectedFriendId, setSelectedFriendId])
+  }, [friends, selectedFriendId, closeDrawer])
 
   function toggleSection(section: FriendSection): void {
     const next = collapsedSections.includes(section)

@@ -40,7 +40,11 @@ describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
     ['ask-me', '--st-askme'],
     ['dnd', '--st-dnd']
   ] as const)('renders exactly one EMPTY badge in the status color for %s', (status, token) => {
-    const { container } = render(<Avatar friend={{ ...friend, status }} />)
+    // In-game: status folds into the ring only in a world (presence-first,
+    // VRX-69 review fix).
+    const { container } = render(
+      <Avatar friend={{ ...friend, status, presence: { state: 'in-game' } }} />
+    )
     const found = badges(container)
     // Badge presence unchanged: exactly one per status …
     expect(found).toHaveLength(1)
@@ -67,6 +71,43 @@ describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
     )
     expect(badges(container)).toHaveLength(0)
     expect(container.querySelectorAll('svg')).toHaveLength(0)
+  })
+
+  // Presence-first fold (VRX-69 review fix of a pre-existing latent bug): the
+  // WS friend-offline path RETAINS the cached status — it must never paint
+  // the ring or badge of a friend who is not in a world.
+  it('offline with a retained VRChat status stays on the offline ring — no badge', () => {
+    const { container } = render(
+      <Avatar friend={{ ...friend, status: 'ask-me', presence: { state: 'offline' } }} />
+    )
+    expect(badges(container)).toHaveLength(0)
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Offline')
+    expect(container.innerHTML).not.toContain('var(--st-askme)')
+    expect(container.innerHTML).toContain('var(--offline)')
+  })
+
+  it('offline CVR friend stays on the offline ring too (platform parity)', () => {
+    const cvrOffline = {
+      ...friend,
+      platform: 'chilloutvr',
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      presence: { state: 'offline' }
+    } as Friend
+    const { container } = render(<Avatar friend={cvrOffline} />)
+    expect(badges(container)).toHaveLength(0)
+    expect(container.innerHTML).toContain('var(--offline)')
+  })
+
+  it('web-active with a retained status keeps the Active ring (presence wins)', () => {
+    const { container } = render(
+      <Avatar friend={{ ...friend, status: 'join-me', presence: { state: 'active' } }} />
+    )
+    const found = badges(container)
+    expect(found).toHaveLength(1)
+    expect(found[0]?.getAttribute('style') ?? '').toContain('var(--active)')
+    expect(container.innerHTML).not.toContain('var(--st-joinme)')
   })
 
   it('renders no badge at the drawer size (64px header avatar)', () => {

@@ -182,8 +182,7 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR"
-    },
-    "openDetails": "{{name}}さんの詳細を開く"
+    }
   },
   "drawer": {
     "close": "閉じる",
