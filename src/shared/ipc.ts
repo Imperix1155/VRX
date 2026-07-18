@@ -59,6 +59,19 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   'get-settings': { req: void; res: Settings }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
+  'get-friend-note': {
+    req: { platform: Platform; friendId: string }
+    res: { note: string | null; revision?: { platformAccountId: string; epoch: number } }
+  }
+  'set-friend-note': {
+    req: {
+      platform: Platform
+      friendId: string
+      note: string
+      revision: { platformAccountId: string; epoch: number }
+    }
+    res: { ok: true } | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' }
+  }
 }
 
 /**
@@ -72,8 +85,17 @@ export interface IpcEvents {
   'navigate-to-dashboard': void
 }
 
+/**
+ * Notify channels — renderer → main, no response:
+ * `ipcRenderer.send(channel, payload)` ↔ `ipcMain.on(channel, …)`.
+ */
+export interface IpcNotifications {
+  'renderer-hydrated': void
+}
+
 export type IpcInvokeChannel = keyof IpcInvoke
 export type IpcEventChannel = keyof IpcEvents
+export type IpcNotificationChannel = keyof IpcNotifications
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):

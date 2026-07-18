@@ -1,7 +1,8 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
-import { FRIENDS_RECONCILE_MS } from '@shared/constants'
+import { RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
+import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 
 /** Per-platform query key for the friends list. */
@@ -23,11 +24,14 @@ export async function fetchFriends(platform: Platform): Promise<Friend[]> {
  * for server-side friends data (the Zustand store holds only view state).
  *
  * - Initial load on mount + a slow reconcile (`refetchInterval`); the WS is the
- *   live path, so this is a safety-net cadence, not a poll.
+ *   live path, so this is a safety-net cadence, not a poll. Manual cadence uses
+ *   infinite staleness so time alone cannot reconcile on a later remount.
  * - Stale-while-revalidate: a failed background refetch keeps the last good
  *   `data` and surfaces `error` separately — never blanks data on error.
  */
 export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> {
+  const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
+  const reconcileIntervalMs = RECONCILE_INTERVAL_MS[reconcileInterval]
   // Auth-gated: an unauthenticated platform must not fetch — otherwise every
   // mount/interval/cache-removal wakes a doomed request whose 401 re-broadcasts
   // auth-invalidated (observed end-to-end on logout, VRX-191 review round 2).
@@ -41,8 +45,8 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   return useQuery({
     queryKey: friendsQueryKey(platform),
     queryFn: () => fetchFriends(platform),
-    staleTime: FRIENDS_RECONCILE_MS,
-    refetchInterval: FRIENDS_RECONCILE_MS,
+    staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
+    refetchInterval: reconcileIntervalMs,
     enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })
 }

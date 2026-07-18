@@ -3,8 +3,10 @@ import {
   shell,
   BrowserWindow,
   dialog,
+  ipcMain,
   session,
-  Notification as NativeNotification
+  Notification as NativeNotification,
+  type IpcMainEvent
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
@@ -27,6 +29,7 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
+import type { IpcNotifications } from '@shared/ipc'
 import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -36,6 +39,9 @@ import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
+import { SocialStore } from './services/socialStore'
+import { isTrustedIpcSender } from './ipc/security'
+import { createShowGate } from './showGate'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -59,6 +65,7 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
 const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
+const RENDERER_HYDRATED_CHANNEL = 'renderer-hydrated' satisfies keyof IpcNotifications
 // Trailing creator-set instance label, e.g. "Bono's Movie Night (#teehee)" —
 // matches the renderer's display strip (utils/worldName).
 const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
@@ -91,8 +98,25 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+  const showGate = createShowGate({
+    timeoutMs: 3_000,
+    onShow: () => {
+      if (!mainWindow.isDestroyed()) mainWindow.show()
+    },
+    onTimeout: () => {
+      log.warn('renderer hydration timed out; showing window with fallback')
+    }
+  })
+  mainWindow.once('ready-to-show', () => showGate.ready())
+
+  const onRendererHydrated = (event: IpcMainEvent): void => {
+    if (!isTrustedIpcSender(event.senderFrame)) return
+    if (event.sender === mainWindow.webContents) showGate.hydrated()
+  }
+  ipcMain.on(RENDERER_HYDRATED_CHANNEL, onRendererHydrated)
+  mainWindow.once('closed', () => {
+    ipcMain.removeListener(RENDERER_HYDRATED_CHANNEL, onRendererHydrated)
+    showGate.dispose()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -344,6 +368,7 @@ app
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
+    const socialStore = new SocialStore(accountSession)
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -532,6 +557,7 @@ app
     registerIpcHandlers(adapters, {
       accountRegistry,
       accountSession,
+      socialStore,
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&

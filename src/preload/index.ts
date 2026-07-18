@@ -1,11 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { IpcEvents, IpcInvoke } from '@shared/ipc'
+import type { IpcEvents, IpcInvoke, IpcNotifications } from '@shared/ipc'
 
 function invoke<K extends keyof IpcInvoke>(
   channel: K,
   req: IpcInvoke[K]['req']
 ): Promise<IpcInvoke[K]['res']> {
   return ipcRenderer.invoke(channel, req)
+}
+
+function notify<K extends keyof IpcNotifications>(channel: K, payload: IpcNotifications[K]): void {
+  ipcRenderer.send(channel, payload)
 }
 
 const vrx = {
@@ -23,6 +27,9 @@ const vrx = {
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
+  getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
+  setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an
    * unsubscribe. The payload is passed through as-is — it originates in the
