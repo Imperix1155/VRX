@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- No more wrong-look flash at startup: if you saved the Light theme or a different background glow, the app now applies your choices before showing anything, instead of flashing the dark/default look for a moment while your settings load. (VRX-212)
+
 ### Added
 
 - **The background glow is now yours to set.** Settings → Appearance → Background glow: Muted (the old quieter look), Standard (the new default — the corner auroras reach further across the window), or Vivid (bigger, brighter, with extra organic wisps of color). Applies instantly, works in both themes, and your choice is remembered. (VRX-211)

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { AuthState } from '@shared/types'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
@@ -7,6 +7,7 @@ import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
+import { useSettingsStore } from './stores/settings'
 import { useUiStore } from './stores/ui'
 
 function App(): React.JSX.Element {
@@ -17,6 +18,22 @@ function App(): React.JSX.Element {
   useApplyTheme()
   // Apply the stored background-glow level before any view renders.
   useApplyGlow()
+  const hydrated = useSettingsStore((s) => s.hydrated)
+  const notifiedHydrated = useRef(false)
+  // This passive effect is declared after both attribute layout effects, so
+  // main cannot reveal the CSS canvas until the persisted look is in place.
+  useEffect(() => {
+    if (
+      !hydrated ||
+      notifiedHydrated.current ||
+      typeof window === 'undefined' ||
+      !window.vrx?.notifyRendererHydrated
+    ) {
+      return
+    }
+    notifiedHydrated.current = true
+    window.vrx.notifyRendererHydrated()
+  }, [hydrated])
   // Live WS events + identity boundaries → query cache (VRX-146/24). Top-level
   // like useApplyTheme: the subscription is idempotent and event application
   // no-ops until a friends fetch has populated the cache.
@@ -40,13 +57,15 @@ function App(): React.JSX.Element {
   // falling to LoginScreen would invite re-entering credentials and creating a
   // duplicate session. The shell (AccountCard) is where the error is presented.
   const entersShell = (state?: AuthState): boolean => state === 'authenticated' || state === 'error'
+
+  // Hydration gate (VRX-212): do not reveal the UI until the persisted settings
+  // load has resolved. An empty tree keeps the default dark canvas visible, so
+  // a saved light theme or non-standard glow is applied before anything renders.
+  if (!hydrated || isVrcPending || isCvrPending) return <></>
+
   if (entersShell(vrcAuthStatus?.state) || entersShell(cvrAuthStatus?.state)) {
     return <AppShell />
   }
-
-  // While either unknown auth check is in flight, render nothing (avoids flashing
-  // login before discovering an authenticated session on the other platform).
-  if (isVrcPending || isCvrPending) return <></>
 
   // Neither platform is connected. needs-2fa keeps the existing direct VRChat
   // code-prompt route; otherwise LoginScreen starts on credentials as before.

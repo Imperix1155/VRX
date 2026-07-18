@@ -13,6 +13,12 @@ import { useSettingsStore } from '../stores/settings'
  * is an explicit boot-window choice of a value that equals the default while
  * the persisted value differs (the persisted value wins).
  *
+ * Hydration (VRX-212): the store's `hydrated` flag is set true once the initial
+ * load resolves, whether it succeeds or fails. A failed load means the renderer
+ * knows it is rendering with the default-seeded settings, so revealing the UI
+ * is safe. If the bridge is absent (Preview/tests), hydration happens
+ * immediately.
+ *
  * Change: whenever the store turns dirty, saves the CURRENT settings as the
  * patch over `save-settings`, then `markSaved`. Saves are GATED until the
  * boot load has landed — saving earlier would patch the default-seeded object
@@ -30,12 +36,16 @@ import { useSettingsStore } from '../stores/settings'
  */
 export function useSettingsPersistence(): void {
   const setSettings = useSettingsStore((s) => s.setSettings)
+  const hydrate = useSettingsStore((s) => s.hydrate)
   const settings = useSettingsStore((s) => s.settings)
   const dirty = useSettingsStore((s) => s.dirty)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.vrx) return
+    if (typeof window === 'undefined' || !window.vrx) {
+      hydrate()
+      return
+    }
     let cancelled = false
     window.vrx
       .getSettings()
@@ -57,15 +67,19 @@ export function useSettingsPersistence(): void {
           setSettings(persisted)
         }
         setLoaded(true)
+        hydrate()
       })
       .catch(() => {
         // Load never throws in main — only bridge/IPC breakage lands here.
-        // Saves stay disabled (no persisted baseline to patch over).
+        // Saves stay disabled (no persisted baseline to patch over), but the
+        // UI can still reveal itself because the default-seeded settings are
+        // the canonical fallback.
+        hydrate()
       })
     return () => {
       cancelled = true
     }
-  }, [setSettings])
+  }, [setSettings, hydrate])
 
   useEffect(() => {
     if (!loaded || !dirty || typeof window === 'undefined' || !window.vrx) return
