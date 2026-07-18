@@ -55,7 +55,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Child DOX Index
 
-- [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (11 production files, VRX-19/20/25/48)
+- [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (VRX-19/20/25/48/72 — see the child index; counts drift, the index doesn't)
 - `services/adapters/` — adapter interface, shared HTTP base, VRChat/CVR API clients, errors, and the concrete `VrcAdapter` / `CvrAdapter`; no child doc yet for the cross-platform adapter root.
 - [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md) — CVR parsers + the CvrPipeline WS client consumed by the registered concrete `CvrAdapter`.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md) — VRChat parsers/builders + fetchers: presence, instance-type + openness, trust-rank, join-URL (VRX-44/45/49/50), `parseLocation` (VRX-162), `fetchFriends` (VRX-43), `WorldResolver` (VRX-46), `fetchWorldMetadata` (VRX-47).

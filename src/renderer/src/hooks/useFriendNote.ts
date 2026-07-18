@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Platform } from '@shared/types'
 
 const MAX_NOTE_LENGTH = 500
@@ -55,6 +55,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const key = `${platform}:${friendId}`
   const [state, setState] = useState<NoteState>(() => initialState(key))
   const [boundaryEpoch, setBoundaryEpoch] = useState(0)
+  // Render-synced mirror so async completion callbacks can read the CURRENT
+  // state when draining the queued save (no effect, no stale closure).
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  })
 
   // Reset local state when the target friend changes. Done during render so the
   // effect body can stay free of synchronous setState calls. The sequence
@@ -107,6 +113,30 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     }
   }, [platform, friendId, boundaryEpoch, key])
 
+  // Drain any save that was queued while another save was in flight. Runs from
+  // the completion callbacks (never an effect — a synchronous setState in an
+  // effect body cascades renders, and the lint rule rightly refuses it): after
+  // the active request settles we re-read the CURRENT state on a microtask via
+  // render-synced refs, then either drop a no-op queue or submit it. The
+  // commitSave ref keeps the drain pointing at the CURRENT friend's saver even
+  // when a stale completion from a previous friend triggers it.
+  const commitSaveRef = useRef<(draft: string) => void>(() => {})
+  const drainQueuedSoon = useCallback((): void => {
+    // Macrotask, not microtask: React batches promise-callback setStates and
+    // may not have committed the settled state (pending→null) by microtask
+    // time — the drain would read a stale ref and give up. A 0ms timeout runs
+    // after commit + the ref-sync effect.
+    window.setTimeout(() => {
+      const current = stateRef.current
+      if (current.queued === null || current.pending !== null || current.revision === null) return
+      if (current.queued.trimEnd() === (current.loaded ?? '').trimEnd()) {
+        setState((inner) => (inner.queued === null ? inner : { ...inner, queued: null }))
+        return
+      }
+      commitSaveRef.current(current.queued)
+    }, 0)
+  }, [])
+
   const commitSave = useCallback(
     (draft: string): void => {
       setState((current) => {
@@ -133,9 +163,11 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
               const dirty = inner.draft.trimEnd() !== loaded.trimEnd()
               return { ...inner, loaded, dirty, pending: null }
             })
+            drainQueuedSoon()
           })
           .catch(() => {
             setState((inner) => (inner.pending?.seq === seq ? { ...inner, pending: null } : inner))
+            drainQueuedSoon()
           })
 
         return {
@@ -146,21 +178,11 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         }
       })
     },
-    [platform, friendId, boundaryEpoch]
+    [platform, friendId, boundaryEpoch, drainQueuedSoon]
   )
-
-  // Drain any save that was queued while another save was in flight. This runs
-  // after the active request settles (success or failure) and whenever a new
-  // queued draft appears while the pipeline is idle.
   useEffect(() => {
-    if (state.queued === null || state.pending !== null || state.revision === null) return
-    const trimmed = state.queued.trimEnd()
-    if (trimmed === (state.loaded ?? '').trimEnd()) {
-      setState((current) => ({ ...current, queued: null }))
-      return
-    }
-    commitSave(state.queued)
-  }, [state.queued, state.pending, state.revision, state.loaded, commitSave])
+    commitSaveRef.current = commitSave
+  })
 
   const onBlur = useCallback(() => {
     const trimmed = state.draft.trimEnd()

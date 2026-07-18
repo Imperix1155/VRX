@@ -206,7 +206,7 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(1)
 
     // Resolve "First" → the queue drains and sends "Second".
-    act(() => saveResolvers[0]({ ok: true }))
+    act(() => saveResolvers[0]?.({ ok: true }))
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
     expect(setFriendNote).toHaveBeenNthCalledWith(2, {
       platform: 'vrchat',
@@ -216,7 +216,7 @@ describe('useFriendNote', () => {
     })
 
     // Resolve "Second" → loaded settles on the final persisted value.
-    act(() => saveResolvers[1]({ ok: true }))
+    act(() => saveResolvers[1]?.({ ok: true }))
     await waitFor(() => expect(result.current.value).toBe('Second'))
 
     // A no-op blur must not trigger a third save.
@@ -266,7 +266,7 @@ describe('useFriendNote', () => {
 
     // The stale completion for the first A save (seq 1) must not affect the
     // current A save (seq 3).
-    act(() => saveResolvers[0]({ ok: true }))
+    act(() => saveResolvers[0]?.({ ok: true }))
     await act(async () => {
       await Promise.resolve()
     })
@@ -274,7 +274,7 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(3)
 
     // Resolve the current A save normally.
-    act(() => saveResolvers[2]({ ok: true }))
+    act(() => saveResolvers[2]?.({ ok: true }))
     await waitFor(() => expect(result.current.value).toBe('A-third'))
   })
 
