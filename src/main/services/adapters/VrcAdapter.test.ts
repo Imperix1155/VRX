@@ -1975,5 +1975,47 @@ describe('VrcAdapter', () => {
       await expect(adapter.selfInvite(bad)).rejects.toThrow(/invalid instance location/i)
       expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    it('emits auth-invalidated exactly once on a 401 (dead session) and still rejects', async () => {
+      let authInvalidatedCount = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.includes('/invite/myself/to/')) {
+          return Promise.resolve(jsonResponse({ error: 'expired' }, { status: 401 }))
+        }
+        return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((event) => {
+        if (event.type === 'auth-invalidated') authInvalidatedCount += 1
+      })
+
+      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(Error)
+      expect(authInvalidatedCount).toBe(1)
+    })
+
+    it('does NOT emit auth-invalidated on a non-auth failure and still rejects', async () => {
+      let authInvalidatedCount = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.includes('/invite/myself/to/')) {
+          return Promise.resolve(jsonResponse({ error: 'oops' }, { status: 500 }))
+        }
+        return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((event) => {
+        if (event.type === 'auth-invalidated') authInvalidatedCount += 1
+      })
+
+      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(Error)
+      expect(authInvalidatedCount).toBe(0)
+    })
   })
 })

@@ -490,7 +490,27 @@ export class VrcAdapter extends VrcApiClient {
     // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw
     // (now validated free of URL-structural characters). The Notification response
     // is discarded (returns void); z.unknown() tolerates benign API drift.
-    await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+    // every authenticated call path must route AuthError through this emit — a dead
+    // cookie must never be swallowed as a generic operation failure (VRX-42).
+    const generation = this.sessionGeneration
+    try {
+      await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+    } catch (error) {
+      // A replacement session that landed during the request owns its own
+      // invalidation boundary; do not emit a stale auth-invalidated for it.
+      if (generation !== this.sessionGeneration) {
+        throw error
+      }
+      // A data-path 401 means the cookie is dead/2FA-expired. Signal the renderer
+      // to re-check auth + quarantine so a stale "connected" card flips to reconnect.
+      // We do NOT clearSession: getAuthStatus is 2FA-aware and decides needs-2fa vs
+      // unauthenticated; a blunt clear would force a full re-login.
+      if (error instanceof AuthError) {
+        this.bumpSessionGeneration()
+        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      }
+      throw error
+    }
   }
   subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
     this.subscribers.add(handler)
