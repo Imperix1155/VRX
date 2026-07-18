@@ -190,6 +190,25 @@ describe('FriendsList join pill (VRX-166)', () => {
     expect(status.textContent).toBe('')
   })
 
+  it('a denied join blips ONLY the failed friend’s pill, not other rows (VRX-69 re-review)', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'not-joinable' })
+    const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }
+    mockFriends([joinableFriend, bea])
+    render(<FriendsList />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      await Promise.resolve()
+    })
+
+    const statusOf = (joinName: string): string => {
+      const row = screen.getByRole('button', { name: joinName }).closest('li')
+      return row?.querySelector('[role="status"]')?.textContent ?? ''
+    }
+    expect(statusOf('Join Alex in The Great Pug')).toBe("Couldn't join")
+    expect(statusOf('Join Bea in The Great Pug')).toBe('') // Bea does NOT blip
+  })
+
   it('falls back to the visible pill label in the accessible name when worldName is null', () => {
     mockFriends([{ ...joinableFriend, instance: { ...publicInstance, worldName: null } }])
     render(<FriendsList />)

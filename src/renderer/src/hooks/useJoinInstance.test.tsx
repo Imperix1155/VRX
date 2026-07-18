@@ -84,7 +84,7 @@ describe('useJoinInstance', () => {
     await act(async () => {
       await hook.result.current.join(friend)
     })
-    expect(hook.result.current.joinFailed).toBe(true)
+    expect(hook.result.current.joinFailedFor(friend)).toBe(true)
 
     let resolveJoin!: (result: { ok: boolean }) => void
     joinInstance.mockImplementationOnce(
@@ -97,13 +97,13 @@ describe('useJoinInstance', () => {
     act(() => {
       retry = hook.result.current.join(friend)
     })
-    expect(hook.result.current.joinFailed).toBe(false) // cleared immediately
+    expect(hook.result.current.joinFailedFor(friend)).toBe(false) // cleared immediately
 
     await act(async () => {
       resolveJoin({ ok: false })
       await retry
     })
-    expect(hook.result.current.joinFailed).toBe(true) // the new denial blips again
+    expect(hook.result.current.joinFailedFor(friend)).toBe(true) // the new denial blips again
   })
 
   it('a success clears a lingering blip and cancels its timer — on EVERY surface', async () => {
@@ -114,21 +114,41 @@ describe('useJoinInstance', () => {
     await act(async () => {
       await hook.result.current.join(friend)
     })
-    expect(hook.result.current.joinFailed).toBe(true)
+    expect(hook.result.current.joinFailedFor(friend)).toBe(true)
     // ONE blip state rules all surfaces (shared external store).
-    expect(otherSurface.result.current.joinFailed).toBe(true)
+    expect(otherSurface.result.current.joinFailedFor(friend)).toBe(true)
 
     joinInstance.mockResolvedValueOnce({ ok: true })
     await act(async () => {
       await hook.result.current.join(friend)
     })
-    expect(hook.result.current.joinFailed).toBe(false)
-    expect(otherSurface.result.current.joinFailed).toBe(false)
+    expect(hook.result.current.joinFailedFor(friend)).toBe(false)
+    expect(otherSurface.result.current.joinFailedFor(friend)).toBe(false)
 
     // The old blip timer is cancelled — nothing flips state later.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
-    expect(hook.result.current.joinFailed).toBe(false)
+    expect(hook.result.current.joinFailedFor(friend)).toBe(false)
+  })
+
+  it('a denial blips ONLY the friend that failed (attributable blip)', async () => {
+    const bea: Friend = { ...friend, platformUserId: 'usr_bea', displayName: 'Bea' }
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'not-joinable' })
+    const hook = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+    expect(hook.result.current.joinFailedFor(friend)).toBe(true)
+    expect(hook.result.current.joinFailedFor(bea)).toBe(false)
+    // Same id on the OTHER platform must not blip either (composite key).
+    const cvrTwin = {
+      ...friend,
+      platform: 'chilloutvr',
+      status: null,
+      statusDescription: null,
+      trustRank: null
+    } as Friend
+    expect(hook.result.current.joinFailedFor(cvrTwin)).toBe(false)
   })
 })

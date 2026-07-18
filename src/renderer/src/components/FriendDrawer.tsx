@@ -84,7 +84,7 @@ export default function FriendDrawer({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
-  const { isJoining, joinFailed, join } = useJoinInstance()
+  const { isJoining, joinFailedFor, join } = useJoinInstance()
 
   // Focus trap + Esc while open; initial focus lands on the ✕ button.
   useEffect(() => {
@@ -276,7 +276,7 @@ export default function FriendDrawer({
                   role="status"
                   className="block min-h-[16px] text-center text-[12px] text-[var(--text-dim)]"
                 >
-                  {joinFailed ? t('friends.joinFailed') : ''}
+                  {shown && joinFailedFor(shown) ? t('friends.joinFailed') : ''}
                 </span>
               </div>
             )}

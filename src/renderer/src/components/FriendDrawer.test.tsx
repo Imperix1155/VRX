@@ -84,6 +84,17 @@ function mockFriends(friends: Friend[]): void {
   }))
 }
 
+/** Transient roster gap — refetch after cache clear / account switch. */
+function mockRosterUndefined(): void {
+  useFriendsMock.mockImplementation(() => ({
+    data: undefined,
+    isPending: true,
+    isError: false,
+    isFetching: true,
+    refetch: vi.fn()
+  }))
+}
+
 /** The row's details opener — its accessible name COMPOSES from the visible
  *  name + status + world (aria-labelledby), so match on the leading name. */
 function rowOpener(name: string): HTMLElement {
@@ -342,6 +353,45 @@ describe('FriendDrawer (VRX-69)', () => {
     rerender(<FriendsList />)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+  })
+
+  it('a transient roster gap (undefined) closes through the one close path — no reopen', () => {
+    const { rerender } = render(<FriendsList />)
+    openDrawerFor('Alex')
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    mockRosterUndefined() // refetch gap / account switch: friends === undefined
+    rerender(<FriendsList />)
+    // The FIFTH close path (Codex re-review): the selection is cleared, the
+    // dialog is gone, and focus lands on the fallback — not stranded on the
+    // now-inert hidden ✕ button.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
+
+    mockFriends([joinableFriend]) // data returns — the drawer must NOT reopen
+    rerender(<FriendsList />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('offline with a retained Ask Me status shows Offline — never "Hidden"', () => {
+    // isWorldHidden requires in-game presence (Codex re-review): an offline
+    // friend with a cached ask-me/dnd status has no world to hide.
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] },
+      dirty: false
+    })
+    mockFriends([
+      { ...joinableFriend, status: 'ask-me', presence: { state: 'offline' }, instance: null }
+    ])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    expect(scoped.getByText('Offline')).toBeTruthy()
+    expect(scoped.getByText('Not connected')).toBeTruthy()
+    expect(scoped.queryByText('Hidden')).toBeNull()
+    expect(scoped.queryByRole('button', { name: 'Join' })).toBeNull()
   })
 
   it('clicking the join pill inside the row does NOT open the drawer', async () => {

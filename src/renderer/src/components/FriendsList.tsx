@@ -90,7 +90,7 @@ const FriendRow = memo(function FriendRow({
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   // Shared join flow (VRX-166; one implementation with the drawer — VRX-69).
-  const { isJoining, joinFailed, join } = useJoinInstance()
+  const { isJoining, joinFailedFor, join } = useJoinInstance()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
@@ -216,7 +216,7 @@ const FriendRow = memo(function FriendRow({
               role="status"
               className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
             >
-              {joinFailed ? t('friends.joinFailed') : ''}
+              {joinFailedFor(friend) ? t('friends.joinFailed') : ''}
             </span>
           </span>
         ) : (
@@ -405,17 +405,17 @@ export default function FriendsList(): React.JSX.Element {
       ? null
       : (friends?.find((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId) ?? null)
 
-  // A selection whose friend has LEFT the settled roster is stale — close the
-  // drawer (through the one close path, so focus lands somewhere sane), or it
-  // would pop back open uninvited if the friend ever returned (e.g. platform
-  // reconnect). Loading states keep the selection (friends undefined ≠ gone).
+  // A selection whose friend is no longer renderable — gone from the settled
+  // roster OR the roster itself went undefined (refetch gap, account switch) —
+  // must close through the ONE close path (Codex re-review: the render alone
+  // passes null to the drawer, stranding focus on the inert ✕, keeping "/"
+  // disabled, and reopening the drawer uninvited when data returns).
   useEffect(() => {
-    if (selectedFriendId !== null && friends !== undefined) {
-      const stillPresent = friends.some(
-        (f) => `${f.platform}:${f.platformUserId}` === selectedFriendId
-      )
-      if (!stillPresent) closeDrawer()
-    }
+    if (selectedFriendId === null) return
+    const stillPresent =
+      friends !== undefined &&
+      friends.some((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId)
+    if (!stillPresent) closeDrawer()
   }, [friends, selectedFriendId, closeDrawer])
 
   function toggleSection(section: FriendSection): void {

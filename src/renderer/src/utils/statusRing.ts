@@ -60,8 +60,14 @@ export function ringFor(friend: Friend): Ring {
 
 /**
  * Whether Ask Me / DND should hide the world (DESIGN.md §5 / R6).
- * Only applies to VRChat — CVR has no status.
+ * Only applies to VRChat — CVR has no status — and only while IN A WORLD
+ * (Codex re-review, VRX-69: an offline friend with a retained ask-me/dnd
+ * status must not read "Offline" + "Hidden" — there is no world to hide).
  */
 export function isWorldHidden(friend: Friend): boolean {
-  return friend.platform === 'vrchat' && (friend.status === 'ask-me' || friend.status === 'dnd')
+  return (
+    friend.presence.state === 'in-game' &&
+    friend.platform === 'vrchat' &&
+    (friend.status === 'ask-me' || friend.status === 'dnd')
+  )
 }

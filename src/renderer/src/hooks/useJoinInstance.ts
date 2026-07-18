@@ -1,11 +1,19 @@
 import { useSyncExternalStore } from 'react'
 import type { Friend } from '@shared/types'
 
+/** The composite key both platforms can't collide on (same shape as the
+ *  row/list keys — an id alone could collide across platforms). */
+function friendJoinKey(friend: Friend): string {
+  return `${friend.platform}:${friend.platformUserId}`
+}
+
 interface JoinSnapshot {
   /** True while ANY surface's join is in flight. */
   joining: boolean
-  /** Non-null while the failure blip is showing (the last denial's timestamp). */
-  failedAt: number | null
+  /** The composite key of the friend whose join was denied — the blip is
+   *  ATTRIBUTABLE (Codex re-review): only surfaces showing THAT friend blip,
+   *  never every joinable pill. Null = no blip. */
+  failedFriendId: string | null
 }
 
 interface JoinStore {
@@ -20,11 +28,12 @@ interface JoinStore {
  * OTHER Join buttons looked enabled during a join and their clicks silently
  * no-op'd against the latch, and a blip on one surface survived a success on
  * another. One snapshot means every Join surface disables together and one
- * blip state rules. The factory exists so the singleton below is the ONLY
- * instance — a per-hook store would resurrect the split-state bug.
+ * blip state rules — attributed to the friend that failed. The factory
+ * exists so the singleton below is the ONLY instance — a per-hook store
+ * would resurrect the split-state bug.
  */
 function createJoinStore(): JoinStore {
-  let snapshot: JoinSnapshot = { joining: false, failedAt: null }
+  let snapshot: JoinSnapshot = { joining: false, failedFriendId: null }
   const listeners = new Set<() => void>()
   let failureTimer: number | null = null
 
@@ -38,15 +47,15 @@ function createJoinStore(): JoinStore {
       window.clearTimeout(failureTimer)
       failureTimer = null
     }
-    if (snapshot.failedAt != null) emit({ failedAt: null })
+    if (snapshot.failedFriendId != null) emit({ failedFriendId: null })
   }
 
-  function showFailureBlip(): void {
+  function showFailureBlip(friendKey: string): void {
     if (failureTimer != null) window.clearTimeout(failureTimer)
-    emit({ failedAt: Date.now() })
+    emit({ failedFriendId: friendKey })
     failureTimer = window.setTimeout(() => {
       failureTimer = null
-      emit({ failedAt: null })
+      emit({ failedFriendId: null })
     }, 2_500)
   }
 
@@ -54,13 +63,14 @@ function createJoinStore(): JoinStore {
     // The snapshot IS the cross-surface latch: one active join blocks all.
     if (snapshot.joining) return
     emit({ joining: true })
-    // A new attempt clears any lingering blip immediately.
+    // A new attempt clears any lingering blip immediately (whoever it was for).
     clearFailureBlip()
+    const friendKey = friendJoinKey(friend)
     try {
       // Guard the preload bridge explicitly — it is undefined in Preview and
       // tests (house rule), and a missing bridge is user-equivalent to a denial.
       if (!window.vrx) {
-        showFailureBlip()
+        showFailureBlip(friendKey)
         return
       }
       // VRChat ignores mode; a CVR VR-mode picker is a future setting.
@@ -70,11 +80,11 @@ function createJoinStore(): JoinStore {
         mode: 'desktop'
       })
       if (result.ok) clearFailureBlip()
-      else showFailureBlip()
+      else showFailureBlip(friendKey)
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
       // unhandled rejection.
-      showFailureBlip()
+      showFailureBlip(friendKey)
     } finally {
       emit({ joining: false })
     }
@@ -97,22 +107,27 @@ const sharedJoinStore = createJoinStore()
  * The ONE join-a-friend flow (VRX-166 row pill · VRX-69 drawer button).
  * All state is GLOBAL via the shared store above: `isJoining` is true on
  * every surface while any join runs (all Join buttons disable together — no
- * enabled-looking button whose click silently no-ops), and `joinFailed` is
- * the one 2.5s failure blip — cleared at the start of a new attempt and on
- * success. Same public API as before (`isJoining`, `joinFailed`, `join`).
- * Callers own event concerns (the row stopPropagation's its click).
+ * enabled-looking button whose click silently no-ops), and the one 2.5s
+ * failure blip is ATTRIBUTED to the friend that failed — callers show it via
+ * `joinFailedFor(friend)`, so only that friend's pill/drawer blips (cleared
+ * at the start of a new attempt and on success, wherever it fires). Callers
+ * own event concerns (the row stopPropagation's its click).
  */
 export function useJoinInstance(): {
   isJoining: boolean
-  joinFailed: boolean
+  joinFailedFor: (friend: Friend) => boolean
   join: (friend: Friend) => Promise<void>
 } {
-  const { joining, failedAt } = useSyncExternalStore(
+  const { joining, failedFriendId } = useSyncExternalStore(
     sharedJoinStore.subscribe,
     sharedJoinStore.getSnapshot,
     // Server snapshot: the SSR-rendered markup tests (renderToStaticMarkup)
     // read the same module snapshot — no window access happens on read.
     sharedJoinStore.getSnapshot
   )
-  return { isJoining: joining, joinFailed: failedAt != null, join: sharedJoinStore.join }
+  return {
+    isJoining: joining,
+    joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend),
+    join: sharedJoinStore.join
+  }
 }
