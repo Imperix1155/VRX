@@ -27,13 +27,8 @@ export const ACCOUNT_CARD_CONFIG: Record<Platform, AccountCardConfig> = {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function accountLoginErrorKey(platform: Platform, code: string): string {
-  if (code === 'invalid_credentials') return 'settings.accounts.error.invalidCredentials'
-  if (code === 'invalid_2fa_code') return 'settings.accounts.error.invalid2faCode'
-  if (code === 'network_error') {
-    return platform === 'vrchat'
-      ? 'settings.accounts.vrchat.error.networkError'
-      : 'settings.accounts.chilloutvr.error.networkError'
-  }
+  // VRX-36: account connect failures share the same uniform generic message.
   return 'settings.accounts.error.unknown'
 }

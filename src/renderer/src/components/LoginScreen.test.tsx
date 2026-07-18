@@ -89,7 +89,7 @@ describe('LoginScreen (W6)', () => {
     submit()
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(msg('login.error.invalidCredentials'))
+    expect(alert.textContent).toContain(msg('login.error.unknown'))
   })
 
   it('switches to the 2FA prompt AND drops the password from state', async () => {
@@ -165,7 +165,7 @@ describe('LoginScreen (W6)', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(msg('login.error.invalid2faCode'))
+    expect(alert.textContent).toContain(msg('login.error.unknown'))
     // Still on the 2FA form — retryable.
     expect(screen.getByLabelText(msg('login.twoFactor.code'))).toBeTruthy()
   })
