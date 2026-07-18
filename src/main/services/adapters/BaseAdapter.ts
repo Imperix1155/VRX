@@ -130,7 +130,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
 
     if (response.status === 401 || response.status === 403) {
       this.recordFailure()
-      throw new AuthError()
+      throw new AuthError(undefined, response.status)
     }
 
     if (!response.ok) {

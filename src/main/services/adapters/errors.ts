@@ -1,5 +1,8 @@
 export class AuthError extends Error {
-  constructor(message = 'Authentication required') {
+  constructor(
+    message = 'Authentication required',
+    public readonly status?: number
+  ) {
     super(message)
     this.name = 'AuthError'
   }

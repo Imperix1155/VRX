@@ -455,9 +455,11 @@ export class VrcAdapter extends VrcApiClient {
         // re-check auth + quarantine so a stale "connected" card flips to reconnect
         // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
         // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
-        // unauthenticated; a blunt clear would force a full re-login. NetworkError
-        // and other failures just propagate untouched.
-        if (error instanceof AuthError) {
+        // unauthenticated; a blunt clear would force a full re-login. 401 ONLY —
+        // a 403 is an ordinary denial on a live session, never an invalidation
+        // (VRX-42 boundary rule, same as selfInvite). NetworkError and other
+        // failures just propagate untouched.
+        if (error instanceof AuthError && error.status === 401) {
           // Ordering exemption: a data-path AuthError may mean only that 2FA
           // expired, so this boundary deliberately retains the current identity.
           this.bumpSessionGeneration()
@@ -490,7 +492,35 @@ export class VrcAdapter extends VrcApiClient {
     // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw
     // (now validated free of URL-structural characters). The Notification response
     // is discarded (returns void); z.unknown() tolerates benign API drift.
-    await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+    // every authenticated call path must route AuthError through this emit — a dead
+    // cookie must never be swallowed as a generic operation failure (VRX-42).
+    const generation = this.sessionGeneration
+    try {
+      await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+      // A replacement session landed while the request was in flight; its outcome
+      // belongs to the new identity, not to the caller that issued this one.
+      if (generation !== this.sessionGeneration) {
+        throw new Error('Session ended')
+      }
+    } catch (error) {
+      // A replacement session that landed during the request owns its own
+      // invalidation boundary; do not emit a stale auth-invalidated for it —
+      // and don't surface the OLD session's failure either: the caller's
+      // session is simply over (same surface as the success-path fence and
+      // getFriends' staleness rule).
+      if (generation !== this.sessionGeneration) {
+        throw new Error('Session ended')
+      }
+      // A data-path 401 means the cookie is dead/2FA-expired. Signal the renderer
+      // to re-check auth + quarantine so a stale "connected" card flips to reconnect.
+      // We do NOT clearSession: getAuthStatus is 2FA-aware and decides needs-2fa vs
+      // unauthenticated; a blunt clear would force a full re-login.
+      if (error instanceof AuthError && error.status === 401) {
+        this.bumpSessionGeneration()
+        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      }
+      throw error
+    }
   }
   subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
     this.subscribers.add(handler)
