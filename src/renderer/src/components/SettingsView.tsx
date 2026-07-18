@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import type { BackgroundGlow, LabelScheme, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, LABEL_SCHEMES, THEMES } from '@shared/types'
+import type { BackgroundGlow, LabelScheme, ReconcileInterval, Theme } from '@shared/types'
+import { BACKGROUND_GLOWS, LABEL_SCHEMES, RECONCILE_INTERVALS, THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import AccountCard from './AccountCard'
@@ -27,6 +27,13 @@ const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
   vivid: 'settings.backgroundGlow.vivid'
 }
 
+const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
+  '5m': 'settings.reconcileInterval.5m',
+  '10m': 'settings.reconcileInterval.10m',
+  '30m': 'settings.reconcileInterval.30m',
+  manual: 'settings.reconcileInterval.manual'
+}
+
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
  * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
@@ -41,6 +48,7 @@ export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
   const backgroundGlow = useSettingsStore((s) => s.settings.backgroundGlow)
+  const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
@@ -102,6 +110,25 @@ export default function SettingsView(): React.JSX.Element {
                 labelKeys={GLOW_LABEL_KEYS}
                 ariaLabel={t('settings.backgroundGlow.aria')}
                 onChange={(value) => updateSettings({ backgroundGlow: value })}
+              />
+            </div>
+
+            {/* Friends background-reconcile row (VRX-77) */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.reconcileInterval.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.reconcileInterval.note')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={RECONCILE_INTERVALS}
+                active={reconcileInterval}
+                labelKeys={RECONCILE_LABEL_KEYS}
+                ariaLabel={t('settings.reconcileInterval.aria')}
+                onChange={(value) => updateSettings({ reconcileInterval: value })}
               />
             </div>
 

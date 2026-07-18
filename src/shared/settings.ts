@@ -22,6 +22,7 @@
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
  *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
+ *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path)
  */
 import { z } from 'zod'
 import {
@@ -29,13 +30,19 @@ import {
   HOT_INSTANCE_THRESHOLD_MAX,
   HOT_INSTANCE_THRESHOLD_MIN
 } from './constants'
-import { BACKGROUND_GLOWS, FRIEND_SECTIONS, LABEL_SCHEMES, THEMES } from './types'
+import {
+  BACKGROUND_GLOWS,
+  FRIEND_SECTIONS,
+  LABEL_SCHEMES,
+  RECONCILE_INTERVALS,
+  THEMES
+} from './types'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 3 as const
+export const SETTINGS_VERSION = 4 as const
 
 export const SettingsSchema = z.object({
   /** Schema version of the persisted object; drives {@link runMigrations}. */
@@ -72,7 +79,9 @@ export const SettingsSchema = z.object({
   /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false),
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default. */
-  backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard')
+  backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
+  /** Friends-list background reconcile cadence (VRX-77). The WebSocket remains the live path. */
+  reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('5m')
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -86,13 +95,14 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 and v2 → v3 are deliberately identity-only: the shape remains
+ * v1 → v2, v2 → v3, and v3 → v4 are deliberately identity-only: the shape remains
  * schema-compatible, while the version boundary protects newer fields from
  * older-build key stripping during rollback.
  */
 export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   1: (prev) => ({ ...prev }),
-  2: (prev) => ({ ...prev })
+  2: (prev) => ({ ...prev }),
+  3: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

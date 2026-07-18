@@ -7,10 +7,12 @@
  * drift the session is typically still valid, and a disabled+unfetched query
  * is isPending forever (no auth polling), hanging social views on "Loading…".
  */
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthState, AuthStatus } from '@shared/types'
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import { useSettingsStore } from '../stores/settings'
 import { useFriends } from './friends'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -39,7 +41,10 @@ function renderFriends(): {
 }
 
 afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
   useAuthStatusMock.mockReset()
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   Object.assign(window, { vrx: undefined })
 })
 
@@ -60,5 +65,123 @@ describe('useFriends enabled gate', () => {
     await waitFor(() => expect(result.current.fetchStatus).toBe('idle'))
     expect(getFriends).not.toHaveBeenCalled()
     expect(result.current.isPending).toBe(true)
+  })
+})
+
+describe('useFriends background reconcile cadence (VRX-77)', () => {
+  it.each([
+    ['5m', 300_000],
+    ['10m', 600_000],
+    ['30m', 1_800_000]
+  ] as const)('refetches on the %s setting', async (reconcileInterval, intervalMs) => {
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval },
+      dirty: false
+    })
+    const { getFriends } = renderFriends()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(intervalMs - 1)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(2)
+  })
+
+  it('manual disables background refetches', async () => {
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: 'manual' },
+      dirty: false
+    })
+    const { getFriends } = renderFriends()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_800_000 * 2)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+  })
+
+  it('manual survives a remount long after staleness would have expired (Infinity staleTime — Kimi review)', async () => {
+    // The finite-staleTime fallback let refetchOnMount fire after 5 minutes
+    // despite "manual". Remounting the observer on the SAME client an hour
+    // later must NOT trigger a fetch: exactly ONE call, from the first mount.
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: 'manual' },
+      dirty: false
+    })
+    const getFriends = vi.fn().mockResolvedValue([])
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const first = renderHook(() => useFriends('vrchat'), { wrapper })
+    // Deterministic settle under fake timers: flush microtasks until the query
+    // SUCCEEDS — an unsettled query legitimately refetches on remount, which
+    // made a fixed two-flush version CI-flaky.
+    for (let i = 0; i < 20 && !first.result.current.isSuccess; i++) {
+      await act(async () => {
+        // Zero-advance runs due MACROtasks too — part of TanStack's settle path
+        // rides setTimeout(0), which pure microtask flushes never reach under
+        // fake timers (the CI flake's real mechanism).
+        await vi.advanceTimersByTimeAsync(0)
+      })
+    }
+    expect(first.result.current.isSuccess).toBe(true)
+    expect(getFriends).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_600_000)
+    })
+    first.unmount()
+    const second = renderHook(() => useFriends('vrchat'), { wrapper })
+    for (let i = 0; i < 20 && second.result.current.fetchStatus !== 'idle'; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+    }
+    expect(getFriends).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies a changed cadence immediately to the mounted TanStack observer', async () => {
+    vi.useFakeTimers()
+    mockAuthState('authenticated')
+    const { getFriends } = renderFriends()
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+
+    act(() =>
+      useSettingsStore.getState().updateSettings({
+        reconcileInterval: '10m'
+      })
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+    expect(getFriends).toHaveBeenCalledTimes(2)
   })
 })

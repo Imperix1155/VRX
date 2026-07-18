@@ -125,6 +125,44 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(useSettingsStore.getState().settings.backgroundGlow).toBe('muted')
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
+
+  it('renders the friends background re-sync row with its note and four cadence options', () => {
+    renderSettings()
+
+    expect(screen.getByText(msg('settings.reconcileInterval.label'))).toBeTruthy()
+    expect(screen.getByText(msg('settings.reconcileInterval.note'))).toBeTruthy()
+    const group = screen.getByRole('radiogroup', {
+      name: msg('settings.reconcileInterval.aria')
+    })
+    const radios = [...group.querySelectorAll('[role="radio"]')]
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      msg('settings.reconcileInterval.5m'),
+      msg('settings.reconcileInterval.10m'),
+      msg('settings.reconcileInterval.30m'),
+      msg('settings.reconcileInterval.manual')
+    ])
+    expect(radios.filter((radio) => radio.getAttribute('tabindex') === '0')).toHaveLength(1)
+  })
+
+  it('reflects and saves the stored friends background re-sync cadence', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, reconcileInterval: '30m' } })
+    renderSettings()
+
+    const group = screen.getByRole('radiogroup', {
+      name: msg('settings.reconcileInterval.aria')
+    })
+    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.reconcileInterval.30m')
+    )
+
+    const manual = [...group.querySelectorAll('[role="radio"]')].find(
+      (radio) => radio.textContent === msg('settings.reconcileInterval.manual')
+    )
+    expect(manual).toBeTruthy()
+    fireEvent.click(manual!)
+    expect(useSettingsStore.getState().settings.reconcileInterval).toBe('manual')
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
 })
 
 describe('SettingsView — Dashboard section (VRX-78)', () => {

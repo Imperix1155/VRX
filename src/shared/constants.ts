@@ -7,6 +7,7 @@
  * ⚠️ This file is bundled into the RENDERER (sandboxed browser context).
  * Keep it pure: no `electron`/`node` imports, no side effects — values only.
  */
+import type { ReconcileInterval } from './types'
 
 // ─── API base URLs (verified vs platform sources, 2026-06) ───────────────────
 /** VRChat REST API base. */
@@ -24,6 +25,13 @@ export const CVR_WS_URL = 'wss://api.chilloutvr.net/1/users/ws' as const
  *  (minutes, not seconds), NOT a live poll: the WS drives live updates
  *  (VRX-146/147). User-configurable (VRX-77). */
 export const FRIENDS_RECONCILE_MS = 300_000
+/** User-selectable friends-list background reconcile cadence (VRX-77). */
+export const RECONCILE_INTERVAL_MS: Record<ReconcileInterval, number | false> = {
+  '5m': FRIENDS_RECONCILE_MS,
+  '10m': 600_000,
+  '30m': 1_800_000,
+  manual: false
+}
 /** Per-request timeout for all API calls (ms). */
 export const API_TIMEOUT_MS = 15_000
 

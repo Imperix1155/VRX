@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { RECONCILE_INTERVAL_MS } from './constants'
 import {
   SETTINGS_VERSION,
   DEFAULT_SETTINGS,
@@ -25,7 +26,8 @@ describe('settings schema', () => {
       notifyFriendInGame: false,
       notifyFriendOffline: false,
       notifyHotInstance: false,
-      backgroundGlow: 'standard'
+      backgroundGlow: 'standard',
+      reconcileInterval: '5m'
     })
   })
 
@@ -76,6 +78,25 @@ describe('settings schema', () => {
     expect(parseSettings({ theme: 'dark' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 'neon' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 1 }).backgroundGlow).toBe('standard')
+  })
+
+  it('reconcileInterval: accepts every cadence, defaults missing/invalid to 5m', () => {
+    expect(parseSettings({ reconcileInterval: '5m' }).reconcileInterval).toBe('5m')
+    expect(parseSettings({ reconcileInterval: '10m' }).reconcileInterval).toBe('10m')
+    expect(parseSettings({ reconcileInterval: '30m' }).reconcileInterval).toBe('30m')
+    expect(parseSettings({ reconcileInterval: 'manual' }).reconcileInterval).toBe('manual')
+    expect(parseSettings({ theme: 'dark' }).reconcileInterval).toBe('5m')
+    expect(parseSettings({ reconcileInterval: '1m' }).reconcileInterval).toBe('5m')
+    expect(parseSettings({ reconcileInterval: 5 }).reconcileInterval).toBe('5m')
+  })
+
+  it('maps every reconcile cadence to its background interval', () => {
+    expect(RECONCILE_INTERVAL_MS).toEqual({
+      '5m': 300_000,
+      '10m': 600_000,
+      '30m': 1_800_000,
+      manual: false
+    })
   })
 
   it('collapsedFriendSections: accepts valid sections, defaults missing/invalid to ["offline"]', () => {
@@ -181,7 +202,12 @@ describe('migration runner', () => {
       notifyHotInstance: false
     }
 
-    expect(parseSettings(v1)).toEqual({ ...v1, version: 3, backgroundGlow: 'standard' })
+    expect(parseSettings(v1)).toEqual({
+      ...v1,
+      version: 4,
+      backgroundGlow: 'standard',
+      reconcileInterval: '5m'
+    })
   })
 
   it('migrates v2 → v3 without losing or changing any existing field', () => {
@@ -201,7 +227,33 @@ describe('migration runner', () => {
       notifyHotInstance: false
     }
 
-    expect(parseSettings(v2)).toEqual({ ...v2, version: 3, backgroundGlow: 'standard' })
+    expect(parseSettings(v2)).toEqual({
+      ...v2,
+      version: 4,
+      backgroundGlow: 'standard',
+      reconcileInterval: '5m'
+    })
+  })
+
+  it('migrates v3 → v4 without losing or changing any existing field', () => {
+    const v3 = {
+      version: 3,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false,
+      backgroundGlow: 'vivid'
+    }
+
+    expect(parseSettings(v3)).toEqual({ ...v3, version: 4, reconcileInterval: '5m' })
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
@@ -240,6 +292,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 3 }, 2)).toBe(false)
   })
 
+  it('makes an older v3 build refuse a v4 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 4 }, 3)).toBe(false)
+  })
+
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
@@ -272,5 +328,22 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.backgroundGlow).toBe('vivid')
     expect(parseSettings(disk).backgroundGlow).toBe('vivid')
+  })
+
+  it('prevents a v3 build from stripping reconcileInterval during a downgrade round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 4,
+      reconcileInterval: 'manual'
+    }
+    const oldV3Normalized = { ...disk, version: 3 }
+    Reflect.deleteProperty(oldV3Normalized, 'reconcileInterval')
+
+    // This is the v3 build's load-and-tidy write. The v4 boundary must block
+    // the write that would otherwise strip reconcileInterval from disk.
+    if (shouldPersistSettings(disk, 3)) disk = oldV3Normalized
+
+    expect(disk.reconcileInterval).toBe('manual')
+    expect(parseSettings(disk).reconcileInterval).toBe('manual')
   })
 })
