@@ -495,6 +495,11 @@ export class VrcAdapter extends VrcApiClient {
     const generation = this.sessionGeneration
     try {
       await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+      // A replacement session landed while the request was in flight; its outcome
+      // belongs to the new identity, not to the caller that issued this one.
+      if (generation !== this.sessionGeneration) {
+        throw new Error('Session ended')
+      }
     } catch (error) {
       // A replacement session that landed during the request owns its own
       // invalidation boundary; do not emit a stale auth-invalidated for it.
@@ -505,7 +510,7 @@ export class VrcAdapter extends VrcApiClient {
       // to re-check auth + quarantine so a stale "connected" card flips to reconnect.
       // We do NOT clearSession: getAuthStatus is 2FA-aware and decides needs-2fa vs
       // unauthenticated; a blunt clear would force a full re-login.
-      if (error instanceof AuthError) {
+      if (error instanceof AuthError && error.status === 401) {
         this.bumpSessionGeneration()
         this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
       }

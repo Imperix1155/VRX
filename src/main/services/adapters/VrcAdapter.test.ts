@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
+import { AuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
@@ -1978,6 +1979,7 @@ describe('VrcAdapter', () => {
 
     it('emits auth-invalidated exactly once on a 401 (dead session) and still rejects', async () => {
       let authInvalidatedCount = 0
+      const store = fakeStore('auth=tok')
       const fetchMock = vi.fn((url: RequestInfo | URL) => {
         const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
         if (href.includes('/invite/myself/to/')) {
@@ -1986,23 +1988,29 @@ describe('VrcAdapter', () => {
         return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
       })
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
+      const adapter = new VrcAdapter(store, noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      const generationBefore = (adapter as unknown as { sessionGeneration: number })
+        .sessionGeneration
       adapter.subscribe((event) => {
         if (event.type === 'auth-invalidated') authInvalidatedCount += 1
       })
 
-      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(Error)
+      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(AuthError)
       expect(authInvalidatedCount).toBe(1)
+      expect(store.deleted).toBe(0)
+      expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
+        generationBefore + 1
+      )
     })
 
-    it('does NOT emit auth-invalidated on a non-auth failure and still rejects', async () => {
+    it('does NOT emit auth-invalidated on a 403 (forbidden) and still rejects', async () => {
       let authInvalidatedCount = 0
       const fetchMock = vi.fn((url: RequestInfo | URL) => {
         const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
         if (href.includes('/invite/myself/to/')) {
-          return Promise.resolve(jsonResponse({ error: 'oops' }, { status: 500 }))
+          return Promise.resolve(jsonResponse({ error: 'forbidden' }, { status: 403 }))
         }
         return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
       })
@@ -2010,11 +2018,47 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      const generationBefore = (adapter as unknown as { sessionGeneration: number })
+        .sessionGeneration
       adapter.subscribe((event) => {
         if (event.type === 'auth-invalidated') authInvalidatedCount += 1
       })
 
-      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(Error)
+      await expect(adapter.selfInvite(inviteLocation)).rejects.toBeInstanceOf(AuthError)
+      expect(authInvalidatedCount).toBe(0)
+      expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
+        generationBefore
+      )
+    })
+
+    it('rejects a stale success as Session ended when the account changes mid-flight', async () => {
+      let authInvalidatedCount = 0
+      let releaseInvite!: (response: Response) => void
+      const heldInvite = new Promise<Response>((resolve) => {
+        releaseInvite = resolve
+      })
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.includes('/invite/myself/to/')) {
+          return heldInvite
+        }
+        return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+
+      const invitePromise = adapter.selfInvite(inviteLocation)
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
+      adapter.clearSession()
+      // Subscribe AFTER clearSession so its own auth-invalidated emit is not counted.
+      adapter.subscribe((event) => {
+        if (event.type === 'auth-invalidated') authInvalidatedCount += 1
+      })
+      releaseInvite(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
+
+      await expect(invitePromise).rejects.toThrow('Session ended')
       expect(authInvalidatedCount).toBe(0)
     })
   })
