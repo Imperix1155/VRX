@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { AuthState } from '@shared/types'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
@@ -18,6 +18,22 @@ function App(): React.JSX.Element {
   useApplyTheme()
   // Apply the stored background-glow level before any view renders.
   useApplyGlow()
+  const hydrated = useSettingsStore((s) => s.hydrated)
+  const notifiedHydrated = useRef(false)
+  // This passive effect is declared after both attribute layout effects, so
+  // main cannot reveal the CSS canvas until the persisted look is in place.
+  useEffect(() => {
+    if (
+      !hydrated ||
+      notifiedHydrated.current ||
+      typeof window === 'undefined' ||
+      !window.vrx?.notifyRendererHydrated
+    ) {
+      return
+    }
+    notifiedHydrated.current = true
+    window.vrx.notifyRendererHydrated()
+  }, [hydrated])
   // Live WS events + identity boundaries → query cache (VRX-146/24). Top-level
   // like useApplyTheme: the subscription is idempotent and event application
   // no-ops until a friends fetch has populated the cache.
@@ -31,7 +47,6 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  const hydrated = useSettingsStore((s) => s.hydrated)
   const { data: vrcAuthStatus, isPending: isVrcPending } = useAuthStatus('vrchat')
   const { data: cvrAuthStatus, isPending: isCvrPending } = useAuthStatus('chilloutvr')
 

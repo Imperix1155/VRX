@@ -75,10 +75,11 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
   return { promise, resolve }
 }
 
-function stubSettingsLoad(promise: Promise<Settings>): void {
+function stubSettingsLoad(promise: Promise<Settings>, notifyRendererHydrated?: () => void): void {
   Object.assign(window, {
     vrx: {
-      getSettings: () => promise
+      getSettings: () => promise,
+      notifyRendererHydrated
     }
   })
 }
@@ -250,7 +251,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
 })
 
 describe('App settings hydration gate (VRX-212)', () => {
-  it('hydrates immediately and renders normally when the preload bridge is absent', async () => {
+  it('hydrates and renders without attempting a notification when the bridge is absent', async () => {
     mockAuthStatuses(
       { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
       cvrUnauthenticated
@@ -302,6 +303,34 @@ describe('App settings hydration gate (VRX-212)', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(document.documentElement.getAttribute('data-glow')).toBe('muted')
     expect(screen.getByTestId('app-shell')).toBeTruthy()
+  })
+
+  it('notifies main exactly once after hydration and the attribute effects', async () => {
+    const load = deferred<Settings>()
+    const notifyRendererHydrated = vi.fn(() => {
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+      expect(document.documentElement.getAttribute('data-glow')).toBe('muted')
+    })
+    stubSettingsLoad(load.promise, notifyRendererHydrated)
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    expect(notifyRendererHydrated).not.toHaveBeenCalled()
+    await act(async () => {
+      load.resolve({ ...DEFAULT_SETTINGS, theme: 'light', backgroundGlow: 'muted' })
+    })
+    expect(notifyRendererHydrated).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      useSettingsStore.setState({
+        settings: { ...useSettingsStore.getState().settings, backgroundGlow: 'vivid' },
+        dirty: false
+      })
+    })
+    expect(notifyRendererHydrated).toHaveBeenCalledTimes(1)
   })
 
   it('renders the shell on the first tick when getSettings resolves immediately with defaults', async () => {
