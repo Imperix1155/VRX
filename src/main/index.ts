@@ -36,6 +36,7 @@ import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
+import { SocialStore } from './services/socialStore'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -344,6 +345,7 @@ app
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
+    const socialStore = new SocialStore(accountSession)
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -532,6 +534,7 @@ app
     registerIpcHandlers(adapters, {
       accountRegistry,
       accountSession,
+      socialStore,
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&

@@ -23,6 +23,8 @@ const vrx = {
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
+  getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
+  setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an
    * unsubscribe. The payload is passed through as-is — it originates in the

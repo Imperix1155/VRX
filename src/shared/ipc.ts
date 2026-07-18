@@ -59,6 +59,11 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   'get-settings': { req: void; res: Settings }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
+  'get-friend-note': { req: { platform: Platform; friendId: string }; res: { note: string | null } }
+  'set-friend-note': {
+    req: { platform: Platform; friendId: string; note: string }
+    res: { ok: true } | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' }
+  }
 }
 
 /**
