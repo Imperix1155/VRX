@@ -96,6 +96,35 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
       msg('settings.theme.light')
     ])
   })
+
+  it('renders the background-glow options in Muted | Standard | Vivid order (Standard default)', () => {
+    renderSettings()
+    const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    const labels = [...glowGroup.querySelectorAll('[role="radio"]')].map((b) => b.textContent)
+    expect(labels).toEqual([
+      msg('settings.backgroundGlow.muted'),
+      msg('settings.backgroundGlow.standard'),
+      msg('settings.backgroundGlow.vivid')
+    ])
+  })
+
+  it('reflects the stored background-glow choice and writes changes through updateSettings', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, backgroundGlow: 'vivid' } })
+    renderSettings()
+
+    const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    expect(glowGroup.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.backgroundGlow.vivid')
+    )
+
+    const muted = [...glowGroup.querySelectorAll('[role="radio"]')].find(
+      (b) => b.textContent === msg('settings.backgroundGlow.muted')
+    )
+    expect(muted).toBeTruthy()
+    fireEvent.click(muted!)
+    expect(useSettingsStore.getState().settings.backgroundGlow).toBe('muted')
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
 })
 
 describe('SettingsView — Dashboard section (VRX-78)', () => {

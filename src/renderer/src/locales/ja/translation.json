@@ -33,6 +33,14 @@
       "light": "ライト",
       "system": "システム"
     },
+    "backgroundGlow": {
+      "label": "背景のグロー",
+      "description": "背景のオーロラの強さを選択します。",
+      "aria": "背景グロー選択",
+      "muted": "控えめ",
+      "standard": "標準",
+      "vivid": "鮮やか"
+    },
     "labelScheme": {
       "label": "インスタンスラベル",
       "description": "インスタンス種別ピルに使う用語を選択します。",

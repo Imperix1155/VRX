@@ -198,6 +198,12 @@ export interface AppStatus {
 export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
+// ─── Background glow (VRX-NNN) ───────────────────────────────────────────────
+/** Three-level background aurora intensity. Single source for both the
+ *  `BackgroundGlow` type and the settings schema's `backgroundGlow` enum. */
+export const BACKGROUND_GLOWS = ['muted', 'standard', 'vivid'] as const
+export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
+
 // ─── Instance-label scheme (VRX-183) ─────────────────────────────────────────
 /** Which naming scheme the instance pills use (DESIGN.md §6 label rule):
  *  `vrchat` = VRChat terms on both platforms (the VRX-182 baseline/default),

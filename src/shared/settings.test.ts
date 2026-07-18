@@ -24,7 +24,8 @@ describe('settings schema', () => {
       notifyFriendOnline: false,
       notifyFriendInGame: false,
       notifyFriendOffline: false,
-      notifyHotInstance: false
+      notifyHotInstance: false,
+      backgroundGlow: 'standard'
     })
   })
 
@@ -66,6 +67,15 @@ describe('settings schema', () => {
     expect(parseSettings({ labelScheme: 'platform-native' }).labelScheme).toBe('platform-native')
     expect(parseSettings({ theme: 'dark' }).labelScheme).toBe('vrchat')
     expect(parseSettings({ labelScheme: 'klingon' }).labelScheme).toBe('vrchat')
+  })
+
+  it('backgroundGlow: accepts every level, defaults missing/invalid to standard', () => {
+    expect(parseSettings({ backgroundGlow: 'muted' }).backgroundGlow).toBe('muted')
+    expect(parseSettings({ backgroundGlow: 'standard' }).backgroundGlow).toBe('standard')
+    expect(parseSettings({ backgroundGlow: 'vivid' }).backgroundGlow).toBe('vivid')
+    expect(parseSettings({ theme: 'dark' }).backgroundGlow).toBe('standard')
+    expect(parseSettings({ backgroundGlow: 'neon' }).backgroundGlow).toBe('standard')
+    expect(parseSettings({ backgroundGlow: 1 }).backgroundGlow).toBe('standard')
   })
 
   it('collapsedFriendSections: accepts valid sections, defaults missing/invalid to ["offline"]', () => {
@@ -134,7 +144,7 @@ describe('migration runner', () => {
 
   it('applies registered migrations in order on a version mismatch', () => {
     // A synthetic registry proves the runner mechanism independently of the
-    // production v1 → v2 identity migration.
+    // production identity migrations.
     const migrations: Record<number, SettingsMigration> = {
       0: (prev) => ({ ...prev, theme: 'dark', version: 1 }),
       1: (prev) => ({ ...prev, density: 'compact', version: 2 })
@@ -154,8 +164,8 @@ describe('migration runner', () => {
     expect(() => runMigrations({ version: 1 }, {}, 2)).toThrow(/no migration/i)
   })
 
-  it('migrates v1 → v2 without losing or changing any existing field', () => {
-    const v1: Settings = {
+  it('migrates a v1 file to current without losing or changing any existing field', () => {
+    const v1 = {
       version: 1,
       theme: 'dark',
       language: 'ja',
@@ -171,7 +181,27 @@ describe('migration runner', () => {
       notifyHotInstance: false
     }
 
-    expect(parseSettings(v1)).toEqual({ ...v1, version: 2 })
+    expect(parseSettings(v1)).toEqual({ ...v1, version: 3, backgroundGlow: 'standard' })
+  })
+
+  it('migrates v2 → v3 without losing or changing any existing field', () => {
+    const v2 = {
+      version: 2,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false
+    }
+
+    expect(parseSettings(v2)).toEqual({ ...v2, version: 3, backgroundGlow: 'standard' })
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
@@ -206,6 +236,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 2 }, 1)).toBe(false)
   })
 
+  it('makes an older v2 build refuse a v3 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 3 }, 2)).toBe(false)
+  })
+
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
@@ -221,5 +255,22 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.notifyHotInstance).toBe(false)
     expect(parseSettings(disk).notifyHotInstance).toBe(false)
+  })
+
+  it('prevents a v2 build from stripping backgroundGlow during a downgrade round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 3,
+      backgroundGlow: 'vivid'
+    }
+    const oldV2Normalized = { ...disk, version: 2 }
+    Reflect.deleteProperty(oldV2Normalized, 'backgroundGlow')
+
+    // This is the v2 build's load-and-tidy write. The v3 boundary must block
+    // the write that would otherwise strip backgroundGlow from disk.
+    if (shouldPersistSettings(disk, 2)) disk = oldV2Normalized
+
+    expect(disk.backgroundGlow).toBe('vivid')
+    expect(parseSettings(disk).backgroundGlow).toBe('vivid')
   })
 })
