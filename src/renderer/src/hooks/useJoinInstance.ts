@@ -58,6 +58,12 @@ export function useJoinInstance(): {
       }, 2_500)
     }
     try {
+      // Guard the preload bridge explicitly — it is undefined in Preview and
+      // tests (house rule), and a missing bridge is user-equivalent to a denial.
+      if (!window.vrx) {
+        showFailureBlip()
+        return
+      }
       // VRChat ignores mode; a CVR VR-mode picker is a future setting.
       const result = await window.vrx.joinInstance({
         platform: friend.platform,
