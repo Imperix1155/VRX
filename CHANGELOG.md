@@ -15,8 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **You can now set how often the friends list does its full re-sync.** Settings → General → Re-sync cadence: every 5 minutes (default), 10, 30, or manual-only. Real-time updates still arrive instantly over the live connection — this only controls the background safety-net that catches anything missed while disconnected. Manual-only also stays quiet after leaving and returning to a social view. (VRX-77)
 
-### Added
-
 - **Private notes on friends.** The friend drawer's Notes section is live: write up to 500 characters about any friend (with a live counter) and it saves automatically when you click away. Notes are private to you, stored per account, and keyed to the friend's ID — they survive display-name changes and app restarts. (VRX-72)
 
 - **The background glow is now yours to set.** Settings → Appearance → Background glow: Muted (the old quieter look), Standard (the new default — the corner auroras reach further across the window), or Vivid (bigger, brighter, with extra organic wisps of color). Applies instantly, works in both themes, and your choice is remembered. (VRX-211)
@@ -24,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Click a friend to open their details drawer.** A glass panel slides in from the right with the friend's avatar, name, and platform; their status spelled out in words ("Join Me — Open to joins, hop in freely", "Ask Me — Ask before joining", …); where they are (world + instance type, "Hidden" when their status hides it); their VRChat trust rank when known; and a Join button when they're actually joinable. Fully keyboard-accessible: Enter/Space on a row opens it, Esc or clicking outside closes it, and focus returns to the row. (VRX-69)
 
 ### Changed
+
+- Sign-in failures now show one consistent message ("Sign-in failed. Check your details and connection, then try again.") instead of hinting at what specifically went wrong — deliberately generic so a failed attempt reveals nothing about the account. The 2FA step still knows when to re-prompt. (VRX-36)
 
 - Cleaner status dots: the little icon inside the avatar's corner status badge is gone — the badge is now a simple colored dot. The status in words now lives in the friend drawer, so the meaning is still never carried by color alone. (VRX-69)
 

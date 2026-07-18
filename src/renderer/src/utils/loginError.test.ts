@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { mapLoginError } from './loginError'
 
-// Table-pins the code→key contract (2026-07 audit W6): known codes map to their
-// specific message; EVERYTHING else — including raw http_* codes — collapses to
-// the generic key so no raw error code ever reaches the user.
+// Table-pins the code→key contract (VRX-36): every login failure, known or
+// unknown, collapses to the single generic key so no raw error code ever
+// reaches the user.
 describe('mapLoginError', () => {
   it.each([
-    ['invalid_credentials', 'login.error.invalidCredentials'],
-    ['network_error', 'login.error.networkError'],
-    ['invalid_2fa_code', 'login.error.invalid2faCode'],
+    ['invalid_credentials', 'login.error.unknown'],
+    ['network_error', 'login.error.unknown'],
+    ['invalid_2fa_code', 'login.error.unknown'],
     ['http_500', 'login.error.unknown'],
     ['http_403', 'login.error.unknown'],
     ['bad_response', 'login.error.unknown'],
