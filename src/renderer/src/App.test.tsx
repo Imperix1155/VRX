@@ -292,9 +292,7 @@ describe('App settings hydration gate (VRX-212)', () => {
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false)
     expect(document.documentElement.hasAttribute('data-glow')).toBe(false)
 
-    act(() =>
-      load.resolve({ ...DEFAULT_SETTINGS, theme: 'light', backgroundGlow: 'muted' })
-    )
+    act(() => load.resolve({ ...DEFAULT_SETTINGS, theme: 'light', backgroundGlow: 'muted' }))
 
     // The attributes must land before (in the same commit as) the shell reveal.
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
