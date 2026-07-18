@@ -455,9 +455,11 @@ export class VrcAdapter extends VrcApiClient {
         // re-check auth + quarantine so a stale "connected" card flips to reconnect
         // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
         // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
-        // unauthenticated; a blunt clear would force a full re-login. NetworkError
-        // and other failures just propagate untouched.
-        if (error instanceof AuthError) {
+        // unauthenticated; a blunt clear would force a full re-login. 401 ONLY —
+        // a 403 is an ordinary denial on a live session, never an invalidation
+        // (VRX-42 boundary rule, same as selfInvite). NetworkError and other
+        // failures just propagate untouched.
+        if (error instanceof AuthError && error.status === 401) {
           // Ordering exemption: a data-path AuthError may mean only that 2FA
           // expired, so this boundary deliberately retains the current identity.
           this.bumpSessionGeneration()
@@ -502,9 +504,12 @@ export class VrcAdapter extends VrcApiClient {
       }
     } catch (error) {
       // A replacement session that landed during the request owns its own
-      // invalidation boundary; do not emit a stale auth-invalidated for it.
+      // invalidation boundary; do not emit a stale auth-invalidated for it —
+      // and don't surface the OLD session's failure either: the caller's
+      // session is simply over (same surface as the success-path fence and
+      // getFriends' staleness rule).
       if (generation !== this.sessionGeneration) {
-        throw error
+        throw new Error('Session ended')
       }
       // A data-path 401 means the cookie is dead/2FA-expired. Signal the renderer
       // to re-check auth + quarantine so a stale "connected" card flips to reconnect.

@@ -1500,6 +1500,23 @@ describe('VrcAdapter', () => {
       expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
     })
 
+    it('a 403 on the buckets probe does NOT emit auth-invalidated (ordinary denial on a live session, VRX-42)', async () => {
+      // Same 401-only boundary rule as selfInvite: BaseAdapter classifies 403s
+      // as AuthError too, but a 403 must never read as a dead session.
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      adapter.subscribe((e) => events.push(e))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'forbidden' }, { status: 403 }))
+      )
+
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthError)
+      expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
+    })
+
     it('a 5xx on the buckets probe does NOT emit auth-invalidated (session still valid)', async () => {
       const events: AdapterEvent[] = []
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
