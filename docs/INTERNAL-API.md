@@ -29,6 +29,8 @@ or should be added.
 | `login({ platform, credentials })`            | `login`                        | `Promise<LoginResult>`                                                                                  |
 | `verify2fa({ platform, code })`               | `verify-2fa`                   | `Promise<LoginResult>`                                                                                  |
 | `logout({ platform })`                        | `logout`                       | `Promise<void>` — clears that platform session (VRX-191)                                                |
+| `getFriendNote({ platform, friendId })`       | `get-friend-note`              | `Promise<{ note: string \| null }>` — account-scoped private note (VRX-72); null when logged out          |
+| `setFriendNote({ platform, friendId, note })` | `set-friend-note`              | `Promise<{ ok } \| { ok:false, reason }>` — 500-char cap, empty deletes; `stale` on account-epoch races  |
 | `joinInstance({ platform, friendId, mode })`  | `join-instance`                | `Promise<InstanceActionResult>`                                                                         |
 | `selfInvite({ platform:'vrchat', friendId })` | `self-invite`                  | `Promise<InstanceActionResult>`                                                                         |
 | `getAppStatus()`                              | `get-app-status`               | `Promise<AppStatus>`                                                                                    |
