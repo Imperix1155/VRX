@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * useSettingsPersistence tests (VRX-184).
+ * useSettingsPersistence tests (VRX-184, VRX-212).
  *
  * jsdom renders client-side, so the REAL zustand store applies (the SSR
  * store-snapshot trap only bites renderToStaticMarkup tests). window.vrx is
@@ -10,6 +10,10 @@
  * controlled promises: saves must be GATED until the boot load lands (an
  * early save would patch defaults over the on-disk file), and a stale save
  * resolving late must never mark newer unsaved settings clean.
+ *
+ * VRX-212 adds the hydration gate: the store flips `hydrated` true once the
+ * initial load resolves (success or failure), or immediately when the bridge
+ * is absent.
  */
 import { act, render, waitFor, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -50,14 +54,14 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
   return { promise, resolve }
 }
 
-const storeState = (): { settings: Settings; dirty: boolean } => {
-  const { settings, dirty } = useSettingsStore.getState()
-  return { settings, dirty }
+const storeState = (): { settings: Settings; dirty: boolean; hydrated: boolean } => {
+  const { settings, dirty, hydrated } = useSettingsStore.getState()
+  return { settings, dirty, hydrated }
 }
 
 afterEach(() => {
   cleanup()
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
   Reflect.deleteProperty(window, 'vrx')
 })
 
@@ -67,6 +71,7 @@ describe('useSettingsPersistence', () => {
     render(<Probe />)
     await waitFor(() => expect(storeState().settings.theme).toBe('dark'))
     expect(storeState().dirty).toBe(false)
+    expect(storeState().hydrated).toBe(true)
   })
 
   it('saves on a dirty change (after the load settles) and marks the store clean', async () => {
@@ -91,12 +96,14 @@ describe('useSettingsPersistence', () => {
     act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
     await act(() => Promise.resolve())
     expect(bridge.saveSettings).not.toHaveBeenCalled()
+    expect(storeState().hydrated).toBe(false)
 
     act(() => load.resolve({ ...PERSISTED }))
     // The edit survives ON TOP of the persisted values...
     await waitFor(() => expect(storeState().settings.density).toBe('compact'))
     expect(storeState().settings.theme).toBe('dark')
     expect(storeState().settings.labelScheme).toBe('chilloutvr')
+    expect(storeState().hydrated).toBe(true)
     // ...and the now-ungated save persists the MERGE, not defaults.
     await waitFor(() => expect(storeState().dirty).toBe(false))
     expect(bridge.saveSettings).toHaveBeenCalledWith({
@@ -158,16 +165,27 @@ describe('useSettingsPersistence', () => {
     render(<Probe />)
     await waitFor(() => expect(bridge.getSettings).toHaveBeenCalled())
     await act(() => Promise.resolve())
+    expect(storeState().hydrated).toBe(true)
     act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
     await act(() => Promise.resolve())
     expect(bridge.saveSettings).not.toHaveBeenCalled()
     expect(storeState().settings.theme).toBe('light')
   })
 
-  it('no-ops without the bridge (Preview/tests) — stays in-memory, never throws', () => {
+  it('hydrates immediately when the load fails so the UI is not trapped', async () => {
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockRejectedValue(new Error('bridge broke'))
+    })
+    render(<Probe />)
+    await waitFor(() => expect(bridge.getSettings).toHaveBeenCalled())
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+  })
+
+  it('no-ops without the bridge (Preview/tests) — stays in-memory, never throws, and hydrates immediately', () => {
     render(<Probe />)
     act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
     expect(storeState().settings.theme).toBe('light')
     expect(storeState().dirty).toBe(true)
+    expect(storeState().hydrated).toBe(true)
   })
 })

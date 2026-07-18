@@ -72,8 +72,17 @@ export interface IpcEvents {
   'navigate-to-dashboard': void
 }
 
+/**
+ * Notify channels — renderer → main, no response:
+ * `ipcRenderer.send(channel, payload)` ↔ `ipcMain.on(channel, …)`.
+ */
+export interface IpcNotifications {
+  'renderer-hydrated': void
+}
+
 export type IpcInvokeChannel = keyof IpcInvoke
 export type IpcEventChannel = keyof IpcEvents
+export type IpcNotificationChannel = keyof IpcNotifications
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):
