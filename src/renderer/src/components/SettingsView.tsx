@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import type { LabelScheme, Theme } from '@shared/types'
-import { LABEL_SCHEMES, THEMES } from '@shared/types'
+import type { BackgroundGlow, LabelScheme, Theme } from '@shared/types'
+import { BACKGROUND_GLOWS, LABEL_SCHEMES, THEMES } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import AccountCard from './AccountCard'
@@ -21,6 +21,12 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
   'platform-native': 'settings.labelScheme.platformNative'
 }
 
+const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
+  muted: 'settings.backgroundGlow.muted',
+  standard: 'settings.backgroundGlow.standard',
+  vivid: 'settings.backgroundGlow.vivid'
+}
+
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
  * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
@@ -34,6 +40,7 @@ const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
+  const backgroundGlow = useSettingsStore((s) => s.settings.backgroundGlow)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
@@ -76,6 +83,25 @@ export default function SettingsView(): React.JSX.Element {
                 labelKeys={THEME_LABEL_KEYS}
                 ariaLabel={t('settings.theme.aria')}
                 onChange={(value) => updateSettings({ theme: value })}
+              />
+            </div>
+
+            {/* Background-glow row (owner-ratified 2026-07-17) */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.backgroundGlow.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.backgroundGlow.description')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={BACKGROUND_GLOWS}
+                active={backgroundGlow}
+                labelKeys={GLOW_LABEL_KEYS}
+                ariaLabel={t('settings.backgroundGlow.aria')}
+                onChange={(value) => updateSettings({ backgroundGlow: value })}
               />
             </div>
 

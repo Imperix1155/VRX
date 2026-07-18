@@ -4,6 +4,7 @@ import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
+import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { useUiStore } from './stores/ui'
@@ -14,6 +15,8 @@ function App(): React.JSX.Element {
   useSettingsPersistence()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()
+  // Apply the stored background-glow level before any view renders.
+  useApplyGlow()
   // Live WS events + identity boundaries → query cache (VRX-146/24). Top-level
   // like useApplyTheme: the subscription is idempotent and event application
   // no-ops until a friends fetch has populated the cache.

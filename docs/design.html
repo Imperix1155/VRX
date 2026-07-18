@@ -52,8 +52,8 @@
   body::before {
     content: ""; position: fixed; inset: 0; z-index: -2;
     background:
-      radial-gradient(58% 50% at 12% 6%, rgba(43,124,232,0.26), transparent 60%),
-      radial-gradient(58% 50% at 92% 96%, rgba(243,113,30,0.20), transparent 60%),
+      radial-gradient(95% 78% at 12% 6%, rgba(43,124,232,0.299), transparent 74%),
+      radial-gradient(95% 78% at 92% 96%, rgba(243,113,30,0.23), transparent 74%),
       var(--bg-base);
     background-attachment: fixed;
   }
@@ -432,10 +432,10 @@ background: <span class="v">var(--vrc)</span>;
         <p class="slead">Look behind this very page: a near-black canvas with a quiet blue glow (top-left) and orange glow (bottom-right) — the two platforms as light — plus a faint CRT scanline grid. The glass has something worth blurring.</p>
         <div class="el" style="border:0;padding-top:14px;">
           <div class="grid2">
-            <div><div class="box-label how">How</div><div class="code">body::before {  <span class="c">/* aurora, z-index:-2 */</span>
+            <div><div class="box-label how">How</div><div class="code">body::before {  <span class="c">/* aurora, z-index:-2 — var-driven since VRX-211: Settings → Background glow (Muted/Standard/Vivid); values shown = Standard, the default */</span>
   background:
-   radial-gradient(58% 50% at 12% 6%, <span class="v">vrc .26</span>, …),
-   radial-gradient(58% 50% at 92% 96%, <span class="v">cvr .20</span>, …),
+   radial-gradient(95% 78% at 12% 6%, <span class="v">vrc .299</span>, …),
+   radial-gradient(95% 78% at 92% 96%, <span class="v">cvr .23</span>, …),
    var(--bg-base);  <span class="c">/* near-black #08080b */</span>
 }
 body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
@@ -806,11 +806,11 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 }
 [data-theme="light"] body::before {  <span class="c">/* same corners, softer */</span>
   background:
-   radial-gradient(58% 50% at 12% 6%, <span class="v">vrc .18</span>, …),
-   radial-gradient(58% 50% at 92% 96%, <span class="v">cvr .15</span>, …),
+   radial-gradient(95% 78% at 12% 6%, <span class="v">vrc .207</span>, …),
+   radial-gradient(95% 78% at 92% 96%, <span class="v">cvr .1725</span>, …),
    linear-gradient(180deg,#fbfcff,var(--bg-base),#e7edf4);
 }</div></div>
-            <div><div class="box-label why">Why</div><div class="why"><b>Tint ceiling drops to 0.18</b> in light (vs 0.22 dark) — higher and the platform color overpowers the white pane and the app stops feeling like glass.</div><div class="why">Scanlines flip to <b>dark ink on <code style="font-family:var(--code)">multiply</code></b> at low opacity — a white overlay would be invisible on a light canvas. Same texture, opposite ink.</div><div class="why">Openness badges stay <b>neutral</b> (white/ink-gray) — never blue/orange — exactly as in dark.</div></div>
+            <div><div class="box-label why">Why</div><div class="why"><b>Base tint ceiling drops to 0.18</b> in light (vs 0.22 dark; shown ×1.15 at the Standard glow default — see DESIGN.md §4) — higher and the platform color overpowers the white pane and the app stops feeling like glass.</div><div class="why">Scanlines flip to <b>dark ink on <code style="font-family:var(--code)">multiply</code></b> at low opacity — a white overlay would be invisible on a light canvas. Same texture, opposite ink.</div><div class="why">Openness badges stay <b>neutral</b> (white/ink-gray) — never blue/orange — exactly as in dark.</div></div>
           </div>
         </div>
 

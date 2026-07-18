@@ -124,6 +124,18 @@
   --aurora-vrc: rgba(43, 124, 232, 0.26);
   --aurora-cvr: rgba(243, 113, 30, 0.2);
   --aurora-gradient: var(--bg-base);
+
+  /* GLOW (owner-ratified 2026-07-17). Standard is the DEFAULT and leaves the
+     data-glow attribute ABSENT. Alphas are the final dark-theme values; light
+     theme overrides the alpha vars in [data-theme='light'] below. */
+  --glow-size-x: 95%;
+  --glow-size-y: 78%;
+  --glow-fade: 74%;
+  --glow-a-vrc: 0.299;
+  --glow-a-cvr: 0.23;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
+  --wisp-fade: 68%;
   --scanline-color: rgba(255, 255, 255, 0.022);
   --scanline-blend: overlay;
   --scanline-opacity: 0.6;
@@ -221,6 +233,12 @@
   --aurora-vrc: rgba(31, 111, 211, 0.18);
   --aurora-cvr: rgba(216, 95, 24, 0.15);
   --aurora-gradient: linear-gradient(180deg, #fbfcff 0%, var(--bg-base) 48%, #e7edf4 100%);
+
+  /* GLOW — light standard (intensity 1.15) */
+  --glow-a-vrc: 0.207;
+  --glow-a-cvr: 0.1725;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
   --scanline-color: rgba(20, 19, 28, 0.026);
   --scanline-blend: multiply;
   --scanline-opacity: 0.42;
@@ -253,15 +271,70 @@ body {
   overflow: hidden; /* §8: shell fixed; only .main scrolls */
 }
 
-/* §4 Aurora — blue top-left + orange bottom-right over near-black */
+/* §4 Aurora — blue top-left + orange bottom-right over near-black.
+   Glow level is driven by custom properties so [data-glow] can scale size,
+   fade, and alpha without changing the layer structure. */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(58% 50% at 12% 6%, var(--aurora-vrc), transparent 60%),
-    radial-gradient(58% 50% at 92% 96%, var(--aurora-cvr), transparent 60%), var(--aurora-gradient);
+    radial-gradient(
+      var(--glow-size-x) var(--glow-size-y) at 12% 6%,
+      color-mix(in srgb, var(--vrc) calc(var(--glow-a-vrc) * 100%), transparent),
+      transparent var(--glow-fade)
+    ),
+    radial-gradient(
+      var(--glow-size-x) var(--glow-size-y) at 92% 96%,
+      color-mix(in srgb, var(--cvr) calc(var(--glow-a-cvr) * 100%), transparent),
+      transparent var(--glow-fade)
+    ),
+    radial-gradient(
+      34% 26% at 30% 22%,
+      color-mix(in srgb, var(--vrc) calc(var(--wisp-a-vrc) * 100%), transparent),
+      transparent var(--wisp-fade)
+    ),
+    radial-gradient(
+      30% 24% at 74% 78%,
+      color-mix(in srgb, var(--cvr) calc(var(--wisp-a-cvr) * 100%), transparent),
+      transparent var(--wisp-fade)
+    ),
+    var(--aurora-gradient);
+}
+
+/* Muted = old shipped look (intensity 1.00, no wisps). */
+[data-glow='muted'] {
+  --glow-size-x: 58%;
+  --glow-size-y: 50%;
+  --glow-fade: 60%;
+  --glow-a-vrc: 0.26;
+  --glow-a-cvr: 0.2;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
+}
+
+/* Vivid = bigger, brighter, with extra corner wisps (intensity 1.50). */
+[data-glow='vivid'] {
+  --glow-size-x: 120%;
+  --glow-size-y: 95%;
+  --glow-fade: 82%;
+  --glow-a-vrc: 0.39;
+  --glow-a-cvr: 0.3;
+  --wisp-a-vrc: 0.15;
+  --wisp-a-cvr: 0.1275;
+}
+
+/* Light + muted: keep muted size/fade, switch to light base alphas. */
+[data-theme='light'][data-glow='muted'] {
+  --glow-a-vrc: 0.18;
+  --glow-a-cvr: 0.15;
+}
+
+/* Light + vivid: keep vivid size/fade/wisps, switch to light base alphas. */
+[data-theme='light'][data-glow='vivid'] {
+  --glow-a-vrc: 0.27;
+  --glow-a-cvr: 0.225;
 }
 
 /* §4 CRT scanlines — faint texture, never a visible grid */
