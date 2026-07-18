@@ -117,22 +117,14 @@
         "back": "Back"
       },
       "error": {
-        "invalidCredentials": "Incorrect username or password. Please try again.",
-        "invalid2faCode": "Incorrect verification code. Please try again.",
         "disconnect": "Could not disconnect this account. Please try again.",
-        "unknown": "Something went wrong. Please try again."
+        "unknown": "Sign-in failed. Check your details and connection, then try again."
       },
       "vrchat": {
-        "label": "VRChat",
-        "error": {
-          "networkError": "Could not reach VRChat. Check your connection and try again."
-        }
+        "label": "VRChat"
       },
       "chilloutvr": {
-        "label": "ChilloutVR",
-        "error": {
-          "networkError": "Could not reach ChilloutVR. Check your connection and try again."
-        }
+        "label": "ChilloutVR"
       }
     }
   },
@@ -261,10 +253,7 @@
     "signingIn": "Signing in…",
     "disclaimer": "Connects to VRChat on your behalf. Your credentials are stored securely on this device.",
     "error": {
-      "invalidCredentials": "Incorrect username or password. Please try again.",
-      "networkError": "Could not reach VRChat. Check your connection and try again.",
-      "invalid2faCode": "Incorrect verification code. Please try again.",
-      "unknown": "Something went wrong. Please try again."
+      "unknown": "Sign-in failed. Check your details and connection, then try again."
     },
     "twoFactor": {
       "promptTotp": "Open your authenticator app and enter the 6-digit code.",
