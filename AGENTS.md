@@ -103,4 +103,4 @@ Children own their local technical contracts:
 - **[`src/main`](./src/main/AGENTS.md)** — Electron main process: security trinity, electron-log + credential redaction.
 - **[`src/renderer`](./src/renderer/AGENTS.md)** — React UI: Tailwind v4, design-token-only styling.
 
-Not yet durable boundaries (no child doc until they gain real content): `src/preload` (owns `index.ts` + `index.d.ts` — the `window.vrx` bridge — durable but small; contracts documented in `src/main/AGENTS.md`), and the empty placeholder dirs `src/main/platform/` and `src/renderer/src/{hooks,queries,routes,utils}`.
+Not yet durable boundaries (no child doc until they gain real content): `src/preload` (owns `index.ts` + `index.d.ts` — the `window.vrx` bridge — durable but small; contracts documented in `src/main/AGENTS.md`), and the `.gitkeep`-only placeholder dirs `src/main/platform/` and `src/renderer/src/routes/`. The populated `src/renderer/src/{hooks,queries,utils}` subtrees are owned by `src/renderer/AGENTS.md` (see its per-file entries).
