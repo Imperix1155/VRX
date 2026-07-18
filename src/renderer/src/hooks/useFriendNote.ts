@@ -55,12 +55,6 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const key = `${platform}:${friendId}`
   const [state, setState] = useState<NoteState>(() => initialState(key))
   const [boundaryEpoch, setBoundaryEpoch] = useState(0)
-  // Render-synced mirror so async completion callbacks can read the CURRENT
-  // state when draining the queued save (no effect, no stale closure).
-  const stateRef = useRef(state)
-  useEffect(() => {
-    stateRef.current = state
-  })
 
   // Reset local state when the target friend changes. Done during render so the
   // effect body can stay free of synchronous setState calls. The sequence
@@ -113,29 +107,13 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     }
   }, [platform, friendId, boundaryEpoch, key])
 
-  // Drain any save that was queued while another save was in flight. Runs from
-  // the completion callbacks (never an effect — a synchronous setState in an
-  // effect body cascades renders, and the lint rule rightly refuses it): after
-  // the active request settles we re-read the CURRENT state on a microtask via
-  // render-synced refs, then either drop a no-op queue or submit it. The
-  // commitSave ref keeps the drain pointing at the CURRENT friend's saver even
-  // when a stale completion from a previous friend triggers it.
+  // A queued save drains from INSIDE the settle updaters below. React applies
+  // queued updaters in order, so a commitSave scheduled on a microtask from a
+  // settle updater always runs against the settled state (pending → null). No
+  // timers and no committed-state reads: CI proved every "wait for the commit"
+  // variant flaky (macrotask starved on ubuntu, microtask raced the ref sync).
+  // The ref keeps the drain pointing at the CURRENT friend's saver.
   const commitSaveRef = useRef<(draft: string) => void>(() => {})
-  const drainQueuedSoon = useCallback((): void => {
-    // Macrotask, not microtask: React batches promise-callback setStates and
-    // may not have committed the settled state (pending→null) by microtask
-    // time — the drain would read a stale ref and give up. A 0ms timeout runs
-    // after commit + the ref-sync effect.
-    window.setTimeout(() => {
-      const current = stateRef.current
-      if (current.queued === null || current.pending !== null || current.revision === null) return
-      if (current.queued.trimEnd() === (current.loaded ?? '').trimEnd()) {
-        setState((inner) => (inner.queued === null ? inner : { ...inner, queued: null }))
-        return
-      }
-      commitSaveRef.current(current.queued)
-    }, 0)
-  }, [])
 
   const commitSave = useCallback(
     (draft: string): void => {
@@ -145,6 +123,18 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         const epoch = boundaryEpoch
         const revision = current.revision
         const saveKey = current.key
+
+        // Resolve the queued follow-up draft once this save settles: drop it
+        // when it matches what the settle leaves on disk, otherwise resubmit
+        // it after this flush. commitSave's pending-guard makes StrictMode's
+        // double-invoked updaters harmless — the second submission bails.
+        const settleQueued = (inner: NoteState, loadedAfter: string | null): string | null => {
+          if (inner.queued === null) return null
+          if (inner.queued.trimEnd() === (loadedAfter ?? '').trimEnd()) return null
+          const next = inner.queued
+          queueMicrotask(() => commitSaveRef.current(next))
+          return next
+        }
 
         window.vrx
           .setFriendNote({ platform, friendId, note: draft, revision })
@@ -157,17 +147,19 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
                 return inner
               }
               if (!res.ok) {
-                return { ...inner, pending: null }
+                return { ...inner, pending: null, queued: settleQueued(inner, inner.loaded) }
               }
               const loaded = inner.pending.draft
               const dirty = inner.draft.trimEnd() !== loaded.trimEnd()
-              return { ...inner, loaded, dirty, pending: null }
+              return { ...inner, loaded, dirty, pending: null, queued: settleQueued(inner, loaded) }
             })
-            drainQueuedSoon()
           })
           .catch(() => {
-            setState((inner) => (inner.pending?.seq === seq ? { ...inner, pending: null } : inner))
-            drainQueuedSoon()
+            setState((inner) =>
+              inner.pending?.seq === seq
+                ? { ...inner, pending: null, queued: settleQueued(inner, inner.loaded) }
+                : inner
+            )
           })
 
         return {
@@ -178,7 +170,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         }
       })
     },
-    [platform, friendId, boundaryEpoch, drainQueuedSoon]
+    [platform, friendId, boundaryEpoch]
   )
   useEffect(() => {
     commitSaveRef.current = commitSave
