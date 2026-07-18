@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Sign-in failures now show one consistent message ("Sign-in failed. Check your details and connection, then try again.") instead of hinting at what specifically went wrong — deliberately generic so a failed attempt reveals nothing about the account. The 2FA step still knows when to re-prompt. (VRX-36)
+
 ### Added
 
 - **The background glow is now yours to set.** Settings → Appearance → Background glow: Muted (the old quieter look), Standard (the new default — the corner auroras reach further across the window), or Vivid (bigger, brighter, with extra organic wisps of color). Applies instantly, works in both themes, and your choice is remembered. (VRX-211)
