@@ -198,7 +198,7 @@ export interface AppStatus {
 export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
-// ─── Background glow (VRX-NNN) ───────────────────────────────────────────────
+// ─── Background glow (VRX-211) ───────────────────────────────────────────────
 /** Three-level background aurora intensity. Single source for both the
  *  `BackgroundGlow` type and the settings schema's `backgroundGlow` enum. */
 export const BACKGROUND_GLOWS = ['muted', 'standard', 'vivid'] as const

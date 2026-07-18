@@ -135,22 +135,24 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
 - Light status pill text MUST use darker readable companion colors: Join Me `#124e91`, Online `#0f6e35`, Ask Me `#91480e`, DND `#8d2428`, with low-alpha status backgrounds and borders.
 
 ## §4 Background
-```css
-body::before{position:fixed;inset:0;z-index:-2;background:
-  radial-gradient(58% 50% at 12% 6%,rgba(43,124,232,0.26),transparent 60%),
-  radial-gradient(58% 50% at 92% 96%,rgba(243,113,30,0.20),transparent 60%),var(--bg-base);}
-body::after{position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background:repeating-linear-gradient(0deg,rgba(255,255,255,0.022) 0 1px,transparent 1px 3px);
-  mix-blend-mode:overlay;opacity:0.6;}
-```
-- Aurora = the two platforms as light: blue corner (top-left) + orange corner (bottom-right) over neutral near-black; NO third hue. Static in v1. Animate ONLY behind a `prefers-reduced-motion` guard.
-- Scanlines stay ~2.2% white on overlay = texture, not a filter. NEVER raise to a visible grid.
+The aurora is a USER SETTING since VRX-211 (owner-ratified live design round, 2026-07-17): **Background glow = Muted · Standard (default) · Vivid**. `body::before` consumes `--glow-*` custom properties (main.css §4 block); the level is applied as a `data-glow` attribute on the root by `useApplyGlow` — same mechanism family as the theme (DEFAULT **Standard** = attribute ABSENT; `data-glow="muted"|"vivid"` set explicitly). The gradient list is STATIC (4 layers — two corner glows + two wisps); levels change only var values, never layer structure.
+
+| Level | Size x·y | Fade | Intensity× (on the §4/§4A base alphas) | Wisps |
+|---|---|---|---|---|
+| muted (the pre-VRX-211 shipped look) | 58% 50% | 60% | 1.00 | no |
+| **standard (DEFAULT)** | 95% 78% | 74% | 1.15 | no |
+| vivid | 120% 95% | 82% | 1.50 | yes |
+
+Base alphas (×intensity): dark vrc .26 / cvr .20; light vrc .18 / cvr .15. Corner anchors stay 12% 6% / 92% 96% at every level. Wisps (vivid only; alpha-zeroed otherwise) = `34% 26% at 30% 22%` vrc ×.10 and `30% 24% at 74% 78%` cvr ×.085, fade 68% — organic texture, never a third hue.
+- Aurora = the two platforms as light: blue corner (top-left) + orange corner (bottom-right) over neutral near-black; NO third hue at ANY level. Static in v1. Animate ONLY behind a `prefers-reduced-motion` guard.
+- Scanlines stay ~2.2% white on overlay = texture, not a filter (glow-level independent). NEVER raise to a visible grid.
 
 ## §4A Light background
+Light keeps the same var-driven structure; `[data-theme='light']` (and its `[data-glow]` compositions) override only the alpha vars per the ×intensity table in §4. Reference shape (standard level):
 ```css
 [data-theme="light"] body::before{background:
-  radial-gradient(58% 50% at 12% 6%,rgba(31,111,211,0.18),transparent 60%),
-  radial-gradient(58% 50% at 92% 96%,rgba(216,95,24,0.15),transparent 60%),
+  radial-gradient(var(--glow-size-x) var(--glow-size-y) at 12% 6%,rgba(31,111,211,var(--glow-a-vrc)),transparent var(--glow-fade)),
+  radial-gradient(var(--glow-size-x) var(--glow-size-y) at 92% 96%,rgba(216,95,24,var(--glow-a-cvr)),transparent var(--glow-fade)),
   linear-gradient(180deg,#fbfcff 0%,var(--bg-base) 48%,#e7edf4 100%);}
 [data-theme="light"] body::after{
   background:repeating-linear-gradient(0deg,rgba(20,19,28,0.026) 0 1px,transparent 1px 3px);
