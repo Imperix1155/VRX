@@ -7,9 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- No more wrong-look flash at startup: if you saved the Light theme or a different background glow, the app now applies your choices before showing anything, instead of flashing the dark/default look for a moment while your settings load. (VRX-212)
+## [0.10.0] - 2026-07-18
 
 ### Added
 
@@ -29,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- No more wrong-look flash at startup: if you saved the Light theme or a different background glow, the app now applies your choices before showing anything, instead of flashing the dark/default look for a moment while your settings load. (VRX-212)
 - An offline friend can no longer show a live status color: the avatar ring now follows presence first, so a friend who went offline while VRX still remembered their last status ("Ask Me", "Join Me", …) correctly shows the gray offline ring with no badge. A friend browsing the VRChat website shows the teal Active ring the same way. (Pre-existing latent bug caught in the VRX-69 review round.)
 - A failed self-invite no longer hides a logged-out session: if VRChat rejects the call because the session died, the app now flips to the reconnect state immediately instead of showing a generic "invite failed" while still claiming to be connected. (VRX-42)
 - A VRChat API outage or schema drift now shows a "can't reach platform" state instead of the login screen or endless loading — a live session is no longer mistaken for a dead one just because its status reply couldn't be read. The app stays in the shell, the account card offers Retry and Sign out, and the friends list still tries to load (recovering by itself when the platform comes back). Works identically for ChilloutVR. (VRX-201)
