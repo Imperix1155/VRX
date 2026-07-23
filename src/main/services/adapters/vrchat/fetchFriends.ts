@@ -13,8 +13,8 @@
 import { z } from 'zod'
 import type { VrcFriend } from '@shared/types'
 import { AuthError } from '../errors'
-import { parsePresence } from './parsePresence'
-import type { VrcCurrentUserBuckets } from './parsePresence'
+import { parsePresence, toBucketSets } from './parsePresence'
+import type { VrcCurrentUserBucketSets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
 import { parseLocation } from './parseLocation'
 
@@ -93,7 +93,7 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
   return null
 }
 
-export function normalize(raw: RawFriend, buckets: VrcCurrentUserBuckets): VrcFriend {
+export function normalize(raw: RawFriend, buckets: VrcCurrentUserBucketSets): VrcFriend {
   const { state, status, statusDescription } = parsePresence(
     { id: raw.id, status: raw.status, statusDescription: raw.statusDescription },
     buckets
@@ -139,7 +139,7 @@ export interface FetchFriendsResult {
 async function fetchPass(
   fetcher: VrcFetcher,
   offline: boolean,
-  buckets: VrcCurrentUserBuckets,
+  buckets: VrcCurrentUserBucketSets,
   existing: VrcFriend[],
   counters: { failedPages: number; skippedRecords: number }
 ): Promise<void> {
@@ -214,12 +214,13 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   // EXCEPTION: a 401/403 on this session-probe call means the cookie is dead —
   // rethrow it so the adapter can signal auth-invalidated instead of silently
   // degrading to an empty roster while the session is actually gone (VRX-195).
-  let buckets: VrcCurrentUserBuckets
+  let buckets: VrcCurrentUserBucketSets
   try {
-    buckets = await fetcher('/auth/user', currentUserBucketsSchema)
+    const rawBuckets = await fetcher('/auth/user', currentUserBucketsSchema)
+    buckets = toBucketSets(rawBuckets)
   } catch (error) {
     if (error instanceof AuthError) throw error
-    buckets = { onlineFriends: [], activeFriends: [], offlineFriends: [] }
+    buckets = { onlineFriends: new Set(), activeFriends: new Set(), offlineFriends: new Set() }
   }
 
   const friends: VrcFriend[] = []

@@ -326,4 +326,61 @@ describe('applyFriendEvent', () => {
     expect(original.presence.state).toBe('in-game') // untouched
     expect(list).toHaveLength(1)
   })
+
+  it('preserves isFavorite/favoriteGroupIds/linkedPersonId on friend-presence (audit OP-A1)', () => {
+    const incoming = friend({
+      presence: { state: 'active' },
+      instance: null,
+      // Wire hardcodes these to defaults — must not stomp user-authored state.
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    })
+    const next = applyFriendEvent([friend()], {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: incoming
+    })
+    expect(next[0]).toMatchObject({
+      isFavorite: true,
+      favoriteGroupIds: ['grp_fav'],
+      linkedPersonId: 'person_1'
+    })
+  })
+
+  it('preserves isFavorite/favoriteGroupIds/linkedPersonId on friend-added re-add (audit OP-A1)', () => {
+    const reAdd = friend({
+      displayName: 'Alice Re-added',
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    })
+    const next = applyFriendEvent([friend()], {
+      type: 'friend-added',
+      platform: 'vrchat',
+      friend: reAdd
+    })
+    expect(next[0]).toMatchObject({
+      displayName: 'Alice Re-added',
+      isFavorite: true,
+      favoriteGroupIds: ['grp_fav'],
+      linkedPersonId: 'person_1'
+    })
+  })
+
+  it('returns the SAME array reference for a no-change presence-snapshot', () => {
+    const list = [friend()]
+    const next = applyFriendEvent(list, {
+      type: 'presence-snapshot',
+      platform: 'vrchat',
+      entries: [
+        {
+          platformUserId: 'usr_1',
+          presence: { state: 'in-game' },
+          instance: { ...friend().instance } as never
+        }
+      ]
+    })
+    expect(next).toBe(list)
+  })
 })
