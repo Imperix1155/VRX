@@ -112,20 +112,18 @@ describe('FriendsList join pill (VRX-166)', () => {
     )
   })
 
-  it('stops propagation and calls the bridge exactly once with the desktop join request', async () => {
-    const bubbledClick = vi.fn()
-    render(
-      <div onClick={bubbledClick}>
-        <FriendsList />
-      </div>
-    )
+  it('join click never opens the drawer and calls the bridge exactly once (desktop join request)', async () => {
+    // VRX-225: the drawer opener is the AVATAR button, so the Join pill no
+    // longer needs stopPropagation (nothing sits beneath it) — the real
+    // contract is that joining never opens the details card.
+    render(<FriendsList />)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
       await Promise.resolve()
     })
 
-    expect(bubbledClick).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(joinInstance).toHaveBeenCalledOnce()
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',

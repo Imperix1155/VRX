@@ -208,4 +208,25 @@ describe('renderer design token contract', () => {
 
     expect(violations).toEqual([])
   })
+
+  it('keeps .glass inside @layer components so positioning utilities can win (VRX-225)', () => {
+    // The v0.10.0 in-flow-drawer bug: `.glass { position: relative }` as
+    // UNLAYERED author CSS beats every Tailwind utility (unlayered > layered),
+    // so `glass fixed` computed `relative` and the drawer rendered at the
+    // bottom of the list. No runtime test can see a cascade fight (jsdom
+    // doesn't cascade), so this structural check is the only available pin:
+    // the `.glass` rule must be DECLARED within an `@layer components` block.
+    // Comments narrate these exact tokens (the rule documents itself), so scan
+    // comment-stripped CSS — matching prose would pin nothing.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const layerStart = code.indexOf('@layer components')
+    expect(layerStart).toBeGreaterThan(-1)
+    const glassStart = code.indexOf('.glass {')
+    expect(glassStart).toBeGreaterThan(layerStart)
+    // …and the layer block must still be open where .glass begins: opens minus
+    // closes from the layer's `{` up to `.glass` stays ≥ 1 (inside the layer).
+    const between = code.slice(code.indexOf('{', layerStart), glassStart)
+    const depth = (between.match(/\{/g) ?? []).length - (between.match(/\}/g) ?? []).length
+    expect(depth).toBeGreaterThanOrEqual(1)
+  })
 })

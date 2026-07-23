@@ -187,10 +187,11 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(row)
   })
 
-  it('scrim click closes; ✕ closes; focus returns to the row both ways', () => {
+  it('outside pointerdown closes; ✕ closes; focus returns to the row both ways (VRX-225)', () => {
     render(<FriendsList />)
     let row = openDrawerFor('Alex')
-    fireEvent.click(screen.getByTestId('friend-drawer-scrim'))
+    // Outside = anywhere that is neither the panel nor a [data-drawer-opener].
+    fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(row)
 
@@ -200,22 +201,43 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(row)
   })
 
-  it('traps focus: initial focus lands in the drawer and Tab wraps both ways', () => {
+  it('is NON-MODAL (VRX-225): no aria-modal, no focus trap, non-blocking scrim', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
 
-    const closeButton = within(dialog()).getByRole('button', { name: 'Close' })
-    const notesTextarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
-    expect(document.activeElement).toBe(closeButton) // initial focus inside
+    const dlg = dialog()
+    // A modal claim over an interactive background would lie to assistive tech.
+    expect(dlg.getAttribute('aria-modal')).toBeNull()
 
-    // Tab from the LAST focusable wraps to the first…
-    notesTextarea.focus()
-    fireEvent.keyDown(document, { key: 'Tab' })
+    // Initial focus still lands inside (keyboard users arrive in the card)…
+    const closeButton = within(dlg).getByRole('button', { name: 'Close' })
     expect(document.activeElement).toBe(closeButton)
 
-    // …and Shift+Tab from the FIRST wraps to the last.
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(notesTextarea)
+    // …but Tab is NOT trapped: the old trap listened on document and wrapped
+    // last→first; now a Tab keydown from the last focusable must leave focus
+    // management to the browser (no preventDefault, no forced wrap).
+    const notesTextarea = within(dlg).getByRole('textbox', { name: 'Notes (yours, private)' })
+    notesTextarea.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(notesTextarea) // unmoved by any trap handler
+
+    // The scrim never intercepts input — the list behind stays interactive.
+    expect(screen.getByTestId('friend-drawer-scrim').className).toContain('pointer-events-none')
+  })
+
+  it('pointerdown on another avatar SWITCHES the card instead of closing (VRX-225)', () => {
+    mockFriends([joinableFriend, cvrFriend])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+
+    // The outside-close listener must exempt [data-drawer-opener] targets so
+    // the subsequent click switches in place (close-then-reopen would flicker).
+    const otherAvatar = rowOpener('Mika')
+    fireEvent.pointerDown(otherAvatar)
+    expect(screen.queryByRole('dialog')).toBeTruthy() // still open after pointerdown
+    fireEvent.click(otherAvatar)
+    expect(dialog().getAttribute('aria-label')).toBe('Mika')
   })
 
   it.each([
