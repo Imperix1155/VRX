@@ -338,8 +338,13 @@ export default function FriendsList(): React.JSX.Element {
     setSelectedFriendId(null)
     const opener = openerRef.current
     openerRef.current = null
-    if (opener?.isConnected) opener.focus()
-    else searchInputRef.current?.focus()
+    // preventScroll (Codex review, VRX-225): the non-modal list can be freely
+    // scrolled while the card is open, so a plain .focus() on a now-offscreen
+    // opener would yank the list back to it on close — the exact jump this
+    // change exists to kill. Keyboard users regain a visible focus point on
+    // their next Tab/arrow, which scrolls normally.
+    if (opener?.isConnected) opener.focus({ preventScroll: true })
+    else searchInputRef.current?.focus({ preventScroll: true })
   }, [setSelectedFriendId])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
@@ -364,9 +369,10 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     function focusSearch(event: KeyboardEvent): void {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
-      // Never steal focus out of the open friend drawer (VRX-69: the dialog's
-      // focus trap owns the keyboard while it's open).
-      if (useFriendsStore.getState().selectedFriendId !== null) return
+      // The drawer is NON-MODAL since VRX-225 — the list (and its shortcuts)
+      // stay live while the card is open, so `/` works everywhere except
+      // inside editable controls (the guard below covers the notes textarea).
+      // The old open-drawer suppression served the retired focus trap.
       const target = event.target
       if (target instanceof HTMLElement) {
         const tagName = target.tagName
