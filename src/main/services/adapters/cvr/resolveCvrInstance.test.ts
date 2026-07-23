@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { z } from 'zod'
+import { CVRAuthError } from '../errors'
 import type { CvrFetcher } from './fetchCvrFriends'
 import {
   CVR_INSTANCE_CACHE_MAX,
@@ -126,7 +127,7 @@ describe('createCvrInstanceResolver', () => {
     expect(resolver.peek('shared-id')).toBeUndefined()
   })
 
-  it('returns null (never throws) on fetch failure and negative-caches it briefly', async () => {
+  it('returns null on non-auth fetch failure and negative-caches it briefly', async () => {
     let now = 5_000_000
     let fail = true
     const calls: string[] = []
@@ -148,6 +149,25 @@ describe('createCvrInstanceResolver', () => {
     const recovered = await resolver.resolve('i+priv')
     expect(recovered?.worldId).toBe('wrld-guid-1')
     expect(calls).toHaveLength(2)
+  })
+
+  it('propagates auth failure without negative-caching so the next resolve retries', async () => {
+    const authError = new CVRAuthError('expired access key')
+    let calls = 0
+    const fetcher: CvrFetcher = <T>(_path: string, schema: z.ZodType<T>): Promise<T> => {
+      calls += 1
+      if (calls === 1) return Promise.reject(authError)
+      return Promise.resolve(schema.parse(fullDetail))
+    }
+    const resolver = createCvrInstanceResolver({ fetcher })
+
+    await expect(resolver.resolve('i+expired')).rejects.toBe(authError)
+    expect(resolver.peek('i+expired')).toBeUndefined()
+
+    await expect(resolver.resolve('i+expired')).resolves.toMatchObject({
+      worldId: 'wrld-guid-1'
+    })
+    expect(calls).toBe(2)
   })
 
   it('peek returns undefined before resolve, the value after, and undefined after expiry', async () => {

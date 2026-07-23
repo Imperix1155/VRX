@@ -374,7 +374,19 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
     for (;;) {
       const generation = this.sessionGeneration
-      const resolved = await this.instanceResolver.resolve(instanceId)
+      let resolved: ResolvedCvrInstance | null
+      try {
+        resolved = await this.instanceResolver.resolve(instanceId)
+      } catch (error) {
+        // Match getFriends: only the session that issued this request may own
+        // its auth-invalidated boundary. A replacement session retries instead.
+        if (generation !== this.sessionGeneration) {
+          if (this.session) continue
+          throw new Error('Session ended')
+        }
+        if (error instanceof CVRAuthError) this.invalidateSession(true)
+        throw error
+      }
       // Never return an old session's success or surface its null/failure as the
       // current call's outcome. Resolve again through the current session.
       if (generation !== this.sessionGeneration) continue
@@ -511,7 +523,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * Fire resolution for every DISTINCT unseen instance id in the snapshot; when
    * any resolution yields data, re-enrich + re-emit the CURRENT last snapshot
    * (which may be newer than the one that kicked this — fine: enrichment is
-   * per-instance-id, not per-snapshot). Failures resolve null and are
+   * per-instance-id, not per-snapshot). Non-auth failures resolve null and are
    * negative-cached inside the resolver; nothing to re-emit for them.
    */
   private kickResolutions(snapshot: PresenceSnapshotEvent, generation: number): void {
@@ -538,6 +550,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
           // Only re-emit if the id is still present in the current snapshot.
           const relevant = this.lastSnapshot.entries.some((e) => e.instance?.instanceId === id)
           if (relevant) this.emit(this.enrichSnapshot(this.lastSnapshot))
+        })
+        .catch((error: unknown) => {
+          if (generation !== this.sessionGeneration) return
+          if (error instanceof CVRAuthError) {
+            // Presence already emitted from the wire, so background enrichment
+            // degrades without crashing the roster path. The dead key still
+            // invalidates the session; treating it as "private" would leave the
+            // UI falsely connected.
+            this.invalidateSession(true)
+          }
         })
         .finally(() => {
           if (generation === this.sessionGeneration) this.pendingResolutions.delete(id)
