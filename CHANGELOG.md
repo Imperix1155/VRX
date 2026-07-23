@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An expired ChilloutVR sign-in no longer hides behind "instance is private".** If your CVR access key expires, the app used to keep showing the account as connected while quietly failing — now the Accounts card flips to reconnect right away, exactly like VRChat does. (VRX-215)
 - **Favouriting a friend will stick.** Groundwork for the upcoming favourites feature: live presence updates used to silently reset per-friend local data (favourites, groups, cross-platform links) every time that friend moved worlds — fixed before the feature ships, so it can never be bitten by it.
 
 - **The friend details card now floats over the list on the right, where it was always meant to be.** In 0.10.0 it wrongly rendered inline at the very bottom of the friends list, yanked your scroll position down to it when opened, and left an empty card ghost at the list's end — a CSS conflict between the glass material and the panel's positioning that only showed up in the real app. The list no longer moves at all when you open or close the card. (VRX-225)

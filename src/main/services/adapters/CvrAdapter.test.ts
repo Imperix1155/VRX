@@ -3,6 +3,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
+import { CVRAuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
@@ -1234,6 +1235,62 @@ describe('CvrAdapter', () => {
       unsub()
     })
 
+    it('expired credentials during background enrichment invalidate auth without crashing the roster path', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 })))
+      )
+      const store = fakeStore({ username: 'u', accessKey: 'expired' })
+      const adapter = new CvrAdapter(store, noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const events: AdapterEvent[] = []
+      const unsub = adapter.subscribe((event) => events.push(event))
+      const drive = adapter as unknown as {
+        handlePipelineEvent: (event: AdapterEvent) => void
+      }
+
+      drive.handlePipelineEvent({
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: [
+          {
+            platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+            presence: { state: 'in-game' },
+            instance: {
+              worldId: 'i_expired',
+              instanceId: 'i_expired',
+              worldName: 'Wire fallback',
+              thumbnailUrl: null,
+              type: 'public',
+              openness: 'public',
+              isGroup: false,
+              groupName: null,
+              region: null,
+              userCount: null
+            }
+          }
+        ]
+      })
+
+      // The roster snapshot still arrives immediately; the async 401 becomes an
+      // auth boundary instead of an unhandled enrichment rejection/cache miss.
+      expect(events.filter((event) => event.type === 'presence-snapshot')).toHaveLength(1)
+      await vi.waitFor(() =>
+        expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'chilloutvr' })
+      )
+      expect(events.filter((event) => event.type === 'presence-snapshot')).toHaveLength(1)
+      expect(store.deleted).toBe(1)
+      expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
+      const resolver = (
+        adapter as unknown as {
+          instanceResolver: { peek: (id: string) => unknown }
+        }
+      ).instanceResolver
+      expect(resolver.peek('i_expired')).toBeUndefined()
+      unsub()
+    })
+
     it('fires an unresolved in-game alert without the creator-set instance label', async () => {
       vi.stubGlobal(
         'fetch',
@@ -1528,6 +1585,24 @@ describe('CvrAdapter', () => {
       await expect(adapter.getInstanceDetails('i_gone')).rejects.toThrow(
         'private or could not be resolved'
       )
+    })
+
+    it('getInstanceDetails invalidates an expired session instead of reporting the instance private', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 })))
+      )
+      const store = fakeStore({ username: 'u', accessKey: 'expired' })
+      const adapter = new CvrAdapter(store, noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const events: AdapterEvent[] = []
+      const unsub = adapter.subscribe((event) => events.push(event))
+
+      await expect(adapter.getInstanceDetails('i_expired')).rejects.toBeInstanceOf(CVRAuthError)
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'chilloutvr' })
+      expect(store.deleted).toBe(1)
+      unsub()
     })
   })
 })
