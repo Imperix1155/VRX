@@ -3,9 +3,11 @@ import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 
 /**
- * Segmented control (§9 pattern) shared by the settings rows. Radius: .glass's
- * 20px panel radius wins over any `rounded-[..]` here (see TopBar), so the
- * bubble is rounded-[16px] (= 20px − 4px inset) to seat concentrically into
+ * Segmented control (§9 pattern) shared by the settings rows. Radius: the
+ * track carries no `rounded-[..]` utility, so .glass's 20px panel radius
+ * applies (§3 carve-out; since VRX-225 .glass is @layer components, so a
+ * utility WOULD win — omit one deliberately). The bubble is rounded-[16px]
+ * (= 20px − 4px inset) to seat concentrically into
  * the track. A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
  * arrows move the selection (same dialect as the TopBar filter).
  */

@@ -208,4 +208,42 @@ describe('renderer design token contract', () => {
 
     expect(violations).toEqual([])
   })
+
+  it('keeps .glass inside @layer components so positioning utilities can win (VRX-225)', () => {
+    // The v0.10.0 in-flow-drawer bug: `.glass { position: relative }` as
+    // UNLAYERED author CSS beats every Tailwind utility (unlayered > layered),
+    // so `glass fixed` computed `relative` and the drawer rendered at the
+    // bottom of the list. No runtime test can see a cascade fight (jsdom
+    // doesn't cascade), so this structural check is the only available pin:
+    // the `.glass` rule must be DECLARED within an `@layer components` block.
+    // Comments narrate these exact tokens (the rule documents itself), so scan
+    // comment-stripped CSS — matching prose would pin nothing.
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    // Collect every `@layer components { … }` span by brace-counting…
+    const spans: Array<[number, number]> = []
+    for (const layer of code.matchAll(/@layer components/g)) {
+      const openBrace = code.indexOf('{', layer.index)
+      let depth = 0
+      for (let i = openBrace; i < code.length; i++) {
+        if (code[i] === '{') depth++
+        else if (code[i] === '}' && --depth === 0) {
+          spans.push([openBrace, i])
+          break
+        }
+      }
+    }
+    expect(spans.length).toBeGreaterThan(0)
+    // …then EVERY `.glass` selector must sit inside one of them. Checking only
+    // the first occurrence would let a later unlayered `.glass` rule silently
+    // re-beat the `fixed` utility (Codex review catch, VRX-225).
+    const occurrences = [...code.matchAll(/\.glass[^{}]*\{/g)]
+    expect(occurrences.length).toBeGreaterThan(0)
+    for (const occ of occurrences) {
+      const at = occ.index
+      expect(
+        spans.some(([start, end]) => at > start && at < end),
+        `.glass rule at index ${at} is OUTSIDE @layer components — it would beat position utilities again`
+      ).toBe(true)
+    }
+  })
 })

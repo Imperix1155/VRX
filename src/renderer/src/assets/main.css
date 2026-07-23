@@ -87,9 +87,14 @@
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
 
-  /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17).
-     One value for both themes (dimming layer, not a themed surface). */
+  /* DRAWER — scrim behind the friend drawer (VRX-69, owner-approved 2026-07-17;
+     softened + made non-blocking in VRX-225, owner live session 2026-07-23:
+     "slight gray-out is fine… make it like you're stacking cards" — the list
+     stays readable AND interactive behind the card, so the scrim is a whisper
+     of depth, never a wall). One value for both themes (dimming layer, not a
+     themed surface). --scrim retained for any future TRUE modal. */
   --scrim: rgba(0, 0, 0, 0.44);
+  --scrim-soft: rgba(0, 0, 0, 0.14);
 
   --glass-blur: blur(26px) saturate(165%);
 
@@ -350,24 +355,33 @@ body::after {
 }
 
 /* ── Glass material (DESIGN.md §3 / §3A) ──────────────────────────────────── */
-/* rgba values live in :root / [data-theme="light"] above; classes reference vars only */
-.glass {
-  position: relative;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-panel); /* §3 radius scale — one source of truth (audit W5) */
-  box-shadow: var(--glass-shadow);
-}
+/* rgba values live in :root / [data-theme="light"] above; classes reference vars only.
+   IN @layer components DELIBERATELY (2026-07-23): unlayered author CSS beats every
+   Tailwind utility (utilities live in @layer utilities, and unlayered > layered),
+   so `.glass { position: relative }` silently overrode the friend drawer's `fixed`
+   and pinned it in-flow at the bottom of the list — the v0.10.0 drawer bug. In the
+   components layer, utilities on the same element win, which is the intent: glass
+   is the DEFAULT skin, a utility is an explicit local decision. `position` must
+   stay non-static for .glass::before (inset overlay); `fixed` satisfies that too. */
+@layer components {
+  .glass {
+    position: relative;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-panel); /* §3 radius scale — one source of truth (audit W5) */
+    box-shadow: var(--glass-shadow);
+  }
 
-.glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: var(--glass-sheen);
+  .glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--glass-sheen);
+  }
 }
 
 .tint-vrc {

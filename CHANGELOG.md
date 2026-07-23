@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The friend details card now floats over the list on the right, where it was always meant to be.** In 0.10.0 it wrongly rendered inline at the very bottom of the friends list, yanked your scroll position down to it when opened, and left an empty card ghost at the list's end — a CSS conflict between the glass material and the panel's positioning that only showed up in the real app. The list no longer moves at all when you open or close the card. (VRX-225)
+
+### Changed
+
+- **The friend card opens from the profile picture now, not the whole row** — clicking a friend's avatar opens their card; clicking anywhere else on the row does nothing (the Join pill still joins). No more accidental card-opens from stray clicks. Keyboard users: Tab to the avatar and press Enter/Space, same as before.
+- **The list stays alive while the card is open.** The background dimming is much lighter, and you can still scroll, hover, and use the list behind the card — clicking another friend's picture switches the card to them in place. Close it with ✕, Esc, or a click anywhere else. (VRX-225)
+
 ## [0.10.0] - 2026-07-22
 
 ### Added

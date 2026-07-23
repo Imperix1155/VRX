@@ -22,9 +22,15 @@
  *      Copy link / self-invite / favorite / notes are SEPARATE issues; no
  *      placeholders here.
  *
- * A11y: role=dialog named by the friend, focus trapped while open, Esc and
- * scrim click close, focus returns to the opening row (owner of that contract
- * is FriendsList's `closeDrawer`).
+ * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
+ * card stays fully interactive — the soft scrim (`--scrim-soft`) is
+ * pointer-events-none pure depth, there is NO focus trap and NO aria-modal,
+ * and clicking another friend's avatar SWITCHES the card in place. Close
+ * paths: ✕, Esc, or any pointerdown outside the panel that isn't on a
+ * `[data-drawer-opener]` (the avatar buttons — those switch, never close).
+ * Initial focus lands on ✕ when a friend is first selected; focus returns to
+ * the opening row on close (owner of that contract is FriendsList's
+ * `closeDrawer`).
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,16 +66,13 @@ const TRUST_RANK_KEY: Record<NonNullable<TrustRank>, string> = {
   nuisance: 'drawer.trustRank.nuisance'
 }
 
-const FOCUSABLE =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
 export default function FriendDrawer({
   friend,
   onClose
 }: {
   /** The selected friend, or null = closed. */
   friend: Friend | null
-  /** Close request (Esc / scrim / ✕). Focus restoration lives with the caller. */
+  /** Close request (Esc / outside pointerdown / ✕). Focus restoration lives with the caller. */
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
@@ -87,38 +90,38 @@ export default function FriendDrawer({
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
   const { isJoining, joinFailedFor, join } = useJoinInstance()
 
-  // Focus trap + Esc while open; initial focus lands on the ✕ button.
+  // Esc closes while open; initial focus lands on the ✕ button. NO focus trap
+  // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
+  // the still-interactive list behind it. Trapping focus while the background
+  // accepts pointer input would make keyboard and mouse users live in two
+  // different interaction models, which is worse than either alone.
   useEffect(() => {
     if (!open) return
     closeButtonRef.current?.focus()
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        onClose()
-        return
-      }
-      if (event.key !== 'Tab') return
-      const panel = panelRef.current
-      if (!panel) return
-      const focusables = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)]
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (!first || !last) return
-      const active = document.activeElement
-      if (!(active instanceof HTMLElement) || !panel.contains(active)) {
-        event.preventDefault()
-        first.focus()
-        return
-      }
-      if (!event.shiftKey && active === last) {
-        event.preventDefault()
-        first.focus()
-      } else if (event.shiftKey && active === first) {
-        event.preventDefault()
-        last.focus()
-      }
+      if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+
+  // Outside pointerdown closes (VRX-225) — except on a `[data-drawer-opener]`
+  // (an avatar button): those SWITCH the card to that friend, and letting this
+  // listener also fire would close-then-reopen, flickering the slide animation.
+  // pointerdown (not click) so a drag that starts outside doesn't count as a
+  // click-through on release, and so the close wins before a row's hover
+  // effects react.
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(event: PointerEvent): void {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (panelRef.current?.contains(target)) return
+      if (target.closest('[data-drawer-opener]')) return
+      onClose()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [open, onClose])
 
   // ── Derived content (mirrors the row's logic — single source in utils) ────
@@ -163,19 +166,22 @@ export default function FriendDrawer({
 
   return (
     <div inert={!open} aria-hidden={!open}>
-      {/* Scrim — outside click closes. */}
+      {/* Soft scrim — pure depth, NEVER an input surface (pointer-events-none
+          in both states): the list behind stays hoverable and clickable
+          (VRX-225). Outside-close lives on a document listener instead. */}
       <div
         data-testid="friend-drawer-scrim"
-        onClick={onClose}
         aria-hidden="true"
-        className={`fixed inset-0 z-40 bg-[var(--scrim)] motion-safe:transition-opacity motion-safe:duration-[260ms] ${
-          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        className={`pointer-events-none fixed inset-0 z-40 bg-[var(--scrim-soft)] motion-safe:transition-opacity motion-safe:duration-[260ms] ${
+          open ? 'opacity-100' : 'opacity-0'
         }`}
       />
+      {/* Non-modal dialog (no aria-modal): the background is genuinely
+          interactive, and claiming modality to assistive tech while pointer
+          users can reach the list would be a lie (VRX-225). */}
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
         aria-label={shown?.displayName}
         className={`glass fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
