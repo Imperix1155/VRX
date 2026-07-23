@@ -36,6 +36,7 @@ import {
 } from '../ReconnectingPipeline'
 import { normalize, rawFriendSchema } from './fetchFriends'
 import { parseLocation } from './parseLocation'
+import { toBucketSets } from './parsePresence'
 
 export type { PipelineSocket } from '../ReconnectingPipeline'
 
@@ -225,11 +226,14 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
       return null
     }
     const { userId, user, location } = parsed.data
-    const friend = normalize(user, {
-      onlineFriends: state === 'in-game' ? [userId] : [],
-      activeFriends: state === 'active' ? [userId] : [],
-      offlineFriends: state === 'offline' ? [userId] : []
-    })
+    const friend = normalize(
+      user,
+      toBucketSets({
+        onlineFriends: state === 'in-game' ? [userId] : [],
+        activeFriends: state === 'active' ? [userId] : [],
+        offlineFriends: state === 'offline' ? [userId] : []
+      })
+    )
     // Only an in-game friend is in a world (§5 axes): active = on the
     // website/app, offline = nowhere — force those to no instance regardless of
     // any stale location the payload carries. For in-game, the event-level
