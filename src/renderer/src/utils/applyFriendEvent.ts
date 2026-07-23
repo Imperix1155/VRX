@@ -42,12 +42,19 @@ function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
 function upsert(
   friends: Friend[],
   incoming: Friend,
-  preserve?: { presence?: boolean; instance?: boolean }
+  preserve?: { presence?: boolean; instance?: boolean },
+  options?: { insertMissing?: boolean }
 ): Friend[] {
   const index = friends.findIndex(
     (f) => f.platform === incoming.platform && f.platformUserId === incoming.platformUserId
   )
-  if (index === -1) return [...friends, incoming]
+  if (index === -1) {
+    // friend-updated is a profile-only patch: an unknown friend must no-op,
+    // not insert a wire-default entry into a roster that deliberately didn't
+    // contain them (2026-07 audit OP-B4).
+    if (options?.insertMissing === false) return friends
+    return [...friends, incoming]
+  }
   const cached = friends[index]!
   const next = friends.slice()
   // Cast is safe: `cached` and `incoming` share the same platform (the match
@@ -89,7 +96,13 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
     case 'friend-updated':
       // Profile-only change: the wire says nothing about presence/location, so
       // preserve those along with the local-ish state now handled inside upsert().
-      return upsert(friends, event.friend, { presence: true, instance: true })
+      // Unknown friends no-op (old behavior) — insertMissing:false keeps them out.
+      return upsert(
+        friends,
+        event.friend,
+        { presence: true, instance: true },
+        { insertMissing: false }
+      )
 
     case 'friend-removed':
       return friends.filter(
@@ -97,7 +110,21 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       )
 
     case 'friends-snapshot': {
-      if (event.scope === 'all') return event.friends
+      if (event.scope === 'all') {
+        // Full-roster replacement still preserves local-ish state for cached ids
+        // so the "every replacing path" contract holds (audit OP-B3).
+        const byKey = new Map(friends.map((f) => [`${f.platform}:${f.platformUserId}`, f]))
+        return event.friends.map((incoming) => {
+          const cached = byKey.get(`${incoming.platform}:${incoming.platformUserId}`)
+          if (!cached) return incoming
+          return {
+            ...incoming,
+            isFavorite: cached.isFavorite,
+            favoriteGroupIds: cached.favoriteGroupIds,
+            linkedPersonId: cached.linkedPersonId
+          }
+        })
+      }
       // scope 'online': snapshot members upsert; absent members are offline.
       const present = new Set(event.friends.map((f) => f.platformUserId))
       let next = friends.map((f): Friend =>

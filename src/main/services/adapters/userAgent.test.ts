@@ -11,6 +11,29 @@ import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
 const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version: string }
 const expectedUserAgent = `VRX/${pkg.version} (https://github.com/Imperix1155/VRX)`
 
+/** Extract the `key: { ... }` block from config source by brace counting. */
+function extractConfigBlock(code: string, key: string): string | null {
+  const start = code.indexOf(`${key}:`)
+  if (start === -1) return null
+  const braceStart = code.indexOf('{', start)
+  if (braceStart === -1) return null
+  let depth = 1
+  let i = braceStart + 1
+  while (i < code.length && depth > 0) {
+    if (code[i] === '{') depth++
+    else if (code[i] === '}') depth--
+    i++
+  }
+  return code.slice(braceStart, i)
+}
+
+const electronViteConfig = readFileSync(resolve('electron.vite.config.ts'), 'utf-8')
+// Strip block comments first — the file narrates __APP_VERSION__ in prose;
+// matching prose would pin nothing (same pattern as designTokens.test.ts:221).
+const configNoComments = electronViteConfig
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/\/\/.*$/gm, '')
+
 const userSchema = z.object({ id: z.string(), username: z.string() })
 
 /** Exposes the protected CVR GET method so the test can observe real headers. */
@@ -63,6 +86,12 @@ describe('User-Agent matches package version', () => {
 
   it('exports the VRChat User-Agent built from package.json', () => {
     expect(VRC_USER_AGENT).toBe(expectedUserAgent)
+  })
+
+  it('pins that the main process build defines __APP_VERSION__ (production regression guard)', () => {
+    const mainBlock = extractConfigBlock(configNoComments, 'main')
+    expect(mainBlock).not.toBeNull()
+    expect(mainBlock!).toContain('__APP_VERSION__')
   })
 
   it('sends the ChilloutVR User-Agent built from package.json', async () => {

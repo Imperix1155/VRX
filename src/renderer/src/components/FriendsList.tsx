@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
-import { useFriends, combineFriendQueries } from '../queries/friends'
+import { useFriends, useCombineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -349,10 +349,12 @@ export default function FriendsList(): React.JSX.Element {
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
-  const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
+  const vrcFriends = useFriends('vrchat')
+  const cvrFriends = useFriends('chilloutvr')
+  const { friends, isPending, isError, isFetching, refetch } = useCombineFriendQueries(
     platformFilter,
-    useFriends('vrchat'),
-    useFriends('chilloutvr')
+    vrcFriends,
+    cvrFriends
   )
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
