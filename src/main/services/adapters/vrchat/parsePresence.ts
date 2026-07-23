@@ -93,7 +93,9 @@ function mapStatus(raw: string | null | undefined): UserStatus {
  * Parse a raw VRChat friend's presence into the normalized two-axis shape.
  *
  * @param friend  - Raw VRChat friend object (needs only `id`, `status`, `statusDescription`).
- * @param buckets - Bucket arrays from the current user's /auth/user response.
+ * @param buckets - Bucket SETS (via `toBucketSets`) from the current user's /auth/user
+ *                  response — Sets, not arrays, so per-friend membership is O(1)
+ *                  instead of O(bucket) (VRX-218 audit; the caller converts once).
  */
 export function parsePresence(
   friend: VrcRawFriend,
