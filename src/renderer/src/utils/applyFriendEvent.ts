@@ -39,13 +39,37 @@ function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
   )
 }
 
-function upsert(friends: Friend[], incoming: Friend): Friend[] {
+function upsert(
+  friends: Friend[],
+  incoming: Friend,
+  preserve?: { presence?: boolean; instance?: boolean },
+  options?: { insertMissing?: boolean }
+): Friend[] {
   const index = friends.findIndex(
     (f) => f.platform === incoming.platform && f.platformUserId === incoming.platformUserId
   )
-  if (index === -1) return [...friends, incoming]
+  if (index === -1) {
+    // friend-updated is a profile-only patch: an unknown friend must no-op,
+    // not insert a wire-default entry into a roster that deliberately didn't
+    // contain them (2026-07 audit OP-B4).
+    if (options?.insertMissing === false) return friends
+    return [...friends, incoming]
+  }
+  const cached = friends[index]!
   const next = friends.slice()
-  next[index] = incoming
+  // Cast is safe: `cached` and `incoming` share the same platform (the match
+  // gates on it), so spreading the same-platform incoming friend and re-taking
+  // cached fields yields a valid Friend of that same variant — TS just can't
+  // re-narrow the discriminated union across the spread.
+  next[index] = {
+    ...incoming,
+    // Local-ish state the WS never carries — preserve across every replacing path.
+    isFavorite: cached.isFavorite,
+    favoriteGroupIds: cached.favoriteGroupIds,
+    linkedPersonId: cached.linkedPersonId,
+    ...(preserve?.presence ? { presence: cached.presence } : {}),
+    ...(preserve?.instance ? { instance: cached.instance } : {})
+  } as Friend
   return next
 }
 
@@ -70,23 +94,14 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       )
 
     case 'friend-updated':
-      return friends.map((f): Friend =>
-        f.platform === event.platform && f.platformUserId === event.friend.platformUserId
-          ? // Cast is safe: `f` and `event.friend` share `event.platform` (the
-            // match gates on it), so spreading the same-platform event.friend and
-            // re-taking `f`'s fields yields a valid Friend of that same variant —
-            // TS just can't re-narrow the discriminated union across the spread.
-            ({
-              ...event.friend,
-              // The wire event says nothing about presence/location — keep ours.
-              presence: f.presence,
-              instance: f.instance,
-              // isFavorite/groups are local-ish state the WS never carries.
-              isFavorite: f.isFavorite,
-              favoriteGroupIds: f.favoriteGroupIds,
-              linkedPersonId: f.linkedPersonId
-            } as Friend)
-          : f
+      // Profile-only change: the wire says nothing about presence/location, so
+      // preserve those along with the local-ish state now handled inside upsert().
+      // Unknown friends no-op (old behavior) — insertMissing:false keeps them out.
+      return upsert(
+        friends,
+        event.friend,
+        { presence: true, instance: true },
+        { insertMissing: false }
       )
 
     case 'friend-removed':
@@ -95,7 +110,21 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       )
 
     case 'friends-snapshot': {
-      if (event.scope === 'all') return event.friends
+      if (event.scope === 'all') {
+        // Full-roster replacement still preserves local-ish state for cached ids
+        // so the "every replacing path" contract holds (audit OP-B3).
+        const byKey = new Map(friends.map((f) => [`${f.platform}:${f.platformUserId}`, f]))
+        return event.friends.map((incoming) => {
+          const cached = byKey.get(`${incoming.platform}:${incoming.platformUserId}`)
+          if (!cached) return incoming
+          return {
+            ...incoming,
+            isFavorite: cached.isFavorite,
+            favoriteGroupIds: cached.favoriteGroupIds,
+            linkedPersonId: cached.linkedPersonId
+          }
+        })
+      }
       // scope 'online': snapshot members upsert; absent members are offline.
       const present = new Set(event.friends.map((f) => f.platformUserId))
       let next = friends.map((f): Friend =>
@@ -122,25 +151,28 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
       // its reference (the header's identity invariant; memo'd rows skip) —
       // wire instances arrive freshly allocated, so compare by value.
       const byId = new Map(event.entries.map((e) => [e.platformUserId, e]))
-      return friends.map((f): Friend => {
+      let changed = false
+      const next = friends.map((f): Friend => {
         if (f.platform !== event.platform) return f
         const entry = byId.get(f.platformUserId)
         if (entry === undefined) {
-          return f.presence.state === 'offline'
-            ? f
-            : {
-                ...f,
-                presence: { state: 'offline' },
-                status: null,
-                statusDescription: null,
-                instance: null
-              }
+          if (f.presence.state === 'offline') return f
+          changed = true
+          return {
+            ...f,
+            presence: { state: 'offline' },
+            status: null,
+            statusDescription: null,
+            instance: null
+          }
         }
         if (f.presence.state === entry.presence.state && sameInstance(f.instance, entry.instance)) {
           return f
         }
+        changed = true
         return { ...f, presence: entry.presence, instance: entry.instance } as Friend
       })
+      return changed ? next : friends
     }
 
     case 'roster-changed':

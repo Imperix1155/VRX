@@ -204,7 +204,8 @@ VRX-58).
 
 | Function                                              | Purpose                                                                                       |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `parsePresence(friend, buckets)`                      | Raw status + bucket membership → `{state, status, statusDescription}` (§5: state ≠ status)    |
+| `parsePresence(friend, buckets)`                      | Raw status + bucket membership → `{state, status, statusDescription}` (§5: state ≠ status); `buckets` is `VrcCurrentUserBucketSets` — build once per fetch with `toBucketSets(arrays)` |
+| `toBucketSets(arrays)`                                | /auth/user bucket arrays → `VrcCurrentUserBucketSets` (O(1) per-friend membership; VRX-218)   |
 | `parseLocation(location)`                             | Location string → `InstanceInfo \| null` (null for `private`/`offline`/`traveling`/sentinels) |
 | `parseInstanceType(instanceId)` / `opennessFor(type)` | Instance tag grammar → the 8-type taxonomy → openness tier                                    |
 | `parseTrustRank(tags)`                                | Trust tags → display rank (offset ladder: `system_trust_known` → `'user'`)                    |

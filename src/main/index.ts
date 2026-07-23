@@ -30,6 +30,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import type { IpcNotifications } from '@shared/ipc'
+import { API_TIMEOUT_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -374,7 +375,13 @@ app
       log: (level, message, meta) => log[level](message, meta)
     })
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
-      socketFactory: (url) => new WebSocket(url, { headers: { 'User-Agent': VRC_USER_AGENT } }),
+      // handshakeTimeout bounds a black-holed connect so the reconnect backoff
+      // can retry instead of waiting for the OS default (~1-2 min).
+      socketFactory: (url) =>
+        new WebSocket(url, {
+          headers: { 'User-Agent': VRC_USER_AGENT },
+          handshakeTimeout: API_TIMEOUT_MS
+        }),
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
@@ -426,7 +433,9 @@ app
     // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the
     // socketFactory forwards them verbatim; logs route through the redaction hook.
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
-      socketFactory: (url, headers) => new WebSocket(url, { headers }),
+      // Same black-hole guard as the VRChat pipeline (audit OP-A4).
+      socketFactory: (url, headers) =>
+        new WebSocket(url, { headers, handshakeTimeout: API_TIMEOUT_MS }),
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
 import { RECONCILE_INTERVAL_MS } from '@shared/constants'
@@ -108,6 +109,45 @@ export function combineFriendQueries(
     // Loading until the FIRST scoped query returns data — so `all` mode still
     // shows "loading" when one platform errored while the other is mid-load
     // (rather than a blank frame). Once any data is in, it's no longer pending.
+    isPending: !anyData && anyPending,
+    isError: errorMasksEmpty || scoped.every((q) => q.isError),
+    isFetching: scoped.some((q) => q.isFetching),
+    refetch: () => {
+      for (const q of scoped) void q.refetch()
+    }
+  }
+}
+
+/**
+ * React hook wrapper for `combineFriendQueries` that memoizes the combined
+ * `friends` array on the underlying stable data (`vrc.data`, `cvr.data`) and
+ * the filter. This prevents `FriendsList`'s downstream `useMemo` (search /
+ * section grouping) from re-running on every unrelated render when the query
+ * layer was returning a fresh array each time (2026-07 audit OP-B1 fix).
+ *
+ * TanStack Query's structural sharing keeps `vrc.data`/`cvr.data` references
+ * stable across no-change refetches, so memoizing on them is sound.
+ */
+export function useCombineFriendQueries(
+  filter: PlatformFilter,
+  vrc: FriendQuery,
+  cvr: FriendQuery
+): CombinedFriendsView {
+  const friends = useMemo(() => {
+    const scoped = scopeByPlatformFilter(filter, vrc.data, cvr.data)
+    const anyData = scoped.some((d) => d !== undefined)
+    if (!anyData) return undefined
+    return scoped.flatMap((d) => d ?? [])
+  }, [filter, vrc.data, cvr.data])
+
+  const scoped = scopeByPlatformFilter(filter, vrc, cvr)
+  const anyData = scoped.some((q) => q.data !== undefined)
+  const anyPending = scoped.some((q) => q.isPending)
+  const combined = friends ?? []
+  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
+
+  return {
+    friends: anyData && !errorMasksEmpty ? friends : undefined,
     isPending: !anyData && anyPending,
     isError: errorMasksEmpty || scoped.every((q) => q.isError),
     isFetching: scoped.some((q) => q.isFetching),

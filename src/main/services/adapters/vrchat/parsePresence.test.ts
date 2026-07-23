@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { VrcCurrentUserBuckets, VrcRawFriend } from './parsePresence'
-import { parsePresence } from './parsePresence'
+import { parsePresence, toBucketSets } from './parsePresence'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -14,12 +14,13 @@ const baseFriend = (id: string, overrides?: Partial<VrcRawFriend>): VrcRawFriend
   ...overrides
 })
 
-const baseBuckets = (overrides?: Partial<VrcCurrentUserBuckets>): VrcCurrentUserBuckets => ({
-  onlineFriends: [],
-  activeFriends: [],
-  offlineFriends: [],
-  ...overrides
-})
+const baseBuckets = (overrides?: Partial<VrcCurrentUserBuckets>): ReturnType<typeof toBucketSets> =>
+  toBucketSets({
+    onlineFriends: [],
+    activeFriends: [],
+    offlineFriends: [],
+    ...overrides
+  })
 
 // ─── State derivation (from buckets, not from a friend field) ─────────────────
 
@@ -56,6 +57,15 @@ describe('parsePresence — state axis', () => {
       baseFriend(USR_A),
       baseBuckets({ onlineFriends: [USR_A], activeFriends: [USR_A] })
     )
+    expect(result.state).toBe('in-game')
+  })
+
+  it('accepts Set-based buckets directly for O(1) lookup (audit OP-A2)', () => {
+    const result = parsePresence(baseFriend(USR_A), {
+      onlineFriends: new Set([USR_A]),
+      activeFriends: new Set(),
+      offlineFriends: new Set()
+    })
     expect(result.state).toBe('in-game')
   })
 })

@@ -21,6 +21,14 @@ export default defineConfig({
     // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v11), so a
     // require() from the CJS main bundle would throw at runtime — bundle it instead (VRX-23).
     plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
+    // Same version injection as the renderer below (VRX-218 audit): the API
+    // clients' User-Agent was hardcoded 'VRX/0.1.0' while the app shipped
+    // 0.10.0 — the exact drift class the renderer define already prevents.
+    // The UA is the one string the platforms identify VRX by; it must track
+    // the release. (vitest.config.ts mirrors this define for tests.)
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
+    },
     resolve: {
       alias: {
         '@shared': shared

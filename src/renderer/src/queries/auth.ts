@@ -23,12 +23,16 @@ export async function fetchAuthStatus(platform: Platform = 'vrchat'): Promise<Au
  *
  * - No refetchInterval — auth is invalidation-driven (on login success), not polled.
  *   Polling auth would hammer the unofficial API and risk rate-limiting/account flags.
- * - staleTime: 0 so a fresh mount always checks current status.
+ * - staleTime: 30_000 so observer MOUNTS do not refetch /auth/user within the
+ *   window. Freshness is still invalidation-driven: login/verify-2fa/logout and
+ *   the auth-invalidated event all explicitly invalidate this key, which bypasses
+ *   staleTime. The 30s window only suppresses mount-driven refetch bursts when
+ *   tabs are flipped (2026-07 audit OP-A3).
  */
 export function useAuthStatus(platform: Platform = 'vrchat'): UseQueryResult<AuthStatus, Error> {
   return useQuery({
     queryKey: authStatusQueryKey(platform),
     queryFn: () => fetchAuthStatus(platform),
-    staleTime: 0
+    staleTime: 30_000
   })
 }

@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Faster and lighter under the hood** (from the full codebase review): the friends list no longer redoes its filtering and grouping work on every little update — typing in search and live presence changes feel snappier on big friend lists; presence bookkeeping got a faster lookup path; and the app stops making a hidden sign-in status check every time you flip between tabs.
+- **The app now tells VRChat and ChilloutVR which version it really is.** It was introducing itself as version 0.1.0 forever; now the version in every request always matches the release, so platform operators can attribute our traffic correctly. A test makes sure it can never drift again.
+- **A dead network connection now gives up in seconds, not minutes.** If the live-updates connection hangs while connecting (strict firewalls, captive portals), the app now cuts it off after ~15 seconds and retries on its normal schedule, instead of waiting out a minutes-long system timeout with presence frozen.
+
 ### Fixed
+
+- **Favouriting a friend will stick.** Groundwork for the upcoming favourites feature: live presence updates used to silently reset per-friend local data (favourites, groups, cross-platform links) every time that friend moved worlds — fixed before the feature ships, so it can never be bitten by it.
 
 - **The friend details card now floats over the list on the right, where it was always meant to be.** In 0.10.0 it wrongly rendered inline at the very bottom of the friends list, yanked your scroll position down to it when opened, and left an empty card ghost at the list's end — a CSS conflict between the glass material and the panel's positioning that only showed up in the real app. The list no longer moves at all when you open or close the card. (VRX-225)
 

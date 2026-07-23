@@ -1,5 +1,13 @@
 import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
+import { readFileSync } from 'fs'
+
+// Mirrors electron.vite.config.ts's build-time version injection so modules
+// referencing __APP_VERSION__ (the API clients' User-Agent) run under vitest
+// with the REAL package version — the UA-matches-package test depends on it.
+const appVersion = (
+  JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version: string }
+).version
 
 /**
  * Vitest config (VRX-13; comment truth-synced in the 2026-07 audit W7)
@@ -13,6 +21,9 @@ import { resolve } from 'path'
  * per-dir numbers) is tracked in the audit ledger's later items.
  */
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion)
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.mjs'],
