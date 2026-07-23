@@ -19,6 +19,7 @@
  */
 
 import { z } from 'zod'
+import { AuthError } from '../errors'
 import type { CvrFetcher } from './fetchCvrFriends'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
@@ -60,7 +61,8 @@ export interface ResolvedCvrInstance {
 export interface CvrInstanceResolver {
   /**
    * Resolve instance details, cached. Returns `null` when the instance can't be
-   * resolved (private/hidden/gone or a transient API failure) — never throws.
+   * resolved (private/hidden/gone or a transient API failure). Authentication
+   * errors propagate so the adapter can invalidate the dead session.
    */
   resolve(instanceId: string): Promise<ResolvedCvrInstance | null>
   /**
@@ -163,10 +165,14 @@ export function createCvrInstanceResolver(options: {
         store(instanceId, { expiresAt: clock() + ttlMs, value })
       }
       return value
-    } catch {
-      // Private/hidden/deleted instances and transient failures all land here —
-      // the resolve contract is null-not-throw (VRX-59 AC), negative-cached so
-      // repeated snapshots don't hammer the API.
+    } catch (error) {
+      // A dead session must reach CvrAdapter's auth-invalidated boundary. It is
+      // neither an unavailable instance nor safe to negative-cache.
+      if (error instanceof AuthError) throw error
+
+      // Private/hidden/deleted instances and non-auth transient failures land
+      // here — null-not-throw and negative-cached so repeated snapshots don't
+      // hammer the API.
       if (requestGeneration === generation) {
         store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
       }
