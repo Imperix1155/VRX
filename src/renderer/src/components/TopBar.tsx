@@ -53,9 +53,11 @@ function PlatformFilter({
   return (
     <>
       {/* Segmented control (§9: one bubble element, never per-button bg).
-      Radius: the track uses .glass's 20px panel radius — a `rounded-[..]` utility
-      here is DEAD (.glass is un-layered, so it overrides Tailwind utilities), so
-      the bubble below is rounded-[16px] (= 20px − 4px inset) to seat concentrically. */}
+      Radius: the track carries NO rounded-[..] utility, so .glass's 20px panel
+      radius applies (the owner-ratified §3 carve-out); the bubble below is
+      rounded-[16px] (= 20px − 4px inset) to seat concentrically. ↻ VRX-225:
+      .glass moved into @layer components, so a utility here would now WIN —
+      the 20px look survives because we deliberately don't add one. */}
       {/* A11y (audit W5): a segmented control is a single-select group → radiogroup
       semantics with a roving tabindex (one Tab stop; arrows move the selection),
       not N independent toggle buttons announced as pressed/unpressed. */}

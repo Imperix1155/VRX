@@ -187,10 +187,11 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(row)
   })
 
-  it('scrim click closes; ✕ closes; focus returns to the row both ways', () => {
+  it('outside pointerdown closes; ✕ closes; focus returns to the row both ways (VRX-225)', () => {
     render(<FriendsList />)
     let row = openDrawerFor('Alex')
-    fireEvent.click(screen.getByTestId('friend-drawer-scrim'))
+    // Outside = anywhere that is neither the panel nor a [data-drawer-opener].
+    fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(row)
 
@@ -200,22 +201,97 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(row)
   })
 
-  it('traps focus: initial focus lands in the drawer and Tab wraps both ways', () => {
+  it('is NON-MODAL (VRX-225): no aria-modal, no focus trap, non-blocking scrim', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
 
-    const closeButton = within(dialog()).getByRole('button', { name: 'Close' })
-    const notesTextarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
-    expect(document.activeElement).toBe(closeButton) // initial focus inside
+    const dlg = dialog()
+    // A modal claim over an interactive background would lie to assistive tech.
+    expect(dlg.getAttribute('aria-modal')).toBeNull()
 
-    // Tab from the LAST focusable wraps to the first…
-    notesTextarea.focus()
-    fireEvent.keyDown(document, { key: 'Tab' })
+    // Initial focus still lands inside (keyboard users arrive in the card)…
+    const closeButton = within(dlg).getByRole('button', { name: 'Close' })
     expect(document.activeElement).toBe(closeButton)
 
-    // …and Shift+Tab from the FIRST wraps to the last.
-    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(notesTextarea)
+    // …but Tab is NOT trapped: the old trap listened on document and wrapped
+    // last→first; now a Tab keydown from the last focusable must leave focus
+    // management to the browser (no preventDefault, no forced wrap).
+    const notesTextarea = within(dlg).getByRole('textbox', { name: 'Notes (yours, private)' })
+    notesTextarea.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(notesTextarea) // unmoved by any trap handler
+
+    // The scrim never intercepts input — the list behind stays interactive.
+    expect(screen.getByTestId('friend-drawer-scrim').className).toContain('pointer-events-none')
+  })
+
+  it('outside close never loses a dirty note — the forced blur saves first (VRX-225, Codex sequence)', async () => {
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
+    await waitFor(() => expect(getFriendNote).toHaveBeenCalled())
+
+    fireEvent.change(textarea, { target: { value: 'met at the pug' } })
+    textarea.focus()
+
+    // The risky real sequence: dirty textarea → outside pointerdown → close →
+    // focus-return forces the textarea blur → the blur-save must still fire.
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.blur(textarea)
+    await waitFor(() =>
+      expect(setFriendNote).toHaveBeenCalledWith(
+        expect.objectContaining({ note: 'met at the pug', friendId: 'usr_alex' })
+      )
+    )
+  })
+
+  it('with the card open, joining ANOTHER row closes the card and still joins (VRX-225, Codex sequence)', async () => {
+    mockFriends([joinableFriend, { ...cvrFriend, instance: publicInstance }])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    // Real pointer order on the other row's Join pill: pointerdown (not an
+    // opener, not the panel → closes the card) THEN click (joins).
+    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    fireEvent.pointerDown(joinMika)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await act(async () => {
+      fireEvent.click(joinMika)
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledWith({
+      platform: 'chilloutvr',
+      friendId: 'cvr_mika',
+      mode: 'desktop'
+    })
+  })
+
+  it('while closed, the drawer wrapper is inert and hidden (no ghost card, VRX-225)', () => {
+    render(<FriendsList />)
+    const row = openDrawerFor('Alex')
+    const wrapper = dialog().parentElement as HTMLElement
+    expect(wrapper.getAttribute('aria-hidden')).toBe('false')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(wrapper.getAttribute('aria-hidden')).toBe('true')
+    expect(wrapper.hasAttribute('inert')).toBe(true)
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('pointerdown on another avatar SWITCHES the card instead of closing (VRX-225)', () => {
+    mockFriends([joinableFriend, cvrFriend])
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+
+    // The outside-close listener must exempt [data-drawer-opener] targets so
+    // the subsequent click switches in place (close-then-reopen would flicker).
+    const otherAvatar = rowOpener('Mika')
+    fireEvent.pointerDown(otherAvatar)
+    expect(screen.queryByRole('dialog')).toBeTruthy() // still open after pointerdown
+    fireEvent.click(otherAvatar)
+    expect(dialog().getAttribute('aria-label')).toBe('Mika')
   })
 
   it.each([
@@ -329,14 +405,22 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByRole('status').textContent).toBe('')
   })
 
-  it('the "/" search shortcut does not steal focus while the drawer is open', () => {
+  it('the "/" search shortcut works while the non-modal drawer is open — but never from inside the notes textarea (VRX-225)', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
     const closeButton = within(dialog()).getByRole('button', { name: 'Close' })
     expect(document.activeElement).toBe(closeButton)
 
+    // Non-modal: the list's shortcuts stay live with the card open. The old
+    // suppression served the retired focus trap (Codex review, VRX-225).
     fireEvent.keyDown(document, { key: '/' })
-    expect(document.activeElement).toBe(closeButton) // trap holds
+    expect((document.activeElement as HTMLElement).tagName).toBe('INPUT') // search focused
+
+    // …but typing `/` INSIDE an editable control must never steal focus.
+    const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
+    textarea.focus()
+    fireEvent.keyDown(textarea, { key: '/' }) // bubbles to the document handler with target=textarea
+    expect(document.activeElement).toBe(textarea)
 
     // After closing, "/" works again.
     fireEvent.keyDown(document, { key: 'Escape' })

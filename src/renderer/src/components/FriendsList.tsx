@@ -122,9 +122,9 @@ const FriendRow = memo(function FriendRow({
   }
   const joinable = isFriendJoinable(friend)
 
-  function joinFriend(event: React.MouseEvent<HTMLButtonElement>): void {
-    // The pill is an inner button — never let its click open the drawer.
-    event.stopPropagation()
+  function joinFriend(): void {
+    // No stopPropagation needed since VRX-225: the drawer opener is the avatar
+    // button, not a stretched row overlay — the pill has nothing beneath it.
     void join(friend)
   }
 
@@ -135,31 +135,32 @@ const FriendRow = memo(function FriendRow({
     <li
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
-        'relative grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
+        'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
       ].join(' ')}
     >
-      {/* Details opener (VRX-69 review restructure): the li stays purely
-          structural (listitem semantics intact — no interactive role nesting
-          the Join button), and this stretched native <button> carries the
-          click/keyboard/focus behavior. Its accessible name COMPOSES from the
-          visible name + status (the avatar's aria-label) + world via
-          aria-labelledby, so screen readers lose nothing (§9.1 non-color
-          contract). Absolutely positioned → not a grid item; the Join pill
-          stacks ABOVE it (z-[1]) and stays independently clickable. */}
+      <PlatformTab platform={friend.platform} labelId={`${rowId}-platform`} />
+      {/* Details opener = the AVATAR button (VRX-225, owner decision — the old
+          stretched whole-row opener made every stray click open the drawer).
+          Still a native <button>, still the row's keyboard stop (Enter/Space),
+          and its accessible name still COMPOSES name + status (the avatar's
+          aria-label) + world + platform via aria-labelledby, so screen readers
+          lose nothing (§9.1 non-color contract). `data-drawer-opener` exempts
+          it from the drawer's outside-close listener: clicking another
+          friend's avatar SWITCHES the open card instead of closing it. */}
       <button
         type="button"
+        id={`${rowId}-avatar`}
+        data-drawer-opener
         onClick={(event) => onOpen(friend, event.currentTarget)}
         aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
-        className="absolute inset-0 z-0 cursor-pointer rounded-[13px] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
-      />
-      <PlatformTab platform={friend.platform} labelId={`${rowId}-platform`} />
-      <span id={`${rowId}-avatar`}>
+        className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
+      >
         <Avatar friend={friend} />
-      </span>
+      </button>
 
       {/* Content — name + custom status (beside), world beneath */}
       <div className="min-w-0">
@@ -200,7 +201,7 @@ const FriendRow = memo(function FriendRow({
           but readable. Joinable friends receive the button variant (VRX-166). */}
       {instancePill != null ? (
         joinable ? (
-          <span className="relative z-[1] block min-w-[78px]">
+          <span className="relative block min-w-[78px]">
             <InstancePill
               label={instancePill}
               tier={pillTier}
@@ -337,8 +338,13 @@ export default function FriendsList(): React.JSX.Element {
     setSelectedFriendId(null)
     const opener = openerRef.current
     openerRef.current = null
-    if (opener?.isConnected) opener.focus()
-    else searchInputRef.current?.focus()
+    // preventScroll (Codex review, VRX-225): the non-modal list can be freely
+    // scrolled while the card is open, so a plain .focus() on a now-offscreen
+    // opener would yank the list back to it on close — the exact jump this
+    // change exists to kill. Keyboard users regain a visible focus point on
+    // their next Tab/arrow, which scrolls normally.
+    if (opener?.isConnected) opener.focus({ preventScroll: true })
+    else searchInputRef.current?.focus({ preventScroll: true })
   }, [setSelectedFriendId])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
@@ -363,9 +369,10 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     function focusSearch(event: KeyboardEvent): void {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
-      // Never steal focus out of the open friend drawer (VRX-69: the dialog's
-      // focus trap owns the keyboard while it's open).
-      if (useFriendsStore.getState().selectedFriendId !== null) return
+      // The drawer is NON-MODAL since VRX-225 — the list (and its shortcuts)
+      // stay live while the card is open, so `/` works everywhere except
+      // inside editable controls (the guard below covers the notes textarea).
+      // The old open-drawer suppression served the retired focus trap.
       const target = event.target
       if (target instanceof HTMLElement) {
         const tagName = target.tagName
