@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-07-23
+
 ### Changed
 
 - **Faster and lighter under the hood** (from the full codebase review): the friends list no longer redoes its filtering and grouping work on every little update — typing in search and live presence changes feel snappier on big friend lists; presence bookkeeping got a faster lookup path; and the app stops making a hidden sign-in status check every time you flip between tabs.
