@@ -1,9 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
-import { useFriends, combineFriendQueries } from '../queries/friends'
+import { useFriends, useCombineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -349,10 +349,12 @@ export default function FriendsList(): React.JSX.Element {
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const [appliedSearch, setAppliedSearch] = useState(search)
-  const { friends, isPending, isError, isFetching, refetch } = combineFriendQueries(
+  const vrcFriends = useFriends('vrchat')
+  const cvrFriends = useFriends('chilloutvr')
+  const { friends, isPending, isError, isFetching, refetch } = useCombineFriendQueries(
     platformFilter,
-    useFriends('vrchat'),
-    useFriends('chilloutvr')
+    vrcFriends,
+    cvrFriends
   )
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
@@ -394,17 +396,20 @@ export default function FriendsList(): React.JSX.Element {
 
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-  const searchActive = appliedSearch.length > 0
-  const filteredFriends =
-    friends === undefined
-      ? undefined
-      : searchActive
-        ? friends.filter((friend) =>
-            splitByMatch(friend.displayName, appliedSearch).some((segment) => segment.isMatch)
-          )
-        : friends
-  const sections =
-    filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
+  const { filteredFriends, sections, searchActive } = useMemo(() => {
+    const searchActive = appliedSearch.length > 0
+    const filteredFriends =
+      friends === undefined
+        ? undefined
+        : searchActive
+          ? friends.filter((friend) =>
+              splitByMatch(friend.displayName, appliedSearch).some((segment) => segment.isMatch)
+            )
+          : friends
+    const sections =
+      filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
+    return { filteredFriends, sections, searchActive }
+  }, [friends, appliedSearch])
   // Look up in the UNFILTERED (but platform-scoped) list so an active search
   // can't close an open drawer. A friend that leaves the roster closes it.
   const selectedFriend =

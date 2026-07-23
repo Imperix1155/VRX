@@ -37,6 +37,25 @@ export interface VrcCurrentUserBuckets {
   offlineFriends: string[]
 }
 
+/**
+ * Set-based bucket view: built ONCE per fetch so membership tests are O(1) per
+ * friend instead of O(F × bucket) array scans (2026-07 audit OP-A2).
+ */
+export interface VrcCurrentUserBucketSets {
+  onlineFriends: Set<string>
+  activeFriends: Set<string>
+  offlineFriends: Set<string>
+}
+
+/** Convert the raw API bucket arrays to a once-built Set view. */
+export function toBucketSets(buckets: VrcCurrentUserBuckets): VrcCurrentUserBucketSets {
+  return {
+    onlineFriends: new Set(buckets.onlineFriends),
+    activeFriends: new Set(buckets.activeFriends),
+    offlineFriends: new Set(buckets.offlineFriends)
+  }
+}
+
 // ─── Output shape ─────────────────────────────────────────────────────────────
 
 export interface VrcParsedPresence {
@@ -74,17 +93,19 @@ function mapStatus(raw: string | null | undefined): UserStatus {
  * Parse a raw VRChat friend's presence into the normalized two-axis shape.
  *
  * @param friend  - Raw VRChat friend object (needs only `id`, `status`, `statusDescription`).
- * @param buckets - Bucket arrays from the current user's /auth/user response.
+ * @param buckets - Bucket SETS (via `toBucketSets`) from the current user's /auth/user
+ *                  response — Sets, not arrays, so per-friend membership is O(1)
+ *                  instead of O(bucket) (VRX-218 audit; the caller converts once).
  */
 export function parsePresence(
   friend: VrcRawFriend,
-  buckets: VrcCurrentUserBuckets
+  buckets: VrcCurrentUserBucketSets
 ): VrcParsedPresence {
   // STATE: derived from bucket membership, not a friend field.
   let state: PresenceState
-  if (buckets.onlineFriends.includes(friend.id)) {
+  if (buckets.onlineFriends.has(friend.id)) {
     state = 'in-game'
-  } else if (buckets.activeFriends.includes(friend.id)) {
+  } else if (buckets.activeFriends.has(friend.id)) {
     state = 'active'
   } else {
     state = 'offline'

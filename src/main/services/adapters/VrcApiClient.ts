@@ -6,9 +6,10 @@ import { BaseAdapter } from './BaseAdapter'
 /**
  * VRChat-required User-Agent. VRChat rate-limits / blocks clients without a
  * descriptive UA carrying contact info. Hardened/finalized in VRX-129; the
- * contact is the public repo (no personal info).
+ * contact is the public repo (no personal info). The version is injected at
+ * build time from package.json via __APP_VERSION__.
  */
-export const VRC_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
+export const VRC_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperix1155/VRX)` as const
 
 /**
  * Low-level VRChat API client (VRX-41) — the typed HTTP layer every VRChat

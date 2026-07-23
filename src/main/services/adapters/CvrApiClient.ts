@@ -11,7 +11,8 @@ import {
   RateLimitError
 } from './errors'
 
-const CVR_USER_AGENT = 'VRX/0.1.0 (https://github.com/Imperix1155/VRX)' as const
+/** Build-injected User-Agent — version comes from package.json via __APP_VERSION__. */
+const CVR_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperix1155/VRX)` as const
 
 export const cvrUserAuthSchema = z.object({
   username: z.string(),
