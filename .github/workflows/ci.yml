@@ -73,9 +73,14 @@ jobs:
       # electron-vite ^0.25.11, so neither resolves it and `npm audit fix --force` would
       # only downgrade electron-vite to 1.0.20. Remove the allowlist once vite +
       # electron-vite adopt esbuild >=0.28.1. Tracking: VRX-152.
+      # GHSA-mh99-v99m-4gvg (brace-expansion OOM-DoS, 2026-07-26): DEV-ONLY —
+      # reaches us solely through the eslint and electron-builder chains (zero
+      # production reach, verified with npm ls --omit=dev); the only fix is the
+      # eslint-10 / electron-builder major jumps walled behind peer deps.
+      # Remove when the VRX-180 majors land. Tracking: VRX-180.
       - name: Audit dependencies
         run: |
-          ALLOW='["https://github.com/advisories/GHSA-gv7w-rqvm-qjhr","https://github.com/advisories/GHSA-g7r4-m6w7-qqqr"]'
+          ALLOW='["https://github.com/advisories/GHSA-gv7w-rqvm-qjhr","https://github.com/advisories/GHSA-g7r4-m6w7-qqqr","https://github.com/advisories/GHSA-mh99-v99m-4gvg"]'
           # Human-readable report for the CI log (non-failing).
           npm audit --audit-level=high || true
           # Machine-readable copy (npm audit exits nonzero when vulns exist).
