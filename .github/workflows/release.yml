@@ -13,15 +13,23 @@ name: Release
 #                     in electron-builder.yml) and uploads its installers +
 #                     electron-updater manifests. Serial (max-parallel:1) so the
 #                     second OS reuses the draft the first one created.
-#   publish-release — resolve the tag's release BY ID (the one that has assets),
-#                     assert the full asset set is present, set the body from
-#                     CHANGELOG, then flip draft=false / prerelease=true.
+#   publish-release — resolve the tag's DRAFT release BY ID (draft-first, newest,
+#                     full installer set), assert the exact expected artifacts,
+#                     set the body from CHANGELOG, then flip draft=false /
+#                     prerelease=true. A rerun over an already-PUBLISHED tag fails
+#                     loudly (electron-builder skips uploads when a published
+#                     release exists, so re-blessing would ship stale binaries).
 #
 # Why not pre-create the draft: electron-builder's GitHub publisher does not
 # reliably reuse a draft it did not create, and would mint a second release for
 # the same tag. A tag-addressed `gh release edit` then un-drafts the wrong one,
 # which once shipped a public release with ZERO assets (v0.10.0). Letting
 # electron-builder own release creation, then resolving BY ID, removes the race.
+#
+# Tag placement: push version tags only at commits already on the default
+# branch. A tag whose commit changes .github/workflows/* relative to the default
+# branch trips an ungrantable GITHUB_TOKEN workflow-write restriction on release
+# create/update — the run fails and cannot be granted its way out.
 on:
   push:
     tags: ['v*']
@@ -121,55 +129,84 @@ jobs:
 
       # Resolve the release for this tag BY ID (never by tag-addressed
       # `gh release edit`, which is ambiguous when two releases share a tag),
-      # assert the installers are actually attached, set the notes, then publish.
+      # assert the exact installer set is attached, set the notes, then publish.
       - name: Resolve, verify, and publish the release
         run: |
           REPO="$GITHUB_REPOSITORY"
           TAG="$GITHUB_REF_NAME"
+          VER="${TAG#v}"
 
-          # All releases carrying this tag (drafts included — the token has
-          # contents:write). Project the asset names + count for each.
-          RELEASES="$(gh api "repos/$REPO/releases" --paginate)"
-          MATCHING="$(echo "$RELEASES" | jq --arg tag "$TAG" \
-            '[.[] | select(.tag_name==$tag)
-                  | {id, draft, prerelease,
-                     assets: [.assets[].name],
-                     asset_count: (.assets | length)}]')"
+          # Exact artifact set electron-builder derives from package.json for this
+          # version. Asserting the NAMES (not just a count) proves the right
+          # binaries are present. Update this list if the target matrix changes.
+          EXPECTED="$(jq -n --arg v "$VER" '[
+            "vrx-\($v)-setup.exe",
+            "vrx-\($v)-setup.exe.blockmap",
+            "VRX-\($v).exe",
+            "vrx-\($v).AppImage",
+            "vrx_\($v)_amd64.deb",
+            "latest.yml",
+            "latest-linux.yml"
+          ]')"
+          FLOOR="$(echo "$EXPECTED" | jq 'length')"
+
+          # `gh api --paginate` streams one JSON array PER PAGE; `jq -s add`
+          # flattens the pages into a single array (and is a no-op for the common
+          # 1-page case), so the filters below never break once the repo passes
+          # 30 releases. Drafts are included — the token has contents:write.
+          MATCHING="$(gh api "repos/$REPO/releases" --paginate \
+            | jq -s --arg tag "$TAG" 'add | [
+                .[] | select(.tag_name==$tag)
+                    | {id, draft, prerelease, created_at,
+                       assets: [.assets[].name],
+                       asset_count: (.assets | length)}
+              ]')"
 
           if [ "$(echo "$MATCHING" | jq 'length')" -eq 0 ]; then
             echo "::error::No release found for tag $TAG. electron-builder did not create one — check the build jobs." >&2
             exit 1
           fi
 
-          # The real release is the one carrying the installers. Pick BY asset
-          # count, then operate BY ID from here on.
-          TARGET="$(echo "$MATCHING" | jq 'max_by(.asset_count)')"
-          TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
-          TARGET_COUNT="$(echo "$TARGET" | jq -r '.asset_count')"
-          echo "Resolved release id=$TARGET_ID with $TARGET_COUNT asset(s) for $TAG."
-
-          # Assert the full expected set is attached. v0.10.1 shipped exactly 7:
-          # win nsis(.exe)+blockmap+portable+latest.yml, linux AppImage+deb+latest-linux.yml.
-          # Floor (>=), not equality, so adding a platform (e.g. mac dmg) still passes.
-          MIN_ASSETS=7
-          if [ "$TARGET_COUNT" -eq 0 ]; then
-            echo "::error::Release $TARGET_ID for $TAG has ZERO assets — electron-builder published nothing. Refusing to make an empty release public." >&2
+          # Selection rule (Finding 2/3): keep only releases carrying the full
+          # installer set (asset_count >= FLOOR), then pick DRAFT-first, newest
+          # created_at. Choosing the draft is what makes reruns safe: on a rerun
+          # electron-builder SKIPS uploads when a published release for the tag
+          # already exists (electron-publish gitHubPublisher: no draft found ->
+          # no upload), so the only complete release is the stale published one.
+          CANDIDATES="$(echo "$MATCHING" | jq --argjson floor "$FLOOR" '[.[] | select(.asset_count >= $floor)]')"
+          if [ "$(echo "$CANDIDATES" | jq 'length')" -eq 0 ]; then
+            echo "::error::No release for $TAG carries the full installer set (>= $FLOOR assets). A build leg failed, OR this is a rerun and electron-builder skipped uploads because a release for $TAG already exists. Fix the build, or delete/re-draft the stale $TAG release, then re-run." >&2
+            echo "Releases seen for $TAG: $(echo "$MATCHING" | jq -c '[.[] | {id, draft, asset_count}]')" >&2
             exit 1
           fi
-          if [ "$TARGET_COUNT" -lt "$MIN_ASSETS" ]; then
-            echo "::error::Release $TARGET_ID for $TAG has only $TARGET_COUNT asset(s); expected >= $MIN_ASSETS. Platform set is short (a build leg likely failed). Refusing to publish a partial release." >&2
+
+          # draft-first (rank 0 < 1), tie-broken by newest created_at (negated
+          # epoch, so min_by picks the largest timestamp). Deterministic — no
+          # reliance on input order or sort stability.
+          TARGET="$(echo "$CANDIDATES" | jq 'min_by([(if .draft then 0 else 1 end), (- (.created_at | fromdateiso8601))])')"
+          TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
+          TARGET_DRAFT="$(echo "$TARGET" | jq -r '.draft')"
+          echo "Resolved release id=$TARGET_ID (draft=$TARGET_DRAFT, $(echo "$TARGET" | jq -r '.asset_count') assets) for $TAG."
+
+          # Finding 3: the best complete candidate is already PUBLISHED and there
+          # is no fresh draft — a rerun over stale assets. Refuse to re-bless it.
+          if [ "$TARGET_DRAFT" != "true" ]; then
+            echo "::error::The only complete release for $TAG is already PUBLISHED (id=$TARGET_ID, draft=false) with no fresh draft alongside it. This is a rerun; electron-builder uploaded nothing, so these assets are STALE. Refusing to re-publish. Delete or re-draft release $TARGET_ID, then re-run the tag." >&2
+            exit 1
+          fi
+
+          # Finding 4: assert the EXACT expected filenames on the target. Every
+          # expected name must be present; extras are tolerated with a warning.
+          MISSING="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '$exp - .assets')"
+          if [ "$(echo "$MISSING" | jq 'length')" -ne 0 ]; then
+            echo "::error::Release $TARGET_ID for $TAG is missing expected artifact(s): $MISSING" >&2
             echo "Assets present: $(echo "$TARGET" | jq -c '.assets')" >&2
             exit 1
           fi
-
-          # Directly guard the electron-updater failure class: both auto-update
-          # manifests must be present or clients get broken update metadata.
-          for MANIFEST in latest.yml latest-linux.yml; do
-            if [ "$(echo "$TARGET" | jq --arg m "$MANIFEST" '[.assets[] | select(.==$m)] | length')" -eq 0 ]; then
-              echo "::error::Release $TARGET_ID for $TAG is missing updater manifest '$MANIFEST'. Refusing to publish." >&2
-              exit 1
-            fi
-          done
+          EXTRA="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '.assets - $exp')"
+          if [ "$(echo "$EXTRA" | jq 'length')" -ne 0 ]; then
+            echo "::warning::Release $TARGET_ID for $TAG has unexpected extra asset(s): $EXTRA"
+          fi
 
           # Loudly flag (never delete) any other release left on this tag with no
           # assets — a stray draft to clean up by hand.
