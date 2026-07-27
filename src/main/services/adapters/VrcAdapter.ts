@@ -466,10 +466,9 @@ export class VrcAdapter extends VrcApiClient {
 
   /**
    * Resolve optional world metadata without delaying the roster. Each answer
-   * emits the requested profile update plus a presence delta: friend-updated is
-   * profile-only by the existing shared/renderer contract and deliberately
-   * preserves its cached instance, while friend-presence carries the enriched
-   * instance through the unchanged cache and LocationAuthority consumers.
+   * emits one narrow metadata event. Consumers apply it only to friends whose
+   * current location still names that world, so a late answer cannot replay the
+   * roster-time presence, location, or profile.
    */
   private kickWorldMetadata(friends: Friend[], generation: number): void {
     void fetchWorldMetadata(
@@ -481,12 +480,13 @@ export class VrcAdapter extends VrcApiClient {
       undefined,
       (worldId, meta) => {
         if (generation !== this.sessionGeneration) return
-        for (const friend of friends) {
-          if (friend.instance?.worldId !== worldId) continue
-          const enriched = this.withWorldMetadata(friend, meta)
-          this.emit({ type: 'friend-updated', platform: 'vrchat', friend: enriched })
-          this.emit({ type: 'friend-presence', platform: 'vrchat', friend: enriched })
-        }
+        this.emit({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId,
+          worldName: meta.name,
+          thumbnailUrl: meta.thumbnailUrl
+        })
       }
     ).catch((error: unknown) => {
       if (generation !== this.sessionGeneration) return

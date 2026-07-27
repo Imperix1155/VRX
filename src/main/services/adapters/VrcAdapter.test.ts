@@ -6,6 +6,7 @@ import { AuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
+import { applyFriendEvent } from '../../../renderer/src/utils/applyFriendEvent'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -58,6 +59,132 @@ const pipelineUser = {
   status: 'active',
   statusDescription: null,
   tags: []
+}
+
+async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'): Promise<{
+  cache: Friend[]
+  targetAfterLive: Friend
+  resolutionEvents: AdapterEvent[]
+}> {
+  const worldId = 'wrld_held'
+  const movedWorldId = 'wrld_moved'
+  const targetId = 'usr_target'
+  const sameWorldId = 'usr_same_world'
+  const worldMeta = {
+    name: 'Held World',
+    thumbnailImageUrl: 'https://example.com/held.jpg',
+    capacity: 20,
+    shortName: null
+  }
+  let releaseWorld!: (response: Response) => void
+  let released = false
+  const heldWorld = new Promise<Response>((resolve) => {
+    releaseWorld = resolve
+  })
+  let worldRequested = false
+  const sockets: DrivableVrcSocket[] = []
+  const wireFriend = (
+    id: string,
+    displayName: string,
+    instanceId: string
+  ): Record<string, unknown> => ({
+    id,
+    displayName,
+    currentAvatarThumbnailImageUrl: null,
+    status: 'active',
+    statusDescription: null,
+    tags: [],
+    location: `${worldId}:${instanceId}`
+  })
+  const fetchMock = vi.fn((url: RequestInfo | URL) => {
+    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+    if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+    if (href.includes('/auth/user/friends')) {
+      return Promise.resolve(
+        jsonResponse(
+          href.includes('offline=true')
+            ? []
+            : [
+                wireFriend(targetId, 'Target Friend', 'target-instance'),
+                wireFriend(sameWorldId, 'Same World Friend', 'other-instance')
+              ]
+        )
+      )
+    }
+    if (href.includes(`/worlds/${worldId}`)) {
+      worldRequested = true
+      return heldWorld
+    }
+    if (href.endsWith('/auth/user')) {
+      return Promise.resolve(
+        jsonResponse({
+          id: 'usr_self',
+          displayName: 'Self',
+          onlineFriends: [targetId, sameWorldId],
+          activeFriends: [],
+          offlineFriends: []
+        })
+      )
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${href}`))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+
+  let cache: Friend[] = []
+  const events: AdapterEvent[] = []
+  const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    socketFactory: () => {
+      const socket = new DrivableVrcSocket()
+      sockets.push(socket)
+      return socket
+    }
+  })
+  const unsubscribe = adapter.subscribe((event) => {
+    events.push(event)
+    cache = applyFriendEvent(cache, event)
+  })
+
+  try {
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    const socket = sockets[0]!
+    socket.fire('open')
+    cache = await adapter.getFriends()
+    await vi.waitFor(() => expect(worldRequested).toBe(true))
+
+    if (liveMutation === 'offline') {
+      socket.fire('message', pipelineFrame('friend-offline', { userId: targetId }))
+    } else {
+      socket.fire(
+        'message',
+        pipelineFrame('friend-location', {
+          userId: targetId,
+          user: {
+            ...pipelineUser,
+            id: targetId,
+            displayName: 'Target Friend',
+            status: 'ask me'
+          },
+          location: `${movedWorldId}:new-instance`
+        })
+      )
+    }
+    const targetAfterLive = cache.find((friend) => friend.platformUserId === targetId)
+    if (targetAfterLive === undefined) throw new Error('live mutation did not reach the cache')
+    const resolutionEventIndex = events.length
+
+    releaseWorld(jsonResponse(worldMeta))
+    released = true
+    await vi.waitFor(() => expect(events.length).toBeGreaterThan(resolutionEventIndex))
+
+    return {
+      cache,
+      targetAfterLive,
+      resolutionEvents: events.slice(resolutionEventIndex)
+    }
+  } finally {
+    if (!released) releaseWorld(jsonResponse(worldMeta))
+    unsubscribe()
+  }
 }
 
 function lastCall(mock: ReturnType<typeof vi.fn>): [string, RequestInit] {
@@ -1626,7 +1753,79 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
 
-    it('returns before world enrichment and emits updates as the world resolves (VRX-214)', async () => {
+    it('held world metadata cannot resurrect a friend taken offline by the pipeline', async () => {
+      const result = await runDeferredWorldMetadataRace('offline')
+      const target = result.cache.find((friend) => friend.platformUserId === 'usr_target')
+      const sameWorld = result.cache.find((friend) => friend.platformUserId === 'usr_same_world')
+
+      expect(result.targetAfterLive).toMatchObject({
+        presence: { state: 'offline' },
+        status: null,
+        instance: null
+      })
+      expect(target).toBe(result.targetAfterLive)
+      expect(target).toMatchObject({
+        presence: { state: 'offline' },
+        status: null,
+        instance: null
+      })
+      expect(sameWorld?.instance).toMatchObject({
+        worldId: 'wrld_held',
+        instanceId: 'other-instance',
+        worldName: 'Held World',
+        thumbnailUrl: 'https://example.com/held.jpg'
+      })
+      expect(result.resolutionEvents).toEqual([
+        {
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: 'wrld_held',
+          worldName: 'Held World',
+          thumbnailUrl: 'https://example.com/held.jpg'
+        }
+      ])
+    })
+
+    it('held world metadata cannot revert a pipeline location move', async () => {
+      const result = await runDeferredWorldMetadataRace('location')
+      const target = result.cache.find((friend) => friend.platformUserId === 'usr_target')
+      const sameWorld = result.cache.find((friend) => friend.platformUserId === 'usr_same_world')
+
+      expect(result.targetAfterLive).toMatchObject({
+        presence: { state: 'in-game' },
+        status: 'ask-me',
+        instance: {
+          worldId: 'wrld_moved',
+          instanceId: 'new-instance'
+        }
+      })
+      expect(target).toBe(result.targetAfterLive)
+      expect(target).toMatchObject({
+        presence: { state: 'in-game' },
+        status: 'ask-me',
+        instance: {
+          worldId: 'wrld_moved',
+          instanceId: 'new-instance'
+        }
+      })
+      expect(sameWorld?.instance).toMatchObject({
+        worldId: 'wrld_held',
+        instanceId: 'other-instance',
+        worldName: 'Held World',
+        thumbnailUrl: 'https://example.com/held.jpg'
+      })
+      expect(result.resolutionEvents).toEqual([
+        {
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: 'wrld_held',
+          worldName: 'Held World',
+          thumbnailUrl: 'https://example.com/held.jpg'
+        }
+      ])
+    })
+
+    it('returns before world enrichment and emits one metadata-only event on resolution', async () => {
       const worldId = 'wrld_abc123'
       const worldMeta = {
         name: 'The Grid',
@@ -1708,27 +1907,26 @@ describe('VrcAdapter', () => {
         await roster
       }
 
-      await vi.waitFor(() => {
-        expect(events).toContainEqual({
-          type: 'friend-updated',
+      await vi.waitFor(() =>
+        expect(events).toEqual([
+          {
+            type: 'world-metadata',
+            platform: 'vrchat',
+            worldId,
+            worldName: 'The Grid',
+            thumbnailUrl: 'https://example.com/thumb.jpg'
+          }
+        ])
+      )
+      expect(events).toEqual([
+        {
+          type: 'world-metadata',
           platform: 'vrchat',
-          friend: expect.objectContaining({
-            platformUserId: 'usr_111',
-            instance: expect.objectContaining({
-              worldName: 'The Grid',
-              thumbnailUrl: 'https://example.com/thumb.jpg'
-            })
-          })
-        })
-      })
-      expect(events).toContainEqual({
-        type: 'friend-presence',
-        platform: 'vrchat',
-        friend: expect.objectContaining({
-          platformUserId: 'usr_111',
-          instance: expect.objectContaining({ worldName: 'The Grid' })
-        })
-      })
+          worldId,
+          worldName: 'The Grid',
+          thumbnailUrl: 'https://example.com/thumb.jpg'
+        }
+      ])
       unsubscribe()
     })
 
@@ -1970,12 +2168,11 @@ describe('VrcAdapter', () => {
       await adapter.getFriends()
       await vi.waitFor(() => {
         expect(events).toContainEqual({
-          type: 'friend-presence',
+          type: 'world-metadata',
           platform: 'vrchat',
-          friend: expect.objectContaining({
-            platformUserId: 'usr_444',
-            instance: expect.objectContaining({ worldName: 'Cached World' })
-          })
+          worldId,
+          worldName: 'Cached World',
+          thumbnailUrl: null
         })
       })
       const cachedFriends = await adapter.getFriends()

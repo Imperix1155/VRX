@@ -113,6 +113,8 @@ export class FriendAlerts {
       case 'friend-updated':
         this.rememberName(event.friend)
         return
+      case 'world-metadata':
+        return
       case 'friend-added':
         this.rememberName(event.friend)
         this.applyPresenceMutation(event.platform, (baselinedKeys) => {

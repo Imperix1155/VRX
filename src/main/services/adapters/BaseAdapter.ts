@@ -209,11 +209,12 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         // A 429 from the preceding in-flight request can extend the shared
         // cooldown while this dispatcher is asleep. Recalculate before
         // admitting anyone; the retry slot itself is reserved by applyCooldown.
-        if (this.cooldownUntil > requestAt) continue
+        const now2 = Date.now()
+        if (Math.max(now2, this.nextRequestAt, this.cooldownUntil) > requestAt) continue
 
         const waiter = this.interactiveWaiters.shift() ?? this.defaultWaiters.shift()
         if (waiter === undefined) continue
-        this.nextRequestAt = requestAt + MIN_INTERVAL_MS + jitter()
+        this.nextRequestAt = Math.max(this.nextRequestAt, requestAt + MIN_INTERVAL_MS + jitter())
         waiter.resolve()
       }
     } catch (error) {

@@ -103,6 +103,7 @@ export class LocationAuthority {
       state.liveSeedRevision = null
       return
     }
+    if (event.type === 'world-metadata') return
 
     const revision = ++this.revision
     const updatedAt = this.clock()

@@ -12,6 +12,7 @@
  *   fields kept); unknown ids are ignored (the reconcile will catch up).
  * - friend-updated:  merge PROFILE fields only; the cached presence + instance
  *   are preserved (the wire event says nothing about either).
+ * - world-metadata: patch names/images only on CURRENT same-platform locations.
  * - friend-added:    upsert. friend-removed: filter out.
  * - friends-snapshot scope 'all': full replacement; scope 'online': absentees
  *   flip offline, members upsert (currently producer-less — CVR moved to
@@ -103,6 +104,32 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
         { presence: true, instance: true },
         { insertMissing: false }
       )
+
+    case 'world-metadata': {
+      let changed = false
+      const next = friends.map((friend): Friend => {
+        const instance = friend.instance
+        if (friend.platform !== event.platform || instance?.worldId !== event.worldId) {
+          return friend
+        }
+        if (
+          instance.worldName === event.worldName &&
+          instance.thumbnailUrl === event.thumbnailUrl
+        ) {
+          return friend
+        }
+        changed = true
+        return {
+          ...friend,
+          instance: {
+            ...instance,
+            worldName: event.worldName,
+            thumbnailUrl: event.thumbnailUrl
+          }
+        }
+      })
+      return changed ? next : friends
+    }
 
     case 'friend-removed':
       return friends.filter(

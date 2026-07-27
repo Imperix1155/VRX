@@ -238,6 +238,47 @@ describe('BaseAdapter', () => {
   })
 
   describe('429 backoff', () => {
+    it('recomputes a queued admission after a fast 429 moves the schedule during sleep', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random')
+        // Initial admission: the queued waiter starts sleeping until t=11_099.
+        .mockReturnValueOnce(0.99)
+        // Fast 429 at t=10_050: retry jitter 0 => retry at t=11_050.
+        .mockReturnValueOnce(0)
+        // Reserving the retry moves nextRequestAt forward to t=12_149.
+        .mockReturnValueOnce(0.99)
+        // Queued admission jitter after the dispatcher recomputes.
+        .mockReturnValue(0)
+      const dispatches: Array<{ url: string; at: number }> = []
+      let firstAttempt = true
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        if (url === 'http://api/limited' && firstAttempt) {
+          firstAttempt = false
+          return new Promise<Response>((resolve) => {
+            setTimeout(() => resolve(makeResponse(429, {})), 50)
+          })
+        }
+        return Promise.resolve(makeResponse(200, validBody))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const limited = adapter.fetch('http://api/limited', schema)
+      const queued = adapter.fetch('http://api/queued', schema)
+
+      await vi.advanceTimersByTimeAsync(2_149)
+      await expect(Promise.all([limited, queued])).resolves.toEqual([validBody, validBody])
+      expect(dispatches).toEqual([
+        { url: 'http://api/limited', at: 10_000 },
+        { url: 'http://api/limited', at: 11_050 },
+        { url: 'http://api/queued', at: 12_149 }
+      ])
+      expect(
+        dispatches.slice(1).every((entry, index) => entry.at - dispatches[index]!.at >= 1_000)
+      ).toBe(true)
+    })
+
     it('pauses and reorders already queued requests behind a shared cooldown', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)
