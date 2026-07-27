@@ -130,6 +130,15 @@ export class VrcAdapter extends VrcApiClient {
   private readonly worldResolver = new WorldResolver((worldId) =>
     this.get(`/worlds/${worldId}`, z.unknown())
   )
+  /**
+   * WorldIds with an enrichment fetch in flight (the CvrAdapter
+   * `pendingResolutions` pattern): `peek()` stays undefined until a resolve
+   * COMPLETES, so without this guard two overlapping `getFriends()` calls
+   * (launch + an early manual Refresh) would double-fetch every still-unresolved
+   * world through the shared 1 req/s slot. Batch-scoped: each kick sweeps its
+   * own ids in `finally`, so failed/private worlds stay retryable next call.
+   */
+  private readonly pendingWorldResolutions = new Set<string>()
 
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
@@ -471,37 +480,46 @@ export class VrcAdapter extends VrcApiClient {
    * roster-time presence, location, or profile.
    */
   private kickWorldMetadata(friends: Friend[], generation: number): void {
-    void fetchWorldMetadata(
-      friends.map((friend) => {
-        const worldId = friend.instance?.worldId ?? null
-        return this.worldResolver.peek(worldId) === undefined ? worldId : null
-      }),
-      this.worldResolver,
-      undefined,
-      (worldId, meta) => {
-        if (generation !== this.sessionGeneration) return
-        this.emit({
-          type: 'world-metadata',
-          platform: 'vrchat',
-          worldId,
-          worldName: meta.name,
-          thumbnailUrl: meta.thumbnailUrl
-        })
-      }
-    ).catch((error: unknown) => {
+    const worldIds = friends.map((friend) => {
+      const worldId = friend.instance?.worldId ?? null
+      if (worldId === null) return null
+      if (this.worldResolver.peek(worldId) !== undefined) return null
+      // In-flight dedup (CodeRabbit, VRX-214): a world already being resolved
+      // by an overlapping kick must not be fetched twice through the shared slot.
+      if (this.pendingWorldResolutions.has(worldId)) return null
+      return worldId
+    })
+    const kicked = worldIds.filter((id): id is string => id !== null)
+    for (const id of kicked) this.pendingWorldResolutions.add(id)
+    void fetchWorldMetadata(worldIds, this.worldResolver, undefined, (worldId, meta) => {
       if (generation !== this.sessionGeneration) return
-      if (error instanceof AuthError && error.status === 401) {
-        // A background 401 has the same meaning as the former awaited path:
-        // preserve the cookie for the 2FA-aware status check, quarantine the
-        // roster, and fence every other resolution from this generation.
-        this.bumpSessionGeneration()
-        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-        return
-      }
-      this.live?.log?.('warn', 'vrc adapter: world enrichment failed', {
-        message: error instanceof Error ? error.message : String(error)
+      this.emit({
+        type: 'world-metadata',
+        platform: 'vrchat',
+        worldId,
+        worldName: meta.name,
+        thumbnailUrl: meta.thumbnailUrl
       })
     })
+      .catch((error: unknown) => {
+        if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthError && error.status === 401) {
+          // A background 401 has the same meaning as the former awaited path:
+          // preserve the cookie for the 2FA-aware status check, quarantine the
+          // roster, and fence every other resolution from this generation.
+          this.bumpSessionGeneration()
+          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+          return
+        }
+        this.live?.log?.('warn', 'vrc adapter: world enrichment failed', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        // Sweep THIS batch's ids only — resolved worlds are now cached (peek
+        // excludes them) and failed/private ones become retryable again.
+        for (const id of kicked) this.pendingWorldResolutions.delete(id)
+      })
   }
 
   private withWorldMetadata(friend: Friend, meta: WorldMeta): Friend {

@@ -1907,17 +1907,13 @@ describe('VrcAdapter', () => {
         await roster
       }
 
-      await vi.waitFor(() =>
-        expect(events).toEqual([
-          {
-            type: 'world-metadata',
-            platform: 'vrchat',
-            worldId,
-            worldName: 'The Grid',
-            thumbnailUrl: 'https://example.com/thumb.jpg'
-          }
-        ])
-      )
+      // Wait for ARRIVAL, then settle two macrotask turns before pinning the
+      // exact contents: `waitFor(toEqual([one]))` passes the instant the first
+      // event lands, so a stray second emission a tick later would go
+      // undetected — exactly what "one event" must rule out (CodeRabbit).
+      await vi.waitFor(() => expect(events.length).toBeGreaterThan(0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
       expect(events).toEqual([
         {
           type: 'world-metadata',
@@ -1927,6 +1923,96 @@ describe('VrcAdapter', () => {
           thumbnailUrl: 'https://example.com/thumb.jpg'
         }
       ])
+      unsubscribe()
+    })
+
+    it('overlapping getFriends calls do not double-fetch an in-flight world', async () => {
+      // peek() stays undefined until a resolve COMPLETES, so without the
+      // pendingWorldResolutions guard a second getFriends during the held
+      // window would re-fetch the same world through the shared 1 req/s slot
+      // and emit a duplicate world-metadata event (CodeRabbit, VRX-214).
+      const worldId = 'wrld_dedup1'
+      let releaseWorld!: (response: Response) => void
+      const heldWorld = new Promise<Response>((resolve) => {
+        releaseWorld = resolve
+      })
+      let worldFetches = 0
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          const isOffline = url.includes('offline=true')
+          if (isOffline) {
+            return Promise.resolve(
+              new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            )
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: 'usr_111',
+                  displayName: 'Bob',
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `${worldId}:11111~private(usr_self)`
+                }
+              ]),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+        }
+        if (url.includes(`/worlds/${worldId}`)) {
+          worldFetches += 1
+          return heldWorld
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'usr_self',
+              displayName: 'Self',
+              onlineFriends: ['usr_111'],
+              activeFriends: [],
+              offlineFriends: []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+
+      const first = adapter.getFriends()
+      await vi.waitFor(() => expect(worldFetches).toBe(1))
+      // Overlapping call while the world fetch is still held in flight.
+      const second = adapter.getFriends()
+      await Promise.all([first, second])
+
+      releaseWorld(
+        new Response(
+          JSON.stringify({
+            name: 'Dedup World',
+            thumbnailImageUrl: null,
+            capacity: 8,
+            shortName: null
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      await vi.waitFor(() =>
+        expect(events.filter((event) => event.type === 'world-metadata')).toHaveLength(1)
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(worldFetches).toBe(1)
+      expect(events.filter((event) => event.type === 'world-metadata')).toHaveLength(1)
       unsubscribe()
     })
 
