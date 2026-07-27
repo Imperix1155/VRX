@@ -6,10 +6,22 @@ name: Release
 # push the tag. electron-builder derives artifact names and latest.yml from
 # package.json, so the tag and package version MUST agree.
 #
-# Flow: create a DRAFT release with auto-generated notes -> each OS uploads its
-# installers + electron-updater manifest into that draft -> flip it to published
-# only if every build leg succeeded (a failed build leaves a private draft to
-# inspect, delete, and retry).
+# Flow (VRX-224 — single source of release creation):
+#   verify          — fail fast if the tag and package.json version disagree.
+#   build (matrix)  — each OS runs `electron-builder --publish always`, which
+#                     CREATES the release itself (as a draft; releaseType:draft
+#                     in electron-builder.yml) and uploads its installers +
+#                     electron-updater manifests. Serial (max-parallel:1) so the
+#                     second OS reuses the draft the first one created.
+#   publish-release — resolve the tag's release BY ID (the one that has assets),
+#                     assert the full asset set is present, set the body from
+#                     CHANGELOG, then flip draft=false / prerelease=true.
+#
+# Why not pre-create the draft: electron-builder's GitHub publisher does not
+# reliably reuse a draft it did not create, and would mint a second release for
+# the same tag. A tag-addressed `gh release edit` then un-drafts the wrong one,
+# which once shipped a public release with ZERO assets (v0.10.0). Letting
+# electron-builder own release creation, then resolving BY ID, removes the race.
 on:
   push:
     tags: ['v*']
@@ -24,8 +36,8 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: create draft release
+  verify:
+    name: verify tag
     runs-on: ubuntu-latest
     steps:
       # Checks out the tagged commit (tag push), so the version read below is the
@@ -47,39 +59,15 @@ jobs:
             exit 1
           fi
 
-      # Pull this version's section out of CHANGELOG.md for the release notes
-      # (VRX-126). Falls back to GitHub's auto-generated notes if the section is
-      # missing, so a release never ships with empty notes.
-      - name: Build release notes from CHANGELOG
-        run: |
-          # `if node ...` keeps `set -e` from killing the step on an extractor
-          # failure: any non-zero exit OR empty output takes the fallback branch,
-          # so a release never fails (or ships truncated notes) over this.
-          if node scripts/extract-changelog.mjs "${GITHUB_REF_NAME#v}" > /tmp/release-notes.md && [ -s /tmp/release-notes.md ]; then
-            echo "HAVE_NOTES=1" >> "$GITHUB_ENV"
-          else
-            echo "No CHANGELOG section for ${GITHUB_REF_NAME#v} (or extractor failed) — using auto-generated notes." >&2
-            : > /tmp/release-notes.md
-            echo "HAVE_NOTES=0" >> "$GITHUB_ENV"
-          fi
-
-      - name: Create draft release
-        run: |
-          if [ "$HAVE_NOTES" = "1" ]; then
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --prerelease --verify-tag --notes-file /tmp/release-notes.md
-          else
-            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --prerelease --verify-tag --generate-notes
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build:
     name: build (${{ matrix.platform }})
-    needs: create-release
+    needs: verify
     strategy:
       fail-fast: false
-      # Serial: avoid two electron-builder publish runs mutating the same
-      # release concurrently. Release builds are not latency-sensitive.
+      # Serial: the first OS's electron-builder run creates the draft release for
+      # this tag; the second must reuse it (not mint a second release). Running
+      # them in parallel would race two release-creation attempts. Release builds
+      # are not latency-sensitive.
       max-parallel: 1
       matrix:
         include:
@@ -107,8 +95,9 @@ jobs:
         run: npm ci
 
       # Compiles to out/, then packages installers (Linux: AppImage + deb;
-      # Windows: nsis + portable) and uploads them plus the latest*.yml
-      # electron-updater manifests into the draft release for this tag.
+      # Windows: nsis + portable) and CREATES the draft release for this tag on
+      # first run / reuses it on the second, uploading the installers plus the
+      # latest*.yml electron-updater manifests into it.
       - name: Build and publish ${{ matrix.platform }} installers
         run: |
           npm run build
@@ -121,7 +110,86 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Mark release as published
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+      # Need the repo for scripts/extract-changelog.mjs + CHANGELOG.md + node.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # Resolve the release for this tag BY ID (never by tag-addressed
+      # `gh release edit`, which is ambiguous when two releases share a tag),
+      # assert the installers are actually attached, set the notes, then publish.
+      - name: Resolve, verify, and publish the release
+        run: |
+          REPO="$GITHUB_REPOSITORY"
+          TAG="$GITHUB_REF_NAME"
+
+          # All releases carrying this tag (drafts included — the token has
+          # contents:write). Project the asset names + count for each.
+          RELEASES="$(gh api "repos/$REPO/releases" --paginate)"
+          MATCHING="$(echo "$RELEASES" | jq --arg tag "$TAG" \
+            '[.[] | select(.tag_name==$tag)
+                  | {id, draft, prerelease,
+                     assets: [.assets[].name],
+                     asset_count: (.assets | length)}]')"
+
+          if [ "$(echo "$MATCHING" | jq 'length')" -eq 0 ]; then
+            echo "::error::No release found for tag $TAG. electron-builder did not create one — check the build jobs." >&2
+            exit 1
+          fi
+
+          # The real release is the one carrying the installers. Pick BY asset
+          # count, then operate BY ID from here on.
+          TARGET="$(echo "$MATCHING" | jq 'max_by(.asset_count)')"
+          TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
+          TARGET_COUNT="$(echo "$TARGET" | jq -r '.asset_count')"
+          echo "Resolved release id=$TARGET_ID with $TARGET_COUNT asset(s) for $TAG."
+
+          # Assert the full expected set is attached. v0.10.1 shipped exactly 7:
+          # win nsis(.exe)+blockmap+portable+latest.yml, linux AppImage+deb+latest-linux.yml.
+          # Floor (>=), not equality, so adding a platform (e.g. mac dmg) still passes.
+          MIN_ASSETS=7
+          if [ "$TARGET_COUNT" -eq 0 ]; then
+            echo "::error::Release $TARGET_ID for $TAG has ZERO assets — electron-builder published nothing. Refusing to make an empty release public." >&2
+            exit 1
+          fi
+          if [ "$TARGET_COUNT" -lt "$MIN_ASSETS" ]; then
+            echo "::error::Release $TARGET_ID for $TAG has only $TARGET_COUNT asset(s); expected >= $MIN_ASSETS. Platform set is short (a build leg likely failed). Refusing to publish a partial release." >&2
+            echo "Assets present: $(echo "$TARGET" | jq -c '.assets')" >&2
+            exit 1
+          fi
+
+          # Directly guard the electron-updater failure class: both auto-update
+          # manifests must be present or clients get broken update metadata.
+          for MANIFEST in latest.yml latest-linux.yml; do
+            if [ "$(echo "$TARGET" | jq --arg m "$MANIFEST" '[.assets[] | select(.==$m)] | length')" -eq 0 ]; then
+              echo "::error::Release $TARGET_ID for $TAG is missing updater manifest '$MANIFEST'. Refusing to publish." >&2
+              exit 1
+            fi
+          done
+
+          # Loudly flag (never delete) any other release left on this tag with no
+          # assets — a stray draft to clean up by hand.
+          echo "$MATCHING" | jq -r --argjson keep "$TARGET_ID" \
+            '.[] | select(.id != $keep and .asset_count == 0)
+                 | "::warning::Empty duplicate release left drafted on tag (id=\(.id), draft=\(.draft)). Not deleting in CI — remove it manually."'
+
+          # Release body from CHANGELOG (electron-builder leaves the body empty).
+          # Non-zero exit OR empty output => leave the body untouched rather than
+          # clobber it with an empty string (VRX-111 always ships a CHANGELOG, so
+          # this is an edge).
+          if node scripts/extract-changelog.mjs "${TAG#v}" > /tmp/release-notes.md && [ -s /tmp/release-notes.md ]; then
+            echo "Using CHANGELOG notes for ${TAG#v}."
+            PATCH="$(jq -n --rawfile body /tmp/release-notes.md '{draft:false, prerelease:true, body:$body}')"
+          else
+            echo "No CHANGELOG section for ${TAG#v} (or extractor failed) — publishing without changing the body." >&2
+            PATCH="$(jq -n '{draft:false, prerelease:true}')"
+          fi
+
+          # Publish BY ID: un-draft and keep prerelease=true (owner policy until 1.0).
+          echo "$PATCH" | gh api -X PATCH "repos/$REPO/releases/$TARGET_ID" --input - --jq '"Published: \(.html_url) (draft=\(.draft), prerelease=\(.prerelease))"'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
