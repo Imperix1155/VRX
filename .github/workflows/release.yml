@@ -148,7 +148,6 @@ jobs:
             "latest.yml",
             "latest-linux.yml"
           ]')"
-          FLOOR="$(echo "$EXPECTED" | jq 'length')"
 
           # `gh api --paginate` streams one JSON array PER PAGE; `jq -s add`
           # flattens the pages into a single array (and is a no-op for the common
@@ -167,36 +166,38 @@ jobs:
             exit 1
           fi
 
-          # Selection rule (Finding 2/3): keep only releases carrying the full
-          # installer set (asset_count >= FLOOR), then pick DRAFT-first, newest
-          # created_at. Choosing the draft is what makes reruns safe: on a rerun
-          # electron-builder SKIPS uploads when a published release for the tag
-          # already exists (electron-publish gitHubPublisher: no draft found ->
-          # no upload), so the only complete release is the stale published one.
-          CANDIDATES="$(echo "$MATCHING" | jq --argjson floor "$FLOOR" '[.[] | select(.asset_count >= $floor)]')"
-          if [ "$(echo "$CANDIDATES" | jq 'length')" -eq 0 ]; then
-            echo "::error::No release for $TAG carries the full installer set (>= $FLOOR assets). A build leg failed, OR this is a rerun and electron-builder skipped uploads because a release for $TAG already exists. Fix the build, or delete/re-draft the stale $TAG release, then re-run." >&2
+          # Publishing is TERMINAL and once-per-tag. If ANY release for this tag
+          # is already published (draft=false, regardless of asset count), stop
+          # HARD: electron-builder skips uploads when a published release for the
+          # tag exists, so any draft still lying around carries STALE binaries.
+          # This total rule also removes the old edge where an older complete
+          # draft outranked a newer published release. Recovery is manual+loud.
+          if [ "$(echo "$MATCHING" | jq '[.[] | select(.draft==false)] | length')" -ne 0 ]; then
+            echo "::error::A release for $TAG is already published — publishing is once-per-tag. Re-draft or delete it, then rerun." >&2
             echo "Releases seen for $TAG: $(echo "$MATCHING" | jq -c '[.[] | {id, draft, asset_count}]')" >&2
             exit 1
           fi
 
-          # draft-first (rank 0 < 1), tie-broken by newest created_at (negated
-          # epoch, so min_by picks the largest timestamp). Deterministic — no
-          # reliance on input order or sort stability.
-          TARGET="$(echo "$CANDIDATES" | jq 'min_by([(if .draft then 0 else 1 end), (- (.created_at | fromdateiso8601))])')"
-          TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
-          TARGET_DRAFT="$(echo "$TARGET" | jq -r '.draft')"
-          echo "Resolved release id=$TARGET_ID (draft=$TARGET_DRAFT, $(echo "$TARGET" | jq -r '.asset_count') assets) for $TAG."
-
-          # Finding 3: the best complete candidate is already PUBLISHED and there
-          # is no fresh draft — a rerun over stale assets. Refuse to re-bless it.
-          if [ "$TARGET_DRAFT" != "true" ]; then
-            echo "::error::The only complete release for $TAG is already PUBLISHED (id=$TARGET_ID, draft=false) with no fresh draft alongside it. This is a rerun; electron-builder uploaded nothing, so these assets are STALE. Refusing to re-publish. Delete or re-draft release $TARGET_ID, then re-run the tag." >&2
+          # Candidates = drafts carrying the FULL expected artifact set (every
+          # EXPECTED name present). Filtering on NAMES (not a count) means an
+          # invalid 7-asset draft with a wrong filename cannot crowd out an older
+          # valid draft. All matches are drafts here (published guard above).
+          CANDIDATES="$(echo "$MATCHING" | jq --argjson exp "$EXPECTED" '[.[] | select(($exp - .assets) == [])]')"
+          if [ "$(echo "$CANDIDATES" | jq 'length')" -eq 0 ]; then
+            echo "::error::No draft for $TAG carries the full installer set. A build leg failed to upload, or electron-builder skipped uploads. Fix the build (or delete/re-draft the stale $TAG release), then rerun." >&2
+            echo "Releases seen for $TAG: $(echo "$MATCHING" | jq -c '[.[] | {id, draft, asset_count}]')" >&2
             exit 1
           fi
 
-          # Finding 4: assert the EXACT expected filenames on the target. Every
-          # expected name must be present; extras are tolerated with a warning.
+          # Deterministic pick among valid drafts: newest created_at, then
+          # highest id (ids increase monotonically) as a same-second tie-break.
+          # draft rank kept first for clarity though all candidates are drafts.
+          TARGET="$(echo "$CANDIDATES" | jq 'min_by([(if .draft then 0 else 1 end), (- (.created_at | fromdateiso8601)), (- .id)])')"
+          TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
+          echo "Resolved draft release id=$TARGET_ID ($(echo "$TARGET" | jq -r '.asset_count') assets) for $TAG."
+
+          # Belt-and-braces (unreachable — candidates already carry the full set):
+          # every expected name must be present; extras only warn.
           MISSING="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '$exp - .assets')"
           if [ "$(echo "$MISSING" | jq 'length')" -ne 0 ]; then
             echo "::error::Release $TARGET_ID for $TAG is missing expected artifact(s): $MISSING" >&2
