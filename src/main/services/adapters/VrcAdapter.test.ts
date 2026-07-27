@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent, InstanceInfo } from '@shared/types'
+import type { AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { AuthError } from './errors'
@@ -1626,7 +1626,7 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
 
-    it('enriches friends in worlds with worldName/thumbnailUrl (VRX-163)', async () => {
+    it('returns before world enrichment and emits updates as the world resolves (VRX-214)', async () => {
       const worldId = 'wrld_abc123'
       const worldMeta = {
         name: 'The Grid',
@@ -1634,6 +1634,11 @@ describe('VrcAdapter', () => {
         capacity: 20,
         shortName: null
       }
+      let releaseWorld!: (response: Response) => void
+      const heldWorld = new Promise<Response>((resolve) => {
+        releaseWorld = resolve
+      })
+      let worldRequested = false
       const fetchMock = vi.fn((url: string) => {
         if (url.includes('/auth/user/friends')) {
           const isOffline = url.includes('offline=true')
@@ -1664,12 +1669,8 @@ describe('VrcAdapter', () => {
           )
         }
         if (url.includes(`/worlds/${worldId}`)) {
-          return Promise.resolve(
-            new Response(JSON.stringify(worldMeta), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
+          worldRequested = true
+          return heldWorld
         }
         // /auth/user — buckets
         return Promise.resolve(
@@ -1686,16 +1687,52 @@ describe('VrcAdapter', () => {
         )
       })
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+      let friends: Friend[] | undefined
+      const roster = adapter.getFriends().then((result) => {
+        friends = result
+        return result
+      })
 
-      const friends = await adapter.getFriends()
+      await vi.waitFor(() => expect(worldRequested).toBe(true))
+      try {
+        expect(friends).toBeDefined()
+        expect(friends![0]!.instance?.worldName).toBeNull()
+        expect(friends![0]!.instance?.thumbnailUrl).toBeNull()
+      } finally {
+        releaseWorld(jsonResponse(worldMeta))
+        await roster
+      }
 
-      expect(friends).toHaveLength(1)
-      expect(friends[0]!.instance?.worldName).toBe('The Grid')
-      expect(friends[0]!.instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+      await vi.waitFor(() => {
+        expect(events).toContainEqual({
+          type: 'friend-updated',
+          platform: 'vrchat',
+          friend: expect.objectContaining({
+            platformUserId: 'usr_111',
+            instance: expect.objectContaining({
+              worldName: 'The Grid',
+              thumbnailUrl: 'https://example.com/thumb.jpg'
+            })
+          })
+        })
+      })
+      expect(events).toContainEqual({
+        type: 'friend-presence',
+        platform: 'vrchat',
+        friend: expect.objectContaining({
+          platformUserId: 'usr_111',
+          instance: expect.objectContaining({ worldName: 'The Grid' })
+        })
+      })
+      unsubscribe()
     })
 
-    it('a 401 during WORLD enrichment (session dies mid-fetch) EMITS auth-invalidated (VRX-197, Codex)', async () => {
+    it('a 401 during background world enrichment invalidates auth without rejecting the roster', async () => {
       // Buckets + friend pages succeed, then the session dies before /worlds/:id.
       // The world 401 must propagate (WorldResolver rethrows AuthError) up to
       // getFriends and emit — not be swallowed to null world metadata.
@@ -1738,8 +1775,15 @@ describe('VrcAdapter', () => {
       })
       adapter.subscribe((e) => events.push(e))
 
-      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
-      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      await expect(adapter.getFriends()).resolves.toEqual([
+        expect.objectContaining({
+          platformUserId: 'usr_111',
+          instance: expect.objectContaining({ worldName: null, thumbnailUrl: null })
+        })
+      ])
+      await vi.waitFor(() => {
+        expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      })
     })
 
     it('leaves worldName null for a friend with no instance (VRX-163)', async () => {
@@ -1794,8 +1838,9 @@ describe('VrcAdapter', () => {
       expect(friends[0]!.instance).toBeNull()
     })
 
-    it('keeps worldName null for an unresolvable world, friends still returned (VRX-163)', async () => {
+    it('resolver errors leave metadata null without rejecting getFriends or crashing', async () => {
       const worldId = 'wrld_deleted999'
+      let worldRequests = 0
       const fetchMock = vi.fn((url: string) => {
         if (url.includes('/auth/user/friends')) {
           const isOffline = url.includes('offline=true')
@@ -1825,13 +1870,8 @@ describe('VrcAdapter', () => {
           )
         }
         if (url.includes(`/worlds/${worldId}`)) {
-          // Returns a body that fails WorldApiSchema → resolver returns null
-          return Promise.resolve(
-            new Response(JSON.stringify({}), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
+          worldRequests += 1
+          return Promise.reject(new Error('world resolver offline'))
         }
         return Promise.resolve(
           new Response(
@@ -1854,6 +1894,7 @@ describe('VrcAdapter', () => {
       expect(friends).toHaveLength(1)
       expect(friends[0]!.instance?.worldName).toBeNull()
       expect(friends[0]!.instance?.worldId).toBe(worldId)
+      await vi.waitFor(() => expect(worldRequests).toBe(1))
     })
 
     it('caches world metadata across getFriends calls (single resolver, VRX-163)', async () => {
@@ -1920,14 +1961,30 @@ describe('VrcAdapter', () => {
         return Promise.resolve(bucketsResponse())
       })
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       await adapter.getFriends()
-      await adapter.getFriends()
+      await vi.waitFor(() => {
+        expect(events).toContainEqual({
+          type: 'friend-presence',
+          platform: 'vrchat',
+          friend: expect.objectContaining({
+            platformUserId: 'usr_444',
+            instance: expect.objectContaining({ worldName: 'Cached World' })
+          })
+        })
+      })
+      const cachedFriends = await adapter.getFriends()
 
       // The world was fetched only once because the resolver's TTL cache persists
       // across getFriends calls (single worldResolver field, not recreated per call).
       expect(worldFetchCount.n).toBe(1)
+      expect(cachedFriends[0]!.instance?.worldName).toBe('Cached World')
+      unsubscribe()
     })
   })
 
