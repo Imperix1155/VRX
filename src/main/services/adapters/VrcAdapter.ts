@@ -97,6 +97,11 @@ function cookiePart(cookie: string | null, name: string): string | null {
 
 /** Map VRChat's `requiresTwoFactorAuth` values to our method (`emailOtp` → email, else authenticator). */
 function mapTwoFactorMethod(types: string[]): TwoFactorMethod {
+  // Known wire shapes (vrchatapi spec + VRCX's identical fold): TOTP accounts
+  // send ['totp','otp'] ('otp' = RECOVERY codes, never email); email-only
+  // accounts send ['emailOtp']. A both-methods array is not known to occur;
+  // if it ever does, this folds to email — visible and retryable, never a
+  // silent wrong-endpoint failure (VRX-229 review).
   return types.some((type) => type.toLowerCase() === 'emailotp') ? 'email' : 'totp'
 }
 
@@ -245,6 +250,12 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private async verifyTwoFactor(code: string): Promise<LoginResult> {
+    // INVARIANT (renderer-enforced, not guarded here): every reachable prompt
+    // is preceded on this adapter by login() or getAuthStatus() setting
+    // pendingTwoFactorMethod, so the totp default below is dead in practice.
+    // Any FUTURE verify2fa caller that doesn't originate from a needs-2fa
+    // status or login result would silently reintroduce the VRX-229 misroute
+    // for email users — derive the method from the server first.
     const method = this.pendingTwoFactorMethod ?? 'totp'
     // VRChat has THREE verify endpoints (docs/api-volatility.md): totp/verify
     // (authenticator codes), emailotp/verify (emailed codes), otp/verify

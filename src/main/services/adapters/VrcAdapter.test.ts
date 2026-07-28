@@ -731,6 +731,30 @@ describe('VrcAdapter', () => {
       expect(verifyUrl).not.toMatch(/\/auth\/twofactorauth\/otp\/verify$/)
     })
 
+    it('the production email flow — login → needs2fa → verify2fa — routes to /emailotp/verify', async () => {
+      // The renderer never calls login() with an inline code; LoginScreen and
+      // AccountCard both go login → needs2fa → verify2fa. Pin the endpoint on
+      // THAT sequence for email too (Opus verifier catch, VRX-229 — the
+      // routing test above drives an entry point the renderer doesn't use).
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['emailOtp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'u', displayName: 'X' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore(), noopSleep)
+
+      expect(await adapter.login(creds)).toEqual({ ok: false, needs2fa: true, method: 'email' })
+      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+
+      const verifyUrl = (fetchMock.mock.calls[1] as [string, RequestInit])[0]
+      expect(verifyUrl).toMatch(/\/auth\/twofactorauth\/emailotp\/verify$/)
+    })
+
     it('reports a rejected 2FA code', async () => {
       const fetchMock = vi
         .fn()

@@ -153,8 +153,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     //      rejects per the IPlatformAdapter contract);
     //   3. getAuthStatus() maps CVR's "second factor expired" signal to
     //      'needs-2fa' + twoFactorMethod (the VRX-173 reprompt path);
-    //   4. LoginScreen already renders a method-aware code prompt — no
-    //      renderer work beyond removing the CVR carve-out.
+    //   4. renderer: the method-aware code prompt exists and is reusable, but
+    //      BOTH surfaces hardcode platform:'vrchat' today — LoginScreen.tsx
+    //      (login + verify2fa calls) and AccountCard.tsx (the needs-2fa branch
+    //      and its verify2fa call). Each must thread the real platform or a
+    //      CVR code gets no prompt / is submitted to VrcAdapter (dual-lineage
+    //      review catch, VRX-229).
     // VRX-229's lesson applies: pin the VERIFY ENDPOINT against CVR's actual
     // API contract (probe it live), never against our own implementation.
     if (creds.twoFactorCode) return { ok: false, needs2fa: false, error: 'unsupported_2fa' }
