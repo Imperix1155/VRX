@@ -94,6 +94,16 @@
     content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
     background: radial-gradient(125% 80% at 0% 0%, rgba(255,255,255,0.11), transparent 46%);
   }
+  /* FROSTED variant (VRX-226) — panels floating OVER content (e.g. the friend
+     drawer): opaque underlay + stronger blur so what's behind reads as glow,
+     never as text. Composes with .glass; must come AFTER it (source order
+     carries the background-color override of .glass's background shorthand).
+     Tokens: dark rgba(13,15,22,.78)/blur(34px); light rgba(244,247,252,.84)/blur(30px). */
+  .glass-frosted {
+    background-color: var(--glass-frost, rgba(13,15,22,0.78));
+    backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+    -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+  }
   .tint-vrc { background: linear-gradient(135deg, rgba(43,124,232,0.22), rgba(43,124,232,0.05)); border-color: rgba(43,124,232,0.34); }
   .tint-cvr { background: linear-gradient(135deg, rgba(243,113,30,0.22), rgba(243,113,30,0.05)); border-color: rgba(243,113,30,0.36); }
 

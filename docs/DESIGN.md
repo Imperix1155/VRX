@@ -64,6 +64,9 @@ LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interacti
   --st-joinme-text:var(--st-joinme); --st-online-text:var(--st-online);
   --st-askme-text:var(--st-askme); --st-dnd-text:var(--st-dnd);
   --glass-blur:blur(26px) saturate(165%);
+  /* FROSTED variant (VRX-226) — panels floating OVER content */
+  --glass-frost:rgba(13,15,22,0.78);
+  --glass-blur-frosted:blur(34px) saturate(165%);
   --font-mono:'VT323',ui-monospace,monospace;  /* accent only */
 }
 ```
@@ -93,6 +96,8 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
   --st-joinme-text:#124e91; --st-online-text:#0f6e35;
   --st-askme-text:#91480e; --st-dnd-text:#8d2428;
   --glass-blur:blur(24px) saturate(142%);
+  --glass-frost:rgba(244,247,252,0.84);
+  --glass-blur-frosted:blur(30px) saturate(142%);
 }
 ```
 RULE: dark remains the baseline/default. Light overrides MUST live behind an explicit theme selector (`[data-theme="light"]`, `.theme-light`, or equivalent) and MUST reuse the same semantic token names. NEVER create parallel component classes just for light mode.
@@ -108,6 +113,8 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
   box-shadow:0 12px 44px rgba(0,0,0,0.50),inset 0 1px 0 rgba(255,255,255,0.22),inset 0 -1px 1px rgba(255,255,255,0.05);}
 .glass::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:radial-gradient(125% 80% at 0% 0%,rgba(255,255,255,0.11),transparent 46%);}
+.glass-frosted{background-color:var(--glass-frost);
+  backdrop-filter:var(--glass-blur-frosted);-webkit-backdrop-filter:var(--glass-blur-frosted);}
 .tint-vrc{background:linear-gradient(135deg,rgba(43,124,232,0.22),rgba(43,124,232,0.05));border-color:rgba(43,124,232,0.34);}
 .tint-cvr{background:linear-gradient(135deg,rgba(243,113,30,0.22),rgba(243,113,30,0.05));border-color:rgba(243,113,30,0.36);}
 ```
@@ -308,7 +315,7 @@ Decisions from the FIRST real-data Windows review (running app, real friends, ul
 
 Clicking a friend's **avatar** (or Enter/Space on it — the avatar is the row's details opener and its keyboard stop) opens the **friend-details drawer** — `FriendDrawer.tsx`. (↻ VRX-225, owner live session 2026-07-23: the opener moved from a stretched whole-row button to the avatar button — a stray click anywhere on a row must NOT open the card; the row body is inert apart from the Join pill.) The opener is a native `<button>` wrapping the avatar (the `<li>` stays purely structural; the Join pill remains an independent sibling control), whose accessible name COMPOSES from the visible name + status + world + platform (the tab label) — never an overriding `aria-label`, so screen readers keep every §9.1 signal. It carries `data-drawer-opener`, which the drawer's outside-close listener exempts: clicking another friend's avatar SWITCHES the open card in place. Owner-decided pixels; the drawer ships ONLY sections with real data today — header, status band, WHERE, Join, and the private NOTES editor (VRX-72, live since 0.10.0). Copy link / self-invite / favorite / pin / history remain separate issues — NO placeholder buttons.
 
-**Shell:** fixed right-side floating card — inset **14px** top/right/bottom, width **372px**, radius **20px** (panel scale — the §3 stack model; `.glass` supplies it), real `.glass` material (NO solid underlay — that was a mock-pane workaround, never ship it); scrim `--scrim-soft` (`rgba(0,0,0,.14)`, one value both themes, **`pointer-events: none`** — pure stacked-card depth, never an input wall; ↻ VRX-225 owner decision: "slight gray-out is fine… like you're stacking cards"; the heavier `--scrim` is retained for future TRUE modals); open/close = `translateX` over **260ms `cubic-bezier(.32,.72,.29,1)`**, `motion-safe:` prefixed. The panel stays mounted while closed (translated off-screen, `inert` + `aria-hidden`) so the exit transition can play. Drawer CONTENT may scroll (it's content, not a control surface — the §8 no-scroll rule is silent here). NOTE: the drawer is the codebase's canonical `glass` + `fixed` combination — `.glass` lives in `@layer components` PRECISELY so position utilities beat its `position: relative` (the v0.10.0 in-flow-drawer bug); never move component classes out of that layer.
+**Shell:** fixed right-side floating card — inset **14px** top/right/bottom, width **372px**, radius **20px** (panel scale — the §3 stack model; `.glass` supplies it), real `.glass glass-frosted` material (↻ VRX-226, owner 2026-07-26: any panel floating OVER live content takes the FROSTED underlay — `--glass-frost` + `--glass-blur-frosted` — so what's behind reads as glow, never as text; the old "NO solid underlay" law now scopes to base `.glass` on the background, where it still holds. `.glass-frosted` composes with `.glass`, lives in `@layer components` source-order AFTER it — the order carries the `background-color` override of the `.glass` shorthand and is pinned by a designTokens structural test); scrim `--scrim-soft` (`rgba(0,0,0,.14)`, one value both themes, **`pointer-events: none`** — pure stacked-card depth, never an input wall; ↻ VRX-225 owner decision: "slight gray-out is fine… like you're stacking cards"; the heavier `--scrim` is retained for future TRUE modals); open/close = `translateX` over **260ms `cubic-bezier(.32,.72,.29,1)`**, `motion-safe:` prefixed. The panel stays mounted while closed (translated off-screen, `inert` + `aria-hidden`) so the exit transition can play. Drawer CONTENT may scroll (it's content, not a control surface — the §8 no-scroll rule is silent here). NOTE: the drawer is the codebase's canonical `glass` + `fixed` combination — `.glass` lives in `@layer components` PRECISELY so position utilities beat its `position: relative` (the v0.10.0 in-flow-drawer bug); never move component classes out of that layer.
 
 **A11y (hard, ↻ NON-MODAL since VRX-225):** `role="dialog"` **without `aria-modal`** (the list behind the card is genuinely interactive — hover, scroll, join, and avatar-switch all work while the card is open; claiming modality to assistive tech would lie), `aria-label` = the friend's name; **NO focus trap** — Tab moves freely between card and list (trapping keyboard users while pointer users roam the list would split the interaction model); initial focus lands on ✕ when a friend is selected. Close paths: Esc, any pointerdown outside the panel that isn't a `[data-drawer-opener]` (avatar clicks switch, never close), and the ✕ button (28px, radius 9px, ghost-button styling, top-right) — every close path through ONE handler; focus RETURNS to the opening avatar on close (falling back to the friends search input when the row no longer exists — focus never drops to `<body>`).
 
