@@ -105,6 +105,11 @@
     0 12px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 1px rgba(255, 255, 255, 0.05);
   --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.11), transparent 46%);
+
+  /* FROSTED variant (VRX-226) — panels that float OVER content: opaque
+     underlay + stronger blur so what's behind reads as glow, not text. */
+  --glass-frost: rgba(13, 15, 22, 0.78);
+  --glass-blur-frosted: blur(34px) saturate(165%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
@@ -214,6 +219,8 @@
     0 16px 46px rgba(59, 72, 93, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.88),
     inset 0 -1px 1px rgba(40, 48, 68, 0.08);
   --glass-sheen: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
+  --glass-frost: rgba(244, 247, 252, 0.84);
+  --glass-blur-frosted: blur(30px) saturate(142%);
   --tint-vrc-bg: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
   --tint-vrc-border: rgba(31, 111, 211, 0.28);
   --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
@@ -381,6 +388,16 @@ body::after {
     border-radius: inherit;
     pointer-events: none;
     background: var(--glass-sheen);
+  }
+
+  /* Frosted modifier — composes with .glass. Supplies the background-color the
+     .glass `background:` shorthand resets to transparent, so the underlay sits
+     UNDER the glass gradient + sheen. Must stay inside @layer components and
+     after .glass (source order carries the override). */
+  .glass-frosted {
+    background-color: var(--glass-frost);
+    backdrop-filter: var(--glass-blur-frosted);
+    -webkit-backdrop-filter: var(--glass-blur-frosted);
   }
 }
 
