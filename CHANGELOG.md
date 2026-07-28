@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The friend card is properly frosted now.** The pop-out friend card used to be so transparent that the list behind it read straight through the panel — text on text. It now has a real frosted-glass backing (both themes): what's behind reads as a soft glow, never as words. (VRX-226)
+
+### Changed
+
+- **Your friends appear instantly when the app opens.** The friend list used to wait for every world name to be looked up — up to 40+ seconds staring at "Loading friends" on a big list. Rows now appear immediately and world names fill in quietly, one per second, as lookups complete. Joining works during that window too. (VRX-214)
+- **Signing in and joining no longer wait in line behind background work.** Actions you trigger — sign-in, 2FA, self-invite — now take the very next request slot instead of queueing behind background lookups (which could stall them ~40 seconds with zero feedback). The gentle 1-request-per-second pace the platforms expect is fully unchanged. (VRX-216)
+
+### Fixed
+
+- **The release pipeline can no longer publish an empty release.** The v0.10.0 cut published a release with zero installers while the real files sat on a hidden draft (recovered by hand). The pipeline now has exactly one release creator, publishes by ID, verifies every expected installer by name before going live, and fails loudly instead of shipping anything partial. Publishing is once-per-tag by design now. (VRX-224)
+
 ## [0.10.1] - 2026-07-23
 
 ### Changed
