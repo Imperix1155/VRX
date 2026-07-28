@@ -108,6 +108,24 @@ function rawColorViolations(
   return rawColorPatterns.flatMap((pattern) => scannable.match(pattern) ?? [])
 }
 
+/** Collect every `@layer components { … }` span in (comment-stripped) CSS by
+ *  brace-counting. Shared by the .glass / .glass-frosted layer pins. */
+function componentsLayerSpans(code: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = []
+  for (const layer of code.matchAll(/@layer components/g)) {
+    const openBrace = code.indexOf('{', layer.index)
+    let depth = 0
+    for (let i = openBrace; i < code.length; i++) {
+      if (code[i] === '{') depth++
+      else if (code[i] === '}' && --depth === 0) {
+        spans.push([openBrace, i])
+        break
+      }
+    }
+  }
+  return spans
+}
+
 describe('renderer design token contract', () => {
   it.each([':root', "[data-theme='light']"])(
     '%s defines every shared surface and error token',
@@ -219,23 +237,13 @@ describe('renderer design token contract', () => {
     // Comments narrate these exact tokens (the rule documents itself), so scan
     // comment-stripped CSS — matching prose would pin nothing.
     const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
-    // Collect every `@layer components { … }` span by brace-counting…
-    const spans: Array<[number, number]> = []
-    for (const layer of code.matchAll(/@layer components/g)) {
-      const openBrace = code.indexOf('{', layer.index)
-      let depth = 0
-      for (let i = openBrace; i < code.length; i++) {
-        if (code[i] === '{') depth++
-        else if (code[i] === '}' && --depth === 0) {
-          spans.push([openBrace, i])
-          break
-        }
-      }
-    }
+    const spans = componentsLayerSpans(code)
     expect(spans.length).toBeGreaterThan(0)
-    // …then EVERY `.glass` selector must sit inside one of them. Checking only
+    // EVERY `.glass` selector must sit inside one of them. Checking only
     // the first occurrence would let a later unlayered `.glass` rule silently
-    // re-beat the `fixed` utility (Codex review catch, VRX-225).
+    // re-beat the `fixed` utility (Codex review catch, VRX-225). The selector
+    // pattern also matches `.glass-frosted` / `.glass::before` — those must
+    // live in the layer too, and they do.
     const occurrences = [...code.matchAll(/\.glass[^{}]*\{/g)]
     expect(occurrences.length).toBeGreaterThan(0)
     for (const occ of occurrences) {
@@ -244,6 +252,59 @@ describe('renderer design token contract', () => {
         spans.some(([start, end]) => at > start && at < end),
         `.glass rule at index ${at} is OUTSIDE @layer components — it would beat position utilities again`
       ).toBe(true)
+    }
+  })
+
+  it('keeps .glass-frosted inside @layer components and on the frost token (VRX-226)', () => {
+    // Same cascade reasoning as the .glass pin above: the frosted modifier
+    // must live in @layer components (source order after .glass carries the
+    // override of the `background:` shorthand's implicit transparent color).
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    expect(spans.length).toBeGreaterThan(0)
+
+    const rule = /\.glass-frosted\s*{([^{}]*)}/g
+    const declarations = [...code.matchAll(rule)]
+    expect(declarations.length).toBeGreaterThan(0)
+    for (const decl of declarations) {
+      const at = decl.index
+      expect(
+        spans.some(([start, end]) => at > start && at < end),
+        `.glass-frosted rule at index ${at} is OUTSIDE @layer components`
+      ).toBe(true)
+      // Var-only (the raw-color guard allows no rgba outside the token
+      // blocks): the underlay color comes from the themed --glass-frost token,
+      // and BOTH filter longhands consume the frosted blur token.
+      expect(decl[1]).toMatch(/background-color:\s*var\(--glass-frost\)\s*;/)
+      expect(decl[1]).toMatch(/(?<!-webkit-)backdrop-filter:\s*var\(--glass-blur-frosted\)\s*;/)
+      expect(decl[1]).toMatch(/-webkit-backdrop-filter:\s*var\(--glass-blur-frosted\)\s*;/)
+    }
+
+    // ORDER is load-bearing, not stylistic: .glass-frosted and .glass share
+    // specificity, and .glass's `background:` shorthand resets background-color
+    // to transparent — if the modifier ever moves BEFORE .glass, the underlay
+    // silently vanishes and list text bleeds through again (Codex review,
+    // VRX-226). Assert every base .glass rule precedes every .glass-frosted rule.
+    const baseGlass = [...code.matchAll(/\.glass\s*{/g)]
+    expect(baseGlass.length).toBeGreaterThan(0)
+    const lastBase = Math.max(...baseGlass.map((m) => m.index))
+    const firstFrosted = Math.min(...declarations.map((m) => m.index))
+    expect(
+      firstFrosted,
+      '.glass-frosted must come AFTER the base .glass rule (source order carries the override)'
+    ).toBeGreaterThan(lastBase)
+
+    // Theme parity: both token blocks must define the frost pair — dropping the
+    // light overrides would silently inherit the dark frost.
+    const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    for (const [name, block] of [
+      [':root', root],
+      ["[data-theme='light']", light]
+    ] as const) {
+      expect(block, `${name} token block not found`).not.toBe('')
+      expect(block, `${name} is missing --glass-frost`).toContain('--glass-frost:')
+      expect(block, `${name} is missing --glass-blur-frosted`).toContain('--glass-blur-frosted:')
     }
   })
 })

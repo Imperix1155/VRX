@@ -2,11 +2,14 @@
  * FriendDrawer — the friend-details drawer (VRX-69 phase 1, owner-approved
  * design round 2026-07-17, mock rev d3).
  *
- * A floating `.glass` card pinned to the right edge (14px top/right/bottom
- * inset, 372px wide, panel-scale 20px radius from `.glass` itself) over a
+ * A floating `.glass glass-frosted` card pinned to the right edge (14px
+ * top/right/bottom inset, 372px wide, panel-scale 20px radius from `.glass`
+ * itself) over a
  * `--scrim` backdrop; slides in/out over 260ms cubic-bezier(.32,.72,.29,1),
  * `motion-safe:` guarded. Stays mounted while closed (translated off-screen,
- * `inert` + aria-hidden) so the exit transition can play.
+ * `inert` + aria-hidden) so the exit transition can play. The `glass-frosted`
+ * variant (VRX-226) adds an opaque underlay + stronger blur: the panel floats
+ * OVER the live friend list, so base glass let row text read through it.
  *
  * Phase 1 content — ONLY sections with real data today:
  *   1. Header: 64px ringed avatar (no corner badge) · name 18/700 · custom
@@ -183,7 +186,7 @@ export default function FriendDrawer({
         ref={panelRef}
         role="dialog"
         aria-label={shown?.displayName}
-        className={`glass fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        className={`glass glass-frosted fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
         }`}
       >
