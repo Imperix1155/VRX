@@ -48,3 +48,7 @@ publish:
   provider: github
   owner: Imperix1155
   repo: VRX
+  # Create the release as a DRAFT (this is electron-builder's default; set
+  # explicitly so nothing goes public before the publish-release job asserts the
+  # assets and flips draft=false / prerelease=true — VRX-224).
+  releaseType: draft
