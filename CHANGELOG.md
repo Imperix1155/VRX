@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-27
+
 ### Added
 
 - **The friend card is properly frosted now.** The pop-out friend card used to be so transparent that the list behind it read straight through the panel — text on text. It now has a real frosted-glass backing (both themes): what's behind reads as a soft glow, never as words. (VRX-226)
