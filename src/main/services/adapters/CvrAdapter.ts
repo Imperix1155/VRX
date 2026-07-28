@@ -142,7 +142,25 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async login(creds: Credentials): Promise<LoginResult> {
-    // CVR has no second factor; a code here means the renderer confused flows.
+    // ── CVR-2FA SEAM (owner directive 2026-07-28, VRX-229 review) ──────────
+    // ChilloutVR has NO second factor as of 2026-07 (verified: the auth
+    // response carries no 2FA field; docs/api-volatility.md row). If CVR ever
+    // adds one, wire it HERE, mirroring VrcAdapter's shape end-to-end:
+    //   1. login() returns { ok: false, needs2fa: true, method } instead of
+    //      rejecting, and remembers the pending method like
+    //      VrcAdapter.pendingTwoFactorMethod;
+    //   2. implement verify2fa() against CVR's verify endpoint (today it
+    //      rejects per the IPlatformAdapter contract);
+    //   3. getAuthStatus() maps CVR's "second factor expired" signal to
+    //      'needs-2fa' + twoFactorMethod (the VRX-173 reprompt path);
+    //   4. renderer: the method-aware code prompt exists and is reusable, but
+    //      BOTH surfaces hardcode platform:'vrchat' today — LoginScreen.tsx
+    //      (login + verify2fa calls) and AccountCard.tsx (the needs-2fa branch
+    //      and its verify2fa call). Each must thread the real platform or a
+    //      CVR code gets no prompt / is submitted to VrcAdapter (dual-lineage
+    //      review catch, VRX-229).
+    // VRX-229's lesson applies: pin the VERIFY ENDPOINT against CVR's actual
+    // API contract (probe it live), never against our own implementation.
     if (creds.twoFactorCode) return { ok: false, needs2fa: false, error: 'unsupported_2fa' }
 
     const email = creds.username.trim()
