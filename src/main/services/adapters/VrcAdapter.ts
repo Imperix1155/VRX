@@ -246,8 +246,14 @@ export class VrcAdapter extends VrcApiClient {
 
   private async verifyTwoFactor(code: string): Promise<LoginResult> {
     const method = this.pendingTwoFactorMethod ?? 'totp'
+    // VRChat has THREE verify endpoints (docs/api-volatility.md): totp/verify
+    // (authenticator codes), emailotp/verify (emailed codes), otp/verify
+    // (RECOVERY codes only). Email codes posted to otp/verify are always
+    // rejected — that shipped as the VRX-229 bug, blocking every email-2FA
+    // user. Contract triple-confirmed 2026-07-28: API reference + live
+    // endpoint probe (401 not 404, unauthenticated) + VRCX's verifyEmailOTP.
     const endpoint =
-      method === 'email' ? '/auth/twofactorauth/otp/verify' : '/auth/twofactorauth/totp/verify'
+      method === 'email' ? '/auth/twofactorauth/emailotp/verify' : '/auth/twofactorauth/totp/verify'
 
     let response: Response
     try {

@@ -707,7 +707,10 @@ describe('VrcAdapter', () => {
       unsubscribe()
     })
 
-    it('routes emailOtp to /otp/verify (not /totp/verify)', async () => {
+    it('routes emailOtp to /emailotp/verify (never /otp/verify — that is the recovery endpoint)', async () => {
+      // VRX-229: the API contract, not our implementation, is the truth here —
+      // otp/verify only accepts RECOVERY codes, so an email code posted there
+      // is always rejected. The exact-path assertions below are the pin.
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -723,9 +726,9 @@ describe('VrcAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: false, needs2fa: true, method: 'email' })
       await adapter.login({ ...creds, twoFactorCode: '000000' })
 
-      expect((fetchMock.mock.calls[1] as [string, RequestInit])[0]).toMatch(
-        /\/auth\/twofactorauth\/otp\/verify$/
-      )
+      const verifyUrl = (fetchMock.mock.calls[1] as [string, RequestInit])[0]
+      expect(verifyUrl).toMatch(/\/auth\/twofactorauth\/emailotp\/verify$/)
+      expect(verifyUrl).not.toMatch(/\/auth\/twofactorauth\/otp\/verify$/)
     })
 
     it('reports a rejected 2FA code', async () => {
@@ -1065,10 +1068,11 @@ describe('VrcAdapter', () => {
       })
 
       // The reprompt method came from getAuthStatus (login() never ran) — the
-      // verify must route to /otp/verify, not the totp default.
+      // verify must route to /emailotp/verify (VRX-229: otp/verify is the
+      // recovery-code endpoint and rejects email codes), not the totp default.
       expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
       expect((fetchMock.mock.calls[1] as [string, RequestInit])[0]).toMatch(
-        /\/auth\/twofactorauth\/otp\/verify$/
+        /\/auth\/twofactorauth\/emailotp\/verify$/
       )
 
       // The rebuilt cookie keeps the auth PART and the fresh twoFactorAuth —
