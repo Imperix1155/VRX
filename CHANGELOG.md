@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-28
+
 ### Fixed
 
 - **Email-code sign-in works now.** If your VRChat account gets its 2FA codes by email, sign-in always failed at the code step — the app was sending your code to VRChat's recovery-code endpoint instead of the email-code one, so a correct code was always rejected. Authenticator-app codes were never affected. (VRX-229 — thanks to our first external tester for catching it.)
