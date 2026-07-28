@@ -3,7 +3,8 @@
  *
  * Fetches `name`, `thumbnailUrl`, and `capacity` from the VRChat
  * `/worlds/:worldId` endpoint. Responses are cached in-memory for
- * WORLD_CACHE_TTL_MS (24 h) — the same worldId within TTL hits the cache.
+ * WORLD_CACHE_TTL_MS (24 h) — the same worldId within TTL hits the cache, and
+ * `peek()` lets latency-sensitive callers read that cache without starting I/O.
  *
  * Designed to be:
  * - Electron-free and unit-testable (injected fetcher + injected clock)
@@ -70,6 +71,18 @@ export class WorldResolver {
     this.clock = clock
   }
 
+  /** Synchronous cache-only lookup: undefined means unresolved or expired. */
+  peek(worldId: string | null): WorldMeta | null | undefined {
+    if (!worldId) return null
+    const cached = this.cache.get(worldId)
+    if (cached === undefined) return undefined
+    if (this.clock() - cached.fetchedAt >= WORLD_CACHE_TTL_MS) {
+      this.cache.delete(worldId)
+      return undefined
+    }
+    return cached.meta
+  }
+
   /**
    * Resolve a worldId to its metadata.
    *
@@ -80,19 +93,16 @@ export class WorldResolver {
   async resolve(worldId: string | null): Promise<WorldMeta | null> {
     if (!worldId) return null
 
-    const now = this.clock()
-    const cached = this.cache.get(worldId)
-    if (cached !== undefined && now - cached.fetchedAt < WORLD_CACHE_TTL_MS) {
-      return cached.meta
-    }
+    const cached = this.peek(worldId)
+    if (cached !== undefined) return cached
 
     let raw: unknown
     try {
       raw = await this.fetcher(worldId)
     } catch (error) {
       // A dead cookie (AuthError) mid-enrichment must NOT be swallowed to null —
-      // it propagates so VrcAdapter.getFriends can emit auth-invalidated (Codex,
-      // VRX-197). Every OTHER failure (deleted world, 404, network blip) still
+      // it propagates so VrcAdapter can emit auth-invalidated from its background
+      // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
       if (error instanceof AuthError) throw error
       return null
@@ -108,7 +118,7 @@ export class WorldResolver {
       shortName: parsed.data.shortName
     }
 
-    this.cache.set(worldId, { meta, fetchedAt: now })
+    this.cache.set(worldId, { meta, fetchedAt: this.clock() })
     return meta
   }
 }

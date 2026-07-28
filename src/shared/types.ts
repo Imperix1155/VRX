@@ -300,6 +300,13 @@ export type AdapterEvent =
    * presence + instance — `friend-presence` would stomp them with guesses.
    */
   | { type: 'friend-updated'; platform: Platform; friend: Friend }
+  | {
+      type: 'world-metadata'
+      platform: Platform
+      worldId: string
+      worldName: string
+      thumbnailUrl: string | null
+    }
   | { type: 'friend-added'; platform: Platform; friend: Friend }
   | { type: 'friend-removed'; platform: Platform; platformUserId: string }
   | { type: 'friends-snapshot'; platform: Platform; scope: 'online' | 'all'; friends: Friend[] }

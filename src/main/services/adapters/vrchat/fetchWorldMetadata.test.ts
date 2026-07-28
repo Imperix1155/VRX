@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WorldResolver } from './WorldResolver'
+import { WorldResolver, type WorldMeta } from './WorldResolver'
 import { fetchWorldMetadata } from './fetchWorldMetadata'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -192,5 +192,49 @@ describe('fetchWorldMetadata', () => {
 
     expect(peakConcurrent()).toBeLessThanOrEqual(5)
     expect(peakConcurrent()).toBe(5)
+  })
+
+  it('reports each world as it resolves without waiting for the whole batch', async () => {
+    let releaseSlow!: (value: unknown) => void
+    const slow = new Promise<unknown>((resolve) => {
+      releaseSlow = resolve
+    })
+    const resolver = new WorldResolver((worldId) =>
+      worldId === 'wrld_slow' ? slow : Promise.resolve({ name: 'Fast World', capacity: 10 })
+    )
+    const resolved: Array<{ worldId: string; meta: WorldMeta }> = []
+    let batchSettled = false
+    const fetchWithUpdates = fetchWorldMetadata as unknown as (
+      ids: string[],
+      worldResolver: WorldResolver,
+      concurrencyLimit: number,
+      onResolved: (worldId: string, meta: WorldMeta) => void
+    ) => Promise<Map<string, WorldMeta>>
+
+    const batch = fetchWithUpdates(['wrld_slow', 'wrld_fast'], resolver, 2, (worldId, meta) =>
+      resolved.push({ worldId, meta })
+    ).then((result) => {
+      batchSettled = true
+      return result
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(resolved).toEqual([
+      {
+        worldId: 'wrld_fast',
+        meta: {
+          name: 'Fast World',
+          thumbnailUrl: null,
+          capacity: 10,
+          shortName: null
+        }
+      }
+    ])
+    expect(batchSettled).toBe(false)
+
+    releaseSlow({ name: 'Slow World', capacity: 10 })
+    await expect(batch).resolves.toHaveProperty('size', 2)
+    expect(resolved.map(({ worldId }) => worldId)).toEqual(['wrld_fast', 'wrld_slow'])
   })
 })

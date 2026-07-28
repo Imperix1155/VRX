@@ -80,6 +80,9 @@ class TestAdapter extends BaseAdapter {
   raw(url: string, options?: RequestInit): Promise<Response> {
     return this.rawRequest(url, options)
   }
+  rawInteractive(url: string): Promise<Response> {
+    return this.rawRequest(url, {}, { priority: 'interactive' })
+  }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -145,14 +148,15 @@ describe('BaseAdapter', () => {
     })
 
     it('reserves distinct slots for concurrent requests', async () => {
-      fetchMock.mockResolvedValue(makeResponse(200, validBody))
-      vi.spyOn(Date, 'now').mockReturnValue(10_000)
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
       vi.spyOn(Math, 'random').mockReturnValue(0)
-      const sleepResolvers: Array<() => void> = []
-      const sleepSpy = vi.fn<(ms: number) => Promise<void>>(
-        () => new Promise<void>((resolve) => sleepResolvers.push(resolve))
-      )
-      const adapter = new TestAdapter(sleepSpy)
+      const dispatches: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        return Promise.resolve(makeResponse(200, validBody))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
 
       const requests = [
         adapter.fetch('http://api/1', schema),
@@ -160,22 +164,25 @@ describe('BaseAdapter', () => {
         adapter.fetch('http://api/3', schema)
       ]
 
-      expect(sleepSpy).toHaveBeenCalledTimes(2)
-      expect(sleepSpy.mock.calls.map(([ms]) => ms)).toEqual([1_000, 2_000])
-
-      for (const resolve of sleepResolvers) resolve()
+      await vi.advanceTimersByTimeAsync(2_000)
       await expect(Promise.all(requests)).resolves.toEqual([validBody, validBody, validBody])
+      expect(dispatches).toEqual([
+        { url: 'http://api/1', at: 10_000 },
+        { url: 'http://api/2', at: 11_000 },
+        { url: 'http://api/3', at: 12_000 }
+      ])
     })
 
     it('keeps concurrent slots one second apart when jitter varies', async () => {
-      fetchMock.mockResolvedValue(makeResponse(200, validBody))
-      vi.spyOn(Date, 'now').mockReturnValue(10_000)
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
       vi.spyOn(Math, 'random').mockReturnValueOnce(0.99).mockReturnValue(0)
-      const sleepResolvers: Array<() => void> = []
-      const sleepSpy = vi.fn<(ms: number) => Promise<void>>(
-        () => new Promise<void>((resolve) => sleepResolvers.push(resolve))
-      )
-      const adapter = new TestAdapter(sleepSpy)
+      const dispatches: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        return Promise.resolve(makeResponse(200, validBody))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
 
       const requests = [
         adapter.fetch('http://api/1', schema),
@@ -183,14 +190,95 @@ describe('BaseAdapter', () => {
         adapter.fetch('http://api/3', schema)
       ]
 
-      expect(sleepSpy.mock.calls.map(([ms]) => ms)).toEqual([1_099, 2_099])
-
-      for (const resolve of sleepResolvers) resolve()
+      await vi.advanceTimersByTimeAsync(2_099)
       await Promise.all(requests)
+      expect(dispatches).toEqual([
+        { url: 'http://api/1', at: 10_000 },
+        { url: 'http://api/2', at: 11_099 },
+        { url: 'http://api/3', at: 12_099 }
+      ])
+    })
+
+    it('admits an interactive request next while preserving default FIFO and the wire ceiling', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const dispatches: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        return Promise.resolve(makeResponse(200, validBody))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const background = [
+        adapter.raw('http://api/background-1'),
+        adapter.raw('http://api/background-2'),
+        adapter.raw('http://api/background-3')
+      ]
+      const interactive = adapter.rawInteractive('http://api/interactive')
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(dispatches).toEqual([{ url: 'http://api/background-1', at: 10_000 }])
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(dispatches[1]).toEqual({ url: 'http://api/interactive', at: 11_000 })
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(Promise.all([...background, interactive])).resolves.toHaveLength(4)
+      expect(dispatches).toEqual([
+        { url: 'http://api/background-1', at: 10_000 },
+        { url: 'http://api/interactive', at: 11_000 },
+        { url: 'http://api/background-2', at: 12_000 },
+        { url: 'http://api/background-3', at: 13_000 }
+      ])
+      expect(
+        dispatches.slice(1).every((entry, index) => entry.at - dispatches[index]!.at >= 1_000)
+      ).toBe(true)
     })
   })
 
   describe('429 backoff', () => {
+    it('recomputes a queued admission after a fast 429 moves the schedule during sleep', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random')
+        // Initial admission: the queued waiter starts sleeping until t=11_099.
+        .mockReturnValueOnce(0.99)
+        // Fast 429 at t=10_050: retry jitter 0 => retry at t=11_050.
+        .mockReturnValueOnce(0)
+        // Reserving the retry moves nextRequestAt forward to t=12_149.
+        .mockReturnValueOnce(0.99)
+        // Queued admission jitter after the dispatcher recomputes.
+        .mockReturnValue(0)
+      const dispatches: Array<{ url: string; at: number }> = []
+      let firstAttempt = true
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        if (url === 'http://api/limited' && firstAttempt) {
+          firstAttempt = false
+          return new Promise<Response>((resolve) => {
+            setTimeout(() => resolve(makeResponse(429, {})), 50)
+          })
+        }
+        return Promise.resolve(makeResponse(200, validBody))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const limited = adapter.fetch('http://api/limited', schema)
+      const queued = adapter.fetch('http://api/queued', schema)
+
+      await vi.advanceTimersByTimeAsync(2_149)
+      await expect(Promise.all([limited, queued])).resolves.toEqual([validBody, validBody])
+      expect(dispatches).toEqual([
+        { url: 'http://api/limited', at: 10_000 },
+        { url: 'http://api/limited', at: 11_050 },
+        { url: 'http://api/queued', at: 12_149 }
+      ])
+      expect(
+        dispatches.slice(1).every((entry, index) => entry.at - dispatches[index]!.at >= 1_000)
+      ).toBe(true)
+    })
+
     it('pauses and reorders already queued requests behind a shared cooldown', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)

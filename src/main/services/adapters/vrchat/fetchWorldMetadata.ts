@@ -20,16 +20,19 @@ const CONCURRENCY_LIMIT = 10
  * - Deduplicates ids (a repeated worldId resolves once).
  * - Drops null / undefined / empty-string entries.
  * - Runs resolver.resolve() with at most `concurrencyLimit` calls in flight.
+ * - Calls `onResolved` immediately for each non-null answer, when supplied.
  * - Returns a Map keyed by worldId; private/unknown worlds (null result) are omitted.
  *
  * @param worldIds   Raw id array (may contain nulls, undefineds, duplicates).
  * @param resolver   WorldResolver instance to delegate fetches to.
  * @param concurrencyLimit  Max parallel resolves (default: CONCURRENCY_LIMIT).
+ * @param onResolved Optional incremental callback; does not wait for the batch.
  */
 export async function fetchWorldMetadata(
   worldIds: ReadonlyArray<string | null | undefined>,
   resolver: WorldResolver,
-  concurrencyLimit = CONCURRENCY_LIMIT
+  concurrencyLimit = CONCURRENCY_LIMIT,
+  onResolved?: (worldId: string, meta: WorldMeta) => void
 ): Promise<Map<string, WorldMeta>> {
   const ids = [...new Set(worldIds.filter((id): id is string => Boolean(id)))]
 
@@ -45,6 +48,7 @@ export async function fetchWorldMetadata(
       const meta = await resolver.resolve(id)
       if (meta !== null) {
         result.set(id, meta)
+        onResolved?.(id, meta)
       }
     }
   }

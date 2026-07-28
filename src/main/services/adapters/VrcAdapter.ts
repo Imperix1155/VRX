@@ -17,7 +17,7 @@ import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
-import { WorldResolver } from './vrchat/WorldResolver'
+import { WorldResolver, type WorldMeta } from './vrchat/WorldResolver'
 import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
 
 /**
@@ -130,6 +130,15 @@ export class VrcAdapter extends VrcApiClient {
   private readonly worldResolver = new WorldResolver((worldId) =>
     this.get(`/worlds/${worldId}`, z.unknown())
   )
+  /**
+   * WorldIds with an enrichment fetch in flight (the CvrAdapter
+   * `pendingResolutions` pattern): `peek()` stays undefined until a resolve
+   * COMPLETES, so without this guard two overlapping `getFriends()` calls
+   * (launch + an early manual Refresh) would double-fetch every still-unresolved
+   * world through the shared 1 req/s slot. Batch-scoped: each kick sweeps its
+   * own ids in `finally`, so failed/private worlds stay retryable next call.
+   */
+  private readonly pendingWorldResolutions = new Set<string>()
 
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
@@ -167,13 +176,17 @@ export class VrcAdapter extends VrcApiClient {
 
     let response: Response
     try {
-      response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
-        method: 'GET',
-        headers: {
-          Authorization: basicAuthHeader(creds.username, creds.password),
-          'User-Agent': VRC_USER_AGENT
-        }
-      })
+      response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: basicAuthHeader(creds.username, creds.password),
+            'User-Agent': VRC_USER_AGENT
+          }
+        },
+        { priority: 'interactive' }
+      )
     } catch {
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
@@ -238,15 +251,19 @@ export class VrcAdapter extends VrcApiClient {
 
     let response: Response
     try {
-      response = await this.rawRequest(`${VRC_API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          ...this.cookieHeader(),
-          'User-Agent': VRC_USER_AGENT,
-          'Content-Type': 'application/json'
+      response = await this.rawRequest(
+        `${VRC_API_BASE}${endpoint}`,
+        {
+          method: 'POST',
+          headers: {
+            ...this.cookieHeader(),
+            'User-Agent': VRC_USER_AGENT,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ code })
         },
-        body: JSON.stringify({ code })
-      })
+        { priority: 'interactive' }
+      )
     } catch {
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
@@ -287,7 +304,7 @@ export class VrcAdapter extends VrcApiClient {
     this.accountId = null
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
-    await this.refreshDisplayName()
+    await this.refreshDisplayName('interactive')
     this.persist()
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
     return { ok: true }
@@ -306,7 +323,7 @@ export class VrcAdapter extends VrcApiClient {
             method: 'GET',
             headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
           },
-          { recordCircuitFailure: false }
+          { priority: 'interactive', recordCircuitFailure: false }
         )
       } catch {
         // A replacement session landed while the request was in flight: retry
@@ -414,24 +431,6 @@ export class VrcAdapter extends VrcApiClient {
           )
         }
 
-        // Enrich friends with world names via the shared resolver (VRX-163).
-        // fetchWorldMetadata deduplicates ids and degrades non-auth failures to null,
-        // so a world-resolution failure does NOT break the friend list — friends are
-        // returned as-is with worldName/thumbnailUrl staying null. A dead-session
-        // AuthError DOES propagate here (WorldResolver rethrows it) so it reaches the
-        // catch below and emits auth-invalidated (VRX-197).
-        const worlds = await fetchWorldMetadata(
-          friends.map((f) => f.instance?.worldId ?? null),
-          this.worldResolver
-        )
-        for (const friend of friends) {
-          if (friend.instance) {
-            const meta = worlds.get(friend.instance.worldId)
-            friend.instance.worldName = meta?.name ?? null
-            friend.instance.thumbnailUrl = meta?.thumbnailUrl ?? null
-          }
-        }
-
         // A different account landed while this roster was in flight. Never
         // return the old account's success: retry a replacement session, but
         // abort when logout left no session to retry.
@@ -439,7 +438,12 @@ export class VrcAdapter extends VrcApiClient {
           if (this.cookie) continue
           throw new Error('Session ended')
         }
-        return friends
+        const roster = friends.map((friend) => {
+          const cached = this.worldResolver.peek(friend.instance?.worldId ?? null)
+          return cached == null ? friend : this.withWorldMetadata(friend, cached)
+        })
+        this.kickWorldMetadata(roster, generation)
+        return roster
       } catch (error) {
         // Staleness is checked before auth invalidation or any other outcome.
         // The old account's failure is irrelevant to a replacement session; a
@@ -449,10 +453,9 @@ export class VrcAdapter extends VrcApiClient {
           throw new Error('Session ended')
         }
 
-        // A data-path 401 ANYWHERE in the fetch — the /auth/user buckets probe, a
-        // friend page, OR world-name enrichment — means the cookie is dead/2FA-
-        // expired. One emit point for the whole flow: signal the renderer to
-        // re-check auth + quarantine so a stale "connected" card flips to reconnect
+        // A data-path 401 in the roster fetch — the /auth/user buckets probe or a
+        // friend page — means the cookie is dead/2FA-expired. Signal the renderer
+        // to re-check auth + quarantine so a stale "connected" card flips to reconnect
         // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
         // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
         // unauthenticated; a blunt clear would force a full re-login. 401 ONLY —
@@ -469,6 +472,68 @@ export class VrcAdapter extends VrcApiClient {
       }
     }
   }
+
+  /**
+   * Resolve optional world metadata without delaying the roster. Each answer
+   * emits one narrow metadata event. Consumers apply it only to friends whose
+   * current location still names that world, so a late answer cannot replay the
+   * roster-time presence, location, or profile.
+   */
+  private kickWorldMetadata(friends: Friend[], generation: number): void {
+    const worldIds = friends.map((friend) => {
+      const worldId = friend.instance?.worldId ?? null
+      if (worldId === null) return null
+      if (this.worldResolver.peek(worldId) !== undefined) return null
+      // In-flight dedup (CodeRabbit, VRX-214): a world already being resolved
+      // by an overlapping kick must not be fetched twice through the shared slot.
+      if (this.pendingWorldResolutions.has(worldId)) return null
+      return worldId
+    })
+    const kicked = worldIds.filter((id): id is string => id !== null)
+    for (const id of kicked) this.pendingWorldResolutions.add(id)
+    void fetchWorldMetadata(worldIds, this.worldResolver, undefined, (worldId, meta) => {
+      if (generation !== this.sessionGeneration) return
+      this.emit({
+        type: 'world-metadata',
+        platform: 'vrchat',
+        worldId,
+        worldName: meta.name,
+        thumbnailUrl: meta.thumbnailUrl
+      })
+    })
+      .catch((error: unknown) => {
+        if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthError && error.status === 401) {
+          // A background 401 has the same meaning as the former awaited path:
+          // preserve the cookie for the 2FA-aware status check, quarantine the
+          // roster, and fence every other resolution from this generation.
+          this.bumpSessionGeneration()
+          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+          return
+        }
+        this.live?.log?.('warn', 'vrc adapter: world enrichment failed', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        // Sweep THIS batch's ids only — resolved worlds are now cached (peek
+        // excludes them) and failed/private ones become retryable again.
+        for (const id of kicked) this.pendingWorldResolutions.delete(id)
+      })
+  }
+
+  private withWorldMetadata(friend: Friend, meta: WorldMeta): Friend {
+    if (friend.instance === null) return friend
+    return {
+      ...friend,
+      instance: {
+        ...friend.instance,
+        worldName: meta.name,
+        thumbnailUrl: meta.thumbnailUrl
+      }
+    }
+  }
+
   getInstanceDetails(): Promise<InstanceInfo> {
     return Promise.reject(new Error('VrcAdapter.getInstanceDetails not implemented'))
   }
@@ -496,7 +561,9 @@ export class VrcAdapter extends VrcApiClient {
     // cookie must never be swallowed as a generic operation failure (VRX-42).
     const generation = this.sessionGeneration
     try {
-      await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown())
+      await this.post(`/invite/myself/to/${instanceId}`, {}, z.unknown(), {
+        priority: 'interactive'
+      })
       // A replacement session landed while the request was in flight; its outcome
       // belongs to the new identity, not to the caller that issued this one.
       if (generation !== this.sessionGeneration) {
@@ -661,13 +728,17 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  private async refreshDisplayName(): Promise<void> {
+  private async refreshDisplayName(priority: 'default' | 'interactive' = 'default'): Promise<void> {
     const generation = this.sessionGeneration
     try {
-      const response = await this.rawRequest(`${VRC_API_BASE}/auth/user`, {
-        method: 'GET',
-        headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-      })
+      const response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        {
+          method: 'GET',
+          headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+        },
+        { priority }
+      )
       if (!response.ok) return
       const parsed = currentUserSchema.safeParse(await response.json())
       if (parsed.success && generation === this.sessionGeneration) {

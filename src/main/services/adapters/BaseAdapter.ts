@@ -20,6 +20,18 @@ const MAX_429_RETRIES = 3
 const CIRCUIT_OPEN_THRESHOLD = 3
 const CIRCUIT_RESET_MS = 60_000
 
+export type RequestPriority = 'default' | 'interactive'
+
+export interface AdapterRequestOptions {
+  priority?: RequestPriority
+  recordCircuitFailure?: boolean
+}
+
+interface RequestWaiter {
+  resolve: () => void
+  reject: (error: unknown) => void
+}
+
 function jitter(): number {
   return Math.floor(Math.random() * 100)
 }
@@ -30,10 +42,11 @@ const defaultSleep = (ms: number): Promise<void> =>
 /**
  * Abstract base class for platform adapters (VRX-17).
  *
- * Provides `protected request<T>()` with: rate limiting (1 req/sec + jitter),
- * AbortSignal.timeout, redirect:'error', 429 exponential backoff (honors
- * Retry-After), Zod validation, and a circuit breaker (opens after 3
- * consecutive non-429 failures; resets on success or after CIRCUIT_RESET_MS).
+ * Provides `protected request<T>()` with: a priority-aware dispatcher that
+ * preserves the 1 req/sec + jitter wire ceiling, AbortSignal.timeout,
+ * redirect:'error', 429 exponential backoff (honors Retry-After), Zod
+ * validation, and a circuit breaker (opens after 3 consecutive non-429
+ * failures; resets on success or after CIRCUIT_RESET_MS).
  *
  * Pass a custom `sleepFn` in tests to skip real timers.
  */
@@ -43,6 +56,9 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   private readonly sleep: (ms: number) => Promise<void>
   private nextRequestAt = 0
   private cooldownUntil = 0
+  private dispatchingRequests = false
+  private readonly interactiveWaiters: RequestWaiter[] = []
+  private readonly defaultWaiters: RequestWaiter[] = []
   private consecutiveFailures = 0
   private lastFailureAt = 0
 
@@ -51,11 +67,11 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   }
 
   /**
-   * Low-level request: rate limiting (1 req/sec + jitter), AbortSignal.timeout,
-   * redirect:'error', 429 backoff/retry, and the circuit breaker — returning the
-   * raw `Response` WITHOUT interpreting its status or body. Non-429 statuses
-   * (200/401/500/…) come back as-is for the caller to interpret; only a thrown
-   * fetch (network failure) records a circuit failure here.
+   * Low-level request: priority-aware rate limiting (1 req/sec + jitter),
+   * AbortSignal.timeout, redirect:'error', 429 backoff/retry, and the circuit
+   * breaker — returning the raw `Response` WITHOUT interpreting its status or
+   * body. Non-429 statuses (200/401/500/…) come back as-is for the caller to
+   * interpret; only a thrown fetch (network failure) records a circuit failure.
    *
    * Auth flows use this directly so a 401 is a clean "wrong password" result —
    * NOT an `AuthError` plus a circuit-breaker lockout after 3 wrong attempts.
@@ -63,7 +79,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   protected async rawRequest(
     url: string,
     options: RequestInit = {},
-    { recordCircuitFailure = true }: { recordCircuitFailure?: boolean } = {}
+    { recordCircuitFailure = true, priority = 'default' }: AdapterRequestOptions = {}
   ): Promise<Response> {
     if (
       this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD &&
@@ -71,7 +87,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     ) {
       throw new NetworkError('Circuit open: too many consecutive failures')
     }
-    return this.attemptRaw(url, options, 0, null, recordCircuitFailure)
+    return this.attemptRaw(url, options, 0, null, recordCircuitFailure, priority)
   }
 
   private async attemptRaw(
@@ -79,10 +95,11 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     options: RequestInit,
     retryCount: number,
     reservedRetryAt: number | null,
-    recordCircuitFailure: boolean
+    recordCircuitFailure: boolean,
+    priority: RequestPriority
   ): Promise<Response> {
     if (reservedRetryAt === null) {
-      await this.waitForRequestSlot()
+      await this.waitForRequestSlot(priority)
     }
 
     let response: Response
@@ -109,7 +126,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       }
       const retryAt = this.applyCooldown(delay, true)
       await this.sleep(Math.max(0, retryAt - Date.now()))
-      return this.attemptRaw(url, options, retryCount + 1, retryAt, recordCircuitFailure)
+      return this.attemptRaw(url, options, retryCount + 1, retryAt, recordCircuitFailure, priority)
     }
 
     return response
@@ -124,9 +141,10 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   protected async request<T>(
     url: string,
     schema: z.ZodType<T>,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    { priority = 'default' }: Pick<AdapterRequestOptions, 'priority'> = {}
   ): Promise<T> {
-    const response = await this.rawRequest(url, options)
+    const response = await this.rawRequest(url, options, { priority })
 
     if (response.status === 401 || response.status === 403) {
       this.recordFailure()
@@ -172,17 +190,41 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.consecutiveFailures = 0
   }
 
-  private async waitForRequestSlot(): Promise<void> {
-    while (true) {
-      const now = Date.now()
-      const requestAt = Math.max(now, this.nextRequestAt, this.cooldownUntil)
-      this.nextRequestAt = requestAt + MIN_INTERVAL_MS + jitter()
+  private waitForRequestSlot(priority: RequestPriority): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const queue = priority === 'interactive' ? this.interactiveWaiters : this.defaultWaiters
+      queue.push({ resolve, reject })
+      if (!this.dispatchingRequests) void this.dispatchRequestQueue()
+    })
+  }
 
-      if (requestAt > now) {
-        await this.sleep(requestAt - now)
+  private async dispatchRequestQueue(): Promise<void> {
+    this.dispatchingRequests = true
+    try {
+      while (this.interactiveWaiters.length > 0 || this.defaultWaiters.length > 0) {
+        const now = Date.now()
+        const requestAt = Math.max(now, this.nextRequestAt, this.cooldownUntil)
+        if (requestAt > now) await this.sleep(requestAt - now)
+
+        // A 429 from the preceding in-flight request can extend the shared
+        // cooldown while this dispatcher is asleep. Recalculate before
+        // admitting anyone; the retry slot itself is reserved by applyCooldown.
+        const now2 = Date.now()
+        if (Math.max(now2, this.nextRequestAt, this.cooldownUntil) > requestAt) continue
+
+        const waiter = this.interactiveWaiters.shift() ?? this.defaultWaiters.shift()
+        if (waiter === undefined) continue
+        this.nextRequestAt = Math.max(this.nextRequestAt, requestAt + MIN_INTERVAL_MS + jitter())
+        waiter.resolve()
       }
-
-      if (Date.now() >= this.cooldownUntil) return
+    } catch (error) {
+      for (const waiter of [...this.interactiveWaiters, ...this.defaultWaiters]) {
+        waiter.reject(error)
+      }
+      this.interactiveWaiters.length = 0
+      this.defaultWaiters.length = 0
+    } finally {
+      this.dispatchingRequests = false
     }
   }
 
