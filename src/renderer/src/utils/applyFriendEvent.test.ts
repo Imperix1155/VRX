@@ -37,6 +37,173 @@ function friend(overrides: Partial<VrcFriend> = {}): Friend {
 }
 
 describe('applyFriendEvent', () => {
+  it('world-metadata does not resurrect an offline friend and patches another current same-world friend', () => {
+    const target = friend({
+      platformUserId: 'usr_target',
+      instance: {
+        ...friend().instance!,
+        worldName: null,
+        thumbnailUrl: null
+      }
+    })
+    const sameWorld = friend({
+      platformUserId: 'usr_same_world',
+      instance: {
+        ...friend().instance!,
+        instanceId: 'i2',
+        worldName: null,
+        thumbnailUrl: null
+      }
+    })
+    const afterOffline = applyFriendEvent([target, sameWorld], {
+      type: 'friend-offline',
+      platform: 'vrchat',
+      platformUserId: 'usr_target'
+    })
+
+    const next = applyFriendEvent(afterOffline, {
+      type: 'world-metadata',
+      platform: 'vrchat',
+      worldId: 'wrld_a',
+      worldName: 'The Pug',
+      thumbnailUrl: 'https://example.com/pug.jpg'
+    })
+
+    expect(next[0]).toBe(afterOffline[0])
+    expect(next[0]).toMatchObject({
+      platformUserId: 'usr_target',
+      presence: { state: 'offline' },
+      status: null,
+      instance: null
+    })
+    expect(next[1]).toMatchObject({
+      platformUserId: 'usr_same_world',
+      presence: { state: 'in-game' },
+      instance: {
+        worldId: 'wrld_a',
+        instanceId: 'i2',
+        worldName: 'The Pug',
+        thumbnailUrl: 'https://example.com/pug.jpg'
+      }
+    })
+  })
+
+  it('world-metadata does not revert a location move and patches another current same-world friend', () => {
+    const target = friend({
+      platformUserId: 'usr_target',
+      instance: {
+        ...friend().instance!,
+        worldName: null,
+        thumbnailUrl: null
+      }
+    })
+    const sameWorld = friend({
+      platformUserId: 'usr_same_world',
+      instance: {
+        ...friend().instance!,
+        instanceId: 'i2',
+        worldName: null,
+        thumbnailUrl: null
+      }
+    })
+    const moved = friend({
+      platformUserId: 'usr_target',
+      status: 'ask-me',
+      instance: {
+        ...friend().instance!,
+        worldId: 'wrld_new',
+        worldName: 'New World',
+        instanceId: 'new-instance',
+        thumbnailUrl: 'https://example.com/new.jpg'
+      }
+    })
+    const afterMove = applyFriendEvent([target, sameWorld], {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: moved
+    })
+
+    const next = applyFriendEvent(afterMove, {
+      type: 'world-metadata',
+      platform: 'vrchat',
+      worldId: 'wrld_a',
+      worldName: 'The Pug',
+      thumbnailUrl: 'https://example.com/pug.jpg'
+    })
+
+    expect(next[0]).toBe(afterMove[0])
+    expect(next[0]).toMatchObject({
+      platformUserId: 'usr_target',
+      status: 'ask-me',
+      instance: {
+        worldId: 'wrld_new',
+        worldName: 'New World',
+        instanceId: 'new-instance',
+        thumbnailUrl: 'https://example.com/new.jpg'
+      }
+    })
+    expect(next[1]!.instance).toMatchObject({
+      worldId: 'wrld_a',
+      instanceId: 'i2',
+      worldName: 'The Pug',
+      thumbnailUrl: 'https://example.com/pug.jpg'
+    })
+  })
+
+  it('world-metadata for an unknown world preserves array and friend identity', () => {
+    const cached = friend()
+    const list = [cached]
+
+    const next = applyFriendEvent(list, {
+      type: 'world-metadata',
+      platform: 'vrchat',
+      worldId: 'wrld_unknown',
+      worldName: 'Unknown',
+      thumbnailUrl: null
+    })
+
+    expect(next).toBe(list)
+    expect(next[0]).toBe(cached)
+  })
+
+  it('world-metadata ignores a same-world friend on another platform', () => {
+    const cached = {
+      ...friend(),
+      platform: 'chilloutvr',
+      status: null,
+      statusDescription: null,
+      trustRank: null
+    } as Friend
+    const list = [cached]
+
+    const next = applyFriendEvent(list, {
+      type: 'world-metadata',
+      platform: 'vrchat',
+      worldId: 'wrld_a',
+      worldName: 'The Pug',
+      thumbnailUrl: 'https://example.com/pug.jpg'
+    })
+
+    expect(next).toBe(list)
+    expect(next[0]).toBe(cached)
+  })
+
+  it('world-metadata with already-equal values preserves array and friend identity', () => {
+    const cached = friend()
+    const list = [cached]
+
+    const next = applyFriendEvent(list, {
+      type: 'world-metadata',
+      platform: 'vrchat',
+      worldId: 'wrld_a',
+      worldName: 'The Pug',
+      thumbnailUrl: null
+    })
+
+    expect(next).toBe(list)
+    expect(next[0]).toBe(cached)
+  })
+
   it('friend-presence upserts: replaces an existing entry, appends a new one', () => {
     const existing = friend()
     const updated = friend({ presence: { state: 'active' }, instance: null })

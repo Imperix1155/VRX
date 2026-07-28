@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent, InstanceInfo } from '@shared/types'
+import type { AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { AuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
+import { applyFriendEvent } from '../../../renderer/src/utils/applyFriendEvent'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -58,6 +59,132 @@ const pipelineUser = {
   status: 'active',
   statusDescription: null,
   tags: []
+}
+
+async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'): Promise<{
+  cache: Friend[]
+  targetAfterLive: Friend
+  resolutionEvents: AdapterEvent[]
+}> {
+  const worldId = 'wrld_held'
+  const movedWorldId = 'wrld_moved'
+  const targetId = 'usr_target'
+  const sameWorldId = 'usr_same_world'
+  const worldMeta = {
+    name: 'Held World',
+    thumbnailImageUrl: 'https://example.com/held.jpg',
+    capacity: 20,
+    shortName: null
+  }
+  let releaseWorld!: (response: Response) => void
+  let released = false
+  const heldWorld = new Promise<Response>((resolve) => {
+    releaseWorld = resolve
+  })
+  let worldRequested = false
+  const sockets: DrivableVrcSocket[] = []
+  const wireFriend = (
+    id: string,
+    displayName: string,
+    instanceId: string
+  ): Record<string, unknown> => ({
+    id,
+    displayName,
+    currentAvatarThumbnailImageUrl: null,
+    status: 'active',
+    statusDescription: null,
+    tags: [],
+    location: `${worldId}:${instanceId}`
+  })
+  const fetchMock = vi.fn((url: RequestInfo | URL) => {
+    const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+    if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+    if (href.includes('/auth/user/friends')) {
+      return Promise.resolve(
+        jsonResponse(
+          href.includes('offline=true')
+            ? []
+            : [
+                wireFriend(targetId, 'Target Friend', 'target-instance'),
+                wireFriend(sameWorldId, 'Same World Friend', 'other-instance')
+              ]
+        )
+      )
+    }
+    if (href.includes(`/worlds/${worldId}`)) {
+      worldRequested = true
+      return heldWorld
+    }
+    if (href.endsWith('/auth/user')) {
+      return Promise.resolve(
+        jsonResponse({
+          id: 'usr_self',
+          displayName: 'Self',
+          onlineFriends: [targetId, sameWorldId],
+          activeFriends: [],
+          offlineFriends: []
+        })
+      )
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${href}`))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+
+  let cache: Friend[] = []
+  const events: AdapterEvent[] = []
+  const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    socketFactory: () => {
+      const socket = new DrivableVrcSocket()
+      sockets.push(socket)
+      return socket
+    }
+  })
+  const unsubscribe = adapter.subscribe((event) => {
+    events.push(event)
+    cache = applyFriendEvent(cache, event)
+  })
+
+  try {
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    const socket = sockets[0]!
+    socket.fire('open')
+    cache = await adapter.getFriends()
+    await vi.waitFor(() => expect(worldRequested).toBe(true))
+
+    if (liveMutation === 'offline') {
+      socket.fire('message', pipelineFrame('friend-offline', { userId: targetId }))
+    } else {
+      socket.fire(
+        'message',
+        pipelineFrame('friend-location', {
+          userId: targetId,
+          user: {
+            ...pipelineUser,
+            id: targetId,
+            displayName: 'Target Friend',
+            status: 'ask me'
+          },
+          location: `${movedWorldId}:new-instance`
+        })
+      )
+    }
+    const targetAfterLive = cache.find((friend) => friend.platformUserId === targetId)
+    if (targetAfterLive === undefined) throw new Error('live mutation did not reach the cache')
+    const resolutionEventIndex = events.length
+
+    releaseWorld(jsonResponse(worldMeta))
+    released = true
+    await vi.waitFor(() => expect(events.length).toBeGreaterThan(resolutionEventIndex))
+
+    return {
+      cache,
+      targetAfterLive,
+      resolutionEvents: events.slice(resolutionEventIndex)
+    }
+  } finally {
+    if (!released) releaseWorld(jsonResponse(worldMeta))
+    unsubscribe()
+  }
 }
 
 function lastCall(mock: ReturnType<typeof vi.fn>): [string, RequestInit] {
@@ -1626,7 +1753,79 @@ describe('VrcAdapter', () => {
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
 
-    it('enriches friends in worlds with worldName/thumbnailUrl (VRX-163)', async () => {
+    it('held world metadata cannot resurrect a friend taken offline by the pipeline', async () => {
+      const result = await runDeferredWorldMetadataRace('offline')
+      const target = result.cache.find((friend) => friend.platformUserId === 'usr_target')
+      const sameWorld = result.cache.find((friend) => friend.platformUserId === 'usr_same_world')
+
+      expect(result.targetAfterLive).toMatchObject({
+        presence: { state: 'offline' },
+        status: null,
+        instance: null
+      })
+      expect(target).toBe(result.targetAfterLive)
+      expect(target).toMatchObject({
+        presence: { state: 'offline' },
+        status: null,
+        instance: null
+      })
+      expect(sameWorld?.instance).toMatchObject({
+        worldId: 'wrld_held',
+        instanceId: 'other-instance',
+        worldName: 'Held World',
+        thumbnailUrl: 'https://example.com/held.jpg'
+      })
+      expect(result.resolutionEvents).toEqual([
+        {
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: 'wrld_held',
+          worldName: 'Held World',
+          thumbnailUrl: 'https://example.com/held.jpg'
+        }
+      ])
+    })
+
+    it('held world metadata cannot revert a pipeline location move', async () => {
+      const result = await runDeferredWorldMetadataRace('location')
+      const target = result.cache.find((friend) => friend.platformUserId === 'usr_target')
+      const sameWorld = result.cache.find((friend) => friend.platformUserId === 'usr_same_world')
+
+      expect(result.targetAfterLive).toMatchObject({
+        presence: { state: 'in-game' },
+        status: 'ask-me',
+        instance: {
+          worldId: 'wrld_moved',
+          instanceId: 'new-instance'
+        }
+      })
+      expect(target).toBe(result.targetAfterLive)
+      expect(target).toMatchObject({
+        presence: { state: 'in-game' },
+        status: 'ask-me',
+        instance: {
+          worldId: 'wrld_moved',
+          instanceId: 'new-instance'
+        }
+      })
+      expect(sameWorld?.instance).toMatchObject({
+        worldId: 'wrld_held',
+        instanceId: 'other-instance',
+        worldName: 'Held World',
+        thumbnailUrl: 'https://example.com/held.jpg'
+      })
+      expect(result.resolutionEvents).toEqual([
+        {
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: 'wrld_held',
+          worldName: 'Held World',
+          thumbnailUrl: 'https://example.com/held.jpg'
+        }
+      ])
+    })
+
+    it('returns before world enrichment and emits one metadata-only event on resolution', async () => {
       const worldId = 'wrld_abc123'
       const worldMeta = {
         name: 'The Grid',
@@ -1634,6 +1833,11 @@ describe('VrcAdapter', () => {
         capacity: 20,
         shortName: null
       }
+      let releaseWorld!: (response: Response) => void
+      const heldWorld = new Promise<Response>((resolve) => {
+        releaseWorld = resolve
+      })
+      let worldRequested = false
       const fetchMock = vi.fn((url: string) => {
         if (url.includes('/auth/user/friends')) {
           const isOffline = url.includes('offline=true')
@@ -1664,12 +1868,8 @@ describe('VrcAdapter', () => {
           )
         }
         if (url.includes(`/worlds/${worldId}`)) {
-          return Promise.resolve(
-            new Response(JSON.stringify(worldMeta), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
+          worldRequested = true
+          return heldWorld
         }
         // /auth/user — buckets
         return Promise.resolve(
@@ -1686,16 +1886,137 @@ describe('VrcAdapter', () => {
         )
       })
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+      let friends: Friend[] | undefined
+      const roster = adapter.getFriends().then((result) => {
+        friends = result
+        return result
+      })
 
-      const friends = await adapter.getFriends()
+      await vi.waitFor(() => expect(worldRequested).toBe(true))
+      try {
+        expect(friends).toBeDefined()
+        expect(friends![0]!.instance?.worldName).toBeNull()
+        expect(friends![0]!.instance?.thumbnailUrl).toBeNull()
+      } finally {
+        releaseWorld(jsonResponse(worldMeta))
+        await roster
+      }
 
-      expect(friends).toHaveLength(1)
-      expect(friends[0]!.instance?.worldName).toBe('The Grid')
-      expect(friends[0]!.instance?.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+      // Wait for ARRIVAL, then settle two macrotask turns before pinning the
+      // exact contents: `waitFor(toEqual([one]))` passes the instant the first
+      // event lands, so a stray second emission a tick later would go
+      // undetected — exactly what "one event" must rule out (CodeRabbit).
+      await vi.waitFor(() => expect(events.length).toBeGreaterThan(0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(events).toEqual([
+        {
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId,
+          worldName: 'The Grid',
+          thumbnailUrl: 'https://example.com/thumb.jpg'
+        }
+      ])
+      unsubscribe()
     })
 
-    it('a 401 during WORLD enrichment (session dies mid-fetch) EMITS auth-invalidated (VRX-197, Codex)', async () => {
+    it('overlapping getFriends calls do not double-fetch an in-flight world', async () => {
+      // peek() stays undefined until a resolve COMPLETES, so without the
+      // pendingWorldResolutions guard a second getFriends during the held
+      // window would re-fetch the same world through the shared 1 req/s slot
+      // and emit a duplicate world-metadata event (CodeRabbit, VRX-214).
+      const worldId = 'wrld_dedup1'
+      let releaseWorld!: (response: Response) => void
+      const heldWorld = new Promise<Response>((resolve) => {
+        releaseWorld = resolve
+      })
+      let worldFetches = 0
+      const fetchMock = vi.fn((url: string) => {
+        if (url.includes('/auth/user/friends')) {
+          const isOffline = url.includes('offline=true')
+          if (isOffline) {
+            return Promise.resolve(
+              new Response(JSON.stringify([]), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+              })
+            )
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: 'usr_111',
+                  displayName: 'Bob',
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `${worldId}:11111~private(usr_self)`
+                }
+              ]),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+        }
+        if (url.includes(`/worlds/${worldId}`)) {
+          worldFetches += 1
+          return heldWorld
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: 'usr_self',
+              displayName: 'Self',
+              onlineFriends: ['usr_111'],
+              activeFriends: [],
+              offlineFriends: []
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
+
+      const first = adapter.getFriends()
+      await vi.waitFor(() => expect(worldFetches).toBe(1))
+      // Overlapping call while the world fetch is still held in flight.
+      const second = adapter.getFriends()
+      await Promise.all([first, second])
+
+      releaseWorld(
+        new Response(
+          JSON.stringify({
+            name: 'Dedup World',
+            thumbnailImageUrl: null,
+            capacity: 8,
+            shortName: null
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      await vi.waitFor(() =>
+        expect(events.filter((event) => event.type === 'world-metadata')).toHaveLength(1)
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(worldFetches).toBe(1)
+      expect(events.filter((event) => event.type === 'world-metadata')).toHaveLength(1)
+      unsubscribe()
+    })
+
+    it('a 401 during background world enrichment invalidates auth without rejecting the roster', async () => {
       // Buckets + friend pages succeed, then the session dies before /worlds/:id.
       // The world 401 must propagate (WorldResolver rethrows AuthError) up to
       // getFriends and emit — not be swallowed to null world metadata.
@@ -1738,8 +2059,15 @@ describe('VrcAdapter', () => {
       })
       adapter.subscribe((e) => events.push(e))
 
-      await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
-      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      await expect(adapter.getFriends()).resolves.toEqual([
+        expect.objectContaining({
+          platformUserId: 'usr_111',
+          instance: expect.objectContaining({ worldName: null, thumbnailUrl: null })
+        })
+      ])
+      await vi.waitFor(() => {
+        expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      })
     })
 
     it('leaves worldName null for a friend with no instance (VRX-163)', async () => {
@@ -1794,8 +2122,9 @@ describe('VrcAdapter', () => {
       expect(friends[0]!.instance).toBeNull()
     })
 
-    it('keeps worldName null for an unresolvable world, friends still returned (VRX-163)', async () => {
+    it('resolver errors leave metadata null without rejecting getFriends or crashing', async () => {
       const worldId = 'wrld_deleted999'
+      let worldRequests = 0
       const fetchMock = vi.fn((url: string) => {
         if (url.includes('/auth/user/friends')) {
           const isOffline = url.includes('offline=true')
@@ -1825,13 +2154,8 @@ describe('VrcAdapter', () => {
           )
         }
         if (url.includes(`/worlds/${worldId}`)) {
-          // Returns a body that fails WorldApiSchema → resolver returns null
-          return Promise.resolve(
-            new Response(JSON.stringify({}), {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' }
-            })
-          )
+          worldRequests += 1
+          return Promise.reject(new Error('world resolver offline'))
         }
         return Promise.resolve(
           new Response(
@@ -1854,6 +2178,7 @@ describe('VrcAdapter', () => {
       expect(friends).toHaveLength(1)
       expect(friends[0]!.instance?.worldName).toBeNull()
       expect(friends[0]!.instance?.worldId).toBe(worldId)
+      await vi.waitFor(() => expect(worldRequests).toBe(1))
     })
 
     it('caches world metadata across getFriends calls (single resolver, VRX-163)', async () => {
@@ -1920,14 +2245,29 @@ describe('VrcAdapter', () => {
         return Promise.resolve(bucketsResponse())
       })
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+        socketFactory: () => ({ on: () => {}, close: () => {} })
+      })
+      const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       await adapter.getFriends()
-      await adapter.getFriends()
+      await vi.waitFor(() => {
+        expect(events).toContainEqual({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId,
+          worldName: 'Cached World',
+          thumbnailUrl: null
+        })
+      })
+      const cachedFriends = await adapter.getFriends()
 
       // The world was fetched only once because the resolver's TTL cache persists
       // across getFriends calls (single worldResolver field, not recreated per call).
       expect(worldFetchCount.n).toBe(1)
+      expect(cachedFriends[0]!.instance?.worldName).toBe('Cached World')
+      unsubscribe()
     })
   })
 

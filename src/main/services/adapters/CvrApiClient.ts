@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
 import type { Platform } from '@shared/types'
-import { BaseAdapter } from './BaseAdapter'
+import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
 import {
   AuthError,
   CVRAuthError,
@@ -78,7 +78,7 @@ export abstract class CvrApiClient extends BaseAdapter {
     authType: 1 | 2,
     username: string,
     password: string,
-    options?: { recordCircuitFailure?: boolean }
+    options?: AdapterRequestOptions
   ): Promise<Response> {
     return this.rawRequest(
       CVR_API_BASE + '/users/auth',

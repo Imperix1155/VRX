@@ -113,6 +113,11 @@ export class FriendAlerts {
       case 'friend-updated':
         this.rememberName(event.friend)
         return
+      case 'world-metadata':
+        // Metadata-only (VRX-214): no presence or location claim. Feeding the
+        // resolved worldName in here would make a late enrichment look like a
+        // move and fabricate in-game / hot-instance alerts.
+        return
       case 'friend-added':
         this.rememberName(event.friend)
         this.applyPresenceMutation(event.platform, (baselinedKeys) => {

@@ -81,6 +81,33 @@ describe('get-friends location seeding', () => {
     expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number))
   })
 
+  it('seeds a joinable location when optional world metadata is still null', async () => {
+    const locationFriend = {
+      ...rosterFriend,
+      instance: {
+        worldId: 'wrld_cold_start',
+        instanceId: 'instance-1~private(usr_owner)',
+        worldName: null,
+        thumbnailUrl: null,
+        type: 'invite' as const,
+        openness: 'invite' as const,
+        isGroup: false,
+        groupName: null,
+        region: null,
+        userCount: null
+      }
+    } as Friend
+    vi.mocked(adapter.getFriends).mockResolvedValue([locationFriend])
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+
+    await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+
+    expect(authority.resolve('vrchat', locationFriend.platformUserId)).toEqual({
+      ok: true,
+      friend: locationFriend
+    })
+  })
+
   it('does not seed a failed response', async () => {
     vi.mocked(adapter.getFriends).mockRejectedValue(new Error('network'))
     const seed = vi.spyOn(authority, 'seed')

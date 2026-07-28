@@ -161,7 +161,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     let response: Response
     try {
-      response = await this.authenticateRaw(2, email, password)
+      response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
     } catch (error) {
       // Diagnostic (no secrets): distinguishes an open circuit from a real
       // network/DNS/TLS failure if this ever recurs.
@@ -234,6 +234,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     let response: Response
     try {
       response = await this.authenticateRaw(1, validated.username, validated.accessKey, {
+        priority: 'interactive',
         recordCircuitFailure: false
       })
     } catch {

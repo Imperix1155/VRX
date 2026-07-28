@@ -1,7 +1,7 @@
 import type { z } from 'zod'
 import type { Platform } from '@shared/types'
 import { VRC_API_BASE } from '@shared/constants'
-import { BaseAdapter } from './BaseAdapter'
+import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
 
 /**
  * VRChat-required User-Agent. VRChat rate-limits / blocks clients without a
@@ -48,20 +48,39 @@ export abstract class VrcApiClient extends BaseAdapter {
   }
 
   /** GET `path` (relative to VRC_API_BASE), validated against `schema`. */
-  protected get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-    return this.request(VRC_API_BASE + path, schema, {
-      method: 'GET',
-      headers: this.headers()
-    })
+  protected get<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      {
+        method: 'GET',
+        headers: this.headers()
+      },
+      options
+    )
   }
 
   /** POST `body` as JSON to `path` (relative to VRC_API_BASE), validated against `schema`. */
-  protected post<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
-    return this.request(VRC_API_BASE + path, schema, {
-      method: 'POST',
-      headers: this.headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body)
-    })
+  protected post<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    return this.request(
+      VRC_API_BASE + path,
+      schema,
+      {
+        method: 'POST',
+        headers: this.headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      },
+      options
+    )
   }
 
   private headers(extra?: Record<string, string>): Record<string, string> {

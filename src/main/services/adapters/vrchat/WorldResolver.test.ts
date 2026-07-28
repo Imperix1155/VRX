@@ -64,6 +64,24 @@ describe('WorldResolver', () => {
     expect(second).toEqual(first)
   })
 
+  it('peek returns only fresh cached metadata without fetching', async () => {
+    let now = 1_000
+    const fetcher = vi.fn().mockResolvedValue(VALID_WORLD_RAW)
+    const resolver = new WorldResolver(fetcher, () => now)
+    const peekable = resolver as unknown as {
+      peek(worldId: string | null): typeof VALID_WORLD_META | null | undefined
+    }
+
+    expect(peekable.peek('wrld_abc')).toBeUndefined()
+    await resolver.resolve('wrld_abc')
+    expect(peekable.peek('wrld_abc')).toEqual(VALID_WORLD_META)
+    expect(fetcher).toHaveBeenCalledOnce()
+
+    now += WORLD_CACHE_TTL_MS
+    expect(peekable.peek('wrld_abc')).toBeUndefined()
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
   // ── Cache expiry (clock advancing past TTL) ──────────────────────────────────
 
   async function resolveWithAdvancedClock(advance: number): Promise<number> {
