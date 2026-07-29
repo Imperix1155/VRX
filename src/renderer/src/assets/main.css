@@ -22,6 +22,7 @@
   --control-fill: rgba(255, 255, 255, 0.05);
   --control-fill-hover: rgba(255, 255, 255, 0.1);
   --error: #f87171;
+  --warning: #f59e0b;
   --space-0-5: 2px;
   --space-1: 4px;
   --space-2: 8px;
@@ -165,6 +166,7 @@
   --control-fill: rgba(20, 19, 28, 0.045);
   --control-fill-hover: rgba(20, 19, 28, 0.09);
   --error: #b4232c;
+  --warning: #a15c00;
 
   --vrc: #1f6fd3;
   --cvr: #d85f18;
