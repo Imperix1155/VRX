@@ -8,7 +8,7 @@
  * is isPending forever (no auth polling), hanging social views on "Loading…".
  */
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, type QueryObserverOptions } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthState, AuthStatus } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -29,6 +29,7 @@ function mockAuthState(state: AuthState): void {
 function renderFriends(): {
   result: { current: ReturnType<typeof useFriends> }
   getFriends: ReturnType<typeof vi.fn>
+  queryClient: QueryClient
 } {
   const getFriends = vi.fn().mockResolvedValue([])
   Object.assign(window, { vrx: { getFriends } })
@@ -37,12 +38,13 @@ function renderFriends(): {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
   const { result } = renderHook(() => useFriends('vrchat'), { wrapper })
-  return { result, getFriends }
+  return { result, getFriends, queryClient }
 }
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.restoreAllMocks()
   useAuthStatusMock.mockReset()
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   Object.assign(window, { vrx: undefined })
@@ -69,12 +71,41 @@ describe('useFriends enabled gate', () => {
 })
 
 describe('useFriends background reconcile cadence (VRX-77)', () => {
+  it('applies fresh ±10% jitter on every reconcile interval tick', () => {
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: '5m' },
+      dirty: false
+    })
+    const randomValues = [0, 0.5, 0.999]
+    let randomIndex = 0
+    vi.spyOn(Math, 'random').mockImplementation(
+      () => randomValues[randomIndex++ % randomValues.length]!
+    )
+    const { queryClient } = renderFriends()
+    const query = queryClient.getQueryCache().find({
+      queryKey: ['friends', 'vrchat']
+    })
+    const interval = (query?.options as QueryObserverOptions | undefined)?.refetchInterval
+
+    expect(typeof interval).toBe('function')
+    if (typeof interval !== 'function' || query === undefined) {
+      throw new Error('expected a query-backed interval function')
+    }
+    const values = [interval(query), interval(query), interval(query)]
+    const numericValues = values.filter((value): value is number => typeof value === 'number')
+    expect(numericValues).toHaveLength(3)
+    expect(numericValues.every((value) => value >= 270_000 && value <= 330_000)).toBe(true)
+    expect(new Set(numericValues).size).toBeGreaterThan(1)
+  })
+
   it.each([
     ['5m', 300_000],
     ['10m', 600_000],
     ['30m', 1_800_000]
   ] as const)('refetches on the %s setting', async (reconcileInterval, intervalMs) => {
     vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
     mockAuthState('authenticated')
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, reconcileInterval },
@@ -162,6 +193,7 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
 
   it('applies a changed cadence immediately to the mounted TanStack observer', async () => {
     vi.useFakeTimers()
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
     mockAuthState('authenticated')
     const { getFriends } = renderFriends()
 

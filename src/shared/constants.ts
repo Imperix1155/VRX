@@ -34,6 +34,8 @@ export const RECONCILE_INTERVAL_MS: Record<ReconcileInterval, number | false> = 
 }
 /** Per-request timeout for all API calls (ms). */
 export const API_TIMEOUT_MS = 15_000
+/** Minimum spacing between requests to a rate-limited platform API host. */
+export const API_REQUEST_MIN_INTERVAL_MS = 1_000
 
 /** VRChat Pipeline WebSocket endpoint (VRX-146). Token goes in `?authToken=`. */
 export const VRC_PIPELINE_URL = 'wss://pipeline.vrchat.cloud/' as const

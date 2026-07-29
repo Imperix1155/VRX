@@ -6,6 +6,13 @@ import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 
+const RECONCILE_JITTER_FRACTION = 0.1
+
+function jitteredReconcileInterval(intervalMs: number): number {
+  const factor = 1 - RECONCILE_JITTER_FRACTION + Math.random() * RECONCILE_JITTER_FRACTION * 2
+  return Math.round(intervalMs * factor)
+}
+
 /** Per-platform query key for the friends list. */
 export function friendsQueryKey(platform: Platform): readonly ['friends', Platform] {
   return ['friends', platform] as const
@@ -47,7 +54,8 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     queryKey: friendsQueryKey(platform),
     queryFn: () => fetchFriends(platform),
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
-    refetchInterval: reconcileIntervalMs,
+    refetchInterval:
+      reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),
     enabled: auth.data?.state === 'authenticated' || auth.data?.state === 'error'
   })
 }
