@@ -592,3 +592,125 @@ describe('FriendDrawer (VRX-69)', () => {
     expect((textarea as HTMLTextAreaElement).value).toBe('')
   })
 })
+
+describe('VRX-228 whole-card drawer opener (default) + avatar-only setting', () => {
+  /** The row's <li> for a friend (found via its avatar opener button). */
+  function rowLi(name: string): HTMLElement {
+    const li = rowOpener(name).closest('li')
+    if (li === null) throw new Error(`no row for ${name}`)
+    return li
+  }
+
+  it("card mode (default): clicking the row body opens that friend's drawer; the li stays a plain listitem", () => {
+    render(<FriendsList />)
+    const li = rowLi('Alex')
+    // The card surface carries the outside-close exemption; the li itself
+    // gains NO interactive role and NO tab stop (the VRX-69 role-flattening
+    // finding — the avatar button remains the only semantic/keyboard opener).
+    expect(li.hasAttribute('data-drawer-opener')).toBe(true)
+    expect(li.getAttribute('role')).toBeNull()
+    expect(li.tabIndex).toBe(-1)
+
+    // Click the world subline — not the avatar, not the pill.
+    fireEvent.click(within(li).getByText('The Great Pug'))
+    const panel = screen.getByRole('dialog', { name: 'Alex' })
+    expect(within(panel).getByText('come thru')).toBeTruthy()
+  })
+
+  it("card mode: clicking ANOTHER row's body SWITCHES the open drawer in place (no close between)", () => {
+    mockFriends([joinableFriend, cvrFriend])
+    render(<FriendsList />)
+    fireEvent.click(rowLi('Alex'))
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+
+    // The row's exemption keeps the outside-close listener quiet on
+    // pointerdown (no close event between — the owner-praised behavior),
+    // then the click switches the card in place.
+    fireEvent.pointerDown(rowLi('Mika'))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(rowLi('Mika'))
+    expect(dialog().getAttribute('aria-label')).toBe('Mika')
+    // …and Mika's data actually renders (not a stale panel).
+    expect(within(dialog()).getByText('ChilloutVR')).toBeTruthy()
+  })
+
+  it('card mode: a text-selection drag inside the row does NOT open the drawer', () => {
+    render(<FriendsList />)
+    const li = rowLi('Alex')
+    const nameEl = within(li).getByText('Alex')
+    const selection = window.getSelection()
+    expect(selection).not.toBeNull()
+    const range = document.createRange()
+    range.selectNodeContents(nameEl)
+    selection!.removeAllRanges()
+    selection!.addRange(range)
+    expect(selection!.isCollapsed).toBe(false)
+
+    // The mouseup-after-drag still dispatches a click on the row — the
+    // non-collapsed-selection guard must swallow it.
+    fireEvent.click(li)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // A plain click afterwards (selection collapsed) opens normally.
+    selection!.removeAllRanges()
+    fireEvent.click(li)
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+  })
+
+  it('card mode: the Join pill joins and does NOT open — and with the card open elsewhere it keeps the VRX-225 close-then-join sequence', async () => {
+    mockFriends([joinableFriend, { ...cvrFriend, instance: publicInstance }])
+    render(<FriendsList />)
+    fireEvent.click(rowLi('Alex'))
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+
+    const joinMika = screen.getByRole('button', { name: 'Join Mika in The Great Pug' })
+    // The pill is NEVER part of the opener surface — even inside a card-mode
+    // row: the card closes on the pointerdown (the VRX-225 sequence)…
+    fireEvent.pointerDown(joinMika)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // …then the click joins — it never opens or switches the drawer.
+    await act(async () => {
+      fireEvent.click(joinMika)
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(joinInstance).toHaveBeenCalledWith({
+      platform: 'chilloutvr',
+      friendId: 'cvr_mika',
+      mode: 'desktop'
+    })
+  })
+
+  it('avatar mode pins the VRX-225 behavior: the row body is inert, only the avatar opens', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, drawerOpener: 'avatar' },
+      dirty: false
+    })
+    render(<FriendsList />)
+    const li = rowLi('Alex')
+    // Byte-preserved VRX-225 surface: no row exemption, no row click target.
+    expect(li.hasAttribute('data-drawer-opener')).toBe(false)
+    fireEvent.click(li)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // The avatar button is still the opener (pointer AND keyboard).
+    openDrawerFor('Alex')
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+  })
+
+  it('the setting flips surfaces live: an open drawer survives a mid-open mode change', () => {
+    mockFriends([joinableFriend, cvrFriend])
+    render(<FriendsList />)
+    fireEvent.click(rowLi('Alex'))
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+
+    act(() => useSettingsStore.getState().updateSettings({ drawerOpener: 'avatar' }))
+    // No remount weirdness: the drawer stays open on the same friend…
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+    // …and future clicks follow the NEW mode (row body inert, avatar opens).
+    fireEvent.click(rowLi('Mika'))
+    expect(dialog().getAttribute('aria-label')).toBe('Alex')
+    openDrawerFor('Mika')
+    expect(dialog().getAttribute('aria-label')).toBe('Mika')
+  })
+})

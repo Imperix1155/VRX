@@ -23,6 +23,7 @@
  *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
  *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
  *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path)
+ *   drawerOpener           → friend-drawer pointer opener surface (VRX-228; whole-card default, owner ruling 2026-07-27)
  */
 import { z } from 'zod'
 import {
@@ -32,6 +33,7 @@ import {
 } from './constants'
 import {
   BACKGROUND_GLOWS,
+  DRAWER_OPENERS,
   FRIEND_SECTIONS,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
@@ -42,7 +44,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 4 as const
+export const SETTINGS_VERSION = 5 as const
 
 export const SettingsSchema = z.object({
   /** Schema version of the persisted object; drives {@link runMigrations}. */
@@ -81,7 +83,11 @@ export const SettingsSchema = z.object({
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default. */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
   /** Friends-list background reconcile cadence (VRX-77). The WebSocket remains the live path. */
-  reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('5m')
+  reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('5m'),
+  /** Friend-drawer POINTER opener surface (VRX-228): `card` = the whole row opens
+   *  (default, owner ruling 2026-07-27 — Join pill still wins), `avatar` = the
+   *  VRX-225 avatar-only behavior. Values from `@shared/types` DRAWER_OPENERS. */
+  drawerOpener: z.enum(DRAWER_OPENERS).catch('card')
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -95,14 +101,15 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2, v2 → v3, and v3 → v4 are deliberately identity-only: the shape remains
- * schema-compatible, while the version boundary protects newer fields from
+ * v1 → v2, v2 → v3, v3 → v4, and v4 → v5 are deliberately identity-only: the shape
+ * remains schema-compatible, while the version boundary protects newer fields from
  * older-build key stripping during rollback.
  */
 export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   1: (prev) => ({ ...prev }),
   2: (prev) => ({ ...prev }),
-  3: (prev) => ({ ...prev })
+  3: (prev) => ({ ...prev }),
+  4: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

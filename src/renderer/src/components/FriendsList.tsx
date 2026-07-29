@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
@@ -89,6 +90,14 @@ const FriendRow = memo(function FriendRow({
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  // Drawer opener surface (VRX-228): 'card' (default) = the whole row is a
+  // POINTER opener; 'avatar' = the VRX-225 avatar-only behavior.
+  const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
+  const cardOpens = drawerOpener === 'card'
+  // The avatar button element — the SEMANTIC opener in both modes. Card-mode
+  // row clicks delegate to the same open path with THIS element as the opener
+  // so focus return still lands on the avatar (VRX-228 contract).
+  const avatarButtonRef = useRef<HTMLButtonElement>(null)
   // Shared join flow (VRX-166; one implementation with the drawer — VRX-69).
   const { isJoining, joinFailedFor, join } = useJoinInstance()
 
@@ -122,10 +131,35 @@ const FriendRow = memo(function FriendRow({
   }
   const joinable = isFriendJoinable(friend)
 
-  function joinFriend(): void {
-    // No stopPropagation needed since VRX-225: the drawer opener is the avatar
-    // button, not a stretched row overlay — the pill has nothing beneath it.
+  function joinFriend(event: MouseEvent<HTMLButtonElement>): void {
+    // Containment is BACK (VRX-228): VRX-225 removed stopPropagation because the
+    // avatar-only opener left nothing beneath the pill — the whole-card opener
+    // puts a click target under it again. Belt-and-suspenders with the li's
+    // `closest('[data-join-pill]')` guard below: join wins over open, always.
+    event.stopPropagation()
     void join(friend)
+  }
+
+  // Whole-card POINTER opener (VRX-228, owner ruling 2026-07-27 — knowingly
+  // supersedes the VRX-225 avatar-only ruling for pointer input). The li stays
+  // a plain listitem — NEVER a role, NEVER a tab stop (the VRX-69 role-
+  // flattening finding): the avatar button remains the semantic/keyboard
+  // opener; this handler only widens the pointer target onto the same path.
+  function openFromRow(event: MouseEvent<HTMLLIElement>): void {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    // Join-pill containment: the pill is an independent sibling control and
+    // join wins over open. Don't rely on the pill's own stopPropagation alone
+    // (VRX-225 removed it once precisely because nothing sat under the pill —
+    // that premise changed again, so the robust guard lives HERE too).
+    if (target.closest('[data-join-pill]') !== null) return
+    // Selection-drag guard: a plain click collapses the document selection on
+    // mousedown (before click fires); after a drag-select across row text it
+    // is still non-collapsed at click time — that mouseup must NOT open.
+    const selection = window.getSelection()
+    if (selection !== null && !selection.isCollapsed) return
+    const opener = avatarButtonRef.current
+    if (opener !== null) onOpen(friend, opener)
   }
 
   // Ids for the opener's composed accessible name (aria-labelledby below).
@@ -133,13 +167,25 @@ const FriendRow = memo(function FriendRow({
 
   return (
     <li
+      {...(cardOpens
+        ? {
+            // VRX-228 card mode: the card surface joins the drawer's
+            // outside-close exemption so clicking ANOTHER friend's card
+            // SWITCHES the open drawer in place (the owner-praised behavior)
+            // instead of outside-close firing first. Avatar mode leaves the
+            // exemption on the avatar button alone (VRX-225, byte-preserved).
+            'data-drawer-opener': true,
+            onClick: openFromRow
+          }
+        : {})}
       className={[
         // grid: 14px platform tab · 42px avatar · 1fr content · auto instance pill
         'grid grid-cols-[14px_42px_1fr_auto] items-center gap-x-[12px]',
         'rounded-[13px] py-[8px] pr-[12px] pl-[10px]',
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
-        'hover:bg-[var(--surface-hover)] motion-safe:transition-colors'
+        'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
+        cardOpens ? 'cursor-pointer' : ''
       ].join(' ')}
     >
       <PlatformTab platform={friend.platform} labelId={`${rowId}-platform`} />
@@ -150,8 +196,13 @@ const FriendRow = memo(function FriendRow({
           aria-label) + world + platform via aria-labelledby, so screen readers
           lose nothing (§9.1 non-color contract). `data-drawer-opener` exempts
           it from the drawer's outside-close listener: clicking another
-          friend's avatar SWITCHES the open card instead of closing it. */}
+          friend's avatar SWITCHES the open card instead of closing it.
+          (↻ VRX-228, owner ruling 2026-07-27: in the default 'card' mode the
+          WHOLE ROW is an additional POINTER-only opener delegating to this
+          same path — the li above carries the handler/exemption; this button
+          stays the semantic/keyboard opener and focus-return target.) */}
       <button
+        ref={avatarButtonRef}
         type="button"
         id={`${rowId}-avatar`}
         data-drawer-opener
@@ -201,7 +252,7 @@ const FriendRow = memo(function FriendRow({
           but readable. Joinable friends receive the button variant (VRX-166). */}
       {instancePill != null ? (
         joinable ? (
-          <span className="relative block min-w-[78px]">
+          <span className="relative block min-w-[78px]" data-join-pill>
             <InstancePill
               label={instancePill}
               tier={pillTier}

@@ -28,9 +28,12 @@
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
  * pointer-events-none pure depth, there is NO focus trap and NO aria-modal,
- * and clicking another friend's avatar SWITCHES the card in place. Close
+ * and clicking another friend's avatar (or, in the default 'card' opener mode,
+ * VRX-228, anywhere on another friend's row) SWITCHES the card in place. Close
  * paths: ✕, Esc, or any pointerdown outside the panel that isn't on a
- * `[data-drawer-opener]` (the avatar buttons — those switch, never close).
+ * `[data-drawer-opener]` — except a `[data-join-pill]`, which is never part of
+ * the opener surface (join wins over open; the card closes, then the click
+ * joins).
  * Initial focus lands on ✕ when a friend is first selected; focus returns to
  * the opening row on close (owner of that contract is FriendsList's
  * `closeDrawer`).
@@ -109,8 +112,12 @@ export default function FriendDrawer({
   }, [open, onClose])
 
   // Outside pointerdown closes (VRX-225) — except on a `[data-drawer-opener]`
-  // (an avatar button): those SWITCH the card to that friend, and letting this
-  // listener also fire would close-then-reopen, flickering the slide animation.
+  // (an avatar button; the whole row in 'card' mode, VRX-228): those SWITCH
+  // the card to that friend, and letting this listener also fire would
+  // close-then-reopen, flickering the slide animation. A `[data-join-pill]`
+  // target is NEVER part of the opener surface — even inside a card-mode row
+  // (VRX-228: join wins over open) — so the pill keeps the VRX-225 sequence:
+  // the card closes on the pointerdown, then the click joins.
   // pointerdown (not click) so a drag that starts outside doesn't count as a
   // click-through on release, and so the close wins before a row's hover
   // effects react.
@@ -120,7 +127,8 @@ export default function FriendDrawer({
       const target = event.target
       if (!(target instanceof Element)) return
       if (panelRef.current?.contains(target)) return
-      if (target.closest('[data-drawer-opener]')) return
+      if (target.closest('[data-join-pill]') === null && target.closest('[data-drawer-opener]'))
+        return
       onClose()
     }
     document.addEventListener('pointerdown', onPointerDown)
