@@ -219,6 +219,18 @@ export type ReconcileInterval = (typeof RECONCILE_INTERVALS)[number]
 export const LABEL_SCHEMES = ['vrchat', 'platform-native', 'chilloutvr'] as const
 export type LabelScheme = (typeof LABEL_SCHEMES)[number]
 
+// ─── Friend-drawer opener (VRX-228) ──────────────────────────────────────────
+/** Which POINTER surface opens the friend-details drawer: `card` = anywhere on
+ *  the friend's row (the default — owner ruling 2026-07-27, knowingly superseding
+ *  the VRX-225 avatar-only ruling; the Join pill always wins over open), `avatar`
+ *  = the VRX-225 avatar-button-only behavior. The avatar <button> remains the
+ *  semantic/keyboard opener (and the focus-return target) in BOTH modes — the
+ *  setting only expands the pointer target. Single source for both the
+ *  `DrawerOpener` type and the settings schema's `drawerOpener` enum. */
+// Order is the DISPLAY order (default first).
+export const DRAWER_OPENERS = ['card', 'avatar'] as const
+export type DrawerOpener = (typeof DRAWER_OPENERS)[number]
+
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct
  *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the

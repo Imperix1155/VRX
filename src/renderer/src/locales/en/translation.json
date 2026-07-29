@@ -69,6 +69,13 @@
       "chilloutvr": "ChilloutVR",
       "platformNative": "Per platform"
     },
+    "drawerOpener": {
+      "label": "Friend details open from",
+      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. The Join pill always joins instead.",
+      "aria": "Friend details opener selector",
+      "card": "Whole card",
+      "avatar": "Avatar only"
+    },
     "dashboard": {
       "heading": "Dashboard"
     },

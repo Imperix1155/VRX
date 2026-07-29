@@ -1,6 +1,18 @@
 import { useTranslation } from 'react-i18next'
-import type { BackgroundGlow, LabelScheme, ReconcileInterval, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, LABEL_SCHEMES, RECONCILE_INTERVALS, THEMES } from '@shared/types'
+import type {
+  BackgroundGlow,
+  DrawerOpener,
+  LabelScheme,
+  ReconcileInterval,
+  Theme
+} from '@shared/types'
+import {
+  BACKGROUND_GLOWS,
+  DRAWER_OPENERS,
+  LABEL_SCHEMES,
+  RECONCILE_INTERVALS,
+  THEMES
+} from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import AccountCard from './AccountCard'
@@ -34,12 +46,19 @@ const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
   manual: 'settings.reconcileInterval.manual'
 }
 
+const OPENER_LABEL_KEYS: Record<DrawerOpener, string> = {
+  card: 'settings.drawerOpener.card',
+  avatar: 'settings.drawerOpener.avatar'
+}
+
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
  * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
  * Instance-labels row (VRX-183): pill naming scheme — VRChat terms everywhere
  * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
  * native terms. Presentation only: the data stays platform-true.
+ * Drawer-opener row (VRX-228): whole-card pointer opener (default) vs the
+ * VRX-225 avatar-only opener.
  *
  * Settings persist across restarts (VRX-184): `useSettingsPersistence` in
  * App.tsx loads them on boot and saves every change through the settings IPC.
@@ -50,6 +69,7 @@ export default function SettingsView(): React.JSX.Element {
   const backgroundGlow = useSettingsStore((s) => s.settings.backgroundGlow)
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
@@ -148,6 +168,27 @@ export default function SettingsView(): React.JSX.Element {
                 labelKeys={SCHEME_LABEL_KEYS}
                 ariaLabel={t('settings.labelScheme.aria')}
                 onChange={(value) => updateSettings({ labelScheme: value })}
+              />
+            </div>
+
+            {/* Drawer-opener row (VRX-228): whole-card pointer opener (default,
+                owner ruling 2026-07-27) vs the VRX-225 avatar-only behavior.
+                The avatar button stays the semantic/keyboard opener either way. */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.drawerOpener.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.drawerOpener.description')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={DRAWER_OPENERS}
+                active={drawerOpener}
+                labelKeys={OPENER_LABEL_KEYS}
+                ariaLabel={t('settings.drawerOpener.aria')}
+                onChange={(value) => updateSettings({ drawerOpener: value })}
               />
             </div>
           </section>
