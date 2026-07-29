@@ -86,6 +86,17 @@ describe('useSettingsPersistence', () => {
     })
   })
 
+  it('persists drawerOpener through save-settings like its siblings (VRX-228)', async () => {
+    const bridge = stubBridge()
+    render(<Probe />)
+    await waitFor(() => expect(storeState().settings.theme).toBe('dark'))
+    act(() => useSettingsStore.getState().updateSettings({ drawerOpener: 'avatar' }))
+    await waitFor(() => expect(storeState().dirty).toBe(false))
+    expect(bridge.saveSettings).toHaveBeenCalledWith({
+      patch: expect.objectContaining({ drawerOpener: 'avatar', theme: 'dark' })
+    })
+  })
+
   it('GATES saves until the boot load lands, then merges boot-window edits over persisted values', async () => {
     const load = deferred<Settings>()
     const bridge = stubBridge({ getSettings: vi.fn().mockReturnValue(load.promise) })
