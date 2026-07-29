@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **ChilloutVR players can finally sign in.** The sign-in screen now has two tabs — VRChat and ChilloutVR — sharing one form, so a CVR-only player is no longer locked out of the app entirely. The card retints to match the platform you pick, and switching tabs always gives you a fresh form (your password never carries across, and password managers keep the two accounts separate). (VRX-217)
+- **Open a friend's card by clicking anywhere on their row.** The details panel now opens from the whole friend card, not just the profile picture — and clicking a different friend's card switches the panel in place. The Join button always wins over opening. Prefer the old behavior? Settings → Appearance → "Open details with: Profile picture only". (VRX-228)
+- **The status dot in the top bar is real now.** Green means every signed-in platform's live connection is up, amber means reconnecting, red means one is down — it used to be decoration that always pulsed green. Join failures caused by a not-yet-ready live connection also say so now, instead of a generic "Join failed". (VRX-223)
+- **A proper "Connecting…" screen on launch** instead of a blank window while the app checks your sessions on a slow network. (VRX-223)
+
+### Changed
+
+- **Joining two different friends back-to-back works now** — the 3-second join cooldown is per-friend instead of app-wide, and if you do hit it, the message says so. (VRX-223)
+- **Politer to the platforms' servers** (account-safety hardening): rate-limit waits can no longer be skipped by a rare retry timing race; profile-picture fetches to VRChat's API host are paced like every other API call; background refreshes are slightly randomized so many copies of VRX don't sync up. None of this changes what you see — it protects your account. (VRX-218)
+- **About 150 lines of dead code removed** and internal simplification of the sign-in forms and the friend-note editor — same behavior, much less machinery. (VRX-221)
+
 ## [0.11.1] - 2026-07-28
 
 ### Fixed
