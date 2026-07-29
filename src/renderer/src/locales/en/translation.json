@@ -260,6 +260,7 @@
   "login": {
     "subtitle": "Social VR Companion",
     "username": "Username or email",
+    "email": "Email address",
     "usernamePlaceholder": "you@example.com",
     "password": "Password",
     "passwordPlaceholder": "••••••••",
@@ -276,7 +277,12 @@
       "placeholder": "000000",
       "verify": "Verify",
       "back": "Back"
-    }
+    },
+    "tabs": {
+      "aria": "Sign-in platform"
+    },
+    "formAria": "{{platform}} sign-in",
+    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Your credentials are stored securely on this device."
   },
   "stepper": {
     "decrease": "Decrease",

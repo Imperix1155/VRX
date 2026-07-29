@@ -33,6 +33,14 @@ vi.mock('./components/AppShell', () => ({
 
 const msg = (key: string): string => i18n.t(key)
 
+// jsdom has no ResizeObserver (LoginScreen's platform tabs measure the bubble).
+class ResizeObserverStub {
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+
 function mockAuthStatuses(
   vrchat: AuthStatus,
   chilloutvr: AuthStatus,
