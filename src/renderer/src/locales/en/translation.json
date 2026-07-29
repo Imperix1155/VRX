@@ -1,5 +1,8 @@
 {
   "appName": "VRX",
+  "boot": {
+    "connecting": "Connecting…"
+  },
   "shell": {
     "subtitle": "Social VR Companion",
     "footer": "Social VR Companion",
@@ -20,6 +23,13 @@
     },
     "onlineCount_one": "{{count}} online",
     "onlineCount_other": "{{count}} online",
+    "connection": {
+      "label": "VRChat: {{vrchat}}; ChilloutVR: {{chilloutvr}}",
+      "live": "Live",
+      "reconnecting": "Reconnecting",
+      "down": "Down",
+      "signedOut": "Signed out"
+    },
     "comingSoon": "Coming soon"
   },
   "settings": {
@@ -146,6 +156,10 @@
     "error": "Could not load friends",
     "joinAria": "Join {{name}} in {{world}}",
     "joinFailed": "Couldn't join",
+    "joinFailure": {
+      "stale": "Live connection not ready — joins resume when the live feed reconnects",
+      "cooldown": "One moment — just launched a join"
+    },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
       "chilloutvr": "Connect ChilloutVR to see your friends here",

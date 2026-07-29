@@ -145,6 +145,7 @@ export abstract class ReconnectingPipeline<Prep> {
         continue
       }
 
+      this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
       const closed = await this.connectOnce(prep, generation)
       if (this.stopped || generation !== this.generation) return
 

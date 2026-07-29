@@ -420,6 +420,23 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByRole('status').textContent).toBe('')
   })
 
+  it.each([
+    ['stale', 'Live connection not ready — joins resume when the live feed reconnects'],
+    ['cooldown', 'One moment — just launched a join']
+  ] as const)('announces distinct %s denial copy in the drawer', async (reason, copy) => {
+    joinInstance.mockResolvedValue({ ok: false, reason })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    await act(async () => {
+      fireEvent.click(scoped.getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(scoped.getByRole('status').textContent).toBe(copy)
+  })
+
   it('the "/" search shortcut works while the non-modal drawer is open — but never from inside the notes textarea (VRX-225)', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')

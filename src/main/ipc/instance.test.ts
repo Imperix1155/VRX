@@ -133,7 +133,7 @@ describe('join-instance handler', () => {
     expect(openExternal).toHaveBeenCalledWith(launchUrl)
   })
 
-  it('enforces a per-platform in-flight lock and three-second cooldown', async () => {
+  it('keeps the per-platform join lock global while a launch is in flight', async () => {
     seed()
     let release!: () => void
     openExternal.mockImplementationOnce(
@@ -148,6 +148,24 @@ describe('join-instance handler', () => {
     ).resolves.toEqual({ ok: false, reason: 'cooldown' })
     release()
     await expect(first).resolves.toEqual({ ok: true })
+  })
+
+  it('allows friend B immediately after friend A but cools down a repeat join of A', async () => {
+    const friendB = friend({ platformUserId: 'usr_bea', displayName: 'Bea' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const revision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend(), friendB], revision)
+
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_bea', mode: 'vr' })
+    ).resolves.toEqual({ ok: true })
+    await expect(
+      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+
     now += 2_999
     await expect(
       call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })

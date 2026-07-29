@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { ConnectionHealth, Platform } from '@shared/types'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
+import { useAuthStatus } from '../queries/auth'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
@@ -28,6 +31,21 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   dashboard: 'settings.dashboard.heading',
   notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading'
+}
+
+const STATUS_POLL_MS = 7_500
+const HEALTH_LABEL_KEYS: Record<ConnectionHealth, string> = {
+  live: 'shell.connection.live',
+  reconnecting: 'shell.connection.reconnecting',
+  down: 'shell.connection.down'
+}
+
+function defaultConnectionHealth(): Record<Platform, ConnectionHealth> {
+  return { vrchat: 'down', chilloutvr: 'down' }
+}
+
+function parseConnectionHealth(value: unknown): ConnectionHealth {
+  return value === 'live' || value === 'reconnecting' || value === 'down' ? value : 'down'
 }
 
 // The platform filter is its OWN component so useSegmentedBubble mounts and
@@ -123,6 +141,74 @@ export default function TopBar(): React.JSX.Element {
   // here before, which made the slider cosmetic.
   const platform = useFriendsStore((s) => s.platformFilter)
   const setPlatform = useFriendsStore((s) => s.setPlatformFilter)
+  const vrcAuth = useAuthStatus('vrchat').data
+  const cvrAuth = useAuthStatus('chilloutvr').data
+  const [connectionHealth, setConnectionHealth] = useState(defaultConnectionHealth)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.vrx?.getAppStatus) return
+    const getAppStatus = window.vrx.getAppStatus
+    let active = true
+
+    async function refreshStatus(): Promise<void> {
+      try {
+        const status: unknown = await getAppStatus()
+        if (!active) return
+        if (typeof status !== 'object' || status === null || !('ws' in status)) {
+          setConnectionHealth(defaultConnectionHealth())
+          return
+        }
+        const ws: unknown = status.ws
+        if (typeof ws !== 'object' || ws === null) {
+          setConnectionHealth(defaultConnectionHealth())
+          return
+        }
+        setConnectionHealth({
+          vrchat: parseConnectionHealth('vrchat' in ws ? ws.vrchat : undefined),
+          chilloutvr: parseConnectionHealth('chilloutvr' in ws ? ws.chilloutvr : undefined)
+        })
+      } catch {
+        if (active) setConnectionHealth(defaultConnectionHealth())
+      }
+    }
+
+    void refreshStatus()
+    // Local IPC only: this never touches either platform's wire API, so a short
+    // fixed interval is safe and keeps reconnect state responsive.
+    const interval = window.setInterval(() => void refreshStatus(), STATUS_POLL_MS)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const isSignedIn = (state: string | undefined): boolean =>
+    state === 'authenticated' || state === 'error'
+  const vrcSignedIn = isSignedIn(vrcAuth?.state)
+  const cvrSignedIn = isSignedIn(cvrAuth?.state)
+  const countedHealth = [
+    ...(vrcSignedIn ? [connectionHealth.vrchat] : []),
+    ...(cvrSignedIn ? [connectionHealth.chilloutvr] : [])
+  ]
+  const worstHealth: ConnectionHealth = countedHealth.includes('down')
+    ? 'down'
+    : countedHealth.includes('reconnecting')
+      ? 'reconnecting'
+      : 'live'
+  const healthColor =
+    worstHealth === 'live'
+      ? 'var(--ingame)'
+      : worstHealth === 'reconnecting'
+        ? 'var(--warning)'
+        : 'var(--error)'
+  const connectionLabel = t('shell.connection.label', {
+    vrchat: vrcSignedIn
+      ? t(HEALTH_LABEL_KEYS[connectionHealth.vrchat])
+      : t('shell.connection.signedOut'),
+    chilloutvr: cvrSignedIn
+      ? t(HEALTH_LABEL_KEYS[connectionHealth.chilloutvr])
+      : t('shell.connection.signedOut')
+  })
 
   // Real online count for the §8 status indicator. Online = active OR in-game
   // presence (same definition as the dashboard's getDashboardStats). The friends
@@ -171,14 +257,17 @@ export default function TopBar(): React.JSX.Element {
           role="status"
           className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
         >
-          {/* Pulse dot — no keyframes in v1; motion-safe guard if animation is added later */}
           <span
-            className="w-[8px] h-[8px] rounded-full flex-none"
+            className={[
+              'w-[8px] h-[8px] rounded-full flex-none',
+              worstHealth === 'live' ? 'motion-safe:animate-pulse' : ''
+            ].join(' ')}
             style={{
-              background: 'var(--ingame)',
-              boxShadow: '0 0 10px var(--ingame)'
+              background: healthColor,
+              boxShadow: `0 0 10px ${healthColor}`
             }}
-            aria-hidden="true"
+            aria-label={connectionLabel}
+            title={connectionLabel}
           />
           {t('shell.onlineCount', { count: onlineCount })}
         </div>

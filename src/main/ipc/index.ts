@@ -15,12 +15,14 @@ import type { InstanceHandlerOptions } from './instance'
 import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
+import type { AppStatusService } from '../services/appStatus'
 
 export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountRegistry: AccountRegistry
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  appStatus: AppStatusService
   instance?: InstanceHandlerOptions
 }
 
@@ -28,7 +30,7 @@ export function registerIpcHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   options: IpcHandlerOptions
 ): void {
-  registerFriendsHandlers(adapters, options.locationAuthority)
+  registerFriendsHandlers(adapters, options.locationAuthority, options.appStatus)
   registerAvatarHandlers()
   registerAuthHandlers(adapters, options)
   registerAccountsHandlers(options.accountRegistry, options.accountSession)
@@ -37,7 +39,7 @@ export function registerIpcHandlers(
     socialStore: options.socialStore
   })
   registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
-  registerAppStatusHandlers()
+  registerAppStatusHandlers(options.appStatus)
   registerLaunchHandlers()
   registerSettingsHandlers()
 }

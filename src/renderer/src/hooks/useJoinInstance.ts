@@ -1,5 +1,14 @@
 import { useSyncExternalStore } from 'react'
+import type { InstanceActionResult } from '@shared/ipc'
 import type { Friend } from '@shared/types'
+
+export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['reason'] | 'unknown'
+
+export function joinFailureMessageKey(reason: JoinFailureReason): string {
+  if (reason === 'stale') return 'friends.joinFailure.stale'
+  if (reason === 'cooldown') return 'friends.joinFailure.cooldown'
+  return 'friends.joinFailed'
+}
 
 /** The composite key both platforms can't collide on (same shape as the
  *  row/list keys — an id alone could collide across platforms). */
@@ -14,6 +23,8 @@ interface JoinSnapshot {
    *  ATTRIBUTABLE (Codex re-review): only surfaces showing THAT friend blip,
    *  never every joinable pill. Null = no blip. */
   failedFriendId: string | null
+  /** Typed main-process denial retained so callers can render honest copy. */
+  failureReason: JoinFailureReason | null
 }
 
 interface JoinStore {
@@ -33,7 +44,11 @@ interface JoinStore {
  * would resurrect the split-state bug.
  */
 function createJoinStore(): JoinStore {
-  let snapshot: JoinSnapshot = { joining: false, failedFriendId: null }
+  let snapshot: JoinSnapshot = {
+    joining: false,
+    failedFriendId: null,
+    failureReason: null
+  }
   const listeners = new Set<() => void>()
   let failureTimer: number | null = null
 
@@ -47,15 +62,17 @@ function createJoinStore(): JoinStore {
       window.clearTimeout(failureTimer)
       failureTimer = null
     }
-    if (snapshot.failedFriendId != null) emit({ failedFriendId: null })
+    if (snapshot.failedFriendId != null || snapshot.failureReason != null) {
+      emit({ failedFriendId: null, failureReason: null })
+    }
   }
 
-  function showFailureBlip(friendKey: string): void {
+  function showFailureBlip(friendKey: string, reason: JoinFailureReason): void {
     if (failureTimer != null) window.clearTimeout(failureTimer)
-    emit({ failedFriendId: friendKey })
+    emit({ failedFriendId: friendKey, failureReason: reason })
     failureTimer = window.setTimeout(() => {
       failureTimer = null
-      emit({ failedFriendId: null })
+      emit({ failedFriendId: null, failureReason: null })
     }, 2_500)
   }
 
@@ -70,7 +87,7 @@ function createJoinStore(): JoinStore {
       // Guard the preload bridge explicitly — it is undefined in Preview and
       // tests (house rule), and a missing bridge is user-equivalent to a denial.
       if (!window.vrx) {
-        showFailureBlip(friendKey)
+        showFailureBlip(friendKey, 'unknown')
         return
       }
       // VRChat ignores mode; a CVR VR-mode picker is a future setting.
@@ -80,11 +97,11 @@ function createJoinStore(): JoinStore {
         mode: 'desktop'
       })
       if (result.ok) clearFailureBlip()
-      else showFailureBlip(friendKey)
+      else showFailureBlip(friendKey, result.reason)
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
       // unhandled rejection.
-      showFailureBlip(friendKey)
+      showFailureBlip(friendKey, 'unknown')
     } finally {
       emit({ joining: false })
     }
@@ -108,17 +125,18 @@ const sharedJoinStore = createJoinStore()
  * All state is GLOBAL via the shared store above: `isJoining` is true on
  * every surface while any join runs (all Join buttons disable together — no
  * enabled-looking button whose click silently no-ops), and the one 2.5s
- * failure blip is ATTRIBUTED to the friend that failed — callers show it via
- * `joinFailedFor(friend)`, so only that friend's pill/drawer blips (cleared
- * at the start of a new attempt and on success, wherever it fires). Callers
- * own event concerns (the row stopPropagation's its click).
+ * failure blip is ATTRIBUTED to the friend that failed. `joinFailureFor`
+ * retains the typed denial for honest copy, while `joinFailedFor` remains the
+ * boolean convenience API. Both clear at the start of a new attempt and on
+ * success, wherever it fires. Callers own event concerns.
  */
 export function useJoinInstance(): {
   isJoining: boolean
   joinFailedFor: (friend: Friend) => boolean
+  joinFailureFor: (friend: Friend) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
 } {
-  const { joining, failedFriendId } = useSyncExternalStore(
+  const { joining, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
     sharedJoinStore.getSnapshot,
     // Server snapshot: the SSR-rendered markup tests (renderToStaticMarkup)
@@ -128,6 +146,7 @@ export function useJoinInstance(): {
   return {
     isJoining: joining,
     joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend),
+    joinFailureFor: (friend) => (failedFriendId === friendJoinKey(friend) ? failureReason : null),
     join: sharedJoinStore.join
   }
 }

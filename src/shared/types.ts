@@ -176,17 +176,14 @@ export interface AccountScoped<T> {
 }
 
 // ─── App-level status / health (dashboard — VRX-79) ──────────────────────────
-/** Per-channel connection health, shown on the dashboard. */
-export type ConnectionHealth = 'live' | 'reconnecting' | 'down' | 'ok' | 'degraded' | 'failed'
+/** Platform live-feed health reported by the reconnecting pipelines. */
+export type ConnectionHealth = 'live' | 'reconnecting' | 'down'
 
 export interface AppStatus {
   /** WebSocket connection state per platform. */
   ws: Record<Platform, ConnectionHealth>
-  /** Last REST call result per platform. */
-  rest: Record<Platform, ConnectionHealth>
-  network: boolean
-  /** Timestamp (ms epoch) of the last successful full reconcile. */
-  lastReconcileAt: number | null
+  /** Timestamp (ms epoch) of the last successful full reconcile per platform. */
+  lastReconcileAt: Record<Platform, number | null>
 }
 
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────

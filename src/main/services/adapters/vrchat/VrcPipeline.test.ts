@@ -89,14 +89,18 @@ const USER = {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('VrcPipeline', () => {
-  it('connects with the token in the query string and emits live on open', async () => {
+  it('emits reconnecting when a session-backed dial starts, then live on open', async () => {
     const r = rig()
     r.pipeline.start()
     await tick()
 
     expect(r.urls[0]).toBe('wss://pipeline.vrchat.cloud/?authToken=authcookie_tok1')
+    expect(r.events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
     r.sockets[0]!.fire('open')
-    expect(r.events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'live' }])
+    expect(r.events).toEqual([
+      { type: 'connection', platform: 'vrchat', health: 'reconnecting' },
+      { type: 'connection', platform: 'vrchat', health: 'live' }
+    ])
     r.pipeline.stop()
   })
 
@@ -313,8 +317,50 @@ describe('VrcPipeline', () => {
     await tick()
 
     expect(r.urls).toHaveLength(0) // never dialed
-    expect(r.events).toContainEqual({ type: 'connection', platform: 'vrchat', health: 'down' })
+    expect(r.events.length).toBeGreaterThan(0)
+    expect(r.events.every((event) => event.type === 'connection' && event.health === 'down')).toBe(
+      true
+    )
     r.pipeline.stop()
+  })
+
+  it('drops a stale generation dial emission after stop and restart', async () => {
+    let releaseFirst!: (token: string) => void
+    const firstToken = new Promise<string>((resolve) => {
+      releaseFirst = resolve
+    })
+    let tokenCalls = 0
+    const events: AdapterEvent[] = []
+    const sockets: FakeSocket[] = []
+    const pipeline = new VrcPipeline({
+      tokenProvider: () => {
+        tokenCalls++
+        return tokenCalls === 1 ? firstToken : Promise.resolve('fresh-token')
+      },
+      onEvent: (event) => events.push(event),
+      socketFactory: () => {
+        const socket = new FakeSocket()
+        sockets.push(socket)
+        return socket
+      },
+      sleepFn: () => tick()
+    })
+
+    pipeline.start()
+    await tick()
+    pipeline.stop()
+    pipeline.start()
+    await tick()
+
+    expect(sockets).toHaveLength(1)
+    expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
+
+    releaseFirst('stale-token')
+    await tick()
+
+    expect(sockets).toHaveLength(1)
+    expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
+    pipeline.stop()
   })
 
   it('stop() closes the socket and halts reconnection', async () => {
@@ -322,6 +368,9 @@ describe('VrcPipeline', () => {
     r.pipeline.start()
     await tick()
     r.sockets[0]!.fire('open')
+    const healthsBeforeStop = r.events
+      .filter((event) => event.type === 'connection')
+      .map((event) => event.health)
 
     r.pipeline.stop()
     await tick()
@@ -330,7 +379,7 @@ describe('VrcPipeline', () => {
     expect(r.sockets[0]!.closeCalls).toBe(1)
     expect(r.sockets).toHaveLength(1) // no new dial after stop
     const healths = r.events.filter((e) => e.type === 'connection').map((e) => e.health)
-    expect(healths).not.toContain('reconnecting') // stop is silent, not a reconnect
+    expect(healths).toEqual(healthsBeforeStop) // stop is silent, not a reconnect
   })
 
   it('a throwing event handler never kills the message loop', async () => {
@@ -356,10 +405,13 @@ describe('VrcPipeline', () => {
     pipeline.start()
     await tick()
 
-    sockets[0]!.fire('open') // handler throws on the live event
+    sockets[0]!.fire('open')
     sockets[0]!.fire('message', frame('friend-offline', { userId: 'usr_1' }))
 
-    expect(events).toHaveLength(1) // the second event still flowed
+    expect(events).toEqual([
+      { type: 'connection', platform: 'vrchat', health: 'live' },
+      { type: 'friend-offline', platform: 'vrchat', platformUserId: 'usr_1' }
+    ])
     pipeline.stop()
   })
 

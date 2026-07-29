@@ -20,6 +20,16 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: () => ({ data: [], isPending: false, isError: false })
 }))
+vi.mock('../queries/auth', () => ({
+  useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
+    data: {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-test`,
+      displayName: 'Test User'
+    }
+  })
+}))
 
 // Silence electron-log/renderer (ErrorBoundary imports it): the REAL module
 // hangs the vitest worker at import — no IPC bridge in jsdom. Same mock as
