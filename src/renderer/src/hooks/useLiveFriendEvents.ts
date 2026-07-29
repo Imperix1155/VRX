@@ -140,6 +140,12 @@ export function useLiveFriendEvents(): void {
       // account B roster fetch resolves before B's connection reaches 'live'.
       latestSnapshot.delete(platform)
       const queryKey = friendsQueryKey(platform)
+      const noteQueryKey = ['friend-note', platform] as const
+      // Notes are infinitely stale and the drawer may be unmounted at this
+      // boundary. Drop every old-account note so a later remount cannot reuse
+      // epoch 0 from the previous identity.
+      void queryClient.cancelQueries({ queryKey: noteQueryKey })
+      queryClient.removeQueries({ queryKey: noteQueryKey })
       // removeQueries does not reset a mounted observer in query-core 5.101.2.
       // Set [] so every mounted consumer clears immediately and B live events
       // have a cache value to patch, then invalidate to fetch B's roster.

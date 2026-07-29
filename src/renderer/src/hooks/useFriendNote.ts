@@ -1,29 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { QueryClient, QueryClientContext, useMutation, useQuery } from '@tanstack/react-query'
+import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 
 const MAX_NOTE_LENGTH = 500
 
-interface NoteRevision {
-  platformAccountId: string
-  epoch: number
-}
+type NoteData = IpcInvoke['get-friend-note']['res']
+type SaveResult = IpcInvoke['set-friend-note']['res']
 
-interface PendingSave {
-  seq: number
+interface DraftState {
   key: string
-  revision: NoteRevision
-  draft: string
-}
-
-interface NoteState {
-  key: string
-  loaded: string | null
-  draft: string
-  revision: NoteRevision | null
+  generation: number
+  value: string
   dirty: boolean
-  pending: PendingSave | null
-  queued: string | null
-  nextSeq: number
+}
+
+interface SaveVariables {
+  generation: number
+  epoch: number
+  platform: Platform
+  friendId: string
+  note: string
 }
 
 export interface UseFriendNoteOptions {
@@ -37,166 +34,146 @@ export interface UseFriendNoteResult {
   onBlur: () => void
 }
 
-function initialState(key: string, nextSeq = 1): NoteState {
-  return {
-    key,
-    loaded: null,
-    draft: '',
-    revision: null,
-    dirty: false,
-    pending: null,
-    queued: null,
-    nextSeq
-  }
+function sameNote(left: string, right: string | null | undefined): boolean {
+  return left.trimEnd() === (right ?? '').trimEnd()
+}
+
+function emptyDraft(key: string, generation = 0): DraftState {
+  return { key, generation, value: '', dirty: false }
 }
 
 /** Load and edit a per-account, per-friend private note through the preload bridge. */
 export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): UseFriendNoteResult {
-  const key = `${platform}:${friendId}`
-  const [state, setState] = useState<NoteState>(() => initialState(key))
+  const providedClient = useContext(QueryClientContext)
+  const [fallbackClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  )
+  const queryClient = providedClient ?? fallbackClient
   const [boundaryEpoch, setBoundaryEpoch] = useState(0)
+  const key = `${platform}:${friendId}:${boundaryEpoch}`
+  const queryKey = ['friend-note', platform, friendId, boundaryEpoch] as const
+  const [draft, setDraft] = useState<DraftState>(() => emptyDraft(key))
+  const generationRef = useRef(0)
+  const savingRef = useRef(false)
+  const queuedRef = useRef<string | null>(null)
 
-  // Reset local state when the target friend changes. Done during render so the
-  // effect body can stay free of synchronous setState calls. The sequence
-  // counter is carried forward so an old in-flight completion can never match a
-  // new pending save after a fast switch.
-  if (state.key !== key) {
-    setState(initialState(key, state.nextSeq))
+  const bridgeCanRead =
+    typeof window !== 'undefined' && typeof window.vrx?.getFriendNote === 'function'
+  const query = useQuery(
+    {
+      queryKey,
+      queryFn: () => window.vrx.getFriendNote({ platform, friendId }),
+      staleTime: Infinity,
+      enabled: bridgeCanRead
+    },
+    queryClient
+  )
+
+  if (draft.key !== key) {
+    setDraft(emptyDraft(key, draft.generation + 1))
+  } else if (query.data !== undefined) {
+    const differs = !sameNote(draft.value, query.data.note)
+    if (!draft.dirty && differs) {
+      setDraft({ ...draft, value: query.data.note ?? '' })
+    } else if (draft.dirty && !differs) {
+      setDraft({ ...draft, dirty: false })
+    }
   }
 
-  // Clear all note state when the platform's account identity changes.
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.vrx?.onIdentityBoundary !== 'function') {
       return
     }
     return window.vrx.onIdentityBoundary(({ platform: boundaryPlatform }) => {
-      if (boundaryPlatform !== platform) return
-      setBoundaryEpoch((e) => e + 1)
-      setState((current) => initialState(current.key, current.nextSeq))
+      if (boundaryPlatform === platform) setBoundaryEpoch((epoch) => epoch + 1)
     })
   }, [platform])
 
-  // Load the saved note for the current friend/account.
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.vrx?.getFriendNote !== 'function') return
+    generationRef.current = draft.generation
+    savingRef.current = false
+    queuedRef.current = null
+  }, [draft.generation])
 
-    let active = true
-    const epoch = boundaryEpoch
-    window.vrx
-      .getFriendNote({ platform, friendId })
-      .then((res) => {
-        if (!active || boundaryEpoch !== epoch) return
-        setState((current) => {
-          if (current.key !== key) return current
-          const revision = res?.revision ?? null
-          if (current.dirty) {
-            // Don't clobber a draft the user is editing, but capture the lease
-            // so a subsequent save can still prove it belongs to this account.
-            return { ...current, revision }
+  const { mutate } = useMutation(
+    {
+      mutationFn: async (save: SaveVariables) => {
+        const saveQueryKey = ['friend-note', save.platform, save.friendId, save.epoch] as const
+        let note: string | null = save.note
+        try {
+          while (note !== null) {
+            const revision = queryClient.getQueryData<NoteData>(saveQueryKey)?.revision
+            if (revision === undefined) return
+            let result: SaveResult | undefined
+            try {
+              result = await window.vrx.setFriendNote({
+                platform: save.platform,
+                friendId: save.friendId,
+                note,
+                revision
+              })
+            } catch {
+              // Quiet failure: keep the draft dirty so the next blur retries.
+            }
+            const currentRevision = queryClient.getQueryData<NoteData>(saveQueryKey)?.revision
+            if (
+              generationRef.current !== save.generation ||
+              currentRevision?.platformAccountId !== revision.platformAccountId ||
+              currentRevision?.epoch !== revision.epoch
+            ) {
+              return
+            }
+            if (result?.ok) {
+              queryClient.setQueryData(saveQueryKey, { note, revision })
+            } else if (result?.reason === 'stale') {
+              await queryClient.refetchQueries({ queryKey: saveQueryKey, exact: true })
+            }
+            const queued = queuedRef.current
+            queuedRef.current = null
+            const persisted = queryClient.getQueryData<NoteData>(saveQueryKey)?.note
+            note = queued !== null && !sameNote(queued, persisted) ? queued : null
           }
-          const note = res?.note ?? null
-          return { ...current, loaded: note, draft: note ?? '', revision, dirty: false }
-        })
-      })
-      .catch(() => {
-        // Quiet failure: keep empty read-only draft until the bridge recovers.
-      })
-
-    return () => {
-      active = false
-    }
-  }, [platform, friendId, boundaryEpoch, key])
-
-  // A queued save drains from INSIDE the settle updaters below. React applies
-  // queued updaters in order, so a commitSave scheduled on a microtask from a
-  // settle updater always runs against the settled state (pending → null). No
-  // timers and no committed-state reads: CI proved every "wait for the commit"
-  // variant flaky (macrotask starved on ubuntu, microtask raced the ref sync).
-  // The ref keeps the drain pointing at the CURRENT friend's saver.
-  const commitSaveRef = useRef<(draft: string) => void>(() => {})
-
-  const commitSave = useCallback(
-    (draft: string): void => {
-      setState((current) => {
-        if (current.revision === null || current.pending !== null) return current
-        const seq = current.nextSeq
-        const epoch = boundaryEpoch
-        const revision = current.revision
-        const saveKey = current.key
-
-        // Resolve the queued follow-up draft once this save settles: drop it
-        // when it matches what the settle leaves on disk, otherwise resubmit
-        // it after this flush. commitSave's pending-guard makes StrictMode's
-        // double-invoked updaters harmless — the second submission bails.
-        const settleQueued = (inner: NoteState, loadedAfter: string | null): string | null => {
-          if (inner.queued === null) return null
-          if (inner.queued.trimEnd() === (loadedAfter ?? '').trimEnd()) return null
-          const next = inner.queued
-          queueMicrotask(() => commitSaveRef.current(next))
-          return next
+        } finally {
+          if (generationRef.current === save.generation) savingRef.current = false
         }
-
-        window.vrx
-          .setFriendNote({ platform, friendId, note: draft, revision })
-          .then((res) => {
-            setState((inner) => {
-              // Key/epoch/sequence match every completion to the request that
-              // spawned it; boundary crossings or friend switches must not
-              // apply stale responses.
-              if (inner.pending?.seq !== seq || boundaryEpoch !== epoch || inner.key !== saveKey) {
-                return inner
-              }
-              if (!res.ok) {
-                return { ...inner, pending: null, queued: settleQueued(inner, inner.loaded) }
-              }
-              const loaded = inner.pending.draft
-              const dirty = inner.draft.trimEnd() !== loaded.trimEnd()
-              return { ...inner, loaded, dirty, pending: null, queued: settleQueued(inner, loaded) }
-            })
-          })
-          .catch(() => {
-            setState((inner) =>
-              inner.pending?.seq === seq
-                ? { ...inner, pending: null, queued: settleQueued(inner, inner.loaded) }
-                : inner
-            )
-          })
-
-        return {
-          ...current,
-          pending: { seq, key: saveKey, revision, draft },
-          queued: null,
-          nextSeq: seq + 1
-        }
-      })
+      }
     },
-    [platform, friendId, boundaryEpoch]
+    queryClient
   )
-  useEffect(() => {
-    commitSaveRef.current = commitSave
-  })
 
   const onBlur = useCallback(() => {
-    const trimmed = state.draft.trimEnd()
-    if (trimmed === (state.loaded ?? '').trimEnd()) return
-    if (state.revision === null) return
-    if (typeof window === 'undefined' || typeof window.vrx?.setFriendNote !== 'function') return
-
-    if (state.pending !== null) {
-      setState((current) => ({ ...current, queued: current.draft }))
+    if (
+      !draft.dirty ||
+      query.data?.revision === undefined ||
+      typeof window === 'undefined' ||
+      typeof window.vrx?.setFriendNote !== 'function'
+    ) {
       return
     }
-
-    commitSave(state.draft)
-  }, [state.draft, state.loaded, state.revision, state.pending, commitSave])
-
-  const setValue = useCallback((value: string) => {
-    setState((current) => {
-      const draft = value.slice(0, MAX_NOTE_LENGTH)
-      const dirty = draft.trimEnd() !== (current.loaded ?? '').trimEnd()
-      return { ...current, draft, dirty }
+    if (savingRef.current) {
+      queuedRef.current = draft.value
+      return
+    }
+    savingRef.current = true
+    queuedRef.current = null
+    mutate({
+      generation: generationRef.current,
+      epoch: boundaryEpoch,
+      platform,
+      friendId,
+      note: draft.value
     })
-  }, [])
+  }, [boundaryEpoch, draft, friendId, mutate, platform, query.data?.revision])
 
-  return { value: state.draft, setValue, onBlur }
+  const setValue = useCallback(
+    (value: string) => {
+      setDraft((current) => {
+        const next = value.slice(0, MAX_NOTE_LENGTH)
+        return { ...current, value: next, dirty: !sameNote(next, query.data?.note) }
+      })
+    },
+    [query.data?.note]
+  )
+
+  return { value: draft.value, setValue, onBlur }
 }

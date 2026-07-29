@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFriendNote } from './useFriendNote'
+import { useLiveFriendEvents } from './useLiveFriendEvents'
 
 afterEach(() => {
   cleanup()
@@ -18,6 +21,22 @@ function makeRevision(
   return { platformAccountId, epoch }
 }
 
+function createWrapper(
+  strict = false,
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+  })
+) {
+  return function FriendNoteQueryWrapper({
+    children
+  }: {
+    children: React.ReactNode
+  }): React.JSX.Element {
+    const provided = <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    return strict ? <StrictMode>{provided}</StrictMode> : provided
+  }
+}
+
 describe('useFriendNote', () => {
   let getFriendNote: ReturnType<typeof vi.fn>
   let setFriendNote: ReturnType<typeof vi.fn>
@@ -30,6 +49,7 @@ describe('useFriendNote', () => {
     window.vrx = {
       getFriendNote,
       setFriendNote,
+      onFriendEvent: vi.fn(() => () => {}),
       onIdentityBoundary: vi.fn((cb) => {
         identityBoundaryCallbacks.push(cb)
         return () => {
@@ -54,7 +74,9 @@ describe('useFriendNote', () => {
 
   it('blurs once when the note changed', async () => {
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Saved note'))
 
@@ -70,9 +92,32 @@ describe('useFriendNote', () => {
     })
   })
 
+  it('sends exactly one save request under StrictMode', async () => {
+    getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(true)
+    })
+
+    await waitFor(() => expect(result.current.value).toBe('Saved note'))
+
+    act(() => result.current.setValue('Updated once'))
+    act(() => result.current.onBlur())
+
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    // React double-invokes state updaters in StrictMode. A bridge call made
+    // inside one would therefore issue duplicate IPC requests (VRX-213).
+    expect(setFriendNote).toHaveBeenCalledTimes(1)
+  })
+
   it('does not call setFriendNote on blur when the note is unchanged', async () => {
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Saved note'))
 
@@ -82,7 +127,9 @@ describe('useFriendNote', () => {
   })
 
   it('caps the draft at 500 characters', () => {
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     act(() => result.current.setValue('a'.repeat(501)))
     expect(result.current.value).toHaveLength(500)
@@ -90,7 +137,9 @@ describe('useFriendNote', () => {
 
   it('renders empty and read-only when the preload bridge is absent', () => {
     Object.defineProperty(window, 'vrx', { configurable: true, value: undefined })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     expect(result.current.value).toBe('')
     act(() => result.current.setValue('Local only'))
@@ -101,7 +150,9 @@ describe('useFriendNote', () => {
 
   it('retries a failed save on the next blur', async () => {
     let resolveSave: (value: { ok: boolean; reason?: string }) => void = () => {}
-    getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
+    getFriendNote
+      .mockResolvedValueOnce({ note: 'Saved note', revision: makeRevision('self', 1) })
+      .mockResolvedValueOnce({ note: 'Saved note', revision: makeRevision('self', 2) })
     setFriendNote
       .mockImplementationOnce(
         () =>
@@ -110,7 +161,9 @@ describe('useFriendNote', () => {
           })
       )
       .mockResolvedValueOnce({ ok: true })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Saved note'))
 
@@ -123,15 +176,24 @@ describe('useFriendNote', () => {
       await Promise.resolve()
     })
 
+    await waitFor(() => expect(getFriendNote).toHaveBeenCalledTimes(2))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+    expect(setFriendNote).toHaveBeenLastCalledWith({
+      platform: 'vrchat',
+      friendId: 'usr_a',
+      note: 'Try again',
+      revision: makeRevision('self', 2)
+    })
   })
 
   it('clears all note state on identity-boundary and refetches', async () => {
     getFriendNote
       .mockResolvedValueOnce({ note: 'Account A', revision: makeRevision('a', 1) })
       .mockResolvedValueOnce({ note: 'Account B', revision: makeRevision('b', 1) })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_x' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_x' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Account A'))
     expect(getFriendNote).toHaveBeenCalledTimes(1)
@@ -145,7 +207,9 @@ describe('useFriendNote', () => {
 
   it('skips save without a fresh revision after an identity-boundary', async () => {
     getFriendNote.mockResolvedValue({ note: 'Account A', revision: makeRevision('a', 1) })
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_x' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_x' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Account A'))
 
@@ -164,7 +228,9 @@ describe('useFriendNote', () => {
           resolveLoad = resolve
         })
     )
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     // Initial load is still in flight.
     act(() => result.current.setValue('User draft'))
@@ -183,7 +249,9 @@ describe('useFriendNote', () => {
           saveResolvers.push(resolve)
         })
     )
-    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
 
     await waitFor(() => expect(result.current.value).toBe('Original'))
 
@@ -204,10 +272,12 @@ describe('useFriendNote', () => {
 
     // "Second" is queued, not sent yet.
     expect(setFriendNote).toHaveBeenCalledTimes(1)
+    expect(result.current.value).toBe('Second')
 
     // Resolve "First" → the queue drains and sends "Second".
     act(() => saveResolvers[0]?.({ ok: true }))
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+    expect(result.current.value).toBe('Second')
     expect(setFriendNote).toHaveBeenNthCalledWith(2, {
       platform: 'vrchat',
       friendId: 'usr_a',
@@ -224,7 +294,7 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(2)
   })
 
-  it('carries the sequence counter across friend switches so stale completions never match', async () => {
+  it('fences stale completions across A→B→A friend switches', async () => {
     const saveResolvers: Array<(value: { ok: boolean }) => void> = []
     getFriendNote.mockImplementation((req: { platform: string; friendId: string }) => {
       const note = req.friendId === 'usr_a' ? 'A-note' : 'B-note'
@@ -238,17 +308,17 @@ describe('useFriendNote', () => {
     )
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
-      { initialProps: { friendId: 'usr_a' } }
+      { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper() }
     )
 
     await waitFor(() => expect(result.current.value).toBe('A-note'))
 
-    // Start a save for friend A (seq 1).
+    // Start the first save for friend A.
     act(() => result.current.setValue('A-first'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
 
-    // Switch to friend B; the counter carries forward (nextSeq becomes 2).
+    // Switching to friend B retires A's selection generation.
     rerender({ friendId: 'usr_b' })
     await waitFor(() => expect(result.current.value).toBe('B-note'))
 
@@ -256,7 +326,7 @@ describe('useFriendNote', () => {
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
 
-    // Switch back to friend A; the counter still carries forward (nextSeq becomes 3).
+    // Switching back to A creates another generation.
     rerender({ friendId: 'usr_a' })
     await waitFor(() => expect(result.current.value).toBe('A-note'))
 
@@ -264,8 +334,7 @@ describe('useFriendNote', () => {
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(3))
 
-    // The stale completion for the first A save (seq 1) must not affect the
-    // current A save (seq 3).
+    // The stale completion for the first A save must not affect the current A save.
     act(() => saveResolvers[0]?.({ ok: true }))
     await act(async () => {
       await Promise.resolve()
@@ -276,6 +345,42 @@ describe('useFriendNote', () => {
     // Resolve the current A save normally.
     act(() => saveResolvers[2]?.({ ok: true }))
     await waitFor(() => expect(result.current.value).toBe('A-third'))
+  })
+
+  it('does not resurrect an evicted note when an unmounted save resolves late', async () => {
+    let resolveSave: (value: { ok: true }) => void = () => {}
+    getFriendNote.mockResolvedValue({ note: 'Account A', revision: makeRevision('a', 1) })
+    setFriendNote.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    const noteKey = ['friend-note', 'vrchat', 'usr_a', 0] as const
+    renderHook(() => useLiveFriendEvents(), { wrapper: createWrapper(false, queryClient) })
+    const { result, unmount } = renderHook(
+      () => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }),
+      { wrapper: createWrapper(false, queryClient) }
+    )
+
+    await waitFor(() => expect(result.current.value).toBe('Account A'))
+    act(() => result.current.setValue('Late account A save'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+
+    unmount()
+    act(() => fireIdentityBoundary('vrchat'))
+    expect(queryClient.getQueryData(noteKey)).toBeUndefined()
+    await act(async () => {
+      resolveSave({ ok: true })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(queryClient.getQueryData(noteKey)).toBeUndefined()
   })
 
   it('ignores a completion for a previous friend after a fast switch', async () => {
@@ -289,7 +394,7 @@ describe('useFriendNote', () => {
     )
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
-      { initialProps: { friendId: 'usr_a' } }
+      { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper() }
     )
 
     await waitFor(() => expect(result.current.value).toBe('Note'))
