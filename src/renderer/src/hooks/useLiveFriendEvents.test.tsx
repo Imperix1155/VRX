@@ -350,6 +350,21 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
 })
 
 describe('useLiveFriendEvents — identity boundary', () => {
+  it('drops cached friend notes while the drawer hook is unmounted', () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcNoteKey = ['friend-note', 'vrchat', 'usr_a', 0] as const
+    const cvrNoteKey = ['friend-note', 'chilloutvr', G1, 0] as const
+    client.setQueryData(vrcNoteKey, { note: 'Account A private note' })
+    client.setQueryData(cvrNoteKey, { note: 'Other platform note' })
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(client.getQueryData(vrcNoteKey)).toBeUndefined()
+    expect(client.getQueryData(cvrNoteKey)).toEqual({ note: 'Other platform note' })
+  })
+
   it('clears a mounted useFriends observer immediately and refetches the new account (real QueryClient)', async () => {
     const accountA = [vrcFriend('Account A')]
     let resolveAccountB: ((friends: Friend[]) => void) | undefined
