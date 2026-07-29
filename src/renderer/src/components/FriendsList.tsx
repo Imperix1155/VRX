@@ -16,7 +16,7 @@ import { Avatar } from './Avatar'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
 import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
-import { useJoinInstance } from '../hooks/useJoinInstance'
+import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + badge REPLACE the old presence-dot + status-
@@ -99,7 +99,7 @@ const FriendRow = memo(function FriendRow({
   // so focus return still lands on the avatar (VRX-228 contract).
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
   // Shared join flow (VRX-166; one implementation with the drawer — VRX-69).
-  const { isJoining, joinFailedFor, join } = useJoinInstance()
+  const { isJoining, joinFailureFor, join } = useJoinInstance()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
@@ -130,6 +130,7 @@ const FriendRow = memo(function FriendRow({
     instancePill = t('friends.instance.private')
   }
   const joinable = isFriendJoinable(friend)
+  const joinFailure = joinFailureFor(friend)
 
   function joinFriend(event: MouseEvent<HTMLButtonElement>): void {
     // Containment is BACK (VRX-228): VRX-225 removed stopPropagation because the
@@ -280,7 +281,7 @@ const FriendRow = memo(function FriendRow({
               role="status"
               className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
             >
-              {joinFailedFor(friend) ? t('friends.joinFailed') : ''}
+              {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
             </span>
           </span>
         ) : (

@@ -42,7 +42,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
-import { useJoinInstance } from '../hooks/useJoinInstance'
+import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendNote } from '../hooks/useFriendNote'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
@@ -94,7 +94,8 @@ export default function FriendDrawer({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
-  const { isJoining, joinFailedFor, join } = useJoinInstance()
+  const { isJoining, joinFailureFor, join } = useJoinInstance()
+  const joinFailure = shown === null ? null : joinFailureFor(shown)
 
   // Esc closes while open; initial focus lands on the ✕ button. NO focus trap
   // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
@@ -303,7 +304,7 @@ export default function FriendDrawer({
                   role="status"
                   className="block min-h-[16px] text-center text-[12px] text-[var(--text-dim)]"
                 >
-                  {shown && joinFailedFor(shown) ? t('friends.joinFailed') : ''}
+                  {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
                 </span>
               </div>
             )}

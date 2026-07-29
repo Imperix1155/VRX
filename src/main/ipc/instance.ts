@@ -60,26 +60,27 @@ export function registerInstanceHandlers(
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
 
-    const actionKey = `${req.platform}:join` satisfies `${Platform}:${InstanceAction}`
-    const previous = lastActionAt.get(actionKey)
+    const inFlightKey = `${req.platform}:join` satisfies `${Platform}:${InstanceAction}`
+    const cooldownKey = `${req.platform}:${req.friendId}`
+    const previous = lastActionAt.get(cooldownKey)
     if (
-      inFlight.has(actionKey) ||
+      inFlight.has(inFlightKey) ||
       (previous !== undefined && clock() - previous < JOIN_COOLDOWN_MS)
     ) {
       return denied(req.platform, 'cooldown')
     }
 
-    inFlight.add(actionKey)
+    inFlight.add(inFlightKey)
     try {
       try {
         await shell.openExternal(url)
       } catch {
         return denied(req.platform, 'launch-failed')
       }
-      lastActionAt.set(actionKey, clock())
+      lastActionAt.set(cooldownKey, clock())
       return { ok: true }
     } finally {
-      inFlight.delete(actionKey)
+      inFlight.delete(inFlightKey)
     }
   })
 
