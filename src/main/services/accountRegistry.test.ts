@@ -93,49 +93,17 @@ describe('AccountRegistry', () => {
     ])
   })
 
-  it('tombstones only the explicitly removed account and hides it from Account[]', () => {
-    session.setIdentity('vrchat', 'usr_a')
-    recordCurrent('vrchat', 'Alice')
-
-    registry.remove('vrchat', 'usr_a')
-
-    expect(registry.listAccounts()).toEqual([])
-    expect(registry.listEntries()).toContainEqual({
-      platform: 'vrchat',
-      platformAccountId: 'usr_a',
-      displayName: 'Alice',
-      state: 'removed'
-    })
-  })
-
-  it('restores a tombstone when that account authenticates again', () => {
-    session.setIdentity('vrchat', 'usr_a')
-    recordCurrent('vrchat', 'Old name')
-    registry.remove('vrchat', 'usr_a')
-
-    recordCurrent('vrchat', 'New name')
-
-    expect(registry.listAccounts()).toEqual([
-      {
-        platform: 'vrchat',
-        platformAccountId: 'usr_a',
-        displayName: 'New name',
-        isActive: true
-      }
-    ])
-  })
-
   it('does not tombstone an account when AccountSession crosses an identity boundary', () => {
     session.setIdentity('vrchat', 'usr_a')
     recordCurrent('vrchat', 'Alice')
 
     session.setIdentity('vrchat', null)
 
-    expect(registry.listEntries()).toContainEqual({
+    expect(registry.listAccounts()).toContainEqual({
       platform: 'vrchat',
       platformAccountId: 'usr_a',
       displayName: 'Alice',
-      state: 'active'
+      isActive: true
     })
     expect(storage.writes).toHaveLength(1)
   })
@@ -168,7 +136,7 @@ describe('AccountRegistry', () => {
     expect(() => registry.recordAuthenticated('vrchat', 'usr_a', captured.epoch, 'Alice')).toThrow(
       'stale authenticated identity'
     )
-    expect(registry.listEntries()).toEqual([])
+    expect(registry.listAccounts()).toEqual([])
     expect(storage.writes).toHaveLength(0)
   })
 
@@ -215,16 +183,6 @@ describe('AccountRegistry', () => {
     expect(storage.writes).toHaveLength(1)
   })
 
-  it.each(['account:id', 'account.id', 'account id', 'account\nid', 'a'.repeat(129)])(
-    'rejects an unsafe removal account id (%j)',
-    (platformAccountId) => {
-      expect(() => registry.remove('vrchat', platformAccountId)).toThrow(
-        'invalid platformAccountId'
-      )
-      expect(storage.writes).toHaveLength(0)
-    }
-  )
-
   it('rejects persisted registry entries with unsafe platform account ids', () => {
     storage.value = {
       storeFormatVersion: ACCOUNT_REGISTRY_FORMAT_VERSION,
@@ -238,7 +196,7 @@ describe('AccountRegistry', () => {
       }
     }
 
-    expect(new AccountRegistry(session, storage).listEntries()).toEqual([])
+    expect(new AccountRegistry(session, storage).listAccounts()).toEqual([])
   })
 
   it('skips persistence when authenticated adoption is byte-identical', () => {

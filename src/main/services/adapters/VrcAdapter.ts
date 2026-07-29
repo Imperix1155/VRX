@@ -409,11 +409,6 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  importSession(): Promise<boolean> {
-    // VRCX session import lands in VRX-54.
-    return Promise.resolve(false)
-  }
-
   /** Fan an event out to all live subscribers — one throwing handler must not
    *  starve the others. Used by the pipeline AND for out-of-band signals like
    *  `auth-invalidated` (VRX-195). */

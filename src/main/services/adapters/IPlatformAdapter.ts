@@ -36,9 +36,6 @@ export interface IPlatformAdapter {
   verify2fa(code: string): Promise<LoginResult>
   /** Explicit logout: delete persisted credentials before clearing memory; throws if deletion fails. */
   clearSession(): void
-  /** Hybrid auth: import an existing VRCX/CVRX session if present. True if imported. */
-  importSession(): Promise<boolean>
-
   // ── Data (REST) ──
   getFriends(): Promise<Friend[]>
   getInstanceDetails(instanceId: string): Promise<InstanceInfo>

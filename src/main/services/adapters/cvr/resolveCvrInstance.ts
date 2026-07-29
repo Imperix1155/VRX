@@ -19,6 +19,7 @@
  */
 
 import { z } from 'zod'
+import { INSTANCE_CACHE_TTL_MS } from '@shared/constants'
 import { AuthError } from '../errors'
 import type { CvrFetcher } from './fetchCvrFriends'
 
@@ -80,8 +81,6 @@ export interface CvrInstanceResolver {
 
 // ─── Cache tuning ─────────────────────────────────────────────────────────────
 
-/** Success TTL — instances are more volatile than worlds (VRX-59 AC: 5 min). */
-export const CVR_INSTANCE_TTL_MS = 5 * 60_000
 /**
  * Failure TTL — long enough that a dead/private instance isn't hammered on
  * every snapshot delta, short enough that a transient API blip self-heals well
@@ -113,7 +112,7 @@ export function createCvrInstanceResolver(options: {
 }): CvrInstanceResolver {
   const { fetcher } = options
   const clock = options.clock ?? Date.now
-  const ttlMs = options.ttlMs ?? CVR_INSTANCE_TTL_MS
+  const ttlMs = options.ttlMs ?? INSTANCE_CACHE_TTL_MS
   const negativeTtlMs = options.negativeTtlMs ?? CVR_INSTANCE_NEGATIVE_TTL_MS
 
   const cache = new Map<string, CacheEntry>()
