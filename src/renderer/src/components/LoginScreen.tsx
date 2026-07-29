@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
@@ -37,27 +37,33 @@ const PLATFORM_TAB_LABEL_KEYS: Record<Platform, string> = {
   chilloutvr: 'settings.accounts.chilloutvr.label'
 }
 
-// Platform color on the WORD (§9.1), via the themed tokens — no new colors.
+// Platform color on the WORD (§9.1), via the AA-verified login-tab tokens
+// (raw --vrc fails contrast on the tinted card in both themes; raw --cvr
+// fails in light — see the --login-tab-* block in main.css for the numbers).
 const PLATFORM_TAB_TEXT_COLORS: Record<Platform, string> = {
-  vrchat: 'var(--vrc)',
-  chilloutvr: 'var(--cvr)'
+  vrchat: 'var(--login-tab-vrc)',
+  chilloutvr: 'var(--login-tab-cvr)'
 }
 
 // Solid platform submit button (the login screen's existing recipe, extended
 // per platform). Full literals only — Tailwind never sees interpolated classes.
 const PLATFORM_SUBMIT_CLASS: Record<Platform, string> = {
   vrchat: 'border-[var(--vrc)] bg-[var(--vrc)] text-[var(--text-on-vrc)]',
-  chilloutvr: 'border-[var(--cvr)] bg-[var(--cvr)] text-[var(--text-on-vrc)]'
+  // White on --cvr fails AA (2.92:1 dark / 3.77:1 light) — dark ink instead.
+  chilloutvr: 'border-[var(--cvr)] bg-[var(--cvr)] text-[var(--text-on-cvr)]'
 }
 const SUBMIT_BASE_CLASS =
   'rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 motion-safe:transition-opacity'
 
 function PlatformLoginForm({
   platform,
-  initialTwoFactor = null
+  initialTwoFactor = null,
+  onSubmittingChange
 }: {
   platform: Platform
   initialTwoFactor?: TwoFactorMethod | null
+  /** Lifts the flow's pending state so the screen can lock the platform tabs. */
+  onSubmittingChange: (isSubmitting: boolean) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const config = ACCOUNT_CARD_CONFIG[platform]
@@ -67,12 +73,22 @@ function PlatformLoginForm({
     // needs2fa there falls back to the generic error inside the hook).
     initialTwoFactor: platform === 'vrchat' ? initialTwoFactor : null
   })
+  // Lock the tabs while the login/verify IPC is in flight: a tab switch would
+  // remount this form and strand the late result in the unmounted hook (and
+  // enabled tabs would allow two platform logins to run concurrently).
+  useEffect(() => {
+    onSubmittingChange(flow.isSubmitting)
+  }, [flow.isSubmitting, onSubmittingChange])
+
   const formAriaLabel = t('login.formAria', { platform: t(config.labelKey) })
   const submitClassName = `${SUBMIT_BASE_CLASS} ${PLATFORM_SUBMIT_CLASS[platform]}`
 
   return flow.pending2fa === null ? (
     <CredentialsForm
-      idPrefix="login"
+      // Per-platform IDs + autocomplete sections partition password-manager
+      // autofill — the two tab forms must never cross-fill credentials.
+      idPrefix={`login-${platform}`}
+      autocompleteSection={platform}
       copy={loginCopy(platform)}
       username={flow.username}
       password={flow.password}
@@ -112,6 +128,8 @@ export default function LoginScreen({
   const { t } = useTranslation()
   // VRChat preselected — also the reprompt tab (initialTwoFactor is VRChat-only).
   const [platform, setPlatform] = useState<Platform>('vrchat')
+  // Lifted from the active form: true while its login/verify IPC is in flight.
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const config = ACCOUNT_CARD_CONFIG[platform]
 
   return (
@@ -155,6 +173,7 @@ export default function LoginScreen({
               textColors={PLATFORM_TAB_TEXT_COLORS}
               ariaLabel={t('login.tabs.aria')}
               onChange={setPlatform}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -164,6 +183,7 @@ export default function LoginScreen({
             key={platform}
             platform={platform}
             initialTwoFactor={initialTwoFactor}
+            onSubmittingChange={setIsSubmitting}
           />
 
           <p className="mt-[var(--space-6)] text-center text-xs text-[var(--text-faint)]">

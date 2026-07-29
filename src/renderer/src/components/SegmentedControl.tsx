@@ -13,6 +13,11 @@ import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
  * `textColors` (optional) applies a color to an option's WORD itself — the
  * platform-filter precedent (§9.1: VRC blue, CVR orange, never a filled color
  * block; the word is the R12 non-color signifier).
+ * `disabled` (optional) freezes the whole control — clicks and arrow keys stop
+ * changing the selection (VRX-217: the login tabs lock while a login IPC is in
+ * flight so a late result never lands in an unmounted flow). Radios stay
+ * focusable (aria-disabled, not the disabled attribute) per ARIA practice;
+ * visually the house reduced-opacity affordance.
  */
 export default function SegmentedControl<T extends string>({
   values,
@@ -20,7 +25,8 @@ export default function SegmentedControl<T extends string>({
   labelKeys,
   ariaLabel,
   onChange,
-  textColors
+  textColors,
+  disabled = false
 }: {
   values: readonly T[]
   active: T
@@ -28,6 +34,7 @@ export default function SegmentedControl<T extends string>({
   ariaLabel: string
   onChange: (value: T) => void
   textColors?: Partial<Record<T, string>>
+  disabled?: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const activeIndex = values.indexOf(active)
@@ -65,9 +72,13 @@ export default function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={active === value}
+            aria-disabled={disabled || undefined}
             tabIndex={active === value ? 0 : -1}
-            onClick={() => onChange(value)}
+            onClick={() => {
+              if (!disabled) onChange(value)
+            }}
             onKeyDown={(e) => {
+              if (disabled) return
               const next = segArrowTarget(e.key, index, values.length)
               const nextValue = next === null ? undefined : values[next]
               if (next === null || nextValue === undefined) return
@@ -77,7 +88,8 @@ export default function SegmentedControl<T extends string>({
             }}
             className={[
               'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
-              'border-0 bg-transparent cursor-pointer motion-safe:transition-colors whitespace-nowrap',
+              'border-0 bg-transparent motion-safe:transition-colors whitespace-nowrap',
+              disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
               wordColor != null
                 ? ''
                 : active === value

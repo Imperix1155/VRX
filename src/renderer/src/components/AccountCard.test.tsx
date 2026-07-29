@@ -225,6 +225,13 @@ describe('AccountCard — VRChat two-factor flow', () => {
       accountId: null,
       displayName: null
     })
+    // First login IPC is HELD so the in-flight state is observable.
+    let releaseLogin!: (result: { ok: boolean; needs2fa: boolean; method: 'totp' }) => void
+    bridge.login.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseLogin = resolve
+      })
+    )
     bridge.login.mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
     renderCard('vrchat', bridge)
 
@@ -235,18 +242,36 @@ describe('AccountCard — VRChat two-factor flow', () => {
     fireEvent.change(password, { target: { value: 'redpill' } })
     fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
 
+    // While the login IPC is in flight, the live field still holds the secret.
+    expect(password.value).toBe('redpill')
+    releaseLogin({ ok: false, needs2fa: true, method: 'totp' })
+
+    await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
+    // The password was dropped from state on the needs2fa transition. Pin it
+    // via the REMOUNTED field (mirrors the LoginScreen pin): press Back and
+    // the credentials form returns with the password EMPTY, username kept.
+    // (The old stale-node `password.value` check cannot observe this: React
+    // batches the password clear and the 2FA transition into ONE render, so
+    // the detached node never re-renders the cleared value.)
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.back') }))
+    const remounted = screen.getByLabelText<HTMLInputElement>(msg('settings.accounts.password'))
+    expect(remounted).not.toBe(password)
+    expect(remounted.value).toBe('')
+    expect(screen.getByLabelText<HTMLInputElement>(msg('settings.accounts.username')).value).toBe(
+      'neo'
+    )
+
+    // Re-submit and complete the second leg: the code verifies via the session
+    // cookie — the password is never resent.
+    fireEvent.change(remounted, { target: { value: 'zion' } })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
     const code = await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
-    // The password was dropped from state on the needs2fa transition — the
-    // typed secret must be nowhere in the document (mechanical update: the
-    // shared form components unmount/remount across the transition, so the
-    // old stale-node `password.value` check no longer observes state).
-    expect(screen.queryByDisplayValue('redpill')).toBeNull()
     fireEvent.change(code, { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
 
     await waitFor(() =>
       expect(bridge.verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
     )
-    expect(bridge.login).toHaveBeenCalledTimes(1)
+    expect(bridge.login).toHaveBeenCalledTimes(2)
   })
 })

@@ -261,19 +261,35 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     expect(vrcTab().tabIndex).toBe(0)
     expect(cvrTab().getAttribute('aria-checked')).toBe('false')
     expect(cvrTab().tabIndex).toBe(-1)
-    // Platform color rides on the WORD (§9.1) — never a filled color block.
-    expect(vrcTab().style.color).toBe('var(--vrc)')
-    expect(cvrTab().style.color).toBe('var(--cvr)')
+    // Platform color rides on the WORD (§9.1) via the AA login-tab tokens —
+    // never a filled color block.
+    expect(vrcTab().style.color).toBe('var(--login-tab-vrc)')
+    expect(cvrTab().style.color).toBe('var(--login-tab-cvr)')
   })
 
   it('switches to the ChilloutVR tab, rendering the email form', () => {
     setBridge({ login: vi.fn(), verify2fa: vi.fn() })
     renderLogin()
 
+    // Password-manager autofill is partitioned per platform (VRX-217): the
+    // VRChat form carries vrchat-scoped IDs + an MDN section-* autocomplete
+    // group so a manager can't cross-fill into the CVR form.
+    const vrcUsername = screen.getByLabelText(msg('login.username'))
+    expect(vrcUsername.id).toBe('login-vrchat-username')
+    expect(vrcUsername.getAttribute('autocomplete')).toBe('section-vrchat username')
+    const vrcPassword = screen.getByLabelText(msg('login.password'))
+    expect(vrcPassword.id).toBe('login-vrchat-password')
+    expect(vrcPassword.getAttribute('autocomplete')).toBe('section-vrchat current-password')
+
     fireEvent.click(cvrTab())
 
-    expect(screen.getByLabelText(msg('login.email'))).toBeTruthy()
-    expect(screen.getByLabelText(msg('login.password'))).toBeTruthy()
+    const cvrEmail = screen.getByLabelText(msg('login.email'))
+    expect(cvrEmail).toBeTruthy()
+    expect(cvrEmail.id).toBe('login-chilloutvr-username')
+    expect(cvrEmail.getAttribute('autocomplete')).toBe('section-chilloutvr username')
+    const cvrPassword = screen.getByLabelText(msg('login.password'))
+    expect(cvrPassword.id).toBe('login-chilloutvr-password')
+    expect(cvrPassword.getAttribute('autocomplete')).toBe('section-chilloutvr current-password')
     expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
     expect(cvrTab().getAttribute('aria-checked')).toBe('true')
   })
@@ -291,6 +307,34 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     fireEvent.click(vrcTab())
     expect(screen.getByLabelText<HTMLInputElement>(msg('login.username')).value).toBe('')
     expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+  })
+
+  it('locks the platform tabs while a login is in flight — no orphaned flow, no concurrent logins', async () => {
+    let release!: (result: { ok: boolean; needs2fa: boolean; error: string }) => void
+    const held = new Promise<{ ok: boolean; needs2fa: boolean; error: string }>((resolve) => {
+      release = resolve
+    })
+    setBridge({ login: vi.fn().mockReturnValue(held), verify2fa: vi.fn() })
+    renderLogin()
+    fillCredentials()
+    submit()
+
+    // Both radios lock with the aria-disabled affordance while the IPC is held…
+    await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBe('true'))
+    expect(vrcTab().getAttribute('aria-disabled')).toBe('true')
+    // …and clicking the other platform does NOT switch — the in-flight flow
+    // stays mounted so its late result can still surface here.
+    fireEvent.click(cvrTab())
+    expect(cvrTab().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+
+    // Settled: the late error lands in the LIVE form and the tabs re-enable.
+    release({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.unknown'))
+    await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBeNull())
+    fireEvent.click(cvrTab())
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
   })
 
   it('submits CVR credentials with platform chilloutvr', async () => {

@@ -9,6 +9,7 @@ import type { AuthCopy } from './copy'
  */
 export default function CredentialsForm({
   idPrefix,
+  autocompleteSection,
   copy,
   username,
   password,
@@ -23,6 +24,12 @@ export default function CredentialsForm({
   ariaLabel
 }: {
   idPrefix: string
+  /**
+   * MDN `section-*` autocomplete group (VRX-217): scopes password-manager
+   * autofill to one platform so a manager can't refill VRChat credentials
+   * into the ChilloutVR form (cross-service credential submission risk).
+   */
+  autocompleteSection?: string
   copy: AuthCopy
   username: string
   password: string
@@ -51,7 +58,9 @@ export default function CredentialsForm({
           <AuthInput
             id={`${idPrefix}-username`}
             type="text"
-            autoComplete="username"
+            autoComplete={
+              autocompleteSection ? `section-${autocompleteSection} username` : 'username'
+            }
             required
             value={username}
             onChange={(e) => onUsernameChange(e.target.value)}
@@ -71,7 +80,11 @@ export default function CredentialsForm({
           <AuthInput
             id={`${idPrefix}-password`}
             type="password"
-            autoComplete="current-password"
+            autoComplete={
+              autocompleteSection
+                ? `section-${autocompleteSection} current-password`
+                : 'current-password'
+            }
             required
             value={password}
             onChange={(e) => onPasswordChange(e.target.value)}

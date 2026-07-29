@@ -141,6 +141,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
       ) : flow.pending2fa === null ? (
         <CredentialsForm
           idPrefix={platform}
+          autocompleteSection={platform}
           copy={ACCOUNT_COPY}
           username={flow.username}
           password={flow.password}
