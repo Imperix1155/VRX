@@ -236,7 +236,11 @@ describe('AccountCard — VRChat two-factor flow', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
 
     const code = await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
-    expect(password.value).toBe('')
+    // The password was dropped from state on the needs2fa transition — the
+    // typed secret must be nowhere in the document (mechanical update: the
+    // shared form components unmount/remount across the transition, so the
+    // old stale-node `password.value` check no longer observes state).
+    expect(screen.queryByDisplayValue('redpill')).toBeNull()
     fireEvent.change(code, { target: { value: '123456' } })
     fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
 
