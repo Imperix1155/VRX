@@ -19,7 +19,8 @@ export default function CredentialsForm({
   onSubmit,
   inputFocusClass,
   submitClassName,
-  formClassName
+  formClassName,
+  ariaLabel
 }: {
   idPrefix: string
   copy: AuthCopy
@@ -33,10 +34,12 @@ export default function CredentialsForm({
   inputFocusClass: string
   submitClassName: string
   formClassName?: string
+  /** Announces the form's platform association (e.g. "VRChat sign-in"). */
+  ariaLabel?: string
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <form onSubmit={onSubmit} noValidate className={formClassName}>
+    <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">
         <div>
           <label

@@ -245,6 +245,7 @@
   "login": {
     "subtitle": "Social VR コンパニオン",
     "username": "ユーザー名またはメールアドレス",
+    "email": "メールアドレス",
     "usernamePlaceholder": "you@example.com",
     "password": "パスワード",
     "passwordPlaceholder": "••••••••",
@@ -261,7 +262,12 @@
       "placeholder": "000000",
       "verify": "確認",
       "back": "戻る"
-    }
+    },
+    "tabs": {
+      "aria": "サインインするプラットフォーム"
+    },
+    "formAria": "{{platform}} にサインイン",
+    "disclaimerChilloutvr": "お客様のデバイス上でChilloutVRに安全に接続します。資格情報はこのデバイスに安全に保存されます。"
   },
   "stepper": {
     "decrease": "減らす",

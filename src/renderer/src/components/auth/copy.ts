@@ -1,3 +1,5 @@
+import type { Platform } from '@shared/types'
+
 /**
  * i18n key bundles for the shared auth forms (VRX-221). The login screen and
  * Settings → Accounts speak parallel key families (`login.*` vs
@@ -23,7 +25,7 @@ export interface AuthCopy {
   }
 }
 
-export const LOGIN_COPY: AuthCopy = {
+const LOGIN_COPY_BASE: AuthCopy = {
   credentials: {
     username: 'login.username',
     usernamePlaceholder: 'login.usernamePlaceholder',
@@ -40,6 +42,20 @@ export const LOGIN_COPY: AuthCopy = {
     verify: 'login.twoFactor.verify',
     back: 'login.twoFactor.back'
   }
+}
+
+/**
+ * Login-screen copy for a platform tab (VRX-217). VRChat signs in with a
+ * username; ChilloutVR signs in with an EMAIL — the only wording difference.
+ */
+export function loginCopy(platform: Platform): AuthCopy {
+  if (platform === 'chilloutvr') {
+    return {
+      ...LOGIN_COPY_BASE,
+      credentials: { ...LOGIN_COPY_BASE.credentials, username: 'login.email' }
+    }
+  }
+  return LOGIN_COPY_BASE
 }
 
 export const ACCOUNT_COPY: AuthCopy = {

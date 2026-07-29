@@ -10,19 +10,24 @@ import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
  * (= 20px − 4px inset) to seat concentrically into
  * the track. A11y (audit W5): radiogroup + roving tabindex — one Tab stop,
  * arrows move the selection (same dialect as the TopBar filter).
+ * `textColors` (optional) applies a color to an option's WORD itself — the
+ * platform-filter precedent (§9.1: VRC blue, CVR orange, never a filled color
+ * block; the word is the R12 non-color signifier).
  */
 export default function SegmentedControl<T extends string>({
   values,
   active,
   labelKeys,
   ariaLabel,
-  onChange
+  onChange,
+  textColors
 }: {
   values: readonly T[]
   active: T
   labelKeys: Record<T, string>
   ariaLabel: string
   onChange: (value: T) => void
+  textColors?: Partial<Record<T, string>>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const activeIndex = values.indexOf(active)
@@ -50,31 +55,41 @@ export default function SegmentedControl<T extends string>({
         }}
         aria-hidden="true"
       />
-      {values.map((value, index) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={active === value}
-          tabIndex={active === value ? 0 : -1}
-          onClick={() => onChange(value)}
-          onKeyDown={(e) => {
-            const next = segArrowTarget(e.key, index, values.length)
-            const nextValue = next === null ? undefined : values[next]
-            if (next === null || nextValue === undefined) return
-            e.preventDefault()
-            onChange(nextValue)
-            focusRadioSibling(e.currentTarget, next)
-          }}
-          className={[
-            'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
-            'border-0 bg-transparent cursor-pointer motion-safe:transition-colors whitespace-nowrap',
-            active === value ? 'text-[var(--text)]' : 'text-[var(--text-dim)]'
-          ].join(' ')}
-        >
-          {t(labelKeys[value])}
-        </button>
-      ))}
+      {values.map((value, index) => {
+        // A colored word carries its hue in BOTH states (like the TopBar filter);
+        // uncolored options keep the active=full / inactive=dim text treatment.
+        const wordColor = textColors?.[value]
+        return (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={active === value}
+            tabIndex={active === value ? 0 : -1}
+            onClick={() => onChange(value)}
+            onKeyDown={(e) => {
+              const next = segArrowTarget(e.key, index, values.length)
+              const nextValue = next === null ? undefined : values[next]
+              if (next === null || nextValue === undefined) return
+              e.preventDefault()
+              onChange(nextValue)
+              focusRadioSibling(e.currentTarget, next)
+            }}
+            className={[
+              'relative z-10 flex-1 text-[12.5px] font-semibold px-[13px] py-[6px] rounded-[9px]',
+              'border-0 bg-transparent cursor-pointer motion-safe:transition-colors whitespace-nowrap',
+              wordColor != null
+                ? ''
+                : active === value
+                  ? 'text-[var(--text)]'
+                  : 'text-[var(--text-dim)]'
+            ].join(' ')}
+            style={wordColor != null ? { color: wordColor } : undefined}
+          >
+            {t(labelKeys[value])}
+          </button>
+        )
+      })}
     </div>
   )
 }

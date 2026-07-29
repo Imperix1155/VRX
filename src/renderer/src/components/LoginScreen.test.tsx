@@ -15,6 +15,14 @@ import LoginScreen from './LoginScreen'
 
 const msg = (key: string): string => i18n.t(key)
 
+// jsdom has no ResizeObserver (the segmented control's bubble measures the track).
+class ResizeObserverStub {
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+}
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+
 type VrxBridge = {
   login: ReturnType<typeof vi.fn>
   verify2fa: ReturnType<typeof vi.fn>
@@ -233,5 +241,107 @@ describe('LoginScreen (W6)', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(msg('login.error.unknown'))
+  })
+})
+
+describe('LoginScreen — platform tabs (VRX-217)', () => {
+  function cvrTab(): HTMLElement {
+    return screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') })
+  }
+  function vrcTab(): HTMLElement {
+    return screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') })
+  }
+
+  it('renders the tabs as a radiogroup with VRChat preselected and roving tabindex', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+
+    expect(screen.getByRole('radiogroup', { name: msg('login.tabs.aria') })).toBeTruthy()
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+    expect(vrcTab().tabIndex).toBe(0)
+    expect(cvrTab().getAttribute('aria-checked')).toBe('false')
+    expect(cvrTab().tabIndex).toBe(-1)
+    // Platform color rides on the WORD (§9.1) — never a filled color block.
+    expect(vrcTab().style.color).toBe('var(--vrc)')
+    expect(cvrTab().style.color).toBe('var(--cvr)')
+  })
+
+  it('switches to the ChilloutVR tab, rendering the email form', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+
+    fireEvent.click(cvrTab())
+
+    expect(screen.getByLabelText(msg('login.email'))).toBeTruthy()
+    expect(screen.getByLabelText(msg('login.password'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('clears ALL typed state when switching tabs — a fresh form per platform', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+
+    fillCredentials()
+    fireEvent.click(cvrTab())
+    // Nothing carries across account systems — not even the username.
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.email')).value).toBe('')
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+
+    fireEvent.click(vrcTab())
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.username')).value).toBe('')
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+  })
+
+  it('submits CVR credentials with platform chilloutvr', async () => {
+    const login = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({ login, verify2fa: vi.fn() })
+    const { queryClient } = renderLogin()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.signIn') }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalled())
+    expect(login).toHaveBeenCalledWith({
+      platform: 'chilloutvr',
+      credentials: { username: 'trinity@example.com', password: 'zion' }
+    })
+  })
+
+  it('falls back to the generic error if needs2fa ever arrives for ChilloutVR — never a dead 2FA prompt', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa: vi.fn()
+    })
+    renderLogin()
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.signIn') }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.unknown'))
+    // CVR has no 2FA — an unusable code prompt must NOT render.
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+  })
+
+  it('keeps the seeded VRChat 2FA reprompt on the VRChat tab (VRX-173)', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin('totp')
+
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByText(msg('login.twoFactor.promptTotp'))).toBeTruthy()
   })
 })

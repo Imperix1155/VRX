@@ -25,7 +25,8 @@ export default function TwoFactorForm({
   inputFocusClass,
   submitClassName,
   formClassName,
-  promptClassName
+  promptClassName,
+  ariaLabel
 }: {
   idPrefix: string
   copy: AuthCopy
@@ -40,10 +41,12 @@ export default function TwoFactorForm({
   submitClassName: string
   formClassName?: string
   promptClassName?: string
+  /** Announces the form's platform association (e.g. "VRChat sign-in"). */
+  ariaLabel?: string
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <form onSubmit={onSubmit} noValidate className={formClassName}>
+    <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">
         {/* The prompt sits inside the gap column (AccountCard's original layout);
             LoginScreen adds mb-[space-1] so gap + margin reproduce its mb-[space-4]. */}
