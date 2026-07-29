@@ -6,6 +6,7 @@ import { AuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
+import { AppStatusService } from '../appStatus'
 import { applyFriendEvent } from '../../../renderer/src/utils/applyFriendEvent'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
@@ -1420,6 +1421,7 @@ describe('VrcAdapter', () => {
       })
       const reset = vi.spyOn(engine, 'resetPlatform')
       const events: AdapterEvent[] = []
+      const appStatus = new AppStatusService()
       const adapter = new VrcAdapter(fakeStore(), noopSleep, {
         socketFactory: () => {
           const socket = new DrivableVrcSocket()
@@ -1433,11 +1435,16 @@ describe('VrcAdapter', () => {
       const before = (adapter as unknown as { sessionGeneration: number }).sessionGeneration
       const unsub = adapter.subscribe((event) => {
         events.push(event)
+        if (event.type === 'connection') {
+          appStatus.recordConnection(event.platform, event.health)
+        }
         engine.consume(event)
       })
       await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
       const oldSocket = sockets[0]!
       oldSocket.fire('open')
+      expect(appStatus.snapshot().ws.vrchat).toBe('live')
       oldSocket.fire(
         'message',
         pipelineFrame('friend-active', { userId: pipelineUser.id, user: pipelineUser })
@@ -1452,6 +1459,9 @@ describe('VrcAdapter', () => {
       )
       expect(reset).toHaveBeenCalledWith('vrchat')
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
+      expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
 
       oldSocket.fire(
         'message',
@@ -1461,9 +1471,16 @@ describe('VrcAdapter', () => {
           location: 'wrld_old:2'
         })
       )
-      expect(events).toEqual([])
+      expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
       expect(alerts).toEqual([])
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
+
+      sockets[1]!.fire('open')
+      expect(events).toEqual([
+        { type: 'connection', platform: 'vrchat', health: 'reconnecting' },
+        { type: 'connection', platform: 'vrchat', health: 'live' }
+      ])
+      expect(appStatus.snapshot().ws.vrchat).toBe('live')
       unsub()
     })
 
@@ -1942,7 +1959,7 @@ describe('VrcAdapter', () => {
       await vi.waitFor(() => expect(events.length).toBeGreaterThan(0))
       await new Promise((resolve) => setTimeout(resolve, 0))
       await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(events).toEqual([
+      expect(events.filter((event) => event.type === 'world-metadata')).toEqual([
         {
           type: 'world-metadata',
           platform: 'vrchat',

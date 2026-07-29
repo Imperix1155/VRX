@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import type { AppStatusService } from '../services/appStatus'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 
@@ -9,7 +10,8 @@ const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 
 export function registerFriendsHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
-  authority: LocationAuthority
+  authority: LocationAuthority,
+  appStatus: AppStatusService
 ): void {
   ipcMain.handle('get-friends', async (event, req: IpcInvoke['get-friends']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
@@ -19,6 +21,7 @@ export function registerFriendsHandlers(
     const revision = authority.captureSeedRevision(req.platform)
     const friends = await adapter.getFriends()
     authority.seed(req.platform, friends, revision)
+    appStatus.recordReconcile(req.platform)
     return friends
   })
 }

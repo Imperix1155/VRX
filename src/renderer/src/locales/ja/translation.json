@@ -1,5 +1,8 @@
 {
   "appName": "VRX",
+  "boot": {
+    "connecting": "接続中…"
+  },
   "shell": {
     "subtitle": "Social VR コンパニオン",
     "footer": "Social VR コンパニオン",
@@ -19,6 +22,13 @@
       "aria": "プラットフォームフィルター"
     },
     "onlineCount_other": "{{count}}人がオンライン",
+    "connection": {
+      "label": "VRChat: {{vrchat}}、ChilloutVR: {{chilloutvr}}",
+      "live": "接続中",
+      "reconnecting": "再接続中",
+      "down": "切断",
+      "signedOut": "サインアウト"
+    },
     "comingSoon": "近日公開"
   },
   "settings": {
@@ -145,6 +155,10 @@
     "error": "フレンドを読み込めませんでした",
     "joinAria": "{{name}}さんがいる{{world}}に参加",
     "joinFailed": "参加できません",
+    "joinFailure": {
+      "stale": "ライブ接続の準備ができていません — ライブフィードの再接続後に参加できます",
+      "cooldown": "少々お待ちください — 参加を起動したばかりです"
+    },
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",
