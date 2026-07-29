@@ -210,7 +210,7 @@ describe('LocationAuthority', () => {
     expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('i+live-instance')
   })
 
-  it.each(['reconnecting', 'down', 'degraded', 'failed'] as const)(
+  it.each(['reconnecting', 'down'] as const)(
     'gates joins when connection health becomes %s',
     (health) => {
       const authority = new LocationAuthority()

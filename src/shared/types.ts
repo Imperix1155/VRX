@@ -176,17 +176,14 @@ export interface AccountScoped<T> {
 }
 
 // ─── App-level status / health (dashboard — VRX-79) ──────────────────────────
-/** Per-channel connection health, shown on the dashboard. */
-export type ConnectionHealth = 'live' | 'reconnecting' | 'down' | 'ok' | 'degraded' | 'failed'
+/** Platform live-feed health reported by the reconnecting pipelines. */
+export type ConnectionHealth = 'live' | 'reconnecting' | 'down'
 
 export interface AppStatus {
   /** WebSocket connection state per platform. */
   ws: Record<Platform, ConnectionHealth>
-  /** Last REST call result per platform. */
-  rest: Record<Platform, ConnectionHealth>
-  network: boolean
-  /** Timestamp (ms epoch) of the last successful full reconcile. */
-  lastReconcileAt: number | null
+  /** Timestamp (ms epoch) of the last successful full reconcile per platform. */
+  lastReconcileAt: Record<Platform, number | null>
 }
 
 // ─── Theme (VRX-115) ──────────────────────────────────────────────────────────
@@ -221,6 +218,18 @@ export type ReconcileInterval = (typeof RECONCILE_INTERVALS)[number]
 // the platform filter and the theme control; owner rule 2026-07-05).
 export const LABEL_SCHEMES = ['vrchat', 'platform-native', 'chilloutvr'] as const
 export type LabelScheme = (typeof LABEL_SCHEMES)[number]
+
+// ─── Friend-drawer opener (VRX-228) ──────────────────────────────────────────
+/** Which POINTER surface opens the friend-details drawer: `card` = anywhere on
+ *  the friend's row (the default — owner ruling 2026-07-27, knowingly superseding
+ *  the VRX-225 avatar-only ruling; the Join pill always wins over open), `avatar`
+ *  = the VRX-225 avatar-button-only behavior. The avatar <button> remains the
+ *  semantic/keyboard opener (and the focus-return target) in BOTH modes — the
+ *  setting only expands the pointer target. Single source for both the
+ *  `DrawerOpener` type and the settings schema's `drawerOpener` enum. */
+// Order is the DISPLAY order (default first).
+export const DRAWER_OPENERS = ['card', 'avatar'] as const
+export type DrawerOpener = (typeof DRAWER_OPENERS)[number]
 
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct

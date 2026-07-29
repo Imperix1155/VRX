@@ -81,6 +81,24 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     ])
   })
 
+  it('renders the drawer-opener row in Whole card | Avatar only order and writes through updateSettings (VRX-228)', () => {
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.drawerOpener.aria') })
+    const radios = [...group.querySelectorAll('[role="radio"]')]
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      msg('settings.drawerOpener.card'),
+      msg('settings.drawerOpener.avatar')
+    ])
+    // Default: whole card (owner ruling 2026-07-27).
+    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.drawerOpener.card')
+    )
+
+    fireEvent.click(radios[1]!)
+    expect(useSettingsStore.getState().settings.drawerOpener).toBe('avatar')
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
   it('renders NO in-panel category selector — the TopBar slot is the only one (owner rule)', () => {
     renderSettings()
     expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()

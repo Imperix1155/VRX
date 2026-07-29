@@ -27,7 +27,8 @@ describe('settings schema', () => {
       notifyFriendOffline: false,
       notifyHotInstance: false,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m'
+      reconcileInterval: '5m',
+      drawerOpener: 'card'
     })
   })
 
@@ -88,6 +89,14 @@ describe('settings schema', () => {
     expect(parseSettings({ theme: 'dark' }).reconcileInterval).toBe('5m')
     expect(parseSettings({ reconcileInterval: '1m' }).reconcileInterval).toBe('5m')
     expect(parseSettings({ reconcileInterval: 5 }).reconcileInterval).toBe('5m')
+  })
+
+  it('drawerOpener: accepts both surfaces, defaults missing/invalid to card (VRX-228)', () => {
+    expect(parseSettings({ drawerOpener: 'card' }).drawerOpener).toBe('card')
+    expect(parseSettings({ drawerOpener: 'avatar' }).drawerOpener).toBe('avatar')
+    expect(parseSettings({ theme: 'dark' }).drawerOpener).toBe('card')
+    expect(parseSettings({ drawerOpener: 'whole-row' }).drawerOpener).toBe('card')
+    expect(parseSettings({ drawerOpener: 1 }).drawerOpener).toBe('card')
   })
 
   it('maps every reconcile cadence to its background interval', () => {
@@ -204,9 +213,10 @@ describe('migration runner', () => {
 
     expect(parseSettings(v1)).toEqual({
       ...v1,
-      version: 4,
+      version: 5,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m'
+      reconcileInterval: '5m',
+      drawerOpener: 'card'
     })
   })
 
@@ -229,9 +239,10 @@ describe('migration runner', () => {
 
     expect(parseSettings(v2)).toEqual({
       ...v2,
-      version: 4,
+      version: 5,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m'
+      reconcileInterval: '5m',
+      drawerOpener: 'card'
     })
   })
 
@@ -253,7 +264,34 @@ describe('migration runner', () => {
       backgroundGlow: 'vivid'
     }
 
-    expect(parseSettings(v3)).toEqual({ ...v3, version: 4, reconcileInterval: '5m' })
+    expect(parseSettings(v3)).toEqual({
+      ...v3,
+      version: 5,
+      reconcileInterval: '5m',
+      drawerOpener: 'card'
+    })
+  })
+
+  it('migrates v4 → v5 without losing or changing any existing field', () => {
+    const v4 = {
+      version: 4,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false,
+      backgroundGlow: 'vivid',
+      reconcileInterval: 'manual'
+    }
+
+    expect(parseSettings(v4)).toEqual({ ...v4, version: 5, drawerOpener: 'card' })
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
@@ -294,6 +332,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
   it('makes an older v3 build refuse a v4 file', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 4 }, 3)).toBe(false)
+  })
+
+  it('makes an older v4 build refuse a v5 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 5 }, 4)).toBe(false)
   })
 
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
@@ -345,5 +387,22 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.reconcileInterval).toBe('manual')
     expect(parseSettings(disk).reconcileInterval).toBe('manual')
+  })
+
+  it('prevents a v4 build from stripping drawerOpener during a downgrade round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 5,
+      drawerOpener: 'avatar'
+    }
+    const oldV4Normalized = { ...disk, version: 4 }
+    Reflect.deleteProperty(oldV4Normalized, 'drawerOpener')
+
+    // This is the v4 build's load-and-tidy write. The v5 boundary must block
+    // the write that would otherwise strip drawerOpener from disk.
+    if (shouldPersistSettings(disk, 4)) disk = oldV4Normalized
+
+    expect(disk.drawerOpener).toBe('avatar')
+    expect(parseSettings(disk).drawerOpener).toBe('avatar')
   })
 })
