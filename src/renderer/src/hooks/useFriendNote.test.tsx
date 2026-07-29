@@ -148,6 +148,28 @@ describe('useFriendNote', () => {
     expect(getFriendNote).not.toHaveBeenCalled()
   })
 
+  it('does not read or cache a note while the drawer has no selected friend', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    const emptyNoteKey = ['friend-note', 'vrchat', '', 0] as const
+
+    renderHook(() => useFriendNote({ platform: 'vrchat', friendId: '' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getFriendNote).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(emptyNoteKey)).toBeUndefined()
+    expect(
+      queryClient.getQueryCache().find({ queryKey: emptyNoteKey, exact: true })
+    ).toBeUndefined()
+  })
+
   it('retries a failed save on the next blur', async () => {
     let resolveSave: (value: { ok: boolean; reason?: string }) => void = () => {}
     getFriendNote
@@ -294,11 +316,20 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(2)
   })
 
-  it('fences stale completions across A→B→A friend switches', async () => {
-    const saveResolvers: Array<(value: { ok: boolean }) => void> = []
+  it('drains a queued final draft for its own friend after the selection switches', async () => {
+    const saveResolvers: Array<(value: { ok: true }) => void> = []
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    const aNoteKey = ['friend-note', 'vrchat', 'usr_a', 0] as const
+    const bNoteKey = ['friend-note', 'vrchat', 'usr_b', 0] as const
+    const aRevision = makeRevision('self', 7)
     getFriendNote.mockImplementation((req: { platform: string; friendId: string }) => {
-      const note = req.friendId === 'usr_a' ? 'A-note' : 'B-note'
-      return Promise.resolve({ note, revision: makeRevision('self', 1) })
+      return Promise.resolve(
+        req.friendId === 'usr_a'
+          ? { note: 'A-note', revision: aRevision }
+          : { note: 'B-note', revision: makeRevision('self', 7) }
+      )
     })
     setFriendNote.mockImplementation(
       () =>
@@ -308,46 +339,85 @@ describe('useFriendNote', () => {
     )
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
-      { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper() }
+      { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper(false, queryClient) }
     )
 
     await waitFor(() => expect(result.current.value).toBe('A-note'))
 
-    // Start the first save for friend A.
-    act(() => result.current.setValue('A-first'))
+    act(() => result.current.setValue('First'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
 
-    // Switching to friend B retires A's selection generation.
+    // Clicking B blurs A before the selection commit, so A's final draft queues.
+    act(() => result.current.setValue('Second'))
+    act(() => result.current.onBlur())
     rerender({ friendId: 'usr_b' })
     await waitFor(() => expect(result.current.value).toBe('B-note'))
 
-    act(() => result.current.setValue('B-save'))
-    act(() => result.current.onBlur())
-    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
-
-    // Switching back to A creates another generation.
-    rerender({ friendId: 'usr_a' })
-    await waitFor(() => expect(result.current.value).toBe('A-note'))
-
-    act(() => result.current.setValue('A-third'))
-    act(() => result.current.onBlur())
-    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(3))
-
-    // The stale completion for the first A save must not affect the current A save.
     act(() => saveResolvers[0]?.({ ok: true }))
-    await act(async () => {
-      await Promise.resolve()
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+    expect(setFriendNote).toHaveBeenNthCalledWith(2, {
+      platform: 'vrchat',
+      friendId: 'usr_a',
+      note: 'Second',
+      revision: aRevision
     })
-    expect(result.current.value).toBe('A-third')
-    expect(setFriendNote).toHaveBeenCalledTimes(3)
 
-    // Resolve the current A save normally.
-    act(() => saveResolvers[2]?.({ ok: true }))
-    await waitFor(() => expect(result.current.value).toBe('A-third'))
+    act(() => saveResolvers[1]?.({ ok: true }))
+    await waitFor(() => {
+      expect(queryClient.getQueryData(aNoteKey)).toEqual({ note: 'Second', revision: aRevision })
+    })
+    expect(queryClient.getQueryData(bNoteKey)).toEqual({
+      note: 'B-note',
+      revision: makeRevision('self', 7)
+    })
+    expect(result.current.value).toBe('B-note')
+    expect(setFriendNote).not.toHaveBeenCalledWith(expect.objectContaining({ friendId: 'usr_b' }))
   })
 
-  it('does not resurrect an evicted note when an unmounted save resolves late', async () => {
+  it('surfaces a landed save from its own cache after an A→B→A switch', async () => {
+    let resolveSave: (value: { ok: true }) => void = () => {}
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    getFriendNote.mockImplementation((req: { platform: string; friendId: string }) => {
+      const note = req.friendId === 'usr_a' ? 'A-note' : 'B-note'
+      return Promise.resolve({ note, revision: makeRevision('self', 1) })
+    })
+    setFriendNote.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const { result, rerender } = renderHook(
+      ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
+      {
+        initialProps: { friendId: 'usr_a' },
+        wrapper: createWrapper(false, queryClient)
+      }
+    )
+
+    await waitFor(() => expect(result.current.value).toBe('A-note'))
+    act(() => result.current.setValue('A-first'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+
+    rerender({ friendId: 'usr_b' })
+    await waitFor(() => expect(result.current.value).toBe('B-note'))
+    act(() => resolveSave({ ok: true }))
+    await waitFor(() => {
+      expect(queryClient.getQueryData(['friend-note', 'vrchat', 'usr_a', 0])).toEqual({
+        note: 'A-first',
+        revision: makeRevision('self', 1)
+      })
+    })
+
+    rerender({ friendId: 'usr_a' })
+    await waitFor(() => expect(result.current.value).toBe('A-first'))
+  })
+
+  it('does not drain a queued draft or resurrect an evicted note when a save resolves late', async () => {
     let resolveSave: (value: { ok: true }) => void = () => {}
     getFriendNote.mockResolvedValue({ note: 'Account A', revision: makeRevision('a', 1) })
     setFriendNote.mockImplementation(
@@ -370,6 +440,9 @@ describe('useFriendNote', () => {
     act(() => result.current.setValue('Late account A save'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+    act(() => result.current.setValue('Queued account A save'))
+    act(() => result.current.onBlur())
+    expect(setFriendNote).toHaveBeenCalledOnce()
 
     unmount()
     act(() => fireIdentityBoundary('vrchat'))
@@ -381,6 +454,7 @@ describe('useFriendNote', () => {
     })
 
     expect(queryClient.getQueryData(noteKey)).toBeUndefined()
+    expect(setFriendNote).toHaveBeenCalledOnce()
   })
 
   it('ignores a completion for a previous friend after a fast switch', async () => {

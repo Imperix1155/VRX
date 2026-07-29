@@ -10,17 +10,21 @@ type SaveResult = IpcInvoke['set-friend-note']['res']
 
 interface DraftState {
   key: string
-  generation: number
   value: string
   dirty: boolean
 }
 
 interface SaveVariables {
-  generation: number
+  key: string
   epoch: number
   platform: Platform
   friendId: string
   note: string
+}
+
+interface SaveState {
+  saving: boolean
+  queued: string | null
 }
 
 export interface UseFriendNoteOptions {
@@ -38,8 +42,8 @@ function sameNote(left: string, right: string | null | undefined): boolean {
   return left.trimEnd() === (right ?? '').trimEnd()
 }
 
-function emptyDraft(key: string, generation = 0): DraftState {
-  return { key, generation, value: '', dirty: false }
+function emptyDraft(key: string): DraftState {
+  return { key, value: '', dirty: false }
 }
 
 /** Load and edit a per-account, per-friend private note through the preload bridge. */
@@ -51,11 +55,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const queryClient = providedClient ?? fallbackClient
   const [boundaryEpoch, setBoundaryEpoch] = useState(0)
   const key = `${platform}:${friendId}:${boundaryEpoch}`
-  const queryKey = ['friend-note', platform, friendId, boundaryEpoch] as const
+  const queryKey =
+    friendId === ''
+      ? (['friend-note-disabled'] as const)
+      : (['friend-note', platform, friendId, boundaryEpoch] as const)
   const [draft, setDraft] = useState<DraftState>(() => emptyDraft(key))
-  const generationRef = useRef(0)
-  const savingRef = useRef(false)
-  const queuedRef = useRef<string | null>(null)
+  const saveStatesRef = useRef(new Map<string, SaveState>())
 
   const bridgeCanRead =
     typeof window !== 'undefined' && typeof window.vrx?.getFriendNote === 'function'
@@ -64,13 +69,13 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
       queryKey,
       queryFn: () => window.vrx.getFriendNote({ platform, friendId }),
       staleTime: Infinity,
-      enabled: bridgeCanRead
+      enabled: bridgeCanRead && friendId !== ''
     },
     queryClient
   )
 
   if (draft.key !== key) {
-    setDraft(emptyDraft(key, draft.generation + 1))
+    setDraft(emptyDraft(key))
   } else if (query.data !== undefined) {
     const differs = !sameNote(draft.value, query.data.note)
     if (!draft.dirty && differs) {
@@ -89,16 +94,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     })
   }, [platform])
 
-  useEffect(() => {
-    generationRef.current = draft.generation
-    savingRef.current = false
-    queuedRef.current = null
-  }, [draft.generation])
-
   const { mutate } = useMutation(
     {
       mutationFn: async (save: SaveVariables) => {
         const saveQueryKey = ['friend-note', save.platform, save.friendId, save.epoch] as const
+        const saveState = saveStatesRef.current.get(save.key)
+        if (saveState === undefined) return
         let note: string | null = save.note
         try {
           while (note !== null) {
@@ -117,7 +118,6 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
             }
             const currentRevision = queryClient.getQueryData<NoteData>(saveQueryKey)?.revision
             if (
-              generationRef.current !== save.generation ||
               currentRevision?.platformAccountId !== revision.platformAccountId ||
               currentRevision?.epoch !== revision.epoch
             ) {
@@ -128,13 +128,16 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
             } else if (result?.reason === 'stale') {
               await queryClient.refetchQueries({ queryKey: saveQueryKey, exact: true })
             }
-            const queued = queuedRef.current
-            queuedRef.current = null
+            const queued = saveState.queued
+            saveState.queued = null
             const persisted = queryClient.getQueryData<NoteData>(saveQueryKey)?.note
             note = queued !== null && !sameNote(queued, persisted) ? queued : null
           }
         } finally {
-          if (generationRef.current === save.generation) savingRef.current = false
+          saveState.saving = false
+          if (saveStatesRef.current.get(save.key) === saveState) {
+            saveStatesRef.current.delete(save.key)
+          }
         }
       }
     },
@@ -150,20 +153,20 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     ) {
       return
     }
-    if (savingRef.current) {
-      queuedRef.current = draft.value
+    const saveState = saveStatesRef.current.get(key)
+    if (saveState?.saving) {
+      saveState.queued = draft.value
       return
     }
-    savingRef.current = true
-    queuedRef.current = null
+    saveStatesRef.current.set(key, { saving: true, queued: null })
     mutate({
-      generation: generationRef.current,
+      key,
       epoch: boundaryEpoch,
       platform,
       friendId,
       note: draft.value
     })
-  }, [boundaryEpoch, draft, friendId, mutate, platform, query.data?.revision])
+  }, [boundaryEpoch, draft, friendId, key, mutate, platform, query.data?.revision])
 
   const setValue = useCallback(
     (value: string) => {
