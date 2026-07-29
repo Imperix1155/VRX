@@ -105,28 +105,6 @@ export function recordCredentialOwner(key: CredentialKey, platformAccountId: str
   })
 }
 
-export function getCredentialOwner(key: CredentialKey): { platformAccountId: string } | null {
-  requireCredentialKey(key)
-  const encrypted = getStore().get(key)
-  if (typeof encrypted !== 'string') return null
-
-  const owner: unknown = getOwnerStore().get(key)
-  if (
-    typeof owner !== 'object' ||
-    owner === null ||
-    !('platformAccountId' in owner) ||
-    !('credentialDigest' in owner) ||
-    typeof owner.platformAccountId !== 'string' ||
-    typeof owner.credentialDigest !== 'string' ||
-    !isPlatformAccountId(owner.platformAccountId) ||
-    credentialDigest(encrypted) !== owner.credentialDigest
-  ) {
-    return null
-  }
-
-  return { platformAccountId: owner.platformAccountId }
-}
-
 export function clearCredential(key: CredentialKey): void {
   requireCredentialKey(key)
   getStore().delete(key)

@@ -27,10 +27,10 @@ export const ACCOUNT_CARD_CONFIG: Record<Platform, AccountCardConfig> = {
   }
 }
 
-export function accountLoginErrorKey(platform: Platform, code: string): string {
+export function accountLoginErrorKey(_platform?: Platform, _code?: string): string {
   // VRX-36: account connect failures share the same uniform generic message;
   // params deliberately unused (signature stability for both platforms' cards).
-  void platform
-  void code
+  void _platform
+  void _code
   return 'settings.accounts.error.unknown'
 }

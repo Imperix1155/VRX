@@ -10,9 +10,9 @@
  *   bad_response         – JSON parse failure             → generic
  *   unexpected_response  – schema mismatch                → generic
  */
-export function mapLoginError(code: string): string {
+export function mapLoginError(_code?: string): string {
   // Security AC (VRX-36): all login failures surface one uniform generic message;
   // the code is deliberately unused (kept for signature stability at call sites).
-  void code
+  void _code
   return 'login.error.unknown'
 }

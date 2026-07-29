@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod'
+import { MAX_FRIENDS } from '@shared/constants'
 import type { VrcFriend } from '@shared/types'
 import { AuthError } from '../errors'
 import { parsePresence, toBucketSets } from './parsePresence'
@@ -18,10 +19,7 @@ import type { VrcCurrentUserBucketSets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
 import { parseLocation } from './parseLocation'
 
-// ─── Local constants (mirror @shared/constants values — intentionally local
-//     to avoid coupling to a file other branches are actively editing) ──────────
 const PAGE_SIZE = 100
-const MAX_FRIENDS = 5000
 /**
  * A pass tolerates transient page failures (skip the window, keep going) but
  * gives up after this many CONSECUTIVE failures — the injected fetcher can't be

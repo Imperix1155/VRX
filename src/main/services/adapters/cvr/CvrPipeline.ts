@@ -76,7 +76,11 @@ export const CVR_RESPONSE = {
   GROUP_INVITE: 50
 } as const
 
-/** Outgoing RequestType catalog. */
+/**
+ * Deliberately unwired until the future invites feature: these mock-verified
+ * RequestType values and senders are retained so invite work needn't re-derive
+ * their wire shapes.
+ */
 export const CVR_REQUEST = {
   FRIEND_REQUEST_SEND: 5,
   FRIEND_REQUEST_ACCEPT: 6,

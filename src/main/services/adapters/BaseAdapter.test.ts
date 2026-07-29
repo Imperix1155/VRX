@@ -54,9 +54,6 @@ class TestAdapter extends BaseAdapter {
   clearSession(): void {
     return
   }
-  importSession(): Promise<boolean> {
-    return Promise.resolve(false)
-  }
   getFriends(): Promise<Friend[]> {
     return Promise.resolve([])
   }

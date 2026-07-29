@@ -315,11 +315,6 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return this.status(this.session ? 'authenticated' : 'unauthenticated')
   }
 
-  importSession(): Promise<boolean> {
-    // CVRX session import lands in VRX-56.
-    return Promise.resolve(false)
-  }
-
   async getFriends(): Promise<Friend[]> {
     for (;;) {
       // Static roster only (VRX-57); live presence arrives via the pipeline below.

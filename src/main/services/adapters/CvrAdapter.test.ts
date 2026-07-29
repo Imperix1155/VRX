@@ -577,9 +577,8 @@ describe('CvrAdapter', () => {
   })
 
   describe('contract surface', () => {
-    it('importSession is false, join URLs are pure, and self-invite stays unsupported', async () => {
+    it('keeps join URLs pure and self-invite unsupported', async () => {
       const adapter = new CvrAdapter(fakeStore(), noopSleep)
-      expect(await adapter.importSession()).toBe(false)
       expect(
         adapter.buildJoinUrl(
           { instanceId: 'i+bab275f822c020a0-152002-e81321-1fe976f9' } as InstanceInfo,
