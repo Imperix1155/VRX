@@ -1,4 +1,4 @@
-import { API_TIMEOUT_MS } from '@shared/constants'
+import { API_REQUEST_MIN_INTERVAL_MS, API_TIMEOUT_MS } from '@shared/constants'
 import { VRC_USER_AGENT } from './adapters/VrcApiClient'
 
 export const AVATAR_ALLOWED_HOSTS = new Set([
@@ -34,6 +34,12 @@ export const AVATAR_MAX_BODY_BYTES = 3 * 1024 * 1024
 export const AVATAR_MAX_URL_LENGTH = 2048
 export const AVATAR_NEGATIVE_CACHE_MS = 30_000
 export const AVATAR_POSITIVE_CACHE_MS = 60 * 60 * 1000
+
+function pacingJitter(): number {
+  return Math.floor(Math.random() * 100)
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 interface CacheEntry {
   dataUrl: string | null
@@ -106,6 +112,9 @@ export class AvatarCache {
   private readonly maxConcurrency: number
   private activeFetches = 0
   private readonly fetchWaiters: Array<() => void> = []
+  private apiFetchActive = false
+  private apiNextRequestAt = 0
+  private readonly apiFetchWaiters: Array<() => void> = []
   private vrcCookieProvider: (() => string | null) | null
 
   constructor(options: AvatarCacheOptions = {}) {
@@ -162,15 +171,12 @@ export class AvatarCache {
   }
 
   private async fetchAndCache(url: string): Promise<string | null> {
-    await this.acquireFetchSlot()
     let dataUrl: string | null = null
     try {
       dataUrl = await this.fetchAvatar(url)
     } catch {
       // Avatar failures are intentionally non-fatal; the renderer keeps the
       // initial-letter fallback and the short negative cache prevents hammering.
-    } finally {
-      this.releaseFetchSlot()
     }
 
     this.cache.set(url, {
@@ -201,44 +207,58 @@ export class AvatarCache {
   private async fetchAvatar(url: string): Promise<string | null> {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
+      const usesApiLane = target.hostname === AVATAR_COOKIE_HOST
+      if (usesApiLane) {
+        await this.acquireApiFetchSlot()
+      } else {
+        await this.acquireFetchSlot()
+      }
       const headers: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
-      if (target.hostname === AVATAR_COOKIE_HOST) {
+      if (usesApiLane) {
         const cookie = this.vrcCookieProvider?.() ?? null
         if (cookie !== null) headers['Cookie'] = cookie
       }
       const controller = new AbortController()
-      const response = await this.fetchFn(target.href, {
-        headers,
-        redirect: 'manual',
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
-      })
+      try {
+        const response = await this.fetchFn(target.href, {
+          headers,
+          redirect: 'manual',
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
+        })
 
-      if ([301, 302, 303, 307, 308].includes(response.status)) {
-        await response.body?.cancel()
-        if (target.hostname !== AVATAR_COOKIE_HOST) return null
-        const location = response.headers.get('location')
-        if (location === null) return null
-        let next: URL
-        try {
-          next = new URL(location, target)
-        } catch {
-          return null
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+          await response.body?.cancel()
+          if (!usesApiLane) return null
+          const location = response.headers.get('location')
+          if (location === null) return null
+          let next: URL
+          try {
+            next = new URL(location, target)
+          } catch {
+            return null
+          }
+          if (
+            next.protocol !== 'https:' ||
+            next.port !== '' ||
+            next.username !== '' ||
+            next.password !== '' ||
+            isForbiddenRedirectHost(next.hostname)
+          ) {
+            return null
+          }
+          next.hash = ''
+          target = next
+          continue
         }
-        if (
-          next.protocol !== 'https:' ||
-          next.port !== '' ||
-          next.username !== '' ||
-          next.password !== '' ||
-          isForbiddenRedirectHost(next.hostname)
-        ) {
-          return null
+
+        return await this.readImageBody(response, controller)
+      } finally {
+        if (usesApiLane) {
+          this.releaseApiFetchSlot()
+        } else {
+          this.releaseFetchSlot()
         }
-        next.hash = ''
-        target = next
-        continue
       }
-
-      return await this.readImageBody(response, controller)
     }
     return null
   }
@@ -306,6 +326,36 @@ export class AvatarCache {
   private releaseFetchSlot(): void {
     this.activeFetches -= 1
     this.fetchWaiters.shift()?.()
+  }
+
+  /**
+   * VRChat profile images can use the same cookie-bearing API host as REST.
+   * Keep that host on its own serial, jitter-paced etiquette lane; CDN traffic
+   * remains on the independent four-slot semaphore above.
+   */
+  private async acquireApiFetchSlot(): Promise<void> {
+    if (this.apiFetchActive) {
+      await new Promise<void>((resolve) => {
+        this.apiFetchWaiters.push(resolve)
+      })
+    } else {
+      this.apiFetchActive = true
+    }
+
+    const now = this.now()
+    const requestAt = Math.max(now, this.apiNextRequestAt)
+    if (requestAt > now) await sleep(requestAt - now)
+    this.apiNextRequestAt =
+      Math.max(requestAt, this.now()) + API_REQUEST_MIN_INTERVAL_MS + pacingJitter()
+  }
+
+  private releaseApiFetchSlot(): void {
+    const next = this.apiFetchWaiters.shift()
+    if (next) {
+      next()
+    } else {
+      this.apiFetchActive = false
+    }
   }
 
   private evictOldestEntries(): void {

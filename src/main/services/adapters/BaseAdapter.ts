@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { API_TIMEOUT_MS } from '@shared/constants'
+import { API_REQUEST_MIN_INTERVAL_MS, API_TIMEOUT_MS } from '@shared/constants'
 import type {
   AdapterEvent,
   AuthStatus,
@@ -13,7 +13,6 @@ import type {
 import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import { AuthError, NetworkError, RateLimitError } from './errors'
 
-const MIN_INTERVAL_MS = 1_000
 const BASE_RETRY_DELAY_MS = 1_000
 const MAX_RETRY_DELAY_MS = 30_000
 const MAX_429_RETRIES = 3
@@ -30,6 +29,7 @@ export interface AdapterRequestOptions {
 interface RequestWaiter {
   resolve: () => void
   reject: (error: unknown) => void
+  notBefore: number
 }
 
 function jitter(): number {
@@ -55,8 +55,11 @@ export abstract class BaseAdapter implements IPlatformAdapter {
 
   private readonly sleep: (ms: number) => Promise<void>
   private nextRequestAt = 0
+  private nextRetryAt = 0
   private cooldownUntil = 0
   private dispatchingRequests = false
+  private wakeDispatcher: (() => void) | null = null
+  private readonly retryWaiters: RequestWaiter[] = []
   private readonly interactiveWaiters: RequestWaiter[] = []
   private readonly defaultWaiters: RequestWaiter[] = []
   private consecutiveFailures = 0
@@ -98,9 +101,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     recordCircuitFailure: boolean,
     priority: RequestPriority
   ): Promise<Response> {
-    if (reservedRetryAt === null) {
-      await this.waitForRequestSlot(priority)
-    }
+    await this.waitForRequestSlot(priority, reservedRetryAt)
 
     let response: Response
     try {
@@ -125,7 +126,6 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         throw new RateLimitError(delay)
       }
       const retryAt = this.applyCooldown(delay, true)
-      await this.sleep(Math.max(0, retryAt - Date.now()))
       return this.attemptRaw(url, options, retryCount + 1, retryAt, recordCircuitFailure, priority)
     }
 
@@ -190,40 +190,113 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.consecutiveFailures = 0
   }
 
-  private waitForRequestSlot(priority: RequestPriority): Promise<void> {
+  private waitForRequestSlot(
+    priority: RequestPriority,
+    reservedRetryAt: number | null
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const queue = priority === 'interactive' ? this.interactiveWaiters : this.defaultWaiters
-      queue.push({ resolve, reject })
-      if (!this.dispatchingRequests) void this.dispatchRequestQueue()
+      const waiter = { resolve, reject, notBefore: reservedRetryAt ?? 0 }
+      const queue =
+        reservedRetryAt !== null
+          ? this.retryWaiters
+          : priority === 'interactive'
+            ? this.interactiveWaiters
+            : this.defaultWaiters
+      queue.push(waiter)
+      if (!this.dispatchingRequests) {
+        void this.dispatchRequestQueue()
+      } else if (reservedRetryAt !== null) {
+        const wake = this.wakeDispatcher
+        this.wakeDispatcher = null
+        wake?.()
+      }
     })
+  }
+
+  private async sleepUntilScheduleChanges(ms: number): Promise<boolean> {
+    let wake: (() => void) | undefined
+    const scheduleChanged = new Promise<void>((resolve) => {
+      wake = resolve
+      this.wakeDispatcher = resolve
+    })
+    const result = await Promise.race([
+      this.sleep(ms).then(() => false),
+      scheduleChanged.then(() => true)
+    ])
+    if (this.wakeDispatcher === wake) this.wakeDispatcher = null
+    return result
   }
 
   private async dispatchRequestQueue(): Promise<void> {
     this.dispatchingRequests = true
     try {
-      while (this.interactiveWaiters.length > 0 || this.defaultWaiters.length > 0) {
+      while (
+        this.retryWaiters.length > 0 ||
+        this.interactiveWaiters.length > 0 ||
+        this.defaultWaiters.length > 0
+      ) {
+        const retryIsNext = this.retryWaiters.length > 0
+        const nextWaiter = retryIsNext
+          ? this.retryWaiters[0]
+          : (this.interactiveWaiters[0] ?? this.defaultWaiters[0])
+        if (nextWaiter === undefined) continue
         const now = Date.now()
-        const requestAt = Math.max(now, this.nextRequestAt, this.cooldownUntil)
-        if (requestAt > now) await this.sleep(requestAt - now)
+        const requestAt = Math.max(
+          now,
+          retryIsNext ? this.nextRetryAt : this.nextRequestAt,
+          this.cooldownUntil,
+          nextWaiter.notBefore
+        )
+        if (requestAt > now && (await this.sleepUntilScheduleChanges(requestAt - now))) {
+          continue
+        }
 
-        // A 429 from the preceding in-flight request can extend the shared
-        // cooldown while this dispatcher is asleep. Recalculate before
-        // admitting anyone; the retry slot itself is reserved by applyCooldown.
+        // A 429 from any in-flight request can extend the shared cooldown while
+        // this dispatcher is asleep. Recalculate the full schedule before
+        // admitting anyone. Reserved retries stay FIFO ahead of new work, and
+        // their own retryAt remains a lower bound if the cooldown moves again.
+        const retryIsStillNext = this.retryWaiters.length > 0
+        const recheckedWaiter = retryIsStillNext
+          ? this.retryWaiters[0]
+          : (this.interactiveWaiters[0] ?? this.defaultWaiters[0])
+        if (recheckedWaiter === undefined) continue
         const now2 = Date.now()
-        if (Math.max(now2, this.nextRequestAt, this.cooldownUntil) > requestAt) continue
+        if (
+          Math.max(
+            now2,
+            retryIsStillNext ? this.nextRetryAt : this.nextRequestAt,
+            this.cooldownUntil,
+            recheckedWaiter.notBefore
+          ) > requestAt
+        ) {
+          continue
+        }
 
-        const waiter = this.interactiveWaiters.shift() ?? this.defaultWaiters.shift()
+        const waiter =
+          this.retryWaiters.shift() ??
+          this.interactiveWaiters.shift() ??
+          this.defaultWaiters.shift()
         if (waiter === undefined) continue
-        this.nextRequestAt = Math.max(this.nextRequestAt, requestAt + MIN_INTERVAL_MS + jitter())
+        this.nextRequestAt = Math.max(
+          this.nextRequestAt,
+          requestAt + API_REQUEST_MIN_INTERVAL_MS + jitter()
+        )
+        this.nextRetryAt = Math.max(this.nextRetryAt, requestAt + API_REQUEST_MIN_INTERVAL_MS)
         waiter.resolve()
       }
     } catch (error) {
-      for (const waiter of [...this.interactiveWaiters, ...this.defaultWaiters]) {
+      for (const waiter of [
+        ...this.retryWaiters,
+        ...this.interactiveWaiters,
+        ...this.defaultWaiters
+      ]) {
         waiter.reject(error)
       }
+      this.retryWaiters.length = 0
       this.interactiveWaiters.length = 0
       this.defaultWaiters.length = 0
     } finally {
+      this.wakeDispatcher = null
       this.dispatchingRequests = false
     }
   }
@@ -239,7 +312,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     this.cooldownUntil = Math.max(this.cooldownUntil, retryAt)
     this.nextRequestAt = Math.max(
       this.nextRequestAt,
-      retryAt + (reserveRetrySlot ? MIN_INTERVAL_MS + jitter() : 0)
+      retryAt + (reserveRetrySlot ? API_REQUEST_MIN_INTERVAL_MS + jitter() : 0)
     )
     return retryAt
   }
