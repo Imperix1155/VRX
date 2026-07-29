@@ -66,7 +66,6 @@ import {
   CREDENTIAL_KEYS,
   clearCredential,
   CredentialEncryptionUnavailableError,
-  getCredentialOwner,
   loadCredential,
   recordCredentialOwner,
   saveCredential
@@ -125,9 +124,6 @@ describe('credential storage', () => {
 
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account-1')
 
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toEqual({
-      platformAccountId: 'usr_account-1'
-    })
     expect(mocks.stores.get('credential-owners')).toEqual({
       'vrchat:primary': {
         platformAccountId: 'usr_account-1',
@@ -139,25 +135,20 @@ describe('credential storage', () => {
     })
   })
 
-  it('returns B after a completed A-to-B replacement in the same slot', () => {
+  it('records B with the digest of B after a completed A-to-B replacement in the same slot', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_b')
 
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toEqual({
-      platformAccountId: 'usr_account_b'
+    expect(mocks.stores.get('credential-owners')).toEqual({
+      'vrchat:primary': {
+        platformAccountId: 'usr_account_b',
+        credentialDigest: createHash('sha256')
+          .update(Buffer.from('encrypted:account-b-token').toString('base64'))
+          .digest('hex')
+      }
     })
-  })
-
-  it('returns null when an out-of-band ciphertext overwrite breaks the owner digest binding', () => {
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
-    mocks.stores.set('credentials', {
-      'vrchat:primary': Buffer.from('encrypted:account-b-token').toString('base64')
-    })
-
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
   })
 
   it('returns null when a save completes but owner recording is interrupted', () => {
@@ -166,7 +157,7 @@ describe('credential storage', () => {
 
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
 
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
+    expect(mocks.stores.get('credential-owners')).toEqual({})
   })
 
   it('saveCredential clears a pre-existing owner sidecar entry', () => {
@@ -189,7 +180,7 @@ describe('credential storage', () => {
     )
 
     expect(mocks.stores.get('credentials')?.['vrchat:primary']).toBe(oldCiphertext)
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
+    expect(mocks.stores.get('credential-owners')).toEqual({})
   })
 
   it('clears the credential owner sidecar with the stored credential', () => {
@@ -200,7 +191,6 @@ describe('credential storage', () => {
 
     expect(mocks.stores.get('credentials')).toEqual({})
     expect(mocks.stores.get('credential-owners')).toEqual({})
-    expect(getCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBeNull()
   })
 
   it.each(['', 'account.with.dot', 'account id', 'x'.repeat(129)])(
@@ -219,7 +209,6 @@ describe('credential storage', () => {
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account-1')
 
     expect(mocks.stores.get('credential-owners')).toBeUndefined()
-    expect(getCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeNull()
   })
 
   it('returns undefined when a credential is not stored', () => {
@@ -313,7 +302,6 @@ describe('credential storage', () => {
     expect(() => recordCredentialOwner(key as never, 'usr_account-1')).toThrow(
       'Unsupported credential key'
     )
-    expect(() => getCredentialOwner(key as never)).toThrow('Unsupported credential key')
     expect(mocks.encryptString).not.toHaveBeenCalled()
     expect(mocks.decryptString).not.toHaveBeenCalled()
     expect(mocks.stores.get('credentials')).toBeUndefined()

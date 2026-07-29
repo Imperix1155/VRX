@@ -3,6 +3,7 @@ import type { IpcMainInvokeEvent } from 'electron'
 import type { Friend, Platform } from '@shared/types'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import { AppStatusService } from '../services/appStatus'
 import { LocationAuthority } from '../services/locationAuthority'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
@@ -36,13 +37,19 @@ const rosterFriend = {
 
 let adapter: IPlatformAdapter
 let authority: LocationAuthority
+let appStatus: AppStatusService
 
 beforeEach(() => {
   handlers.clear()
   trusted.value = true
   adapter = stubPlatformAdapter()
   authority = new LocationAuthority()
-  registerFriendsHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), authority)
+  appStatus = new AppStatusService(() => 12_345)
+  registerFriendsHandlers(
+    new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]),
+    authority,
+    appStatus
+  )
 })
 
 describe('get-friends location seeding', () => {
@@ -79,6 +86,18 @@ describe('get-friends location seeding', () => {
     }
     expect(captureOrder).toBeLessThan(fetchOrder)
     expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number))
+  })
+
+  it('stamps the platform reconcile time only after a successful friends response', async () => {
+    vi.mocked(adapter.getFriends).mockResolvedValue([rosterFriend])
+
+    expect(appStatus.snapshot().lastReconcileAt.vrchat).toBeNull()
+    await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+
+    expect(appStatus.snapshot().lastReconcileAt).toEqual({
+      vrchat: 12_345,
+      chilloutvr: null
+    })
   })
 
   it('seeds a joinable location when optional world metadata is still null', async () => {

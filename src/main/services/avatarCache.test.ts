@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AVATAR_CACHE_MAX_ENTRIES,
   AVATAR_FETCH_MAX_CONCURRENCY,
@@ -15,6 +15,11 @@ function imageResponse(body: BodyInit = 'avatar', headers?: HeadersInit): Respon
 }
 
 describe('AvatarCache', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
   // ── VRX-202: the REAL production URL shapes ─────────────────────────────────
   // VRChat: api.vrchat.cloud/api/1/image/... — needs the auth cookie, answers
   // 302 to a signed CDN URL. CVR: files.abidata.io — public, direct 200.
@@ -331,6 +336,109 @@ describe('AvatarCache', () => {
 
     expect(maxActive).toBe(AVATAR_FETCH_MAX_CONCURRENCY)
     expect(fetchFn).toHaveBeenCalledTimes(10)
+  })
+
+  it('serializes api.vrchat.cloud image fetches at least one second apart', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const dispatches: number[] = []
+    let releaseFirst: ((response: Response) => void) | undefined
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(() => {
+      dispatches.push(Date.now())
+      if (dispatches.length === 1) {
+        return new Promise<Response>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      return Promise.resolve(imageResponse())
+    })
+    const cache = new AvatarCache({ fetchFn })
+
+    const first = cache.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
+    const second = cache.get('https://api.vrchat.cloud/api/1/image/file_b/1/256')
+    const third = cache.get('https://api.vrchat.cloud/api/1/image/file_c/1/256')
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(dispatches).toEqual([10_000])
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(dispatches).toEqual([10_000])
+    releaseFirst?.(imageResponse())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(dispatches).toEqual([10_000, 11_500])
+    await vi.advanceTimersByTimeAsync(999)
+    expect(dispatches).toEqual([10_000, 11_500])
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(Promise.all([first, second, third])).resolves.toEqual([
+      expect.stringMatching(/^data:image\/png;base64,/),
+      expect.stringMatching(/^data:image\/png;base64,/),
+      expect.stringMatching(/^data:image\/png;base64,/)
+    ])
+    expect(dispatches).toEqual([10_000, 11_500, 12_500])
+  })
+
+  it('runs the paced API lane independently from all four CDN slots', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const dispatches: Array<{ host: string; at: number }> = []
+    const cdnReleases: Array<() => void> = []
+    let activeCdnFetches = 0
+    let maxActiveCdnFetches = 0
+    let apiRequestCount = 0
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      const host = new URL(href).hostname
+      dispatches.push({ host, at: Date.now() })
+      if (host === 'api.vrchat.cloud') {
+        apiRequestCount += 1
+        return Promise.resolve(
+          redirectResponse(`https://images.example.com/avatar-${apiRequestCount}.png`)
+        )
+      }
+      activeCdnFetches += 1
+      maxActiveCdnFetches = Math.max(maxActiveCdnFetches, activeCdnFetches)
+      return new Promise<Response>((resolve) => {
+        cdnReleases.push(() => {
+          activeCdnFetches -= 1
+          resolve(imageResponse())
+        })
+      })
+    })
+    const cache = new AvatarCache({ fetchFn })
+    const cdnRequests = Array.from({ length: 5 }, (_, index) =>
+      cache.get(`https://files.abinteractive.net/avatars/mixed-${index}.png`)
+    )
+    const apiRequests = [
+      cache.get('https://api.vrchat.cloud/api/1/image/file_a/1/256'),
+      cache.get('https://api.vrchat.cloud/api/1/image/file_b/1/256')
+    ]
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(dispatches).toEqual([
+      { host: 'files.abinteractive.net', at: 10_000 },
+      { host: 'files.abinteractive.net', at: 10_000 },
+      { host: 'files.abinteractive.net', at: 10_000 },
+      { host: 'files.abinteractive.net', at: 10_000 },
+      { host: 'api.vrchat.cloud', at: 10_000 }
+    ])
+
+    cdnReleases.shift()?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(dispatches.filter(({ host }) => host !== 'api.vrchat.cloud')).toHaveLength(5)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(dispatches.filter(({ host }) => host === 'api.vrchat.cloud')).toEqual([
+      { host: 'api.vrchat.cloud', at: 10_000 },
+      { host: 'api.vrchat.cloud', at: 11_000 }
+    ])
+
+    cdnReleases.splice(0).forEach((release) => release())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(dispatches.filter(({ host }) => host === 'images.example.com')).toHaveLength(2)
+    cdnReleases.splice(0).forEach((release) => release())
+    await expect(Promise.all([...cdnRequests, ...apiRequests])).resolves.toHaveLength(7)
+    expect(maxActiveCdnFetches).toBe(AVATAR_FETCH_MAX_CONCURRENCY)
   })
 
   it(`evicts the least-recently-used entry above the ${AVATAR_CACHE_MAX_ENTRIES}-entry cap`, async () => {

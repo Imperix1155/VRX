@@ -54,9 +54,6 @@ class TestAdapter extends BaseAdapter {
   clearSession(): void {
     return
   }
-  importSession(): Promise<boolean> {
-    return Promise.resolve(false)
-  }
   getFriends(): Promise<Friend[]> {
     return Promise.resolve([])
   }
@@ -238,6 +235,47 @@ describe('BaseAdapter', () => {
   })
 
   describe('429 backoff', () => {
+    it('keeps an earlier reserved retry behind a cooldown extended by a later 429', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const dispatches: Array<{ url: string; at: number }> = []
+      const attempts = new Map<string, number>()
+      fetchMock.mockImplementation((url: string) => {
+        dispatches.push({ url, at: Date.now() })
+        const attempt = (attempts.get(url) ?? 0) + 1
+        attempts.set(url, attempt)
+        if (attempt > 1) return Promise.resolve(makeResponse(200, validBody))
+
+        const delay = url.endsWith('/a') ? 2_000 : 1_500
+        const retryAfter = url.endsWith('/a') ? '2' : '5'
+        return new Promise<Response>((resolve) => {
+          setTimeout(() => resolve(makeResponse(429, {}, { 'retry-after': retryAfter })), delay)
+        })
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+
+      const requestA = adapter.fetch('http://api/a', schema)
+      const requestB = adapter.fetch('http://api/b', schema)
+
+      // A: wire t=10s, 429 t=12s, initially reserves retry t=14s.
+      // B: wire t=11s, 429 t=12.5s, extends the shared cooldown to t=17.5s.
+      await vi.advanceTimersByTimeAsync(7_499)
+      expect(dispatches).toEqual([
+        { url: 'http://api/a', at: 10_000 },
+        { url: 'http://api/b', at: 11_000 }
+      ])
+
+      await vi.advanceTimersByTimeAsync(1_001)
+      await expect(Promise.all([requestA, requestB])).resolves.toEqual([validBody, validBody])
+      expect(dispatches).toEqual([
+        { url: 'http://api/a', at: 10_000 },
+        { url: 'http://api/b', at: 11_000 },
+        { url: 'http://api/a', at: 17_500 },
+        { url: 'http://api/b', at: 18_500 }
+      ])
+    })
+
     it('recomputes a queued admission after a fast 429 moves the schedule during sleep', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)

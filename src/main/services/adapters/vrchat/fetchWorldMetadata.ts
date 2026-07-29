@@ -9,10 +9,8 @@
  * single batch call.
  */
 
+import { CONCURRENCY_LIMIT } from '@shared/constants'
 import type { WorldMeta, WorldResolver } from './WorldResolver'
-
-/** Maximum concurrent `resolver.resolve()` calls in a single batch. */
-const CONCURRENCY_LIMIT = 10
 
 /**
  * Resolve a batch of worldIds to their metadata.

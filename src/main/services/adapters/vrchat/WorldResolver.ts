@@ -23,10 +23,8 @@
  */
 
 import { z } from 'zod'
+import { WORLD_CACHE_TTL_MS } from '@shared/constants'
 import { AuthError } from '../errors'
-
-/** 24-hour TTL for cached world metadata (ms). */
-export const WORLD_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 /** The typed world-metadata shape this resolver produces. */
 export interface WorldMeta {
@@ -121,15 +119,4 @@ export class WorldResolver {
     this.cache.set(worldId, { meta, fetchedAt: this.clock() })
     return meta
   }
-}
-
-/**
- * Convert a world's shortName to a vrch.at short link.
- *
- * - `shortName` present → returns `https://vrch.at/<shortName>`
- * - `shortName` null or undefined → returns `null`
- */
-export function worldShortLink(shortName: string | null): string | null {
-  if (!shortName) return null
-  return `https://vrch.at/${shortName}`
 }

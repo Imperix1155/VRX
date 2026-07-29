@@ -49,7 +49,8 @@ export function initLogger(): void {
   log.info(`VRX logger ready — level=${log.transports.file.level}, file=${logFilePath}`)
 }
 
-/** Absolute path to the active main-process log file (consumed by diagnostics — VRX-81). */
+// Deferred: VRX-81
+/** Absolute path to the active main-process log file for the diagnostics panel. */
 export function getLogFilePath(): string {
   return logFilePath
 }
