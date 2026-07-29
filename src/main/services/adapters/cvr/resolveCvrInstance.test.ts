@@ -5,9 +5,9 @@ import type { CvrFetcher } from './fetchCvrFriends'
 import {
   CVR_INSTANCE_CACHE_MAX,
   CVR_INSTANCE_NEGATIVE_TTL_MS,
-  CVR_INSTANCE_TTL_MS,
   createCvrInstanceResolver
 } from './resolveCvrInstance'
+import { INSTANCE_CACHE_TTL_MS } from '@shared/constants'
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ describe('createCvrInstanceResolver', () => {
     const resolver = createCvrInstanceResolver({ fetcher, clock: () => now })
 
     await resolver.resolve('i+abc123')
-    now += CVR_INSTANCE_TTL_MS - 1
+    now += INSTANCE_CACHE_TTL_MS - 1
     await resolver.resolve('i+abc123')
     expect(calls).toHaveLength(1) // within TTL — no second fetch (VRX-59 AC)
 
@@ -179,7 +179,7 @@ describe('createCvrInstanceResolver', () => {
     await resolver.resolve('i+abc123')
     expect(resolver.peek('i+abc123')?.worldName).toBe('SunDown')
 
-    now += CVR_INSTANCE_TTL_MS + 1
+    now += INSTANCE_CACHE_TTL_MS + 1
     expect(resolver.peek('i+abc123')).toBeUndefined()
   })
 

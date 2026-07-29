@@ -35,9 +35,6 @@ class TestClient extends VrcApiClient {
   clearSession(): void {
     return
   }
-  importSession(): Promise<boolean> {
-    throw new Error('stub')
-  }
   getFriends(): Promise<Friend[]> {
     throw new Error('stub')
   }

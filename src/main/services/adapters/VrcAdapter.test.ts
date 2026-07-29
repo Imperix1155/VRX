@@ -1185,11 +1185,6 @@ describe('VrcAdapter', () => {
   })
 
   describe('scaffolded methods', () => {
-    it('importSession is a no-op (VRX-54)', async () => {
-      const adapter = new VrcAdapter(fakeStore(), noopSleep)
-      expect(await adapter.importSession()).toBe(false)
-    })
-
     it('subscribe starts ONE shared pipeline and stops it when the last handler leaves (VRX-146)', async () => {
       let dials = 0
       const fakeSocket = (): { on: () => void; close: () => void } => ({

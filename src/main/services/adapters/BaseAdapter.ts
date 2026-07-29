@@ -249,7 +249,6 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   /** Complete a `needs2fa` login (VRX-159). Platforms without 2-leg 2FA reject it. */
   abstract verify2fa(code: string): Promise<LoginResult>
   abstract clearSession(): void
-  abstract importSession(): Promise<boolean>
   abstract getFriends(): Promise<Friend[]>
   abstract getInstanceDetails(instanceId: string): Promise<InstanceInfo>
   abstract buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null

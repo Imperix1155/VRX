@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { WorldResolver, WORLD_CACHE_TTL_MS, worldShortLink } from './WorldResolver'
+import { WORLD_CACHE_TTL_MS } from '@shared/constants'
+import { WorldResolver } from './WorldResolver'
 import { AuthError } from '../errors'
 
 const VALID_WORLD_RAW = {
@@ -236,15 +237,5 @@ describe('WorldResolver', () => {
     const fetcher = vi.fn().mockResolvedValue({ thumbnailImageUrl: 'x.jpg', capacity: 10 })
     const resolver = new WorldResolver(fetcher)
     expect(await resolver.resolve('wrld_abc')).toBeNull()
-  })
-
-  // ── worldShortLink helper ────────────────────────────────────────────────────
-
-  it('worldShortLink converts shortName to https://vrch.at/ link', () => {
-    expect(worldShortLink('example-world')).toBe('https://vrch.at/example-world')
-  })
-
-  it('worldShortLink returns null when shortName is null', () => {
-    expect(worldShortLink(null)).toBeNull()
   })
 })

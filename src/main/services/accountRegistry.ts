@@ -171,16 +171,6 @@ export class AccountRegistry {
     this.persist()
   }
 
-  remove(platform: Platform, platformAccountId: string): void {
-    this.assertWritable()
-    const key = accountKey(platform, platformAccountId)
-    const entry = this.file.entries[key]
-    if (!entry) throw new Error('account registry: cannot remove an unknown account')
-    if (entry.state === 'removed') return
-    entry.state = 'removed'
-    this.persist()
-  }
-
   listAccounts(): Account[] {
     return this.sortedEntries()
       .filter((entry) => entry.state !== 'removed')
@@ -190,10 +180,6 @@ export class AccountRegistry {
         displayName: entry.displayName,
         isActive: entry.state === 'active'
       }))
-  }
-
-  listEntries(): AccountRegistryEntry[] {
-    return this.sortedEntries().map((entry) => ({ ...entry }))
   }
 
   private sortedEntries(): AccountRegistryEntry[] {
