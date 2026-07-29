@@ -156,8 +156,20 @@ const FriendRow = memo(function FriendRow({
     // Selection-drag guard: a plain click collapses the document selection on
     // mousedown (before click fires); after a drag-select across row text it
     // is still non-collapsed at click time — that mouseup must NOT open.
+    // Scope to selections INTERSECTING this row: a stale non-collapsed
+    // selection elsewhere (e.g. drawer note text selected earlier) must not
+    // turn a plain row click into a dead click.
     const selection = window.getSelection()
-    if (selection !== null && !selection.isCollapsed) return
+    if (
+      selection !== null &&
+      !selection.isCollapsed &&
+      selection.rangeCount > 0 &&
+      // intersectsNode over commonAncestorContainer.contains: it also covers
+      // ranges that START inside the row and extend beyond it (the common
+      // ancestor would sit ABOVE the li and the contains check would miss).
+      selection.getRangeAt(0).intersectsNode(event.currentTarget)
+    )
+      return
     const opener = avatarButtonRef.current
     if (opener !== null) onOpen(friend, opener)
   }

@@ -657,6 +657,26 @@ describe('VRX-228 whole-card drawer opener (default) + avatar-only setting', () 
     expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
   })
 
+  it('card mode: a NON-collapsed selection OUTSIDE the row does NOT block opening', () => {
+    render(<FriendsList />)
+    // A stale selection left over somewhere else on the page (e.g. drawer
+    // note text selected earlier) must not turn the row click into a dead
+    // click — the drag guard only applies to selections intersecting the row.
+    const outside = document.createElement('div')
+    outside.textContent = 'stale selection elsewhere'
+    document.body.appendChild(outside)
+    const selection = window.getSelection()
+    expect(selection).not.toBeNull()
+    const range = document.createRange()
+    range.selectNodeContents(outside)
+    selection!.removeAllRanges()
+    selection!.addRange(range)
+    expect(selection!.isCollapsed).toBe(false)
+
+    fireEvent.click(rowLi('Alex'))
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+  })
+
   it('card mode: the Join pill joins and does NOT open — and with the card open elsewhere it keeps the VRX-225 close-then-join sequence', async () => {
     mockFriends([joinableFriend, { ...cvrFriend, instance: publicInstance }])
     render(<FriendsList />)
