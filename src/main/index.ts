@@ -43,6 +43,7 @@ import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate } from './showGate'
+import { AppStatusService } from './services/appStatus'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -455,6 +456,7 @@ app
       ['vrchat', vrcAdapter],
       ['chilloutvr', cvrAdapter]
     ])
+    const appStatus = new AppStatusService()
 
     const showFriendAlert = (alert: FriendAlert): void => {
       if (!NativeNotification.isSupported()) return
@@ -567,6 +569,7 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      appStatus,
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&
@@ -601,6 +604,9 @@ app
       }
     }
     const handleAdapterEvent = (event: AdapterEvent): void => {
+      if (event.type === 'connection') {
+        appStatus.recordConnection(event.platform, event.health)
+      }
       locationAuthority.consume(event)
       friendAlerts.consume(event)
       broadcast(event)

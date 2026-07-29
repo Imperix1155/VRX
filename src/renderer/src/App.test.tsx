@@ -2,12 +2,12 @@
 /**
  * Auth-gate routing tests (VRX-173) + settings hydration gate (VRX-212).
  *
- * Pins the two-platform gate: pending-with-no-known-session → blank; either
+ * Pins the two-platform gate: pending-with-no-known-session → boot splash; either
  * authenticated → AppShell; neither authenticated → LoginScreen, preserving the
  * direct method-aware VRChat 2FA reprompt when CVR is disconnected.
  * AppShell is stubbed because its full tree is covered by component tests.
  *
- * VRX-212: the UI also stays blank until the persisted-settings load has
+ * VRX-212: the shell/login UI also stays gated until the persisted-settings load has
  * resolved, so a saved non-default theme/glow is applied before anything
  * visible renders.
  */
@@ -235,12 +235,13 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     }
   )
 
-  it('renders nothing while either unresolved platform could still be authenticated', () => {
+  it('renders the boot splash while either unresolved platform could still be authenticated', () => {
     mockAuthStatuses(vrcUnauthenticated, cvrUnauthenticated, ['chilloutvr'])
     renderApp()
 
     expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
     expect(screen.queryByTestId('app-shell')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Connecting…')
   })
 
   it('routes a native hot-instance toast click to the Dashboard', () => {
@@ -270,7 +271,7 @@ describe('App settings hydration gate (VRX-212)', () => {
     expect(screen.getByTestId('app-shell')).toBeTruthy()
   })
 
-  it('renders blank while settings load, even when auth would already show the shell', async () => {
+  it('renders the boot splash while settings load, even when auth would show the shell', async () => {
     const load = deferred<Settings>()
     stubSettingsLoad(load.promise)
     mockAuthStatuses(
@@ -282,6 +283,7 @@ describe('App settings hydration gate (VRX-212)', () => {
     expect(useSettingsStore.getState().hydrated).toBe(false)
     expect(screen.queryByTestId('app-shell')).toBeNull()
     expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Connecting…')
 
     act(() => load.resolve({ ...DEFAULT_SETTINGS }))
     await waitFor(() => expect(screen.getByTestId('app-shell')).toBeTruthy())

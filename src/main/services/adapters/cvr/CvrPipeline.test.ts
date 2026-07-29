@@ -86,8 +86,14 @@ describe('CvrPipeline', () => {
 
     expect(r.dials[0]!.url).toBe('wss://api.chilloutvr.net/1/users/ws')
     expect(r.dials[0]!.headers).toEqual(AUTH_HEADERS)
+    expect(r.events).toEqual([
+      { type: 'connection', platform: 'chilloutvr', health: 'reconnecting' }
+    ])
     r.sockets[0]!.fire('open')
-    expect(r.events).toEqual([{ type: 'connection', platform: 'chilloutvr', health: 'live' }])
+    expect(r.events).toEqual([
+      { type: 'connection', platform: 'chilloutvr', health: 'reconnecting' },
+      { type: 'connection', platform: 'chilloutvr', health: 'live' }
+    ])
     r.pipeline.stop()
   })
 
@@ -393,11 +399,10 @@ describe('CvrPipeline', () => {
     await tick()
 
     expect(r.dials).toHaveLength(0)
-    expect(r.events).toContainEqual({
-      type: 'connection',
-      platform: 'chilloutvr',
-      health: 'down'
-    })
+    expect(r.events.length).toBeGreaterThan(0)
+    expect(r.events.every((event) => event.type === 'connection' && event.health === 'down')).toBe(
+      true
+    )
     r.pipeline.stop()
   })
 

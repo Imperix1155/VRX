@@ -188,6 +188,21 @@ describe('FriendsList join pill (VRX-166)', () => {
     expect(status.textContent).toBe('')
   })
 
+  it.each([
+    ['stale', 'Live connection not ready — joins resume when the live feed reconnects'],
+    ['cooldown', 'One moment — just launched a join']
+  ] as const)('announces distinct %s denial copy in the row pill', async (reason, copy) => {
+    joinInstance.mockResolvedValue({ ok: false, reason })
+    render(<FriendsList />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('status').textContent).toBe(copy)
+  })
+
   it('a denied join blips ONLY the failed friend’s pill, not other rows (VRX-69 re-review)', async () => {
     joinInstance.mockResolvedValue({ ok: false, reason: 'not-joinable' })
     const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }

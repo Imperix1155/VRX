@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { AuthState } from '@shared/types'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
+import BootSplash from './components/BootSplash'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
@@ -61,7 +62,7 @@ function App(): React.JSX.Element {
   // Hydration gate (VRX-212): do not reveal the UI until the persisted settings
   // load has resolved. An empty tree keeps the default dark canvas visible, so
   // a saved light theme or non-standard glow is applied before anything renders.
-  if (!hydrated || isVrcPending || isCvrPending) return <></>
+  if (!hydrated || isVrcPending || isCvrPending) return <BootSplash />
 
   if (entersShell(vrcAuthStatus?.state) || entersShell(cvrAuthStatus?.state)) {
     return <AppShell />
