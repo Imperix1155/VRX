@@ -22,6 +22,7 @@
   --control-fill: rgba(255, 255, 255, 0.05);
   --control-fill-hover: rgba(255, 255, 255, 0.1);
   --error: #f87171;
+  --warning: #f59e0b;
   --space-0-5: 2px;
   --space-1: 4px;
   --space-2: 8px;
@@ -117,6 +118,16 @@
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
+  /* Dark ink on the CVR orange fill — white fails AA at 14px (2.92:1); the
+     #14131c ink-family value measures 6.31:1 on --cvr. */
+  --text-on-cvr: #14131c;
+
+  /* LOGIN TAB words (12.5px on the tinted glass card, VRX-217) — AA-verified
+     against the worst card background (strong tint corner over --bg-base):
+     raw --vrc fails (3.69:1) → the lifted ghost companion (5.65:1); raw --cvr
+     passes (5.16:1) and keeps its full hue. */
+  --login-tab-vrc: var(--plat-vrc-ghost-text);
+  --login-tab-cvr: var(--cvr);
 
   /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — dark */
   --control-active-bg: linear-gradient(
@@ -165,6 +176,7 @@
   --control-fill: rgba(20, 19, 28, 0.045);
   --control-fill-hover: rgba(20, 19, 28, 0.09);
   --error: #b4232c;
+  --warning: #a15c00;
 
   --vrc: #1f6fd3;
   --cvr: #d85f18;
@@ -227,6 +239,14 @@
   --tint-cvr-border: rgba(216, 95, 24, 0.3);
 
   --text-on-vrc: #ffffff;
+  /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
+  --text-on-cvr: #14131c;
+
+  /* LOGIN TAB words — light: BOTH raw hues fail on the light card (vrc 3.57:1,
+     cvr 2.74:1). vrc takes the ghost companion (5.40:1); cvr needs a darker
+     70% mix (4.90:1 — the 76% ghost reaches only 4.33:1 here). */
+  --login-tab-vrc: var(--plat-vrc-ghost-text);
+  --login-tab-cvr: color-mix(in srgb, var(--cvr) 70%, black);
 
   /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light overrides */
   --control-active-bg: linear-gradient(

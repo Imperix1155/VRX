@@ -5,18 +5,23 @@
  * Pins the §8 status indicator: online = presence 'active' OR 'in-game',
  * summed across BOTH platforms, with the i18next _one/_other plural applied.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { fireEvent, render, screen, cleanup } from '@testing-library/react'
-import type { Friend } from '@shared/types'
+import type { AuthStatus, Friend, Platform } from '@shared/types'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
+import { useFriendsStore } from '../stores/friends'
 import TopBar from './TopBar'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
+const useAuthStatusMock = vi.hoisted(() => vi.fn())
 // Keep the real `scopeByPlatformFilter` (pure) — only the hook is stubbed.
 vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
+}))
+vi.mock('../queries/auth', () => ({
+  useAuthStatus: useAuthStatusMock
 }))
 
 // jsdom has no ResizeObserver (the bubble-measuring effect observes the track).
@@ -37,9 +42,28 @@ function stubFriends(vrc: Friend[], cvr: Friend[]): void {
   )
 }
 
+function authenticated(platform: Platform): AuthStatus {
+  return {
+    platform,
+    state: 'authenticated',
+    accountId: `${platform}-account`,
+    displayName: 'Test User'
+  }
+}
+
+beforeEach(() => {
+  useAuthStatusMock.mockImplementation((platform: Platform) => ({
+    data: authenticated(platform)
+  }))
+  useFriendsStore.setState({ platformFilter: 'all' })
+  Object.assign(window, { vrx: undefined })
+})
+
 afterEach(() => {
   cleanup()
   useFriendsMock.mockReset()
+  useAuthStatusMock.mockReset()
+  Object.assign(window, { vrx: undefined })
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
 })
 
@@ -114,5 +138,63 @@ describe('TopBar contextual slot (VRX-186)', () => {
         .getByRole('radio', { name: msg('shell.seg.chilloutvrShort') })
         .getAttribute('aria-checked')
     ).toBe('true')
+  })
+})
+
+describe('TopBar connection health (VRX-223)', () => {
+  function stubAppStatus(vrchat: unknown, chilloutvr: unknown): void {
+    Object.assign(window, {
+      vrx: {
+        getAppStatus: vi.fn().mockResolvedValue({
+          ws: { vrchat, chilloutvr },
+          lastReconcileAt: { vrchat: null, chilloutvr: null }
+        })
+      } as unknown as Window['vrx']
+    })
+  }
+
+  it('shows a green motion-safe pulse when every signed-in platform is live', async () => {
+    stubFriends([], [])
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    expect(indicator.className).toContain('motion-safe:animate-pulse')
+  })
+
+  it('shows amber for reconnecting and red when a signed-in platform is down', async () => {
+    stubFriends([], [])
+    stubAppStatus('live', 'reconnecting')
+    const { unmount } = render(<TopBar />)
+
+    const reconnecting = await screen.findByLabelText('VRChat: Live; ChilloutVR: Reconnecting')
+    expect(reconnecting.getAttribute('style')).toContain('var(--warning)')
+
+    unmount()
+    stubAppStatus('down', 'live')
+    render(<TopBar />)
+    const down = await screen.findByLabelText('VRChat: Down; ChilloutVR: Live')
+    expect(down.getAttribute('style')).toContain('var(--error)')
+  })
+
+  it('ignores signed-out platform health and degrades unknown health to down', async () => {
+    stubFriends([], [])
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data:
+        platform === 'vrchat'
+          ? authenticated(platform)
+          : {
+              platform,
+              state: 'unauthenticated',
+              accountId: null,
+              displayName: null
+            }
+    }))
+    stubAppStatus('future-health', 'down')
+    render(<TopBar />)
+
+    const indicator = await screen.findByLabelText('VRChat: Down; ChilloutVR: Signed out')
+    expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
 })

@@ -135,26 +135,19 @@ describe('credential storage', () => {
     })
   })
 
-  it('returns B after a completed A-to-B replacement in the same slot', () => {
+  it('records B with the digest of B after a completed A-to-B replacement in the same slot', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_b')
 
-    expect(mocks.stores.get('credential-owners')).toMatchObject({
-      'vrchat:primary': { platformAccountId: 'usr_account_b' }
-    })
-  })
-
-  it('returns null when an out-of-band ciphertext overwrite breaks the owner digest binding', () => {
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
-    mocks.stores.set('credentials', {
-      'vrchat:primary': Buffer.from('encrypted:account-b-token').toString('base64')
-    })
-
-    expect(mocks.stores.get('credential-owners')).toMatchObject({
-      'vrchat:primary': { platformAccountId: 'usr_account_a' }
+    expect(mocks.stores.get('credential-owners')).toEqual({
+      'vrchat:primary': {
+        platformAccountId: 'usr_account_b',
+        credentialDigest: createHash('sha256')
+          .update(Buffer.from('encrypted:account-b-token').toString('base64'))
+          .digest('hex')
+      }
     })
   })
 

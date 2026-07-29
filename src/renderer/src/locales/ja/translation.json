@@ -1,5 +1,8 @@
 {
   "appName": "VRX",
+  "boot": {
+    "connecting": "接続中…"
+  },
   "shell": {
     "subtitle": "Social VR コンパニオン",
     "footer": "Social VR コンパニオン",
@@ -19,6 +22,13 @@
       "aria": "プラットフォームフィルター"
     },
     "onlineCount_other": "{{count}}人がオンライン",
+    "connection": {
+      "label": "VRChat: {{vrchat}}、ChilloutVR: {{chilloutvr}}",
+      "live": "接続中",
+      "reconnecting": "再接続中",
+      "down": "切断",
+      "signedOut": "サインアウト"
+    },
     "comingSoon": "近日公開"
   },
   "settings": {
@@ -57,6 +67,13 @@
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "プラットフォーム別"
+    },
+    "drawerOpener": {
+      "label": "フレンド詳細の開き方",
+      "description": "カード全体のクリックで詳細を開くか、アバターのみで開くかを選択します。Joinピルは常に参加を優先します。",
+      "aria": "フレンド詳細を開く操作の選択",
+      "card": "カード全体",
+      "avatar": "アバターのみ"
     },
     "dashboard": {
       "heading": "ダッシュボード"
@@ -145,6 +162,10 @@
     "error": "フレンドを読み込めませんでした",
     "joinAria": "{{name}}さんがいる{{world}}に参加",
     "joinFailed": "参加できません",
+    "joinFailure": {
+      "stale": "ライブ接続の準備ができていません — ライブフィードの再接続後に参加できます",
+      "cooldown": "少々お待ちください — 参加を起動したばかりです"
+    },
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここでフレンドを確認するにはChilloutVRに接続してください",
@@ -245,6 +266,7 @@
   "login": {
     "subtitle": "Social VR コンパニオン",
     "username": "ユーザー名またはメールアドレス",
+    "email": "メールアドレス",
     "usernamePlaceholder": "you@example.com",
     "password": "パスワード",
     "passwordPlaceholder": "••••••••",
@@ -261,7 +283,12 @@
       "placeholder": "000000",
       "verify": "確認",
       "back": "戻る"
-    }
+    },
+    "tabs": {
+      "aria": "サインインするプラットフォーム"
+    },
+    "formAria": "{{platform}} にサインイン",
+    "disclaimerChilloutvr": "お客様のデバイス上でChilloutVRに安全に接続します。資格情報はこのデバイスに安全に保存されます。"
   },
   "stepper": {
     "decrease": "減らす",

@@ -1,5 +1,8 @@
 {
   "appName": "VRX",
+  "boot": {
+    "connecting": "Connecting…"
+  },
   "shell": {
     "subtitle": "Social VR Companion",
     "footer": "Social VR Companion",
@@ -20,6 +23,13 @@
     },
     "onlineCount_one": "{{count}} online",
     "onlineCount_other": "{{count}} online",
+    "connection": {
+      "label": "VRChat: {{vrchat}}; ChilloutVR: {{chilloutvr}}",
+      "live": "Live",
+      "reconnecting": "Reconnecting",
+      "down": "Down",
+      "signedOut": "Signed out"
+    },
     "comingSoon": "Coming soon"
   },
   "settings": {
@@ -58,6 +68,13 @@
       "vrchat": "VRChat",
       "chilloutvr": "ChilloutVR",
       "platformNative": "Per platform"
+    },
+    "drawerOpener": {
+      "label": "Friend details open from",
+      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. The Join pill always joins instead.",
+      "aria": "Friend details opener selector",
+      "card": "Whole card",
+      "avatar": "Avatar only"
     },
     "dashboard": {
       "heading": "Dashboard"
@@ -146,6 +163,10 @@
     "error": "Could not load friends",
     "joinAria": "Join {{name}} in {{world}}",
     "joinFailed": "Couldn't join",
+    "joinFailure": {
+      "stale": "Live connection not ready — joins resume when the live feed reconnects",
+      "cooldown": "One moment — just launched a join"
+    },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
       "chilloutvr": "Connect ChilloutVR to see your friends here",
@@ -246,6 +267,7 @@
   "login": {
     "subtitle": "Social VR Companion",
     "username": "Username or email",
+    "email": "Email address",
     "usernamePlaceholder": "you@example.com",
     "password": "Password",
     "passwordPlaceholder": "••••••••",
@@ -262,7 +284,12 @@
       "placeholder": "000000",
       "verify": "Verify",
       "back": "Back"
-    }
+    },
+    "tabs": {
+      "aria": "Sign-in platform"
+    },
+    "formAria": "{{platform}} sign-in",
+    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Your credentials are stored securely on this device."
   },
   "stepper": {
     "decrease": "Decrease",
