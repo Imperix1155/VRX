@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-29
+
 ### Added
 
 - **ChilloutVR players can finally sign in.** The sign-in screen now has two tabs — VRChat and ChilloutVR — sharing one form, so a CVR-only player is no longer locked out of the app entirely. The card retints to match the platform you pick, and switching tabs always gives you a fresh form (your password never carries across, and password managers keep the two accounts separate). (VRX-217)
