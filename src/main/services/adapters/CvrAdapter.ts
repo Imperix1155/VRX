@@ -33,7 +33,7 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
 
 /** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
- *  electron-log bridge live in main/index.ts; tests inject fakes. */
+ *  electron-log bridge live in main/app.ts; tests inject fakes. */
 export interface CvrLiveWiring {
   socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
