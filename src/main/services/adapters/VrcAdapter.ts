@@ -155,7 +155,7 @@ export class VrcAdapter extends VrcApiClient {
     /**
      * Live-pipeline wiring (VRX-146), injected at the call site so this file
      * stays electron-free: the real socketFactory (ws + User-Agent) and the
-     * electron-log bridge live in main/index.ts; tests inject fakes.
+     * electron-log bridge live in main/app.ts; tests inject fakes.
      */
     private readonly live?: VrcLiveWiring
   ) {
