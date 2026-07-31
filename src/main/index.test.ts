@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
+// The main process is split (VRX-230): index.ts is the thin single-instance
+// entry; app.ts is the full bootstrap it dynamic-imports while holding the lock.
+const source = readFileSync(fileURLToPath(new URL('./app.ts', import.meta.url)), 'utf8')
+const entrySource = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
 
 describe('main native notification wiring', () => {
   it('includes the packaged app icon on native notifications (VRX-82)', () => {
@@ -46,6 +49,42 @@ describe('main native notification wiring', () => {
     )
     expect(source).toContain("mainWindow.webContents.on('did-finish-load'")
     expect(source).toContain('dashboardNavigation.rendererReady(mainWindow)')
+  })
+})
+
+describe('main single-instance lock (VRX-230)', () => {
+  it('entry takes the lock verdict and hard-exits the losing duplicate', () => {
+    expect(entrySource).toContain('const hasSingleInstanceLock = app.requestSingleInstanceLock()')
+    // app.exit(0), not app.quit(): immediate, and a duplicate that loaded
+    // nothing has nothing to tear down.
+    expect(entrySource).toContain('if (!hasSingleInstanceLock) {\n  app.exit(0)\n}')
+  })
+
+  it('entry loads the app chunk via dynamic import ONLY while holding the lock', () => {
+    // The split is load-bearing: a static import would make every duplicate
+    // evaluate the full app chunk (logger, safeStorage/keychain reads that pop
+    // a macOS prompt, ws module init) before the lock verdict. Dynamic import
+    // in the else-branch means a duplicate loads nothing at all.
+    expect(entrySource).toContain("import('./app')")
+    expect(entrySource).not.toMatch(/^import .*'\.\/app'/m)
+    const exitBranch = entrySource.indexOf('app.exit(0)')
+    const load = entrySource.indexOf("import('./app')")
+    expect(exitBranch).toBeGreaterThan(-1)
+    expect(exitBranch).toBeLessThan(load)
+  })
+
+  it('entry imports nothing but electron itself', () => {
+    // Any other static import would run its module-scope side effects in every
+    // duplicate before the verdict — the entry stays electron-only.
+    const staticImports = entrySource.match(/^import .*$/gm) ?? []
+    expect(staticImports).toEqual(["import { app, dialog } from 'electron'"])
+  })
+
+  it('app chunk foregrounds the surviving window on second-instance', () => {
+    expect(source).toContain("app.on('second-instance'")
+    // Reuses focusMainWindow (restore → show → focus), guarded for early boot
+    // where no window exists yet and BrowserWindow creation would throw.
+    expect(source).toContain('if (app.isReady()) focusMainWindow()')
   })
 })
 
