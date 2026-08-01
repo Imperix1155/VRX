@@ -1,8 +1,23 @@
 import { useSyncExternalStore } from 'react'
 import type { InstanceActionResult } from '@shared/ipc'
-import type { Friend } from '@shared/types'
+import type { Friend, JoinMode, JoinModePreference } from '@shared/types'
+import { useSettingsStore } from '../stores/settings'
 
 export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['reason'] | 'unknown'
+
+/**
+ * Resolve the wire launch mode when NO dialog picker is involved (VRX-210).
+ * VRChat's `vrchat://launch` URI carries no mode selector (verified against
+ * VRChat's launch-options docs + VRCX source), so main ignores the value —
+ * 'desktop' is a placeholder there. For CVR, an explicit 'vr'/'desktop'
+ * preference passes through; 'ask' with the confirmation dialog OFF cannot be
+ * honored (there is no one to ask), so it falls back to 'desktop' — the
+ * pre-VRX-210 behavior.
+ */
+export function resolveWireMode(friend: Friend, preference: JoinModePreference): JoinMode {
+  if (friend.platform === 'chilloutvr' && preference !== 'ask') return preference
+  return 'desktop'
+}
 
 export function joinFailureMessageKey(reason: JoinFailureReason): string {
   if (reason === 'stale') return 'friends.joinFailure.stale'
@@ -19,6 +34,8 @@ function friendJoinKey(friend: Friend): string {
 interface JoinSnapshot {
   /** True while ANY surface's join is in flight. */
   joining: boolean
+  /** The friend awaiting confirmation in the join dialog (VRX-210). Null = no dialog. */
+  pendingConfirm: Friend | null
   /** The composite key of the friend whose join was denied — the blip is
    *  ATTRIBUTABLE (Codex re-review): only surfaces showing THAT friend blip,
    *  never every joinable pill. Null = no blip. */
@@ -31,6 +48,8 @@ interface JoinStore {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => JoinSnapshot
   join: (friend: Friend) => Promise<void>
+  confirmPending: (mode: JoinMode) => Promise<void>
+  cancelPending: () => void
 }
 
 /**
@@ -46,6 +65,7 @@ interface JoinStore {
 function createJoinStore(): JoinStore {
   let snapshot: JoinSnapshot = {
     joining: false,
+    pendingConfirm: null,
     failedFriendId: null,
     failureReason: null
   }
@@ -76,9 +96,7 @@ function createJoinStore(): JoinStore {
     }, 2_500)
   }
 
-  async function join(friend: Friend): Promise<void> {
-    // The snapshot IS the cross-surface latch: one active join blocks all.
-    if (snapshot.joining) return
+  async function performJoin(friend: Friend, mode: JoinMode): Promise<void> {
     emit({ joining: true })
     // A new attempt clears any lingering blip immediately (whoever it was for).
     clearFailureBlip()
@@ -90,11 +108,10 @@ function createJoinStore(): JoinStore {
         showFailureBlip(friendKey, 'unknown')
         return
       }
-      // VRChat ignores mode; a CVR VR-mode picker is a future setting.
       const result = await window.vrx.joinInstance({
         platform: friend.platform,
         friendId: friend.platformUserId,
-        mode: 'desktop'
+        mode
       })
       if (result.ok) clearFailureBlip()
       else showFailureBlip(friendKey, result.reason)
@@ -107,13 +124,44 @@ function createJoinStore(): JoinStore {
     }
   }
 
+  async function join(friend: Friend): Promise<void> {
+    // The snapshot IS the cross-surface latch: one active join blocks all.
+    if (snapshot.joining) return
+    // VRX-210: the confirmation gate lives HERE, in the ONE shared flow, so
+    // every join path — the row pill, the drawer button, and any future
+    // surface (the hot-instance card join is VRX-59's to add) — is
+    // intercepted identically. `confirmJoin: false` keeps one-click joining.
+    const { confirmJoin, joinMode } = useSettingsStore.getState().settings
+    if (confirmJoin) {
+      // Opening the dialog is a new attempt too: clear any lingering blip.
+      clearFailureBlip()
+      emit({ pendingConfirm: friend })
+      return
+    }
+    await performJoin(friend, resolveWireMode(friend, joinMode))
+  }
+
+  async function confirmPending(mode: JoinMode): Promise<void> {
+    const friend = snapshot.pendingConfirm
+    // The latch applies to confirmed joins as well: Confirm fires exactly once.
+    if (friend === null || snapshot.joining) return
+    emit({ pendingConfirm: null })
+    await performJoin(friend, mode)
+  }
+
+  function cancelPending(): void {
+    if (snapshot.pendingConfirm !== null) emit({ pendingConfirm: null })
+  }
+
   return {
     subscribe: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
     getSnapshot: () => snapshot,
-    join
+    join,
+    confirmPending,
+    cancelPending
   }
 }
 
@@ -129,14 +177,23 @@ const sharedJoinStore = createJoinStore()
  * retains the typed denial for honest copy, while `joinFailedFor` remains the
  * boolean convenience API. Both clear at the start of a new attempt and on
  * success, wherever it fires. Callers own event concerns.
+ *
+ * VRX-210: with `settings.confirmJoin` on, `join` does NOT launch — it parks
+ * the friend in `pendingConfirm` and the `JoinConfirmDialog` (mounted once in
+ * AppShell) owns the choice: `confirmPending(mode)` fires exactly one join,
+ * `cancelPending()` fires nothing. With the setting off, `join` launches
+ * immediately, resolving the wire mode from `settings.joinMode`.
  */
 export function useJoinInstance(): {
   isJoining: boolean
+  pendingConfirm: Friend | null
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Friend) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
+  confirmPending: (mode: JoinMode) => Promise<void>
+  cancelPending: () => void
 } {
-  const { joining, failedFriendId, failureReason } = useSyncExternalStore(
+  const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
     sharedJoinStore.getSnapshot,
     // Server snapshot: the SSR-rendered markup tests (renderToStaticMarkup)
@@ -145,8 +202,11 @@ export function useJoinInstance(): {
   )
   return {
     isJoining: joining,
+    pendingConfirm,
     joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend),
     joinFailureFor: (friend) => (failedFriendId === friendJoinKey(friend) ? failureReason : null),
-    join: sharedJoinStore.join
+    join: sharedJoinStore.join,
+    confirmPending: sharedJoinStore.confirmPending,
+    cancelPending: sharedJoinStore.cancelPending
   }
 }

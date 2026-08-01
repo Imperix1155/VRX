@@ -84,6 +84,21 @@
       "description": "Minimum friends in one world before it counts as hot.",
       "aria": "Hot instance threshold"
     },
+    "confirmJoin": {
+      "label": "Confirm before joining",
+      "description": "Ask before VRX launches you into a friend's instance.",
+      "aria": "Confirm before joining",
+      "on": "On",
+      "off": "Off"
+    },
+    "joinMode": {
+      "label": "Join in",
+      "description": "Which mode ChilloutVR launches in. VRChat always picks from its own launch settings.",
+      "aria": "Join launch mode",
+      "ask": "Always ask",
+      "vr": "VR",
+      "desktop": "Desktop"
+    },
     "categories": {
       "aria": "Settings category"
     },
@@ -241,6 +256,34 @@
       "placeholder": "Add a private note…",
       "counter": "{{current}}/500"
     }
+  },
+  "joinConfirm": {
+  "title": "Join this {{type}} instance?",
+  "titleUnknown": "Join this instance?",
+  "context": "{{name}} is in {{world}}",
+  "openness": {
+    "public": "Effectively public — people you don't know can get in.",
+    "private": "Effectively private — gated by friendship or invites.",
+    "unknown": "Openness unknown"
+  },
+  "moreToggle": "More info",
+  "more": {
+    "public": "Anyone can walk into a public instance — treat it as a fully open space.",
+    "friendsPlus": "Friends of anyone already inside can join, so the crowd can be wider than your own friend list. Treat it as public.",
+    "private": "Only friends of people inside — or players holding an invite — can get in. It's still not a private channel: the instance owner and moderators can see everything.",
+    "unknown": "VRX couldn't read this instance's privacy, so it can't say how open it is."
+  },
+  "peopleCount_one": "· {{count}} person",
+  "peopleCount_other": "· {{count}} people",
+  "mode": {
+    "aria": "Launch mode",
+    "vr": "VR",
+    "desktop": "Desktop"
+  },
+  "vrchatModeNote": "VRChat chooses VR or desktop from its own launch settings.",
+  "confirm": "Join",
+  "cancel": "Cancel",
+  "dontAskAgain": "Don't ask again (Settings › re-enable anytime)"
   },
   "dashboard": {
     "loading": "Loading...",

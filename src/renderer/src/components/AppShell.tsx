@@ -7,6 +7,7 @@ import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
+import JoinConfirmDialog from './JoinConfirmDialog'
 
 /** Glass "coming soon" stub for views not yet implemented. */
 function ComingSoonStub({ labelKey }: { labelKey: string }): React.JSX.Element {
@@ -85,6 +86,9 @@ export default function AppShell(): React.JSX.Element {
         <TopBar />
         <MainContent />
       </main>
+      {/* VRX-210: the ONE join confirmation dialog — mounted at shell level so
+          every join surface (row pill, drawer, future hot-card join) is covered. */}
+      <JoinConfirmDialog />
     </div>
   )
 }
