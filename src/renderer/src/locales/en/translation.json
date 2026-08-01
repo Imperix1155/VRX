@@ -81,7 +81,7 @@
     },
     "hotThreshold": {
       "label": "Hot instance threshold",
-      "description": "Minimum friends in one world before it counts as hot.",
+      "description": "Minimum friends in one instance before it counts as hot.",
       "aria": "Hot instance threshold"
     },
     "confirmJoin": {
@@ -317,7 +317,7 @@
     "friendsHereAria": "{{count}} friends here: {{names}}",
     "joinInstance": "Join",
     "emptyHeading": "No hot instances currently",
-    "emptyHint": "When {{threshold}} or more friends gather in the same world, it'll show up here.",
+    "emptyHint": "When {{threshold}} or more friends gather in the same instance, it'll show up here.",
     "hotThresholdAria": "Hot instance threshold"
   },
   "login": {

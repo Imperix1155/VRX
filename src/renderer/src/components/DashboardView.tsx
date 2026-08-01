@@ -3,16 +3,20 @@
  *
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
- *  - Hot-instance grid: top 6 worlds by friend count — the VRX-198 card (world name +
- *    shared instance pill hero + who's-here names + quiet platform pill).
+ *  - Hot-instance grid: top 6 EXACT instances by friend count (VRX-237 — same
+ *    instanceId, never same-world) — the VRX-198 card (world name + shared
+ *    instance pill hero + who's-here names + quiet platform pill). The hero
+ *    pill doubles as the Join affordance when a member is joinable (VRX-237).
  *  - Empty state when no friends are online.
  *
  * Deferred: world thumbnail (VRX-48) + whole-card click → detail panel (VRX-59).
  */
 import { useTranslation } from 'react-i18next'
+import { isFriendJoinable } from '@shared/joinability'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
+import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import NumberStepper from './NumberStepper'
 import InstancePill from './InstancePill'
 import { OPENNESS_TIER } from '../utils/instancePill'
@@ -63,7 +67,7 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
   )
 }
 
-// ─── HotInstanceCard (§9, VRX-198) ────────────────────────────────────────────
+// ─── HotInstanceCard (§9, VRX-198; exact-instance + card Join VRX-237) ───────
 //
 // Visual-weight order, top to bottom: world name → instance pill (hero) →
 // who's-here → platform (quiet a11y label). A 2×2 grid: the world name (r1c1) and
@@ -71,11 +75,19 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
 // pill (r2c2) share a right column floored at 78px and grown to `max-content`, so the
 // two pills are always the SAME width and their edges line up (a clean rectangle).
 // The whole-card click → detail panel (world image, full who's-here, the instance
-// number) is deferred to VRX-59; the card is intentionally NOT clickable yet.
+// number) is deferred to VRX-59; the card is intentionally NOT clickable yet, so
+// the hero pill's Join is its OWN explicit control — a card click never joins.
 
 function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Element {
   const { t } = useTranslation()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
+  // The ONE shared join flow (VRX-237): the card's Join routes through a MEMBER
+  // friend — any member works because they provably share the exact instance.
+  // `members` is alphabetical, so the first JOINABLE member is a deterministic
+  // target. The confirmation dialog (VRX-210) intercepts via the same flow.
+  const { isJoining, joinFailureFor, join } = useJoinInstance()
+  const joinTarget = instance.members.find(isFriendJoinable) ?? null
+  const joinFailure = joinTarget !== null ? joinFailureFor(joinTarget) : null
   const isVrc = instance.platform === 'vrchat'
 
   const opennessLabel = t(LABEL_KEYS_BY_SCHEME[labelScheme][instance.instanceType])
@@ -99,6 +111,13 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
     count: instance.friendCount,
     names: instance.friendNames.join(', ')
   })
+
+  function joinCardTarget(event: React.MouseEvent<HTMLButtonElement>): void {
+    // Belt-and-suspenders containment for the day the whole-card click (VRX-59)
+    // lands: join wins over open, always — same law as the friend row.
+    event.stopPropagation()
+    if (joinTarget !== null) void join(joinTarget)
+  }
 
   return (
     <div className={`glass ${tintClass} overflow-hidden`}>
@@ -130,12 +149,45 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
           {worldName}
         </div>
 
-        {/* Instance pill (hero) — top-right, pinned */}
-        <InstancePill
-          label={opennessLabel}
-          tier={tier}
-          className="col-start-2 row-start-1 self-center"
-        />
+        {/* Instance pill (hero) — top-right, pinned. VRX-237: when a member is
+            joinable the pill IS the card's Join affordance — the same row-pill
+            pattern (VRX-166: button variant + shared isFriendJoinable gate +
+            role="status" denial blip), routed through the ONE shared join flow
+            so the VRX-210 confirmation dialog intercepts identically. The grid
+            placement moves to the wrapper so the pill keeps the shared column. */}
+        {joinTarget !== null ? (
+          <span className="col-start-2 row-start-1 self-center relative block" data-join-pill>
+            <InstancePill
+              label={opennessLabel}
+              tier={tier}
+              // The wrapper is a grid item stretched to the shared pill column;
+              // the pill inside must fill it (w-full + the FriendsList width
+              // floor) or short labels render a shrunk, left-aligned pill and
+              // the two-pills-same-width invariant breaks (L8).
+              className="w-full min-w-[78px]"
+              onJoin={joinCardTarget}
+              disabled={isJoining}
+              aria-label={t('friends.joinAria', {
+                name: joinTarget.displayName,
+                // The STRIPPED display name — same as the visible title, never
+                // the raw `(#…)`-suffixed wire name.
+                world: worldName
+              })}
+            />
+            <span
+              role="status"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
+            >
+              {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
+            </span>
+          </span>
+        ) : (
+          <InstancePill
+            label={opennessLabel}
+            tier={tier}
+            className="col-start-2 row-start-1 self-center"
+          />
+        )}
 
         {/* Who's-here — bottom-left; names truncate BEFORE the shrink-proof "+N" so
             the overflow count never gets clipped on a narrow card. Full list is in
@@ -312,7 +364,7 @@ export default function DashboardView(): React.JSX.Element {
           <div className="hotwrap">
             <div className="hot-grid">
               {hotInstances.map((inst) => (
-                <HotInstanceCard key={inst.worldId} instance={inst} />
+                <HotInstanceCard key={inst.groupKey} instance={inst} />
               ))}
             </div>
           </div>

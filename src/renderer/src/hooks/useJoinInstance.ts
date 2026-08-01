@@ -131,9 +131,9 @@ function createJoinStore(): JoinStore {
     // (for ANY friend) must not silently swap or stack — ignore it.
     if (snapshot.pendingConfirm !== null) return
     // VRX-210: the confirmation gate lives HERE, in the ONE shared flow, so
-    // every join path — the row pill, the drawer button, and any future
-    // surface (the hot-instance card join is VRX-59's to add) — is
-    // intercepted identically. `confirmJoin: false` keeps one-click joining.
+    // every join path — the row pill, the drawer button, and the hot-instance
+    // card Join (VRX-237) — is intercepted identically. `confirmJoin: false`
+    // keeps one-click joining.
     const { confirmJoin, joinMode } = useSettingsStore.getState().settings
     if (confirmJoin) {
       // Opening the dialog is a new attempt too: clear any lingering blip.

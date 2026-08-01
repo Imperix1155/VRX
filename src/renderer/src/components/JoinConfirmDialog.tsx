@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceInfo, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriends } from '../queries/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -270,13 +271,24 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const showModePicker = friend.platform === 'chilloutvr' && joinMode === 'ask'
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friend, joinMode)
 
-  // Who's-there: exact worldId + instanceId match over the cached friends.
+  // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
+  // AND same hotInstanceKey (platform-aware: a CVR member mid-enrichment,
+  // worldId still flipping from the instanceId fallback to the real world.id,
+  // keys identically; a raw worldId+instanceId match would drop that cohort),
+  // visible members only (isHotInstanceMember — the owner privacy law hides
+  // Ask Me/DND from the whole hot system, this row included). One derivation
+  // with the hot card: the dialog never contradicts the card that opened it.
+  const parkedKey =
+    instance !== null
+      ? hotInstanceKey(friend.platform, instance.instanceId, instance.worldId)
+      : null
   const present = [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])].filter(
     (f): f is Friend =>
-      instance !== null &&
-      f.instance !== null &&
-      f.instance.worldId === instance.worldId &&
-      f.instance.instanceId === instance.instanceId
+      parkedKey !== null &&
+      f.platform === friend.platform &&
+      isHotInstanceMember(f) &&
+      hotInstanceKey(f.platform, f.instance?.instanceId ?? null, f.instance?.worldId ?? null) ===
+        parkedKey
   )
   const shown = present.slice(0, WHO_THERE_MAX_AVATARS)
   const overflow = present.length - shown.length

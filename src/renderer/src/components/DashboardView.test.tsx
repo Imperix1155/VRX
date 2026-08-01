@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -262,5 +263,118 @@ describe('DashboardView states (W5)', () => {
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
     }
+  })
+})
+
+// ─── HotInstanceCard Join (VRX-237) ───────────────────────────────────────────
+
+describe('HotInstanceCard Join (VRX-237)', () => {
+  const pyramid = (id: string, name: string): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: 'wrld_fish',
+        instanceId: 'wrld_fish:aaa~public',
+        worldName: 'Fish Pyramid',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        region: 'us',
+        userCount: 3
+      }
+    })
+
+  /** Reads the ONE shared join store so the test sees the parked dialog friend. */
+  function PendingProbe(): React.JSX.Element {
+    const { pendingConfirm, cancelPending } = useJoinInstance()
+    return (
+      <div>
+        <span data-testid="pending">{pendingConfirm?.displayName ?? 'none'}</span>
+        <button type="button" data-testid="cancel" onClick={cancelPending} />
+      </div>
+    )
+  }
+
+  it('card Join fires the confirmation dialog (confirmJoin on) exactly once, for the first alphabetical member', () => {
+    stubQueries(
+      { data: [pyramid('usr_z', 'Zed'), pyramid('usr_a', 'Amy')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    // The hero instance pill IS the Join button, aria-named for the
+    // deterministic join target (members sort alphabetically → Amy).
+    const joinPill = screen.getByRole('button', {
+      name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+    })
+
+    fireEvent.click(joinPill)
+    // confirmJoin defaults ON (VRX-210): the click parks Amy — no launch
+    // (with the gate off the probe would read 'none' and the bridge/blip path
+    // would have run instead).
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    // A second click while the dialog is parked is ignored — exactly one join
+    // is pending, for the same friend (the modal latch in the shared flow).
+    fireEvent.click(joinPill)
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+  })
+
+  it('shows NO card Join when no member is joinable (shared isFriendJoinable gate)', () => {
+    // Visible-but-unjoinable members: CVR "Offline Instance" friends COUNT for
+    // the hot card (they are not hidden-location — the owner privacy law is
+    // Ask Me/DND only) but are never joinable (isFriendJoinable rejects CVR
+    // offline instances). An ask-me/dnd fixture would no longer render a card
+    // at all under the VRX-237 privacy law.
+    const cvrOfflineInstance = (id: string, name: string): Friend =>
+      ({
+        ...makeFriend({ platformUserId: id, displayName: name }),
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        trustRank: null,
+        instance: {
+          worldId: 'i+offline1',
+          instanceId: 'i+offline1',
+          worldName: 'Private Basement',
+          thumbnailUrl: null,
+          type: 'offline',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          region: null,
+          userCount: 2
+        }
+      }) as unknown as Friend
+    stubQueries(
+      { data: [], isPending: false },
+      {
+        data: [cvrOfflineInstance('cvr_a', 'Amy'), cvrOfflineInstance('cvr_b', 'Bo')],
+        isPending: false
+      }
+    )
+    render(<DashboardView />)
+
+    // The card renders (they DO share an exact instance and are visible) but
+    // the pill stays a plain span — there is no Join button for anyone.
+    expect(screen.getByText('Private Basement')).toBeTruthy()
+    expect(
+      screen.queryByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
+      })
+    ).toBeNull()
   })
 })

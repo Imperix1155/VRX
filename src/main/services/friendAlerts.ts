@@ -1,5 +1,6 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
+import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
 
 export type FriendAlertType = 'online' | 'in-game' | 'offline' | 'hot-instance'
 
@@ -26,6 +27,14 @@ interface KnownPresence {
   instanceId: string | null
   worldId: string | null
   worldName: string | null
+  /**
+   * Hot-system membership, computed ONCE at intake via the shared
+   * `isHotInstanceMember` predicate (VRX-237): in-game + visible instance +
+   * NOT hidden-location. The owner privacy law (2026-08-01) makes Ask
+   * Me / DND friends invisible to the entire hot system, toast included —
+   * and a stale populated instance on a non-in-game friend never counts.
+   */
+  hot: boolean
 }
 
 interface KnownInstanceCount {
@@ -104,7 +113,7 @@ export class FriendAlerts {
           this.applyPresence(
             event.platform,
             event.platformUserId,
-            { state: 'offline', instanceId: null, worldId: null, worldName: null },
+            { state: 'offline', instanceId: null, worldId: null, worldName: null, hot: false },
             true,
             baselinedKeys
           )
@@ -112,6 +121,15 @@ export class FriendAlerts {
         return
       case 'friend-updated':
         this.rememberName(event.friend)
+        // VRX-237 (privacy law): a profile update can change STATUS only
+        // (online → Ask Me) with presence/instance unchanged — hot membership
+        // must be re-evaluated so a newly-hidden friend drops OUT of the hot
+        // counts (and back IN on the reverse flip). Profile-merge semantics
+        // are preserved: cached presence/instance stay authoritative; only
+        // the membership verdict is recomputed from the new status.
+        this.applyPresenceMutation(event.platform, () => {
+          this.recomputeHotMembership(event.platform, event.friend)
+        })
         return
       case 'world-metadata':
         // Metadata-only (VRX-214): no presence or location claim. Feeding the
@@ -174,6 +192,13 @@ export class FriendAlerts {
   private consumePresenceSnapshot(
     event: Extract<AdapterEvent, { type: 'presence-snapshot' }>
   ): void {
+    // INVARIANT: presence-snapshot is CVR-ONLY by construction (VRChat's
+    // pipeline emits friend-presence / friends-snapshot, never this event).
+    // That is what makes the `status: null` membership fallback in
+    // `fromPresence` safe: CVR has no hidden-status axis, so the privacy
+    // gate cannot trip on this path. If VRChat ever gains a snapshot event,
+    // thread each entry's real status through instead.
+    if (event.platform !== 'chilloutvr') return
     const current = this.platformPresence(event.platform)
     const firstSnapshot = this.snapshotBaselined.get(event.platform) !== true
 
@@ -201,7 +226,7 @@ export class FriendAlerts {
           this.applyPresence(
             event.platform,
             platformUserId,
-            { state: 'offline', instanceId: null, worldId: null, worldName: null },
+            { state: 'offline', instanceId: null, worldId: null, worldName: null, hot: false },
             false,
             baselinedKeys
           )
@@ -243,7 +268,8 @@ export class FriendAlerts {
       state: 'offline',
       instanceId: null,
       worldId: null,
-      worldName: null
+      worldName: null,
+      hot: false
     }
     const wasOnline = before.state === 'active' || before.state === 'in-game'
     const isOnline = next.state === 'active' || next.state === 'in-game'
@@ -380,6 +406,27 @@ export class FriendAlerts {
     this.platformPresence(platform).delete(platformUserId)
   }
 
+  /**
+   * Re-evaluate ONE cached friend's hot membership after a friend-updated
+   * event (VRX-237). Only the `hot` verdict is recomputed — via the SAME
+   * shared predicate, fed from the cached presence/instance and the event's
+   * new status (a cached instanceId stands in for the instance object, which
+   * the predicate only null-checks). Unknown ids are ignored: a profile
+   * update for a never-seen friend changes nothing.
+   */
+  private recomputeHotMembership(platform: Platform, friend: Friend): void {
+    const platformPresence = this.platformPresence(platform)
+    const current = platformPresence.get(friend.platformUserId)
+    if (current === undefined) return
+    const hot = isHotInstanceMember({
+      platform,
+      presence: { state: current.state },
+      status: friend.status,
+      instance: current.instanceId !== null ? { instanceId: current.instanceId } : null
+    })
+    if (hot !== current.hot) platformPresence.set(friend.platformUserId, { ...current, hot })
+  }
+
   /** Apply one delta or one complete snapshot as a single count transaction.
    *  Only the pre/post aggregate diff can cross a threshold; intermediate
    *  per-friend ordering inside a snapshot is never observable. */
@@ -434,25 +481,28 @@ export class FriendAlerts {
   }
 
   private instanceKey(platform: Platform, presence: KnownPresence): string | null {
-    if (presence.state !== 'in-game' || presence.instanceId === null) return null
-    // VRChat's instance suffix is only unique inside a world. CVR instance ids
-    // are globally unique and must remain stable while world metadata enriches.
-    // NUL separator: cheap and collision-free for the API's id charsets (this
-    // runs once per presence entry on EVERY event — JSON.stringify was the
-    // hot spot that timed CI out at 10k events).
-    return platform === 'vrchat'
-      ? `${presence.worldId ?? ''}\u0000${presence.instanceId}`
-      : presence.instanceId
+    // MEMBERSHIP (who counts) is the shared isHotInstanceMember verdict,
+    // computed at intake; the KEY SHAPE (which instance) is the shared
+    // hotInstanceKey. One predicate + one key across engine and dashboard
+    // (VRX-237), so toast and cards can never disagree.
+    if (!presence.hot) return null
+    return hotInstanceKey(platform, presence.instanceId, presence.worldId)
   }
 
   private fromFriend(friend: Friend): KnownPresence {
-    return this.fromPresence(friend.platform, friend.presence.state, friend.instance)
+    return this.fromPresence(
+      friend.platform,
+      friend.presence.state,
+      friend.instance,
+      isHotInstanceMember(friend)
+    )
   }
 
   private fromPresence(
     platform: Platform,
     state: PresenceState,
-    instance: InstanceInfo | null
+    instance: InstanceInfo | null,
+    hot?: boolean
   ): KnownPresence {
     return {
       state,
@@ -469,7 +519,12 @@ export class FriendAlerts {
       worldName:
         platform === 'chilloutvr' && instance !== null && instance.worldId === instance.instanceId
           ? null
-          : (instance?.worldName ?? null)
+          : (instance?.worldName ?? null),
+      // Snapshot wire entries carry no Friend object; supply the structural
+      // membership view directly (status is null on this path — safe ONLY
+      // because presence-snapshot is CVR-only, see the invariant in
+      // consumePresenceSnapshot; CVR has no hidden-location status).
+      hot: hot ?? isHotInstanceMember({ platform, presence: { state }, status: null, instance })
     }
   }
 
