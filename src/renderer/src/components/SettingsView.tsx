@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
   DrawerOpener,
+  JoinModePreference,
   LabelScheme,
   ReconcileInterval,
   Theme
@@ -51,6 +52,25 @@ const OPENER_LABEL_KEYS: Record<DrawerOpener, string> = {
   avatar: 'settings.drawerOpener.avatar'
 }
 
+// Confirm-before-joining (VRX-210) as an On/Off segmented row (owner-ruled —
+// the house row pattern, not a Toggle).
+const CONFIRM_JOIN_VALUES = ['on', 'off'] as const
+type ConfirmJoinValue = (typeof CONFIRM_JOIN_VALUES)[number]
+const CONFIRM_JOIN_LABEL_KEYS: Record<ConfirmJoinValue, string> = {
+  on: 'settings.confirmJoin.on',
+  off: 'settings.confirmJoin.off'
+}
+
+// §8 center-neutral rule: 'ask' DEFERS the mode choice to join time, so it
+// sits in the middle and the two polar modes flank it. JOIN_MODE_PREFERENCES
+// (@shared/types) remains the enum's source of truth — this is display order.
+const JOIN_MODE_DISPLAY: readonly JoinModePreference[] = ['vr', 'ask', 'desktop']
+const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
+  ask: 'settings.joinMode.ask',
+  vr: 'settings.joinMode.vr',
+  desktop: 'settings.joinMode.desktop'
+}
+
 /**
  * Settings view (VRX-170). Glass surface hosting per-category rows.
  * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
@@ -71,6 +91,8 @@ export default function SettingsView(): React.JSX.Element {
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
+  const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
@@ -218,6 +240,44 @@ export default function SettingsView(): React.JSX.Element {
                 max={HOT_INSTANCE_THRESHOLD_MAX}
                 onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
                 ariaLabel={t('settings.hotThreshold.aria')}
+              />
+            </div>
+
+            {/* Join rows (VRX-210) — parked on the Dashboard page for now; they
+                move to the future Behavior category (VRX-231). */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.confirmJoin.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.confirmJoin.description')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={CONFIRM_JOIN_VALUES}
+                active={confirmJoin ? 'on' : 'off'}
+                labelKeys={CONFIRM_JOIN_LABEL_KEYS}
+                ariaLabel={t('settings.confirmJoin.aria')}
+                onChange={(value) => updateSettings({ confirmJoin: value === 'on' })}
+              />
+            </div>
+
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.joinMode.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.joinMode.description')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={JOIN_MODE_DISPLAY}
+                active={joinMode}
+                labelKeys={JOIN_MODE_LABEL_KEYS}
+                ariaLabel={t('settings.joinMode.aria')}
+                onChange={(value) => updateSettings({ joinMode: value })}
               />
             </div>
           </section>

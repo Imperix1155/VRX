@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **VRX now asks before it launches a game.** Clicking Join opens a confirmation that names the instance type, says in plain words whether strangers can get in ("Effectively public — people you don't know can get in"), shows which of your friends are already there, and — on ChilloutVR — lets you pick VR or desktop for that launch. VRChat picks its own mode from its launch settings, and the dialog says so rather than offering a switch that does nothing. Group instances describe group access accurately instead of borrowing friends-and-invites wording. Prefer the old one-click behavior? The dialog's "Don't ask again" footnote turns it off, and Settings → Dashboard turns it back on (along with a Join in: Always ask / VR / Desktop preference). (VRX-210)
+
 ### Fixed
 
 - **Launching VRX twice no longer opens a second copy of the app.** Starting VRX while it's already running now brings the existing window to the front instead — including restoring it from the tray or from minimized. Duplicate copies used to stack without limit, each one opening its own connections to VRChat and ChilloutVR behind the scenes. (VRX-230)

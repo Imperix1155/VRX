@@ -9,6 +9,8 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from './useJoinInstance'
 
 const friend: Friend = {
@@ -31,6 +33,10 @@ let joinInstance: ReturnType<typeof vi.fn>
 beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
   window.vrx = { joinInstance } as unknown as Window['vrx']
+  // These tests pin the JOIN MECHANICS (latch + blips), so they run with the
+  // VRX-210 confirmation gate OFF — the gate itself is covered by
+  // JoinConfirmDialog.test.tsx.
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
 })
 
 afterEach(() => {

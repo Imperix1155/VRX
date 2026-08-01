@@ -384,6 +384,8 @@ export default function FriendsList(): React.JSX.Element {
   // never collide. The opener element is remembered so focus RETURNS to the row
   // on close (dialog a11y contract).
   const selectedFriendId = useFriendsStore((s) => s.selectedFriendId)
+  // VRX-210: the modal join dialog suppresses the `/` search shortcut.
+  const { pendingConfirm } = useJoinInstance()
   const setSelectedFriendId = useFriendsStore((s) => s.setSelectedFriendId)
   const openerRef = useRef<HTMLElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -435,10 +437,13 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     function focusSearch(event: KeyboardEvent): void {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
+      // The join confirmation dialog (VRX-210) IS modal — `/` must not yank
+      // focus out from under it. (The NON-modal drawer needs no such
+      // suppression; its old one served the retired focus trap.)
+      if (pendingConfirm !== null) return
       // The drawer is NON-MODAL since VRX-225 — the list (and its shortcuts)
       // stay live while the card is open, so `/` works everywhere except
       // inside editable controls (the guard below covers the notes textarea).
-      // The old open-drawer suppression served the retired focus trap.
       const target = event.target
       if (target instanceof HTMLElement) {
         const tagName = target.tagName
@@ -456,7 +461,7 @@ export default function FriendsList(): React.JSX.Element {
 
     document.addEventListener('keydown', focusSearch)
     return () => document.removeEventListener('keydown', focusSearch)
-  }, [])
+  }, [pendingConfirm])
 
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
