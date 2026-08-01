@@ -64,7 +64,7 @@ export const SettingsSchema = z.object({
   telemetryEnabled: z.boolean().catch(false),
   /** Instance-pill naming scheme (DESIGN.md §6 label rule). Values from `@shared/types` LABEL_SCHEMES. */
   labelScheme: z.enum(LABEL_SCHEMES).catch('vrchat'),
-  /** Min friends in one world for the dashboard hot grid (VRX-78). Out-of-range/invalid → the default. */
+  /** Min friends in one instance for the dashboard hot grid (VRX-78). Out-of-range/invalid → the default. */
   hotInstanceThreshold: z
     .number()
     .int()

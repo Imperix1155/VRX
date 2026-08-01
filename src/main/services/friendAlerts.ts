@@ -1,6 +1,6 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
-import { hotInstanceKey } from '@shared/hotInstanceKey'
+import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
 
 export type FriendAlertType = 'online' | 'in-game' | 'offline' | 'hot-instance'
 
@@ -27,6 +27,14 @@ interface KnownPresence {
   instanceId: string | null
   worldId: string | null
   worldName: string | null
+  /**
+   * Hot-system membership, computed ONCE at intake via the shared
+   * `isHotInstanceMember` predicate (VRX-237): in-game + visible instance +
+   * NOT hidden-location. The owner privacy law (2026-08-01) makes Ask
+   * Me / DND friends invisible to the entire hot system, toast included —
+   * and a stale populated instance on a non-in-game friend never counts.
+   */
+  hot: boolean
 }
 
 interface KnownInstanceCount {
@@ -105,7 +113,7 @@ export class FriendAlerts {
           this.applyPresence(
             event.platform,
             event.platformUserId,
-            { state: 'offline', instanceId: null, worldId: null, worldName: null },
+            { state: 'offline', instanceId: null, worldId: null, worldName: null, hot: false },
             true,
             baselinedKeys
           )
@@ -202,7 +210,7 @@ export class FriendAlerts {
           this.applyPresence(
             event.platform,
             platformUserId,
-            { state: 'offline', instanceId: null, worldId: null, worldName: null },
+            { state: 'offline', instanceId: null, worldId: null, worldName: null, hot: false },
             false,
             baselinedKeys
           )
@@ -244,7 +252,8 @@ export class FriendAlerts {
       state: 'offline',
       instanceId: null,
       worldId: null,
-      worldName: null
+      worldName: null,
+      hot: false
     }
     const wasOnline = before.state === 'active' || before.state === 'in-game'
     const isOnline = next.state === 'active' || next.state === 'in-game'
@@ -435,21 +444,28 @@ export class FriendAlerts {
   }
 
   private instanceKey(platform: Platform, presence: KnownPresence): string | null {
-    // The state gate stays engine-side; the KEY SHAPE is the shared hotInstanceKey
-    // (VRX-237) so the alert engine and the dashboard can never disagree about
-    // what "the same instance" means.
-    if (presence.state !== 'in-game') return null
+    // MEMBERSHIP (who counts) is the shared isHotInstanceMember verdict,
+    // computed at intake; the KEY SHAPE (which instance) is the shared
+    // hotInstanceKey. One predicate + one key across engine and dashboard
+    // (VRX-237), so toast and cards can never disagree.
+    if (!presence.hot) return null
     return hotInstanceKey(platform, presence.instanceId, presence.worldId)
   }
 
   private fromFriend(friend: Friend): KnownPresence {
-    return this.fromPresence(friend.platform, friend.presence.state, friend.instance)
+    return this.fromPresence(
+      friend.platform,
+      friend.presence.state,
+      friend.instance,
+      isHotInstanceMember(friend)
+    )
   }
 
   private fromPresence(
     platform: Platform,
     state: PresenceState,
-    instance: InstanceInfo | null
+    instance: InstanceInfo | null,
+    hot?: boolean
   ): KnownPresence {
     return {
       state,
@@ -466,7 +482,11 @@ export class FriendAlerts {
       worldName:
         platform === 'chilloutvr' && instance !== null && instance.worldId === instance.instanceId
           ? null
-          : (instance?.worldName ?? null)
+          : (instance?.worldName ?? null),
+      // Snapshot wire entries carry no Friend object; supply the structural
+      // membership view directly (status is null on the snapshot path — CVR
+      // has no hidden-location status, so the privacy gate can't trip there).
+      hot: hot ?? isHotInstanceMember({ platform, presence: { state }, status: null, instance })
     }
   }
 

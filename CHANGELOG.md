@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Hot instances no longer claim friends are together when they aren't.** The Dashboard used to call a world "hot" when enough friends were anywhere in that world — so two friends in *different* instances of the same world looked like they were hanging out together when they couldn't even see each other. Now a card (and the "friends gathering" notification) only appears when friends are in the exact same instance, and the wording says exactly that. (VRX-237)
+- **Friends who hide their location stay hidden from hot instances too.** If a friend sets Ask Me or Do Not Disturb, they no longer count toward a hot instance and never appear on its card or notification — their location stays as private there as the friends list already kept it. (VRX-237)
 - **Launching VRX twice no longer opens a second copy of the app.** Starting VRX while it's already running now brings the existing window to the front instead — including restoring it from the tray or from minimized. Duplicate copies used to stack without limit, each one opening its own connections to VRChat and ChilloutVR behind the scenes. (VRX-230)
 
 ## [0.12.0] - 2026-07-29

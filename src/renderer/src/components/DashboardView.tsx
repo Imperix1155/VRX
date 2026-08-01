@@ -160,6 +160,11 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
             <InstancePill
               label={opennessLabel}
               tier={tier}
+              // The wrapper is a grid item stretched to the shared pill column;
+              // the pill inside must fill it (w-full + the FriendsList width
+              // floor) or short labels render a shrunk, left-aligned pill and
+              // the two-pills-same-width invariant breaks (L8).
+              className="w-full min-w-[78px]"
               onJoin={joinCardTarget}
               disabled={isJoining}
               aria-label={t('friends.joinAria', {

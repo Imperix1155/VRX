@@ -6,7 +6,7 @@
  */
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
-import { hotInstanceKey } from '@shared/hotInstanceKey'
+import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -86,8 +86,18 @@ const MAX_HOT_INSTANCES = 6
  *   stood here. The key shape is shared with the main-process alert engine
  *   (`FriendAlerts`) via `@shared/hotInstanceKey` so the toast and the cards
  *   can never disagree about what "the same instance" means.
- * - Only friends with a non-null instance are included (active/Ask-Me/DND
- *   already have `instance: null` so they're excluded automatically).
+ * - Membership is the shared `isHotInstanceMember` predicate (VRX-237 — the
+ *   SAME predicate the alert engine uses, so toast and cards count the same
+ *   people): `state === 'in-game'` AND `instance` non-null AND NOT
+ *   hidden-location. The state gate matters — a swallowed /auth/user bucket
+ *   read can leave every friend 'offline' with a stale populated `instance`;
+ *   that must never render a hot card of "offline" friends. The privacy half
+ *   is the owner law (2026-08-01): Ask Me / DND friends are INVISIBLE to the
+ *   whole hot system — they never count toward the threshold, never appear
+ *   in members/names/aria, never contribute world/openness. A card exists
+ *   iff VISIBLE members alone ≥ threshold.
+ * - Members are deduped by `platform:platformUserId` (first occurrence
+ *   wins) — a duplicated row must never count one person twice.
  * - Capped at MAX_HOT_INSTANCES (6) — one grid row of cards.
  * - `threshold` is the user's `settings.hotInstanceThreshold` (VRX-78);
  *   defaults to the project constant so non-UI callers stay unchanged.
@@ -97,11 +107,21 @@ export function getHotInstances(
   threshold: number = HOT_INSTANCE_THRESHOLD
 ): HotInstance[] {
   const map = new Map<string, HotInstance>()
+  // Dedupe by identity (first occurrence wins): a duplicated normalized
+  // friend row (a paginated fetch shifting mid-run is a real producer) must
+  // never count ONE person twice — that would fabricate the exact false
+  // togetherness VRX-237 exists to kill. The alert engine keys by
+  // platformUserId; the dashboard now agrees.
+  const seen = new Set<string>()
 
   for (const f of friends) {
-    if (f.instance == null) continue
+    // THE shared membership predicate (VRX-237) — see the docblock above.
+    if (!isHotInstanceMember(f)) continue
+    const identity = `${f.platform}:${f.platformUserId}`
+    if (seen.has(identity)) continue
+    seen.add(identity)
 
-    const { worldId, worldName, type, instanceId } = f.instance
+    const { worldId, worldName, type, instanceId } = f.instance!
     const key = hotInstanceKey(f.platform, instanceId, worldId)
     if (key === null) continue
     // The shared key is platform-relative (the alert engine namespaces via

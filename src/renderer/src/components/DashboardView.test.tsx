@@ -269,7 +269,7 @@ describe('DashboardView states (W5)', () => {
 // ─── HotInstanceCard Join (VRX-237) ───────────────────────────────────────────
 
 describe('HotInstanceCard Join (VRX-237)', () => {
-  const pyramid = (id: string, name: string, overrides: Partial<VrcFriend> = {}): Friend =>
+  const pyramid = (id: string, name: string): Friend =>
     makeFriend({
       platformUserId: id,
       displayName: name,
@@ -284,8 +284,7 @@ describe('HotInstanceCard Join (VRX-237)', () => {
         groupName: null,
         region: 'us',
         userCount: 3
-      },
-      ...overrides
+      }
     })
 
   /** Reads the ONE shared join store so the test sees the parked dialog friend. */
@@ -335,19 +334,46 @@ describe('HotInstanceCard Join (VRX-237)', () => {
   })
 
   it('shows NO card Join when no member is joinable (shared isFriendJoinable gate)', () => {
-    const askMe = (id: string, name: string): Friend => pyramid(id, name, { status: 'ask-me' })
+    // Visible-but-unjoinable members: CVR "Offline Instance" friends COUNT for
+    // the hot card (they are not hidden-location — the owner privacy law is
+    // Ask Me/DND only) but are never joinable (isFriendJoinable rejects CVR
+    // offline instances). An ask-me/dnd fixture would no longer render a card
+    // at all under the VRX-237 privacy law.
+    const cvrOfflineInstance = (id: string, name: string): Friend =>
+      ({
+        ...makeFriend({ platformUserId: id, displayName: name }),
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        trustRank: null,
+        instance: {
+          worldId: 'i+offline1',
+          instanceId: 'i+offline1',
+          worldName: 'Private Basement',
+          thumbnailUrl: null,
+          type: 'offline',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          region: null,
+          userCount: 2
+        }
+      }) as unknown as Friend
     stubQueries(
-      { data: [askMe('usr_a', 'Amy'), askMe('usr_b', 'Bo')], isPending: false },
-      { data: [], isPending: false }
+      { data: [], isPending: false },
+      {
+        data: [cvrOfflineInstance('cvr_a', 'Amy'), cvrOfflineInstance('cvr_b', 'Bo')],
+        isPending: false
+      }
     )
     render(<DashboardView />)
 
-    // The card renders (they DO share an exact instance) but the pill stays a
-    // plain span — there is no Join button for anyone.
-    expect(screen.getByText('Fish Pyramid')).toBeTruthy()
+    // The card renders (they DO share an exact instance and are visible) but
+    // the pill stays a plain span — there is no Join button for anyone.
+    expect(screen.getByText('Private Basement')).toBeTruthy()
     expect(
       screen.queryByRole('button', {
-        name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+        name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
       })
     ).toBeNull()
   })
