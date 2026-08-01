@@ -18,10 +18,14 @@ import { useAvatar } from '../hooks/useAvatar'
 
 export function Avatar({
   friend,
-  variant = 'row'
+  variant = 'row',
+  ariaLabel
 }: {
   friend: Friend
   variant?: 'row' | 'drawer'
+  /** Accessible-name override (VRX-210: the join dialog names each avatar by
+   *  PERSON, not status). Defaults to the status ring's label everywhere else. */
+  ariaLabel?: string
 }): React.JSX.Element {
   const { t } = useTranslation()
   const ring = ringFor(friend)
@@ -37,7 +41,7 @@ export function Avatar({
     <span
       ref={avatarRef}
       role="img"
-      aria-label={t(ring.labelKey)}
+      aria-label={ariaLabel ?? t(ring.labelKey)}
       className={`relative block shrink-0 ${sizeClass}`}
     >
       {dataUrl && imageKey !== failedImageKey ? (

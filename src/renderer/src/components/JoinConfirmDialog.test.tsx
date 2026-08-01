@@ -17,6 +17,7 @@ import '../i18n'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from '../hooks/useJoinInstance'
+import { useSettingsPersistence } from '../hooks/useSettingsPersistence'
 import FriendsList from './FriendsList'
 import JoinConfirmDialog from './JoinConfirmDialog'
 
@@ -119,6 +120,12 @@ function OpenJoin({ friend }: { friend: Friend }): React.JSX.Element {
   )
 }
 
+/** Mounts the REAL save path (dirty → save-settings IPC) for persistence pins. */
+function WithPersistence(): null {
+  useSettingsPersistence()
+  return null
+}
+
 const confirmDialog = (): HTMLElement =>
   screen.getByRole('dialog', { name: /Join this .* instance\?/ })
 
@@ -151,6 +158,14 @@ afterEach(() => {
 
 describe('join path interception (confirmJoin on)', () => {
   it('row pill: opens the dialog; Confirm fires joinInstance EXACTLY once and closes', async () => {
+    // Deferred bridge: the double-activation below must STILL produce one call.
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveJoin = resolve
+        })
+    )
     render(
       <>
         <FriendsList />
@@ -162,10 +177,16 @@ describe('join path interception (confirmJoin on)', () => {
     const dialog = confirmDialog()
     expect(joinInstance).not.toHaveBeenCalled()
     // Focus lands on Cancel — the SAFE default; Confirm is never auto-focused.
-    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }))
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+    expect(document.activeElement).toBe(cancel)
 
+    const confirm = within(dialog).getByRole('button', { name: 'Join' })
+    fireEvent.click(confirm)
+    // Double-activation: the first click synchronously clears pendingConfirm
+    // and latches the join — this second handler run MUST be a no-op.
+    fireEvent.click(confirm)
     await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      resolveJoin({ ok: true })
       await Promise.resolve()
     })
 
@@ -529,7 +550,285 @@ describe("who's-there row", () => {
 })
 
 describe('never-show-again footnote', () => {
-  it('saves confirmJoin=false AND proceeds with the join, exactly once', async () => {
+  it('saves confirmJoin=false through the REAL save path AND proceeds with the join, exactly once', async () => {
+    const getSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+    const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+    window.vrx = {
+      joinInstance,
+      getFriendNote,
+      setFriendNote,
+      getSettings,
+      saveSettings
+    } as unknown as Window['vrx']
+    render(
+      <>
+        <WithPersistence />
+        <OpenJoin friend={joinableFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    // Let the boot load land — saves are gated until it does (VRX-184).
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    await act(async () => {
+      fireEvent.click(
+        within(confirmDialog()).getByRole('button', {
+          name: "Don't ask again (Settings › re-enable anytime)"
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    // The persistence PIN: the choice reaches disk, not just the store.
+    expect(saveSettings).toHaveBeenCalledWith({
+      patch: expect.objectContaining({ confirmJoin: false })
+    })
+  })
+})
+
+describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
+  function renderDrawerPlusDialog(): void {
+    useFriendsStore.setState({ selectedFriendId: 'vrchat:usr_alex' })
+    render(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+  }
+
+  it('a real pointerdown INSIDE the dialog does NOT close the drawer', () => {
+    renderDrawerPlusDialog()
+    const drawer = screen.getByRole('dialog', { name: 'Alex' })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Join' }))
+    const dialog = confirmDialog()
+
+    // fireEvent.click never dispatches pointerdown — the regression hid behind
+    // that. Drive the real sequence: pointerdown THEN click on Cancel.
+    fireEvent.pointerDown(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+
+    // More info + a radio press are pointerdowns too — the drawer stays.
+    fireEvent.pointerDown(within(dialog).getByRole('button', { name: 'More info' }))
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+  })
+
+  it('Esc closes ONLY the dialog; the drawer stays open', () => {
+    renderDrawerPlusDialog()
+    const drawer = screen.getByRole('dialog', { name: 'Alex' })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Join' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
+    expect(joinInstance).not.toHaveBeenCalled()
+  })
+})
+
+describe('modal behavior', () => {
+  it('Tab with focus OUTSIDE the panel re-enters the trap', () => {
+    render(
+      <>
+        <OpenJoin friend={joinableFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    const opener = screen.getByRole('button', { name: 'open join' })
+    fireEvent.click(opener)
+    const dialog = confirmDialog()
+    // Simulate focus escaping the panel (e.g. a devtools click, a late blur).
+    opener.focus()
+    expect(document.activeElement).toBe(opener)
+
+    fireEvent.keyDown(document, { key: 'Tab' })
+
+    expect(document.activeElement).not.toBe(opener)
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  })
+
+  it("the global '/' search shortcut is suppressed while the dialog is open", () => {
+    render(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+    const search = screen.getByPlaceholderText('Search friends')
+    fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: '/' })
+    expect(document.activeElement).not.toBe(search)
+
+    // …and restored once the dialog is gone (the list is live again).
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.keyDown(document, { key: '/' })
+    expect(document.activeElement).toBe(search)
+  })
+
+  it('a second join() for a DIFFERENT friend does NOT swap the parked dialog', async () => {
+    const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }
+    render(
+      <>
+        <OpenJoin friend={joinableFriend} />
+        <OpenJoin friend={bea} />
+        <JoinConfirmDialog />
+      </>
+    )
+    const buttons = screen.getAllByRole('button', { name: 'open join' })
+    fireEvent.click(buttons[0]!) // Alex's dialog parks
+    expect(confirmDialog()).toBeTruthy()
+
+    fireEvent.click(buttons[1]!) // Bea — must be ignored, not a silent swap
+    expect(screen.getByRole('dialog', { name: 'Join this Public instance?' })).toBeTruthy()
+    expect(within(confirmDialog()).getByText(/Alex is in/)).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({ friendId: 'usr_alex' }) // Alex, not Bea
+    )
+  })
+})
+
+describe('group instances get group-accurate copy', () => {
+  const groupBase: InstanceInfo = {
+    ...publicInstance,
+    isGroup: true,
+    groupName: 'Night Owls'
+  }
+
+  it.each([
+    [
+      'group-public',
+      'public',
+      'group-public',
+      'Effectively public — Night Owls is open to everyone.'
+    ],
+    [
+      'group-plus',
+      'friends-plus',
+      'group-plus',
+      'Effectively public — friends of Night Owls members can get in.'
+    ],
+    ['members-only group', 'invite', 'group', 'Effectively private — Night Owls members only.']
+  ] as const)('%s → names the GROUP, not friendship/invites', (_case, openness, type, copy) => {
+    const friend: Friend = {
+      ...joinableFriend,
+      instance: { ...groupBase, openness, type }
+    }
+    render(
+      <>
+        <OpenJoin friend={friend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(within(confirmDialog()).getByText(copy)).toBeTruthy()
+  })
+
+  it('members-only more-info: friendship and invites do NOT apply', () => {
+    const friend: Friend = {
+      ...joinableFriend,
+      instance: { ...groupBase, openness: 'invite', type: 'group' }
+    }
+    render(
+      <>
+        <OpenJoin friend={friend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'More info' }))
+
+    expect(
+      within(confirmDialog()).getByText(
+        /Only Night Owls members can get in — friendship and invites don't apply/
+      )
+    ).toBeTruthy()
+  })
+
+  it('a null groupName degrades to "the group" (never a blank hole)', () => {
+    const friend: Friend = {
+      ...joinableFriend,
+      instance: { ...groupBase, groupName: null, openness: 'invite', type: 'group' }
+    }
+    render(
+      <>
+        <OpenJoin friend={friend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(
+      within(confirmDialog()).getByText('Effectively private — the group members only.')
+    ).toBeTruthy()
+  })
+})
+
+describe('footnote persists a PICKED mode (CVR picker only)', () => {
+  const cvrSecond: Friend = { ...cvrFriend, platformUserId: 'cvr_ren', displayName: 'Ren' }
+
+  it('pick VR → footnote writes confirmJoin=false AND joinMode=vr; the NEXT join carries vr', async () => {
+    mockFriends([], [cvrFriend, cvrSecond])
+    render(
+      <>
+        <OpenJoin friend={cvrFriend} />
+        <OpenJoin friend={cvrSecond} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'open join' })[0]!)
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+    fireEvent.click(
+      within(within(dialog).getByRole('radiogroup', { name: 'Launch mode' })).getByRole('radio', {
+        name: 'VR'
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole('button', {
+          name: "Don't ask again (Settings › re-enable anytime)"
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
+    expect(useSettingsStore.getState().settings.joinMode).toBe('vr')
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({ friendId: 'cvr_mika', mode: 'vr' })
+    )
+
+    // The NEXT join (confirmJoin now off → immediate) honors the persisted pick.
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'open join' })[1]!)
+      await Promise.resolve()
+    })
+    expect(joinInstance).toHaveBeenCalledTimes(2)
+    expect(joinInstance).toHaveBeenLastCalledWith({
+      platform: 'chilloutvr',
+      friendId: 'cvr_ren',
+      mode: 'vr'
+    })
+  })
+
+  it('VRChat path: the footnote does NOT write the desktop placeholder over joinMode', async () => {
     render(
       <>
         <OpenJoin friend={joinableFriend} />
@@ -548,7 +847,136 @@ describe('never-show-again footnote', () => {
     })
 
     expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
-    expect(joinInstance).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    expect(useSettingsStore.getState().settings.joinMode).toBe('ask') // untouched
+  })
+})
+
+describe('focus management', () => {
+  it('Cancel restores focus to the opening pill', () => {
+    render(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    pill.focus()
+    fireEvent.click(pill)
+    const dialog = confirmDialog()
+    expect(document.activeElement).not.toBe(pill) // moved into the dialog
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(document.activeElement).toBe(pill)
+  })
+
+  it('Esc restores focus to the opening pill', () => {
+    render(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    pill.focus()
+    fireEvent.click(pill)
+    expect(confirmDialog()).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(document.activeElement).toBe(pill)
+  })
+
+  it('Confirm: the pill latches disabled, so focus lands on the main landmark (never <body>)', async () => {
+    render(
+      <>
+        <main tabIndex={-1} data-testid="main-landmark">
+          <FriendsList />
+        </main>
+        <JoinConfirmDialog />
+      </>
+    )
+    const pill = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    pill.focus()
+    fireEvent.click(pill)
+
+    await act(async () => {
+      fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(document.activeElement).toBe(screen.getByTestId('main-landmark'))
+  })
+})
+
+describe("who's-there accessibility", () => {
+  it('is a LIST whose avatars are named by PERSON, never by repeated status', () => {
+    const sameInstance = Array.from({ length: 3 }, (_, i) => ({
+      ...joinableFriend,
+      platformUserId: `usr_${i}`,
+      displayName: `F${i}`
+    }))
+    mockFriends(sameInstance)
+    render(
+      <>
+        <OpenJoin friend={sameInstance[0]!} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    expect(within(dialog).getByRole('list')).toBeTruthy()
+    for (const name of ['F0', 'F1', 'F2']) {
+      expect(within(dialog).getByRole('img', { name })).toBeTruthy()
+    }
+    // No avatar announces a bare status as its accessible name.
+    expect(within(dialog).queryByRole('img', { name: 'Online' })).toBeNull()
+  })
+})
+
+describe('CVR explicit mode preference (no picker) still says what Confirm does', () => {
+  it.each([
+    ['vr', 'Will launch in VR.'],
+    ['desktop', 'Will launch on desktop.']
+  ] as const)('joinMode %s → the quiet will-launch line', (joinMode, copy) => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, joinMode },
+      dirty: false
+    })
+    mockFriends([], [cvrFriend])
+    render(
+      <>
+        <OpenJoin friend={cvrFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+    expect(within(dialog).queryByRole('radiogroup')).toBeNull()
+    expect(within(dialog).getByText(copy)).toBeTruthy()
+  })
+})
+
+describe('people-count pluralization', () => {
+  it('count:1 renders the SINGULAR ("· 1 person")', async () => {
+    const getInstanceDetails = vi.fn().mockResolvedValue({ ...cvrInstance, userCount: 1 })
+    window.vrx = {
+      joinInstance,
+      getFriendNote,
+      setFriendNote,
+      getInstanceDetails
+    } as unknown as Window['vrx']
+    mockFriends([], [cvrFriend])
+    render(
+      <>
+        <OpenJoin friend={cvrFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(await within(confirmDialog()).findByText('· 1 person')).toBeTruthy()
   })
 })

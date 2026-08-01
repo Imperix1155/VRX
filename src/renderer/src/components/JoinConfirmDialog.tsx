@@ -26,7 +26,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, InstanceInfo, JoinMode, OpennessTier } from '@shared/types'
+import type { Friend, InstanceInfo, JoinMode, JoinModePreference } from '@shared/types'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriends } from '../queries/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -45,30 +45,80 @@ const MODE_LABEL_KEYS: Record<JoinMode, string> = {
 }
 
 /** The copy buckets the openness ladder collapses into for this dialog. */
-type OpennessCopy = 'public' | 'friends-plus' | 'private' | 'unknown'
+type OpennessCopy =
+  'public' | 'friends-plus' | 'private' | 'group-public' | 'group-plus' | 'group-only' | 'unknown'
 
-function opennessCopyFor(openness: OpennessTier): OpennessCopy {
-  if (openness === 'public') return 'public'
-  if (openness === 'friends-plus') return 'friends-plus'
-  if (openness === 'friends' || openness === 'invite-plus' || openness === 'invite') {
+function opennessCopyFor(instance: InstanceInfo): OpennessCopy {
+  // GROUP instances need group-accurate copy: their openness tier says WHO
+  // the group opened to (public / friends-of-members / members-only), but
+  // "gated by friendship or invites" would be FALSE for members-only — entry
+  // is gated by GROUP MEMBERSHIP (a friend-of-someone-inside cannot get in; a
+  // group member who is nobody's friend can). VRChat members-only maps to
+  // openness 'invite' (parseLocation pin); CVR members-only likewise.
+  if (instance.isGroup) {
+    if (instance.openness === 'public') return 'group-public'
+    if (instance.openness === 'friends-plus') return 'group-plus'
+    return 'group-only'
+  }
+  if (instance.openness === 'public') return 'public'
+  if (instance.openness === 'friends-plus') return 'friends-plus'
+  if (
+    instance.openness === 'friends' ||
+    instance.openness === 'invite-plus' ||
+    instance.openness === 'invite'
+  ) {
     return 'private'
   }
   return 'unknown'
 }
 
-/** i18n key for the "Effectively …" safety sentence. */
+/** i18n key for the "Effectively …" safety sentence. Group variants keep the
+ *  effectively-public/private framing (group-public/group-plus stay on the
+ *  public side) and name the group via the {{group}} interpolation. */
 function effectivelyKey(copy: OpennessCopy): string {
-  if (copy === 'public' || copy === 'friends-plus') return 'joinConfirm.openness.public'
-  if (copy === 'private') return 'joinConfirm.openness.private'
-  return 'joinConfirm.openness.unknown'
+  switch (copy) {
+    case 'public':
+    case 'friends-plus':
+      return 'joinConfirm.openness.public'
+    case 'private':
+      return 'joinConfirm.openness.private'
+    case 'group-public':
+      return 'joinConfirm.openness.groupPublic'
+    case 'group-plus':
+      return 'joinConfirm.openness.groupPlus'
+    case 'group-only':
+      return 'joinConfirm.openness.groupOnly'
+    default:
+      return 'joinConfirm.openness.unknown'
+  }
 }
 
 /** i18n key for the "More info" explainer — per tier where the meaning differs. */
 function moreInfoKey(copy: OpennessCopy): string {
-  if (copy === 'public') return 'joinConfirm.more.public'
-  if (copy === 'friends-plus') return 'joinConfirm.more.friendsPlus'
-  if (copy === 'private') return 'joinConfirm.more.private'
-  return 'joinConfirm.more.unknown'
+  switch (copy) {
+    case 'public':
+      return 'joinConfirm.more.public'
+    case 'friends-plus':
+      return 'joinConfirm.more.friendsPlus'
+    case 'private':
+      return 'joinConfirm.more.private'
+    case 'group-public':
+      return 'joinConfirm.more.groupPublic'
+    case 'group-plus':
+      return 'joinConfirm.more.groupPlus'
+    case 'group-only':
+      return 'joinConfirm.more.groupOnly'
+    default:
+      return 'joinConfirm.more.unknown'
+  }
+}
+
+/** The quiet "will launch in …" line for a CVR friend with an EXPLICIT mode
+ *  preference (no picker) — the dialog must say what confirming will do.
+ *  Quoted-literal map so the i18n parity scan covers the keys. */
+const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
+  vr: 'joinConfirm.willLaunch.vr',
+  desktop: 'joinConfirm.willLaunch.desktop'
 }
 
 /** The pending getInstanceDetails IPC surface (adapter-side today; the bridge
@@ -149,10 +199,17 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       const first: HTMLElement | undefined = focusables[0]
       const last: HTMLElement | undefined = focusables[focusables.length - 1]
       if (first === undefined || last === undefined) return
-      if (event.shiftKey && document.activeElement === first) {
+      const active = document.activeElement
+      if (active === null || !panel.contains(active)) {
+        // Focus is OUTSIDE the panel (or nowhere) — the wrap branches below
+        // can't match, so pull it back inside. This is what makes the trap a
+        // trap: Tab can never walk the background while the modal is open.
+        first.focus()
+        event.preventDefault()
+      } else if (event.shiftKey && active === first) {
         last.focus()
         event.preventDefault()
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && active === last) {
         first.focus()
         event.preventDefault()
       }
@@ -160,8 +217,21 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
+      // Restore focus to the opener — but NOT if it is gone from the DOM or
+      // disabled (Confirm sets the join latch synchronously, and the row pill
+      // disables while joining; focusing a disabled button drops to <body>).
       const opener = restoreFocusRef.current
-      if (opener instanceof HTMLElement) opener.focus({ preventScroll: true })
+      if (
+        opener instanceof HTMLElement &&
+        opener.isConnected &&
+        !(opener instanceof HTMLButtonElement && opener.disabled)
+      ) {
+        opener.focus({ preventScroll: true })
+        return
+      }
+      // Sensible container fallback: the main landmark (tabIndex -1 in
+      // AppShell makes it programmatically focusable).
+      document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
     }
   }, [friend, cancelPending])
 
@@ -175,13 +245,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const title =
     typeLabel !== null ? t('joinConfirm.title', { type: typeLabel }) : t('joinConfirm.titleUnknown')
   const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
-  const opennessCopy = instance !== null ? opennessCopyFor(instance.openness) : 'unknown'
+  const opennessCopy = instance !== null ? opennessCopyFor(instance) : 'unknown'
   // Color REINFORCES the words (never the sole signifier — R12): the tier-text
   // companion token for known tiers, plain dim for "Openness unknown".
   const opennessColor =
     instance !== null && opennessCopy !== 'unknown'
       ? `var(--op-${instance.openness}-text)`
       : 'var(--text-dim)'
+  // Group copy names the group when known ({{group}} interpolation).
+  const groupName = instance?.groupName ?? t('joinConfirm.theGroup')
 
   // Mode: the CVR picker only appears for joinMode 'ask' (research-settled —
   // CVR's deep link genuinely honors startInVR). VRChat can never select a
@@ -207,7 +279,10 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
 
   function joinAndNeverAskAgain(): void {
     // Footnote, owner-ruled: saves the setting AND proceeds with this join.
-    updateSettings({ confirmJoin: false })
+    // Only persist a mode the user actually PICKED here (the CVR picker) —
+    // VRChat's resolved mode is a 'desktop' placeholder, and writing it would
+    // silently rewrite a CVR user's 'ask' preference from a VRChat dialog.
+    updateSettings({ confirmJoin: false, ...(showModePicker ? { joinMode: mode } : {}) })
     void confirmPending(resolvedMode)
   }
 
@@ -252,7 +327,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           {t('joinConfirm.context', { name: friend.displayName, world: worldName })}
         </p>
         <p className="text-sm font-medium" style={{ color: opennessColor }}>
-          {t(effectivelyKey(opennessCopy))}
+          {t(effectivelyKey(opennessCopy), { group: groupName })}
         </p>
 
         {/* Quiet progressive disclosure — an inline expander, not a modal. */}
@@ -267,17 +342,26 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           </button>
           {moreOpen && (
             <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
-              {t(moreInfoKey(opennessCopy))}
+              {t(moreInfoKey(opennessCopy), { group: groupName })}
             </p>
           )}
         </div>
 
-        {/* Who's-there — the substance. ≤4 avatars + "+N" (hot-card pattern);
-            the CVR total appears only when the one-shot fetch resolves. */}
+        {/* Who's-there — the substance. A real LIST: the group aria-label
+            carries the full names while each avatar's accessible name is the
+            friend's display name (never a bare repeated status). ≤4 avatars +
+            "+N" (hot-card pattern); the CVR total appears only when the
+            one-shot fetch resolves. */}
         {instance !== null && (present.length > 0 || peopleCount !== null) && (
-          <div aria-label={whoHereAria} className="flex items-center gap-[var(--space-2)]">
+          <div
+            role="list"
+            aria-label={whoHereAria}
+            className="flex items-center gap-[var(--space-2)]"
+          >
             {shown.map((f) => (
-              <Avatar key={`${f.platform}:${f.platformUserId}`} friend={f} />
+              <span role="listitem" key={`${f.platform}:${f.platformUserId}`}>
+                <Avatar friend={f} ariaLabel={f.displayName} />
+              </span>
             ))}
             {overflow > 0 && (
               <span className="shrink-0 text-[13.5px] font-bold text-[var(--text)]">
@@ -300,10 +384,14 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
             ariaLabel={t('joinConfirm.mode.aria')}
             onChange={setMode}
           />
+        ) : isVrc ? (
+          <p className="text-xs text-[var(--text-faint)]">{t('joinConfirm.vrchatModeNote')}</p>
         ) : (
-          isVrc && (
-            <p className="text-xs text-[var(--text-faint)]">{t('joinConfirm.vrchatModeNote')}</p>
-          )
+          // CVR with an explicit preference: no picker, but the dialog still
+          // says what confirming will do. ('ask' is the picker branch above.)
+          <p className="text-xs text-[var(--text-faint)]">
+            {t(WILL_LAUNCH_KEYS[joinMode === 'ask' ? 'desktop' : joinMode])}
+          </p>
         )}
 
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">

@@ -127,6 +127,9 @@ function createJoinStore(): JoinStore {
   async function join(friend: Friend): Promise<void> {
     // The snapshot IS the cross-surface latch: one active join blocks all.
     if (snapshot.joining) return
+    // The confirmation dialog is MODAL: while one is parked, a join request
+    // (for ANY friend) must not silently swap or stack — ignore it.
+    if (snapshot.pendingConfirm !== null) return
     // VRX-210: the confirmation gate lives HERE, in the ONE shared flow, so
     // every join path — the row pill, the drawer button, and any future
     // surface (the hot-instance card join is VRX-59's to add) — is
