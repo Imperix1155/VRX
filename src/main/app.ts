@@ -509,10 +509,14 @@ app
         case 'hot-instance': {
           title = 'Friends Gathering'
           const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
+          // VRX-237 truthful copy (owner law 2026-08-01): the alert fired on an
+          // EXACT-instance threshold crossing, so the copy says "together" /
+          // "same instance" — the old world-grouping's false social signal is
+          // gone (pinned negative in index.test.ts).
           body =
             strippedWorldName === ''
-              ? `${alert.friendCount} friends are in the same world — join them?`
-              : `${alert.friendCount} friends are in ${strippedWorldName} — join them?`
+              ? `${alert.friendCount} friends are in the same instance — join them?`
+              : `${alert.friendCount} friends are together in ${strippedWorldName} — join them?`
           break
         }
       }

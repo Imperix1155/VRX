@@ -1,5 +1,6 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 
 export type FriendAlertType = 'online' | 'in-game' | 'offline' | 'hot-instance'
 
@@ -434,15 +435,11 @@ export class FriendAlerts {
   }
 
   private instanceKey(platform: Platform, presence: KnownPresence): string | null {
-    if (presence.state !== 'in-game' || presence.instanceId === null) return null
-    // VRChat's instance suffix is only unique inside a world. CVR instance ids
-    // are globally unique and must remain stable while world metadata enriches.
-    // NUL separator: cheap and collision-free for the API's id charsets (this
-    // runs once per presence entry on EVERY event — JSON.stringify was the
-    // hot spot that timed CI out at 10k events).
-    return platform === 'vrchat'
-      ? `${presence.worldId ?? ''}\u0000${presence.instanceId}`
-      : presence.instanceId
+    // The state gate stays engine-side; the KEY SHAPE is the shared hotInstanceKey
+    // (VRX-237) so the alert engine and the dashboard can never disagree about
+    // what "the same instance" means.
+    if (presence.state !== 'in-game') return null
+    return hotInstanceKey(platform, presence.instanceId, presence.worldId)
   }
 
   private fromFriend(friend: Friend): KnownPresence {

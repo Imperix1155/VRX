@@ -17,6 +17,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
+import { useJoinInstance } from '../hooks/useJoinInstance'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -262,5 +263,92 @@ describe('DashboardView states (W5)', () => {
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
     }
+  })
+})
+
+// ─── HotInstanceCard Join (VRX-237) ───────────────────────────────────────────
+
+describe('HotInstanceCard Join (VRX-237)', () => {
+  const pyramid = (id: string, name: string, overrides: Partial<VrcFriend> = {}): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: 'wrld_fish',
+        instanceId: 'wrld_fish:aaa~public',
+        worldName: 'Fish Pyramid',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        region: 'us',
+        userCount: 3
+      },
+      ...overrides
+    })
+
+  /** Reads the ONE shared join store so the test sees the parked dialog friend. */
+  function PendingProbe(): React.JSX.Element {
+    const { pendingConfirm, cancelPending } = useJoinInstance()
+    return (
+      <div>
+        <span data-testid="pending">{pendingConfirm?.displayName ?? 'none'}</span>
+        <button type="button" data-testid="cancel" onClick={cancelPending} />
+      </div>
+    )
+  }
+
+  it('card Join fires the confirmation dialog (confirmJoin on) exactly once, for the first alphabetical member', () => {
+    stubQueries(
+      { data: [pyramid('usr_z', 'Zed'), pyramid('usr_a', 'Amy')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    // The hero instance pill IS the Join button, aria-named for the
+    // deterministic join target (members sort alphabetically → Amy).
+    const joinPill = screen.getByRole('button', {
+      name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+    })
+
+    fireEvent.click(joinPill)
+    // confirmJoin defaults ON (VRX-210): the click parks Amy — no launch
+    // (with the gate off the probe would read 'none' and the bridge/blip path
+    // would have run instead).
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    // A second click while the dialog is parked is ignored — exactly one join
+    // is pending, for the same friend (the modal latch in the shared flow).
+    fireEvent.click(joinPill)
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+  })
+
+  it('shows NO card Join when no member is joinable (shared isFriendJoinable gate)', () => {
+    const askMe = (id: string, name: string): Friend => pyramid(id, name, { status: 'ask-me' })
+    stubQueries(
+      { data: [askMe('usr_a', 'Amy'), askMe('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    // The card renders (they DO share an exact instance) but the pill stays a
+    // plain span — there is no Join button for anyone.
+    expect(screen.getByText('Fish Pyramid')).toBeTruthy()
+    expect(
+      screen.queryByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'Fish Pyramid' })
+      })
+    ).toBeNull()
   })
 })

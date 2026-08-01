@@ -6,6 +6,7 @@
  */
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ export interface DashboardStats {
   onlineCount: number
   /** Friends whose presence.state is 'in-game'. */
   inGameCount: number
-  /** Number of distinct worlds that appear in hot instances. */
+  /** Number of distinct hot instances (exact-instance groups ≥ threshold). */
   hotCount: number
 }
 
@@ -38,32 +39,53 @@ export function getDashboardStats(friends: Friend[], hotInstancesCount: number):
 
 // ─── Hot instances ────────────────────────────────────────────────────────────
 
-/** One "hot world" — the instance info + the count of friends there. */
+/** One hot instance — the exact instance identity + the friends provably inside it. */
 export interface HotInstance {
   worldId: string
   worldName: string | null
-  /** Platform-true instance type from the first representative friend. */
+  /** The exact instance id EVERY member shares (VRX-237). */
+  instanceId: string
+  /**
+   * Platform-true instance type — now truthful automatically: every member is
+   * in THIS instance, so the representative's type is the group's type.
+   */
   instanceType: InstanceInfo['type']
   platform: Platform
   friendCount: number
   /**
    * Display names of the friends here, sorted alphabetically for a stable order
-   * (VRX-198). `friendNames.length === friendCount`; the card shows the first few
+   * (VRX-198). Derived from `members` (same order); the card shows the first few
    * then "+N". (Favorites-first ordering is a future nicety once favorites wire up.)
    */
   friendNames: string[]
+  /**
+   * The member friends themselves, sorted alphabetically by displayName
+   * (VRX-237) — the card's Join affordance routes through the first JOINABLE
+   * member; any member works because they provably share the instance.
+   */
+  members: Friend[]
+  /** The composite group identity (platform + shared hotInstanceKey) — the deterministic tiebreak and the React key. */
+  groupKey: string
 }
 
 const MAX_HOT_INSTANCES = 6
 
 /**
- * Groups online friends by worldId and returns the top worlds sorted by
- * friend count (desc), with a stable tiebreak on worldName then worldId.
+ * Groups friends by EXACT INSTANCE and returns the top instances sorted by
+ * friend count (desc), with stable tiebreaks on worldName then the composite
+ * group key.
  *
- * - Grouping by WORLD (not instance) is intentional — DESIGN.md §6.1 and the
- *   owner copy define hot as friends "gather[ing] in the same world"; two
- *   friends in different instances of one world still count (audit W5
- *   disposition: keep worldId, do not switch to instanceId).
+ * - Grouping by EXACT INSTANCE (platform + shared `hotInstanceKey` — VRChat
+ *   `[worldId, instanceId]`, CVR instance id) is THE LAW (owner, 2026-08-01,
+ *   VRX-237): a hot instance is multiple friends in the SAME instance — exact
+ *   instanceId equality, never same-world, never same-type. The old worldId
+ *   grouping manufactured a false social signal (it implied friends were
+ *   hanging out together who were in different instances of one world). This
+ *   SUPERSEDES the audit W5 disposition ("keep worldId, do not switch to
+ *   instanceId") and the stale DESIGN.md §6.1 "same world" citation that
+ *   stood here. The key shape is shared with the main-process alert engine
+ *   (`FriendAlerts`) via `@shared/hotInstanceKey` so the toast and the cards
+ *   can never disagree about what "the same instance" means.
  * - Only friends with a non-null instance are included (active/Ask-Me/DND
  *   already have `instance: null` so they're excluded automatically).
  * - Capped at MAX_HOT_INSTANCES (6) — one grid row of cards.
@@ -79,30 +101,44 @@ export function getHotInstances(
   for (const f of friends) {
     if (f.instance == null) continue
 
-    const { worldId, worldName, type } = f.instance
-    const existing = map.get(worldId)
+    const { worldId, worldName, type, instanceId } = f.instance
+    const key = hotInstanceKey(f.platform, instanceId, worldId)
+    if (key === null) continue
+    // The shared key is platform-relative (the alert engine namespaces via
+    // per-platform maps); the dashboard merges both platforms into one list,
+    // so it prefixes the platform — cross-platform collision is impossible.
+    const groupKey = `${f.platform} ${key}`
+    const existing = map.get(groupKey)
     if (existing) {
       existing.friendCount++
-      existing.friendNames.push(f.displayName)
+      existing.members.push(f)
     } else {
-      map.set(worldId, {
+      map.set(groupKey, {
         worldId,
         worldName,
+        instanceId,
         instanceType: type,
         platform: f.platform,
         friendCount: 1,
-        friendNames: [f.displayName]
+        friendNames: [],
+        members: [f],
+        groupKey
       })
     }
   }
 
-  // Stable alphabetical order per world so the "first few + N" is deterministic.
-  for (const h of map.values()) h.friendNames.sort((a, b) => a.localeCompare(b))
+  // Stable alphabetical member order so the "first few + N" and the card Join's
+  // deterministic target are stable; friendNames derives from the ONE sort.
+  for (const h of map.values()) {
+    h.members.sort((a, b) => a.displayName.localeCompare(b.displayName))
+    h.friendNames = h.members.map((m) => m.displayName)
+  }
 
   return (
     [...map.values()]
-      // A "hot" instance needs `threshold`+ friends (user-configurable, VRX-78;
-      // the 2+ default is the owner rule — a single friend in a world isn't hot).
+      // A "hot" instance needs `threshold`+ friends IN THE SAME INSTANCE
+      // (user-configurable, VRX-78; the 2+ default is the owner rule — a
+      // single friend in an instance isn't hot).
       .filter((h) => h.friendCount >= threshold)
       .sort((a, b) => {
         // Primary: descending friend count
@@ -111,8 +147,10 @@ export function getHotInstances(
         const aName = a.worldName ?? '￿'
         const bName = b.worldName ?? '￿'
         if (aName !== bName) return aName < bName ? -1 : 1
-        // Tiebreak 2: worldId (always defined, guarantees full determinism)
-        return a.worldId < b.worldId ? -1 : 1
+        // Tiebreak 2: the composite group key (always defined, guarantees
+        // full determinism — two hot instances can share world + name).
+        if (a.groupKey !== b.groupKey) return a.groupKey < b.groupKey ? -1 : 1
+        return 0
       })
       .slice(0, MAX_HOT_INSTANCES)
   )
