@@ -97,14 +97,22 @@ export default function FriendDrawer({
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinFailure = shown === null ? null : joinFailureFor(shown)
 
-  // Esc closes while open; initial focus lands on the ✕ button. NO focus trap
+  // Initial focus lands on the ✕ button — keyed on `open` ONLY. Never fold
+  // this into the listener effect below: `pendingConfirm` changes (the join
+  // dialog opening/closing) would re-run it and steal focus back to ✕,
+  // overriding the dialog's own focus restoration (VRX-210 regression pin).
+  useEffect(() => {
+    if (!open) return
+    closeButtonRef.current?.focus()
+  }, [open])
+
+  // Esc closes while open. NO focus trap
   // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
   // the still-interactive list behind it. Trapping focus while the background
   // accepts pointer input would make keyboard and mouse users live in two
   // different interaction models, which is worse than either alone.
   useEffect(() => {
     if (!open) return
-    closeButtonRef.current?.focus()
     function onKeyDown(event: KeyboardEvent): void {
       // VRX-210: while the join confirmation dialog is parked, Esc belongs to
       // IT — the dialog is a TRUE modal sibling (AppShell), not inside this

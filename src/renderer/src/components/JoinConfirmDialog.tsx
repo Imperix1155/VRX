@@ -26,7 +26,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, InstanceInfo, JoinMode, JoinModePreference } from '@shared/types'
+import type { Friend, InstanceInfo, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriends } from '../queries/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -74,8 +74,11 @@ function opennessCopyFor(instance: InstanceInfo): OpennessCopy {
 
 /** i18n key for the "Effectively …" safety sentence. Group variants keep the
  *  effectively-public/private framing (group-public/group-plus stay on the
- *  public side) and name the group via the {{group}} interpolation. */
-function effectivelyKey(copy: OpennessCopy): string {
+ *  public side) and name the group via the {{group}} interpolation.
+ *  Group+ is PLATFORM-SPECIFIC: VRChat's Group+ admits group members plus
+ *  friends of whoever is CURRENTLY IN THE INSTANCE, while CVR's
+ *  friends-of-members really is "friends of group members". */
+function effectivelyKey(copy: OpennessCopy, platform: Platform): string {
   switch (copy) {
     case 'public':
     case 'friends-plus':
@@ -85,7 +88,9 @@ function effectivelyKey(copy: OpennessCopy): string {
     case 'group-public':
       return 'joinConfirm.openness.groupPublic'
     case 'group-plus':
-      return 'joinConfirm.openness.groupPlus'
+      return platform === 'chilloutvr'
+        ? 'joinConfirm.openness.groupPlusCvr'
+        : 'joinConfirm.openness.groupPlus'
     case 'group-only':
       return 'joinConfirm.openness.groupOnly'
     default:
@@ -93,8 +98,9 @@ function effectivelyKey(copy: OpennessCopy): string {
   }
 }
 
-/** i18n key for the "More info" explainer — per tier where the meaning differs. */
-function moreInfoKey(copy: OpennessCopy): string {
+/** i18n key for the "More info" explainer — per tier where the meaning differs
+ *  (group-plus additionally per platform — see effectivelyKey). */
+function moreInfoKey(copy: OpennessCopy, platform: Platform): string {
   switch (copy) {
     case 'public':
       return 'joinConfirm.more.public'
@@ -105,7 +111,9 @@ function moreInfoKey(copy: OpennessCopy): string {
     case 'group-public':
       return 'joinConfirm.more.groupPublic'
     case 'group-plus':
-      return 'joinConfirm.more.groupPlus'
+      return platform === 'chilloutvr'
+        ? 'joinConfirm.more.groupPlusCvr'
+        : 'joinConfirm.more.groupPlus'
     case 'group-only':
       return 'joinConfirm.more.groupOnly'
     default:
@@ -327,7 +335,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           {t('joinConfirm.context', { name: friend.displayName, world: worldName })}
         </p>
         <p className="text-sm font-medium" style={{ color: opennessColor }}>
-          {t(effectivelyKey(opennessCopy), { group: groupName })}
+          {t(effectivelyKey(opennessCopy, friend.platform), { group: groupName })}
         </p>
 
         {/* Quiet progressive disclosure — an inline expander, not a modal. */}
@@ -342,7 +350,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           </button>
           {moreOpen && (
             <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
-              {t(moreInfoKey(opennessCopy), { group: groupName })}
+              {t(moreInfoKey(opennessCopy, friend.platform), { group: groupName })}
             </p>
           )}
         </div>

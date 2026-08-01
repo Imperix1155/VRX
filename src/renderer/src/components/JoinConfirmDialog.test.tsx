@@ -632,6 +632,22 @@ describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
     expect(screen.getByRole('dialog', { name: 'Alex' })).toBeTruthy()
     expect(joinInstance).not.toHaveBeenCalled()
   })
+
+  it("Cancel from a DRAWER-originated join returns focus to the drawer's Join button (not ✕)", () => {
+    renderDrawerPlusDialog()
+    const drawer = screen.getByRole('dialog', { name: 'Alex' })
+    const drawerJoin = within(drawer).getByRole('button', { name: 'Join' })
+    drawerJoin.focus()
+    fireEvent.click(drawerJoin)
+    const dialog = confirmDialog()
+    expect(document.activeElement).not.toBe(drawerJoin) // moved into the modal
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    // The drawer's initial-focus effect is keyed on `open` ONLY — the dialog
+    // opening/closing must not re-focus ✕ over the dialog's own restoration.
+    expect(document.activeElement).toBe(drawerJoin)
+  })
 })
 
 describe('modal behavior', () => {
@@ -715,13 +731,13 @@ describe('group instances get group-accurate copy', () => {
       'group-public',
       'public',
       'group-public',
-      'Effectively public — Night Owls is open to everyone.'
+      'Effectively public — anyone can join this instance of Night Owls.'
     ],
     [
-      'group-plus',
+      'group-plus (VRChat: friends of whoever is INSIDE)',
       'friends-plus',
       'group-plus',
-      'Effectively public — friends of Night Owls members can get in.'
+      'Effectively public — friends of people already inside can get in.'
     ],
     ['members-only group', 'invite', 'group', 'Effectively private — Night Owls members only.']
   ] as const)('%s → names the GROUP, not friendship/invites', (_case, openness, type, copy) => {
@@ -738,6 +754,33 @@ describe('group instances get group-accurate copy', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     expect(within(confirmDialog()).getByText(copy)).toBeTruthy()
+  })
+
+  it("CVR friends-of-members keeps the friends-of-group-MEMBERS rule (that IS CVR's rule)", () => {
+    const cvrGroupFriend: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'friends-of-members',
+        openness: 'friends-plus',
+        isGroup: true,
+        groupName: 'Night Owls'
+      }
+    }
+    mockFriends([], [cvrGroupFriend])
+    render(
+      <>
+        <OpenJoin friend={cvrGroupFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(
+      within(confirmDialog()).getByText(
+        'Effectively public — friends of Night Owls members can get in.'
+      )
+    ).toBeTruthy()
   })
 
   it('members-only more-info: friendship and invites do NOT apply', () => {
@@ -907,6 +950,28 @@ describe('focus management', () => {
 
     expect(document.activeElement).toBe(screen.getByTestId('main-landmark'))
   })
+
+  it('a DISCONNECTED opener is skipped too — focus lands on the main landmark', () => {
+    render(
+      <>
+        <main tabIndex={-1} data-testid="main-landmark">
+          <OpenJoin friend={joinableFriend} />
+        </main>
+        <JoinConfirmDialog />
+      </>
+    )
+    const opener = screen.getByRole('button', { name: 'open join' })
+    opener.focus()
+    fireEvent.click(opener)
+    const dialog = confirmDialog()
+    // The opener leaves the DOM while the dialog is open (e.g. the friend
+    // went offline and the list re-rendered without the row).
+    opener.remove()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(document.activeElement).toBe(screen.getByTestId('main-landmark'))
+  })
 })
 
 describe("who's-there accessibility", () => {
@@ -927,6 +992,7 @@ describe("who's-there accessibility", () => {
     const dialog = confirmDialog()
 
     expect(within(dialog).getByRole('list')).toBeTruthy()
+    expect(within(dialog).getAllByRole('listitem')).toHaveLength(3)
     for (const name of ['F0', 'F1', 'F2']) {
       expect(within(dialog).getByRole('img', { name })).toBeTruthy()
     }
