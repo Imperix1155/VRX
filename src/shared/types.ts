@@ -279,8 +279,12 @@ export type LoginResult =
   | { ok: false; needs2fa: false; error: string }
 
 // ─── Instance join (VRX-16) ──────────────────────────────────────────────────
-/** Join an instance by launching the desktop client or VR mode. */
+/** Wire launch mode consumed by buildJoinUrl; unlike the preference, it never includes `ask`. */
 export type JoinMode = 'desktop' | 'vr'
+
+/** Persisted Join preference; unlike wire JoinMode, `ask` defers selection to action time. */
+export const JOIN_MODE_PREFERENCES = ['ask', 'vr', 'desktop'] as const
+export type JoinModePreference = (typeof JOIN_MODE_PREFERENCES)[number]
 
 // ─── Adapter live events (the WebSocket-pushed stream — VRX-146/147) ──────────
 /**

@@ -51,11 +51,20 @@ export abstract class CvrApiClient extends BaseAdapter {
   }
 
   /** GET an authenticated CVR endpoint and unwrap its validated data envelope. */
-  protected async get<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-    return await this.requestData(path, schema, {
-      method: 'GET',
-      headers: this.authenticatedHeaders()
-    })
+  protected async get<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    return await this.requestData(
+      path,
+      schema,
+      {
+        method: 'GET',
+        headers: this.authenticatedHeaders()
+      },
+      options
+    )
   }
 
   /** POST JSON to an authenticated CVR endpoint and unwrap its validated data envelope. */
@@ -94,7 +103,8 @@ export abstract class CvrApiClient extends BaseAdapter {
   private async requestData<T>(
     path: string,
     schema: z.ZodType<T>,
-    options: RequestInit
+    requestInit: RequestInit,
+    options?: Pick<AdapterRequestOptions, 'priority'>
   ): Promise<T> {
     try {
       const envelope = await this.request(
@@ -103,6 +113,7 @@ export abstract class CvrApiClient extends BaseAdapter {
         // it comes back `null` on some endpoints (e.g. /friends), so accept
         // null/missing rather than rejecting the whole (valid) `data` payload.
         z.object({ message: z.string().nullish(), data: schema }),
+        requestInit,
         options
       )
       return envelope.data

@@ -113,7 +113,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
   private readonly instanceResolver = createCvrInstanceResolver({
-    fetcher: (path, schema) => this.get(path, schema)
+    fetcher: (path, schema, options) => this.get(path, schema, options)
   })
   /** Last snapshot from the pipeline — re-enriched + re-emitted as resolutions land. */
   private lastSnapshot: PresenceSnapshotEvent | null = null
@@ -390,7 +390,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       const generation = this.sessionGeneration
       let resolved: ResolvedCvrInstance | null
       try {
-        resolved = await this.instanceResolver.resolve(instanceId)
+        resolved = await this.instanceResolver.resolve(instanceId, { priority: 'interactive' })
       } catch (error) {
         // Match getFriends: only the session that issued this request may own
         // its auth-invalidated boundary. A replacement session retries instead.

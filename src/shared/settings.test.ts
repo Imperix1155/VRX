@@ -28,7 +28,9 @@ describe('settings schema', () => {
       notifyHotInstance: false,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
-      drawerOpener: 'card'
+      drawerOpener: 'card',
+      confirmJoin: true,
+      joinMode: 'ask'
     })
   })
 
@@ -97,6 +99,22 @@ describe('settings schema', () => {
     expect(parseSettings({ theme: 'dark' }).drawerOpener).toBe('card')
     expect(parseSettings({ drawerOpener: 'whole-row' }).drawerOpener).toBe('card')
     expect(parseSettings({ drawerOpener: 1 }).drawerOpener).toBe('card')
+  })
+
+  it('confirmJoin: defaults missing/invalid to true', () => {
+    expect(parseSettings({ confirmJoin: true }).confirmJoin).toBe(true)
+    expect(parseSettings({ confirmJoin: false }).confirmJoin).toBe(false)
+    expect(parseSettings({ theme: 'dark' }).confirmJoin).toBe(true)
+    expect(parseSettings({ confirmJoin: 'yes' }).confirmJoin).toBe(true)
+  })
+
+  it('joinMode: accepts every mode and degrades missing/invalid disk values to ask', () => {
+    expect(parseSettings({ joinMode: 'ask' }).joinMode).toBe('ask')
+    expect(parseSettings({ joinMode: 'vr' }).joinMode).toBe('vr')
+    expect(parseSettings({ joinMode: 'desktop' }).joinMode).toBe('desktop')
+    expect(parseSettings({ theme: 'dark' }).joinMode).toBe('ask')
+    expect(parseSettings({ version: 6, joinMode: 'roomscale' }).joinMode).toBe('ask')
+    expect(parseSettings({ joinMode: 1 }).joinMode).toBe('ask')
   })
 
   it('maps every reconcile cadence to its background interval', () => {
@@ -213,10 +231,12 @@ describe('migration runner', () => {
 
     expect(parseSettings(v1)).toEqual({
       ...v1,
-      version: 5,
+      version: 6,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
-      drawerOpener: 'card'
+      drawerOpener: 'card',
+      confirmJoin: true,
+      joinMode: 'ask'
     })
   })
 
@@ -239,10 +259,12 @@ describe('migration runner', () => {
 
     expect(parseSettings(v2)).toEqual({
       ...v2,
-      version: 5,
+      version: 6,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
-      drawerOpener: 'card'
+      drawerOpener: 'card',
+      confirmJoin: true,
+      joinMode: 'ask'
     })
   })
 
@@ -266,9 +288,11 @@ describe('migration runner', () => {
 
     expect(parseSettings(v3)).toEqual({
       ...v3,
-      version: 5,
+      version: 6,
       reconcileInterval: '5m',
-      drawerOpener: 'card'
+      drawerOpener: 'card',
+      confirmJoin: true,
+      joinMode: 'ask'
     })
   })
 
@@ -291,7 +315,41 @@ describe('migration runner', () => {
       reconcileInterval: 'manual'
     }
 
-    expect(parseSettings(v4)).toEqual({ ...v4, version: 5, drawerOpener: 'card' })
+    expect(parseSettings(v4)).toEqual({
+      ...v4,
+      version: 6,
+      drawerOpener: 'card',
+      confirmJoin: true,
+      joinMode: 'ask'
+    })
+  })
+
+  it('migrates v5 → v6 without losing or changing any existing field', () => {
+    const v5 = {
+      version: 5,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false,
+      backgroundGlow: 'vivid',
+      reconcileInterval: 'manual',
+      drawerOpener: 'avatar'
+    }
+
+    expect(parseSettings(v5)).toEqual({
+      ...v5,
+      version: 6,
+      confirmJoin: true,
+      joinMode: 'ask'
+    })
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
@@ -336,6 +394,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
   it('makes an older v4 build refuse a v5 file', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 5 }, 4)).toBe(false)
+  })
+
+  it('makes an older v5 build refuse a v6 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 6 }, 5)).toBe(false)
   })
 
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
@@ -404,5 +466,26 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.drawerOpener).toBe('avatar')
     expect(parseSettings(disk).drawerOpener).toBe('avatar')
+  })
+
+  it('prevents a v5 build from stripping join settings during a downgrade round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 6,
+      confirmJoin: false,
+      joinMode: 'vr'
+    }
+    const oldV5Normalized = { ...disk, version: 5 }
+    Reflect.deleteProperty(oldV5Normalized, 'confirmJoin')
+    Reflect.deleteProperty(oldV5Normalized, 'joinMode')
+
+    // This is the v5 build's load-and-tidy write. The v6 boundary must block
+    // the write that would otherwise strip both join settings from disk.
+    if (shouldPersistSettings(disk, 5)) disk = oldV5Normalized
+
+    expect(disk.confirmJoin).toBe(false)
+    expect(disk.joinMode).toBe('vr')
+    expect(parseSettings(disk).confirmJoin).toBe(false)
+    expect(parseSettings(disk).joinMode).toBe('vr')
   })
 })
