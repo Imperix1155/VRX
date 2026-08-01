@@ -1071,6 +1071,78 @@ describe('CvrAdapter', () => {
       ])
     })
 
+    it('dispatches getInstanceDetails interactively when the same id is queued by the pipeline', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const dispatches: Array<{ path: string; at: number }> = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const path = new URL(href).pathname
+          dispatches.push({ path, at: Date.now() })
+          if (path === '/1/friends') {
+            return Promise.resolve(jsonResponse({ message: 'ok', data: [] }))
+          }
+          return Promise.resolve(
+            jsonResponse(
+              envelope({
+                ...instanceDetail,
+                id: path.endsWith('/i_dialog') ? 'i_dialog' : 'i_ahead'
+              })
+            )
+          )
+        })
+      )
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'u', accessKey: 'k' }),
+        (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      )
+      const drive = adapter as unknown as {
+        handlePipelineEvent: (event: AdapterEvent) => void
+      }
+
+      const blocker = adapter.getFriends()
+      drive.handlePipelineEvent({
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: ['i_ahead', 'i_dialog'].map((instanceId) => ({
+          platformUserId: `user-${instanceId}`,
+          presence: { state: 'in-game' as const },
+          instance: {
+            worldId: instanceId,
+            instanceId,
+            worldName: taggedName,
+            thumbnailUrl: null,
+            type: 'public' as const,
+            openness: 'public' as const,
+            isGroup: false,
+            groupName: null,
+            region: null,
+            userCount: null
+          }
+        }))
+      })
+      const dialog = adapter.getInstanceDetails('i_dialog')
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(dispatches).toEqual([{ path: '/1/friends', at: 10_000 }])
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(dispatches[1]).toEqual({ path: '/1/instances/i_dialog', at: 11_000 })
+      await expect(dialog).resolves.toMatchObject({ instanceId: 'i_dialog' })
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(blocker).resolves.toEqual([])
+      expect(dispatches).toEqual([
+        { path: '/1/friends', at: 10_000 },
+        { path: '/1/instances/i_dialog', at: 11_000 },
+        { path: '/1/instances/i_ahead', at: 12_000 },
+        { path: '/1/instances/i_dialog', at: 13_000 }
+      ])
+    })
+
     it('re-emits an enriched presence-snapshot once the instance resolves (world id + clean name)', async () => {
       vi.stubGlobal(
         'fetch',

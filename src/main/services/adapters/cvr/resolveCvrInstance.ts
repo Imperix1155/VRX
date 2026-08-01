@@ -179,6 +179,8 @@ export function createCvrInstanceResolver(options: {
       // here — null-not-throw and negative-cached so repeated snapshots don't
       // hammer the API.
       if (requestGeneration === generation) {
+        // Known VRX-210 review interaction: dialogs opened during this 60s
+        // window reuse cached null without dispatching an interactive request.
         store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
       }
       return null
@@ -194,7 +196,15 @@ export function createCvrInstanceResolver(options: {
       if (fresh(cached)) return Promise.resolve(cached.value)
 
       const pending = inFlight.get(instanceId)
-      if (pending) return pending
+      if (pending) {
+        if (options?.priority === 'interactive') {
+          // Deliberately leave this bypass out of inFlight: the original
+          // request keeps ownership of its identity-guarded cleanup while the
+          // dialog gets a fresh interactive queue slot.
+          return fetchAndCache(instanceId, generation, options)
+        }
+        return pending
+      }
 
       const requestGeneration = generation
       const request = fetchAndCache(instanceId, requestGeneration, options).finally(() => {

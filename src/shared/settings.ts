@@ -37,6 +37,7 @@ import {
   BACKGROUND_GLOWS,
   DRAWER_OPENERS,
   FRIEND_SECTIONS,
+  JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES
@@ -93,7 +94,7 @@ export const SettingsSchema = z.object({
   /** Whether a Join action asks for confirmation before launching (VRX-210). */
   confirmJoin: z.boolean().catch(true),
   /** Preferred Join launch mode (VRX-210). `ask` defers the choice to each Join action. */
-  joinMode: z.enum(['ask', 'vr', 'desktop']).catch('ask')
+  joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask')
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
