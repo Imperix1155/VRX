@@ -20,6 +20,7 @@
 
 import { z } from 'zod'
 import { INSTANCE_CACHE_TTL_MS } from '@shared/constants'
+import type { AdapterRequestOptions } from '../BaseAdapter'
 import { AuthError } from '../errors'
 import type { CvrFetcher } from './fetchCvrFriends'
 
@@ -65,7 +66,10 @@ export interface CvrInstanceResolver {
    * resolved (private/hidden/gone or a transient API failure). Authentication
    * errors propagate so the adapter can invalidate the dead session.
    */
-  resolve(instanceId: string): Promise<ResolvedCvrInstance | null>
+  resolve(
+    instanceId: string,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<ResolvedCvrInstance | null>
   /**
    * Cache-only lookup for synchronous enrichment paths: the resolved value,
    * `null` for a cached failure, or `undefined` when this id was never resolved
@@ -142,14 +146,16 @@ export function createCvrInstanceResolver(options: {
 
   async function fetchAndCache(
     instanceId: string,
-    requestGeneration: number
+    requestGeneration: number,
+    options?: Pick<AdapterRequestOptions, 'priority'>
   ): Promise<ResolvedCvrInstance | null> {
     try {
       // Encode: the id arrives from the WS wire — it must never be able to
       // rewrite the authenticated request path (VRX-51 path-injection class).
       const raw = await fetcher(
         `/instances/${encodeURIComponent(instanceId)}`,
-        rawCvrInstanceDetailSchema
+        rawCvrInstanceDetailSchema,
+        options
       )
       const value: ResolvedCvrInstance = {
         instanceId,
@@ -173,6 +179,8 @@ export function createCvrInstanceResolver(options: {
       // here — null-not-throw and negative-cached so repeated snapshots don't
       // hammer the API.
       if (requestGeneration === generation) {
+        // Known VRX-210 review interaction: dialogs opened during this 60s
+        // window reuse cached null without dispatching an interactive request.
         store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
       }
       return null
@@ -180,15 +188,26 @@ export function createCvrInstanceResolver(options: {
   }
 
   return {
-    resolve(instanceId: string): Promise<ResolvedCvrInstance | null> {
+    resolve(
+      instanceId: string,
+      options?: Pick<AdapterRequestOptions, 'priority'>
+    ): Promise<ResolvedCvrInstance | null> {
       const cached = cache.get(instanceId)
       if (fresh(cached)) return Promise.resolve(cached.value)
 
       const pending = inFlight.get(instanceId)
-      if (pending) return pending
+      if (pending) {
+        if (options?.priority === 'interactive') {
+          // Deliberately leave this bypass out of inFlight: the original
+          // request keeps ownership of its identity-guarded cleanup while the
+          // dialog gets a fresh interactive queue slot.
+          return fetchAndCache(instanceId, generation, options)
+        }
+        return pending
+      }
 
       const requestGeneration = generation
-      const request = fetchAndCache(instanceId, requestGeneration).finally(() => {
+      const request = fetchAndCache(instanceId, requestGeneration, options).finally(() => {
         if (inFlight.get(instanceId) === request) inFlight.delete(instanceId)
       })
       inFlight.set(instanceId, request)
