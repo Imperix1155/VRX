@@ -68,7 +68,9 @@ beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
   window.vrx = { joinInstance } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+  // The one-click join flow these tests pin is the `confirmJoin: false` path
+  // (VRX-210); the confirmation dialog is covered by JoinConfirmDialog.test.tsx.
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
   mockFriends([joinableFriend])
 })
 

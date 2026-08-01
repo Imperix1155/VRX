@@ -7,6 +7,7 @@ import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
+import JoinConfirmDialog from './JoinConfirmDialog'
 
 /** Glass "coming soon" stub for views not yet implemented. */
 function ComingSoonStub({ labelKey }: { labelKey: string }): React.JSX.Element {
@@ -79,12 +80,18 @@ export default function AppShell(): React.JSX.Element {
           which view the main region currently holds (audit W5). */}
       <main
         aria-label={t(VIEW_TITLE_KEYS[activeTab])}
+        // tabIndex -1: programmatically focusable so the join dialog's
+        // focus-restore has a stable container fallback (VRX-210).
+        tabIndex={-1}
         style={{ overflowY: 'auto', padding: 'var(--space-2) var(--space-2) var(--space-10)' }}
         className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />
         <MainContent />
       </main>
+      {/* VRX-210: the ONE join confirmation dialog — mounted at shell level so
+          every join surface (row pill, drawer, future hot-card join) is covered. */}
+      <JoinConfirmDialog />
     </div>
   )
 }

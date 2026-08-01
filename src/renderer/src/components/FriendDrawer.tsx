@@ -94,23 +94,35 @@ export default function FriendDrawer({
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
-  const { isJoining, joinFailureFor, join } = useJoinInstance()
+  const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinFailure = shown === null ? null : joinFailureFor(shown)
 
-  // Esc closes while open; initial focus lands on the ✕ button. NO focus trap
+  // Initial focus lands on the ✕ button — keyed on `open` ONLY. Never fold
+  // this into the listener effect below: `pendingConfirm` changes (the join
+  // dialog opening/closing) would re-run it and steal focus back to ✕,
+  // overriding the dialog's own focus restoration (VRX-210 regression pin).
+  useEffect(() => {
+    if (!open) return
+    closeButtonRef.current?.focus()
+  }, [open])
+
+  // Esc closes while open. NO focus trap
   // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
   // the still-interactive list behind it. Trapping focus while the background
   // accepts pointer input would make keyboard and mouse users live in two
   // different interaction models, which is worse than either alone.
   useEffect(() => {
     if (!open) return
-    closeButtonRef.current?.focus()
     function onKeyDown(event: KeyboardEvent): void {
+      // VRX-210: while the join confirmation dialog is parked, Esc belongs to
+      // IT — the dialog is a TRUE modal sibling (AppShell), not inside this
+      // panel, so without the guard every dialog Esc would also close the drawer.
+      if (pendingConfirm !== null) return
       if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, onClose, pendingConfirm])
 
   // Outside pointerdown closes (VRX-225) — except on a `[data-drawer-opener]`
   // (an avatar button; the whole row in 'card' mode, VRX-228): those SWITCH
@@ -125,6 +137,11 @@ export default function FriendDrawer({
   useEffect(() => {
     if (!open) return
     function onPointerDown(event: PointerEvent): void {
+      // VRX-210: while the modal join dialog is open, NO pointerdown reaches
+      // this outside-close — the dialog is not inside panelRef, so clicking
+      // Cancel/Join/More info/radios/the footnote would otherwise dismiss the
+      // drawer out from under the modal.
+      if (pendingConfirm !== null) return
       const target = event.target
       if (!(target instanceof Element)) return
       if (panelRef.current?.contains(target)) return
@@ -134,7 +151,7 @@ export default function FriendDrawer({
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [open, onClose])
+  }, [open, onClose, pendingConfirm])
 
   // ── Derived content (mirrors the row's logic — single source in utils) ────
   const ring = shown ? ringFor(shown) : null

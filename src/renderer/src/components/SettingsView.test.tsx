@@ -201,6 +201,45 @@ describe('SettingsView — Dashboard section (VRX-78)', () => {
     expect(useSettingsStore.getState().settings.hotInstanceThreshold).toBe(3)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
+
+  it('renders the confirm-before-joining row (On default) and writes confirmJoin (VRX-210)', () => {
+    useUiStore.setState({ settingsCategory: 'dashboard' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.confirmJoin.aria') })
+    const radios = [...group.querySelectorAll('[role="radio"]')]
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      msg('settings.confirmJoin.on'),
+      msg('settings.confirmJoin.off')
+    ])
+    // Cautious-by-default (owner ruling): On.
+    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.confirmJoin.on')
+    )
+
+    fireEvent.click(radios[1]!)
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
+  it('renders the join-mode row in VR | Always ask | Desktop order (center-neutral) and writes joinMode (VRX-210)', () => {
+    useUiStore.setState({ settingsCategory: 'dashboard' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.joinMode.aria') })
+    const radios = [...group.querySelectorAll('[role="radio"]')]
+    // 'ask' DEFERS the choice to join time — the §8 center-neutral seat.
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      msg('settings.joinMode.vr'),
+      msg('settings.joinMode.ask'),
+      msg('settings.joinMode.desktop')
+    ])
+    expect(group.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.joinMode.ask')
+    )
+
+    fireEvent.click(radios[0]!)
+    expect(useSettingsStore.getState().settings.joinMode).toBe('vr')
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
 })
 
 describe('SettingsView — Notifications section (VRX-84/85)', () => {

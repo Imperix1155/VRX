@@ -124,7 +124,9 @@ beforeEach(() => {
   setFriendNote = vi.fn().mockResolvedValue({ ok: true })
   window.vrx = { joinInstance, getFriendNote, setFriendNote } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
-  useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+  // Drawer/row interactions here exercise the one-click join flow — the
+  // VRX-210 confirmation gate (default ON) is covered by JoinConfirmDialog.test.tsx.
+  useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
   mockFriends([joinableFriend])
 })
 
