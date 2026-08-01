@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { Friend, InstanceInfo } from '@shared/types'
+import type { AdapterEvent, Friend, InstanceInfo, VrcFriend } from '@shared/types'
+import {
+  FriendAlerts,
+  type FriendAlert,
+  type HotInstanceAlert
+} from '../../../main/services/friendAlerts'
 import { getDashboardStats, getHotInstances } from './dashboardAggregations'
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
-const instance = (worldId: string, worldName: string | null = 'World'): InstanceInfo => ({
+const instance = (
+  worldId: string,
+  worldName: string | null = 'World',
+  instanceId: string = `${worldId}:12345~public`
+): InstanceInfo => ({
   worldId,
-  instanceId: `${worldId}:12345~public`,
+  instanceId,
   worldName,
   thumbnailUrl: null,
   type: 'public',
@@ -20,14 +29,15 @@ const instance = (worldId: string, worldName: string | null = 'World'): Instance
 const vrcFriend = (
   id: string,
   state: Friend['presence']['state'],
-  inst: InstanceInfo | null = null
+  inst: InstanceInfo | null = null,
+  status: VrcFriend['status'] = 'online'
 ): Friend => ({
   platformUserId: id,
   platform: 'vrchat',
   displayName: `User ${id}`,
   avatarUrl: null,
   presence: { state },
-  status: 'online',
+  status,
   statusDescription: null,
   trustRank: null,
   instance: inst,
@@ -112,6 +122,46 @@ describe('getHotInstances', () => {
     expect(getHotInstances(friends)).toHaveLength(0)
   })
 
+  it('excludes NON-in-game friends even with a populated instance (VRX-237 H1 — the swallowed-buckets shape)', () => {
+    // A failed /auth/user bucket read can flip every friend 'offline' (or
+    // leave one 'active') while `instance` stays populated. That must never
+    // render a hot card of "offline" friends above "online 0 / in game 0".
+    const inst = instance('wrld_1', 'The Great Pug')
+    const friends: Friend[] = [
+      vrcFriend('a', 'offline', inst),
+      vrcFriend('b', 'offline', inst),
+      vrcFriend('c', 'active', inst)
+    ]
+    expect(getHotInstances(friends)).toEqual([])
+    expect(getHotInstances(friends, 1)).toEqual([])
+  })
+
+  it('hidden-location friends (Ask Me/DND) are INVISIBLE to the hot system (owner privacy law, 2026-08-01)', () => {
+    const inst = instance('wrld_1', 'The Great Pug')
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', inst),
+      vrcFriend('b', 'in-game', inst),
+      // Same exact instance, but DND — never counts, never appears.
+      vrcFriend('c', 'in-game', inst, 'dnd')
+    ]
+    // Threshold 2: the card exists with the 2 VISIBLE members only — the
+    // hidden friend is absent from members, names, and the count.
+    const result = getHotInstances(friends, 2)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.friendCount).toBe(2)
+    expect(result[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'b'])
+    expect(result[0]!.friendNames).toEqual(['User a', 'User b'])
+    // Threshold 3: NO card — the hidden friend never counts toward it.
+    expect(getHotInstances(friends, 3)).toEqual([])
+    // Ask Me hides too.
+    expect(
+      getHotInstances(
+        [vrcFriend('a', 'in-game', inst), vrcFriend('c', 'in-game', inst, 'ask-me')],
+        2
+      )
+    ).toEqual([])
+  })
+
   it('respects a custom threshold (VRX-78): 1 shows singles, 5 filters below five', () => {
     const solo = instance('wrld_solo', 'Quiet World')
     const trio = instance('wrld_trio', 'Busy World')
@@ -129,7 +179,7 @@ describe('getHotInstances', () => {
     expect(getHotInstances(friends)).toHaveLength(1)
   })
 
-  it('groups friends in the same world', () => {
+  it('groups friends in the same EXACT instance and carries its identity (VRX-237)', () => {
     const inst = instance('wrld_1', 'The Great Pug')
     const friends: Friend[] = [
       vrcFriend('a', 'in-game', inst),
@@ -141,6 +191,68 @@ describe('getHotInstances', () => {
     expect(result[0]!.friendCount).toBe(3)
     expect(result[0]!.worldId).toBe('wrld_1')
     expect(result[0]!.worldName).toBe('The Great Pug')
+    expect(result[0]!.instanceId).toBe('wrld_1:12345~public')
+    expect(result[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('dedupes members by platform:platformUserId — a duplicated row never counts one person twice (VRX-237)', () => {
+    // A paginated fetch shifting mid-run can deliver the same normalized
+    // friend twice. Counting both rows would fabricate a hot card out of ONE
+    // person — the exact false togetherness the law targets.
+    const inst = instance('wrld_1', 'The Great Pug')
+    const a = vrcFriend('a', 'in-game', inst)
+    // Same identity, two rows (first occurrence wins).
+    expect(getHotInstances([a, { ...a }], 2)).toEqual([])
+    // Two real members + a duplicate of one → count 2, not 3.
+    const b = vrcFriend('b', 'in-game', inst)
+    const result = getHotInstances([a, b, { ...a }], 2)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.friendCount).toBe(2)
+    expect(result[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'b'])
+    // Same platformUserId on the OTHER platform is a different person.
+    const crossPlatform: Friend[] = [a, cvrFriend('a', 'in-game', inst)]
+    expect(getHotInstances(crossPlatform, 2)).toHaveLength(0) // different keys entirely
+  })
+
+  it('Fish Pyramid near-miss: same world, three DIFFERENT instances → ZERO hot cards (VRX-237)', () => {
+    // The owner's real anecdote: three friends in the Fish Pyramid world, each
+    // in their own instance — the old world-grouping showed a hot card and
+    // implied they were hanging out together. They were not.
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', instance('wrld_fish', 'Fish Pyramid', 'wrld_fish:aaa~public')),
+      vrcFriend('b', 'in-game', instance('wrld_fish', 'Fish Pyramid', 'wrld_fish:bbb~public')),
+      vrcFriend('c', 'in-game', instance('wrld_fish', 'Fish Pyramid', 'wrld_fish:ccc~public'))
+    ]
+    expect(getHotInstances(friends, 2)).toEqual([])
+  })
+
+  it('Fish Pyramid: two of the three share one instanceId → ONE card with exactly those two', () => {
+    const shared = instance('wrld_fish', 'Fish Pyramid', 'wrld_fish:aaa~public')
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', shared),
+      vrcFriend('b', 'in-game', instance('wrld_fish', 'Fish Pyramid', 'wrld_fish:bbb~public')),
+      vrcFriend('c', 'in-game', shared)
+    ]
+    const result = getHotInstances(friends, 2)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.instanceId).toBe('wrld_fish:aaa~public')
+    expect(result[0]!.worldName).toBe('Fish Pyramid')
+    expect(result[0]!.friendCount).toBe(2)
+    // Exactly the two sharers — alphabetical, and the third friend is nowhere.
+    expect(result[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'c'])
+    expect(result[0]!.friendNames).toEqual(['User a', 'User c'])
+  })
+
+  it('mixed instance types in the same world do NOT group — togetherness is never same-type (VRX-237)', () => {
+    const friends: Friend[] = [
+      vrcFriend('a', 'in-game', instance('wrld_1', 'Mixed World', 'wrld_1:aaa~public')),
+      vrcFriend('b', 'in-game', {
+        ...instance('wrld_1', 'Mixed World', 'wrld_1:bbb~friendsPlus'),
+        type: 'friends-plus',
+        openness: 'friends-plus'
+      })
+    ]
+    expect(getHotInstances(friends, 2)).toEqual([])
   })
 
   it('collects the friend display names, sorted alphabetically (VRX-198)', () => {
@@ -203,7 +315,7 @@ describe('getHotInstances', () => {
     expect(result[1]!.worldId).toBe('wrld_a')
   })
 
-  it('breaks ties by worldId when worldNames are equal', () => {
+  it('breaks ties by the composite group key when worldNames are equal (VRX-237)', () => {
     const inst1 = instance('wrld_b', 'Same Name')
     const inst2 = instance('wrld_a', 'Same Name')
     const friends: Friend[] = [
@@ -242,10 +354,187 @@ describe('getHotInstances', () => {
     expect(result[0]!.worldId).toBe('wrld_2')
   })
 
-  it('carries the correct platform from the first friend in the world', () => {
+  it('carries the correct platform from the instance members', () => {
     const inst = instance('wrld_1', 'CVR World')
     const friends: Friend[] = [cvrFriend('a', 'in-game', inst), cvrFriend('b', 'in-game', inst)]
     const result = getHotInstances(friends)
     expect(result[0]!.platform).toBe('chilloutvr')
+  })
+
+  it('CVR grouping is stable across async world-metadata enrichment (VRX-237 L7)', () => {
+    // CVR's unresolved worldId fallback EQUALS the instanceId; the resolved
+    // world.id lands later. The CVR key is the instance id alone, so the
+    // enrichment must never split or regroup the card.
+    const unresolved = (id: string): Friend =>
+      cvrFriend(id, 'in-game', instance('i+abc123', 'Creator Instance Copy', 'i+abc123'))
+    const before = getHotInstances([unresolved('a'), unresolved('b')], 2)
+    expect(before).toHaveLength(1)
+    expect(before[0]!.instanceId).toBe('i+abc123')
+
+    const resolved = (id: string): Friend =>
+      cvrFriend(id, 'in-game', instance('world-guid-9', 'Authoritative World', 'i+abc123'))
+    const after = getHotInstances([resolved('a'), resolved('b')], 2)
+    expect(after).toHaveLength(1)
+    expect(after[0]!.instanceId).toBe('i+abc123')
+    // Mixed enrichment states (one friend resolved, one not) still group.
+    expect(getHotInstances([unresolved('a'), resolved('b')], 2)).toHaveLength(1)
+  })
+})
+
+// ─── Alignment pin: dashboard grouping ≡ alert-engine hot key (VRX-237) ──────
+
+describe('hot-instance key alignment (VRX-237)', () => {
+  it('the dashboard grouping and the FriendAlerts hot key agree on the same roster', () => {
+    // Same roster, two consumers, ONE shared hotInstanceKey: the Fish Pyramid
+    // near-miss produces NO hot alert and NO hot card; moving one friend into
+    // another's exact instance produces exactly one of each — for the SAME
+    // instance id.
+    const alerts: FriendAlert[] = []
+    const engine = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      hotInstanceThreshold: () => 2,
+      resolveName: () => null
+    })
+    const event = (f: Friend): AdapterEvent => ({
+      type: 'friend-presence',
+      platform: f.platform,
+      friend: f
+    })
+    const pyramid = (instanceId: string): InstanceInfo =>
+      instance('wrld_fish', 'Fish Pyramid', instanceId)
+
+    const a = vrcFriend('a', 'in-game', pyramid('wrld_fish:aaa~public'))
+    const b = vrcFriend('b', 'in-game', pyramid('wrld_fish:bbb~public'))
+    const c = vrcFriend('c', 'in-game', pyramid('wrld_fish:ccc~public'))
+
+    // Baseline offline first — a never-seen in-game friend baselines silently.
+    for (const f of [a, b, c]) {
+      engine.consume(event({ ...f, presence: { state: 'offline' }, instance: null }))
+    }
+    for (const f of [a, b, c]) engine.consume(event(f))
+
+    // Near-miss: three different instances of one world — NEITHER consumer
+    // calls it hot (the false same-world signal is dead on both sides).
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
+    expect(getHotInstances([a, b, c], 2)).toEqual([])
+
+    // c joins a's exact instance: BOTH consumers now see exactly one hot
+    // instance, and it is the same instance id.
+    const cMoved = vrcFriend('c', 'in-game', pyramid('wrld_fish:aaa~public'))
+    engine.consume(event(cMoved))
+
+    const hot = alerts.filter((x): x is HotInstanceAlert => x.type === 'hot-instance')
+    expect(hot).toHaveLength(1)
+    expect(hot[0]!.instanceId).toBe('wrld_fish:aaa~public')
+
+    const cards = getHotInstances([a, b, cMoved], 2)
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.instanceId).toBe(hot[0]!.instanceId)
+    expect(cards[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'c'])
+  })
+
+  it('both consumers exclude NON-in-game friends even with a populated instance (VRX-237 H1)', () => {
+    // The swallowed-buckets shape: presence flipped 'offline' while `instance`
+    // stays populated. Neither the engine nor the dashboard may count these.
+    const alerts: FriendAlert[] = []
+    const engine = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      hotInstanceThreshold: () => 2,
+      resolveName: () => null
+    })
+    const inst = instance('wrld_1', 'The Great Pug')
+    const ghosts: Friend[] = [vrcFriend('a', 'offline', inst), vrcFriend('b', 'offline', inst)]
+    for (const f of ghosts) {
+      engine.consume({ type: 'friend-presence', platform: f.platform, friend: f })
+    }
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
+    expect(getHotInstances(ghosts, 2)).toEqual([])
+  })
+
+  it('the alert engine never counts a hidden-location friend either (owner privacy law, 2026-08-01)', () => {
+    const alerts: FriendAlert[] = []
+    const engine = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      hotInstanceThreshold: () => 2,
+      resolveName: () => null
+    })
+    const event = (f: Friend): AdapterEvent => ({
+      type: 'friend-presence',
+      platform: f.platform,
+      friend: f
+    })
+    const inst = instance('wrld_1', 'The Great Pug')
+    const a = vrcFriend('a', 'in-game', inst)
+    const hidden = vrcFriend('b', 'in-game', inst, 'dnd') // same instance, invisible
+    const c = vrcFriend('c', 'in-game', inst)
+
+    // Baseline offline first — a never-seen in-game friend baselines silently.
+    for (const f of [a, hidden, c]) {
+      engine.consume(event({ ...f, presence: { state: 'offline' }, instance: null }))
+    }
+
+    engine.consume(event(a))
+    engine.consume(event(hidden))
+    // ONE visible member < threshold 2: no toast, no card.
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
+    expect(getHotInstances([a, hidden], 2)).toEqual([])
+
+    engine.consume(event(c))
+    // The crossing fires at TWO visible members — the hidden friend is not
+    // counted on either side.
+    const hot = alerts.filter((x): x is HotInstanceAlert => x.type === 'hot-instance')
+    expect(hot).toHaveLength(1)
+    expect(hot[0]!.friendCount).toBe(2)
+    const cards = getHotInstances([a, hidden, c], 2)
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.friendCount).toBe(2)
+    expect(cards[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'c'])
+
+    // A status-ONLY update re-evaluates membership (VRX-237): a newly-hidden
+    // visible member drops the engine's count silently — and the dashboard's
+    // roster recomputation agrees.
+    const aHidden = vrcFriend('a', 'in-game', inst, 'ask-me')
+    engine.consume({ type: 'friend-updated', platform: a.platform, friend: aHidden })
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toHaveLength(1)
+    expect(getHotInstances([aHidden, hidden, c], 2)).toEqual([])
+
+    // Flipping back is a fresh crossing on BOTH sides.
+    engine.consume({ type: 'friend-updated', platform: a.platform, friend: a })
+    const reAdded = alerts.filter((x): x is HotInstanceAlert => x.type === 'hot-instance')
+    expect(reAdded).toHaveLength(2)
+    expect(reAdded[1]!.friendCount).toBe(2)
+    expect(getHotInstances([a, hidden, c], 2)).toHaveLength(1)
+  })
+
+  it('a duplicated friend row is ONE person on both sides (VRX-237 dedupe alignment)', () => {
+    // The engine keys presence by platformUserId (a repeat event is the same
+    // person, no crossing); the dashboard dedupes rows by platform:userId.
+    const alerts: FriendAlert[] = []
+    const engine = new FriendAlerts({
+      notify: (alert) => alerts.push(alert),
+      clock: () => 0,
+      isEnabled: () => true,
+      hotInstanceThreshold: () => 2,
+      resolveName: () => null
+    })
+    const inst = instance('wrld_1', 'The Great Pug')
+    const a = vrcFriend('a', 'in-game', inst)
+    engine.consume({
+      type: 'friend-presence',
+      platform: a.platform,
+      friend: { ...a, presence: { state: 'offline' }, instance: null }
+    })
+    engine.consume({ type: 'friend-presence', platform: a.platform, friend: a })
+    engine.consume({ type: 'friend-presence', platform: a.platform, friend: a })
+
+    // One person, twice reported — NEITHER consumer calls it two friends.
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
+    expect(getHotInstances([a, { ...a }], 2)).toEqual([])
   })
 })

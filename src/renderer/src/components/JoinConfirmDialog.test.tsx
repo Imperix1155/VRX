@@ -4,7 +4,7 @@
  * flow. Covers: interception of the row-pill and drawer-button join paths,
  * confirm/cancel/Esc/outside semantics, the openness honesty copy, the CVR
  * mode picker vs the VRChat honest note, the never-show-again footnote, the
- * who's-there row (exact worldId+instanceId filter, ≤4 avatars + "+N"), and
+ * who's-there row (shared hot-instance key + platform + visibility filter, ≤4 avatars + "+N"), and
  * the one-shot CVR people count. Path-integration tests render the REAL
  * FriendsList next to the dialog (like AppShell does); copy/variant tests
  * drive the gate through a tiny OpenJoin harness.
@@ -477,6 +477,68 @@ describe("who's-there row", () => {
 
     expect(within(dialog).getAllByRole('img')).toHaveLength(4)
     expect(within(dialog).getByText('+1')).toBeTruthy() // 5 same-instance, NOT +2
+  })
+
+  it('CVR mid-enrichment: an enriched roster member (real world.id) still matches the parked unresolved instance (VRX-237)', () => {
+    // The parked friend's instance still carries CVR's unresolved fallback
+    // (worldId === instanceId) while a roster member's copy already enriched
+    // to the real world.id. A raw worldId+instanceId match would DROP the
+    // member; the shared hotInstanceKey (CVR = instance id alone) keeps them.
+    const unresolved: InstanceInfo = {
+      ...cvrInstance,
+      worldId: 'i+unresolved1',
+      instanceId: 'i+unresolved1',
+      worldName: 'Creator Instance Copy'
+    }
+    const parked: Friend = { ...cvrFriend, platformUserId: 'cvr_parked', instance: unresolved }
+    const enrichedMember: Friend = {
+      ...cvrFriend,
+      platformUserId: 'cvr_member',
+      displayName: 'Enriched',
+      instance: { ...unresolved, worldId: 'world-real-9', worldName: 'Authoritative World' }
+    }
+    mockFriends([], [parked, enrichedMember])
+    render(
+      <>
+        <OpenJoin friend={parked} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // BOTH the parked friend and the enriched member are shown — the cohort
+    // the hot card truthfully groups is the cohort the dialog lists.
+    expect(within(dialog).getAllByRole('img')).toHaveLength(2)
+  })
+
+  it('never matches across platforms on colliding worldId + instanceId strings (VRX-237)', () => {
+    // Same raw worldId/instanceId text on BOTH platforms: the platform gate +
+    // platform-aware key must keep the CVR friend out of a VRChat dialog.
+    const colliding: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_same',
+      instanceId: 'wrld_same:1~public'
+    }
+    const parked: Friend = { ...joinableFriend, instance: colliding }
+    const cvrColliding: Friend = {
+      ...cvrFriend,
+      platformUserId: 'cvr_collision',
+      displayName: 'CrossPlatform',
+      instance: { ...colliding }
+    }
+    mockFriends([parked], [cvrColliding])
+    render(
+      <>
+        <OpenJoin friend={parked} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // Only the parked VRChat friend is present — the CVR lookalike is not.
+    expect(within(dialog).getAllByRole('img')).toHaveLength(1)
   })
 
   it('CVR: one getInstanceDetails call on open; "· N people" when it resolves', async () => {

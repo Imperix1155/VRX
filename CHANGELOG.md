@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Join straight from a hot-instance card.** When several friends are in the same instance, the instance pill on that Dashboard card is now a Join button — same confirmation dialog as every other Join in the app. If nobody there is joinable, the card stays read-only. (VRX-237)
 - **VRX now asks before it launches a game.** Clicking Join opens a confirmation that names the instance type, says in plain words whether strangers can get in ("Effectively public — people you don't know can get in"), shows which of your friends are already there, and — on ChilloutVR — lets you pick VR or desktop for that launch. VRChat picks its own mode from its launch settings, and the dialog says so rather than offering a switch that does nothing. Group instances describe group access accurately instead of borrowing friends-and-invites wording. Prefer the old one-click behavior? The dialog's "Don't ask again" footnote turns it off, and Settings → Dashboard turns it back on (along with a Join in: Always ask / VR / Desktop preference). (VRX-210)
 
 ### Fixed
 
+- **Hot instances no longer claim friends are together when they aren't.** The Dashboard used to call a world "hot" when enough friends were anywhere in that world — so two friends in *different* instances of the same world looked like they were hanging out together when they couldn't even see each other. Now a card (and the "friends gathering" notification) only appears when friends are in the exact same instance, and the wording says exactly that. (VRX-237)
+- **Friends who hide their location stay hidden from hot instances too.** If a friend sets Ask Me or Do Not Disturb, they no longer count toward a hot instance and never appear on its card or notification — their location stays as private there as the friends list already kept it. (VRX-237)
 - **Launching VRX twice no longer opens a second copy of the app.** Starting VRX while it's already running now brings the existing window to the front instead — including restoring it from the tray or from minimized. Duplicate copies used to stack without limit, each one opening its own connections to VRChat and ChilloutVR behind the scenes. (VRX-230)
 
 ## [0.12.0] - 2026-07-29

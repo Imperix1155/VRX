@@ -59,15 +59,9 @@ export function ringFor(friend: Friend): Ring {
 }
 
 /**
- * Whether Ask Me / DND should hide the world (DESIGN.md §5 / R6).
- * Only applies to VRChat — CVR has no status — and only while IN A WORLD
- * (Codex re-review, VRX-69: an offline friend with a retained ask-me/dnd
- * status must not read "Offline" + "Hidden" — there is no world to hide).
+ * Whether Ask Me / DND should hide the world (DESIGN.md §5 / R6). THE ONE
+ * source moved to `@shared/hotInstanceKey` (VRX-237) — the hot-instance
+ * membership predicate consumes the same gate, so the row and the hot system
+ * can never disagree. This re-export keeps the renderer surface unchanged.
  */
-export function isWorldHidden(friend: Friend): boolean {
-  return (
-    friend.presence.state === 'in-game' &&
-    friend.platform === 'vrchat' &&
-    (friend.status === 'ask-me' || friend.status === 'dnd')
-  )
-}
+export { isWorldHidden } from '@shared/hotInstanceKey'

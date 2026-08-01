@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
+import type {
+  AdapterEvent,
+  Friend,
+  InstanceInfo,
+  Platform,
+  PresenceState,
+  VrcFriend
+} from '@shared/types'
 import {
   FriendAlerts,
   type FriendAlert,
@@ -36,7 +43,8 @@ function friend(
   state: PresenceState,
   currentInstance: InstanceInfo | null = null,
   platformUserId = ID,
-  displayName = 'FriendName'
+  displayName = 'FriendName',
+  status: VrcFriend['status'] = 'online'
 ): Friend {
   return {
     platformUserId,
@@ -48,7 +56,7 @@ function friend(
     isFavorite: false,
     favoriteGroupIds: [],
     linkedPersonId: null,
-    status: 'online',
+    status,
     statusDescription: null,
     trustRank: null
   }
@@ -444,6 +452,33 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
 
     expect(hotAlerts(alerts).map((alert) => alert.friendCount)).toEqual([2, 2])
+  })
+
+  it('a status-only friend-updated re-evaluates membership: newly-hidden drops out, flip-back crosses again (VRX-237)', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    expect(hotAlerts(alerts)).toHaveLength(1)
+
+    // Status-ONLY update (presence/instance unchanged): usr_2 flips to
+    // Ask Me → invisible to the hot system → the count drops 2→1 silently.
+    engine.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: friend('in-game', instance('party'), 'usr_2', 'Two', 'ask-me')
+    })
+    expect(hotAlerts(alerts)).toHaveLength(1)
+
+    // Flipping back online is a fresh 1→2 crossing → the toast fires again.
+    engine.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: friend('in-game', instance('party'), 'usr_2', 'Two')
+    })
+    expect(hotAlerts(alerts)).toHaveLength(2)
+    expect(hotAlerts(alerts)[1]?.friendCount).toBe(2)
   })
 
   it('reads threshold changes at the crossing decision', () => {
