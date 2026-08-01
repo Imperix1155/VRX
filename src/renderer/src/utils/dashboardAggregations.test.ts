@@ -495,6 +495,21 @@ describe('hot-instance key alignment (VRX-237)', () => {
     expect(cards).toHaveLength(1)
     expect(cards[0]!.friendCount).toBe(2)
     expect(cards[0]!.members.map((m) => m.platformUserId)).toEqual(['a', 'c'])
+
+    // A status-ONLY update re-evaluates membership (VRX-237): a newly-hidden
+    // visible member drops the engine's count silently — and the dashboard's
+    // roster recomputation agrees.
+    const aHidden = vrcFriend('a', 'in-game', inst, 'ask-me')
+    engine.consume({ type: 'friend-updated', platform: a.platform, friend: aHidden })
+    expect(alerts.filter((x) => x.type === 'hot-instance')).toHaveLength(1)
+    expect(getHotInstances([aHidden, hidden, c], 2)).toEqual([])
+
+    // Flipping back is a fresh crossing on BOTH sides.
+    engine.consume({ type: 'friend-updated', platform: a.platform, friend: a })
+    const reAdded = alerts.filter((x): x is HotInstanceAlert => x.type === 'hot-instance')
+    expect(reAdded).toHaveLength(2)
+    expect(reAdded[1]!.friendCount).toBe(2)
+    expect(getHotInstances([a, hidden, c], 2)).toHaveLength(1)
   })
 
   it('a duplicated friend row is ONE person on both sides (VRX-237 dedupe alignment)', () => {

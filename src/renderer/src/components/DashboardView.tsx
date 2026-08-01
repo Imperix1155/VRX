@@ -169,7 +169,9 @@ function HotInstanceCard({ instance }: { instance: HotInstance }): React.JSX.Ele
               disabled={isJoining}
               aria-label={t('friends.joinAria', {
                 name: joinTarget.displayName,
-                world: instance.worldName ?? worldName
+                // The STRIPPED display name — same as the visible title, never
+                // the raw `(#…)`-suffixed wire name.
+                world: worldName
               })}
             />
             <span

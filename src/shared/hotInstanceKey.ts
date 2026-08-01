@@ -1,15 +1,25 @@
-import type { Friend, InstanceInfo, Platform, PresenceState } from './types'
+import type { Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
 
 /**
- * The structural minimum the hot-membership law reads. A full `Friend`
- * satisfies it directly (dashboard), and the alert engine's snapshot path —
- * whose wire entries carry no Friend object — can supply it without a cast.
+ * The structural minimum the §5/R6 visibility gate reads. A full `Friend`
+ * satisfies it directly; the alert engine can rebuild it from a cached
+ * presence entry + an updated status (no Friend object required, no casts).
  */
-export interface HotMembershipView {
+export interface HotVisibilityView {
   platform: Platform
   presence: { state: PresenceState }
   status: Friend['status']
-  instance: InstanceInfo | null
+}
+
+/**
+ * The structural minimum the hot-membership law reads. A full `Friend`
+ * satisfies it directly (dashboard), and the alert engine's intake paths —
+ * whose wire entries carry no Friend object — can supply it without a cast
+ * (the predicate only null-checks `instance`, so a cached instanceId stands
+ * in for the whole object).
+ */
+export interface HotMembershipView extends HotVisibilityView {
+  instance: Pick<InstanceInfo, 'instanceId'> | null
 }
 
 /**
@@ -20,7 +30,7 @@ export interface HotMembershipView {
  * A WORLD — an offline friend with a retained ask-me/dnd status has no world
  * to hide.
  */
-export function isWorldHidden(friend: HotMembershipView): boolean {
+export function isWorldHidden(friend: HotVisibilityView): boolean {
   return (
     friend.presence.state === 'in-game' &&
     friend.platform === 'vrchat' &&

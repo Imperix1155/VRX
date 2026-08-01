@@ -31,11 +31,12 @@ describe('main native notification wiring', () => {
     ).toBe(2)
   })
 
-  it('keeps the owner-authored hot-instance same-instance copy (VRX-237)', () => {
-    expect(source).toContain(
-      '`${alert.friendCount} friends are together in ${strippedWorldName} — join them?`'
-    )
-    expect(source).toContain('`${alert.friendCount} friends are in the same instance — join them?`')
+  it('keeps the owner-authored hot-instance same-instance copy, plural-correct (VRX-237)', () => {
+    // Singular/plural arms (a threshold of 1 must never read "1 friends…").
+    expect(source).toContain("'1 friend is'")
+    expect(source).toContain('`${alert.friendCount} friends are`')
+    expect(source).toContain('`${countCopy} in the same instance — join them?`')
+    expect(source).toContain('`${countCopy} together in ${strippedWorldName} — join them?`')
     // The false same-WORLD signal is gone for good.
     expect(source).not.toContain('same world')
   })
