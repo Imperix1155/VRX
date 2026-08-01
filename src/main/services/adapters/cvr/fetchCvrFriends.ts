@@ -13,12 +13,17 @@
 
 import { z } from 'zod'
 import type { CvrFriend } from '@shared/types'
+import type { AdapterRequestOptions } from '../BaseAdapter'
 import { extractCvrPlatformUserId } from './cvrPlatformUserId'
 
 // ─── Injected fetcher type ────────────────────────────────────────────────────
 
 /** Shape of the injected HTTP helper (matches CvrApiClient.get). */
-export type CvrFetcher = <T>(path: string, schema: z.ZodType<T>) => Promise<T>
+export type CvrFetcher = <T>(
+  path: string,
+  schema: z.ZodType<T>,
+  options?: Pick<AdapterRequestOptions, 'priority'>
+) => Promise<T>
 
 // ─── Zod schemas for raw API shapes ──────────────────────────────────────────
 
