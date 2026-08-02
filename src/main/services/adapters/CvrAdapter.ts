@@ -526,6 +526,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private mergeResolved(instance: InstanceInfo, resolved: ResolvedCvrInstance): InstanceInfo {
     return {
       ...instance,
+      // Defense in depth (VRX-240): carry the unknown-openness flag EXPLICITLY
+      // like the two construction sites (CvrPipeline WS parse + getInstanceDetails)
+      // instead of relying on the spread alone — a re-emit must never silently
+      // drop the flag on an instance the parser degraded.
+      ...(instance.opennessUnknown === true ? { opennessUnknown: true } : {}),
       worldId: resolved.worldId ?? instance.worldId,
       // Only resolver world.name is authoritative; instanceName is a label.
       worldName: resolved.worldName,

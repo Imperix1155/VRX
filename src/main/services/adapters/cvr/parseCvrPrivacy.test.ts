@@ -38,6 +38,12 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     expect(parseCvrPrivacy(undefined)).toEqual(UNKNOWN_RESTRICTED)
   })
 
+  it('"constructor" survives normalization but is a PROTOTYPE key, not a wire value — degrade + flag', () => {
+    // The one Object.prototype key the /[^a-z0-9]/ filter passes through;
+    // must never leak Function Object as a "recognized" access result.
+    expect(parseCvrPrivacy('constructor')).toEqual(UNKNOWN_RESTRICTED)
+  })
+
   // The LIVE wire (WS ONLINE_FRIENDS + /1/instances) sends privacy as an INTEGER
   // enum, not a string. Values 0–6 from the owner's prior app; 7 captured live
   // 2026-07-08 on a KNOWN group instance (owner ground truth).

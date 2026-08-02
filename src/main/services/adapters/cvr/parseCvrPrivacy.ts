@@ -75,5 +75,8 @@ export function parseCvrPrivacy(privacy: string | number | null | undefined): Cv
   // Digits stay significant — a future "Friends2" must NOT alias to 'friends'
   // (that would overstate access; unknowns must degrade restrictive).
   const key = privacy.toLowerCase().replace(/[^a-z0-9]/g, '')
-  return PRIVACY_MAP[key] ?? UNKNOWN_ACCESS
+  // Object.hasOwn guards the prototype chain: 'constructor' survives the
+  // normalization and would otherwise resolve through Object.prototype to
+  // Function Object — a false "recognized" hit, neither degraded nor tagged.
+  return Object.hasOwn(PRIVACY_MAP, key) ? PRIVACY_MAP[key]! : UNKNOWN_ACCESS
 }

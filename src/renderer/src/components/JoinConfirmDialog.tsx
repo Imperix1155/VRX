@@ -247,10 +247,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     instance !== null
       ? t(LABEL_KEYS_BY_SCHEME[labelScheme][instance.type] ?? 'friends.instance.unknownWorld')
       : null
-  const title =
-    typeLabel !== null ? t('joinConfirm.title', { type: typeLabel }) : t('joinConfirm.titleUnknown')
-  const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
   const opennessCopy = instance !== null ? opennessCopyFor(instance) : 'unknown'
+  // Unknown openness (a degraded CVR privacy flag OR missing instance data)
+  // must not headline a type claim that contradicts the "Openness unknown"
+  // body — fall back to the neutral titleUnknown in both cases.
+  const title =
+    typeLabel !== null && opennessCopy !== 'unknown'
+      ? t('joinConfirm.title', { type: typeLabel })
+      : t('joinConfirm.titleUnknown')
+  const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
   // Color REINFORCES the words (never the sole signifier — R12): the tier-text
   // companion token for known tiers, plain dim for "Openness unknown".
   const opennessColor =
