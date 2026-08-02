@@ -1,6 +1,12 @@
 out
 dist
+coverage
+release
 pnpm-lock.yaml
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+# Hand-tuned living design references — formatting is owner-authored, and
+# Prettier's HTML reprinter can alter whitespace-sensitive rendering (VRX-236).
+docs/design.html
+docs/glass.html
