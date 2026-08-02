@@ -267,7 +267,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 
 `state` (system-assigned) → the DOT:
 
-```
+```text
 "online"  → in VRChat / in a world           → --ingame (green)
 "active"  → online but NOT in game (web/app)  → --active (teal)
 "offline" → offline                           → --offline (gray)
@@ -275,7 +275,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 
 `status` (user-chosen intent) → the PILL (+ `statusDescription` = custom text, ≤32 chars):
 
-```
+```text
 "join me" → "Join Me"        --st-joinme blue  | location visible; join requests AUTO-accepted
 "active"  → "Online"         --st-online green | location visible; joinable if instance allows
 "ask me"  → "Ask Me"         --st-askme orange | location HIDDEN; invite requests allowed
