@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * SettingsView tests (CodeRabbit follow-up on VRX-78): the Dashboard section's
+ * SettingsView tests (CodeRabbit follow-up on VRX-78): the Behavior section's
  * hot-threshold row — stepper reflects the store and writes back through
  * updateSettings. jsdom renders client-side, so the REAL zustand store applies.
  *
@@ -13,7 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
-import { useUiStore } from '../stores/ui'
+import { useUiStore, SETTINGS_CATEGORIES } from '../stores/ui'
 import SettingsView from './SettingsView'
 
 // jsdom has no ResizeObserver; the segmented controls' bubble hook needs one.
@@ -65,9 +65,31 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
 
     // The category nav renders in the TopBar (contextual slot — see
     // TopBar.test); the view reacts to the store it writes.
-    act(() => useUiStore.setState({ settingsCategory: 'dashboard' }))
+    act(() => useUiStore.setState({ settingsCategory: 'behavior' }))
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
+  })
+
+  it('the category list reads appearance/behavior/notifications/accounts (VRX-231)', () => {
+    expect([...SETTINGS_CATEGORIES]).toEqual([
+      'appearance',
+      'behavior',
+      'notifications',
+      'accounts'
+    ])
+  })
+
+  it('Appearance no longer renders the rows moved to Behavior (VRX-231)', () => {
+    renderSettings()
+    expect(screen.queryByText(msg('settings.drawerOpener.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.reconcileInterval.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.hotThreshold.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.confirmJoin.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.joinMode.label'))).toBeNull()
+    // Appearance keeps: theme, background glow, instance labels.
+    expect(screen.getByText(msg('settings.theme.label'))).toBeTruthy()
+    expect(screen.getByText(msg('settings.backgroundGlow.label'))).toBeTruthy()
+    expect(screen.getByText(msg('settings.labelScheme.label'))).toBeTruthy()
   })
 
   it('renders the label-scheme options in VRChat | Per-platform | ChilloutVR order (center-neutral rule)', () => {
@@ -82,6 +104,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
   })
 
   it('renders the drawer-opener row in Whole card | Avatar only order and writes through updateSettings (VRX-228)', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     const group = screen.getByRole('radiogroup', { name: msg('settings.drawerOpener.aria') })
     const radios = [...group.querySelectorAll('[role="radio"]')]
@@ -145,6 +168,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
   })
 
   it('renders the friends background re-sync row with its note and four cadence options', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
 
     expect(screen.getByText(msg('settings.reconcileInterval.label'))).toBeTruthy()
@@ -164,6 +188,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
 
   it('reflects and saves the stored friends background re-sync cadence', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, reconcileInterval: '30m' } })
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
 
     const group = screen.getByRole('radiogroup', {
@@ -183,10 +208,10 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
   })
 })
 
-describe('SettingsView — Dashboard section (VRX-78)', () => {
+describe('SettingsView — Behavior section (VRX-78/231)', () => {
   it('renders the hot-threshold row with the store value', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 7 } })
-    useUiStore.setState({ settingsCategory: 'dashboard' })
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     const spin = screen.getByRole('spinbutton', { name: msg('settings.hotThreshold.aria') })
@@ -194,7 +219,7 @@ describe('SettingsView — Dashboard section (VRX-78)', () => {
   })
 
   it('the stepper writes hotInstanceThreshold through updateSettings (marks dirty)', () => {
-    useUiStore.setState({ settingsCategory: 'dashboard' })
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     const [increase] = screen.getAllByRole('button', { name: msg('stepper.increase') })
     fireEvent.click(increase!)
@@ -203,7 +228,7 @@ describe('SettingsView — Dashboard section (VRX-78)', () => {
   })
 
   it('renders the confirm-before-joining row (On default) and writes confirmJoin (VRX-210)', () => {
-    useUiStore.setState({ settingsCategory: 'dashboard' })
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     const group = screen.getByRole('radiogroup', { name: msg('settings.confirmJoin.aria') })
     const radios = [...group.querySelectorAll('[role="radio"]')]
@@ -222,7 +247,7 @@ describe('SettingsView — Dashboard section (VRX-78)', () => {
   })
 
   it('renders the join-mode row in VR | Always ask | Desktop order (center-neutral) and writes joinMode (VRX-210)', () => {
-    useUiStore.setState({ settingsCategory: 'dashboard' })
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     const group = screen.getByRole('radiogroup', { name: msg('settings.joinMode.aria') })
     const radios = [...group.querySelectorAll('[role="radio"]')]

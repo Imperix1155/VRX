@@ -76,8 +76,8 @@
       "card": "Whole card",
       "avatar": "Avatar only"
     },
-    "dashboard": {
-      "heading": "Dashboard"
+    "behavior": {
+      "heading": "Behavior"
     },
     "hotThreshold": {
       "label": "Hot instance threshold",

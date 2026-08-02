@@ -28,7 +28,7 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
 // concept (the sections' h2s are sr-only; this nav is their visible label).
 const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   appearance: 'settings.appearance.heading',
-  dashboard: 'settings.dashboard.heading',
+  behavior: 'settings.behavior.heading',
   notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading'
 }
