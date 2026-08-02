@@ -290,7 +290,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 **Degradation if changed:**
 
-- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`) with `opennessUnknown:true`, never crashes. The instance still shows, but safety copy says "Openness unknown — treat it as public." rather than claiming the fallback is private.
+- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`) with `opennessUnknown:true`, never crashes. The instance still shows, but safety copy says "We couldn't confirm whether this instance is open or closed." rather than claiming the fallback is private.
 - **New enum value:** treated as tagged unknown → restrictive. Non-breaking; capture it live and add to the map.
 
 **Code reference:** `/src/main/services/adapters/cvr/parseCvrPrivacy.ts` (`PRIVACY_MAP_NUMERIC` + string map).
@@ -315,7 +315,7 @@ When an unknown enum value is encountered:
 - **Unknown `status` string** → `'online'` (generic green pill; never crashes)
 - **Unknown instance-access tag** → `'public'` (most open interpretation; join-attempt may fail gracefully at game level)
 - **Unknown trust tag** → ignored; final rank is either a known tag or `'visitor'` (never crashes)
-- **Unknown CVR privacy value** → restrictively degraded and tagged `opennessUnknown:true`; rendered as "Openness unknown — treat it as public." (non-critical for core UI)
+- **Unknown CVR privacy value** → restrictively degraded and tagged `opennessUnknown:true`; rendered as "We couldn't confirm whether this instance is open or closed." (non-critical for core UI)
 
 ### 3. Graceful Degradation on Parse Failure
 

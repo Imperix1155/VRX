@@ -307,4 +307,50 @@ describe('renderer design token contract', () => {
       expect(block, `${name} is missing --glass-blur-frosted`).toContain('--glass-blur-frosted:')
     }
   })
+
+  it('keeps .glass-frosted-heavy inside @layer components and on the heavy frost token (VRX-245)', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    expect(spans.length).toBeGreaterThan(0)
+
+    const rule = /\.glass-frosted-heavy\s*{([^{}]*)}/g
+    const declarations = [...code.matchAll(rule)]
+    expect(declarations.length).toBeGreaterThan(0)
+    for (const decl of declarations) {
+      const at = decl.index
+      expect(
+        spans.some(([start, end]) => at > start && at < end),
+        `.glass-frosted-heavy rule at index ${at} is OUTSIDE @layer components`
+      ).toBe(true)
+      expect(decl[1]).toMatch(/background-color:\s*var\(--glass-frost-heavy\)\s*;/)
+      expect(decl[1]).toMatch(/(?<!-webkit-)backdrop-filter:\s*var\(--glass-blur-frosted\)\s*;/)
+      expect(decl[1]).toMatch(/-webkit-backdrop-filter:\s*var\(--glass-blur-frosted\)\s*;/)
+    }
+
+    // Source order: the heavy modifier must follow the base .glass rule so its
+    // background-color override wins over the .glass shorthand.
+    const baseGlass = [...code.matchAll(/\.glass\s*{/g)]
+    expect(baseGlass.length).toBeGreaterThan(0)
+    const lastBase = Math.max(...baseGlass.map((m) => m.index))
+    const firstHeavy = Math.min(...declarations.map((m) => m.index))
+    expect(
+      firstHeavy,
+      '.glass-frosted-heavy must come AFTER the base .glass rule (source order carries the override)'
+    ).toBeGreaterThan(lastBase)
+
+    // Theme parity for the heavy frost token too — exact values, not just
+    // presence (a typo'd or dark-value-in-light copy/paste would still pass
+    // a bare "exists" check). Built via join() rather than a literal so the
+    // raw-color guard above doesn't flag this fixture as a source violation.
+    const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    for (const [name, block, value] of [
+      [':root', root, ['rgba', '(13, 15, 22, 0.94)'].join('')],
+      ["[data-theme='light']", light, ['rgba', '(244, 247, 252, 0.96)'].join('')]
+    ] as const) {
+      expect(block, `${name} is missing --glass-frost-heavy`).toContain(
+        `--glass-frost-heavy: ${value};`
+      )
+    }
+  })
 })

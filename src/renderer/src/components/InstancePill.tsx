@@ -1,8 +1,9 @@
 /**
  * InstancePill — the canonical instance-type ("openness") pill (VRX-198).
  *
- * ONE component for both the Friends list and the Dashboard hot-instance cards,
- * so the pill looks identical everywhere (owner's consistency rule, 2026-07-08).
+ * ONE component for the Friends list, the Dashboard hot-instance cards, the
+ * FriendDrawer, and JoinConfirmDialog (VRX-245), so the pill looks identical
+ * everywhere (owner's consistency rule, 2026-07-08).
  * Word-only (no icon), `rounded-[10px]`, tier-colored via the §6 `--op-*` openness
  * ladder (green open → orange locked; purple = groups); a neutral readable pill
  * for the hueless cases (Private / CVR Offline Instance, `tier = null`).
