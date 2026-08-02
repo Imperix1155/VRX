@@ -12,6 +12,6 @@
 
 - [ ] Branch named `imperix/vrx-XX-slug`
 - [ ] Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat(vrx-XX): ...`)
-- [ ] `npm run typecheck`, `npm run lint`, and `npm test` all pass locally
+- [ ] `npm run typecheck`, `npm run lint`, `npm run format:check`, and `npm test` all pass locally
 - [ ] No credentials, tokens, or PII logged; no hardcoded paths
 - [ ] PR description explains what changed and links the issue

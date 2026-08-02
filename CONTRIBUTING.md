@@ -41,11 +41,12 @@ Common types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `ci`.
 
 ## Before opening a PR
 
-All three checks must pass locally:
+All four checks must pass locally:
 
 ```bash
 npm run typecheck
 npm run lint
+npm run format:check
 npm test
 ```
 
@@ -53,7 +54,7 @@ Then:
 
 - [ ] Branch named `imperix/vrx-XX-slug`
 - [ ] Commits follow the convention above
-- [ ] `typecheck`, `lint`, and `test` all pass
+- [ ] `typecheck`, `lint`, `format:check`, and `test` all pass
 - [ ] No credentials, tokens, or PII logged; no hardcoded paths
 - [ ] PR description explains what changed and links the issue
 

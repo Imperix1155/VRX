@@ -81,7 +81,7 @@ Project tracked on Linear (team VRX). Issues `VRX-N`. Release scope: `v1.0` labe
 
 - When starting work on an issue → set it to **In Progress**.
 - When a PR is opened → set it to **In Review**.
-- When work is confirmed done (`typecheck + lint + build` pass, PR merged) → set it to **Done**
+- When work is confirmed done (`typecheck + lint + format:check + build` pass, PR merged) → set it to **Done**
   with a brief description of what was built/verified.
 - Never leave the board stale. If you completed something and Linear still shows Backlog, fix it
   before ending the session.
