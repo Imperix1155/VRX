@@ -113,8 +113,8 @@ describe('TopBar contextual slot (VRX-186)', () => {
     const nav = screen.getByRole('radiogroup', { name: msg('settings.categories.aria') })
     expect(nav).toBeTruthy()
     // Switching a category writes the ui store the SettingsView reads.
-    fireEvent.click(screen.getByRole('radio', { name: msg('settings.dashboard.heading') }))
-    expect(useUiStore.getState().settingsCategory).toBe('dashboard')
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.behavior.heading') }))
+    expect(useUiStore.getState().settingsCategory).toBe('behavior')
   })
 
   it('platform selection survives a Settings round-trip (state lifted above the swap)', () => {
