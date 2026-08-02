@@ -318,7 +318,7 @@ describe('openness copy (the safety context)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     expect(
-      within(confirmDialog()).getByText("Effectively public — people you don't know can get in.")
+      within(confirmDialog()).getByText('This instance is considered an open instance.')
     ).toBeTruthy()
   })
 
@@ -340,7 +340,7 @@ describe('openness copy (the safety context)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     expect(
-      within(confirmDialog()).getByText('Effectively private — gated by friendship or invites.')
+      within(confirmDialog()).getByText('This instance is considered a closed instance.')
     ).toBeTruthy()
   })
 
@@ -366,8 +366,37 @@ describe('openness copy (the safety context)', () => {
     // The headline stays NEUTRAL: a degraded privacy flag must not title the
     // dialog with the type it degraded to ("Invite") above an "unknown" body.
     expect(within(dialog).getByRole('heading', { name: 'Join this instance?' })).toBeTruthy()
-    expect(within(dialog).getByText('Openness unknown — treat it as public.')).toBeTruthy()
-    expect(within(dialog).queryByText(/Effectively private/)).toBeNull()
+    expect(
+      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
+    ).toBeTruthy()
+    expect(within(dialog).queryByText(/considered a closed/)).toBeNull()
+  })
+
+  it('More info on unknown openness discloses the safe unknown explainer', () => {
+    const unknown: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
+      }
+    }
+    render(
+      <>
+        <OpenJoin friend={unknown} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More info' }))
+
+    expect(
+      within(dialog).getByText(
+        "VRX couldn't read this instance's privacy, so it can't say how open it is. Treat it as open."
+      )
+    ).toBeTruthy()
   })
 
   it('missing instance data → "Openness unknown" + generic title (never a privacy claim)', () => {
@@ -381,8 +410,10 @@ describe('openness copy (the safety context)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
-    expect(within(dialog).getByText('Openness unknown — treat it as public.')).toBeTruthy()
-    expect(within(dialog).queryByText(/Effectively/)).toBeNull()
+    expect(
+      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
+    ).toBeTruthy()
+    expect(within(dialog).queryByText(/This instance is considered/)).toBeNull()
   })
 
   it('More info discloses the explainer inline (no new modal)', () => {
@@ -405,6 +436,66 @@ describe('openness copy (the safety context)', () => {
         'Anyone can walk into a public instance — treat it as a fully open space.'
       )
     ).toBeTruthy()
+  })
+})
+
+describe('instance-type pill (VRX-245)', () => {
+  it('renders the type label under the platform pill for a known instance', () => {
+    render(
+      <>
+        <OpenJoin friend={joinableFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // The title already asserts "Join this Public instance?" — the pill is a
+    // second, non-heading element carrying the same label.
+    expect(within(dialog).getByRole('heading', { name: 'Join this Public instance?' })).toBeTruthy()
+    const pills = within(dialog)
+      .getAllByText('Public')
+      .filter((el) => el.tagName === 'SPAN')
+    expect(pills).toHaveLength(1)
+  })
+
+  it('does NOT render the type pill when openness is unknown', () => {
+    const unknown: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
+      }
+    }
+    render(
+      <>
+        <OpenJoin friend={unknown} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
+
+    expect(within(dialog).queryByText('Invite')).toBeNull()
+  })
+})
+
+describe('openness line is visually quiet (VRX-245)', () => {
+  it('uses --text-dim and has no inline color style', () => {
+    render(
+      <>
+        <OpenJoin friend={joinableFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+    const line = within(dialog).getByText('This instance is considered an open instance.')
+
+    expect(line.className).toContain('text-[var(--text-dim)]')
+    expect(line.hasAttribute('style')).toBe(false)
   })
 })
 
@@ -741,6 +832,28 @@ describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
 })
 
 describe('modal behavior', () => {
+  it('wears the HEAVY frost + clips the stripe into the radius (VRX-245)', () => {
+    render(
+      <>
+        <OpenJoin friend={joinableFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const classes = confirmDialog().className.split(/\s+/)
+    expect(classes).toContain('glass')
+    expect(classes).toContain('glass-frosted-heavy')
+    // the drawer keeps the LIGHTER frost — the modal must not fall back to it
+    expect(classes).not.toContain('glass-frosted')
+    // the stripe drops its hardcoded radius and relies on the panel clipping it
+    expect(classes).toContain('overflow-hidden')
+
+    // the aria-hidden platform stripe must rely on the panel's overflow-hidden
+    // clip instead of carrying its own hardcoded corner radius.
+    const stripe = confirmDialog().querySelector('span[aria-hidden]')
+    expect(stripe?.className).not.toContain('rounded-t-[20px]')
+  })
+
   it('Tab with focus OUTSIDE the panel re-enters the trap', () => {
     render(
       <>
@@ -817,20 +930,15 @@ describe('group instances get group-accurate copy', () => {
   }
 
   it.each([
-    [
-      'group-public',
-      'public',
-      'group-public',
-      'Effectively public — anyone can join this instance of Night Owls.'
-    ],
+    ['group-public', 'public', 'group-public', 'This instance is considered an open instance.'],
     [
       'group-plus (VRChat: friends of whoever is INSIDE)',
       'friends-plus',
       'group-plus',
-      'Effectively public — friends of people already inside can get in.'
+      'This instance is considered an open instance.'
     ],
-    ['members-only group', 'invite', 'group', 'Effectively private — Night Owls members only.']
-  ] as const)('%s → names the GROUP, not friendship/invites', (_case, openness, type, copy) => {
+    ['members-only group', 'invite', 'group', 'This instance is considered a closed instance.']
+  ] as const)('%s → openness line maps to open/closed', (_case, openness, type, headline) => {
     const friend: Friend = {
       ...joinableFriend,
       instance: { ...groupBase, openness, type }
@@ -843,7 +951,7 @@ describe('group instances get group-accurate copy', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    expect(within(confirmDialog()).getByText(copy)).toBeTruthy()
+    expect(within(confirmDialog()).getByText(headline)).toBeTruthy()
   })
 
   it("CVR friends-of-members keeps the friends-of-group-MEMBERS rule (that IS CVR's rule)", () => {
@@ -865,10 +973,13 @@ describe('group instances get group-accurate copy', () => {
       </>
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
 
+    expect(within(dialog).getByText('This instance is considered an open instance.')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More info' }))
     expect(
-      within(confirmDialog()).getByText(
-        'Effectively public — friends of Night Owls members can get in.'
+      within(dialog).getByText(
+        /friends of its members can join, so the crowd can be wider than your own friend list. Treat it as open./
       )
     ).toBeTruthy()
   })
@@ -908,7 +1019,7 @@ describe('group instances get group-accurate copy', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     expect(
-      within(confirmDialog()).getByText('Effectively private — the group members only.')
+      within(confirmDialog()).getByText('This instance is considered a closed instance.')
     ).toBeTruthy()
   })
 })

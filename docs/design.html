@@ -40,6 +40,9 @@
     --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 72%, white);
     --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
     --glass-blur: blur(26px) saturate(165%);
+    --glass-frost: rgba(13,15,22,0.78);
+    --glass-blur-frosted: blur(34px) saturate(165%);
+    --glass-frost-heavy: rgba(13,15,22,0.94);
     --font-mono: 'VT323', ui-monospace, monospace;
     --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
@@ -79,6 +82,12 @@
      stronger blur so what's behind reads as glow, never as text (DESIGN.md §3/§9.2). */
   .glass-frosted {
     background-color: var(--glass-frost, rgba(13,15,22,0.78));
+    backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+    -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+  }
+  /* Heavy frost — true modals (VRX-245). */
+  .glass-frosted-heavy {
+    background-color: var(--glass-frost-heavy, rgba(13,15,22,0.94));
     backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
     -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
   }

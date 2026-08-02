@@ -27,7 +27,9 @@ import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriends } from '../queries/friends'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { OPENNESS_TIER } from '../utils/instancePill'
 import { Avatar } from './Avatar'
+import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
 import SegmentedControl from './SegmentedControl'
 
@@ -256,12 +258,6 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       ? t('joinConfirm.title', { type: typeLabel })
       : t('joinConfirm.titleUnknown')
   const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
-  // Color REINFORCES the words (never the sole signifier — R12): the tier-text
-  // companion token for known tiers, plain dim for "Openness unknown".
-  const opennessColor =
-    instance !== null && opennessCopy !== 'unknown'
-      ? `var(--op-${instance.openness}-text)`
-      : 'var(--text-dim)'
   // Group copy names the group when known ({{group}} interpolation).
   const groupName = instance?.groupName ?? t('joinConfirm.theGroup')
 
@@ -322,13 +318,13 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-labelledby="join-confirm-title"
-        className="glass glass-frosted relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] p-[var(--space-6)]"
+        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)]"
       >
         {/* Platform top edge (hot-card recipe) — tint reinforces the PlatformPill
             word; neither carries platform alone (R12). */}
         <span
           aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-[4px] rounded-t-[20px]"
+          className="absolute inset-x-0 top-0 h-[4px]"
           style={{
             background: isVrc
               ? 'linear-gradient(90deg, var(--vrc), transparent)'
@@ -340,14 +336,19 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           <h2 id="join-confirm-title" className="text-base font-semibold text-[var(--text)]">
             {title}
           </h2>
-          <PlatformPill platform={friend.platform} />
+          <div className="flex flex-col items-end gap-[var(--space-1)]">
+            <PlatformPill platform={friend.platform} />
+            {typeLabel !== null && opennessCopy !== 'unknown' && instance !== null && (
+              <InstancePill label={typeLabel} tier={OPENNESS_TIER[instance.type] ?? null} />
+            )}
+          </div>
         </div>
 
         {/* The safety context: world + friend + the effectively-openness sentence. */}
         <p className="text-sm text-[var(--text-dim)]">
           {t('joinConfirm.context', { name: friend.displayName, world: worldName })}
         </p>
-        <p className="text-sm font-medium" style={{ color: opennessColor }}>
+        <p className="text-sm text-[var(--text-dim)]">
           {t(effectivelyKey(opennessCopy, friend.platform), { group: groupName })}
         </p>
 
