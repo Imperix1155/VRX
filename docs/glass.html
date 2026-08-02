@@ -56,6 +56,9 @@
 
     /* GLASS */
     --glass-blur: blur(26px) saturate(165%);
+    --glass-frost: rgba(13,15,22,0.78);
+    --glass-blur-frosted: blur(34px) saturate(165%);
+    --glass-frost-heavy: rgba(13,15,22,0.94);
     --font-mono: 'VT323', ui-monospace, monospace;
   }
 
@@ -101,6 +104,12 @@
      Tokens: dark rgba(13,15,22,.78)/blur(34px); light rgba(244,247,252,.84)/blur(30px). */
   .glass-frosted {
     background-color: var(--glass-frost, rgba(13,15,22,0.78));
+    backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+    -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
+  }
+  /* Heavy frost — true modals (VRX-245). */
+  .glass-frosted-heavy {
+    background-color: var(--glass-frost-heavy, rgba(13,15,22,0.94));
     backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
     -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
   }
@@ -300,6 +309,9 @@
     --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 32%, transparent);
 
     --glass-blur: blur(24px) saturate(142%);
+    --glass-frost: rgba(244, 247, 252, 0.84);
+    --glass-blur-frosted: blur(30px) saturate(142%);
+    --glass-frost-heavy: rgba(244, 247, 252, 0.96);
   }
   [data-theme="light"] body::before {
     background:
