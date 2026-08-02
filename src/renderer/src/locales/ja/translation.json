@@ -75,8 +75,8 @@
       "card": "カード全体",
       "avatar": "アバターのみ"
     },
-    "dashboard": {
-      "heading": "ダッシュボード"
+    "behavior": {
+      "heading": "動作"
     },
     "hotThreshold": {
       "label": "ホットインスタンスのしきい値",

@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Join straight from a hot-instance card.** When several friends are in the same instance, the instance pill on that Dashboard card is now a Join button — same confirmation dialog as every other Join in the app. If nobody there is joinable, the card stays read-only. (VRX-237)
-- **VRX now asks before it launches a game.** Clicking Join opens a confirmation that names the instance type, says in plain words whether strangers can get in ("Effectively public — people you don't know can get in"), shows which of your friends are already there, and — on ChilloutVR — lets you pick VR or desktop for that launch. VRChat picks its own mode from its launch settings, and the dialog says so rather than offering a switch that does nothing. Group instances describe group access accurately instead of borrowing friends-and-invites wording. Prefer the old one-click behavior? The dialog's "Don't ask again" footnote turns it off, and Settings → Dashboard turns it back on (along with a Join in: Always ask / VR / Desktop preference). (VRX-210)
+- **VRX now asks before it launches a game.** Clicking Join opens a confirmation that names the instance type, says in plain words whether strangers can get in ("Effectively public — people you don't know can get in"), shows which of your friends are already there, and — on ChilloutVR — lets you pick VR or desktop for that launch. VRChat picks its own mode from its launch settings, and the dialog says so rather than offering a switch that does nothing. Group instances describe group access accurately instead of borrowing friends-and-invites wording. Prefer the old one-click behavior? The dialog's "Don't ask again" footnote turns it off, and Settings → Behavior turns it back on (along with a Join in: Always ask / VR / Desktop preference). (VRX-210)
+
+### Changed
+
+- **Settings has a Behavior category now.** The old "Dashboard" settings page is renamed **Behavior**, and it now groups everything about how VRX acts: the hot-instance threshold, "Friend details open from", "Friends background re-sync", and the join preferences (Confirm before joining / Join in) that were temporarily parked there. Appearance keeps Theme, Background glow, and Instance labels. All settings keep their saved values. (VRX-231)
 
 ### Fixed
 

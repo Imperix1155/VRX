@@ -78,7 +78,10 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
  * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
  * native terms. Presentation only: the data stays platform-true.
  * Drawer-opener row (VRX-228): whole-card pointer opener (default) vs the
- * VRX-225 avatar-only opener.
+ * VRX-225 avatar-only opener. Behavior category (VRX-231, renamed from
+ * 'dashboard'): hot-instance threshold, friend-details opener, background
+ * re-sync, and the VRX-210 join rows; Appearance keeps theme, background
+ * glow, and instance labels.
  *
  * Settings persist across restarts (VRX-184): `useSettingsPersistence` in
  * App.tsx loads them on boot and saves every change through the settings IPC.
@@ -155,25 +158,6 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            {/* Friends background-reconcile row (VRX-77) */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.reconcileInterval.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.reconcileInterval.note')}
-                </p>
-              </div>
-              <SegmentedControl
-                values={RECONCILE_INTERVALS}
-                active={reconcileInterval}
-                labelKeys={RECONCILE_LABEL_KEYS}
-                ariaLabel={t('settings.reconcileInterval.aria')}
-                onChange={(value) => updateSettings({ reconcileInterval: value })}
-              />
-            </div>
-
             {/* Instance-labels row (VRX-183) */}
             <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
               <div>
@@ -192,35 +176,15 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
-
-            {/* Drawer-opener row (VRX-228): whole-card pointer opener (default,
-                owner ruling 2026-07-27) vs the VRX-225 avatar-only behavior.
-                The avatar button stays the semantic/keyboard opener either way. */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.drawerOpener.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.drawerOpener.description')}
-                </p>
-              </div>
-              <SegmentedControl
-                values={DRAWER_OPENERS}
-                active={drawerOpener}
-                labelKeys={OPENER_LABEL_KEYS}
-                ariaLabel={t('settings.drawerOpener.aria')}
-                onChange={(value) => updateSettings({ drawerOpener: value })}
-              />
-            </div>
           </section>
         )}
 
-        {/* ── Dashboard page ── */}
-        {category === 'dashboard' && (
-          <section aria-labelledby="settings-dashboard-heading">
-            <h2 id="settings-dashboard-heading" className="sr-only">
-              {t('settings.dashboard.heading')}
+        {/* ── Behavior page (VRX-231: renamed from the 'dashboard' category;
+            session-only key, nothing persisted) ── */}
+        {category === 'behavior' && (
+          <section aria-labelledby="settings-behavior-heading">
+            <h2 id="settings-behavior-heading" className="sr-only">
+              {t('settings.behavior.heading')}
             </h2>
 
             {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
@@ -243,8 +207,50 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            {/* Join rows (VRX-210) — parked on the Dashboard page for now; they
-                move to the future Behavior category (VRX-231). */}
+            {/* Drawer-opener row (VRX-228, moved here from Appearance in
+                VRX-231): whole-card pointer opener (default, owner ruling
+                2026-07-27) vs the VRX-225 avatar-only behavior. The avatar
+                button stays the semantic/keyboard opener either way. */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.drawerOpener.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.drawerOpener.description')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={DRAWER_OPENERS}
+                active={drawerOpener}
+                labelKeys={OPENER_LABEL_KEYS}
+                ariaLabel={t('settings.drawerOpener.aria')}
+                onChange={(value) => updateSettings({ drawerOpener: value })}
+              />
+            </div>
+
+            {/* Friends background-reconcile row (VRX-77, moved here from
+                Appearance in VRX-231) */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.reconcileInterval.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.reconcileInterval.note')}
+                </p>
+              </div>
+              <SegmentedControl
+                values={RECONCILE_INTERVALS}
+                active={reconcileInterval}
+                labelKeys={RECONCILE_LABEL_KEYS}
+                ariaLabel={t('settings.reconcileInterval.aria')}
+                onChange={(value) => updateSettings({ reconcileInterval: value })}
+              />
+            </div>
+
+            {/* Join rows (VRX-210) — permanently homed on the Behavior page
+                (VRX-231; their earlier 'dashboard' placement was temporary). */}
             <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
