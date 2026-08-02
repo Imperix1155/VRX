@@ -4,7 +4,7 @@
  * memo'd rows), and the snapshot scopes.
  */
 import { describe, expect, it } from 'vitest'
-import type { Friend, VrcFriend } from '@shared/types'
+import type { CvrFriend, Friend, VrcFriend } from '@shared/types'
 import { applyFriendEvent } from './applyFriendEvent'
 
 function friend(overrides: Partial<VrcFriend> = {}): Friend {
@@ -406,6 +406,42 @@ describe('applyFriendEvent', () => {
       ]
     })
     expect(next[0]).toBe(cvrInGame) // no churn — memo'd row skips
+  })
+
+  it('presence-snapshot replaces a known instance when only its openness-unknown tag changes', () => {
+    const knownInvite: CvrFriend = {
+      ...friend(),
+      platform: 'chilloutvr',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: {
+        ...friend().instance!,
+        type: 'owner-must-invite',
+        openness: 'invite'
+      }
+    }
+    const unknownInvite = {
+      ...knownInvite.instance!,
+      opennessUnknown: true as const
+    }
+
+    const next = applyFriendEvent([knownInvite], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: knownInvite.platformUserId,
+          presence: { state: 'in-game' },
+          instance: unknownInvite
+        }
+      ]
+    })
+
+    expect(next[0]).not.toBe(knownInvite)
+    expect(next[0]!.instance).toBe(unknownInvite)
+    expect(next[0]!.instance).toMatchObject({ opennessUnknown: true })
   })
 
   it('presence-snapshot DOES update when only a volatile field differs (userCount)', () => {

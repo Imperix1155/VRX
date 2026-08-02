@@ -366,6 +366,7 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       thumbnailUrl: null,
       type: access.type,
       openness: access.openness,
+      ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
       isGroup: access.isGroup,
       groupName: null,
       region: null,

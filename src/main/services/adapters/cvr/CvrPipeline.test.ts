@@ -273,6 +273,30 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
+  it('tags an unmapped numeric Privacy while preserving its restrictive degradation', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+
+    r.sockets[0]!.fire(
+      'message',
+      frame({
+        ResponseType: 10,
+        Data: [{ Id: G1, IsOnline: true, Instance: { Id: 'i_future', Name: null, Privacy: 8 } }]
+      })
+    )
+
+    const e = r.events.at(-1)
+    if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(e.entries[0]!.instance).toMatchObject({
+      type: 'owner-must-invite',
+      openness: 'invite',
+      opennessUnknown: true
+    })
+    r.pipeline.stop()
+  })
+
   it('handles the falsy edges: ResponseType 0 routes (unrouted popup), Data:null tolerated', async () => {
     const r = rig()
     r.pipeline.start()
