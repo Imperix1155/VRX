@@ -4,10 +4,10 @@
 
 VRX is in early development. Only the latest release and the current `main` branch receive fixes.
 
-| Version | Supported |
-| ------- | --------- |
-| `main` (latest) | ✅ |
-| Older tagged releases | ❌ |
+| Version               | Supported |
+| --------------------- | --------- |
+| `main` (latest)       | ✅        |
+| Older tagged releases | ❌        |
 
 ## Reporting an issue
 

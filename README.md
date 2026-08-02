@@ -20,6 +20,7 @@ npm install
 npm run dev        # dev mode with HMR
 npm run typecheck  # type-check all three processes
 npm run lint       # ESLint
+npm run format:check # Prettier formatting gate
 npm run build      # production build
 ```
 
