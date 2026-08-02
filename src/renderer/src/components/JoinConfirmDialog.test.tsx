@@ -342,6 +342,28 @@ describe('openness copy (the safety context)', () => {
     ).toBeTruthy()
   })
 
+  it('unknown CVR openness uses the safe unknown copy instead of the degraded Invite copy', () => {
+    const unknown: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
+      }
+    }
+    render(
+      <>
+        <OpenJoin friend={unknown} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(within(confirmDialog()).getByText('Openness unknown — treat it as public.')).toBeTruthy()
+    expect(within(confirmDialog()).queryByText(/Effectively private/)).toBeNull()
+  })
+
   it('missing instance data → "Openness unknown" + generic title (never a privacy claim)', () => {
     const friend: Friend = { ...joinableFriend, instance: null }
     render(
@@ -353,7 +375,7 @@ describe('openness copy (the safety context)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
-    expect(within(dialog).getByText('Openness unknown')).toBeTruthy()
+    expect(within(dialog).getByText('Openness unknown — treat it as public.')).toBeTruthy()
     expect(within(dialog).queryByText(/Effectively/)).toBeNull()
   })
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { parseCvrPrivacy } from './parseCvrPrivacy'
 
-const RESTRICTED = { type: 'owner-must-invite', openness: 'invite', isGroup: false }
+const UNKNOWN_RESTRICTED = {
+  type: 'owner-must-invite',
+  openness: 'invite',
+  isGroup: false,
+  opennessUnknown: true
+}
 
 describe('parseCvrPrivacy (VRX-147)', () => {
   it.each([
@@ -15,6 +20,7 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     ['GroupsOnly', 'members-only', 'invite', true]
   ])('maps the verified wire value %s', (wire, type, openness, isGroup) => {
     expect(parseCvrPrivacy(wire)).toEqual({ type, openness, isGroup })
+    expect(parseCvrPrivacy(wire)).not.toHaveProperty('opennessUnknown')
   })
 
   it('is case- and punctuation-insensitive (wire casing drift)', () => {
@@ -23,13 +29,13 @@ describe('parseCvrPrivacy (VRX-147)', () => {
   })
 
   it('keeps digits significant — "Friends2" must NOT alias to friends (no access overstatement)', () => {
-    expect(parseCvrPrivacy('Friends2')).toEqual(RESTRICTED)
+    expect(parseCvrPrivacy('Friends2')).toEqual(UNKNOWN_RESTRICTED)
   })
 
   it('degrades unknown/missing values to the MOST RESTRICTIVE access (api-volatility convention)', () => {
-    expect(parseCvrPrivacy('SomeFutureValue')).toEqual(RESTRICTED)
-    expect(parseCvrPrivacy(null)).toEqual(RESTRICTED)
-    expect(parseCvrPrivacy(undefined)).toEqual(RESTRICTED)
+    expect(parseCvrPrivacy('SomeFutureValue')).toEqual(UNKNOWN_RESTRICTED)
+    expect(parseCvrPrivacy(null)).toEqual(UNKNOWN_RESTRICTED)
+    expect(parseCvrPrivacy(undefined)).toEqual(UNKNOWN_RESTRICTED)
   })
 
   // The LIVE wire (WS ONLINE_FRIENDS + /1/instances) sends privacy as an INTEGER
@@ -47,11 +53,12 @@ describe('parseCvrPrivacy (VRX-147)', () => {
       [7, 'members-only', 'invite', true] // live-confirmed (newer than prior app)
     ])('maps privacy integer %i', (wire, type, openness, isGroup) => {
       expect(parseCvrPrivacy(wire)).toEqual({ type, openness, isGroup })
+      expect(parseCvrPrivacy(wire)).not.toHaveProperty('opennessUnknown')
     })
 
-    it('degrades an unknown integer to the MOST RESTRICTIVE access', () => {
-      expect(parseCvrPrivacy(99)).toEqual(RESTRICTED)
-      expect(parseCvrPrivacy(-1)).toEqual(RESTRICTED)
+    it('degrades an unknown integer to the MOST RESTRICTIVE access and tags it unknown', () => {
+      expect(parseCvrPrivacy(99)).toEqual(UNKNOWN_RESTRICTED)
+      expect(parseCvrPrivacy(-1)).toEqual(UNKNOWN_RESTRICTED)
     })
   })
 })

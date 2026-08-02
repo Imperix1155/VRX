@@ -417,6 +417,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         thumbnailUrl: resolved.worldImageUrl,
         type: access.type,
         openness: access.openness,
+        ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
         isGroup: access.isGroup,
         groupName: null,
         region: null,

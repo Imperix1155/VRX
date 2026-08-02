@@ -19,7 +19,7 @@ The common data model and constants shared across the main, preload, and rendere
 - String-literal unions, not `const enum` (esbuild-safe, Zod-friendly).
 - Imported via the `@shared` alias (wired in all three electron-vite builds + both tsconfigs).
 - Presence is two axes — `presence.state` (the state dot) vs `status` (the VRChat pill); never conflate (DESIGN.md §5). `Friend` is discriminated by `platform`; CVR friends must have `status`, `statusDescription`, and `trustRank` set to `null`.
-- `InstanceInfo.type` is the platform-true instance type; `InstanceInfo.openness` is the normalized shared openness tier.
+- `InstanceInfo.type` is the platform-true instance type; `InstanceInfo.openness` is the normalized shared openness tier. Optional `InstanceInfo.opennessUnknown` is true only when an adapter had to degrade an unrecognized raw privacy value; recognized values omit it so safety-copy consumers can distinguish a real restrictive tier from a cautious fallback (VRX-240).
 
 ## Work Guidance
 

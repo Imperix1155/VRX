@@ -1677,6 +1677,22 @@ describe('CvrAdapter', () => {
       })
     })
 
+    it('getInstanceDetails tags an unmapped privacy value after restrictive degradation', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(jsonResponse(envelope({ ...instanceDetail, instanceSettingPrivacy: 8 })))
+        )
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+
+      await expect(adapter.getInstanceDetails('i_future')).resolves.toMatchObject({
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
+      })
+    })
+
     it('retries instance resolution after a session swap instead of returning account-A data', async () => {
       let releaseAccountA!: (response: Response) => void
       const heldAccountA = new Promise<Response>((resolve) => {

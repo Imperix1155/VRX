@@ -16,6 +16,8 @@ import type { InstanceType, OpennessTier } from '@shared/types'
 export interface CvrInstanceAccess {
   type: InstanceType
   openness: OpennessTier
+  /** Present only when the raw privacy value was not recognized. */
+  opennessUnknown?: boolean
   /** Group-family types get the §6 Group chip modifier. */
   isGroup: boolean
 }
@@ -39,6 +41,7 @@ const PRIVACY_MAP: Record<string, CvrInstanceAccess> = {
 const UNKNOWN_ACCESS: CvrInstanceAccess = {
   type: 'owner-must-invite',
   openness: 'invite',
+  opennessUnknown: true,
   isGroup: false
 }
 
