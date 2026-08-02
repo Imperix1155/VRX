@@ -3,7 +3,7 @@ updates:
   # npm dependencies — weekly, with minor + patch bumps grouped into one PR to
   # cut review noise. Majors come as their own PRs for a deliberate look.
   - package-ecosystem: npm
-    directory: "/"
+    directory: '/'
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
@@ -16,7 +16,7 @@ updates:
   # GitHub Actions versions — weekly, grouped. Covers the Dependabot half of
   # VRX-149 by keeping policy-required SHA-pinned action refs current.
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: '/'
     schedule:
       interval: weekly
     groups:
