@@ -264,7 +264,7 @@
     "openness": {
       "public": "Effectively public — people you don't know can get in.",
       "private": "Effectively private — gated by friendship or invites.",
-      "unknown": "Openness unknown",
+      "unknown": "Openness unknown — treat it as public.",
       "groupPublic": "Effectively public — anyone can join this instance of {{group}}.",
       "groupPlus": "Effectively public — friends of people already inside can get in.",
       "groupPlusCvr": "Effectively public — friends of {{group}} members can get in.",

@@ -126,8 +126,10 @@ function WithPersistence(): null {
   return null
 }
 
+// Matches both the typed headline ("Join this Friends+ instance?") and the
+// neutral unknown-openness headline ("Join this instance?" — no type segment).
 const confirmDialog = (): HTMLElement =>
-  screen.getByRole('dialog', { name: /Join this .* instance\?/ })
+  screen.getByRole('dialog', { name: /Join this .*instance\?/ })
 
 let joinInstance: ReturnType<typeof vi.fn>
 let getFriendNote: ReturnType<typeof vi.fn>
@@ -342,6 +344,32 @@ describe('openness copy (the safety context)', () => {
     ).toBeTruthy()
   })
 
+  it('unknown CVR openness uses the safe unknown copy instead of the degraded Invite copy', () => {
+    const unknown: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
+      }
+    }
+    render(
+      <>
+        <OpenJoin friend={unknown} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    const dialog = confirmDialog()
+    // The headline stays NEUTRAL: a degraded privacy flag must not title the
+    // dialog with the type it degraded to ("Invite") above an "unknown" body.
+    expect(within(dialog).getByRole('heading', { name: 'Join this instance?' })).toBeTruthy()
+    expect(within(dialog).getByText('Openness unknown — treat it as public.')).toBeTruthy()
+    expect(within(dialog).queryByText(/Effectively private/)).toBeNull()
+  })
+
   it('missing instance data → "Openness unknown" + generic title (never a privacy claim)', () => {
     const friend: Friend = { ...joinableFriend, instance: null }
     render(
@@ -353,7 +381,7 @@ describe('openness copy (the safety context)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
-    expect(within(dialog).getByText('Openness unknown')).toBeTruthy()
+    expect(within(dialog).getByText('Openness unknown — treat it as public.')).toBeTruthy()
     expect(within(dialog).queryByText(/Effectively/)).toBeNull()
   })
 

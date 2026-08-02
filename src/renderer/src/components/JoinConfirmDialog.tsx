@@ -15,14 +15,9 @@
  * Confirm/Cancel buttons. Focus lands on Cancel (the safe default); Confirm
  * is visually primary but never auto-focused.
  *
- * KNOWN LIMITATION (owner-ruled CVR honesty rule): CvrAdapter degrades an
- * UNKNOWN CVR privacy value to 'invite' (parseCvrPrivacy → most-restrictive),
- * and that degradation is invisible renderer-side — a CVR instance typed
- * 'owner-must-invite' may be genuinely invite-only OR an unread privacy, and
- * this dialog would show "Effectively private" for what is really "unknown".
- * Distinguishing the two needs a main-side flag — routed to the driver; this
- * PR adds NO new IPC. Missing instance data DOES read honestly as
- * "Openness unknown".
+ * CVR privacy values that defensive parsing cannot recognize keep their safe
+ * invite-shaped degradation but carry `opennessUnknown`; this dialog treats
+ * that flag like missing instance data and makes no false privacy claim.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,6 +45,7 @@ type OpennessCopy =
   'public' | 'friends-plus' | 'private' | 'group-public' | 'group-plus' | 'group-only' | 'unknown'
 
 function opennessCopyFor(instance: InstanceInfo): OpennessCopy {
+  if (instance.opennessUnknown === true) return 'unknown'
   // GROUP instances need group-accurate copy: their openness tier says WHO
   // the group opened to (public / friends-of-members / members-only), but
   // "gated by friendship or invites" would be FALSE for members-only — entry
@@ -251,10 +247,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     instance !== null
       ? t(LABEL_KEYS_BY_SCHEME[labelScheme][instance.type] ?? 'friends.instance.unknownWorld')
       : null
-  const title =
-    typeLabel !== null ? t('joinConfirm.title', { type: typeLabel }) : t('joinConfirm.titleUnknown')
-  const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
   const opennessCopy = instance !== null ? opennessCopyFor(instance) : 'unknown'
+  // Unknown openness (a degraded CVR privacy flag OR missing instance data)
+  // must not headline a type claim that contradicts the "Openness unknown"
+  // body — fall back to the neutral titleUnknown in both cases.
+  const title =
+    typeLabel !== null && opennessCopy !== 'unknown'
+      ? t('joinConfirm.title', { type: typeLabel })
+      : t('joinConfirm.titleUnknown')
+  const worldName = instance?.worldName ?? t('friends.instance.unknownWorld')
   // Color REINFORCES the words (never the sole signifier — R12): the tier-text
   // companion token for known tiers, plain dim for "Openness unknown".
   const opennessColor =

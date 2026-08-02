@@ -1199,6 +1199,57 @@ describe('CvrAdapter', () => {
       unsub()
     })
 
+    it('keeps opennessUnknown on the re-emitted snapshot after mergeResolved (unmapped WS privacy)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(instanceDetail))))
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
+      const unsub = adapter.subscribe((e) => {
+        if (e.type === 'presence-snapshot') snapshots.push(e)
+      })
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      rig.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              // 8 is UNMAPPED: the wire parse degrades restrictive AND tags
+              // opennessUnknown (VRX-240).
+              Instance: { Id: 'i_abc', Name: taggedName, Privacy: 8 }
+            }
+          ]
+        })
+      )
+
+      // Immediate snapshot carries the degraded+flagged wire parse.
+      expect(snapshots[0]!.entries[0]!.instance).toMatchObject({
+        type: 'owner-must-invite',
+        opennessUnknown: true
+      })
+
+      // The resolution lands → the mergeResolved re-emit must STILL carry the
+      // flag (mutation target: dropping it typechecks and used to stay green).
+      await vi.waitFor(() => {
+        expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('wrld-real')
+      })
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-real',
+        type: 'owner-must-invite',
+        opennessUnknown: true
+      })
+      unsub()
+    })
+
     it('rapid snapshots while a resolution is in flight produce ONE re-emit, not N (Sol High)', async () => {
       let releaseResolution!: (r: Response) => void
       const held = new Promise<Response>((resolve) => {
@@ -1674,6 +1725,22 @@ describe('CvrAdapter', () => {
         groupName: null,
         region: null,
         userCount: 5
+      })
+    })
+
+    it('getInstanceDetails tags an unmapped privacy value after restrictive degradation', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(jsonResponse(envelope({ ...instanceDetail, instanceSettingPrivacy: 8 })))
+        )
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+
+      await expect(adapter.getInstanceDetails('i_future')).resolves.toMatchObject({
+        type: 'owner-must-invite',
+        openness: 'invite',
+        opennessUnknown: true
       })
     })
 

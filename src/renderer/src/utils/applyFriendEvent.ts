@@ -33,6 +33,7 @@ function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
     a.thumbnailUrl === b.thumbnailUrl &&
     a.type === b.type &&
     a.openness === b.openness &&
+    a.opennessUnknown === b.opennessUnknown &&
     a.isGroup === b.isGroup &&
     a.groupName === b.groupName &&
     a.region === b.region &&

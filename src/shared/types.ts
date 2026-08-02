@@ -96,6 +96,8 @@ export interface InstanceInfo {
   /** Platform-true instance type; normalize to openness for shared UI grouping. */
   type: InstanceType
   openness: OpennessTier
+  /** True only when a platform privacy value was unrecognized and openness was degraded. */
+  opennessUnknown?: boolean
   /** True for group instances (Group Public / Group+ / Group · etc.). The Group chip modifier. */
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
