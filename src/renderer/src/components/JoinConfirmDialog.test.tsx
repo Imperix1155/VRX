@@ -9,7 +9,16 @@
  * FriendsList next to the dialog (like AppShell does); copy/variant tests
  * drive the gate through a tiny OpenJoin harness.
  */
-import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -768,9 +777,11 @@ describe('never-show-again footnote', () => {
     expect(joinInstance).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
     // The persistence PIN: the choice reaches disk, not just the store.
-    expect(saveSettings).toHaveBeenCalledWith({
-      patch: expect.objectContaining({ confirmJoin: false })
-    })
+    await waitFor(() =>
+      expect(saveSettings).toHaveBeenCalledWith({
+        patch: expect.objectContaining({ confirmJoin: false })
+      })
+    )
   })
 })
 

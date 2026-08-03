@@ -424,7 +424,8 @@ describe('FriendDrawer (VRX-69)', () => {
 
   it.each([
     ['stale', 'Live connection not ready — joins resume when the live feed reconnects'],
-    ['cooldown', 'One moment — just launched a join']
+    ['cooldown', 'One moment — just launched a join'],
+    ['rate-limited', 'Too many attempts — try again shortly']
   ] as const)('announces distinct %s denial copy in the drawer', async (reason, copy) => {
     joinInstance.mockResolvedValue({ ok: false, reason })
     render(<FriendsList />)

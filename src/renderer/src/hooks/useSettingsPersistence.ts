@@ -2,6 +2,28 @@ import { useEffect, useState } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 
+const SETTINGS_LOAD_MAX_ATTEMPTS = 3
+const SETTINGS_LOAD_BACKOFF_MS = 250
+const SETTINGS_SAVE_DEBOUNCE_MS = 250
+
+async function loadSettingsWithRetry(load: () => Promise<Settings>): Promise<Settings> {
+  for (let attempt = 0; attempt < SETTINGS_LOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await load()
+    } catch (error) {
+      const canRetry =
+        error instanceof Error &&
+        error.message === 'rate_limited' &&
+        attempt < SETTINGS_LOAD_MAX_ATTEMPTS - 1
+      if (!canRetry) throw error
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, SETTINGS_LOAD_BACKOFF_MS * 2 ** attempt)
+      })
+    }
+  }
+  throw new Error('Settings failed to load')
+}
+
 /**
  * Settings persistence bridge (VRX-184). Mount ONCE, top-level in App.tsx
  * (same pattern as useLiveFriendEvents).
@@ -14,25 +36,24 @@ import { useSettingsStore } from '../stores/settings'
  * the persisted value differs (the persisted value wins).
  *
  * Hydration (VRX-212): the store's `hydrated` flag is set true once the initial
- * load resolves, whether it succeeds or fails. A failed load means the renderer
- * knows it is rendering with the default-seeded settings, so revealing the UI
- * is safe. If the bridge is absent (Preview/tests), hydration happens
- * immediately.
+ * load settles. `rate_limited` gets two short exponential-backoff retries;
+ * another failure is promoted into the top-level ErrorBoundary rather than
+ * leaving a normal-looking session whose saves are silently disabled. If the
+ * bridge is absent (Preview/tests), hydration happens immediately.
  *
- * Change: whenever the store turns dirty, saves the CURRENT settings as the
- * patch over `save-settings`, then `markSaved`. Saves are GATED until the
- * boot load has landed — saving earlier would patch the default-seeded object
- * over the on-disk file and wipe unrelated persisted fields (Codex [high],
- * PR #116). The clean transition is double-guarded: the effect-cleanup flag
- * AND a snapshot identity check (zustand replaces the settings object on
- * every update), so a stale save resolving before React runs the cleanup can
- * never mark newer unsaved settings clean. A failed save (e.g. main's
- * newer-version rollback refusal) leaves the store dirty — the session keeps
- * working in-memory and the next change retries.
+ * Change: whenever the store turns dirty, a 250ms trailing debounce coalesces
+ * rapid changes and saves the FINAL settings snapshot as the patch over
+ * `save-settings`, then `markSaved`. Saves are GATED until the boot load has
+ * landed — saving earlier would patch the default-seeded object over the
+ * on-disk file and wipe unrelated persisted fields (Codex [high], PR #116).
+ * The clean transition is double-guarded: the effect-cleanup flag AND a
+ * snapshot identity check (zustand replaces the settings object on every
+ * update), so a stale save resolving before React runs the cleanup can never
+ * mark newer unsaved settings clean. A failed save (e.g. main's newer-version
+ * rollback refusal) leaves the store dirty — the session keeps working
+ * in-memory and the next change retries.
  *
  * Guards `window.vrx` absence (Preview/tests): everything stays in-memory.
- * A FAILED load also keeps saves disabled for the session (no baseline —
- * see the boot rationale above); in-memory behavior is unaffected.
  */
 export function useSettingsPersistence(): void {
   const setSettings = useSettingsStore((s) => s.setSettings)
@@ -40,6 +61,7 @@ export function useSettingsPersistence(): void {
   const settings = useSettingsStore((s) => s.settings)
   const dirty = useSettingsStore((s) => s.dirty)
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx) {
@@ -47,8 +69,8 @@ export function useSettingsPersistence(): void {
       return
     }
     let cancelled = false
-    window.vrx
-      .getSettings()
+    const bridge = window.vrx
+    void loadSettingsWithRetry(() => bridge.getSettings())
       .then((persisted) => {
         if (cancelled) return
         const state = useSettingsStore.getState()
@@ -69,12 +91,10 @@ export function useSettingsPersistence(): void {
         setLoaded(true)
         hydrate()
       })
-      .catch(() => {
-        // Load never throws in main — only bridge/IPC breakage lands here.
-        // Saves stay disabled (no persisted baseline to patch over), but the
-        // UI can still reveal itself because the default-seeded settings are
-        // the canonical fallback.
+      .catch((cause: unknown) => {
+        if (cancelled) return
         hydrate()
+        setLoadError(new Error('Settings failed to load', { cause }))
       })
     return () => {
       cancelled = true
@@ -85,19 +105,25 @@ export function useSettingsPersistence(): void {
     if (!loaded || !dirty || typeof window === 'undefined' || !window.vrx) return
     let cancelled = false
     const snapshot = settings
-    window.vrx
-      .saveSettings({ patch: snapshot })
-      .then(() => {
-        if (!cancelled && useSettingsStore.getState().settings === snapshot) {
-          useSettingsStore.getState().markSaved()
-        }
-      })
-      .catch(() => {
-        // Leave dirty (retried on the next change). The only expected rejection
-        // is the deliberate newer-version rollback refusal.
-      })
+    const bridge = window.vrx
+    const saveTimer = window.setTimeout(() => {
+      void bridge
+        .saveSettings({ patch: snapshot })
+        .then(() => {
+          if (!cancelled && useSettingsStore.getState().settings === snapshot) {
+            useSettingsStore.getState().markSaved()
+          }
+        })
+        .catch(() => {
+          // Leave dirty (retried on the next change). The only expected rejection
+          // is the deliberate newer-version rollback refusal.
+        })
+    }, SETTINGS_SAVE_DEBOUNCE_MS)
     return () => {
       cancelled = true
+      window.clearTimeout(saveTimer)
     }
   }, [loaded, dirty, settings])
+
+  if (loadError) throw loadError
 }

@@ -35,4 +35,4 @@ Issues in VRChat or ChilloutVR themselves are out of scope — please report tho
 
 ## Application safeguards
 
-Renderer-to-main IPC keeps its sender validation inside every handler and is also bounded by timer-free, per-channel sliding windows. Limits reflect each channel's legitimate call pattern, denial logs contain the channel name only, and repeated denials in the same active window are suppressed.
+Renderer-to-main IPC validates the sender in a trust-first registration shell before touching timer-free, per-channel sliding-window state, then validates it again inside every domain handler as defense in depth. Untrusted frames therefore cannot consume the trusted window's budget. Limits reflect each channel's legitimate call pattern, denial logs contain the channel name only, and repeated denials in the same active window are suppressed.

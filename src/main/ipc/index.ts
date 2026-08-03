@@ -12,6 +12,7 @@ import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerSettingsHandlers } from './settings'
+import { isTrustedIpcSender } from './security'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
 import type { InstanceHandlerOptions } from './instance'
@@ -60,14 +61,22 @@ export function registerIpcHandlers(
       return
     }
     const invokeChannel = channel as IpcInvokeChannel
-    registerHandle(
-      channel,
-      withRateLimit(invokeChannel, IPC_RATE_LIMIT_BUDGETS[invokeChannel], handler, {
+    const domainHandler = handler as (...args: unknown[]) => unknown
+    const limitedHandler = withRateLimit(
+      invokeChannel,
+      IPC_RATE_LIMIT_BUDGETS[invokeChannel],
+      domainHandler,
+      {
         clock,
         deny: () => ipcRateLimitDenial(invokeChannel),
         warn
-      })
+      }
     )
+    registerHandle(channel, (event, ...args): unknown => {
+      if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+      const domainArgs: unknown[] = args
+      return limitedHandler(event, ...domainArgs)
+    })
   }
 
   try {
@@ -88,17 +97,18 @@ export function registerIpcHandlers(
     else Object.defineProperty(ipcMain, 'handle', originalHandleDescriptor)
   }
 
-  ipcMain.on(
+  const limitedRendererHydrated = withRateLimit(
     'renderer-hydrated',
-    withRateLimit(
-      'renderer-hydrated',
-      IPC_RATE_LIMIT_BUDGETS['renderer-hydrated'],
-      options.onRendererHydrated,
-      {
-        clock,
-        deny: () => undefined,
-        warn
-      }
-    )
+    IPC_RATE_LIMIT_BUDGETS['renderer-hydrated'],
+    options.onRendererHydrated,
+    {
+      clock,
+      deny: () => undefined,
+      warn
+    }
   )
+  ipcMain.on('renderer-hydrated', (event) => {
+    if (!isTrustedIpcSender(event.senderFrame)) return
+    limitedRendererHydrated(event)
+  })
 }

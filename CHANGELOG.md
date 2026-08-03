@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **IPC throttling no longer penalizes the real app for untrusted traffic.** Sender trust is checked before any rate-limit state changes, so a hostile frame cannot drain a trusted window's channel budget. Renderer queries also stop retrying local `rate_limited` denials; settings startup retries a brief limit before showing a real failure, and rapid setting changes coalesce into one trailing save. Join limits now explain “Too many attempts — try again shortly” instead of showing the generic failure. (VRX-28)
 - **The window can no longer be resized smaller than it works at.** VRX had no minimum window size, so shrinking it could squeeze Settings' tallest page below its content height and force it to scroll — breaking the "control surfaces never scroll" rule. The window now refuses to shrink below its own shipped default (900×670), clamped to the display's work area so small or DPI-scaled screens keep a fully visible, resizable window. (VRX-243)
 
 ## [0.13.0] - 2026-08-02

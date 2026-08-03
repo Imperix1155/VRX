@@ -22,7 +22,12 @@ const electron = vi.hoisted(() => {
   return { invokeHandlers, notificationHandlers, ipcMain }
 })
 
+const security = vi.hoisted(() => ({ trustedFrame: {} }))
+
 vi.mock('electron', () => ({ ipcMain: electron.ipcMain }))
+vi.mock('./security', () => ({
+  isTrustedIpcSender: (frame: unknown) => frame === security.trustedFrame
+}))
 
 vi.mock('./friends', () => ({
   registerFriendsHandlers: () =>
@@ -70,8 +75,10 @@ vi.mock('./settings', () => ({
 
 import { registerIpcHandlers } from './index'
 
-const invokeEvent = {} as IpcMainInvokeEvent
-const notificationEvent = {} as IpcMainEvent
+const invokeEvent = { senderFrame: security.trustedFrame } as unknown as IpcMainInvokeEvent
+const untrustedInvokeEvent = { senderFrame: {} } as unknown as IpcMainInvokeEvent
+const notificationEvent = { senderFrame: security.trustedFrame } as unknown as IpcMainEvent
+const untrustedNotificationEvent = { senderFrame: {} } as unknown as IpcMainEvent
 let now = 0
 let warn: ReturnType<typeof vi.fn>
 let hydrated: ReturnType<typeof vi.fn>
@@ -130,6 +137,18 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(() => getFriends(invokeEvent)).toThrowError('rate_limited')
   })
 
+  it('rejects untrusted invokes before they can consume the trusted sender budget', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const getFriends = electron.invokeHandlers.get('get-friends')!
+
+    for (let request = 0; request < 12; request += 1) {
+      expect(() => getFriends(untrustedInvokeEvent)).toThrowError('Untrusted IPC sender')
+    }
+
+    expect(getFriends(invokeEvent)).toEqual([{ platformUserId: 'friend' }])
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   it('silently drops excess renderer-hydrated notifications and warns once', () => {
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
     const notifyHydrated = electron.notificationHandlers.get('renderer-hydrated')!
@@ -145,5 +164,19 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(warn).toHaveBeenCalledWith('IPC rate limit exceeded', {
       channel: 'renderer-hydrated'
     })
+  })
+
+  it('drops untrusted renderer-hydrated notifications before they consume the trusted budget', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const notifyHydrated = electron.notificationHandlers.get('renderer-hydrated')!
+
+    notifyHydrated(untrustedNotificationEvent)
+    notifyHydrated(untrustedNotificationEvent)
+    notifyHydrated(untrustedNotificationEvent)
+    notifyHydrated(notificationEvent)
+
+    expect(hydrated).toHaveBeenCalledOnce()
+    expect(hydrated).toHaveBeenCalledWith(notificationEvent)
+    expect(warn).not.toHaveBeenCalled()
   })
 })

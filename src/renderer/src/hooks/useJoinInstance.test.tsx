@@ -158,7 +158,7 @@ describe('useJoinInstance', () => {
     expect(hook.result.current.joinFailedFor(cvrTwin)).toBe(false)
   })
 
-  it.each(['stale', 'cooldown'] as const)(
+  it.each(['stale', 'cooldown', 'rate-limited'] as const)(
     'retains the typed %s denial reason for the failed friend',
     async (reason) => {
       joinInstance.mockResolvedValueOnce({ ok: false, reason })

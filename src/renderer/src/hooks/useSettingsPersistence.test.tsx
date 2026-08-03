@@ -15,7 +15,8 @@
  * initial load resolves (success or failure), or immediately when the bridge
  * is absent.
  */
-import { act, render, waitFor, cleanup } from '@testing-library/react'
+import { Component } from 'react'
+import { act, render, waitFor, cleanup, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
@@ -24,6 +25,18 @@ import { useSettingsPersistence } from './useSettingsPersistence'
 function Probe(): React.JSX.Element {
   useSettingsPersistence()
   return <></>
+}
+
+class TestErrorBoundary extends Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  render(): React.ReactNode {
+    return this.state.error ? <p role="alert">{this.state.error.message}</p> : this.props.children
+  }
 }
 
 const PERSISTED: Settings = { ...DEFAULT_SETTINGS, theme: 'dark', labelScheme: 'chilloutvr' }
@@ -61,6 +74,7 @@ const storeState = (): { settings: Settings; dirty: boolean; hydrated: boolean }
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
   Reflect.deleteProperty(window, 'vrx')
 })
@@ -84,6 +98,28 @@ describe('useSettingsPersistence', () => {
     expect(bridge.saveSettings).toHaveBeenCalledWith({
       patch: expect.objectContaining({ labelScheme: 'platform-native', theme: 'dark' })
     })
+  })
+
+  it('coalesces rapid changes into one trailing save carrying the final settings state', async () => {
+    vi.useFakeTimers()
+    const bridge = stubBridge()
+    render(<Probe />)
+    await act(() => Promise.resolve())
+    expect(storeState().settings.theme).toBe('dark')
+
+    act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
+    await act(async () => vi.advanceTimersByTimeAsync(200))
+    act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+
+    await act(async () => vi.advanceTimersByTimeAsync(249))
+    expect(bridge.saveSettings).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(bridge.saveSettings).toHaveBeenCalledOnce()
+    expect(bridge.saveSettings).toHaveBeenCalledWith({
+      patch: expect.objectContaining({ theme: 'light', density: 'compact' })
+    })
+    expect(storeState().dirty).toBe(false)
   })
 
   it('persists drawerOpener through save-settings like its siblings (VRX-228)', async () => {
@@ -169,27 +205,67 @@ describe('useSettingsPersistence', () => {
     expect(storeState().settings.theme).toBe('light')
   })
 
-  it('keeps saves disabled for the whole session when the load fails (no baseline to patch over)', async () => {
+  it('retries a boot rate_limited failure after a short backoff and then loads normally', async () => {
+    vi.useFakeTimers()
     const bridge = stubBridge({
-      getSettings: vi.fn().mockRejectedValue(new Error('bridge broke'))
+      getSettings: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('rate_limited'))
+        .mockResolvedValue({ ...PERSISTED })
     })
     render(<Probe />)
-    await waitFor(() => expect(bridge.getSettings).toHaveBeenCalled())
+
     await act(() => Promise.resolve())
+    expect(bridge.getSettings).toHaveBeenCalledOnce()
+    expect(storeState().hydrated).toBe(false)
+
+    await act(async () => vi.advanceTimersByTimeAsync(249))
+    expect(bridge.getSettings).toHaveBeenCalledOnce()
+
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(bridge.getSettings).toHaveBeenCalledTimes(2)
+    expect(storeState().settings.theme).toBe('dark')
     expect(storeState().hydrated).toBe(true)
-    act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
-    await act(() => Promise.resolve())
-    expect(bridge.saveSettings).not.toHaveBeenCalled()
-    expect(storeState().settings.theme).toBe('light')
   })
 
-  it('hydrates immediately when the load fails so the UI is not trapped', async () => {
+  it('surfaces a terminal boot load failure instead of silently disabling persistence', async () => {
     const bridge = stubBridge({
       getSettings: vi.fn().mockRejectedValue(new Error('bridge broke'))
     })
-    render(<Probe />)
+    render(
+      <TestErrorBoundary>
+        <Probe />
+      </TestErrorBoundary>,
+      { onCaughtError: () => undefined }
+    )
+
     await waitFor(() => expect(bridge.getSettings).toHaveBeenCalled())
-    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toBe('Settings failed to load')
+    )
+    expect(storeState().hydrated).toBe(true)
+    expect(bridge.saveSettings).not.toHaveBeenCalled()
+  })
+
+  it('surfaces rate_limited after the bounded boot retry budget is exhausted', async () => {
+    vi.useFakeTimers()
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockRejectedValue(new Error('rate_limited'))
+    })
+    render(
+      <TestErrorBoundary>
+        <Probe />
+      </TestErrorBoundary>,
+      { onCaughtError: () => undefined }
+    )
+
+    await act(() => Promise.resolve())
+    await act(async () => vi.advanceTimersByTimeAsync(250))
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+
+    expect(bridge.getSettings).toHaveBeenCalledTimes(3)
+    expect(screen.getByRole('alert').textContent).toBe('Settings failed to load')
+    expect(storeState().hydrated).toBe(true)
   })
 
   it('no-ops without the bridge (Preview/tests) — stays in-memory, never throws, and hydrates immediately', () => {
