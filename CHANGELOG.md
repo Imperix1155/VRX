@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
+- **Join confirmation now stays live with the friend's current instance (VRX-239 / VRX-241).** If a friend's instance changes while the dialog is open, VRX shows a drift notice and asks you to review the new target instead of launching the old one. The renderer and main process compare the expected instance identity before any launch, so the dialog never describes one instance and launches another.
 
 ## [0.13.0] - 2026-08-02
 

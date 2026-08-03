@@ -18,6 +18,8 @@ import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { useSettingsPersistence } from '../hooks/useSettingsPersistence'
+import { queryClient } from '../queries/queryClient'
+import { friendsQueryKey } from '../queries/friends'
 import FriendsList from './FriendsList'
 import JoinConfirmDialog from './JoinConfirmDialog'
 
@@ -108,6 +110,10 @@ function mockFriends(vrc: Friend[], cvr: Friend[] = []): void {
     isFetching: false,
     refetch: vi.fn()
   }))
+  // The dialog reads the TanStack cache synchronously for its live-friend
+  // lookup and Confirm preflight, so the mock must also seed the real cache.
+  queryClient.setQueryData(friendsQueryKey('vrchat'), vrc)
+  queryClient.setQueryData(friendsQueryKey('chilloutvr'), cvr)
 }
 
 /** Drives the confirmation gate without a list surface (copy/variant tests). */
@@ -196,7 +202,11 @@ describe('join path interception (confirmJoin on)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
     expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
   })
@@ -224,7 +234,11 @@ describe('join path interception (confirmJoin on)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
   })
 
@@ -295,7 +309,11 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
   })
 })
@@ -331,6 +349,7 @@ describe('openness copy (the safety context)', () => {
       ...joinableFriend,
       instance: { ...publicInstance, type, openness }
     }
+    mockFriends([friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -399,8 +418,9 @@ describe('openness copy (the safety context)', () => {
     ).toBeTruthy()
   })
 
-  it('missing instance data → "Openness unknown" + generic title (never a privacy claim)', () => {
+  it('missing instance data keeps the gate closed (non-joinable friend cannot confirm)', () => {
     const friend: Friend = { ...joinableFriend, instance: null }
+    mockFriends([friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -409,11 +429,8 @@ describe('openness copy (the safety context)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
-    expect(
-      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
-    ).toBeTruthy()
-    expect(within(dialog).queryByText(/This instance is considered/)).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Join this instance?' })).toBeNull()
+    expect(joinInstance).not.toHaveBeenCalled()
   })
 
   it('More info discloses the explainer inline (no new modal)', () => {
@@ -522,7 +539,11 @@ describe('mode picker — CVR only (research-settled)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'chilloutvr',
       friendId: 'cvr_mika',
-      mode: 'vr'
+      mode: 'vr',
+      expectedTarget: {
+        worldId: cvrInstance.worldId,
+        instanceId: cvrInstance.instanceId
+      }
     })
   })
 
@@ -550,7 +571,11 @@ describe('mode picker — CVR only (research-settled)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'chilloutvr',
       friendId: 'cvr_mika',
-      mode: 'vr'
+      mode: 'vr',
+      expectedTarget: {
+        worldId: cvrInstance.worldId,
+        instanceId: cvrInstance.instanceId
+      }
     })
   })
 
@@ -943,6 +968,7 @@ describe('group instances get group-accurate copy', () => {
       ...joinableFriend,
       instance: { ...groupBase, openness, type }
     }
+    mockFriends([friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -989,6 +1015,7 @@ describe('group instances get group-accurate copy', () => {
       ...joinableFriend,
       instance: { ...groupBase, openness: 'invite', type: 'group' }
     }
+    mockFriends([friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -1010,6 +1037,7 @@ describe('group instances get group-accurate copy', () => {
       ...joinableFriend,
       instance: { ...groupBase, groupName: null, openness: 'invite', type: 'group' }
     }
+    mockFriends([friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -1068,7 +1096,11 @@ describe('footnote persists a PICKED mode (CVR picker only)', () => {
     expect(joinInstance).toHaveBeenLastCalledWith({
       platform: 'chilloutvr',
       friendId: 'cvr_ren',
-      mode: 'vr'
+      mode: 'vr',
+      expectedTarget: {
+        worldId: cvrInstance.worldId,
+        instanceId: cvrInstance.instanceId
+      }
     })
   })
 

@@ -8,10 +8,23 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Friend } from '@shared/types'
+import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from './useJoinInstance'
+
+const publicInstance: InstanceInfo = {
+  worldId: 'wrld_fixture',
+  instanceId: 'wrld_fixture:12345~public',
+  worldName: 'The Great Pug',
+  thumbnailUrl: null,
+  type: 'public',
+  openness: 'public',
+  isGroup: false,
+  groupName: null,
+  region: 'us',
+  userCount: 14
+}
 
 const friend: Friend = {
   platformUserId: 'usr_alex',
@@ -21,7 +34,7 @@ const friend: Friend = {
   presence: { state: 'in-game' },
   status: 'online',
   statusDescription: null,
-  instance: null,
+  instance: publicInstance,
   trustRank: null,
   isFavorite: false,
   favoriteGroupIds: [],

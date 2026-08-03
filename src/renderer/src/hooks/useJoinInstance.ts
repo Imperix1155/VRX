@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import type { InstanceActionResult } from '@shared/ipc'
-import type { Friend, JoinMode, JoinModePreference } from '@shared/types'
+import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import { isFriendJoinable } from '@shared/joinability'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useSettingsStore } from '../stores/settings'
+import { queryClient } from '../queries/queryClient'
+import { friendsQueryKey } from '../queries/friends'
 
 export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['reason'] | 'unknown'
 
@@ -22,6 +26,7 @@ export function resolveWireMode(friend: Friend, preference: JoinModePreference):
 export function joinFailureMessageKey(reason: JoinFailureReason): string {
   if (reason === 'stale') return 'friends.joinFailure.stale'
   if (reason === 'cooldown') return 'friends.joinFailure.cooldown'
+  if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
   return 'friends.joinFailed'
 }
 
@@ -31,11 +36,39 @@ function friendJoinKey(friend: Friend): string {
   return `${friend.platform}:${friend.platformUserId}`
 }
 
+/** A hot-instance identity the user has SEEN and accepted. */
+export interface JoinTarget {
+  key: string
+  worldId: string
+  instanceId: string
+}
+
+/** The dialog's pending confirmation state. Reset only on join success, cancel,
+ *  or an ordinary terminal failure — preserved across drift/unavailable so the
+ *  user can review or wait for the cache to catch up (VRX-239/241). */
+export interface PendingConfirm {
+  /** Increments per dialog OPEN; keyed for per-open UI reset, never friend
+   *  object identity. */
+  requestId: number
+  platform: Platform
+  platformUserId: string
+  /** Fallback copy when the live friend disappears. */
+  displayName: string
+  /** The instance the user reviewed and accepted. */
+  reviewedTarget: JoinTarget
+  /** When main returns `target-changed`, the cache dataUpdateCount we must wait
+   *  to exceed before another Confirm can proceed. */
+  awaitingCacheAfter: number | null
+}
+
+export type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
+
 interface JoinSnapshot {
   /** True while ANY surface's join is in flight. */
   joining: boolean
-  /** The friend awaiting confirmation in the join dialog (VRX-210). Null = no dialog. */
-  pendingConfirm: Friend | null
+  /** The reviewed target awaiting confirmation in the join dialog (VRX-210).
+   *  Null = no dialog. */
+  pendingConfirm: PendingConfirm | null
   /** The composite key of the friend whose join was denied — the blip is
    *  ATTRIBUTABLE (Codex re-review): only surfaces showing THAT friend blip,
    *  never every joinable pill. Null = no blip. */
@@ -48,8 +81,37 @@ interface JoinStore {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => JoinSnapshot
   join: (friend: Friend) => Promise<void>
-  confirmPending: (mode: JoinMode) => Promise<void>
+  confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
+  acknowledgePendingTarget: (presentedKey: string) => boolean
   cancelPending: () => void
+}
+
+/** Read the latest friends array and the query's dataUpdateCount for CAS. */
+function readFriendsCache(platform: Platform): {
+  friends: Friend[] | undefined
+  dataUpdateCount: number
+  queryError: Error | null
+} {
+  const state = queryClient.getQueryState<Friend[], Error>(friendsQueryKey(platform))
+  return {
+    friends: queryClient.getQueryData<Friend[]>(friendsQueryKey(platform)),
+    dataUpdateCount: state?.dataUpdateCount ?? 0,
+    queryError: state?.error ?? null
+  }
+}
+
+/** Build the JoinTarget the user is seeing for a live friend. */
+function targetFor(friend: Friend): JoinTarget | null {
+  if (!friend.instance) return null
+  return {
+    key: hotInstanceKey(
+      friend.platform,
+      friend.instance.instanceId,
+      friend.instance.worldId
+    ) as string,
+    worldId: friend.instance.worldId,
+    instanceId: friend.instance.instanceId
+  }
 }
 
 /**
@@ -63,6 +125,7 @@ interface JoinStore {
  * would resurrect the split-state bug.
  */
 function createJoinStore(): JoinStore {
+  let requestId = 0
   let snapshot: JoinSnapshot = {
     joining: false,
     pendingConfirm: null,
@@ -101,6 +164,7 @@ function createJoinStore(): JoinStore {
     // A new attempt clears any lingering blip immediately (whoever it was for).
     clearFailureBlip()
     const friendKey = friendJoinKey(friend)
+    const target = targetFor(friend)
     try {
       // Guard the preload bridge explicitly — it is undefined in Preview and
       // tests (house rule), and a missing bridge is user-equivalent to a denial.
@@ -108,10 +172,15 @@ function createJoinStore(): JoinStore {
         showFailureBlip(friendKey, 'unknown')
         return
       }
+      if (target === null) {
+        showFailureBlip(friendKey, 'not-joinable')
+        return
+      }
       const result = await window.vrx.joinInstance({
         platform: friend.platform,
         friendId: friend.platformUserId,
-        mode
+        mode,
+        expectedTarget: { worldId: target.worldId, instanceId: target.instanceId }
       })
       if (result.ok) clearFailureBlip()
       else showFailureBlip(friendKey, result.reason)
@@ -138,21 +207,117 @@ function createJoinStore(): JoinStore {
     if (confirmJoin) {
       // Opening the dialog is a new attempt too: clear any lingering blip.
       clearFailureBlip()
-      emit({ pendingConfirm: friend })
+      const target = targetFor(friend)
+      if (target === null) return
+      requestId += 1
+      emit({
+        pendingConfirm: {
+          requestId,
+          platform: friend.platform,
+          platformUserId: friend.platformUserId,
+          displayName: friend.displayName,
+          reviewedTarget: target,
+          awaitingCacheAfter: null
+        }
+      })
       return
     }
     await performJoin(friend, resolveWireMode(friend, joinMode))
   }
 
-  async function confirmPending(mode: JoinMode): Promise<void> {
-    const friend = snapshot.pendingConfirm
+  async function confirmPending(mode: JoinMode): Promise<ConfirmPendingResult> {
+    const pc = snapshot.pendingConfirm
     // The latch applies to confirmed joins as well: Confirm fires exactly once.
-    if (friend === null || snapshot.joining) return
-    emit({ pendingConfirm: null })
-    await performJoin(friend, mode)
+    // If the dialog state is gone or a launch is already running, there is no
+    // actionable target available.
+    if (pc === null || snapshot.joining) return 'unavailable'
+
+    // Renderer preflight (VRX-239): re-read the TanStack cache synchronously —
+    // NEVER the render closure. Fail closed to 'review-required' (drift) or
+    // 'unavailable' without calling main.
+    const { friends, dataUpdateCount, queryError } = readFriendsCache(pc.platform)
+    if (queryError !== null || friends === undefined) return 'unavailable'
+    const live = friends.find((f) => f.platformUserId === pc.platformUserId)
+    if (!live) return 'unavailable'
+    if (!isFriendJoinable(live)) return 'unavailable'
+    const liveTarget = targetFor(live)
+    if (liveTarget === null) return 'unavailable'
+    if (liveTarget.key !== pc.reviewedTarget.key) return 'review-required'
+    if (pc.awaitingCacheAfter !== null && dataUpdateCount <= pc.awaitingCacheAfter) {
+      return 'review-required'
+    }
+
+    emit({ joining: true })
+    clearFailureBlip()
+    const friendKey = `${pc.platform}:${pc.platformUserId}`
+    try {
+      if (!window.vrx) {
+        showFailureBlip(friendKey, 'unknown')
+        emit({ joining: false, pendingConfirm: null })
+        return 'failed'
+      }
+      const result = await window.vrx.joinInstance({
+        platform: pc.platform,
+        friendId: pc.platformUserId,
+        mode,
+        expectedTarget: {
+          worldId: pc.reviewedTarget.worldId,
+          instanceId: pc.reviewedTarget.instanceId
+        }
+      })
+      if (result.ok) {
+        // Atomic success: focus restoration can happen, joining ends, dialog closes.
+        emit({ joining: false, pendingConfirm: null })
+        return 'joined'
+      }
+      if (result.reason === 'target-changed') {
+        // Main's authority is ahead of the renderer cache. Record the current
+        // cache generation and stay open so the user can review once the cache
+        // advances. Re-read the count after the await to catch any updates that
+        // landed while the IPC was in flight.
+        const after = readFriendsCache(pc.platform)
+        emit({
+          pendingConfirm: {
+            ...pc,
+            awaitingCacheAfter: after.dataUpdateCount
+          },
+          joining: false
+        })
+        return 'review-required'
+      }
+      // Ordinary terminal failure: clear the dialog and show the attributed blip.
+      showFailureBlip(friendKey, result.reason)
+      emit({ joining: false, pendingConfirm: null })
+      return 'failed'
+    } catch {
+      showFailureBlip(friendKey, 'unknown')
+      emit({ joining: false, pendingConfirm: null })
+      return 'failed'
+    }
+  }
+
+  function acknowledgePendingTarget(presentedKey: string): boolean {
+    const pc = snapshot.pendingConfirm
+    if (pc === null || snapshot.joining) return false
+    const { friends } = readFriendsCache(pc.platform)
+    if (friends === undefined) return false
+    const live = friends.find((f) => f.platformUserId === pc.platformUserId)
+    if (!live || !isFriendJoinable(live)) return false
+    const liveTarget = targetFor(live)
+    if (liveTarget === null || liveTarget.key !== presentedKey) return false
+    emit({
+      pendingConfirm: {
+        ...pc,
+        reviewedTarget: liveTarget,
+        awaitingCacheAfter: null
+      }
+    })
+    return true
   }
 
   function cancelPending(): void {
+    // The launch is committed: the modal is inert and Cancel is disabled.
+    if (snapshot.joining) return
     if (snapshot.pendingConfirm !== null) emit({ pendingConfirm: null })
   }
 
@@ -164,6 +329,7 @@ function createJoinStore(): JoinStore {
     getSnapshot: () => snapshot,
     join,
     confirmPending,
+    acknowledgePendingTarget,
     cancelPending
   }
 }
@@ -182,18 +348,27 @@ const sharedJoinStore = createJoinStore()
  * success, wherever it fires. Callers own event concerns.
  *
  * VRX-210: with `settings.confirmJoin` on, `join` does NOT launch — it parks
- * the friend in `pendingConfirm` and the `JoinConfirmDialog` (mounted once in
- * AppShell) owns the choice: `confirmPending(mode)` fires exactly one join,
- * `cancelPending()` fires nothing. With the setting off, `join` launches
+ * the reviewed target in `pendingConfirm` and the `JoinConfirmDialog` (mounted
+ * once in AppShell) owns the choice: `confirmPending(mode)` fires exactly one
+ * join, `cancelPending()` fires nothing. With the setting off, `join` launches
  * immediately, resolving the wire mode from `settings.joinMode`.
+ *
+ * VRX-239/241: the dialog renders from the LIVE friend looked up in the
+ * TanStack cache. If the live target drifts from the reviewed target, the
+ * dialog enters a DRIFT state (Confirm disabled, Review action) and never
+ * silently launches the old target. If the live friend becomes unavailable,
+ * the dialog enters an UNAVAILABLE state (Cancel only). Confirm performs a
+ * synchronous cache preflight before invoking main, and main compares the
+ * renderer's expected target against its authoritative current target.
  */
 export function useJoinInstance(): {
   isJoining: boolean
-  pendingConfirm: Friend | null
+  pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Friend) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
-  confirmPending: (mode: JoinMode) => Promise<void>
+  confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
+  acknowledgePendingTarget: (presentedKey: string) => boolean
   cancelPending: () => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
@@ -210,6 +385,7 @@ export function useJoinInstance(): {
     joinFailureFor: (friend) => (failedFriendId === friendJoinKey(friend) ? failureReason : null),
     join: sharedJoinStore.join,
     confirmPending: sharedJoinStore.confirmPending,
+    acknowledgePendingTarget: sharedJoinStore.acknowledgePendingTarget,
     cancelPending: sharedJoinStore.cancelPending
   }
 }
