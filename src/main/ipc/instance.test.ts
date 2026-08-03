@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { Friend, Platform } from '@shared/types'
+import type { IpcInvoke } from '@shared/ipc'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 import { LocationAuthority } from '../services/locationAuthority'
@@ -83,6 +84,25 @@ function seed(target = friend()): void {
   authority.seed('vrchat', [target], revision)
 }
 
+function joinReq(
+  target: Friend,
+  overrides: Partial<IpcInvoke['join-instance']['req']> = {}
+): IpcInvoke['join-instance']['req'] {
+  if (!target.instance && overrides.expectedTarget === undefined) {
+    throw new Error('joinReq: pass an explicit expectedTarget for an instance-less friend')
+  }
+  return {
+    platform: target.platform,
+    friendId: target.platformUserId,
+    mode: 'vr',
+    expectedTarget: {
+      worldId: target.instance?.worldId ?? '',
+      instanceId: target.instance?.instanceId ?? ''
+    },
+    ...overrides
+  }
+}
+
 describe('join-instance handler', () => {
   it('guards the sender before validating', async () => {
     trusted.value = false
@@ -92,20 +112,75 @@ describe('join-instance handler', () => {
   it.each([
     null,
     {},
-    { platform: 'steam', friendId: 'usr_friend', mode: 'vr' },
-    { platform: 'vrchat', friendId: '', mode: 'vr' },
-    { platform: 'vrchat', friendId: 'usr_friend', mode: 'roomscale' }
+    {
+      platform: 'steam',
+      friendId: 'usr_friend',
+      mode: 'vr',
+      expectedTarget: { worldId: 'w', instanceId: 'i' }
+    },
+    {
+      platform: 'vrchat',
+      friendId: '',
+      mode: 'vr',
+      expectedTarget: { worldId: 'w', instanceId: 'i' }
+    },
+    {
+      platform: 'vrchat',
+      friendId: 'usr_friend',
+      mode: 'roomscale',
+      expectedTarget: { worldId: 'w', instanceId: 'i' }
+    },
+    { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' },
+    { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr', expectedTarget: null },
+    {
+      platform: 'vrchat',
+      friendId: 'usr_friend',
+      mode: 'vr',
+      expectedTarget: { worldId: '', instanceId: 'i' }
+    },
+    {
+      platform: 'vrchat',
+      friendId: 'usr_friend',
+      mode: 'vr',
+      expectedTarget: { worldId: 'w', instanceId: '' }
+    }
   ])('schema-rejects malformed request %j', async (req) => {
     await expect(call('join-instance', req)).rejects.toThrow('Invalid join-instance request')
   })
 
-  it('returns stale and unknown-friend without launching', async () => {
+  it.each([
+    { field: 'worldId', expectedTarget: { worldId: 'w'.repeat(2_049), instanceId: 'i' } },
+    { field: 'instanceId', expectedTarget: { worldId: 'w', instanceId: 'i'.repeat(2_049) } }
+  ])('schema-rejects $field longer than 2,048 characters', async ({ expectedTarget }) => {
     await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+      call('join-instance', {
+        platform: 'vrchat',
+        friendId: 'usr_friend',
+        mode: 'vr',
+        expectedTarget
+      })
+    ).rejects.toThrow('Invalid join-instance request')
+  })
+
+  it('accepts expectedTarget fields of exactly 2,048 characters', async () => {
+    await expect(
+      call('join-instance', {
+        platform: 'vrchat',
+        friendId: 'usr_friend',
+        mode: 'vr',
+        expectedTarget: { worldId: 'w'.repeat(2_048), instanceId: 'i'.repeat(2_048) }
+      })
     ).resolves.toEqual({ ok: false, reason: 'stale' })
+  })
+
+  it('returns stale and unknown-friend without launching', async () => {
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
     seed()
     await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_other', mode: 'vr' })
+      call('join-instance', joinReq(friend(), { friendId: 'usr_other' }))
     ).resolves.toEqual({ ok: false, reason: 'unknown-friend' })
     expect(openExternal).not.toHaveBeenCalled()
   })
@@ -113,22 +188,28 @@ describe('join-instance handler', () => {
   it('rejects a non-joinable friend and an invalid adapter URL', async () => {
     seed(friend({ instance: null }))
     await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+      call(
+        'join-instance',
+        joinReq(friend({ instance: null }), {
+          expectedTarget: { worldId: 'wrld_example', instanceId: 'instance-1' }
+        })
+      )
     ).resolves.toEqual({ ok: false, reason: 'not-joinable' })
 
     authority.clearPlatform('vrchat')
     seed()
     vi.mocked(adapter.buildJoinUrl).mockReturnValue('https://evil.example')
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: false, reason: 'invalid-url' })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'invalid-url'
+    })
   })
 
   it('builds, validates, launches, and returns a typed success', async () => {
     seed()
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'desktop' })
-    ).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend(), { mode: 'desktop' }))).resolves.toEqual({
+      ok: true
+    })
     expect(adapter.buildJoinUrl).toHaveBeenCalledWith(friend().instance, 'desktop')
     expect(openExternal).toHaveBeenCalledWith(launchUrl)
   })
@@ -142,10 +223,11 @@ describe('join-instance handler', () => {
           release = resolve
         })
     )
-    const first = call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    const first = call('join-instance', joinReq(friend()))
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
     release()
     await expect(first).resolves.toEqual({ ok: true })
   })
@@ -156,24 +238,20 @@ describe('join-instance handler', () => {
     const revision = authority.captureSeedRevision('vrchat')
     authority.seed('vrchat', [friend(), friendB], revision)
 
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: true })
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_bea', mode: 'vr' })
-    ).resolves.toEqual({ ok: true })
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friendB))).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
 
     now += 2_999
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
     now += 1
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
   })
 
   it('returns launch-failed without leaking the rejection and releases the lock', async () => {
@@ -186,17 +264,16 @@ describe('join-instance handler', () => {
         })
     )
 
-    const first = call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: false, reason: 'cooldown' })
+    const first = call('join-instance', joinReq(friend()))
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
     rejectLaunch(new Error(`could not launch ${launchUrl}`))
     await expect(first).resolves.toEqual({ ok: false, reason: 'launch-failed' })
 
     openExternal.mockResolvedValueOnce(undefined)
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
     expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
       platform: 'vrchat',
       reason: 'launch-failed'
@@ -205,12 +282,38 @@ describe('join-instance handler', () => {
   })
 
   it('logs only platform and denial reason', async () => {
-    await call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+    await call('join-instance', joinReq(friend()))
     expect(log).toHaveBeenCalledWith('warn', 'instance action denied', {
       platform: 'vrchat',
       reason: 'stale'
     })
     expect(JSON.stringify(log.mock.calls)).not.toContain('instance-1')
+  })
+
+  it('VRX-239 CAS: expected A while authority is at B returns target-changed without building a URL; expected B succeeds from the main-owned B record', async () => {
+    const atA = friend()
+    const atB = friend({
+      instance: {
+        ...atA.instance!,
+        worldId: 'wrld_moved',
+        instanceId: 'instance-moved'
+      }
+    })
+    seed(atA)
+    authority.consume({ type: 'friend-presence', platform: 'vrchat', friend: atB })
+
+    await expect(call('join-instance', joinReq(atA))).resolves.toEqual({
+      ok: false,
+      reason: 'target-changed'
+    })
+    expect(adapter.buildJoinUrl).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+
+    await expect(call('join-instance', joinReq(atB, { mode: 'desktop' }))).resolves.toEqual({
+      ok: true
+    })
+    expect(adapter.buildJoinUrl).toHaveBeenCalledWith(atB.instance, 'desktop')
+    expect(openExternal).toHaveBeenCalledWith(launchUrl)
   })
 })
 
@@ -247,9 +350,7 @@ describe('self-invite handler', () => {
 
   it('does not share its cooldown with join', async () => {
     seed()
-    await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
-    ).resolves.toEqual({ ok: true })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({ ok: true })
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
     ).resolves.toEqual({ ok: true })
@@ -264,7 +365,10 @@ describe('self-invite handler', () => {
     })
 
     await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+      call(
+        'join-instance',
+        joinReq(friend(), { expectedTarget: { worldId: 'wrld_example', instanceId: 'instance-1' } })
+      )
     ).resolves.toEqual({ ok: false, reason: 'not-joinable' })
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
@@ -278,7 +382,10 @@ describe('self-invite handler', () => {
       friend: friend({ status: 'online', presence: { state: 'offline' }, instance: null })
     })
     await expect(
-      call('join-instance', { platform: 'vrchat', friendId: 'usr_friend', mode: 'vr' })
+      call(
+        'join-instance',
+        joinReq(friend(), { expectedTarget: { worldId: 'wrld_example', instanceId: 'instance-1' } })
+      )
     ).resolves.toEqual({ ok: true })
     await expect(
       call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })

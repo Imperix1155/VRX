@@ -130,7 +130,11 @@ describe('FriendsList join pill (VRX-166)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
   })
 
