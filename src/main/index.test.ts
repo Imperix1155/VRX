@@ -159,3 +159,18 @@ describe('main credential-owner wiring', () => {
     )
   })
 })
+
+describe('main window minimum size (VRX-243)', () => {
+  it('pins minWidth/minHeight to the shipped default so the window can never shrink below it', () => {
+    // DESIGN.md §8's no-scroll rule (control surfaces don't scroll) had no
+    // mechanical guard: a user-shrunk window could squeeze Settings below the
+    // height its tallest category (Behavior, 5 rows) needs, forcing a scrollbar.
+    // The floor is pinned to the app's own already-shipped default (900x670),
+    // clamped to the display work area so small/scaled screens keep a usable
+    // window. Line-anchored regexes (review F1, mutation-proven): a bare
+    // substring match stays green when the lines are commented out.
+    expect(source).toContain('width: 900,\n    height: 670,')
+    expect(source).toMatch(/^\s*minWidth: Math\.min\(900, workAreaSize\.width\),\s*$/m)
+    expect(source).toMatch(/^\s*minHeight: Math\.min\(670, workAreaSize\.height\),\s*$/m)
+  })
+})
