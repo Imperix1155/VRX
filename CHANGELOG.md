@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
 - **Join confirmation now stays live with the friend's current instance (VRX-239 / VRX-241).** If a friend's instance changes while the dialog is open, VRX shows a drift notice and asks you to review the new target instead of launching the old one. The renderer and main process compare the expected instance identity before any launch, so the dialog never describes one instance and launches another.
 
+### Fixed
+
+- **Join confirmation focus no longer jumps when the friend's target changes mid-flight.** A `target-changed` response from main used to reset focus to the Cancel button while the user was reading the drift notice; focus now stays where the user put it. The focus trap also excludes disabled, hidden, and `aria-disabled` controls and anchors on the dialog panel during an in-flight launch so focus can never escape to the background. (VRX-239 / VRX-241)
+- **Cache updates arriving during the join-instance IPC can no longer strand the dialog.** When main returns `target-changed`, the renderer immediately re-reads the cache; if it already contains a healthy, different target, the dialog enters Review right away instead of waiting for a further update that may never come. (VRX-239 / VRX-241)
+- **Identity boundary, auth-invalidated, and unmount now clear the dialog even mid-launch.** A session/invalidation generation fences in-flight completions so a late `target-changed` response after the boundary cannot reconstruct the previous account's pending dialog state. (VRX-239 / VRX-241)
+- **Unhealthy query state now wins over drift.** A failed background query that retained stale friend data used to let both an unavailable notice and a drift notice render, exposing Review in a non-joinable state; state precedence is now exclusive, and acknowledgment also requires a healthy query. (VRX-239 / VRX-241)
+
 ## [0.13.0] - 2026-08-02
 
 ### Added
@@ -26,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Join confirmation focus no longer jumps when the friend's target changes mid-flight.** A `target-changed` response from main used to reset focus to the Cancel button while the user was reading the drift notice; focus now stays where the user put it. Non-joinable friends (Ask Me / Do Not Disturb / offline) also cannot open the confirmation gate anymore — they show an honest "not joinable" blip at the click site instead. (VRX-239 / VRX-241)
+- **Non-joinable friends (Ask Me / Do Not Disturb / offline) cannot open the confirmation gate anymore — they show an honest "not joinable" blip at the click site instead.** (VRX-239 / VRX-241)
 - **Unknown ChilloutVR privacy is no longer mislabeled private.** If CVR sends a privacy value VRX does not recognize, the join confirmation now says "Openness unknown — treat it as public." and its headline stays neutral ("Join this instance?") instead of naming the type the parser safely degraded to. Recognized Invite instances keep their existing effectively-private wording. (VRX-240)
 - **Hot instances no longer claim friends are together when they aren't.** The Dashboard used to call a world "hot" when enough friends were anywhere in that world — so two friends in _different_ instances of the same world looked like they were hanging out together when they couldn't even see each other. Now a card (and the "friends gathering" notification) only appears when friends are in the exact same instance, and the wording says exactly that. (VRX-237)
 - **Friends who hide their location stay hidden from hot instances too.** If a friend sets Ask Me or Do Not Disturb, they no longer count toward a hot instance and never appear on its card or notification — their location stays as private there as the friends list already kept it. (VRX-237)

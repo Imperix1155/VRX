@@ -143,10 +143,31 @@ const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
  *  dialog simply omits the total until the surface lands. */
 type InstanceDetailsBridge = { getInstanceDetails?: (instanceId: string) => Promise<InstanceInfo> }
 
+/** Focusable descendants of the panel, excluding disabled, aria-disabled, and
+ *  hidden controls so the trap never land on an inert element. */
+function getFocusables(panel: HTMLElement): HTMLElement[] {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(
+    (el) =>
+      !el.hasAttribute('disabled') &&
+      el.getAttribute('aria-disabled') !== 'true' &&
+      !el.hasAttribute('hidden')
+  )
+}
+
 export default function JoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
-  const { pendingConfirm, isJoining, confirmPending, acknowledgePendingTarget, cancelPending } =
-    useJoinInstance()
+  const {
+    pendingConfirm,
+    isJoining,
+    confirmPending,
+    acknowledgePendingTarget,
+    cancelPending,
+    invalidatePending
+  } = useJoinInstance()
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -175,6 +196,8 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const isJoinableLive = liveFriend ? isFriendJoinable(liveFriend) : false
   const isDrift =
     !isWaiting &&
+    liveQuery.data !== undefined &&
+    !liveQuery.isError &&
     isJoinableLive &&
     liveKey !== null &&
     liveKey !== pendingConfirm?.reviewedTarget.key
@@ -266,28 +289,31 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       return
     }
     const unsubscribeIdentity = window.vrx.onIdentityBoundary(({ platform }) => {
-      if (pendingConfirmRef.current?.platform === platform) cancelPending()
+      if (pendingConfirmRef.current?.platform === platform) invalidatePending()
     })
     const unsubscribeFriend = window.vrx.onFriendEvent((event) => {
       if (
         event.type === 'auth-invalidated' &&
         event.platform === pendingConfirmRef.current?.platform
       ) {
-        cancelPending()
+        invalidatePending()
       }
     })
     return () => {
       unsubscribeIdentity()
       unsubscribeFriend()
-      if (pendingConfirmRef.current !== null) cancelPending()
+      // Use invalidatePending on unmount: a launch may still be settling and
+      // cancelPending would leave the latch alive.
+      if (pendingConfirmRef.current !== null) invalidatePending()
     }
-  }, [cancelPending])
+  }, [invalidatePending])
 
   // Esc closes; focus is trapped inside the panel while it's open; focus
-  // returns to whatever opened it on close. The modal is inert while a launch is
-  // committed: no keyboard interaction. This effect is keyed to the OPEN/CLOSE
-  // boolean (plus isJoining), not to pendingConfirm object identity, so a
-  // target-changed mutation of pendingConfirm cannot reset focus.
+  // returns to whatever opened it on close. The trap stays active during a
+  // launch (the modal is inert but focus must not escape to the background),
+  // and disabled/hidden/aria-disabled controls are excluded. This effect is
+  // keyed to the OPEN/CLOSE boolean, not to pendingConfirm object identity, so
+  // a target-changed mutation cannot reset focus.
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       wasOpenRef.current = true
@@ -316,37 +342,41 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       return
     }
 
-    if (!isOpen || isJoining) return
+    if (!isOpen) return
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (isJoining) return
       if (event.key === 'Escape') {
+        // Escape is ignored while a launch is committed: the modal is inert and
+        // Cancel is disabled.
+        if (isJoining) return
         cancelPending()
         return
       }
       if (event.key !== 'Tab') return
       const panel = panelRef.current
       if (panel === null) return
-      const focusables = panel.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-      if (focusables.length === 0) return
+      const focusables = getFocusables(panel)
       const first: HTMLElement | undefined = focusables[0]
       const last: HTMLElement | undefined = focusables[focusables.length - 1]
-      if (first === undefined || last === undefined) return
       const active = document.activeElement
-      if (active === null || !panel.contains(active)) {
-        // Focus is OUTSIDE the panel (or nowhere) — the wrap branches below
-        // can't match, so pull it back inside. This is what makes the trap a
-        // trap: Tab can never walk the background while the modal is open.
-        first.focus()
+      if (
+        active === null ||
+        !panel.contains(active) ||
+        (active !== null && !focusables.some((el) => el === active))
+      ) {
+        // Focus is OUTSIDE the panel, on a disabled/hidden element, or the
+        // panel itself while every control is inert — pull it to a valid anchor.
+        const target = first ?? panel
+        target.focus({ preventScroll: true })
         event.preventDefault()
-      } else if (event.shiftKey && active === first) {
-        last.focus()
-        event.preventDefault()
-      } else if (!event.shiftKey && active === last) {
-        first.focus()
-        event.preventDefault()
+      } else if (first !== undefined && last !== undefined) {
+        if (event.shiftKey && active === first) {
+          last.focus()
+          event.preventDefault()
+        } else if (!event.shiftKey && active === last) {
+          first.focus()
+          event.preventDefault()
+        }
       }
     }
     document.addEventListener('keydown', onKeyDown)
@@ -354,6 +384,22 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [isOpen, isJoining, cancelPending])
+
+  // While a launch is in flight every action control is disabled. Keep focus on
+  // a valid anchor (the panel itself when no control is focusable) so Tab can
+  // never walk the background.
+  useEffect(() => {
+    if (!isJoining) return
+    const panel = panelRef.current
+    if (panel === null) return
+    const focusables = getFocusables(panel)
+    const active = document.activeElement
+    if (focusables.length === 0) {
+      panel.focus({ preventScroll: true })
+    } else if (active === null || !focusables.includes(active as HTMLElement)) {
+      focusables[0]?.focus({ preventScroll: true })
+    }
+  }, [isJoining])
 
   if (pendingConfirm === null || friendForCopy == null) return null
 
@@ -418,7 +464,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   }
 
   function onReview(): void {
-    if (liveKey !== null) acknowledgePendingTarget(liveKey)
+    acknowledgePendingTarget()
   }
 
   return (
@@ -439,7 +485,8 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-labelledby="join-confirm-title"
-        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)]"
+        tabIndex={-1}
+        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
         {/* Platform top edge (hot-card recipe) — tint reinforces the PlatformPill
             word; neither carries platform alone (R12). */}

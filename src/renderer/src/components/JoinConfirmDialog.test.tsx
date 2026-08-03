@@ -362,6 +362,30 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
       }
     })
   })
+
+  it('target-changed from main surfaces an attributed failure blip on the clicked friend', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false },
+      dirty: false
+    })
+    joinInstance.mockResolvedValue({ ok: false, reason: 'target-changed' })
+    render(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Join Alex in The Great Pug' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.joinFailedFor(joinableFriend)).toBe(true)
+    expect(result.current.joinFailureFor(joinableFriend)).toBe('target-changed')
+  })
 })
 
 describe('openness copy (the safety context)', () => {
@@ -1251,6 +1275,119 @@ describe('focus management', () => {
 
     expect(document.activeElement).toBe(screen.getByTestId('main-landmark'))
   })
+
+  it('focus wraps forward and backward in Review state', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+    const review = within(dialog).getByRole('button', { name: 'Review updated location' })
+
+    // DOM order: More info → Cancel → Review.
+    review.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(moreInfo)
+
+    moreInfo.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(review)
+
+    // A disabled/hidden control is pulled back to the first valid focusable.
+    cancel.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  it('focus wraps forward and backward in unavailable state', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    updateFriend({ ...joinableFriend, presence: { state: 'offline' }, instance: null })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+
+    // DOM order: More info → Cancel.
+    cancel.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(moreInfo)
+
+    moreInfo.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  it('focus wraps forward and backward in waiting state', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'target-changed' })
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
+    const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+
+    cancel.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(moreInfo)
+
+    moreInfo.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  it('focus stays anchored on the panel during in-flight launch', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    // Every action control is disabled in flight; the panel itself is the anchor.
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(dialog)
+
+    // Escape is ignored while the launch is committed.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).not.toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+  })
 })
 
 describe("who's-there accessibility", () => {
@@ -1488,6 +1625,16 @@ describe('VRX-239/241 liveness contract', () => {
           isFetching: false,
           refetch: vi.fn()
         })
+        // The dialog's Confirm preflight reads the REAL TanStack query state,
+        // not just the hook mock. A retained stale array must not mask the error.
+        queryClient
+          .getQueryCache()
+          .find({ queryKey: friendsQueryKey('vrchat') })
+          ?.setState({
+            status: 'error',
+            data: undefined,
+            error: new Error('query failed')
+          })
       }
     }
   ])(
@@ -1559,6 +1706,172 @@ describe('VRX-239/241 liveness contract', () => {
     rerender(<TestSurface friend={joinableFriend} />)
     await act(async () => await Promise.resolve())
     expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
+  })
+
+  it('T4b acknowledgment re-reads the cache not the closure: post-render cache write is accepted by Review', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // First render shows drift against moved-1.
+    const moved1: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_moved_1',
+      instanceId: 'wrld_fixture:111~public'
+    }
+    updateFriend({ ...joinableFriend, instance: moved1 })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+    expect(within(dialog).getByRole('button', { name: 'Review updated location' })).toBeTruthy()
+
+    // Cache advances to moved-2 AFTER the last render but BEFORE the Review click.
+    const moved2: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_moved_2',
+      instanceId: 'wrld_fixture:222~public'
+    }
+    updateFriend({ ...joinableFriend, instance: moved2 })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Review updated location' }))
+      await Promise.resolve()
+    })
+
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedTarget: {
+          worldId: 'wrld_moved_2',
+          instanceId: 'wrld_fixture:222~public'
+        }
+      })
+    )
+  })
+
+  it('target-changed with cache already at a different healthy target enters Review immediately', async () => {
+    let resolveJoin!: (result: { ok: false; reason: 'target-changed' }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: false; reason: 'target-changed' }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    // While the IPC is pending, the live cache advances to a different target.
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    await act(async () => {
+      resolveJoin({ ok: false, reason: 'target-changed' })
+      await Promise.resolve()
+    })
+
+    // Finding 1: the fresh reread sees the already-advanced target and enters
+    // Review NOW, instead of arming the generation guard and waiting forever.
+    expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
+    expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
+    expect(joinInstance).toHaveBeenCalledOnce()
+  })
+
+  it('deferred IPC: target-changed response arrives after the cache has already advanced to B', async () => {
+    let resolveJoin!: (result: { ok: false; reason: 'target-changed' }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: false; reason: 'target-changed' }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    // Cache advances to B AFTER the IPC is already in flight.
+    const instanceB: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_b',
+      instanceId: 'wrld_fixture:bbb~public'
+    }
+    updateFriend({ ...joinableFriend, instance: instanceB })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    await act(async () => {
+      resolveJoin({ ok: false, reason: 'target-changed' })
+      await Promise.resolve()
+    })
+
+    expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
+    expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
+    expect(joinInstance).toHaveBeenCalledOnce()
+  })
+
+  it('query error with retained stale data shows unavailable only, never drift or Review', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // First the cache drifts to a different instance.
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    // Then the background query fails while the stale drift data is retained.
+    useFriendsMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      isFetching: false,
+      refetch: vi.fn()
+    })
+    queryClient
+      .getQueryCache()
+      .find({ queryKey: friendsQueryKey('vrchat') })
+      ?.setState({
+        status: 'error',
+        data: undefined,
+        error: new Error('query failed')
+      })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    // Finding 4: precedence must be exclusive — unhealthy query wins.
+    expect(within(dialog).getByText(/is no longer available to join/)).toBeTruthy()
+    expect(within(dialog).queryByText(/moved to a different instance/)).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Review updated location' })).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
   })
 
   it('main returning target-changed sets awaitingCacheAfter and blocks Confirm until cache advances', async () => {
@@ -1708,6 +2021,42 @@ describe('VRX-239/241 liveness contract', () => {
     expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
     expect(useSettingsStore.getState().settings.joinMode).toBe('ask')
   })
+
+  it("T7b Don't ask again does not persist when the cache has drifted since the last render", async () => {
+    const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+    window.vrx = { ...window.vrx, saveSettings }
+    render(
+      <>
+        <WithPersistence />
+        <TestSurface friend={joinableFriend} />
+      </>
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // The cache drifts BEFORE React re-renders, so the dialog still shows the
+    // normal footnote but confirmPending's fresh cache read sees the drift.
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: /Don't ask again/ }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).not.toHaveBeenCalled()
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
+    expect(saveSettings).not.toHaveBeenCalled()
+  })
 })
 
 describe('defensive latch clear (VRX-239/241)', () => {
@@ -1754,6 +2103,126 @@ describe('defensive latch clear (VRX-239/241)', () => {
 
     const { result } = renderHook(() => useJoinInstance())
     expect(result.current.pendingConfirm).toBeNull()
+  })
+
+  it('identity-boundary clears the dialog even while a launch is in flight', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+    expect(result.current.isJoining).toBe(false)
+  })
+
+  it('auth-invalidated clears the dialog even while a launch is in flight', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' }))
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+    expect(result.current.isJoining).toBe(false)
+  })
+
+  it('unmount while in-flight clears the latch and a late response does not resurrect state', async () => {
+    let resolveJoin!: (result: { ok: true }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    const { unmount } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    unmount()
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+    expect(result.current.isJoining).toBe(false)
+  })
+
+  it('late target-changed response after boundary does not reconstruct pendingConfirm', async () => {
+    let resolveJoin!: (result: { ok: false; reason: 'target-changed' }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<{ ok: false; reason: 'target-changed' }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+
+    await act(async () => {
+      resolveJoin({ ok: false, reason: 'target-changed' })
+      await Promise.resolve()
+    })
+
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+    expect(result.current.isJoining).toBe(false)
   })
 })
 

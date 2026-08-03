@@ -145,6 +145,31 @@ describe('join-instance handler', () => {
     await expect(call('join-instance', req)).rejects.toThrow('Invalid join-instance request')
   })
 
+  it.each([
+    { field: 'worldId', expectedTarget: { worldId: 'w'.repeat(2_049), instanceId: 'i' } },
+    { field: 'instanceId', expectedTarget: { worldId: 'w', instanceId: 'i'.repeat(2_049) } }
+  ])('schema-rejects $field longer than 2,048 characters', async ({ expectedTarget }) => {
+    await expect(
+      call('join-instance', {
+        platform: 'vrchat',
+        friendId: 'usr_friend',
+        mode: 'vr',
+        expectedTarget
+      })
+    ).rejects.toThrow('Invalid join-instance request')
+  })
+
+  it('accepts expectedTarget fields of exactly 2,048 characters', async () => {
+    await expect(
+      call('join-instance', {
+        platform: 'vrchat',
+        friendId: 'usr_friend',
+        mode: 'vr',
+        expectedTarget: { worldId: 'w'.repeat(2_048), instanceId: 'i'.repeat(2_048) }
+      })
+    ).resolves.toEqual({ ok: false, reason: 'stale' })
+  })
+
   it('returns stale and unknown-friend without launching', async () => {
     await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
       ok: false,

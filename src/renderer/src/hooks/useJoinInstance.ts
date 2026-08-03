@@ -85,8 +85,9 @@ interface JoinStore {
   getSnapshot: () => JoinSnapshot
   join: (friend: Friend) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
-  acknowledgePendingTarget: (presentedKey: string) => boolean
+  acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
+  invalidatePending: () => void
 }
 
 /** Read the latest friends array and the query's dataUpdateCount for CAS. */
@@ -129,6 +130,10 @@ function targetFor(friend: Friend): JoinTarget | null {
  */
 function createJoinStore(): JoinStore {
   let requestId = 0
+  /** Monotonic session generation. Advances on every new dialog session and on
+   *  explicit invalidation (boundary/unmount). In-flight completions must check
+   *  their captured generation before mutating state. */
+  let sessionGeneration = 0
   let snapshot: JoinSnapshot = {
     joining: false,
     pendingConfirm: null,
@@ -217,6 +222,7 @@ function createJoinStore(): JoinStore {
       const target = targetFor(friend)
       if (target === null) return
       requestId += 1
+      sessionGeneration += 1
       emit({
         pendingConfirm: {
           requestId,
@@ -256,9 +262,13 @@ function createJoinStore(): JoinStore {
 
     emit({ joining: true })
     clearFailureBlip()
+    const generationAtStart = sessionGeneration
     const friendKey = `${pc.platform}:${pc.platformUserId}`
     try {
       if (!window.vrx) {
+        // The session may have been invalidated while we were not awaiting; do
+        // not resurrect UI state for a dead session.
+        if (generationAtStart !== sessionGeneration) return 'failed'
         showFailureBlip(friendKey, 'unknown')
         emit({ joining: false, pendingConfirm: null })
         return 'failed'
@@ -272,17 +282,30 @@ function createJoinStore(): JoinStore {
           instanceId: pc.reviewedTarget.instanceId
         }
       })
+      // The dialog session may have been invalidated (identity boundary, auth
+      // invalidated, unmount) while the IPC was in flight. Do not resurrect
+      // state for a stale session.
+      if (generationAtStart !== sessionGeneration) return 'failed'
       if (result.ok) {
         // Atomic success: focus restoration can happen, joining ends, dialog closes.
         emit({ joining: false, pendingConfirm: null })
         return 'joined'
       }
       if (result.reason === 'target-changed') {
-        // Main's authority is ahead of the renderer cache. Record the current
-        // cache generation and stay open so the user can review once the cache
-        // advances. Re-read the count after the await to catch any updates that
-        // landed while the IPC was in flight.
+        // Main's authority is ahead of the renderer cache. Re-read the cache;
+        // if it already contains a healthy, DIFFERENT target, enter Review
+        // immediately so the dialog is never stranded waiting for an update
+        // that has already landed. Otherwise arm the generation guard and wait.
         const after = readFriendsCache(pc.platform)
+        const afterLive = after.friends?.find((f) => f.platformUserId === pc.platformUserId)
+        const afterTarget = afterLive && isFriendJoinable(afterLive) ? targetFor(afterLive) : null
+        if (afterTarget !== null && afterTarget.key !== pc.reviewedTarget.key) {
+          emit({
+            pendingConfirm: { ...pc, awaitingCacheAfter: null },
+            joining: false
+          })
+          return 'review-required'
+        }
         emit({
           pendingConfirm: {
             ...pc,
@@ -297,21 +320,26 @@ function createJoinStore(): JoinStore {
       emit({ joining: false, pendingConfirm: null })
       return 'failed'
     } catch {
+      if (generationAtStart !== sessionGeneration) return 'failed'
       showFailureBlip(friendKey, 'unknown')
       emit({ joining: false, pendingConfirm: null })
       return 'failed'
     }
   }
 
-  function acknowledgePendingTarget(presentedKey: string): boolean {
+  function acknowledgePendingTarget(presentedKey?: string): boolean {
     const pc = snapshot.pendingConfirm
     if (pc === null || snapshot.joining) return false
-    const { friends } = readFriendsCache(pc.platform)
-    if (friends === undefined) return false
+    // Acknowledgment must also be healthy: a failed query can retain stale data,
+    // and accepting it would let the dialog launch a target the cache can no
+    // longer vouch for.
+    const { friends, queryError } = readFriendsCache(pc.platform)
+    if (queryError !== null || friends === undefined) return false
     const live = friends.find((f) => f.platformUserId === pc.platformUserId)
     if (!live || !isFriendJoinable(live)) return false
     const liveTarget = targetFor(live)
-    if (liveTarget === null || liveTarget.key !== presentedKey) return false
+    if (liveTarget === null) return false
+    if (presentedKey !== undefined && liveTarget.key !== presentedKey) return false
     emit({
       pendingConfirm: {
         ...pc,
@@ -325,7 +353,21 @@ function createJoinStore(): JoinStore {
   function cancelPending(): void {
     // The launch is committed: the modal is inert and Cancel is disabled.
     if (snapshot.joining) return
-    if (snapshot.pendingConfirm !== null) emit({ pendingConfirm: null })
+    if (snapshot.pendingConfirm !== null) {
+      sessionGeneration += 1
+      emit({ pendingConfirm: null })
+    }
+  }
+
+  /** Invalidation is stronger than user Cancel: it clears the dialog even while
+   *  a launch is settling, and advances the session generation so any late IPC
+   *  completion for the old session is ignored. */
+  function invalidatePending(): void {
+    sessionGeneration += 1
+    clearFailureBlip()
+    if (snapshot.pendingConfirm !== null || snapshot.joining) {
+      emit({ pendingConfirm: null, joining: false })
+    }
   }
 
   return {
@@ -337,7 +379,8 @@ function createJoinStore(): JoinStore {
     join,
     confirmPending,
     acknowledgePendingTarget,
-    cancelPending
+    cancelPending,
+    invalidatePending
   }
 }
 
@@ -375,8 +418,9 @@ export function useJoinInstance(): {
   joinFailureFor: (friend: Friend) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
-  acknowledgePendingTarget: (presentedKey: string) => boolean
+  acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
+  invalidatePending: () => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
@@ -393,6 +437,7 @@ export function useJoinInstance(): {
     join: sharedJoinStore.join,
     confirmPending: sharedJoinStore.confirmPending,
     acknowledgePendingTarget: sharedJoinStore.acknowledgePendingTarget,
-    cancelPending: sharedJoinStore.cancelPending
+    cancelPending: sharedJoinStore.cancelPending,
+    invalidatePending: sharedJoinStore.invalidatePending
   }
 }
