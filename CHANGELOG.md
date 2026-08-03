@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
 
+### Fixed
+
+- **The window can no longer be resized smaller than it works at.** VRX had no minimum window size, so shrinking it could squeeze Settings' tallest page below its content height and force it to scroll — breaking the "control surfaces never scroll" rule. The window now refuses to shrink below its own shipped default (900×670). (VRX-243)
+
 ## [0.13.0] - 2026-08-02
 
 ### Added
