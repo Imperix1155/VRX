@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hardening
+
+- Added regression guards for external-window URL allowlisting and hardcoded local paths in source. (VRX-33, VRX-99)
+
 ### Changed
 
 - **Renderer-to-main IPC is now bounded per action.** Every project-owned request channel has a fixed, process-lifetime sliding-window ceiling (including capacity for three full 200-friend avatar paints), while a runaway renderer loop is contained without log storms. Expected action denials stay structured and background query failures preserve cached data. Budgets do not reset on renderer reload, denials do not carry `retryAfterMs`, and repeated dual-platform retry/reconnect cycles can exhaust the current `get-friends` ceiling; those sizing/recovery changes are deferred. (VRX-28)
