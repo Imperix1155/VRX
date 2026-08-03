@@ -22,12 +22,14 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20; W6 added Cyrillic-homoglyph + protocol-relative denials).
 - `security.test.ts` — unit tests for `isTrustedIpcSender` (audit W6 — the guard on every channel finally has coverage): dev exact-origin incl. the `localhost:5173.evil.com` prefix-spoof, port/scheme mismatch, unset-env fail-closed, malformed URLs; prod top-frame-file:// incl. the subframe rejection. Mocks `@electron-toolkit/utils` (`is.dev` is read per call).
 - `auth.test.ts` — handler boundary tests (audit W6): captures handlers via a mocked `ipcMain.handle`, then drives them with hostile payloads — untrusted sender, bad platform, non-string credentials/twoFactorCode (the W3 pin), no-adapter platform — plus happy-path delegation. Uses `stubPlatformAdapter` from the adapters' `__testutils__/adapterTestKit`.
-- `index.ts` — `registerIpcHandlers(adapters, options)`: wires all handlers; options carry the required AccountRegistry, AccountSession, LocationAuthority, `SocialStore`, instance clock/logger, and optional auth callbacks (VRX-24/72/84/166); imported once in `src/main/app.ts`.
+- `index.ts` — `registerIpcHandlers(adapters, options)`: the single registration point for all 15 invoke channels and `renderer-hydrated`; wraps registrations with the per-channel limiter before delegating to the unchanged domain callbacks. Options carry the required AccountRegistry, AccountSession, LocationAuthority, `SocialStore`, AppStatusService, hydration callback, instance clock/logger, optional auth callbacks, and test-only limiter clock/logger seams (VRX-24/28/72/84/166); imported once in `src/main/app.ts`.
+- `rate-limit.ts` / `rate-limit.test.ts` — VRX-28 pure per-channel sliding-window limiter, source budget table, structured/query/notify denial policy, first-denial-per-window warning suppression, monotonic injected clock tests, and the 600-avatar burst regression.
 - **Push channel `'friend-event'`** (typed in `@shared/ipc` `IpcEvents`) is LIVE as of VRX-146: main broadcasts normalized `AdapterEvent`s via `webContents.send`; the preload exposes `onFriendEvent(cb) → unsubscribe`; the renderer applies them to the TanStack cache. Push-only — no sender guard applies (main → renderer direction).
 
 ## Local Contracts
 
 - `isTrustedIpcSender` must be the FIRST call in every `ipcMain.handle` callback.
+- Every renderer→main channel is registered through `index.ts`'s per-channel limiter. Keep domain handler callbacks intact so their sender guard remains first inside the handler; limiter state/log suppression is per channel, timer-free, and contains no request payloads or PII.
 - `url-allowlist.ts` must stay pure (no electron imports) — it is unit-tested in isolation.
 - `isAllowedLaunchUrl` is private to the trusted friendId join path; never re-expose custom schemes through `open-url`.
 - `app-status.ts` is an explicit stub: do not expand it without the owning issue (VRX-79).

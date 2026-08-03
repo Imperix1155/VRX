@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Renderer-to-main IPC is now bounded per action.** Every request channel has a call-pattern-aware sliding-window limit: normal roster, settings, and status flows retain generous headroom (including three full 200-friend avatar paints), while a runaway renderer loop is contained without log storms. Expected action denials stay structured and background query failures preserve cached data. (VRX-28)
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
 
 ### Fixed

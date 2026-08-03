@@ -32,3 +32,7 @@ This creates a private thread visible only to you and the maintainer.
 VRX runs locally and signs in as the user on their own machine. Concerns about how VRX stores credentials or handles data from the VRChat and ChilloutVR APIs are in scope.
 
 Issues in VRChat or ChilloutVR themselves are out of scope — please report those to their respective vendors.
+
+## Application safeguards
+
+Renderer-to-main IPC keeps its sender validation inside every handler and is also bounded by timer-free, per-channel sliding windows. Limits reflect each channel's legitimate call pattern, denial logs contain the channel name only, and repeated denials in the same active window are suppressed.

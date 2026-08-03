@@ -46,6 +46,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
 - No hardcoded paths — use `app.getPath()`.
 - `redact.ts` MUST stay pure (no electron imports) so it remains unit-testable in isolation.
+- `app.ts` owns the per-window renderer-hydration `ShowGate` map and its trust-first callback; `ipc/index.ts` owns the single lifetime registration of the rate-limited `renderer-hydrated` channel.
 - Never write to VRCX/CVRX folders.
 - Credential values must enter and leave persistence only through `services/credentials.ts`; never expose `loadCredential()` or credential-owner proofs through IPC or log their inputs/outputs. Credential keys are runtime-allowlisted and dot notation stays disabled. Encryption unavailability must fail closed, and Linux must also reject Electron's `basic_text` storage backend even when `isEncryptionAvailable()` is true; deletion remains available. Each adapter must pass its validated account id into the injected credential `save`; the main save closure records ownership only after `saveCredential` successfully writes the ciphertext. `onIdentity` drives `AccountSession`/registry state only. A write failure or digest mismatch means unknown ownership and must fail closed to null.
 
