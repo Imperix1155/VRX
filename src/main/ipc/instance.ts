@@ -2,6 +2,7 @@ import { ipcMain, shell } from 'electron'
 import type { InstanceActionResult, IpcInvoke } from '@shared/ipc'
 import type { JoinMode, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
@@ -10,6 +11,7 @@ import { isAllowedLaunchUrl } from './url-allowlist'
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 const VALID_JOIN_MODES = new Set<JoinMode>(['desktop', 'vr'])
 const JOIN_COOLDOWN_MS = 3_000
+const MAX_TARGET_FIELD_LENGTH = 2_048
 type InstanceAction = 'join' | 'self-invite'
 
 type InstanceLog = (
@@ -47,7 +49,15 @@ export function registerInstanceHandlers(
       !VALID_PLATFORMS.has(req.platform) ||
       typeof req.friendId !== 'string' ||
       !req.friendId ||
-      !VALID_JOIN_MODES.has(req.mode)
+      !VALID_JOIN_MODES.has(req.mode) ||
+      typeof req.expectedTarget !== 'object' ||
+      req.expectedTarget === null ||
+      typeof req.expectedTarget.worldId !== 'string' ||
+      typeof req.expectedTarget.instanceId !== 'string' ||
+      !req.expectedTarget.worldId ||
+      !req.expectedTarget.instanceId ||
+      req.expectedTarget.worldId.length > MAX_TARGET_FIELD_LENGTH ||
+      req.expectedTarget.instanceId.length > MAX_TARGET_FIELD_LENGTH
     ) {
       throw new Error('Invalid join-instance request')
     }
@@ -56,6 +66,21 @@ export function registerInstanceHandlers(
     const resolved = authority.resolve(req.platform, req.friendId)
     if (!resolved.ok) return denied(req.platform, resolved.reason)
     if (!isFriendJoinable(resolved.friend)) return denied(req.platform, 'not-joinable')
+
+    // Codex CAS (VRX-239): the renderer-supplied expectedTarget is a compare-
+    // and-swap precondition, never launch input. Build the URL ONLY from the
+    // main-owned current friend record.
+    const currentKey = hotInstanceKey(
+      req.platform,
+      resolved.friend.instance!.instanceId,
+      resolved.friend.instance!.worldId
+    )
+    const expectedKey = hotInstanceKey(
+      req.platform,
+      req.expectedTarget.instanceId,
+      req.expectedTarget.worldId
+    )
+    if (currentKey !== expectedKey) return denied(req.platform, 'target-changed')
 
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')

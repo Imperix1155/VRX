@@ -34,6 +34,7 @@ export type InstanceActionResult =
         | 'rate-limited'
         | 'launch-failed'
         | 'invite-failed'
+        | 'target-changed'
     }
 
 /**
@@ -49,7 +50,16 @@ export interface IpcInvoke {
   'verify-2fa': { req: { platform: Platform; code: string }; res: LoginResult }
   logout: { req: { platform: Platform }; res: void }
   'join-instance': {
-    req: { platform: Platform; friendId: string; mode: JoinMode }
+    req: {
+      platform: Platform
+      friendId: string
+      mode: JoinMode
+      /** Compare-and-swap precondition: the target the user saw and accepted.
+       *  Main compares this against the CURRENT authority target and rejects
+       *  with `target-changed` if they no longer match — it is NEVER used as
+       *  launch input. */
+      expectedTarget: { worldId: string; instanceId: string }
+    }
     res: InstanceActionResult
   }
   'self-invite': {
