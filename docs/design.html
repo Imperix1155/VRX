@@ -658,7 +658,7 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
       <section class="panel glass" id="shell">
         <div class="kick">08 · Layout</div>
         <div class="stitle">The app shell</div>
-        <p class="slead">A fixed 248px glass sidebar and a single scrolling content column. The shell never scrolls; only the main column does. The window can't be resized below the app's own shipped default (900×670, VRX-243) — the floor that keeps Settings' tallest category scroll-free.</p>
+        <p class="slead">A fixed 248px glass sidebar and a single scrolling content column. The shell never scrolls; only the main column does. The window can't be resized below the app's own shipped default (900×670, clamped to the display work area — VRX-243), the floor that keeps Settings' tallest category scroll-free on any ordinary display.</p>
         <div class="el" style="border:0;padding-top:10px;">
           <div class="demo">
             <div style="display:flex;gap:8px;width:100%;max-width:520px;height:150px;">

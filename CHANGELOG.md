@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **The window can no longer be resized smaller than it works at.** VRX had no minimum window size, so shrinking it could squeeze Settings' tallest page below its content height and force it to scroll — breaking the "control surfaces never scroll" rule. The window now refuses to shrink below its own shipped default (900×670). (VRX-243)
+- **The window can no longer be resized smaller than it works at.** VRX had no minimum window size, so shrinking it could squeeze Settings' tallest page below its content height and force it to scroll — breaking the "control surfaces never scroll" rule. The window now refuses to shrink below its own shipped default (900×670), clamped to the display's work area so small or DPI-scaled screens keep a fully visible, resizable window. (VRX-243)
 
 ## [0.13.0] - 2026-08-02
 
