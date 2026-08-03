@@ -30,11 +30,6 @@ afterEach(() => {
   cleanup()
 })
 
-// Silence electron-log/renderer in the test environment (no IPC bridge).
-vi.mock('electron-log/renderer', () => ({
-  default: { error: vi.fn() }
-}))
-
 function Bomb(): React.JSX.Element {
   throw new Error('test render error')
 }

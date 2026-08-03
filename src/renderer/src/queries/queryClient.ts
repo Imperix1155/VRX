@@ -1,5 +1,9 @@
 import { QueryClient } from '@tanstack/react-query'
 
+function isRateLimitedError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'rate_limited'
+}
+
 /**
  * Shared TanStack Query client (VRX-22).
  *
@@ -15,7 +19,10 @@ export const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      retry: 3 // TanStack applies exponential backoff between retries
+      // Local IPC rate-limit denials are deterministic inside their window;
+      // retrying them only consumes more channel budget. Other failures keep
+      // the existing three-retry policy and TanStack's exponential backoff.
+      retry: (failureCount, error) => (isRateLimitedError(error) ? false : failureCount < 3)
     }
   }
 })

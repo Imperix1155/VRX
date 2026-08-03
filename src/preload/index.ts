@@ -1,11 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcEvents, IpcInvoke, IpcNotifications } from '@shared/ipc'
 
-function invoke<K extends keyof IpcInvoke>(
+async function invoke<K extends keyof IpcInvoke>(
   channel: K,
   req: IpcInvoke[K]['req']
 ): Promise<IpcInvoke[K]['res']> {
-  return ipcRenderer.invoke(channel, req)
+  try {
+    return (await ipcRenderer.invoke(channel, req)) as IpcInvoke[K]['res']
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === 'rate_limited' ||
+        error.message === `Error invoking remote method '${channel}': Error: rate_limited`)
+    ) {
+      throw new Error('rate_limited')
+    }
+    throw error
+  }
 }
 
 function notify<K extends keyof IpcNotifications>(channel: K, payload: IpcNotifications[K]): void {

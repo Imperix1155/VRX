@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
-import log from 'electron-log'
+import log from '../logger'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])

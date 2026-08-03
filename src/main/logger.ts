@@ -11,7 +11,7 @@
  *   `VRX_LOG_LEVEL` env var is the interim override).
  * - Surfacing the log path in a diagnostics panel → VRX-81 (use `getLogFilePath()`).
  */
-import log from 'electron-log/main'
+import log from 'electron-log/node'
 import { app } from 'electron'
 import { join } from 'path'
 import { redact } from './redact'
@@ -29,8 +29,6 @@ let logFilePath = ''
 
 /** Configure electron-log. Call once, inside `app.whenReady()`. */
 export function initLogger(): void {
-  log.initialize() // enable logging from the renderer + preload via the main bridge
-
   // Path BEFORE getFile() so the resolver takes effect. appData = %APPDATA% (Win),
   // ~/.config (Linux), ~/Library/Application Support (macOS).
   log.transports.file.resolvePathFn = (): string =>

@@ -29,6 +29,7 @@ export function resolveWireMode(
 export function joinFailureMessageKey(reason: JoinFailureReason): string {
   if (reason === 'stale') return 'friends.joinFailure.stale'
   if (reason === 'cooldown') return 'friends.joinFailure.cooldown'
+  if (reason === 'rate-limited') return 'friends.joinFailure.rateLimited'
   if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
   return 'friends.joinFailed'
 }

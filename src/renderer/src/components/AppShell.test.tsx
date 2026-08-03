@@ -31,13 +31,6 @@ vi.mock('../queries/auth', () => ({
   })
 }))
 
-// Silence electron-log/renderer (ErrorBoundary imports it): the REAL module
-// hangs the vitest worker at import — no IPC bridge in jsdom. Same mock as
-// ErrorBoundary.test.
-vi.mock('electron-log/renderer', () => ({
-  default: { error: vi.fn() }
-}))
-
 // jsdom has no ResizeObserver (the segmented bubble effects observe their tracks).
 class ResizeObserverStub {
   observe = vi.fn()

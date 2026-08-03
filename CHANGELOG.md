@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Renderer-to-main IPC is now bounded per action.** Every project-owned request channel has a fixed, process-lifetime sliding-window ceiling (including capacity for three full 200-friend avatar paints), while a runaway renderer loop is contained without log storms. Expected action denials stay structured and background query failures preserve cached data. Budgets do not reset on renderer reload, denials do not carry `retryAfterMs`, and repeated dual-platform retry/reconnect cycles can exhaust the current `get-friends` ceiling; those sizing/recovery changes are deferred. (VRX-28)
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
 - **Join confirmation now stays live with the friend's current instance (VRX-239 / VRX-241).** If a friend's instance changes while the dialog is open, VRX shows a drift notice and asks you to review the new target instead of launching the old one. The renderer and main process compare the expected instance identity before any launch, so the dialog never describes one instance and launches another.
 
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **IPC throttling and settings persistence are hardened at their process boundaries.** Sender trust is checked before any rate-limit state changes. electron-log now uses its main-only surface, electron-store's unused renderer bootstrap listener is removed during central IPC wiring, and a literal registration audit pins the remaining 15 invoke channels plus `renderer-hydrated`. The preload converts Electron's wrapped invoke rejection into `Error('rate_limited')`; queries stop retrying that normalized denial, while settings startup recognizes it and makes two fixed 250ms/500ms retries (which may still expire before the process-lifetime budget recovers). Settings snapshots now reach main immediately, where disk writes coalesce for 250ms and flush synchronously on `before-quit`. Join limits explain “Too many attempts — try again shortly” instead of showing the generic failure. (VRX-28)
 - **The window can no longer be resized smaller than it works at.** VRX had no minimum window size, so shrinking it could squeeze Settings' tallest page below its content height and force it to scroll — breaking the "control surfaces never scroll" rule. The window now refuses to shrink below its own shipped default (900×670), clamped to the display's work area so small or DPI-scaled screens keep a fully visible, resizable window. (VRX-243)
 
 ## [0.13.0] - 2026-08-02
