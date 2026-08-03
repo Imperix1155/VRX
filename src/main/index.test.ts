@@ -7,6 +7,20 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(fileURLToPath(new URL('./app.ts', import.meta.url)), 'utf8')
 const entrySource = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
 
+const findMatchingBrace = (text: string, openingBrace: number): number => {
+  let depth = 0
+
+  for (let index = openingBrace; index < text.length; index += 1) {
+    if (text[index] === '{') depth += 1
+    if (text[index] === '}') depth -= 1
+    if (depth === 0) return index
+  }
+
+  throw new Error('Unclosed window-open handler')
+}
+
+const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
+
 describe('main native notification wiring', () => {
   it('includes the packaged app icon on native notifications (VRX-82)', () => {
     expect(source).toContain('new NativeNotification({ title, body, icon })')
@@ -104,17 +118,25 @@ describe('main navigation hardening', () => {
   it('opens only allowlisted window URLs externally and always denies the new window (VRX-33)', () => {
     // Keep this line-anchored: a bare substring would still pass if the
     // handler, gate, or denial line were commented out (VRX-243 lesson).
-    const handler = source.match(
-      /^\s*mainWindow\.webContents\.setWindowOpenHandler\(\(details\) => \{\n([\s\S]*?)^\s*}\)\n\n\s*const rendererPath/m
-    )?.[1]
+    const handlerStart = source.search(
+      /^\s*mainWindow\.webContents\.setWindowOpenHandler\(\(details\) => \{$/m
+    )
+    expect(handlerStart).toBeGreaterThan(-1)
 
-    expect(handler).toBeDefined()
-    expect(handler).toMatch(/^\s*if \(isAllowedUrl\(details\.url\)\) \{$/m)
+    const handlerOpeningBrace = source.indexOf('{', handlerStart)
+    const handler = source.slice(
+      handlerOpeningBrace + 1,
+      findMatchingBrace(source, handlerOpeningBrace)
+    )
+    const executableHandler = stripComments(handler)
 
-    const [allowedBranch, disallowedBranch] = handler!.split(/^\s*} else \{$/m)
+    expect(executableHandler).toMatch(/^\s*if \(isAllowedUrl\(details\.url\)\) \{$/m)
+
+    const [allowedBranch, disallowedBranch] = executableHandler.split(/^\s*} else \{$/m)
     expect(allowedBranch).toMatch(/^\s*shell\.openExternal\(details\.url\)\.catch\(/m)
+    expect(disallowedBranch).toBeDefined()
     expect(disallowedBranch).not.toMatch(/^\s*shell\.openExternal\(details\.url\)/m)
-    expect(handler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
+    expect(executableHandler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
   })
 })
 
