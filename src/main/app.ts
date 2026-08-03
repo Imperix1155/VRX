@@ -3,10 +3,11 @@ import {
   shell,
   BrowserWindow,
   dialog,
-  ipcMain,
+  screen,
   session,
   Notification as NativeNotification,
-  type IpcMainEvent
+  type IpcMainEvent,
+  type WebContents
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'node:url'
@@ -14,7 +15,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
-import { getSettingsSnapshot, loadSettings } from './services/settings'
+import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -27,7 +28,6 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
-import type { IpcNotifications } from '@shared/ipc'
 import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -39,7 +39,7 @@ import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
 import { isTrustedIpcSender } from './ipc/security'
-import { createShowGate } from './showGate'
+import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 
@@ -65,10 +65,15 @@ const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
 const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
 const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
-const RENDERER_HYDRATED_CHANNEL = 'renderer-hydrated' satisfies keyof IpcNotifications
 // Trailing creator-set instance label, e.g. "Bono's Movie Night (#teehee)" —
 // matches the renderer's display strip (utils/worldName).
 const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
+const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
+
+const onRendererHydrated = (event: IpcMainEvent): void => {
+  if (!isTrustedIpcSender(event.senderFrame)) return
+  rendererHydrationGates.get(event.sender)?.hydrated()
+}
 
 function releaseRetainedFriendNotification(notification: NativeNotification): void {
   const timer = retainedFriendNotifications.get(notification)
@@ -77,10 +82,20 @@ function releaseRetainedFriendNotification(notification: NativeNotification): vo
 }
 
 function createWindow(): BrowserWindow {
+  // VRX-243 / DESIGN.md §8 no-scroll rule: control surfaces (Settings) must
+  // never scroll, and nothing enforced a floor — pin it to the shipped
+  // default size rather than a new, unmeasured number (see commit body for
+  // the row-by-row arithmetic behind this choice). Clamped to the display's
+  // work area (review F2): Electron does not clamp min sizes itself, and an
+  // unclamped 670 floor would leave small/DPI-scaled displays (e.g. 1366x768
+  // at 125%) with the window bottom permanently off-screen and no recovery.
+  const { workAreaSize } = screen.getPrimaryDisplay()
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
+    minWidth: Math.min(900, workAreaSize.width),
+    minHeight: Math.min(670, workAreaSize.height),
     show: false,
     // Window/taskbar name. Without this the title bar reads the renderer's
     // <title> — which is "VRX", but only after the page loads; set it here so
@@ -107,15 +122,9 @@ function createWindow(): BrowserWindow {
       log.warn('renderer hydration timed out; showing window with fallback')
     }
   })
+  rendererHydrationGates.set(mainWindow.webContents, showGate)
   mainWindow.once('ready-to-show', () => showGate.ready())
-
-  const onRendererHydrated = (event: IpcMainEvent): void => {
-    if (!isTrustedIpcSender(event.senderFrame)) return
-    if (event.sender === mainWindow.webContents) showGate.hydrated()
-  }
-  ipcMain.on(RENDERER_HYDRATED_CHANNEL, onRendererHydrated)
   mainWindow.once('closed', () => {
-    ipcMain.removeListener(RENDERER_HYDRATED_CHANNEL, onRendererHydrated)
     showGate.dispose()
   })
 
@@ -603,6 +612,7 @@ app
         }
       },
       locationAuthority,
+      onRendererHydrated,
       instance: {
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)
@@ -630,6 +640,9 @@ app
     const unsubscribeVrcLive = vrcAdapter.subscribe(handleAdapterEvent)
     const unsubscribeCvrLive = cvrAdapter.subscribe(handleAdapterEvent)
     app.on('before-quit', () => {
+      // Renderer changes are handed to main immediately; force the latest
+      // coalesced snapshot to disk before window teardown can discard it.
+      flushPendingSettingsSave()
       // Close both sockets and halt the reconnect loops so quit is clean.
       unsubscribeVrcLive()
       unsubscribeCvrLive()

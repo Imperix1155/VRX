@@ -7,6 +7,20 @@ import { describe, expect, it } from 'vitest'
 const source = readFileSync(fileURLToPath(new URL('./app.ts', import.meta.url)), 'utf8')
 const entrySource = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
 
+const findMatchingBrace = (text: string, openingBrace: number): number => {
+  let depth = 0
+
+  for (let index = openingBrace; index < text.length; index += 1) {
+    if (text[index] === '{') depth += 1
+    if (text[index] === '}') depth -= 1
+    if (depth === 0) return index
+  }
+
+  throw new Error('Unclosed window-open handler')
+}
+
+const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
+
 describe('main native notification wiring', () => {
   it('includes the packaged app icon on native notifications (VRX-82)', () => {
     expect(source).toContain('new NativeNotification({ title, body, icon })')
@@ -100,6 +114,30 @@ describe('main navigation hardening', () => {
     expect(source).toContain('url.origin === entryOrigin')
     expect(source).toContain('if (!isOwnEntry) event.preventDefault()')
   })
+
+  it('opens only allowlisted window URLs externally and always denies the new window (VRX-33)', () => {
+    // Keep this line-anchored: a bare substring would still pass if the
+    // handler, gate, or denial line were commented out (VRX-243 lesson).
+    const handlerStart = source.search(
+      /^\s*mainWindow\.webContents\.setWindowOpenHandler\(\(details\) => \{$/m
+    )
+    expect(handlerStart).toBeGreaterThan(-1)
+
+    const handlerOpeningBrace = source.indexOf('{', handlerStart)
+    const handler = source.slice(
+      handlerOpeningBrace + 1,
+      findMatchingBrace(source, handlerOpeningBrace)
+    )
+    const executableHandler = stripComments(handler)
+
+    expect(executableHandler).toMatch(/^\s*if \(isAllowedUrl\(details\.url\)\) \{$/m)
+
+    const [allowedBranch, disallowedBranch] = executableHandler.split(/^\s*} else \{$/m)
+    expect(allowedBranch).toMatch(/^\s*shell\.openExternal\(details\.url\)\.catch\(/m)
+    expect(disallowedBranch).toBeDefined()
+    expect(disallowedBranch).not.toMatch(/^\s*shell\.openExternal\(details\.url\)/m)
+    expect(executableHandler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
+  })
 })
 
 describe('main location authority event ordering', () => {
@@ -157,5 +195,20 @@ describe('main credential-owner wiring', () => {
         `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
       )
     )
+  })
+})
+
+describe('main window minimum size (VRX-243)', () => {
+  it('pins minWidth/minHeight to the shipped default so the window can never shrink below it', () => {
+    // DESIGN.md §8's no-scroll rule (control surfaces don't scroll) had no
+    // mechanical guard: a user-shrunk window could squeeze Settings below the
+    // height its tallest category (Behavior, 5 rows) needs, forcing a scrollbar.
+    // The floor is pinned to the app's own already-shipped default (900x670),
+    // clamped to the display work area so small/scaled screens keep a usable
+    // window. Line-anchored regexes (review F1, mutation-proven): a bare
+    // substring match stays green when the lines are commented out.
+    expect(source).toContain('width: 900,\n    height: 670,')
+    expect(source).toMatch(/^\s*minWidth: Math\.min\(900, workAreaSize\.width\),\s*$/m)
+    expect(source).toMatch(/^\s*minHeight: Math\.min\(670, workAreaSize\.height\),\s*$/m)
   })
 })

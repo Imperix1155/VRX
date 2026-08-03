@@ -658,7 +658,7 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
       <section class="panel glass" id="shell">
         <div class="kick">08 · Layout</div>
         <div class="stitle">The app shell</div>
-        <p class="slead">A fixed 248px glass sidebar and a single scrolling content column. The shell never scrolls; only the main column does.</p>
+        <p class="slead">A fixed 248px glass sidebar and a single scrolling content column. The shell never scrolls; only the main column does. The window can't be resized below the app's own shipped default (900×670, clamped to the display work area — VRX-243), the floor that keeps Settings' tallest category scroll-free on any ordinary display.</p>
         <div class="el" style="border:0;padding-top:10px;">
           <div class="demo">
             <div style="display:flex;gap:8px;width:100%;max-width:520px;height:150px;">
@@ -746,7 +746,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 .ftab { <span class="c">/* platform channel: VRC/CVR text */</span> }
 .rav .disc { box-shadow: <span class="v">0 0 0 2.5px var(--ring)</span>; } <span class="c">/* privacy tier ring */</span>
 .opill { <span class="c">/* openness label; the join target */</span> }</div></div>
-            <div><div class="box-label why">Why</div><div class="why">The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; Private stays neutral, and an active friend with no instance has no pill.</div></div>
+            <div><div class="box-label why">Why</div><div class="why">The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; Private stays neutral, and an active friend with no instance has no pill. A rate-limited Join announces “Too many attempts — try again shortly” in its polite status blip, never the generic failure.</div></div>
           </div>
         </div>
       </section>
