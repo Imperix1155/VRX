@@ -4,17 +4,17 @@ import { useSettingsStore } from '../stores/settings'
 
 const SETTINGS_LOAD_MAX_ATTEMPTS = 3
 const SETTINGS_LOAD_BACKOFF_MS = 250
-const SETTINGS_SAVE_DEBOUNCE_MS = 250
+
+function isRateLimitedError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'rate_limited'
+}
 
 async function loadSettingsWithRetry(load: () => Promise<Settings>): Promise<Settings> {
   for (let attempt = 0; attempt < SETTINGS_LOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
       return await load()
     } catch (error) {
-      const canRetry =
-        error instanceof Error &&
-        error.message === 'rate_limited' &&
-        attempt < SETTINGS_LOAD_MAX_ATTEMPTS - 1
+      const canRetry = isRateLimitedError(error) && attempt < SETTINGS_LOAD_MAX_ATTEMPTS - 1
       if (!canRetry) throw error
       await new Promise<void>((resolve) => {
         setTimeout(resolve, SETTINGS_LOAD_BACKOFF_MS * 2 ** attempt)
@@ -41,11 +41,11 @@ async function loadSettingsWithRetry(load: () => Promise<Settings>): Promise<Set
  * leaving a normal-looking session whose saves are silently disabled. If the
  * bridge is absent (Preview/tests), hydration happens immediately.
  *
- * Change: whenever the store turns dirty, a 250ms trailing debounce coalesces
- * rapid changes and saves the FINAL settings snapshot as the patch over
- * `save-settings`, then `markSaved`. Saves are GATED until the boot load has
- * landed — saving earlier would patch the default-seeded object over the
- * on-disk file and wipe unrelated persisted fields (Codex [high], PR #116).
+ * Change: whenever the store turns dirty, hands the current full snapshot to
+ * main immediately; main owns disk-write coalescing and quit-time flushing.
+ * Saves are GATED until the boot load has landed — saving earlier would patch
+ * the default-seeded object over the on-disk file and wipe unrelated persisted
+ * fields (Codex [high], PR #116).
  * The clean transition is double-guarded: the effect-cleanup flag AND a
  * snapshot identity check (zustand replaces the settings object on every
  * update), so a stale save resolving before React runs the cleanup can never
@@ -106,22 +106,19 @@ export function useSettingsPersistence(): void {
     let cancelled = false
     const snapshot = settings
     const bridge = window.vrx
-    const saveTimer = window.setTimeout(() => {
-      void bridge
-        .saveSettings({ patch: snapshot })
-        .then(() => {
-          if (!cancelled && useSettingsStore.getState().settings === snapshot) {
-            useSettingsStore.getState().markSaved()
-          }
-        })
-        .catch(() => {
-          // Leave dirty (retried on the next change). The only expected rejection
-          // is the deliberate newer-version rollback refusal.
-        })
-    }, SETTINGS_SAVE_DEBOUNCE_MS)
+    void bridge
+      .saveSettings({ patch: snapshot })
+      .then(() => {
+        if (!cancelled && useSettingsStore.getState().settings === snapshot) {
+          useSettingsStore.getState().markSaved()
+        }
+      })
+      .catch(() => {
+        // Leave dirty (retried on the next change). The only expected rejection
+        // is the deliberate newer-version rollback refusal.
+      })
     return () => {
       cancelled = true
-      window.clearTimeout(saveTimer)
     }
   }, [loaded, dirty, settings])
 

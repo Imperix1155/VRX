@@ -17,7 +17,12 @@ const electron = vi.hoisted(() => {
     on: vi.fn((channel: string, handler: NotificationHandler) => {
       notificationHandlers.set(channel, handler)
       return ipcMain
-    })
+    }),
+    removeAllListeners: vi.fn((channel: string) => {
+      notificationHandlers.delete(channel)
+      return ipcMain
+    }),
+    handleOnce: vi.fn()
   }
   return { invokeHandlers, notificationHandlers, ipcMain }
 })
@@ -103,6 +108,8 @@ beforeEach(() => {
   electron.notificationHandlers.clear()
   electron.ipcMain.handle.mockClear()
   electron.ipcMain.on.mockClear()
+  electron.ipcMain.removeAllListeners.mockClear()
+  electron.ipcMain.handleOnce.mockClear()
   now = 0
   warn = vi.fn()
   hydrated = vi.fn()
@@ -117,6 +124,36 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(electron.invokeHandlers.size).toBe(15)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
+  })
+
+  it('registers only the enumerated VRX channels after main IPC wiring', () => {
+    // electron-store registers this renderer bootstrap listener from its
+    // constructor even though VRX never calls ElectronStore.initRenderer().
+    electron.ipcMain.on('electron-store-get-data', () => undefined)
+
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+
+    expect([...electron.invokeHandlers.keys()].sort()).toEqual(
+      [
+        'get-accounts',
+        'get-app-status',
+        'get-auth-status',
+        'get-avatar',
+        'get-friend-note',
+        'get-friends',
+        'get-settings',
+        'join-instance',
+        'login',
+        'logout',
+        'open-url',
+        'save-settings',
+        'self-invite',
+        'set-friend-note',
+        'verify-2fa'
+      ].sort()
+    )
+    expect([...electron.notificationHandlers.keys()]).toEqual(['renderer-hydrated'])
+    expect(electron.ipcMain.handleOnce).not.toHaveBeenCalled()
   })
 
   it('returns a structured denial for an action channel', () => {

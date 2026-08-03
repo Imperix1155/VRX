@@ -100,26 +100,36 @@ describe('useSettingsPersistence', () => {
     })
   })
 
-  it('coalesces rapid changes into one trailing save carrying the final settings state', async () => {
-    vi.useFakeTimers()
+  it('hands every rapid snapshot to main immediately, with the final state last', async () => {
     const bridge = stubBridge()
     render(<Probe />)
-    await act(() => Promise.resolve())
-    expect(storeState().settings.theme).toBe('dark')
+    await waitFor(() => expect(storeState().settings.theme).toBe('dark'))
 
     act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
-    await act(async () => vi.advanceTimersByTimeAsync(200))
+    await act(() => Promise.resolve())
     act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+    await act(() => Promise.resolve())
 
-    await act(async () => vi.advanceTimersByTimeAsync(249))
-    expect(bridge.saveSettings).not.toHaveBeenCalled()
-
-    await act(async () => vi.advanceTimersByTimeAsync(1))
-    expect(bridge.saveSettings).toHaveBeenCalledOnce()
-    expect(bridge.saveSettings).toHaveBeenCalledWith({
+    expect(bridge.saveSettings).toHaveBeenCalledTimes(2)
+    expect(bridge.saveSettings).toHaveBeenLastCalledWith({
       patch: expect.objectContaining({ theme: 'light', density: 'compact' })
     })
     expect(storeState().dirty).toBe(false)
+  })
+
+  it('hands the latest dirty snapshot to main before teardown can cancel persistence', async () => {
+    vi.useFakeTimers()
+    const bridge = stubBridge()
+    const view = render(<Probe />)
+    await act(() => Promise.resolve())
+
+    act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
+    view.unmount()
+
+    expect(bridge.saveSettings).toHaveBeenCalledOnce()
+    expect(bridge.saveSettings).toHaveBeenCalledWith({
+      patch: expect.objectContaining({ theme: 'light' })
+    })
   })
 
   it('persists drawerOpener through save-settings like its siblings (VRX-228)', async () => {

@@ -5,7 +5,7 @@
  * resolved by electron-store). The schema, defaults, and migration logic live in
  * `@shared/settings` (pure + unit-tested); this module is the thin main-process
  * wiring: load (migrate + validate on read, then persist the normalized form back)
- * and save (merge a patch, validate, persist).
+ * and save (merge/validate immediately, then coalesce disk writes in main).
  *
  * electron-store@11 is ESM-only, so it is bundled into the main process (not
  * externalized) — see `externalizeDepsPlugin` exclude in `electron.vite.config.ts`.
@@ -21,6 +21,20 @@ import log from '../logger'
 
 let store: Store<Record<string, unknown>> | undefined
 let settingsSnapshot: Settings | undefined
+const SETTINGS_SAVE_DEBOUNCE_MS = 250
+
+interface SettingsSaveWaiter {
+  resolve: (settings: Settings) => void
+  reject: (error: unknown) => void
+}
+
+interface PendingSettingsSave {
+  settings: Settings
+  timer: ReturnType<typeof setTimeout>
+  waiters: SettingsSaveWaiter[]
+}
+
+let pendingSettingsSave: PendingSettingsSave | undefined
 
 // Lazy: electron-store resolves the userData path via `app`, which is only ready
 // after `app.whenReady()`. Constructing on first use keeps this import side-effect-free.
@@ -66,10 +80,14 @@ export function getSettingsSnapshot(): Settings {
   return settingsSnapshot ?? loadSettings()
 }
 
-/** Merge a partial patch over the current settings, validate, and persist. */
-export function saveSettings(patch: Partial<Settings>): Settings {
+/**
+ * Merge a partial patch over the current in-memory settings immediately, then
+ * coalesce disk persistence in main. The returned promise settles when the
+ * coalesced write containing this snapshot settles.
+ */
+export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
   const raw = getStore().store
-  const next = parseSettings({ ...raw, ...patch })
+  const next = parseSettings({ ...(settingsSnapshot ?? parseSettings(raw)), ...patch })
   // The renderer has already accepted the patch locally before this call. Keep
   // native fire-time policy coherent even when persistence must be refused.
   settingsSnapshot = next
@@ -78,9 +96,30 @@ export function saveSettings(patch: Partial<Settings>): Settings {
     // build's fields. Refuse rather than lose data — VRX-21 will own the UX.
     throw new Error('settings: refusing to overwrite settings written by a newer version')
   }
-  // Apply the validated value to this session before persistence. If the
-  // synchronous disk write fails, the caller still receives that same failure,
-  // while the UI's accepted local state and the alert engine remain consistent.
-  getStore().store = next
-  return next
+
+  return new Promise<Settings>((resolve, reject) => {
+    const waiters = pendingSettingsSave?.waiters ?? []
+    if (pendingSettingsSave) clearTimeout(pendingSettingsSave.timer)
+    waiters.push({ resolve, reject })
+    const timer = setTimeout(flushPendingSettingsSave, SETTINGS_SAVE_DEBOUNCE_MS)
+    timer.unref()
+    pendingSettingsSave = { settings: next, timer, waiters }
+  })
+}
+
+/** Synchronously persist any queued settings snapshot (used by before-quit). */
+export function flushPendingSettingsSave(): void {
+  const pending = pendingSettingsSave
+  if (!pending) return
+  pendingSettingsSave = undefined
+  clearTimeout(pending.timer)
+  try {
+    if (!shouldPersistSettings(getStore().store)) {
+      throw new Error('settings: refusing to overwrite settings written by a newer version')
+    }
+    getStore().store = pending.settings
+    for (const waiter of pending.waiters) waiter.resolve(pending.settings)
+  } catch (error) {
+    for (const waiter of pending.waiters) waiter.reject(error)
+  }
 }

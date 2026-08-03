@@ -15,7 +15,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
-import { getSettingsSnapshot, loadSettings } from './services/settings'
+import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -647,6 +647,9 @@ app
     const unsubscribeVrcLive = vrcAdapter.subscribe(handleAdapterEvent)
     const unsubscribeCvrLive = cvrAdapter.subscribe(handleAdapterEvent)
     app.on('before-quit', () => {
+      // Renderer changes are handed to main immediately; force the latest
+      // coalesced snapshot to disk before window teardown can discard it.
+      flushPendingSettingsSave()
       // Close both sockets and halt the reconnect loops so quit is clean.
       unsubscribeVrcLive()
       unsubscribeCvrLive()

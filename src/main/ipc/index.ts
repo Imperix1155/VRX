@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainEvent } from 'electron'
-import log from 'electron-log'
+import log from '../logger'
 import type { IpcInvokeChannel } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
@@ -47,6 +47,12 @@ export function registerIpcHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   options: IpcHandlerOptions
 ): void {
+  // electron-store's constructor unconditionally installs this renderer-only
+  // bootstrap listener from node_modules/electron-store/index.js. VRX never
+  // initializes electron-store in the renderer, so remove the unreachable
+  // third-party channel before exposing the enumerated VRX IPC surface.
+  ipcMain.removeAllListeners('electron-store-get-data')
+
   const clock = options.rateLimit?.clock ?? (() => performance.now())
   const warn =
     options.rateLimit?.warn ??

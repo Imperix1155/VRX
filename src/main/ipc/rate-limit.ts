@@ -19,7 +19,8 @@ interface RateLimitOptions<TResult> {
 }
 
 export const IPC_RATE_LIMIT_BUDGETS = {
-  // Two platform reconciles plus retries/remounts fit six times over.
+  // Fixed process-lifetime guard; repeated dual-platform retry/reconnect cycles
+  // can exhaust this headroom. Budget sizing/recovery is a deferred follow-up.
   'get-friends': { max: 12, windowMs: 30_000 },
   // Three complete 200-friend paints fit in one burst at the exact boundary.
   'get-avatar': { max: 600, windowMs: 10_000 },
@@ -68,7 +69,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
   }
 }
 
-/** Pure per-channel sliding window. No timers and no shared/global counters. */
+/** Pure sliding window; production creates one closure per process and channel. */
 export function withRateLimit<TArgs extends unknown[], TResult>(
   channel: RateLimitedIpcChannel,
   budget: RateLimitBudget,
