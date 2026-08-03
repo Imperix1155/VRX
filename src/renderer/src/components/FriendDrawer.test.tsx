@@ -280,7 +280,11 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'chilloutvr',
       friendId: 'cvr_mika',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
   })
 
@@ -386,7 +390,11 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'vrchat',
       friendId: 'usr_alex',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: joinableFriend.instance!.worldId,
+        instanceId: joinableFriend.instance!.instanceId
+      }
     })
   })
 
@@ -424,7 +432,8 @@ describe('FriendDrawer (VRX-69)', () => {
 
   it.each([
     ['stale', 'Live connection not ready — joins resume when the live feed reconnects'],
-    ['cooldown', 'One moment — just launched a join']
+    ['cooldown', 'One moment — just launched a join'],
+    ['rate-limited', 'Too many attempts — try again shortly']
   ] as const)('announces distinct %s denial copy in the drawer', async (reason, copy) => {
     joinInstance.mockResolvedValue({ ok: false, reason })
     render(<FriendsList />)
@@ -716,7 +725,11 @@ describe('VRX-228 whole-card drawer opener (default) + avatar-only setting', () 
     expect(joinInstance).toHaveBeenCalledWith({
       platform: 'chilloutvr',
       friendId: 'cvr_mika',
-      mode: 'desktop'
+      mode: 'desktop',
+      expectedTarget: {
+        worldId: publicInstance.worldId,
+        instanceId: publicInstance.instanceId
+      }
     })
   })
 

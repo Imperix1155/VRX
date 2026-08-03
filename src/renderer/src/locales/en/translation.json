@@ -180,7 +180,9 @@
     "joinFailed": "Couldn't join",
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
-      "cooldown": "One moment — just launched a join"
+      "cooldown": "One moment — just launched a join",
+      "rateLimited": "Too many attempts — try again shortly",
+      "targetChanged": "Location changed — try Join again"
     },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
@@ -294,6 +296,10 @@
       "vr": "Will launch in VR.",
       "desktop": "Will launch on desktop."
     },
+    "driftNotice": "{{name}} moved to a different instance — review before joining",
+    "review": "Review updated location",
+    "unavailable": "{{name}} is no longer available to join.",
+    "waiting": "Waiting for updated location…",
     "confirm": "Join",
     "cancel": "Cancel",
     "dontAskAgain": "Don't ask again (Settings › re-enable anytime)"
