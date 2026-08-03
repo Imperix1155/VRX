@@ -8,10 +8,25 @@
  */
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Friend } from '@shared/types'
+import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
+import { queryClient } from '../queries/queryClient'
+import { friendsQueryKey } from '../queries/friends'
 import { useJoinInstance } from './useJoinInstance'
+
+const publicInstance: InstanceInfo = {
+  worldId: 'wrld_fixture',
+  instanceId: '12345~public',
+  worldName: 'The Great Pug',
+  thumbnailUrl: null,
+  type: 'public',
+  openness: 'public',
+  isGroup: false,
+  groupName: null,
+  region: 'us',
+  userCount: 14
+}
 
 const friend: Friend = {
   platformUserId: 'usr_alex',
@@ -21,7 +36,7 @@ const friend: Friend = {
   presence: { state: 'in-game' },
   status: 'online',
   statusDescription: null,
-  instance: null,
+  instance: publicInstance,
   trustRank: null,
   isFavorite: false,
   favoriteGroupIds: [],
@@ -37,11 +52,16 @@ beforeEach(() => {
   // VRX-210 confirmation gate OFF — the gate itself is covered by
   // JoinConfirmDialog.test.tsx.
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
+  queryClient.clear()
 })
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  // The join store is module-level: close any parked confirmation so an open
+  // dialog never leaks into the next test.
+  const { result } = renderHook(() => useJoinInstance())
+  act(() => result.current.cancelPending())
 })
 
 describe('useJoinInstance', () => {
@@ -171,4 +191,159 @@ describe('useJoinInstance', () => {
       expect(hook.result.current.joinFailureFor(friend)).toBe(reason)
     }
   )
+
+  it('confirmation gate: join parks pendingConfirm and confirmPending sends expectedTarget', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+
+    expect(hook.result.current.pendingConfirm).not.toBeNull()
+    expect(hook.result.current.pendingConfirm?.reviewedTarget).toEqual(
+      expect.objectContaining({
+        worldId: 'wrld_fixture',
+        instanceId: '12345~public'
+      })
+    )
+
+    await act(async () => {
+      const result = await hook.result.current.confirmPending('desktop')
+      expect(result).toBe('joined')
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'vrchat',
+        friendId: 'usr_alex',
+        mode: 'desktop',
+        expectedTarget: {
+          worldId: 'wrld_fixture',
+          instanceId: '12345~public'
+        }
+      })
+    )
+    expect(hook.result.current.pendingConfirm).toBeNull()
+  })
+
+  it('confirmPending returns review-required on target-changed and arms awaitingCacheAfter', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'target-changed' })
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+
+    let result: string | null = null
+    await act(async () => {
+      result = await hook.result.current.confirmPending('desktop')
+    })
+
+    expect(result).toBe('review-required')
+    expect(hook.result.current.pendingConfirm?.awaitingCacheAfter).not.toBeNull()
+    expect(joinInstance).toHaveBeenCalledOnce()
+  })
+
+  it('confirmPending returns unavailable when the live friend is no longer joinable', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [{ ...friend, status: 'ask-me' as const }])
+    let result: string | null = null
+    await act(async () => {
+      result = await hook.result.current.confirmPending('desktop')
+    })
+
+    expect(result).toBe('unavailable')
+    expect(joinInstance).not.toHaveBeenCalled()
+  })
+
+  it('acknowledgePendingTarget accepts the live target and clears awaitingCacheAfter', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    const moved: Friend = {
+      ...friend,
+      instance: { ...publicInstance, worldId: 'wrld_moved', instanceId: '999~public' }
+    }
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'target-changed' })
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+      await hook.result.current.confirmPending('desktop')
+    })
+
+    // Cache catches up to the moved target.
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [moved])
+    await act(async () => await Promise.resolve())
+
+    let accepted = false
+    act(() => {
+      accepted = hook.result.current.acknowledgePendingTarget()
+    })
+    expect(accepted).toBe(true)
+    expect(hook.result.current.pendingConfirm?.reviewedTarget).toEqual(
+      expect.objectContaining({ worldId: 'wrld_moved', instanceId: '999~public' })
+    )
+    expect(hook.result.current.pendingConfirm?.awaitingCacheAfter).toBeNull()
+  })
+
+  it('invalidatePending clears pendingConfirm even while joining', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friend])
+    let resolveJoin!: () => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+
+    let confirmPromise: Promise<string> | null = null
+    act(() => {
+      confirmPromise = hook.result.current.confirmPending('desktop')
+    })
+    expect(hook.result.current.isJoining).toBe(true)
+
+    act(() => {
+      hook.result.current.invalidatePending()
+    })
+    expect(hook.result.current.pendingConfirm).toBeNull()
+    expect(hook.result.current.isJoining).toBe(false)
+
+    resolveJoin()
+    await act(async () => await confirmPromise)
+    // Late IPC completion for the invalidated session must not resurrect state.
+    expect(hook.result.current.pendingConfirm).toBeNull()
+  })
 })
