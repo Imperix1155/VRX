@@ -100,6 +100,22 @@ describe('main navigation hardening', () => {
     expect(source).toContain('url.origin === entryOrigin')
     expect(source).toContain('if (!isOwnEntry) event.preventDefault()')
   })
+
+  it('opens only allowlisted window URLs externally and always denies the new window (VRX-33)', () => {
+    // Keep this line-anchored: a bare substring would still pass if the
+    // handler, gate, or denial line were commented out (VRX-243 lesson).
+    const handler = source.match(
+      /^\s*mainWindow\.webContents\.setWindowOpenHandler\(\(details\) => \{\n([\s\S]*?)^\s*}\)\n\n\s*const rendererPath/m
+    )?.[1]
+
+    expect(handler).toBeDefined()
+    expect(handler).toMatch(/^\s*if \(isAllowedUrl\(details\.url\)\) \{$/m)
+
+    const [allowedBranch, disallowedBranch] = handler!.split(/^\s*} else \{$/m)
+    expect(allowedBranch).toMatch(/^\s*shell\.openExternal\(details\.url\)\.catch\(/m)
+    expect(disallowedBranch).not.toMatch(/^\s*shell\.openExternal\(details\.url\)/m)
+    expect(handler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
+  })
 })
 
 describe('main location authority event ordering', () => {
