@@ -443,6 +443,7 @@ describe('openness copy (the safety context)', () => {
         opennessUnknown: true
       }
     }
+    mockFriends([], [unknown])
     render(
       <>
         <OpenJoin friend={unknown} />
@@ -459,6 +460,8 @@ describe('openness copy (the safety context)', () => {
       within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
     ).toBeTruthy()
     expect(within(dialog).queryByText(/considered a closed/)).toBeNull()
+    // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
   })
 
   it('More info on unknown openness discloses the safe unknown explainer', () => {
@@ -471,6 +474,7 @@ describe('openness copy (the safety context)', () => {
         opennessUnknown: true
       }
     }
+    mockFriends([], [unknown])
     render(
       <>
         <OpenJoin friend={unknown} />
@@ -486,6 +490,8 @@ describe('openness copy (the safety context)', () => {
         "VRX couldn't read this instance's privacy, so it can't say how open it is. Treat it as open."
       )
     ).toBeTruthy()
+    // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
   })
 
   it('missing instance data keeps the gate closed (non-joinable friend cannot confirm)', () => {
@@ -556,6 +562,7 @@ describe('instance-type pill (VRX-245)', () => {
         opennessUnknown: true
       }
     }
+    mockFriends([], [unknown])
     render(
       <>
         <OpenJoin friend={unknown} />
@@ -566,6 +573,8 @@ describe('instance-type pill (VRX-245)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
 
     expect(within(dialog).queryByText('Invite')).toBeNull()
+    // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
   })
 })
 
@@ -1708,12 +1717,13 @@ describe('VRX-239/241 liveness contract', () => {
     expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
   })
 
-  it('T4b acknowledgment re-reads the cache not the closure: post-render cache write is accepted by Review', async () => {
+  it('T4b acknowledgment accepts only the presented key: post-render cache advance makes Review a NO-OP', async () => {
     const { rerender } = render(<TestSurface friend={joinableFriend} />)
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = confirmDialog()
 
-    // First render shows drift against moved-1.
+    // First render shows drift against moved-1; the Review button captures the
+    // presented key (moved-1) in its click closure.
     const moved1: InstanceInfo = {
       ...publicInstance,
       worldId: 'wrld_moved_1',
@@ -1725,6 +1735,8 @@ describe('VRX-239/241 liveness contract', () => {
     expect(within(dialog).getByRole('button', { name: 'Review updated location' })).toBeTruthy()
 
     // Cache advances to moved-2 AFTER the last render but BEFORE the Review click.
+    // The Review closure still holds moved-1, so accepting moved-2 would be
+    // consent for a target the user was never shown.
     const moved2: InstanceInfo = {
       ...publicInstance,
       worldId: 'wrld_moved_2',
@@ -1737,23 +1749,12 @@ describe('VRX-239/241 liveness contract', () => {
       await Promise.resolve()
     })
 
+    // Review must be a NO-OP: the dialog stays in drift and Confirm stays disabled.
     rerender(<TestSurface friend={joinableFriend} />)
     await act(async () => await Promise.resolve())
-
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
-      await Promise.resolve()
-    })
-
-    expect(joinInstance).toHaveBeenCalledOnce()
-    expect(joinInstance).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expectedTarget: {
-          worldId: 'wrld_moved_2',
-          instanceId: 'wrld_fixture:222~public'
-        }
-      })
-    )
+    expect(joinInstance).not.toHaveBeenCalled()
+    expect(within(dialog).getByRole('button', { name: 'Review updated location' })).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
   })
 
   it('target-changed with cache already at a different healthy target enters Review immediately', async () => {

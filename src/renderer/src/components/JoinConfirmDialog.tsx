@@ -464,7 +464,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   }
 
   function onReview(): void {
-    acknowledgePendingTarget()
+    acknowledgePendingTarget(liveKey ?? undefined)
   }
 
   return (

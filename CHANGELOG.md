@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cache updates arriving during the join-instance IPC can no longer strand the dialog.** When main returns `target-changed`, the renderer immediately re-reads the cache; if it already contains a healthy, different target, the dialog enters Review right away instead of waiting for a further update that may never come. (VRX-239 / VRX-241)
 - **Identity boundary, auth-invalidated, and unmount now clear the dialog even mid-launch.** A session/invalidation generation fences in-flight completions so a late `target-changed` response after the boundary cannot reconstruct the previous account's pending dialog state. (VRX-239 / VRX-241)
 - **Unhealthy query state now wins over drift.** A failed background query that retained stale friend data used to let both an unavailable notice and a drift notice render, exposing Review in a non-joinable state; state precedence is now exclusive, and acknowledgment also requires a healthy query. (VRX-239 / VRX-241)
+- **Non-joinable friends (Ask Me / Do Not Disturb / offline) cannot open the confirmation gate anymore — they show an honest "not joinable" blip at the click site instead.** (VRX-239 / VRX-241)
 
 ## [0.13.0] - 2026-08-02
 
@@ -33,7 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Non-joinable friends (Ask Me / Do Not Disturb / offline) cannot open the confirmation gate anymore — they show an honest "not joinable" blip at the click site instead.** (VRX-239 / VRX-241)
 - **Unknown ChilloutVR privacy is no longer mislabeled private.** If CVR sends a privacy value VRX does not recognize, the join confirmation now says "Openness unknown — treat it as public." and its headline stays neutral ("Join this instance?") instead of naming the type the parser safely degraded to. Recognized Invite instances keep their existing effectively-private wording. (VRX-240)
 - **Hot instances no longer claim friends are together when they aren't.** The Dashboard used to call a world "hot" when enough friends were anywhere in that world — so two friends in _different_ instances of the same world looked like they were hanging out together when they couldn't even see each other. Now a card (and the "friends gathering" notification) only appears when friends are in the exact same instance, and the wording says exactly that. (VRX-237)
 - **Friends who hide their location stay hidden from hot instances too.** If a friend sets Ask Me or Do Not Disturb, they no longer count toward a hot instance and never appear on its card or notification — their location stays as private there as the friends list already kept it. (VRX-237)
