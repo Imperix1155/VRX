@@ -61,7 +61,14 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 **Degradation if changed:**
 
 - **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field name or structure, login will not detect 2FA requirement. VRX treats this as a failed 2FA and prompts again. Safe fallback: user re-tries with the code.
-- **Missing presence buckets:** Zod schema `.default([])` ensures empty arrays are substituted. All friends appear offline until a WebSocket `friend-online` event updates them. UI degrades to "loading" state until real-time data arrives.
+- **Presence-bucket probe unavailable:** A non-auth failure fetching `/auth/user`
+  produces an explicit degraded/partial result. `VrcAdapter.getFriends` rejects
+  it, so the renderer retains its last known roster/presence instead of
+  replacing every friend with fabricated offline state. Authentication errors
+  still propagate through the existing invalidation boundary.
+- **Individual bucket field omitted from a readable response:** Zod schema
+  `.default([])` still substitutes an empty array for that field; this remains
+  🟡 unverified drift behavior and should be revisited if the API changes shape.
 - **Missing `id` or `displayName`:** Zod validation fails; entire login fails with an auth error. Safe: user is prompted to log in again.
 
 **Code reference:** `/src/main/services/adapters/VrcAdapter.ts` (lines 28–31: schemas with defensive `.object()` and no required-field gotchas).
@@ -91,8 +98,9 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 - **Empty or null `tags` array:** Defaults to `'visitor'` rank. Safe; user is rendered as a fresh visitor, not as an error.
 - **Missing avatar URL:** Zod `.nullable().optional()` defaults to `null`; UI renders a placeholder. Non-breaking.
 - **New optional fields added by API:** Zod ignores them. VRX silently accepts and proceeds. Safe tolerance for benign drift.
-- **A malformed friend record (breaking drift on one entry):** Skipped and counted (`skippedRecords`); the other records on the page survive. Records are validated individually, not as an all-or-nothing page (2026-07 audit W4).
-- **A failed page fetch (network blip, transient 5xx):** Counted (`failedPages`) and the window skipped; the pass continues to the next page, giving up only after 3 consecutive failures. If NOTHING was fetched and anything failed or drifted, `getFriends` throws instead of returning a misleading empty list.
+- **A malformed friend record (breaking drift on one entry):** Skipped and counted (`skippedRecords`); the other records on the page survive. The resulting roster is marked `partial`, so downstream LocationAuthority seeds known entries but does not treat omitted friends as removed. Records are validated individually, not as an all-or-nothing page (2026-07 audit W4).
+- **A failed page fetch (network blip, transient 5xx):** Counted (`failedPages`) and the window skipped; the pass continues to the next page, giving up only after 3 consecutive failures. The resulting roster is marked `partial`, so absences cannot tombstone previously known friends. If NOTHING was fetched and anything failed or drifted, `getFriends` throws instead of returning a misleading empty list.
+- **The safety cap is reached:** The roster is also marked `partial`; reaching `MAX_FRIENDS` cannot prove that the snapshot is exhaustive.
 
 **Code references:**
 

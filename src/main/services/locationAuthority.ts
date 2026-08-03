@@ -1,4 +1,5 @@
 import type { AdapterEvent, Friend, Platform } from '@shared/types'
+import type { RosterCompleteness } from './adapters/IPlatformAdapter'
 
 type LogLevel = 'debug' | 'warn'
 type AuthorityLog = (level: LogLevel, message: string, meta: Record<string, unknown>) => void
@@ -15,6 +16,8 @@ interface PlatformState {
   friends: Map<string, VersionedFriend>
   seeded: boolean
   stale: boolean
+  /** Oldest entry revision authorized after a partial seed clears a live fence. */
+  freshFromRevision: number | null
   minimumSeedRevision: number
   liveSeedRevision: number | null
 }
@@ -37,6 +40,7 @@ export class LocationAuthority {
       friends: new Map(),
       seeded: false,
       stale: true,
+      freshFromRevision: null,
       minimumSeedRevision: 0,
       liveSeedRevision: null
     },
@@ -44,6 +48,7 @@ export class LocationAuthority {
       friends: new Map(),
       seeded: false,
       stale: true,
+      freshFromRevision: null,
       minimumSeedRevision: 0,
       liveSeedRevision: null
     }
@@ -60,7 +65,12 @@ export class LocationAuthority {
     return ++this.revision
   }
 
-  seed(platform: Platform, friends: Friend[], capturedRevision: number): void {
+  seed(
+    platform: Platform,
+    friends: Friend[],
+    capturedRevision: number,
+    completeness: RosterCompleteness = 'complete'
+  ): void {
     const state = this.states[platform]
     if (capturedRevision < state.minimumSeedRevision) return
     const incoming = new Set(friends.map((friend) => friend.platformUserId))
@@ -78,15 +88,25 @@ export class LocationAuthority {
         })
       }
     }
-    for (const [id, current] of state.friends) {
-      if (!incoming.has(id) && current.revision <= capturedRevision) {
-        state.friends.set(id, { friend: null, revision: capturedRevision, updatedAt })
+    if (completeness === 'complete') {
+      for (const [id, current] of state.friends) {
+        if (!incoming.has(id) && current.revision <= capturedRevision) {
+          state.friends.set(id, { friend: null, revision: capturedRevision, updatedAt })
+        }
       }
     }
     state.seeded = true
+    if (
+      completeness === 'complete' &&
+      state.freshFromRevision !== null &&
+      capturedRevision >= state.freshFromRevision
+    ) {
+      state.freshFromRevision = null
+    }
     if (state.liveSeedRevision !== null && capturedRevision >= state.liveSeedRevision) {
       state.stale = false
       state.liveSeedRevision = null
+      state.freshFromRevision = completeness === 'partial' ? capturedRevision : null
     }
   }
 
@@ -192,8 +212,14 @@ export class LocationAuthority {
   resolve(platform: Platform, friendId: string): LocationResolution {
     const state = this.states[platform]
     if (!state.seeded || state.stale) return { ok: false, reason: 'stale' }
-    const friend = state.friends.get(friendId)?.friend
-    return friend ? { ok: true, friend } : { ok: false, reason: 'unknown-friend' }
+    const entry = state.friends.get(friendId)
+    if (entry?.friend === null || entry?.friend === undefined) {
+      return { ok: false, reason: 'unknown-friend' }
+    }
+    if (state.freshFromRevision !== null && entry.revision < state.freshFromRevision) {
+      return { ok: false, reason: 'stale' }
+    }
+    return { ok: true, friend: entry.friend }
   }
 
   clearPlatform(platform: Platform): void {
@@ -201,6 +227,7 @@ export class LocationAuthority {
     state.friends.clear()
     state.seeded = false
     state.stale = true
+    state.freshFromRevision = null
     state.minimumSeedRevision = ++this.revision
     state.liveSeedRevision = null
     this.log('debug', 'location authority cleared', { platform, at: this.clock() })

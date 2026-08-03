@@ -62,14 +62,23 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   const [draft, setDraft] = useState<DraftState>(() => emptyDraft(key))
   const saveStatesRef = useRef(new Map<string, SaveState>())
 
-  const bridgeCanRead =
+  const getFriendNote =
     typeof window !== 'undefined' && typeof window.vrx?.getFriendNote === 'function'
+      ? window.vrx.getFriendNote
+      : null
+  const setFriendNote =
+    typeof window !== 'undefined' && typeof window.vrx?.setFriendNote === 'function'
+      ? window.vrx.setFriendNote
+      : null
   const query = useQuery(
     {
       queryKey,
-      queryFn: () => window.vrx.getFriendNote({ platform, friendId }),
+      queryFn: () => {
+        if (getFriendNote === null) throw new Error('bridge_unavailable')
+        return getFriendNote({ platform, friendId })
+      },
       staleTime: Infinity,
-      enabled: bridgeCanRead && friendId !== ''
+      enabled: getFriendNote !== null && friendId !== ''
     },
     queryClient
   )
@@ -107,7 +116,8 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
             if (revision === undefined) return
             let result: SaveResult | undefined
             try {
-              result = await window.vrx.setFriendNote({
+              if (setFriendNote === null) return
+              result = await setFriendNote({
                 platform: save.platform,
                 friendId: save.friendId,
                 note,
@@ -145,12 +155,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   )
 
   const onBlur = useCallback(() => {
-    if (
-      !draft.dirty ||
-      query.data?.revision === undefined ||
-      typeof window === 'undefined' ||
-      typeof window.vrx?.setFriendNote !== 'function'
-    ) {
+    if (!draft.dirty || query.data?.revision === undefined || setFriendNote === null) {
       return
     }
     const saveState = saveStatesRef.current.get(key)
@@ -166,7 +171,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
       friendId,
       note: draft.value
     })
-  }, [boundaryEpoch, draft, friendId, key, mutate, platform, query.data?.revision])
+  }, [boundaryEpoch, draft, friendId, key, mutate, platform, query.data?.revision, setFriendNote])
 
   const setValue = useCallback(
     (value: string) => {

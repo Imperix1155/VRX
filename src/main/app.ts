@@ -22,15 +22,12 @@ import {
   recordCredentialOwner,
   saveCredential
 } from './services/credentials'
-import { WebSocket } from 'ws'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
-import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import type { IpcNotifications } from '@shared/ipc'
-import { API_TIMEOUT_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
@@ -44,6 +41,7 @@ import { SocialStore } from './services/socialStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
+import { createCvrSocket, createVrcSocket } from './socketFactory'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -394,11 +392,7 @@ app
     const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
       // handshakeTimeout bounds a black-holed connect so the reconnect backoff
       // can retry instead of waiting for the OS default (~1-2 min).
-      socketFactory: (url) =>
-        new WebSocket(url, {
-          headers: { 'User-Agent': VRC_USER_AGENT },
-          handshakeTimeout: API_TIMEOUT_MS
-        }),
+      socketFactory: createVrcSocket,
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
@@ -451,8 +445,7 @@ app
     // socketFactory forwards them verbatim; logs route through the redaction hook.
     const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
       // Same black-hole guard as the VRChat pipeline (audit OP-A4).
-      socketFactory: (url, headers) =>
-        new WebSocket(url, { headers, handshakeTimeout: API_TIMEOUT_MS }),
+      socketFactory: createCvrSocket,
       log: (level, message, meta) => log[level](message, meta),
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)

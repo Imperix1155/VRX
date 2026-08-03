@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { MAX_FRIENDS } from '@shared/constants'
 import type { VrcFriend } from '@shared/types'
 import { AuthError } from '../errors'
+import type { RosterCompleteness } from '../IPlatformAdapter'
 import { parsePresence, toBucketSets } from './parsePresence'
 import type { VrcCurrentUserBucketSets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
@@ -126,6 +127,10 @@ export function normalize(raw: RawFriend, buckets: VrcCurrentUserBucketSets): Vr
 
 export interface FetchFriendsResult {
   friends: VrcFriend[]
+  /** Whether bucket-derived presence was available and safe to publish. */
+  presence: 'complete' | 'degraded'
+  /** Partial rosters must never drive absent-means-removed reconciliation. */
+  completeness: RosterCompleteness
   /** Number of pages that failed (fetched but errored). Caller may log this. */
   failedPages: number
   /** Number of individual records skipped for failing the friend schema (W4). */
@@ -208,7 +213,8 @@ async function fetchPass(
  * @param fetcher - Injected HTTP helper (e.g. `(path, schema) => this.get(path, schema)`).
  */
 export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsResult> {
-  // Step 1: fetch buckets (graceful degradation on failure → all offline).
+  // Step 1: fetch buckets. Presence has no honest fallback: empty synthetic
+  // buckets would turn every friend offline, overwriting known live state.
   // EXCEPTION: a 401/403 on this session-probe call means the cookie is dead —
   // rethrow it so the adapter can signal auth-invalidated instead of silently
   // degrading to an empty roster while the session is actually gone (VRX-195).
@@ -218,7 +224,13 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
     buckets = toBucketSets(rawBuckets)
   } catch (error) {
     if (error instanceof AuthError) throw error
-    buckets = { onlineFriends: new Set(), activeFriends: new Set(), offlineFriends: new Set() }
+    return {
+      friends: [],
+      presence: 'degraded',
+      completeness: 'partial',
+      failedPages: 0,
+      skippedRecords: 0
+    }
   }
 
   const friends: VrcFriend[] = []
@@ -229,5 +241,15 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   // Step 3: offline pass
   await fetchPass(fetcher, true, buckets, friends, counters)
 
-  return { friends, failedPages: counters.failedPages, skippedRecords: counters.skippedRecords }
+  const completeness: RosterCompleteness =
+    counters.failedPages === 0 && counters.skippedRecords === 0 && friends.length < MAX_FRIENDS
+      ? 'complete'
+      : 'partial'
+  return {
+    friends,
+    presence: 'complete',
+    completeness,
+    failedPages: counters.failedPages,
+    skippedRecords: counters.skippedRecords
+  }
 }

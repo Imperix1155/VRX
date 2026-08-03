@@ -9,7 +9,7 @@ import type {
   LoginResult,
   TwoFactorMethod
 } from '@shared/types'
-import type { Unsubscribe } from './IPlatformAdapter'
+import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
 import { AuthError, NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
@@ -424,13 +424,15 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  async getFriends(): Promise<Friend[]> {
+  async getFriends(): Promise<FriendRoster> {
     for (;;) {
       const generation = this.sessionGeneration
       try {
-        const { friends, failedPages, skippedRecords } = await fetchFriends((path, schema) =>
-          this.get(path, schema)
-        )
+        const result = await fetchFriends((path, schema) => this.get(path, schema))
+        const { friends, failedPages, skippedRecords } = result
+        if (result.presence === 'degraded') {
+          throw new NetworkError('Failed to fetch friends (presence=degraded)')
+        }
         // If anything failed (page fetches OR schema-drifted records) AND we got
         // nothing, surface an error rather than a misleading empty list (the UI shows
         // "couldn't load" instead of "no friends"). A partial result is still returned
@@ -455,7 +457,7 @@ export class VrcAdapter extends VrcApiClient {
           return cached == null ? friend : this.withWorldMetadata(friend, cached)
         })
         this.kickWorldMetadata(roster, generation)
-        return roster
+        return { friends: roster, completeness: result.completeness }
       } catch (error) {
         // Staleness is checked before auth invalidation or any other outcome.
         // The old account's failure is irrelevant to a replacement session; a

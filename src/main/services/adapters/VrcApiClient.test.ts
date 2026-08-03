@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
-import type { AuthStatus, Friend, InstanceInfo, LoginResult } from '@shared/types'
-import type { Unsubscribe } from './IPlatformAdapter'
+import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
+import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { AuthError } from './errors'
 import { VrcApiClient } from './VrcApiClient'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
@@ -35,7 +35,7 @@ class TestClient extends VrcApiClient {
   clearSession(): void {
     return
   }
-  getFriends(): Promise<Friend[]> {
+  getFriends(): Promise<FriendRoster> {
     throw new Error('stub')
   }
   getInstanceDetails(): Promise<InstanceInfo> {

@@ -39,6 +39,6 @@ type VrxBridge = {
 
 declare global {
   interface Window {
-    vrx: VrxBridge
+    vrx?: VrxBridge
   }
 }

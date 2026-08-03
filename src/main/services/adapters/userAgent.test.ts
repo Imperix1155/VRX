@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { z } from 'zod'
-import type { AuthStatus, Friend, InstanceInfo, LoginResult } from '@shared/types'
-import type { Unsubscribe } from './IPlatformAdapter'
+import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
+import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { CvrApiClient } from './CvrApiClient'
 import { VRC_USER_AGENT } from './VrcApiClient'
 import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
@@ -59,7 +59,7 @@ class TestCvrClient extends CvrApiClient {
   clearSession(): void {
     return
   }
-  getFriends(): Promise<Friend[]> {
+  getFriends(): Promise<FriendRoster> {
     throw new Error('stub')
   }
   getInstanceDetails(): Promise<InstanceInfo> {

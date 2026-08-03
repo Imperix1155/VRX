@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { z } from 'zod'
 import { API_TIMEOUT_MS } from '@shared/constants'
-import type { AuthStatus, Friend, LoginResult, Platform } from '@shared/types'
-import type { Unsubscribe } from './IPlatformAdapter'
+import type { AuthStatus, LoginResult, Platform } from '@shared/types'
+import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { BaseAdapter } from './BaseAdapter'
 import { AuthError, NetworkError, RateLimitError } from './errors'
 import { noopSleep } from './__testutils__/adapterTestKit'
@@ -54,8 +54,8 @@ class TestAdapter extends BaseAdapter {
   clearSession(): void {
     return
   }
-  getFriends(): Promise<Friend[]> {
-    return Promise.resolve([])
+  getFriends(): Promise<FriendRoster> {
+    return Promise.resolve({ friends: [], completeness: 'complete' })
   }
   getInstanceDetails(): Promise<never> {
     return Promise.reject(new Error('not implemented'))

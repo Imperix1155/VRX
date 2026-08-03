@@ -616,12 +616,37 @@ describe('CvrAdapter', () => {
         'fetch',
         vi.fn().mockResolvedValue(jsonResponse({ message: 'ok', data: roster }))
       )
-      const friends = await sessioned().getFriends()
+      const { friends } = await sessioned().getFriends()
       expect(friends).toHaveLength(2)
       expect(friends[0]).toMatchObject({ platform: 'chilloutvr', displayName: 'Neo' })
       expect(friends[0]?.presence.state).toBe('offline')
       // GUID normalized to lowercase (VRX-61) — stable across name changes.
       expect(friends[0]?.platformUserId).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
+    it('marks a roster partial when malformed CVR records are skipped', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          jsonResponse({
+            message: 'ok',
+            data: [
+              {
+                id: 'a1b2c3d4-0000-0000-0000-000000000001',
+                name: 'Neo',
+                imageUrl: null,
+                categories: []
+              },
+              { id: 'not-a-guid', name: 'Unreadable', imageUrl: null, categories: [] }
+            ]
+          })
+        )
+      )
+
+      await expect(sessioned().getFriends()).resolves.toMatchObject({
+        friends: [{ platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001' }],
+        completeness: 'partial'
+      })
     })
 
     it('caches display names from the latest successful roster for id-only live snapshots', async () => {
@@ -689,12 +714,15 @@ describe('CvrAdapter', () => {
           data: [{ id: accountAId, name: 'Account A Friend', imageUrl: null, categories: [] }]
         })
       )
-      await expect(staleRoster).resolves.toEqual([
-        expect.objectContaining({
-          platformUserId: accountBId,
-          displayName: 'Account B Friend'
-        })
-      ])
+      await expect(staleRoster).resolves.toEqual({
+        friends: [
+          expect.objectContaining({
+            platformUserId: accountBId,
+            displayName: 'Account B Friend'
+          })
+        ],
+        completeness: 'complete'
+      })
       expect(adapter.resolveFriendName(accountAId)).toBeNull()
       expect(adapter.resolveFriendName(accountBId)).toBe('Account B Friend')
       expect(friendsCalls).toBe(2)
@@ -732,9 +760,12 @@ describe('CvrAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: true })
       releaseAccountARoster(jsonResponse({ message: 'denied' }, { status: 401 }))
 
-      await expect(roster).resolves.toEqual([
-        expect.objectContaining({ platformUserId: accountBId, displayName: 'Account B Friend' })
-      ])
+      await expect(roster).resolves.toEqual({
+        friends: [
+          expect.objectContaining({ platformUserId: accountBId, displayName: 'Account B Friend' })
+        ],
+        completeness: 'complete'
+      })
       expect(store.deleted).toBe(0)
       expect((await adapter.getAuthStatus()).state).toBe('authenticated')
       expect(adapter.resolveFriendName(accountBId)).toBe('Account B Friend')
@@ -1134,7 +1165,7 @@ describe('CvrAdapter', () => {
       await expect(dialog).resolves.toMatchObject({ instanceId: 'i_dialog' })
 
       await vi.advanceTimersByTimeAsync(2_000)
-      await expect(blocker).resolves.toEqual([])
+      await expect(blocker).resolves.toEqual({ friends: [], completeness: 'complete' })
       expect(dispatches).toEqual([
         { path: '/1/friends', at: 10_000 },
         { path: '/1/instances/i_dialog', at: 11_000 },

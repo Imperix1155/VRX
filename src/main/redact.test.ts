@@ -58,6 +58,15 @@ describe('redact', () => {
     expect(result.self).toBe('[Circular]')
   })
 
+  it('redacts both branches of a shared-reference DAG without claiming a cycle', () => {
+    const shared = { password: 'x', label: 'shared' }
+
+    expect(redact({ a: shared, b: shared })).toEqual({
+      a: { password: '***REDACTED***', label: 'shared' },
+      b: { password: '***REDACTED***', label: 'shared' }
+    })
+  })
+
   it('passes through primitives unchanged', () => {
     expect(redact(42)).toBe(42)
     expect(redact(null)).toBe(null)
