@@ -196,13 +196,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const lastRequestId = useRef<number | null>(null)
   const fetchedForRequestId = useRef<number | null>(null)
   const launchInitiatedRef = useRef(false)
-  const isJoiningRef = useRef(isJoining)
-  useEffect(() => {
-    isJoiningRef.current = isJoining
-  }, [isJoining])
+  const wasOpenRef = useRef(false)
+
+  const isOpen = pendingConfirm !== null
 
   // Reset the per-open UI state whenever the dialog (re)opens — keyed to
-  // requestId, never to Friend object identity (VRX-239).
+  // requestId, never to Friend object identity (VRX-239). Focus init also runs
+  // here exactly once per open so a mid-flight target-changed update (which
+  // mutates pendingConfirm but keeps the same requestId) cannot yank focus back
+  // to Cancel while the user is reading the drift notice.
   useEffect(() => {
     if (pendingConfirm === null) return
     if (pendingConfirm.requestId === lastRequestId.current) return
@@ -212,6 +214,8 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     setMoreOpen(false)
     setPeopleCount(null)
     fetchedForRequestId.current = null
+    restoreFocusRef.current = document.activeElement
+    cancelRef.current?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingConfirm?.requestId])
 
@@ -245,16 +249,77 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     if (isJoining && pendingConfirm !== null) launchInitiatedRef.current = true
   }, [isJoining, pendingConfirm])
 
-  // Esc closes; focus lands on Cancel (the SAFE default) and is trapped inside
-  // the panel while it's open; focus returns to whatever opened it on close.
-  // The modal is inert while a launch is committed: no keyboard interaction.
+  // Defensive latch clear: if the dialog is ever unmounted (error boundary,
+  // route gate) while a confirmation is parked, or if the platform's identity
+  // or auth boundary fires, the global pendingConfirm must not outlive its UI.
+  // The callbacks read a ref so the subscription stays stable across renders.
+  const pendingConfirmRef = useRef(pendingConfirm)
   useEffect(() => {
-    if (pendingConfirm === null) return
-    if (isJoiningRef.current) return
-    restoreFocusRef.current = document.activeElement
-    cancelRef.current?.focus()
+    pendingConfirmRef.current = pendingConfirm
+  })
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !window.vrx?.onIdentityBoundary ||
+      !window.vrx?.onFriendEvent
+    ) {
+      return
+    }
+    const unsubscribeIdentity = window.vrx.onIdentityBoundary(({ platform }) => {
+      if (pendingConfirmRef.current?.platform === platform) cancelPending()
+    })
+    const unsubscribeFriend = window.vrx.onFriendEvent((event) => {
+      if (
+        event.type === 'auth-invalidated' &&
+        event.platform === pendingConfirmRef.current?.platform
+      ) {
+        cancelPending()
+      }
+    })
+    return () => {
+      unsubscribeIdentity()
+      unsubscribeFriend()
+      if (pendingConfirmRef.current !== null) cancelPending()
+    }
+  }, [cancelPending])
+
+  // Esc closes; focus is trapped inside the panel while it's open; focus
+  // returns to whatever opened it on close. The modal is inert while a launch is
+  // committed: no keyboard interaction. This effect is keyed to the OPEN/CLOSE
+  // boolean (plus isJoining), not to pendingConfirm object identity, so a
+  // target-changed mutation of pendingConfirm cannot reset focus.
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      wasOpenRef.current = true
+    } else if (!isOpen && wasOpenRef.current) {
+      wasOpenRef.current = false
+      // A committed launch should hand focus back to the page, not to the
+      // opener that the user already acted on.
+      if (launchInitiatedRef.current) {
+        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+        return
+      }
+      // Restore focus to the opener — but NOT if it is gone from the DOM or
+      // disabled.
+      const opener = restoreFocusRef.current
+      if (
+        opener instanceof HTMLElement &&
+        opener.isConnected &&
+        !(opener instanceof HTMLButtonElement && opener.disabled)
+      ) {
+        opener.focus({ preventScroll: true })
+        return
+      }
+      // Sensible container fallback: the main landmark (tabIndex -1 in
+      // AppShell makes it programmatically focusable).
+      document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+      return
+    }
+
+    if (!isOpen || isJoining) return
+
     function onKeyDown(event: KeyboardEvent): void {
-      if (isJoiningRef.current) return
+      if (isJoining) return
       if (event.key === 'Escape') {
         cancelPending()
         return
@@ -287,28 +352,8 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      // A committed launch should hand focus back to the page, not to the
-      // opener that the user already acted on.
-      if (launchInitiatedRef.current) {
-        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
-        return
-      }
-      // Restore focus to the opener — but NOT if it is gone from the DOM or
-      // disabled.
-      const opener = restoreFocusRef.current
-      if (
-        opener instanceof HTMLElement &&
-        opener.isConnected &&
-        !(opener instanceof HTMLButtonElement && opener.disabled)
-      ) {
-        opener.focus({ preventScroll: true })
-        return
-      }
-      // Sensible container fallback: the main landmark (tabIndex -1 in
-      // AppShell makes it programmatically focusable).
-      document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
     }
-  }, [pendingConfirm, cancelPending])
+  }, [isOpen, isJoining, cancelPending])
 
   if (pendingConfirm === null || friendForCopy == null) return null
 
@@ -335,13 +380,11 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   // mode over its launch URI, so it gets the honest one-line note instead of
   // a fake control.
   const showModePicker = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
-  const resolvedMode: JoinMode = showModePicker
-    ? mode
-    : resolveWireMode(friendForCopy as Friend, joinMode)
+  const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
   // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
-  // AND same hotInstanceKey (platform-aware), visible members only
-  // (isHotInstanceMember — the owner privacy law hides Ask Me/DND). One
+  // AND same hotInstanceKey (platform-aware), joinable members only
+  // (isFriendJoinable — the owner privacy law hides Ask Me/DND). One
   // derivation with the hot card: the dialog never contradicts the card.
   const parkedKey =
     instanceForCopy !== null
@@ -387,7 +430,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
         data-testid="join-confirm-scrim"
         aria-hidden="true"
         onPointerDown={() => {
-          if (!isJoiningRef.current) cancelPending()
+          if (!isJoining) cancelPending()
         }}
         className="absolute inset-0 bg-[var(--scrim-soft)]"
       />

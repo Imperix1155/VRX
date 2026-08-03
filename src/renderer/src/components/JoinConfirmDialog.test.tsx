@@ -11,7 +11,7 @@
  */
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Friend, InstanceInfo } from '@shared/types'
+import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useFriendsStore } from '../stores/friends'
@@ -116,6 +116,20 @@ function mockFriends(vrc: Friend[], cvr: Friend[] = []): void {
   queryClient.setQueryData(friendsQueryKey('chilloutvr'), cvr)
 }
 
+/** Replaces one friend in the live cache + useFriends mock (VRX-239 liveness). */
+function updateFriend(updated: Friend): void {
+  const platform = updated.platform
+  const vrc = queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat')) ?? []
+  const cvr = queryClient.getQueryData<Friend[]>(friendsQueryKey('chilloutvr')) ?? []
+  if (platform === 'vrchat') {
+    const next = vrc.map((f) => (f.platformUserId === updated.platformUserId ? updated : f))
+    mockFriends(next, cvr)
+  } else {
+    const next = cvr.map((f) => (f.platformUserId === updated.platformUserId ? updated : f))
+    mockFriends(vrc, next)
+  }
+}
+
 /** Drives the confirmation gate without a list surface (copy/variant tests). */
 function OpenJoin({ friend }: { friend: Friend }): React.JSX.Element {
   const { join } = useJoinInstance()
@@ -123,6 +137,17 @@ function OpenJoin({ friend }: { friend: Friend }): React.JSX.Element {
     <button type="button" onClick={() => void join(friend)}>
       open join
     </button>
+  )
+}
+
+/** A stable surface that can be rerendered to push live cache updates through
+ *  the mocked `useFriends` into the dialog (VRX-239 liveness tests). */
+function TestSurface({ friend }: { friend: Friend }): React.JSX.Element {
+  return (
+    <>
+      <OpenJoin friend={friend} />
+      <JoinConfirmDialog />
+    </>
   )
 }
 
@@ -140,6 +165,8 @@ const confirmDialog = (): HTMLElement =>
 let joinInstance: ReturnType<typeof vi.fn>
 let getFriendNote: ReturnType<typeof vi.fn>
 let setFriendNote: ReturnType<typeof vi.fn>
+let fireIdentityBoundary: ((event: { platform: Platform }) => void) | null = null
+let fireFriendEvent: ((event: AdapterEvent) => void) | null = null
 
 beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
@@ -147,7 +174,26 @@ beforeEach(() => {
     .fn()
     .mockResolvedValue({ note: null, revision: { platformAccountId: 'self', epoch: 1 } })
   setFriendNote = vi.fn().mockResolvedValue({ ok: true })
-  window.vrx = { joinInstance, getFriendNote, setFriendNote } as unknown as Window['vrx']
+  fireIdentityBoundary = null
+  fireFriendEvent = null
+  window.vrx = {
+    getSettings: vi.fn().mockResolvedValue(DEFAULT_SETTINGS),
+    joinInstance,
+    getFriendNote,
+    setFriendNote,
+    onIdentityBoundary: (cb: (event: { platform: Platform }) => void) => {
+      fireIdentityBoundary = cb
+      return () => {
+        if (fireIdentityBoundary === cb) fireIdentityBoundary = null
+      }
+    },
+    onFriendEvent: (cb: (event: AdapterEvent) => void) => {
+      fireFriendEvent = cb
+      return () => {
+        if (fireFriendEvent === cb) fireFriendEvent = null
+      }
+    }
+  } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
   // confirmJoin defaults TRUE (the cautious default this feature ships with).
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
@@ -1277,5 +1323,451 @@ describe('people-count pluralization', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
     expect(await within(confirmDialog()).findByText('· 1 person')).toBeTruthy()
+  })
+})
+
+describe('VRX-239/241 liveness contract', () => {
+  it('target-changed does not yank focus back to Cancel (VRX-239 focus fix)', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'target-changed' })
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+    expect(document.activeElement).toBe(cancel)
+
+    // Move focus away from Cancel before the click, as a keyboard user would.
+    const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
+    moreInfo.focus()
+    expect(document.activeElement).toBe(moreInfo)
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    // The pendingConfirm mutation (awaitingCacheAfter) must NOT re-run the focus
+    // init and pull focus back to Cancel.
+    expect(document.activeElement).not.toBe(cancel)
+  })
+
+  it('T1 same-key live update: copy updates, no drift state, mode+focus stay, one Join succeeds', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // Move focus away from Cancel so we can detect a focus yank.
+    const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
+    moreInfo.focus()
+    expect(document.activeElement).toBe(moreInfo)
+
+    // Same hot instance, different cosmetic copy.
+    updateFriend({
+      ...joinableFriend,
+      instance: { ...publicInstance, worldName: 'Updated Pug', userCount: 42 }
+    })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    // Copy updated from the live cache.
+    expect(within(dialog).getByText(/Updated Pug/)).toBeTruthy()
+    // No drift, no waiting, no unavailable notice.
+    expect(within(dialog).queryByText(/moved to a different instance/)).toBeNull()
+    expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
+    expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
+
+    const confirm = within(dialog).getByRole('button', { name: 'Join' })
+    expect(confirm).toHaveProperty('disabled', false)
+    // Focus did NOT yank back to Cancel when pendingConfirm mutated.
+    expect(document.activeElement).toBe(moreInfo)
+
+    await act(async () => {
+      fireEvent.click(confirm)
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedTarget: {
+          worldId: publicInstance.worldId,
+          instanceId: publicInstance.instanceId
+        }
+      })
+    )
+  })
+
+  it('T2 different-instance move: drift notice, Confirm disabled until Review, Join sends NEW target', async () => {
+    const bea: Friend = { ...joinableFriend, platformUserId: 'usr_bea', displayName: 'Bea' }
+    const { rerender } = render(
+      <>
+        <TestSurface friend={joinableFriend} />
+        <OpenJoin friend={bea} />
+      </>
+    )
+    const buttons = screen.getAllByRole('button', { name: 'open join' })
+    fireEvent.click(buttons[0]!) // Alex's dialog parks.
+    const dialog = confirmDialog()
+
+    // Alex moves to a different instance while the dialog is open.
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+    rerender(
+      <>
+        <TestSurface friend={joinableFriend} />
+        <OpenJoin friend={bea} />
+      </>
+    )
+    await act(async () => await Promise.resolve())
+
+    // The live copy is now the moved instance; the reviewed target is stale.
+    expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
+    const confirm = within(dialog).getByRole('button', { name: 'Join' })
+    expect(confirm).toHaveProperty('disabled', true)
+    const review = within(dialog).getByRole('button', { name: 'Review updated location' })
+
+    // A second join() for the SAME friend during drift is ignored.
+    fireEvent.click(buttons[0]!)
+    expect(confirmDialog()).toBeTruthy()
+    expect(joinInstance).not.toHaveBeenCalled()
+
+    // A join() for a DIFFERENT friend during drift is also ignored.
+    fireEvent.click(buttons[1]!)
+    expect(confirmDialog()).toBeTruthy()
+    expect(joinInstance).not.toHaveBeenCalled()
+
+    // Review accepts the live target.
+    await act(async () => {
+      fireEvent.click(review)
+      await Promise.resolve()
+    })
+
+    expect(within(dialog).queryByText(/moved to a different instance/)).toBeNull()
+    expect(confirm).toHaveProperty('disabled', false)
+
+    await act(async () => {
+      fireEvent.click(confirm)
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedTarget: {
+          worldId: 'wrld_other',
+          instanceId: 'wrld_fixture:999~public'
+        }
+      })
+    )
+  })
+
+  it.each([
+    {
+      label: 'offline',
+      mutate: () =>
+        updateFriend({ ...joinableFriend, presence: { state: 'offline' }, instance: null })
+    },
+    {
+      label: 'removed',
+      mutate: () => mockFriends([], [])
+    },
+    {
+      label: 'nonjoinable',
+      mutate: () => updateFriend({ ...joinableFriend, status: 'ask-me' })
+    },
+    {
+      label: 'query error',
+      mutate: () => {
+        useFriendsMock.mockReturnValue({
+          data: undefined,
+          isPending: false,
+          isError: true,
+          isFetching: false,
+          refetch: vi.fn()
+        })
+      }
+    }
+  ])(
+    'T3 $label: fail-closed in place, no Join, no persist, Cancel works, zero IPC',
+    async ({ mutate }) => {
+      const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+      window.vrx = { ...window.vrx, saveSettings }
+      const { rerender } = render(
+        <>
+          <WithPersistence />
+          <TestSurface friend={joinableFriend} />
+        </>
+      )
+      await act(async () => {
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const dialog = confirmDialog()
+
+      mutate()
+      rerender(
+        <>
+          <WithPersistence />
+          <TestSurface friend={joinableFriend} />
+        </>
+      )
+      await act(async () => await Promise.resolve())
+
+      expect(within(dialog).getByText(/is no longer available to join/)).toBeTruthy()
+      const confirm = within(dialog).getByRole('button', { name: 'Join' })
+      expect(confirm).toHaveProperty('disabled', true)
+
+      // Don't-ask-again is shown but inert (or absent in drift); it cannot persist.
+      const dontAsk = within(dialog).queryByRole('button', { name: /Don't ask again/ })
+      if (dontAsk) expect(dontAsk).toHaveProperty('disabled', true)
+
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+      expect(joinInstance).not.toHaveBeenCalled()
+      expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
+      expect(saveSettings).not.toHaveBeenCalled()
+    }
+  )
+
+  it('T4 Confirm re-reads the cache not the closure: synchronous cache write blocks stale Join', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    // BEFORE React re-renders, write a different instance into the cache.
+    const movedInstance: InstanceInfo = {
+      ...publicInstance,
+      worldId: 'wrld_other',
+      instanceId: 'wrld_fixture:999~public'
+    }
+    updateFriend({ ...joinableFriend, instance: movedInstance })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    // Renderer preflight caught the drift BEFORE calling main.
+    expect(joinInstance).not.toHaveBeenCalled()
+
+    // After re-render the dialog enters review-required / drift state.
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+    expect(within(dialog).getByText(/moved to a different instance/)).toBeTruthy()
+  })
+
+  it('main returning target-changed sets awaitingCacheAfter and blocks Confirm until cache advances', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'target-changed' })
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', true)
+
+    // Programmatic Confirm while still waiting must be rejected locally by the
+    // awaitingCacheAfter guard without a second IPC round-trip.
+    const { result: joinStore } = renderHook(() => useJoinInstance())
+    let confirmResult: string | null = null
+    await act(async () => {
+      confirmResult = await joinStore.current.confirmPending('desktop')
+    })
+    expect(confirmResult).toBe('review-required')
+    expect(joinInstance).toHaveBeenCalledOnce()
+
+    // Cache advances with the SAME target (no drift) — the awaiting-cache guard lifts.
+    updateFriend({ ...joinableFriend, instance: { ...publicInstance, userCount: 99 } })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', false)
+  })
+
+  it('T6 mode preserved across accepted drift: CVR VR choice survives Review', async () => {
+    mockFriends([], [cvrFriend])
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, joinMode: 'ask' },
+      dirty: false
+    })
+    const { rerender } = render(<TestSurface friend={cvrFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+    const group = within(dialog).getByRole('radiogroup', { name: 'Launch mode' })
+    fireEvent.click(within(group).getByRole('radio', { name: 'VR' }))
+
+    const movedInstance: InstanceInfo = {
+      ...cvrInstance,
+      worldId: 'cvr_other',
+      instanceId: 'cvr_world:xyz'
+    }
+    updateFriend({ ...cvrFriend, instance: movedInstance })
+    rerender(<TestSurface friend={cvrFriend} />)
+    await act(async () => await Promise.resolve())
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Review updated location' }))
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(joinInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'vr',
+        expectedTarget: {
+          worldId: 'cvr_other',
+          instanceId: 'cvr_world:xyz'
+        }
+      })
+    )
+  })
+
+  it('T7 drifted/aborted confirm does NOT persist settings', async () => {
+    mockFriends([], [cvrFriend])
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, joinMode: 'ask' },
+      dirty: false
+    })
+    const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+    window.vrx = { ...window.vrx, saveSettings }
+    const { rerender } = render(
+      <>
+        <WithPersistence />
+        <TestSurface friend={cvrFriend} />
+      </>
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
+
+    const group = within(dialog).getByRole('radiogroup', { name: 'Launch mode' })
+    fireEvent.click(within(group).getByRole('radio', { name: 'VR' }))
+
+    const movedInstance: InstanceInfo = {
+      ...cvrInstance,
+      worldId: 'cvr_other',
+      instanceId: 'cvr_world:xyz'
+    }
+    updateFriend({ ...cvrFriend, instance: movedInstance })
+    rerender(
+      <>
+        <WithPersistence />
+        <TestSurface friend={cvrFriend} />
+      </>
+    )
+    await act(async () => await Promise.resolve())
+
+    // In drift the footnote is replaced by Review — there is no "don't ask again" surface.
+    expect(within(dialog).queryByRole('button', { name: /Don't ask again/ })).toBeNull()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Review updated location' }))
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    // Settings were NOT persisted for a drifted confirm.
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
+    expect(useSettingsStore.getState().settings.joinMode).toBe('ask')
+    expect(saveSettings).not.toHaveBeenCalled()
+
+    // Aborted confirm: a fresh open + Cancel also leaves settings untouched.
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })).getByRole(
+        'button',
+        { name: 'Cancel' }
+      )
+    )
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(true)
+    expect(useSettingsStore.getState().settings.joinMode).toBe('ask')
+  })
+})
+
+describe('defensive latch clear (VRX-239/241)', () => {
+  it('identity-boundary for the dialog platform closes the dialog', () => {
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    expect(joinInstance).not.toHaveBeenCalled()
+  })
+
+  it('auth-invalidated for the dialog platform closes the dialog', () => {
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' }))
+
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    expect(joinInstance).not.toHaveBeenCalled()
+  })
+
+  it('boundary for the OTHER platform leaves the dialog open', () => {
+    render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    act(() => fireIdentityBoundary!({ platform: 'chilloutvr' }))
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+
+    expect(confirmDialog()).toBeTruthy()
+    expect(joinInstance).not.toHaveBeenCalled()
+  })
+
+  it('unmount while pending clears the global latch', () => {
+    const { unmount } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    expect(confirmDialog()).toBeTruthy()
+
+    unmount()
+
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+  })
+})
+
+describe('join() guard', () => {
+  it('non-joinable friend cannot open the gate; an honest failure blip appears instead', () => {
+    const askMe: Friend = { ...joinableFriend, status: 'ask-me' }
+    mockFriends([askMe])
+    render(<TestSurface friend={askMe} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+
+    expect(screen.queryByRole('dialog', { name: /Join this .* instance\?/ })).toBeNull()
+    expect(joinInstance).not.toHaveBeenCalled()
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.joinFailedFor(askMe)).toBe(true)
+    expect(result.current.joinFailureFor(askMe)).toBe('not-joinable')
   })
 })

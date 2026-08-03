@@ -18,7 +18,10 @@ export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['rea
  * honored (there is no one to ask), so it falls back to 'desktop' — the
  * pre-VRX-210 behavior.
  */
-export function resolveWireMode(friend: Friend, preference: JoinModePreference): JoinMode {
+export function resolveWireMode(
+  friend: { platform: Platform },
+  preference: JoinModePreference
+): JoinMode {
   if (friend.platform === 'chilloutvr' && preference !== 'ask') return preference
   return 'desktop'
 }
@@ -207,6 +210,10 @@ function createJoinStore(): JoinStore {
     if (confirmJoin) {
       // Opening the dialog is a new attempt too: clear any lingering blip.
       clearFailureBlip()
+      if (!isFriendJoinable(friend)) {
+        showFailureBlip(friendJoinKey(friend), 'not-joinable')
+        return
+      }
       const target = targetFor(friend)
       if (target === null) return
       requestId += 1
