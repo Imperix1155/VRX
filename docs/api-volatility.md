@@ -270,8 +270,9 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 - **Envelope structure changes (e.g., `{status, result}` instead of `{message, data}`):** All CVR requests fail validation. Entire adapter is broken until code is updated.
 - **`message` type drift (string/null/absent):** Non-breaking — `nullish()` tolerates all three, and the value is discarded.
+- **A malformed `/friends` record:** The record is skipped and counted while valid records survive. The resulting roster is marked `partial`, so LocationAuthority applies the valid entries without tombstoning friends omitted from that ChilloutVR sync.
 
-**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (`requestData` envelope + `cvrAuthEnvelopeSchema`).
+**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (`requestData` envelope + `cvrAuthEnvelopeSchema`); `/src/main/services/adapters/cvr/fetchCvrFriends.ts` (per-record validation); `/src/main/services/adapters/CvrAdapter.ts` (`RosterCompleteness`).
 
 ---
 

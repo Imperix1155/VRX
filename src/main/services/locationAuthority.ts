@@ -10,6 +10,8 @@ interface VersionedFriend {
   pending?: Pick<Friend, 'presence' | 'instance'>
   /** Profile-only live update received before the REST profile seed. */
   pendingProfile?: Friend
+  /** Revision that last supplied presence/location, excluding profile-only updates. */
+  locationRevision: number
   revision: number
   updatedAt: number
 }
@@ -18,7 +20,7 @@ interface PlatformState {
   friends: Map<string, VersionedFriend>
   seeded: boolean
   stale: boolean
-  /** Minimum entry revision authorized after a partial seed clears a live fence. */
+  /** Minimum location revision authorized after a partial seed clears a live fence. */
   freshFromRevision: number | null
   minimumSeedRevision: number
   liveSeedRevision: number | null
@@ -82,32 +84,48 @@ export class LocationAuthority {
     for (const friend of friends) {
       const current = state.friends.get(friend.platformUserId)
       if (current === undefined || current.revision <= capturedRevision) {
-        state.friends.set(friend.platformUserId, { friend, revision: capturedRevision, updatedAt })
+        state.friends.set(friend.platformUserId, {
+          friend,
+          locationRevision: capturedRevision,
+          revision: capturedRevision,
+          updatedAt
+        })
       } else if (
-        current.friend === null &&
-        (current.pending !== undefined || current.pendingProfile !== undefined)
+        current.friend !== null ||
+        current.pending !== undefined ||
+        current.pendingProfile !== undefined
       ) {
-        const profile = current.pendingProfile ?? friend
+        const profile = current.pendingProfile ?? current.friend ?? friend
+        const liveLocation =
+          current.locationRevision > capturedRevision
+            ? (current.friend ?? current.pending)
+            : undefined
         state.friends.set(friend.platformUserId, {
           ...current,
           friend: {
             ...friend,
             ...profile,
-            presence: current.pending?.presence ?? friend.presence,
-            instance: current.pending?.instance ?? friend.instance,
+            presence: liveLocation !== undefined ? liveLocation.presence : friend.presence,
+            instance: liveLocation !== undefined ? liveLocation.instance : friend.instance,
             isFavorite: friend.isFavorite,
             favoriteGroupIds: friend.favoriteGroupIds,
             linkedPersonId: friend.linkedPersonId
           } as Friend,
           pending: undefined,
-          pendingProfile: undefined
+          pendingProfile: undefined,
+          locationRevision: liveLocation !== undefined ? current.locationRevision : capturedRevision
         })
       }
     }
     if (completeness === 'complete') {
       for (const [id, current] of state.friends) {
         if (!incoming.has(id) && current.revision <= capturedRevision) {
-          state.friends.set(id, { friend: null, revision: capturedRevision, updatedAt })
+          state.friends.set(id, {
+            friend: null,
+            locationRevision: capturedRevision,
+            revision: capturedRevision,
+            updatedAt
+          })
         }
       }
     }
@@ -120,9 +138,10 @@ export class LocationAuthority {
       state.freshFromRevision = null
     }
     if (state.liveSeedRevision !== null && capturedRevision >= state.liveSeedRevision) {
+      const liveSeedRevision = state.liveSeedRevision
       state.stale = false
       state.liveSeedRevision = null
-      state.freshFromRevision = completeness === 'partial' ? capturedRevision : null
+      state.freshFromRevision = completeness === 'partial' ? liveSeedRevision : null
     }
   }
 
@@ -151,7 +170,16 @@ export class LocationAuthority {
       friend: Friend | null,
       pending?: Pick<Friend, 'presence' | 'instance'>
     ): void => {
-      state.friends.set(id, { friend, pending, revision, updatedAt })
+      const pendingProfile =
+        friend === null && pending === undefined ? undefined : state.friends.get(id)?.pendingProfile
+      state.friends.set(id, {
+        friend,
+        pending,
+        pendingProfile,
+        locationRevision: revision,
+        revision,
+        updatedAt
+      })
     }
     const markOffline = (id: string): void => {
       const current = state.friends.get(id)?.friend
@@ -177,26 +205,57 @@ export class LocationAuthority {
       case 'friend-updated': {
         const entry = state.friends.get(event.friend.platformUserId)
         if (!state.seeded) {
+          if (
+            entry !== undefined &&
+            entry.friend === null &&
+            entry.pending === undefined &&
+            entry.pendingProfile === undefined
+          ) {
+            break
+          }
+          if (entry?.friend !== null && entry?.friend !== undefined) {
+            state.friends.set(event.friend.platformUserId, {
+              ...entry,
+              friend: {
+                ...event.friend,
+                presence: entry.friend.presence,
+                instance: entry.friend.instance,
+                isFavorite: entry.friend.isFavorite,
+                favoriteGroupIds: entry.friend.favoriteGroupIds,
+                linkedPersonId: entry.friend.linkedPersonId
+              } as Friend,
+              pendingProfile: undefined,
+              revision,
+              updatedAt
+            })
+            break
+          }
           state.friends.set(event.friend.platformUserId, {
             friend: null,
             pending: entry?.pending,
             pendingProfile: event.friend,
+            locationRevision: entry?.locationRevision ?? 0,
             revision,
             updatedAt
           })
           break
         }
-        const current = entry?.friend
-        if (current === null || current === undefined) break
-        store(event.friend.platformUserId, {
-          ...event.friend,
-          // The wire event says nothing about presence/location or local fields.
-          presence: current.presence,
-          instance: current.instance,
-          isFavorite: current.isFavorite,
-          favoriteGroupIds: current.favoriteGroupIds,
-          linkedPersonId: current.linkedPersonId
-        } as Friend)
+        if (entry === undefined || entry.friend === null) break
+        const current = entry.friend
+        state.friends.set(event.friend.platformUserId, {
+          ...entry,
+          friend: {
+            ...event.friend,
+            // The wire event says nothing about presence/location or local fields.
+            presence: current.presence,
+            instance: current.instance,
+            isFavorite: current.isFavorite,
+            favoriteGroupIds: current.favoriteGroupIds,
+            linkedPersonId: current.linkedPersonId
+          } as Friend,
+          revision,
+          updatedAt
+        })
         break
       }
       case 'friends-snapshot': {
@@ -238,7 +297,11 @@ export class LocationAuthority {
     const state = this.states[platform]
     if (!state.seeded || state.stale) return { ok: false, reason: 'stale' }
     const entry = state.friends.get(friendId)
-    if (state.freshFromRevision !== null && entry && entry.revision < state.freshFromRevision) {
+    if (
+      state.freshFromRevision !== null &&
+      entry &&
+      entry.locationRevision < state.freshFromRevision
+    ) {
       return { ok: false, reason: 'stale' }
     }
     if (entry?.friend === null || entry?.friend === undefined) {

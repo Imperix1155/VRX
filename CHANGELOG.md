@@ -10,13 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
+- **Socket handshake construction is now directly unit-tested.** The already-bounded VRChat and ChilloutVR opening handshakes were extracted into dedicated socket factories without changing their approximately 15-second network timeout behavior.
 
 ### Fixed
 
-- **A partial VRChat friend sync no longer removes friends it did not receive.** If a page fails or a record cannot be read, VRX keeps previously known friends and still applies the valid entries it received. A slower, older complete sync cannot remove friends fenced as stale by a newer partial reconnect sync.
-- **Live VRChat profile updates are no longer lost while the first friend list is loading.** A status or display-name change received after loading starts is merged into the REST profile when it arrives, without trusting the event for presence, location, or local favorite data.
+- **A partial friend sync no longer removes friends it did not receive.** If VRChat loses a page or either platform skips a malformed record, VRX keeps previously known friends and still applies the valid entries it received. A slower, older complete sync cannot remove friends fenced as stale by a newer partial reconnect sync.
+- **Live VRChat profile updates are no longer lost while the first friend list is loading.** A status or display-name change received after loading starts is merged into the REST profile when it arrives, without displacing a newer live location, trusting location fields from the profile event, or making a pre-reconnect location fresh.
 - **A temporary VRChat presence-probe failure no longer makes every friend look offline.** VRX keeps the last known roster and presence until a reliable snapshot arrives.
-- **Live connections cannot hang forever during their opening handshake.** Both VRChat and ChilloutVR socket handshakes use the same approximately 15-second network timeout as the REST API.
 
 ## [0.13.0] - 2026-08-02
 
