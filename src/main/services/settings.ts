@@ -50,6 +50,10 @@ function getStore(): Store<Record<string, unknown>> {
  * migration fails, leaving the on-disk file intact.
  */
 export function loadSettings(): Settings {
+  // A queued snapshot is newer than disk until the coalesced write completes.
+  // Serve it directly so renderer reloads cannot clobber the in-memory truth.
+  if (pendingSettingsSave) return pendingSettingsSave.settings
+
   try {
     // Inside the try (audit W7 review): conf's `store` getter RETHROWS on a
     // corrupted JSON file — outside the try, that throw escaped the "never
@@ -118,6 +122,7 @@ export function flushPendingSettingsSave(): void {
       throw new Error('settings: refusing to overwrite settings written by a newer version')
     }
     getStore().store = pending.settings
+    settingsSnapshot = pending.settings
     for (const waiter of pending.waiters) waiter.resolve(pending.settings)
   } catch (error) {
     for (const waiter of pending.waiters) waiter.reject(error)

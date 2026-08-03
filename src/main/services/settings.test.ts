@@ -197,6 +197,26 @@ describe('loadSettings (W7 M1)', () => {
     vi.useRealTimers()
   })
 
+  it('serves a pending save during reload and keeps snapshot aligned after flush', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOnline: false }
+    loadSettings()
+    storeState.written = []
+
+    const pending = saveSettings({ notifyFriendOnline: true })
+    const readsAfterSave = storeState.reads
+
+    expect(loadSettings().notifyFriendOnline).toBe(true)
+    expect(storeState.reads).toBe(readsAfterSave)
+    expect(storeState.written).toHaveLength(0)
+
+    await vi.advanceTimersByTimeAsync(250)
+    await expect(pending).resolves.toMatchObject({ notifyFriendOnline: true })
+    expect(getSettingsSnapshot()).toEqual(storeState.written[0])
+    expect(storeState.written[0]).toMatchObject({ notifyFriendOnline: true })
+    vi.useRealTimers()
+  })
+
   it('flushes the pending settings write synchronously for the before-quit path', async () => {
     vi.useFakeTimers()
     storeState.data = { ...DEFAULT_SETTINGS }
