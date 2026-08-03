@@ -88,6 +88,9 @@ function joinReq(
   target: Friend,
   overrides: Partial<IpcInvoke['join-instance']['req']> = {}
 ): IpcInvoke['join-instance']['req'] {
+  if (!target.instance && overrides.expectedTarget === undefined) {
+    throw new Error('joinReq: pass an explicit expectedTarget for an instance-less friend')
+  }
   return {
     platform: target.platform,
     friendId: target.platformUserId,

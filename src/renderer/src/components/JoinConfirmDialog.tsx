@@ -32,8 +32,7 @@ import { useTranslation } from 'react-i18next'
 import type { Friend, InstanceInfo, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
-import { queryClient } from '../queries/queryClient'
-import { friendsQueryKey, useFriends } from '../queries/friends'
+import { useFriends } from '../queries/friends'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
@@ -172,12 +171,12 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
-  // The dialog renders from the LIVE friend in the TanStack cache.
+  // The dialog renders from the LIVE friend in the TanStack cache. The waiting
+  // guard intentionally reads result.dataUpdatedAt (a render-subscribed field)
+  // rather than getQueryState().dataUpdateCount, so an identical-data refetch
+  // still re-renders the dialog and lifts the guard.
   const liveQuery = useFriends(pendingConfirm?.platform ?? 'vrchat')
-  const liveState = queryClient.getQueryState<Friend[], Error>(
-    friendsQueryKey(pendingConfirm?.platform ?? 'vrchat')
-  )
-  const dataUpdateCount = liveState?.dataUpdateCount ?? 0
+  const dataUpdatedAt = liveQuery.dataUpdatedAt ?? 0
 
   const liveFriend = pendingConfirm
     ? liveQuery.data?.find((f) => f.platformUserId === pendingConfirm.platformUserId)
@@ -192,7 +191,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   const isWaiting =
     pendingConfirm !== null &&
     pendingConfirm.awaitingCacheAfter !== null &&
-    dataUpdateCount <= pendingConfirm.awaitingCacheAfter
+    dataUpdatedAt <= pendingConfirm.awaitingCacheAfter
   const isJoinableLive = liveFriend ? isFriendJoinable(liveFriend) : false
   const isDrift =
     !isWaiting &&

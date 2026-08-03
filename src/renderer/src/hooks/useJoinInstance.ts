@@ -35,7 +35,7 @@ export function joinFailureMessageKey(reason: JoinFailureReason): string {
 
 /** The composite key both platforms can't collide on (same shape as the
  *  row/list keys — an id alone could collide across platforms). */
-function friendJoinKey(friend: Friend): string {
+function friendJoinKey(friend: { platform: Platform; platformUserId: string }): string {
   return `${friend.platform}:${friend.platformUserId}`
 }
 
@@ -59,8 +59,8 @@ export interface PendingConfirm {
   displayName: string
   /** The instance the user reviewed and accepted. */
   reviewedTarget: JoinTarget
-  /** When main returns `target-changed`, the cache dataUpdateCount we must wait
-   *  to exceed before another Confirm can proceed. */
+  /** When main returns `target-changed`, the `dataUpdatedAt` watermark we must
+   *  wait to exceed before another Confirm can proceed. */
   awaitingCacheAfter: number | null
 }
 
@@ -90,16 +90,16 @@ interface JoinStore {
   invalidatePending: () => void
 }
 
-/** Read the latest friends array and the query's dataUpdateCount for CAS. */
+/** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
 function readFriendsCache(platform: Platform): {
   friends: Friend[] | undefined
-  dataUpdateCount: number
+  dataUpdatedAt: number
   queryError: Error | null
 } {
   const state = queryClient.getQueryState<Friend[], Error>(friendsQueryKey(platform))
   return {
     friends: queryClient.getQueryData<Friend[]>(friendsQueryKey(platform)),
-    dataUpdateCount: state?.dataUpdateCount ?? 0,
+    dataUpdatedAt: state?.dataUpdatedAt ?? 0,
     queryError: state?.error ?? null
   }
 }
@@ -107,15 +107,9 @@ function readFriendsCache(platform: Platform): {
 /** Build the JoinTarget the user is seeing for a live friend. */
 function targetFor(friend: Friend): JoinTarget | null {
   if (!friend.instance) return null
-  return {
-    key: hotInstanceKey(
-      friend.platform,
-      friend.instance.instanceId,
-      friend.instance.worldId
-    ) as string,
-    worldId: friend.instance.worldId,
-    instanceId: friend.instance.instanceId
-  }
+  const key = hotInstanceKey(friend.platform, friend.instance.instanceId, friend.instance.worldId)
+  if (key === null) return null
+  return { key, worldId: friend.instance.worldId, instanceId: friend.instance.instanceId }
 }
 
 /**
@@ -248,7 +242,7 @@ function createJoinStore(): JoinStore {
     // Renderer preflight (VRX-239): re-read the TanStack cache synchronously —
     // NEVER the render closure. Fail closed to 'review-required' (drift) or
     // 'unavailable' without calling main.
-    const { friends, dataUpdateCount, queryError } = readFriendsCache(pc.platform)
+    const { friends, dataUpdatedAt, queryError } = readFriendsCache(pc.platform)
     if (queryError !== null || friends === undefined) return 'unavailable'
     const live = friends.find((f) => f.platformUserId === pc.platformUserId)
     if (!live) return 'unavailable'
@@ -256,14 +250,14 @@ function createJoinStore(): JoinStore {
     const liveTarget = targetFor(live)
     if (liveTarget === null) return 'unavailable'
     if (liveTarget.key !== pc.reviewedTarget.key) return 'review-required'
-    if (pc.awaitingCacheAfter !== null && dataUpdateCount <= pc.awaitingCacheAfter) {
+    if (pc.awaitingCacheAfter !== null && dataUpdatedAt <= pc.awaitingCacheAfter) {
       return 'review-required'
     }
 
     emit({ joining: true })
     clearFailureBlip()
     const generationAtStart = sessionGeneration
-    const friendKey = `${pc.platform}:${pc.platformUserId}`
+    const friendKey = friendJoinKey(pc)
     try {
       if (!window.vrx) {
         // The session may have been invalidated while we were not awaiting; do
@@ -295,7 +289,7 @@ function createJoinStore(): JoinStore {
         // Main's authority is ahead of the renderer cache. Re-read the cache;
         // if it already contains a healthy, DIFFERENT target, enter Review
         // immediately so the dialog is never stranded waiting for an update
-        // that has already landed. Otherwise arm the generation guard and wait.
+        // that has already landed. Otherwise arm the watermark and wait.
         const after = readFriendsCache(pc.platform)
         const afterLive = after.friends?.find((f) => f.platformUserId === pc.platformUserId)
         const afterTarget = afterLive && isFriendJoinable(afterLive) ? targetFor(afterLive) : null
@@ -309,10 +303,13 @@ function createJoinStore(): JoinStore {
         emit({
           pendingConfirm: {
             ...pc,
-            awaitingCacheAfter: after.dataUpdateCount
+            awaitingCacheAfter: after.dataUpdatedAt
           },
           joining: false
         })
+        // Main is ahead of the renderer cache; force a single refetch so the
+        // wait cannot outlive a 'manual' reconcile cadence.
+        void queryClient.refetchQueries({ queryKey: friendsQueryKey(pc.platform) })
         return 'review-required'
       }
       // Ordinary terminal failure: clear the dialog and show the attributed blip.

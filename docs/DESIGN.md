@@ -452,7 +452,7 @@ State: the selected friend id lives in the friends store (`selectedFriendId`, vi
 A TRUE modal (`aria-modal="true"`) over a soft scrim. Renders from the LIVE friend in the TanStack cache: drift shows a review notice, unhealthy/missing data shows Cancel-only unavailable.
 
 - **Focus trap** stays active while the modal is open, including during an in-flight launch. Disabled, hidden, and `aria-disabled` controls are excluded from the trap. When every control is disabled in flight, focus anchors on the dialog panel itself so Tab can never escape to the background.
-- **State precedence is exclusive:** unhealthy query / missing friend / non-joinable → unavailable (Cancel only); only healthy live data may enter drift/review.
+- **State precedence is exclusive, highest first:** waiting for a cache update after a main-side `target-changed` (Confirm disabled, Cancel live) → unhealthy query / missing friend / non-joinable → unavailable (Cancel only) → drift/review, which only healthy live data may enter.
 - The modal is cleared by identity boundary, auth-invalidated, or unmount even while a launch is settling; late IPC completions for the invalidated session are ignored.
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)

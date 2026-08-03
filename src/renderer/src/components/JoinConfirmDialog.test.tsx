@@ -102,18 +102,28 @@ const cvrFriend: Friend = {
   linkedPersonId: null
 }
 
+let cacheGeneration = 0
+
 function mockFriends(vrc: Friend[], cvr: Friend[] = []): void {
+  cacheGeneration += 1
+  // The dialog reads the TanStack cache synchronously for its live-friend
+  // lookup and Confirm preflight, so the mock must also seed the real cache.
+  // We keep the mocked dataUpdatedAt in sync with the query state so both the
+  // render guard and the store's armed watermark compare the same value.
+  queryClient.setQueryData(friendsQueryKey('vrchat'), vrc)
+  queryClient.setQueryData(friendsQueryKey('chilloutvr'), cvr)
+  for (const platform of ['vrchat', 'chilloutvr'] as Platform[]) {
+    const query = queryClient.getQueryCache().find({ queryKey: friendsQueryKey(platform) })
+    query?.setState({ dataUpdatedAt: cacheGeneration })
+  }
   useFriendsMock.mockImplementation((platform: string) => ({
     data: platform === 'vrchat' ? vrc : cvr,
     isPending: false,
     isError: false,
     isFetching: false,
+    dataUpdatedAt: cacheGeneration,
     refetch: vi.fn()
   }))
-  // The dialog reads the TanStack cache synchronously for its live-friend
-  // lookup and Confirm preflight, so the mock must also seed the real cache.
-  queryClient.setQueryData(friendsQueryKey('vrchat'), vrc)
-  queryClient.setQueryData(friendsQueryKey('chilloutvr'), cvr)
 }
 
 /** Replaces one friend in the live cache + useFriends mock (VRX-239 liveness). */
@@ -197,6 +207,7 @@ beforeEach(() => {
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
   // confirmJoin defaults TRUE (the cautious default this feature ships with).
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+  cacheGeneration = 0
   mockFriends([joinableFriend])
 })
 
@@ -1312,7 +1323,8 @@ describe('focus management', () => {
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
     expect(document.activeElement).toBe(review)
 
-    // A disabled/hidden control is pulled back to the first valid focusable.
+    // A middle focusable is left alone by the trap: no preventDefault, and
+    // jsdom does not advance focus on a synthetic keydown.
     cancel.focus()
     fireEvent.keyDown(document, { key: 'Tab' })
     expect(document.activeElement).toBe(cancel)
@@ -1632,6 +1644,7 @@ describe('VRX-239/241 liveness contract', () => {
           isPending: false,
           isError: true,
           isFetching: false,
+          dataUpdatedAt: 0,
           refetch: vi.fn()
         })
         // The dialog's Confirm preflight reads the REAL TanStack query state,
@@ -1855,6 +1868,7 @@ describe('VRX-239/241 liveness contract', () => {
       isPending: false,
       isError: true,
       isFetching: false,
+      dataUpdatedAt: 0,
       refetch: vi.fn()
     })
     queryClient
@@ -1907,6 +1921,36 @@ describe('VRX-239/241 liveness contract', () => {
 
     expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
     expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', false)
+  })
+
+  it('target-changed waiting clears when a refetch returns identical data', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'target-changed' })
+    const refetchSpy = vi.spyOn(queryClient, 'refetchQueries').mockResolvedValue(undefined)
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+
+    expect(joinInstance).toHaveBeenCalledOnce()
+    expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
+    // The arm path forces a single refetch so 'manual' reconcile cadences cannot
+    // strand the dialog if no WS event arrives.
+    expect(refetchSpy).toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+
+    // Identical data but a newer dataUpdatedAt watermark: the render-subscribed
+    // field advances and lifts the guard even though structural sharing would
+    // keep the friends array reference stable.
+    mockFriends([joinableFriend])
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    expect(within(dialog).queryByText(/Waiting for updated location/)).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toHaveProperty('disabled', false)
+    refetchSpy.mockRestore()
   })
 
   it('T6 mode preserved across accepted drift: CVR VR choice survives Review', async () => {
