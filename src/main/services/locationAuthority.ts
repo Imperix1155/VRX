@@ -8,6 +8,8 @@ interface VersionedFriend {
   friend: Friend | null
   /** Id-only live state received before the REST profile seed. */
   pending?: Pick<Friend, 'presence' | 'instance'>
+  /** Profile-only live update received before the REST profile seed. */
+  pendingProfile?: Friend
   revision: number
   updatedAt: number
 }
@@ -16,7 +18,7 @@ interface PlatformState {
   friends: Map<string, VersionedFriend>
   seeded: boolean
   stale: boolean
-  /** Oldest entry revision authorized after a partial seed clears a live fence. */
+  /** Minimum entry revision authorized after a partial seed clears a live fence. */
   freshFromRevision: number | null
   minimumSeedRevision: number
   liveSeedRevision: number | null
@@ -73,6 +75,7 @@ export class LocationAuthority {
   ): void {
     const state = this.states[platform]
     if (capturedRevision < state.minimumSeedRevision) return
+    state.minimumSeedRevision = capturedRevision
     const incoming = new Set(friends.map((friend) => friend.platformUserId))
     const updatedAt = this.clock()
 
@@ -80,11 +83,24 @@ export class LocationAuthority {
       const current = state.friends.get(friend.platformUserId)
       if (current === undefined || current.revision <= capturedRevision) {
         state.friends.set(friend.platformUserId, { friend, revision: capturedRevision, updatedAt })
-      } else if (current.friend === null && current.pending !== undefined) {
+      } else if (
+        current.friend === null &&
+        (current.pending !== undefined || current.pendingProfile !== undefined)
+      ) {
+        const profile = current.pendingProfile ?? friend
         state.friends.set(friend.platformUserId, {
           ...current,
-          friend: { ...friend, ...current.pending } as Friend,
-          pending: undefined
+          friend: {
+            ...friend,
+            ...profile,
+            presence: current.pending?.presence ?? friend.presence,
+            instance: current.pending?.instance ?? friend.instance,
+            isFavorite: friend.isFavorite,
+            favoriteGroupIds: friend.favoriteGroupIds,
+            linkedPersonId: friend.linkedPersonId
+          } as Friend,
+          pending: undefined,
+          pendingProfile: undefined
         })
       }
     }
@@ -159,9 +175,18 @@ export class LocationAuthority {
         store(event.platformUserId, null)
         break
       case 'friend-updated': {
-        const current = state.seeded
-          ? state.friends.get(event.friend.platformUserId)?.friend
-          : undefined
+        const entry = state.friends.get(event.friend.platformUserId)
+        if (!state.seeded) {
+          state.friends.set(event.friend.platformUserId, {
+            friend: null,
+            pending: entry?.pending,
+            pendingProfile: event.friend,
+            revision,
+            updatedAt
+          })
+          break
+        }
+        const current = entry?.friend
         if (current === null || current === undefined) break
         store(event.friend.platformUserId, {
           ...event.friend,
@@ -213,11 +238,11 @@ export class LocationAuthority {
     const state = this.states[platform]
     if (!state.seeded || state.stale) return { ok: false, reason: 'stale' }
     const entry = state.friends.get(friendId)
+    if (state.freshFromRevision !== null && entry && entry.revision < state.freshFromRevision) {
+      return { ok: false, reason: 'stale' }
+    }
     if (entry?.friend === null || entry?.friend === undefined) {
       return { ok: false, reason: 'unknown-friend' }
-    }
-    if (state.freshFromRevision !== null && entry.revision < state.freshFromRevision) {
-      return { ok: false, reason: 'stale' }
     }
     return { ok: true, friend: entry.friend }
   }

@@ -505,6 +505,9 @@ export class VrcAdapter extends VrcApiClient {
     })
     const kicked = worldIds.filter((id): id is string => id !== null)
     for (const id of kicked) this.pendingWorldResolutions.add(id)
+    // Residual auth window (documented in api-volatility.md): getFriends returns
+    // before these requests settle, so a background 401 invalidates the session
+    // asynchronously after the caller may already have seeded LocationAuthority.
     void fetchWorldMetadata(worldIds, this.worldResolver, undefined, (worldId, meta) => {
       if (generation !== this.sessionGeneration) return
       this.emit({
