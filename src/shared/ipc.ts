@@ -31,6 +31,7 @@ export type InstanceActionResult =
         | 'not-joinable'
         | 'invalid-url'
         | 'cooldown'
+        | 'rate-limited'
         | 'launch-failed'
         | 'invite-failed'
         | 'target-changed'
@@ -80,7 +81,9 @@ export interface IpcInvoke {
       note: string
       revision: { platformAccountId: string; epoch: number }
     }
-    res: { ok: true } | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
 }
 

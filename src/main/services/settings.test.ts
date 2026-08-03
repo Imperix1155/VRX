@@ -42,7 +42,12 @@ vi.mock('electron-store', () => ({
 
 vi.mock('../logger', () => ({ default: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }))
 
-import { getSettingsSnapshot, loadSettings, saveSettings } from './settings'
+import {
+  flushPendingSettingsSave,
+  getSettingsSnapshot,
+  loadSettings,
+  saveSettings
+} from './settings'
 
 beforeEach(() => {
   storeState.throwOnRead = false
@@ -126,22 +131,31 @@ describe('loadSettings (W7 M1)', () => {
     expect(storeState.reads).toBe(readsAfterStartup)
   })
 
-  it('updates the in-memory snapshot synchronously when settings are saved', () => {
+  it('updates the in-memory snapshot synchronously when settings are saved', async () => {
+    vi.useFakeTimers()
     storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOffline: false }
     loadSettings()
 
-    saveSettings({ notifyFriendOffline: true })
+    const pending = saveSettings({ notifyFriendOffline: true })
 
     expect(getSettingsSnapshot().notifyFriendOffline).toBe(true)
+    flushPendingSettingsSave()
+    await pending
+    vi.useRealTimers()
   })
 
-  it('keeps the validated in-memory snapshot when persistence fails, while rethrowing', () => {
+  it('keeps the validated in-memory snapshot when persistence fails, while rejecting', async () => {
+    vi.useFakeTimers()
     storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOnline: false }
     loadSettings()
     storeState.throwOnWrite = true
 
-    expect(() => saveSettings({ notifyFriendOnline: true })).toThrow('disk full')
+    const pending = saveSettings({ notifyFriendOnline: true })
     expect(getSettingsSnapshot().notifyFriendOnline).toBe(true)
+    const rejection = expect(pending).rejects.toThrow('disk full')
+    flushPendingSettingsSave()
+    await rejection
+    vi.useRealTimers()
   })
 
   it('keeps native policy aligned with the UI when a newer-version file refuses persistence', () => {
@@ -159,5 +173,80 @@ describe('loadSettings (W7 M1)', () => {
     expect(getSettingsSnapshot().notifyFriendInGame).toBe(true)
     expect(getSettingsSnapshot().version).toBe(9999)
     expect(storeState.written).toHaveLength(0)
+  })
+
+  it('coalesces rapid snapshots into one delayed disk write owned by main', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS }
+    loadSettings()
+    storeState.written = []
+
+    const first = saveSettings({ theme: 'light' })
+    const second = saveSettings({ density: 'compact' })
+
+    expect(storeState.written).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(249)
+    expect(storeState.written).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(first).resolves.toMatchObject({ theme: 'light', density: 'compact' })
+    await expect(second).resolves.toMatchObject({ theme: 'light', density: 'compact' })
+    expect(storeState.written).toEqual([
+      expect.objectContaining({ theme: 'light', density: 'compact' })
+    ])
+    vi.useRealTimers()
+  })
+
+  it('serves a pending save during reload and keeps snapshot aligned after flush', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOnline: false }
+    loadSettings()
+    storeState.written = []
+
+    const pending = saveSettings({ notifyFriendOnline: true })
+    const readsAfterSave = storeState.reads
+
+    expect(loadSettings().notifyFriendOnline).toBe(true)
+    expect(storeState.reads).toBe(readsAfterSave)
+    expect(storeState.written).toHaveLength(0)
+
+    await vi.advanceTimersByTimeAsync(250)
+    await expect(pending).resolves.toMatchObject({ notifyFriendOnline: true })
+    expect(getSettingsSnapshot()).toEqual(storeState.written[0])
+    expect(storeState.written[0]).toMatchObject({ notifyFriendOnline: true })
+    vi.useRealTimers()
+  })
+
+  it('flushes the pending settings write synchronously for the before-quit path', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS }
+    loadSettings()
+    storeState.written = []
+    const pending = saveSettings({ theme: 'light' })
+    flushPendingSettingsSave()
+
+    await expect(pending).resolves.toMatchObject({ theme: 'light' })
+    expect(storeState.written).toEqual([expect.objectContaining({ theme: 'light' })])
+    await vi.advanceTimersByTimeAsync(250)
+    expect(storeState.written).toHaveLength(1)
+    vi.useRealTimers()
+  })
+
+  it('does not let a delayed write overwrite a newer-version file', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS }
+    loadSettings()
+    storeState.written = []
+    const pending = saveSettings({ theme: 'light' })
+    const rejection = expect(pending).rejects.toThrow(
+      'refusing to overwrite settings written by a newer version'
+    )
+
+    storeState.data = { ...DEFAULT_SETTINGS, version: 9999, futureField: 'keep-me' }
+    flushPendingSettingsSave()
+
+    await rejection
+    expect(storeState.written).toHaveLength(0)
+    vi.useRealTimers()
   })
 })

@@ -28,7 +28,7 @@ vi.mock('./security', () => ({
 }))
 
 const log = vi.hoisted(() => ({ warn: vi.fn() }))
-vi.mock('electron-log', () => ({ default: log }))
+vi.mock('../logger', () => ({ default: log }))
 
 import { registerAuthHandlers } from './auth'
 

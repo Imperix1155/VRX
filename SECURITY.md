@@ -32,3 +32,7 @@ This creates a private thread visible only to you and the maintainer.
 VRX runs locally and signs in as the user on their own machine. Concerns about how VRX stores credentials or handles data from the VRChat and ChilloutVR APIs are in scope.
 
 Issues in VRChat or ChilloutVR themselves are out of scope — please report those to their respective vendors.
+
+## Application safeguards
+
+Project-owned renderer-to-main IPC validates the sender in a trust-first registration shell before touching timer-free, per-channel sliding-window state, then validates it again inside every domain handler as defense in depth. The counters and warning suppression live for the main-process lifetime, so reloads and replacement windows share each channel's budget; denials do not include `retryAfterMs`. Untrusted frames cannot consume that state. The logger uses electron-log's main-only Node surface, and central IPC wiring removes electron-store's unused renderer bootstrap listener, leaving only the enumerated VRX channels. Budgets are fixed safety ceilings; repeated dual-platform retry/reconnect cycles can exhaust `get-friends` headroom before its window expires.

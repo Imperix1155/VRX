@@ -181,6 +181,7 @@
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
       "cooldown": "One moment — just launched a join",
+      "rateLimited": "Too many attempts — try again shortly",
       "targetChanged": "Location changed — try Join again"
     },
     "notConnected": {

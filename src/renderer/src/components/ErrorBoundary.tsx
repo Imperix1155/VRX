@@ -1,6 +1,5 @@
 import { Component } from 'react'
 import { useTranslation } from 'react-i18next'
-import logRenderer from 'electron-log/renderer'
 
 type FallbackVariant = 'app' | 'panel'
 
@@ -18,9 +17,7 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
 
   function copyDiagnostics(): void {
     const text = `${error?.message ?? 'Unknown error'}\n\n${error?.stack ?? ''}`
-    navigator.clipboard.writeText(text).catch((err: unknown) => {
-      logRenderer.error('copy-diagnostics failed', { message: String(err) })
-    })
+    navigator.clipboard.writeText(text).catch(() => undefined)
   }
 
   return (
@@ -91,10 +88,8 @@ interface State {
  * React error boundary (VRX-127).
  *
  * Catches render-phase errors from its subtree and shows a glass-styled
- * fallback instead of a white screen. The componentDidCatch log goes to
- * electron-log/renderer, which forwards to the main process via the IPC
- * bridge that log.initialize() wires up in main (VRX-15). No new IPC
- * channels are needed.
+ * fallback instead of a white screen. Diagnostics stay renderer-local for
+ * explicit copy; the main logger deliberately exposes no renderer IPC.
  */
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -110,14 +105,6 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, State> 
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error }
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    logRenderer.error('React render error', {
-      message: error.message,
-      stack: error.stack,
-      componentStack: info.componentStack
-    })
   }
 
   render(): React.ReactNode {
