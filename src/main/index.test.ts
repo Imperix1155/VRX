@@ -22,39 +22,6 @@ const findMatchingBrace = (text: string, openingBrace: number): number => {
 const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
 
 describe('main native notification wiring', () => {
-  it('includes the packaged app icon on native notifications (VRX-82)', () => {
-    expect(source).toContain('new NativeNotification({ title, body, icon })')
-  })
-
-  it('pins the VRX-204 Title Case toast headers (owner: headers capitalize every word)', () => {
-    expect(source).toContain("title = 'Friend Online'")
-    expect(source).toContain("title = 'Friend Joined a World'")
-    expect(source).toContain("title = 'Friend Offline'")
-    expect(source).toContain("title = 'Friends Gathering'")
-  })
-
-  it('pins the VRX-204 body templates + the load-bearing in-game label strip', () => {
-    expect(source).toContain('`${alert.displayName} came online`')
-    expect(source).toContain('`${alert.displayName} joined ${worldName}`')
-    expect(source).toContain('`${alert.displayName} joined a world`')
-    expect(source).toContain('`${alert.displayName} went offline`')
-    // The wire instance label must never reach alert copy (VRX-85 review finding):
-    // both world-bearing paths strip it before templating.
-    expect(
-      (source.match(/alert\.worldName\?\.replace\(INSTANCE_LABEL_SUFFIX, ''\)/g) ?? []).length
-    ).toBe(2)
-  })
-
-  it('keeps the owner-authored hot-instance same-instance copy, plural-correct (VRX-237)', () => {
-    // Singular/plural arms (a threshold of 1 must never read "1 friends…").
-    expect(source).toContain("'1 friend is'")
-    expect(source).toContain('`${alert.friendCount} friends are`')
-    expect(source).toContain('`${countCopy} in the same instance — join them?`')
-    expect(source).toContain('`${countCopy} together in ${strippedWorldName} — join them?`')
-    // The false same-WORLD signal is gone for good.
-    expect(source).not.toContain('same world')
-  })
-
   it('keeps cold/GC Windows activations focused without treating every activation as a click', () => {
     expect(source).toContain('NativeNotification.handleActivation(focusMainWindow)')
     expect(source).not.toContain('NativeNotification.handleActivation(focusDashboard)')
@@ -66,6 +33,30 @@ describe('main native notification wiring', () => {
     )
     expect(source).toContain("mainWindow.webContents.on('did-finish-load'")
     expect(source).toContain('dashboardNavigation.rendererReady(mainWindow)')
+  })
+})
+
+describe('main extracted core wiring anchors', () => {
+  it('creates the notification notifier and tears down adapter event wiring before quit', () => {
+    const executableSource = stripComments(source)
+
+    expect(executableSource).toMatch(/\bcreateFriendNotificationNotifier\s*\(/)
+
+    const adapterWiring = executableSource.match(
+      /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*wireAdapterEvents\s*\(/
+    )
+    expect(adapterWiring).not.toBeNull()
+
+    const beforeQuitStart = executableSource.search(/^\s*app\.on\('before-quit', \(\) => \{$/m)
+    expect(beforeQuitStart).toBeGreaterThan(-1)
+    const beforeQuitOpeningBrace = executableSource.indexOf('{', beforeQuitStart)
+    const beforeQuitHandler = executableSource.slice(
+      beforeQuitOpeningBrace + 1,
+      findMatchingBrace(executableSource, beforeQuitOpeningBrace)
+    )
+    const teardownName = adapterWiring?.[1] ?? '[missing-adapter-teardown]'
+
+    expect(beforeQuitHandler).toMatch(new RegExp(`\\b${teardownName}\\s*\\(\\)`))
   })
 })
 
@@ -137,17 +128,6 @@ describe('main navigation hardening', () => {
     expect(disallowedBranch).toBeDefined()
     expect(disallowedBranch).not.toMatch(/^\s*shell\.openExternal\(details\.url\)/m)
     expect(executableHandler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
-  })
-})
-
-describe('main location authority event ordering', () => {
-  it('consumes live deltas before alert and renderer fan-out', () => {
-    const authority = source.indexOf('locationAuthority.consume(event)')
-    const alerts = source.indexOf('friendAlerts.consume(event)')
-    const renderer = source.indexOf('broadcast(event)', authority)
-    expect(authority).toBeGreaterThan(-1)
-    expect(authority).toBeLessThan(alerts)
-    expect(authority).toBeLessThan(renderer)
   })
 })
 
