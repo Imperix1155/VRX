@@ -32,7 +32,7 @@ import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { createTray } from './tray'
-import { FriendAlerts, type FriendAlert, type FriendAlertType } from './services/friendAlerts'
+import { FriendAlerts, type FriendAlertType } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
@@ -42,6 +42,8 @@ import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
+import { createFriendNotificationNotifier } from './friendNotifications'
+import { wireAdapterEvents } from './adapterWiring'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -62,23 +64,11 @@ const rendererReadyWindows = new WeakSet<BrowserWindow>()
 const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
 })
-const retainedFriendNotifications = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
-const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
-const FRIEND_NOTIFICATION_RETENTION_MS = 60_000
-// Trailing creator-set instance label, e.g. "Bono's Movie Night (#teehee)" —
-// matches the renderer's display strip (utils/worldName).
-const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
 
 const onRendererHydrated = (event: IpcMainEvent): void => {
   if (!isTrustedIpcSender(event.senderFrame)) return
   rendererHydrationGates.get(event.sender)?.hydrated()
-}
-
-function releaseRetainedFriendNotification(notification: NativeNotification): void {
-  const timer = retainedFriendNotifications.get(notification)
-  if (timer !== undefined) clearTimeout(timer)
-  retainedFriendNotifications.delete(notification)
 }
 
 function createWindow(): BrowserWindow {
@@ -476,88 +466,14 @@ app
     ])
     const appStatus = new AppStatusService()
 
-    const showFriendAlert = (alert: FriendAlert): void => {
-      if (!NativeNotification.isSupported()) return
-
-      // Copy shape (VRX-204, owner feedback on live toasts): Title Case headers
-      // ("headers generally have all of the words capitalized"), header = the
-      // general event category, body = the specifics. Exact wording is
-      // owner-adjustable — flagged in the PR; strings stay main-side pending
-      // the parked notification-i18n follow-up.
-      let title: string
-      let body: string
-      switch (alert.type) {
-        case 'online':
-          title = 'Friend Online'
-          body = `${alert.displayName} came online`
-          break
-        case 'in-game': {
-          title = 'Friend Joined a World'
-          // Match the renderer's trailing instance-label cleanup. Notifications
-          // are deliberately one-shot: later true-world enrichment corrects the
-          // baseline but does not attempt to replace an already delivered toast.
-          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
-          const worldName = strippedWorldName === '' ? null : strippedWorldName
-          body =
-            worldName === null
-              ? `${alert.displayName} joined a world`
-              : `${alert.displayName} joined ${worldName}`
-          break
-        }
-        case 'offline':
-          title = 'Friend Offline'
-          body = `${alert.displayName} went offline`
-          break
-        case 'hot-instance': {
-          title = 'Friends Gathering'
-          const strippedWorldName = alert.worldName?.replace(INSTANCE_LABEL_SUFFIX, '').trim() ?? ''
-          // VRX-237 truthful copy (owner law 2026-08-01): the alert fired on an
-          // EXACT-instance threshold crossing, so the copy says "together" /
-          // "same instance" — the old world-grouping's false social signal is
-          // gone (pinned negative in index.test.ts). Plural-correct down to a
-          // user threshold of 1 ("1 friend is…", never "1 friends…").
-          const countCopy =
-            alert.friendCount === 1 ? '1 friend is' : `${alert.friendCount} friends are`
-          body =
-            strippedWorldName === ''
-              ? `${countCopy} in the same instance — join them?`
-              : `${countCopy} together in ${strippedWorldName} — join them?`
-          break
-        }
-      }
-
-      try {
-        // VRX-82: native toasts carry the packaged app icon.
-        const notification = new NativeNotification({ title, body, icon })
-        notification.on('click', alert.type === 'hot-instance' ? focusDashboard : focusMainWindow)
-        const cleanup = (): void => releaseRetainedFriendNotification(notification)
-        notification.once('close', cleanup)
-        notification.once('failed', () => {
-          // Never log native error text: platform messages can echo body copy,
-          // which contains a friend's display name.
-          log.warn('friend notification failed')
-          cleanup()
-        })
-        const cleanupTimer = setTimeout(cleanup, FRIEND_NOTIFICATION_RETENTION_MS)
-        cleanupTimer.unref()
-        retainedFriendNotifications.set(notification, cleanupTimer)
-        if (retainedFriendNotifications.size > MAX_RETAINED_FRIEND_NOTIFICATIONS) {
-          const oldest = retainedFriendNotifications.keys().next().value
-          if (oldest !== undefined) releaseRetainedFriendNotification(oldest)
-        }
-        try {
-          notification.show()
-        } catch (error) {
-          cleanup()
-          throw error
-        }
-      } catch {
-        // Native notification failure must never interrupt the shared adapter
-        // subscription path. Do not log the alert/error contents: both may
-        // contain a friend's display name.
-        log.warn('friend notification failed')
-      }
-    }
+    const showFriendAlert = createFriendNotificationNotifier({
+      icon,
+      focusMainWindow,
+      focusDashboard,
+      // Never log native error text or alert contents: either may contain a
+      // friend's display name.
+      logFailure: () => log.warn('friend notification failed')
+    })
 
     const alertSettingEnabled = (type: FriendAlertType): boolean => {
       // The settings service updates this in-memory snapshot synchronously on
@@ -629,23 +545,19 @@ app
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
       }
     }
-    const handleAdapterEvent = (event: AdapterEvent): void => {
-      if (event.type === 'connection') {
-        appStatus.recordConnection(event.platform, event.health)
-      }
-      locationAuthority.consume(event)
-      friendAlerts.consume(event)
-      broadcast(event)
-    }
-    const unsubscribeVrcLive = vrcAdapter.subscribe(handleAdapterEvent)
-    const unsubscribeCvrLive = cvrAdapter.subscribe(handleAdapterEvent)
+    const teardownAdapterEvents = wireAdapterEvents({
+      sources: [vrcAdapter, cvrAdapter],
+      appStatus,
+      locationAuthority,
+      friendAlerts,
+      broadcast
+    })
     app.on('before-quit', () => {
       // Renderer changes are handed to main immediately; force the latest
       // coalesced snapshot to disk before window teardown can discard it.
       flushPendingSettingsSave()
       // Close both sockets and halt the reconnect loops so quit is clean.
-      unsubscribeVrcLive()
-      unsubscribeCvrLive()
+      teardownAdapterEvents()
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the
