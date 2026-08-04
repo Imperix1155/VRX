@@ -124,16 +124,15 @@ describe.each([
     expect(connected.parentElement?.className).not.toContain('--st-online-text')
     const disconnect = screen.getByRole('button', { name: msg('settings.accounts.disconnect') })
     expect(disconnect).toHaveProperty('disabled', false)
-    // Cached social data for this platform must be REMOVED on logout (a later
-    // login may be a different account), not merely marked stale.
+    // Cached social data for this platform must be emptied on logout (a later
+    // login may be a different account) without removing the mounted query.
     queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
     fireEvent.click(disconnect)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
-    expect(queryClient.getQueryData(friendsQueryKey(platform))).toBeUndefined()
-    // Removal must not have woken a doomed refetch: auth settles unauthenticated
-    // BEFORE the cache drop, so the (now-disabled) friends query stays silent.
+    expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
+    // The settled [] observer must not wake a doomed unauthenticated refetch.
     expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
   })
 

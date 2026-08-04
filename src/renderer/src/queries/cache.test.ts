@@ -4,36 +4,14 @@ import type { Query, QueryKey } from '@tanstack/react-query'
 import { QueryClient } from '@tanstack/react-query'
 import {
   buildCacheBuster,
-  bumpCacheEpoch,
   CACHE_SCHEMA_VERSION,
-  clearPersistedQueryCache,
-  getCacheEpoch,
-  QUERY_CACHE_EPOCH_KEY,
-  QUERY_CACHE_STORAGE_KEY,
+  createQueryCachePersister,
   shouldDehydrateQuery
 } from './cache'
 
 describe('query cache buster', () => {
-  beforeEach(() => {
-    window.localStorage.removeItem(QUERY_CACHE_EPOCH_KEY)
-  })
-
-  afterEach(() => {
-    window.localStorage.removeItem(QUERY_CACHE_EPOCH_KEY)
-  })
-
-  it('builds a buster from app version, schema version, and current epoch', () => {
-    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}.0`)
-    bumpCacheEpoch()
-    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}.1`)
-  })
-
-  it('bumps and reads the cache epoch via localStorage', () => {
-    expect(getCacheEpoch()).toBe(0)
-    expect(bumpCacheEpoch()).toBe(1)
-    expect(getCacheEpoch()).toBe(1)
-    expect(bumpCacheEpoch()).toBe(2)
-    expect(getCacheEpoch()).toBe(2)
+  it('builds a static buster from app version and schema version', () => {
+    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}`)
   })
 })
 
@@ -60,12 +38,12 @@ describe('shouldDehydrateQuery', () => {
     expect(shouldDehydrateQuery(query!)).toBe(true)
   })
 
-  it('includes successful instance queries', () => {
+  it('excludes instance queries until they have a platform key and eviction contract', () => {
     client.setQueryData(['instance', 'wrld_123'], { id: 'wrld_123' })
     const query = findQuery(['instance', 'wrld_123'])
     expect(query).toBeTruthy()
     expect(query!.state.status).toBe('success')
-    expect(shouldDehydrateQuery(query!)).toBe(true)
+    expect(shouldDehydrateQuery(query!)).toBe(false)
   })
 
   it('excludes pending queries in an allowed namespace', async () => {
@@ -129,36 +107,16 @@ describe('shouldDehydrateQuery', () => {
   })
 })
 
-describe('clearPersistedQueryCache', () => {
-  beforeEach(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.clear()
-    }
-  })
-
-  afterEach(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.clear()
-    }
-  })
-
-  it('removes the vrx query-cache localStorage entry', () => {
-    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
-    clearPersistedQueryCache()
-    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
-  })
-
-  it('is a no-op when localStorage is unavailable', () => {
-    const original = window.localStorage
+describe('createQueryCachePersister', () => {
+  it('does not throw when acquiring localStorage fails', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
     Object.defineProperty(window, 'localStorage', {
-      value: {
-        removeItem: () => {
-          throw new Error('denied')
-        }
+      get: () => {
+        throw new Error('denied')
       },
       configurable: true
     })
-    expect(() => clearPersistedQueryCache()).not.toThrow()
-    Object.defineProperty(window, 'localStorage', { value: original, configurable: true })
+    expect(() => createQueryCachePersister()).not.toThrow()
+    if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
   })
 })

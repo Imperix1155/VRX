@@ -32,7 +32,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
-import { bumpCacheEpoch, PERSISTED_NAMESPACES, schedulePersistedCacheWipe } from '../queries/cache'
+import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
 export function useLiveFriendEvents(): void {
@@ -58,24 +58,6 @@ export function useLiveFriendEvents(): void {
     // doesn't close it) could refill the buffer / patch the cache AFTER we cleared
     // it, and re-apply stale presence onto the next roster fetch (Codex, 2026-07-08).
     const quarantined = new Set<Friend['platform']>()
-
-    // Track delayed disk wipes scheduled by boundary events so they can be
-    // cancelled on unmount.
-    const pendingWipes: number[] = []
-
-    const wipePersistedCache = (): void => {
-      // Bump the epoch FIRST so any throttled persister write that leaks after
-      // this boundary is tagged with the old epoch and discarded on the next
-      // cold start.
-      bumpCacheEpoch()
-      // Evict every persisted namespace from memory so the throttled write has
-      // nothing to save for the previous account/session.
-      for (const namespace of PERSISTED_NAMESPACES) {
-        queryClient.removeQueries({ queryKey: [namespace] })
-      }
-      // Remove the key now and again after the persister's 1s throttle flushes.
-      pendingWipes.push(schedulePersistedCacheWipe())
-    }
 
     const applyToCache = (
       platform: Friend['platform'],
@@ -134,10 +116,9 @@ export function useLiveFriendEvents(): void {
         void queryClient.cancelQueries({ queryKey: friendsQueryKey(event.platform) })
         queryClient.setQueryData<Friend[]>(friendsQueryKey(event.platform), [])
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
-        // The persisted cache must not outlive an auth boundary either. Wipe
-        // memory (all persisted namespaces), disk, and bump the epoch so a
-        // leaked throttled write cannot restore stale data (VRX-155).
-        wipePersistedCache()
+        // Persist the corrected cache synchronously: this platform is empty,
+        // while the independent platform's legitimate roster stays intact.
+        persistQueryCacheNow(queryClient)
         return
       }
       // From here down, every event either mutates the roster (presence-snapshot,
@@ -177,9 +158,9 @@ export function useLiveFriendEvents(): void {
       void queryClient.cancelQueries({ queryKey })
       queryClient.setQueryData<Friend[]>(queryKey, [])
       void queryClient.invalidateQueries({ queryKey })
-      // Wipe memory (all persisted namespaces), disk, and bump the epoch so a
-      // leaked throttled write cannot restore stale data (VRX-155).
-      wipePersistedCache()
+      // Persist the corrected cache synchronously: this platform is empty,
+      // while the independent platform's legitimate roster stays intact.
+      persistQueryCacheNow(queryClient)
     })
 
     // Re-apply the buffered snapshot after a roster FETCH resolves (the fix for
@@ -209,6 +190,16 @@ export function useLiveFriendEvents(): void {
         const status = cacheEvent.query.state.data as { state?: string } | undefined
         if (status?.state === 'authenticated' && quarantined.delete(platform)) {
           void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
+        } else if (status?.state !== 'authenticated' && status?.state !== 'error') {
+          // Hydration can restore a successful friends query before auth settles.
+          // If auth disables useFriends (signed out / needs 2FA / unknown state),
+          // no refetch will run to disprove that stale disk roster. Quarantine it,
+          // cancel any older request, and keep the mounted observer settled at [].
+          quarantined.add(platform)
+          latestSnapshot.delete(platform)
+          void queryClient.cancelQueries({ queryKey: friendsQueryKey(platform) })
+          queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
+          persistQueryCacheNow(queryClient)
         }
         return
       }
@@ -236,9 +227,6 @@ export function useLiveFriendEvents(): void {
       unsubscribe()
       unsubscribeIdentityBoundary()
       unsubscribeCache()
-      for (const id of pendingWipes) {
-        if (typeof window !== 'undefined') window.clearTimeout(id)
-      }
     }
   }, [queryClient])
 }

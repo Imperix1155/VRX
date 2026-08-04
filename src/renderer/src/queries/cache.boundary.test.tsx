@@ -9,7 +9,7 @@
  * window, and assert localStorage holds no account-owned data once quiescent.
  */
 import { useEffect } from 'react'
-import { cleanup, render, act } from '@testing-library/react'
+import { cleanup, render, act, screen } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,13 +17,11 @@ import type { Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useLiveFriendEvents } from '../hooks/useLiveFriendEvents'
-import { useFriends } from './friends'
-import {
-  buildCacheBuster,
-  buildPersistOptions,
-  onPersistRestore,
-  QUERY_CACHE_STORAGE_KEY
-} from './cache'
+import { useFriendsStore } from '../stores/friends'
+import FriendsList from '../components/FriendsList'
+import '../i18n'
+import { friendsQueryKey, useFriends } from './friends'
+import { buildPersistOptions, onPersistRestore, QUERY_CACHE_STORAGE_KEY } from './cache'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
 vi.mock('./auth', () => ({
@@ -31,10 +29,20 @@ vi.mock('./auth', () => ({
   authStatusQueryKey: (platform: string = 'vrchat') => ['auth-status', platform]
 }))
 
-function mockAuthState(): void {
-  useAuthStatusMock.mockReturnValue({
-    data: { platform: 'vrchat', state: 'authenticated', accountId: null, displayName: null },
-    isPending: false
+function mockAuthState(cvrState: 'authenticated' | 'unauthenticated' = 'authenticated'): void {
+  useAuthStatusMock.mockImplementation((platform: 'vrchat' | 'chilloutvr') => {
+    const state = platform === 'vrchat' ? 'authenticated' : cvrState
+    return {
+      data: {
+        platform,
+        state,
+        accountId: state === 'authenticated' ? `${platform}-account` : null,
+        displayName: state === 'authenticated' ? `${platform} account` : null
+      },
+      isPending: false,
+      isSuccess: true,
+      isFetching: false
+    }
   })
 }
 
@@ -44,7 +52,7 @@ function seededFriend(platform: 'vrchat' | 'chilloutvr', name: string): Friend {
     platform,
     displayName: name,
     avatarUrl: null,
-    presence: { state: 'online' },
+    presence: { state: platform === 'vrchat' ? 'active' : 'offline' },
     status: null,
     statusDescription: null,
     instance: null,
@@ -55,52 +63,27 @@ function seededFriend(platform: 'vrchat' | 'chilloutvr', name: string): Friend {
   } as unknown as Friend
 }
 
-function buildPersistedPayload(
-  entries: Array<{ platform: 'vrchat' | 'chilloutvr'; friends: Friend[] }>
-): {
-  buster: string
-  timestamp: number
-  clientState: { mutations: []; queries: unknown[] }
-} {
-  const now = Date.now()
-  return {
-    buster: buildCacheBuster(),
-    timestamp: now,
-    clientState: {
-      mutations: [],
-      queries: entries.map(({ platform, friends }) => ({
-        queryHash: JSON.stringify(['friends', platform]),
-        queryKey: ['friends', platform],
-        state: {
-          data: friends,
-          dataUpdateCount: 1,
-          dataUpdatedAt: now,
-          errorUpdateCount: 0,
-          errorUpdatedAt: 0,
-          fetchFailureCount: 0,
-          fetchFailureReason: null,
-          fetchMeta: null,
-          isInvalidated: false,
-          status: 'success',
-          fetchStatus: 'idle'
-        },
-        promise: null
-      }))
-    }
-  }
-}
-
 function FriendsProbe({
   onData
 }: {
-  onData: (friends: Friend[] | undefined) => void
+  onData: (snapshot: {
+    vrc: Friend[] | undefined
+    cvr: Friend[] | undefined
+    vrcPending: boolean
+  }) => void
 }): React.JSX.Element {
   useLiveFriendEvents()
-  const { data } = useFriends('vrchat')
+  const vrc = useFriends('vrchat')
+  const cvr = useFriends('chilloutvr')
   useEffect(() => {
-    onData(data)
-  }, [data, onData])
+    onData({ vrc: vrc.data, cvr: cvr.data, vrcPending: vrc.isPending })
+  }, [vrc.data, cvr.data, vrc.isPending, onData])
   return <></>
+}
+
+function FriendsListProbe(): React.JSX.Element {
+  useLiveFriendEvents()
+  return <FriendsList />
 }
 
 let fireFriendEvent: ((e: unknown) => void) | undefined
@@ -126,7 +109,11 @@ function stubBridge(overrides: Record<string, unknown> = {}): void {
 
 function mountBoundary(
   queryClient: QueryClient,
-  onData: (friends: Friend[] | undefined) => void
+  onData: (snapshot: {
+    vrc: Friend[] | undefined
+    cvr: Friend[] | undefined
+    vrcPending: boolean
+  }) => void
 ): ReturnType<typeof render> {
   return render(
     <PersistQueryClientProvider
@@ -135,6 +122,18 @@ function mountBoundary(
       onSuccess={() => onPersistRestore(queryClient)}
     >
       <FriendsProbe onData={onData} />
+    </PersistQueryClientProvider>
+  )
+}
+
+function mountFriendsList(queryClient: QueryClient): ReturnType<typeof render> {
+  return render(
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={buildPersistOptions()}
+      onSuccess={() => onPersistRestore(queryClient)}
+    >
+      <FriendsListProbe />
     </PersistQueryClientProvider>
   )
 }
@@ -158,6 +157,20 @@ function storedContainsDisplayName(name: string): boolean {
   return queries.some((query) => query.state?.data?.some((friend) => friend.displayName === name))
 }
 
+function storedFriends(platform: 'vrchat' | 'chilloutvr'): Friend[] | undefined {
+  const stored = parseStoredCache() as {
+    clientState?: {
+      queries?: Array<{
+        queryKey?: unknown[]
+        state?: { data?: Friend[] }
+      }>
+    }
+  } | null
+  return stored?.clientState?.queries?.find(
+    (query) => query.queryKey?.[0] === 'friends' && query.queryKey[1] === platform
+  )?.state?.data
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   mockAuthState()
@@ -166,6 +179,7 @@ beforeEach(() => {
     dirty: false
   })
   window.localStorage.clear()
+  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
 })
 
 afterEach(() => {
@@ -180,85 +194,73 @@ afterEach(() => {
   fireIdentityBoundary = undefined
 })
 
-describe('persisted cache boundary wipe', () => {
-  it('identity-boundary leaves no account-A data in localStorage after the throttle window', async () => {
-    const accountAVrc = [seededFriend('vrchat', 'AccountA')]
-    const accountACvr = [seededFriend('chilloutvr', 'AccountA')]
-    const accountB = [seededFriend('vrchat', 'AccountB')]
-    const getFriends = vi.fn().mockResolvedValueOnce(accountAVrc).mockResolvedValueOnce(accountB)
-    stubBridge({ getFriends })
+describe('persisted cache boundaries', () => {
+  it.each(['identity-boundary', 'auth-invalidated'] as const)(
+    '%s keeps mounted observers settled and preserves the other platform in memory and storage',
+    async (boundary) => {
+      const accountAVrc = [seededFriend('vrchat', 'VrcAccountA')]
+      const accountBCvr = [seededFriend('chilloutvr', 'CvrAccountB')]
+      const getFriends = vi.fn(() => new Promise<Friend[]>(() => {}))
+      stubBridge({ getFriends })
 
-    // Seed AccountA for BOTH platforms. A boundary on VRChat must not leave
-    // ChilloutVR's AccountA roster on disk either.
-    window.localStorage.setItem(
-      QUERY_CACHE_STORAGE_KEY,
-      JSON.stringify(
-        buildPersistedPayload([
-          { platform: 'vrchat', friends: accountAVrc },
-          { platform: 'chilloutvr', friends: accountACvr }
-        ])
-      )
-    )
-    const epochBefore = buildCacheBuster()
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      queryClient.setQueryData(friendsQueryKey('vrchat'), accountAVrc)
+      queryClient.setQueryData(friendsQueryKey('chilloutvr'), accountBCvr)
+      const observed: Array<{
+        vrc: Friend[] | undefined
+        cvr: Friend[] | undefined
+        vrcPending: boolean
+      }> = []
+      mountBoundary(queryClient, (snapshot) => observed.push(snapshot))
 
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(observed.at(-1)?.vrc).toEqual(accountAVrc)
+      expect(observed.at(-1)?.cvr).toEqual(accountBCvr)
+
+      await act(async () => {
+        if (boundary === 'identity-boundary') fireIdentityBoundary!({ platform: 'vrchat' })
+        else fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' })
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      expect(observed.at(-1)).toMatchObject({ vrc: [], cvr: accountBCvr, vrcPending: false })
+      expect(queryClient.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+      expect(queryClient.getQueryData(friendsQueryKey('chilloutvr'))).toEqual(accountBCvr)
+      // The boundary write is synchronous: disk matches memory before the
+      // provider's 1s throttled writer has had a chance to flush.
+      expect(storedContainsDisplayName('VrcAccountA')).toBe(false)
+      expect(storedFriends('vrchat')).toEqual([])
+      expect(storedFriends('chilloutvr')).toEqual(accountBCvr)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1200)
+      })
+      expect(storedFriends('vrchat')).toEqual([])
+      expect(storedFriends('chilloutvr')).toEqual(accountBCvr)
+    }
+  )
+
+  it('does not strand the default all-platform FriendsList in loading after a boundary', async () => {
+    mockAuthState('unauthenticated')
+    const accountAVrc = [seededFriend('vrchat', 'VrcAccountA')]
+    stubBridge({ getFriends: vi.fn(() => new Promise<Friend[]>(() => {})) })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const observed: (Friend[] | undefined)[] = []
-    mountBoundary(queryClient, (friends) => observed.push(friends))
+    queryClient.setQueryData(friendsQueryKey('vrchat'), accountAVrc)
+    mountFriendsList(queryClient)
 
-    // Let the provider restore and the initial fetch settle.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(100)
+      await vi.advanceTimersByTimeAsync(0)
     })
-    expect(observed.some((list) => list?.[0]?.displayName === 'AccountA')).toBe(true)
+    expect(screen.getByText('VrcAccountA')).toBeTruthy()
 
-    // Account switch on VRChat: fire identity-boundary, then advance well past the 1s
-    // persister throttle + the 1.5s delayed wipe.
     await act(async () => {
       fireIdentityBoundary!({ platform: 'vrchat' })
-      await vi.advanceTimersByTimeAsync(3000)
+      await vi.advanceTimersByTimeAsync(0)
     })
 
-    // The previous account's data must not have leaked back to disk.
-    expect(storedContainsDisplayName('AccountA')).toBe(false)
-    // Epoch was bumped, so a leaked write with the old buster is discarded on
-    // the next cold start.
-    expect(buildCacheBuster()).not.toBe(epochBefore)
-  })
-
-  it('auth-invalidated leaves no account-A data in localStorage after the throttle window', async () => {
-    const accountAVrc = [seededFriend('vrchat', 'AccountA')]
-    const accountACvr = [seededFriend('chilloutvr', 'AccountA')]
-    const getFriends = vi.fn().mockResolvedValueOnce(accountAVrc).mockResolvedValueOnce([])
-    stubBridge({ getFriends })
-
-    // Seed AccountA for BOTH platforms. Auth-invalidated on VRChat must not
-    // leave ChilloutVR's AccountA roster on disk either.
-    window.localStorage.setItem(
-      QUERY_CACHE_STORAGE_KEY,
-      JSON.stringify(
-        buildPersistedPayload([
-          { platform: 'vrchat', friends: accountAVrc },
-          { platform: 'chilloutvr', friends: accountACvr }
-        ])
-      )
-    )
-    const epochBefore = buildCacheBuster()
-
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const observed: (Friend[] | undefined)[] = []
-    mountBoundary(queryClient, (friends) => observed.push(friends))
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(100)
-    })
-    expect(observed.some((list) => list?.[0]?.displayName === 'AccountA')).toBe(true)
-
-    await act(async () => {
-      fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' })
-      await vi.advanceTimersByTimeAsync(3000)
-    })
-
-    expect(storedContainsDisplayName('AccountA')).toBe(false)
-    expect(buildCacheBuster()).not.toBe(epochBefore)
+    expect(screen.queryByText('Loading...')).toBeNull()
+    expect(screen.getByText('No friends online')).toBeTruthy()
   })
 })

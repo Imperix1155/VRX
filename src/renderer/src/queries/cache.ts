@@ -1,81 +1,46 @@
-import type { Query, QueryClient, QueryKey } from '@tanstack/react-query'
-import type { Persister, PersistQueryClientOptions } from '@tanstack/react-query-persist-client'
+import { dehydrate, type Query, type QueryClient, type QueryKey } from '@tanstack/react-query'
+import type {
+  PersistedClient,
+  Persister,
+  PersistQueryClientOptions
+} from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { z } from 'zod'
+import { MAX_FRIENDS } from '@shared/constants'
 
 /**
  * Schema version for the TanStack Query persisted cache (VRX-155).
  *
  * Bump this when the shape of what we persist changes (e.g. a new required
  * query-key namespace or an incompatible state migration). It is combined with
- * the app version and the cache epoch to build the cache buster, so a schema
- * bump automatically discards older persisted payloads on the next cold start.
+ * the app version to build the cache buster, so a schema bump automatically
+ * discards older persisted payloads on the next cold start.
  */
 export const CACHE_SCHEMA_VERSION = 1
 
 /** localStorage key used by the sync storage persister for the dehydrated cache. */
 export const QUERY_CACHE_STORAGE_KEY = 'vrx-query-cache'
 
-/**
- * localStorage key for the renderer-local cache epoch. The epoch is bumped on
- * every identity/auth boundary and folded into the buster so a payload written
- * under a previous account/session cannot restore after a restart, even if a
- * throttled persister write leaks after the boundary wipe.
- */
-export const QUERY_CACHE_EPOCH_KEY = 'vrx-query-cache-epoch'
-
 /** Persisted queries older than this are discarded on hydration (24 hours). */
 export const MAX_QUERY_AGE_MS = 24 * 60 * 60 * 1000
 
 /** Query-key namespaces that are allowed to be persisted. */
-export const PERSISTED_NAMESPACES = ['friends', 'instance'] as const
-
-/**
- * Read the current cache epoch from localStorage. Defaults to 0 when unset or
- * unreadable.
- */
-export function getCacheEpoch(): number {
-  if (typeof window === 'undefined') return 0
-  try {
-    const raw = window.localStorage.getItem(QUERY_CACHE_EPOCH_KEY)
-    const parsed = raw === null ? 0 : Number.parseInt(raw, 10)
-    return Number.isNaN(parsed) ? 0 : parsed
-  } catch {
-    return 0
-  }
-}
-
-/**
- * Bump the cache epoch and persist it to localStorage. Returns the new epoch.
- * Called on identity and auth boundaries before wiping the cache so any
- * subsequently-written payload is tagged with the old epoch and discarded on
- * the next cold start.
- */
-export function bumpCacheEpoch(): number {
-  if (typeof window === 'undefined') return 0
-  try {
-    const next = getCacheEpoch() + 1
-    window.localStorage.setItem(QUERY_CACHE_EPOCH_KEY, String(next))
-    return next
-  } catch {
-    return 0
-  }
-}
+export const PERSISTED_NAMESPACES = ['friends'] as const
 
 /**
  * Build the cache buster that ties the persisted cache to the current app
- * release, schema version, and identity epoch. `__APP_VERSION__` is injected at
- * build time (electron.vite.config.ts) and mirrored by vitest.config.ts under
- * tests.
+ * release and schema version. `__APP_VERSION__` is injected at build time
+ * (electron.vite.config.ts) and mirrored by vitest.config.ts under tests.
  */
 export function buildCacheBuster(): string {
-  return `${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}.${getCacheEpoch()}`
+  return `${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}`
 }
 
 /**
  * Dehydration filter (VRX-155). Only small, valuable server state is persisted:
  *
- * - `friends` rosters and `instance` queries are cheap and make the cold-start
- *   friends list paint immediately.
+ * - `friends` rosters are small and make the cold-start friends list paint
+ *   immediately.
  * - `avatar` / `image` queries are base64-heavy and are excluded.
  * - Only successful queries are persisted; pending, paused, and errored queries
  *   are excluded so they cannot poison the cache.
@@ -91,15 +56,159 @@ export function shouldDehydrateQuery(query: Query<unknown, Error, unknown, Query
   return PERSISTED_NAMESPACES.includes(namespace as (typeof PERSISTED_NAMESPACES)[number])
 }
 
+const platformSchema = z.enum(['vrchat', 'chilloutvr'])
+const instanceSchema = z
+  .object({
+    worldId: z.string(),
+    instanceId: z.string(),
+    worldName: z.string().nullable(),
+    thumbnailUrl: z.string().nullable(),
+    type: z.enum([
+      'public',
+      'friends-plus',
+      'friends',
+      'invite-plus',
+      'invite',
+      'group-public',
+      'group-plus',
+      'group',
+      'friends-of-friends',
+      'everyone-can-invite',
+      'owner-must-invite',
+      'friends-of-members',
+      'members-only',
+      'offline'
+    ]),
+    openness: z.enum(['public', 'friends-plus', 'friends', 'invite-plus', 'invite', 'offline']),
+    opennessUnknown: z.boolean().optional(),
+    isGroup: z.boolean(),
+    groupName: z.string().nullable(),
+    region: z.string().nullable(),
+    userCount: z.number().int().nonnegative().nullable()
+  })
+  .strict()
+const friendBaseShape = {
+  platformUserId: z.string(),
+  displayName: z.string(),
+  avatarUrl: z.string().nullable(),
+  instance: instanceSchema.nullable(),
+  isFavorite: z.boolean(),
+  favoriteGroupIds: z.array(z.string()),
+  linkedPersonId: z.string().nullable()
+}
+const friendSchema = z.discriminatedUnion('platform', [
+  z
+    .object({
+      ...friendBaseShape,
+      platform: z.literal('vrchat'),
+      presence: z.object({ state: z.enum(['in-game', 'active', 'offline']) }).strict(),
+      status: z.enum(['join-me', 'online', 'ask-me', 'dnd']).nullable(),
+      statusDescription: z.string().nullable(),
+      trustRank: z.enum(['visitor', 'new', 'user', 'known', 'trusted', 'nuisance']).nullable()
+    })
+    .strict(),
+  z
+    .object({
+      ...friendBaseShape,
+      platform: z.literal('chilloutvr'),
+      presence: z.object({ state: z.enum(['in-game', 'offline']) }).strict(),
+      status: z.null(),
+      statusDescription: z.null(),
+      trustRank: z.null()
+    })
+    .strict()
+])
+const persistedQuerySchema = z
+  .object({
+    dehydratedAt: z.number().finite().nonnegative().optional(),
+    queryHash: z.string(),
+    queryKey: z.tuple([z.literal('friends'), platformSchema]),
+    state: z
+      .object({
+        data: z.array(friendSchema).max(MAX_FRIENDS),
+        dataUpdateCount: z.number().int().nonnegative(),
+        dataUpdatedAt: z.number().finite().nonnegative(),
+        error: z.null(),
+        errorUpdateCount: z.number().int().nonnegative(),
+        errorUpdatedAt: z.number().finite().nonnegative(),
+        fetchFailureCount: z.number().int().nonnegative(),
+        fetchFailureReason: z.null(),
+        fetchMeta: z.null(),
+        isInvalidated: z.boolean(),
+        status: z.literal('success'),
+        fetchStatus: z.enum(['idle', 'fetching', 'paused'])
+      })
+      .strict(),
+    promise: z.null().optional()
+  })
+  .strict()
+  .superRefine((query, context) => {
+    const platform = query.queryKey[1]
+    if (query.queryHash !== JSON.stringify(query.queryKey)) {
+      context.addIssue({ code: 'custom', message: 'queryHash does not match queryKey' })
+    }
+    if (query.state.data.some((friend) => friend.platform !== platform)) {
+      context.addIssue({ code: 'custom', message: 'friend platform does not match query key' })
+    }
+  })
+  .transform(({ promise, ...query }) => {
+    void promise
+    return query
+  })
+const persistedClientSchema = z
+  .object({
+    timestamp: z.number().finite().nonnegative(),
+    buster: z.string(),
+    clientState: z
+      .object({
+        mutations: z.array(z.never()).length(0),
+        queries: z.array(persistedQuerySchema).max(2)
+      })
+      .strict()
+  })
+  .strict()
+  .superRefine((client, context) => {
+    const keys = client.clientState.queries.map((query) => query.queryKey[1])
+    if (new Set(keys).size !== keys.length) {
+      context.addIssue({ code: 'custom', message: 'duplicate friends query' })
+    }
+  })
+
+function discardedPersistedClient(): PersistedClient {
+  return { timestamp: 0, buster: '', clientState: { mutations: [], queries: [] } }
+}
+
+/** Parse the persisted cache as untrusted input; any mismatch discards it whole. */
+export function deserializePersistedQueryCache(serialized: string): PersistedClient {
+  try {
+    const parsed = persistedClientSchema.safeParse(JSON.parse(serialized) as unknown)
+    return parsed.success ? parsed.data : discardedPersistedClient()
+  } catch {
+    return discardedPersistedClient()
+  }
+}
+
+const dehydrateOptions = {
+  shouldDehydrateQuery,
+  shouldDehydrateMutation: (): boolean => false
+}
+
 /**
  * Create the sync storage persister. The persister is created on demand so
  * node-based unit tests can import the pure helpers above without requiring
  * `window.localStorage` to exist.
  */
 export function createQueryCachePersister(): Persister {
+  let storage: Storage | undefined
+  try {
+    storage = typeof window !== 'undefined' ? window.localStorage : undefined
+  } catch {
+    storage = undefined
+  }
   return createSyncStoragePersister({
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-    key: QUERY_CACHE_STORAGE_KEY
+    storage,
+    key: QUERY_CACHE_STORAGE_KEY,
+    deserialize: deserializePersistedQueryCache
   })
 }
 
@@ -113,7 +222,22 @@ export function buildPersistOptions(): Omit<PersistQueryClientOptions, 'queryCli
     persister: createQueryCachePersister(),
     buster: buildCacheBuster(),
     maxAge: MAX_QUERY_AGE_MS,
-    dehydrateOptions: { shouldDehydrateQuery }
+    dehydrateOptions
+  }
+}
+
+/** Persist the corrected current cache synchronously at an identity/auth boundary. */
+export function persistQueryCacheNow(queryClient: QueryClient): void {
+  if (typeof window === 'undefined') return
+  try {
+    const persistedClient: PersistedClient = {
+      buster: buildCacheBuster(),
+      timestamp: Date.now(),
+      clientState: dehydrate(queryClient, dehydrateOptions)
+    }
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, JSON.stringify(persistedClient))
+  } catch {
+    // The in-memory boundary is authoritative when storage is unavailable.
   }
 }
 
@@ -128,34 +252,5 @@ export function buildPersistOptions(): Omit<PersistQueryClientOptions, 'queryCli
  */
 export function onPersistRestore(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: ['friends'] })
-  void queryClient.invalidateQueries({ queryKey: ['instance'] })
-}
-
-/**
- * Remove the persisted query cache from localStorage. Called on identity and
- * auth boundaries so a signed-out / switched account can never see the previous
- * account's roster after a restart.
- */
-export function clearPersistedQueryCache(): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.localStorage.removeItem(QUERY_CACHE_STORAGE_KEY)
-  } catch {
-    // Storage may be disabled/quota-ed; the in-memory cache is already cleared
-    // by the boundary handler, so ignore a localStorage failure here.
-  }
-}
-
-/**
- * Schedule an extra localStorage wipe after the persister's 1s throttle window
- * has flushed. The boundary handler's own cache mutations can schedule a
- * throttled write that lands *after* the synchronous removeItem, so we remove
- * the key a second time once that race window is closed.
- */
-export function schedulePersistedCacheWipe(): number {
-  clearPersistedQueryCache()
-  if (typeof window === 'undefined') return 0
-  return window.setTimeout(() => {
-    clearPersistedQueryCache()
-  }, 1500)
+  // A future instance query must include platform in its key and define its own eviction shape.
 }

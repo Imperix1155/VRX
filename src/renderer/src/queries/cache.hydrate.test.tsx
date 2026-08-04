@@ -7,13 +7,17 @@
  * refetch replaces it.
  */
 import { useEffect } from 'react'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
+import { useFriendsStore } from '../stores/friends'
+import ErrorBoundary from '../components/ErrorBoundary'
+import FriendsList from '../components/FriendsList'
+import '../i18n'
 import { friendsQueryKey, useFriends } from './friends'
 import {
   buildCacheBuster,
@@ -41,7 +45,7 @@ function seededFriend(name: string): Friend {
     platform: 'vrchat',
     displayName: name,
     avatarUrl: null,
-    presence: { state: 'online' },
+    presence: { state: 'active' },
     status: null,
     statusDescription: null,
     instance: null,
@@ -90,12 +94,14 @@ function buildPersistedPayload(
       mutations: [],
       queries: [
         {
+          dehydratedAt: timestamp,
           queryHash: '["friends","vrchat"]',
           queryKey: ['friends', 'vrchat'],
           state: {
             data: friends,
             dataUpdateCount: 1,
             dataUpdatedAt,
+            error: null,
             errorUpdateCount: 0,
             errorUpdatedAt: 0,
             fetchFailureCount: 0,
@@ -127,11 +133,26 @@ function mountHydrate(
   )
 }
 
+function mountFriendsListHydrate(queryClient: QueryClient): ReturnType<typeof render> {
+  return render(
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={buildPersistOptions()}
+      onSuccess={() => onPersistRestore(queryClient)}
+    >
+      <ErrorBoundary variant="panel">
+        <FriendsList />
+      </ErrorBoundary>
+    </PersistQueryClientProvider>
+  )
+}
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   useAuthStatusMock.mockReset()
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
+  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
   window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
 })
@@ -236,5 +257,25 @@ describe('PersistQueryClientProvider hydrate', () => {
     )
 
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
+  })
+
+  it('discards a current-buster payload when a persisted friend is malformed', async () => {
+    const payload = buildPersistedPayload([
+      {
+        platform: 'vrchat',
+        platformUserId: 'usr_malformed',
+        displayName: 'Malformed Friend'
+      } as unknown as Friend
+    ])
+    await seedPersistedCache(payload)
+    const getFriends = vi.fn().mockResolvedValue([])
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    mountFriendsListHydrate(queryClient)
+
+    await waitFor(() => expect(screen.getByText('No friends online')).toBeTruthy())
+    expect(screen.queryByText('Malformed Friend')).toBeNull()
+    expect(screen.queryByText('Something went wrong')).toBeNull()
   })
 })
