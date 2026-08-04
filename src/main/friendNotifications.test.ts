@@ -133,6 +133,21 @@ describe('createFriendNotificationNotifier', () => {
     vi.useRealTimers()
   })
 
+  it('does not create or retain notifications when native notifications are unsupported', () => {
+    const notify = createFriendNotificationNotifier({
+      icon: '/packaged/icon.png',
+      focusMainWindow: vi.fn(),
+      focusDashboard: vi.fn(),
+      logFailure: vi.fn()
+    })
+    electron.MockNotification.supported = false
+
+    notify(transitionAlert('online'))
+
+    expect(electron.MockNotification.instances).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('creates and shows an icon-bearing native notification with type-specific click routing', () => {
     const focusMainWindow = vi.fn()
     const focusDashboard = vi.fn()
