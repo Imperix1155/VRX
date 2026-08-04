@@ -15,6 +15,7 @@ import { useEffect } from 'react'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
+import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 import { useLiveFriendEvents } from './useLiveFriendEvents'
 
 const G1 = '11111111-1111-1111-1111-111111111111'
@@ -116,6 +117,7 @@ afterEach(() => {
   fireIdentityBoundary = undefined
   unsubscribeFriendEvent.mockClear()
   unsubscribeIdentityBoundary.mockClear()
+  window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
 })
 
@@ -204,6 +206,17 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     // (2) the now-unauthorized roster is dropped — not shown across the auth
     // boundary in Friends / Dashboard / TopBar (Codex).
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+
+  it('on auth-invalidated: removes the persisted query cache so a restart cannot restore stale data (VRX-155)', () => {
+    stubBridge()
+    const client = new QueryClient()
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 
   it('quarantines a dead-session platform: a LATE snapshot after auth-invalidated is not applied (Codex)', async () => {
@@ -453,5 +466,16 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(onIdentityBoundary).toHaveBeenCalledOnce()
     mounted.unmount()
     expect(unsubscribeIdentityBoundary).toHaveBeenCalledOnce()
+  })
+
+  it('removes the persisted query cache from localStorage on identity boundary (VRX-155)', () => {
+    stubBridge()
+    const client = new QueryClient()
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
   })
 })

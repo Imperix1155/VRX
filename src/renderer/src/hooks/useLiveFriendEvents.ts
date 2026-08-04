@@ -32,6 +32,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
+import { clearPersistedQueryCache } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
 export function useLiveFriendEvents(): void {
@@ -115,6 +116,9 @@ export function useLiveFriendEvents(): void {
         void queryClient.cancelQueries({ queryKey: friendsQueryKey(event.platform) })
         queryClient.setQueryData<Friend[]>(friendsQueryKey(event.platform), [])
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
+        // The persisted cache must not outlive an auth boundary either; remove
+        // it so a restart cannot restore the previous account's roster.
+        clearPersistedQueryCache()
         return
       }
       // From here down, every event either mutates the roster (presence-snapshot,
@@ -154,6 +158,9 @@ export function useLiveFriendEvents(): void {
       void queryClient.cancelQueries({ queryKey })
       queryClient.setQueryData<Friend[]>(queryKey, [])
       void queryClient.invalidateQueries({ queryKey })
+      // Wipe the disk cache too: a signed-out or switched account must never see
+      // the previous account's roster after a restart (VRX-155).
+      clearPersistedQueryCache()
     })
 
     // Re-apply the buffered snapshot after a roster FETCH resolves (the fix for
