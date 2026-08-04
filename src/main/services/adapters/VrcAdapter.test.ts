@@ -149,7 +149,7 @@ async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     const socket = sockets[0]!
     socket.fire('open')
-    cache = await adapter.getFriends()
+    cache = (await adapter.getFriends()).friends
     await vi.waitFor(() => expect(worldRequested).toBe(true))
 
     if (liveMutation === 'offline') {
@@ -1535,7 +1535,7 @@ describe('VrcAdapter', () => {
         })
       )
 
-      const friends = await adapter.getFriends()
+      const { friends } = await adapter.getFriends()
       expect(friends).toHaveLength(1)
       expect(friends[0]!.platform).toBe('vrchat')
       expect(friends[0]!.platformUserId).toBe('usr_00000001')
@@ -1600,9 +1600,15 @@ describe('VrcAdapter', () => {
       const boundariesAfterLogin = boundary.mock.calls.length
       releaseAccountA(jsonResponse({ error: 'expired account A' }, { status: 401 }))
 
-      await expect(roster).resolves.toEqual([
-        expect.objectContaining({ platformUserId: 'usr_b_friend', displayName: 'Account B Friend' })
-      ])
+      await expect(roster).resolves.toEqual({
+        friends: [
+          expect.objectContaining({
+            platformUserId: 'usr_b_friend',
+            displayName: 'Account B Friend'
+          })
+        ],
+        completeness: 'complete'
+      })
       expect(boundary).toHaveBeenCalledTimes(boundariesAfterLogin)
     })
 
@@ -1644,9 +1650,13 @@ describe('VrcAdapter', () => {
     })
 
     it('throws (not a misleading empty list) when all friend fetches fail (VRX-43)', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+      const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
+      vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
+      // A missing presence probe is an explicit degraded result. Do not fetch
+      // pages and manufacture an all-offline roster from empty buckets.
+      expect(fetchMock).toHaveBeenCalledOnce()
     })
 
     it('a 401 on the buckets probe EMITS auth-invalidated so the renderer re-checks auth (VRX-195/197)', async () => {
@@ -1749,15 +1759,17 @@ describe('VrcAdapter', () => {
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
 
-      const friends = await adapter.getFriends()
+      const result = await adapter.getFriends()
+      const { friends } = result
 
       expect(friends).toHaveLength(1)
       expect(friends[0]!.displayName).toBe('Alice')
+      expect(result.completeness).toBe('partial')
 
       // The circuit must NOT have recorded the drifted record as a failure: a
       // follow-up call still reaches the wire (an open circuit would throw
       // 'Circuit open' before fetching).
-      await expect(adapter.getFriends()).resolves.toHaveLength(1)
+      await expect(adapter.getFriends().then((result) => result.friends)).resolves.toHaveLength(1)
     })
 
     it('transport failures (non-array body) still trip the circuit breaker (audit W4)', async () => {
@@ -1933,7 +1945,7 @@ describe('VrcAdapter', () => {
       const unsubscribe = adapter.subscribe((event) => events.push(event))
       let friends: Friend[] | undefined
       const roster = adapter.getFriends().then((result) => {
-        friends = result
+        friends = result.friends
         return result
       })
 
@@ -2099,12 +2111,15 @@ describe('VrcAdapter', () => {
       })
       adapter.subscribe((e) => events.push(e))
 
-      await expect(adapter.getFriends()).resolves.toEqual([
-        expect.objectContaining({
-          platformUserId: 'usr_111',
-          instance: expect.objectContaining({ worldName: null, thumbnailUrl: null })
-        })
-      ])
+      await expect(adapter.getFriends()).resolves.toEqual({
+        friends: [
+          expect.objectContaining({
+            platformUserId: 'usr_111',
+            instance: expect.objectContaining({ worldName: null, thumbnailUrl: null })
+          })
+        ],
+        completeness: 'complete'
+      })
       await vi.waitFor(() => {
         expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
       })
@@ -2156,7 +2171,7 @@ describe('VrcAdapter', () => {
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
 
-      const friends = await adapter.getFriends()
+      const { friends } = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
       expect(friends[0]!.instance).toBeNull()
@@ -2213,7 +2228,7 @@ describe('VrcAdapter', () => {
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
 
-      const friends = await adapter.getFriends()
+      const { friends } = await adapter.getFriends()
 
       expect(friends).toHaveLength(1)
       expect(friends[0]!.instance?.worldName).toBeNull()
@@ -2301,7 +2316,7 @@ describe('VrcAdapter', () => {
           thumbnailUrl: null
         })
       })
-      const cachedFriends = await adapter.getFriends()
+      const { friends: cachedFriends } = await adapter.getFriends()
 
       // The world was fetched only once because the resolver's TTL cache persists
       // across getFriends calls (single worldResolver field, not recreated per call).

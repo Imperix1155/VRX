@@ -148,6 +148,27 @@ describe('useFriendNote', () => {
     expect(getFriendNote).not.toHaveBeenCalled()
   })
 
+  it('does not start a note query when the bridge exists without note methods', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    window.vrx = {
+      onFriendEvent: vi.fn(() => () => {}),
+      onIdentityBoundary: vi.fn(() => () => {})
+    } as unknown as Window['vrx']
+
+    renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(['friend-note', 'vrchat', 'usr_a', 0])).toMatchObject({
+        fetchStatus: 'idle',
+        error: null
+      })
+    })
+  })
+
   it('does not read or cache a note while the drawer has no selected friend', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }

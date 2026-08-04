@@ -17,6 +17,7 @@ import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
 import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
+import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + badge REPLACE the old presence-dot + status-
@@ -414,6 +415,8 @@ export default function FriendsList(): React.JSX.Element {
   }, [setSelectedFriendId])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
+  const notConnectedKey =
+    selectedPlatform === null ? null : NOT_CONNECTED_KEY.friends[selectedPlatform]
   const [appliedSearch, setAppliedSearch] = useState(search)
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
@@ -559,7 +562,7 @@ export default function FriendsList(): React.JSX.Element {
       ) : isNotConnected ? (
         <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
-            {t(`friends.notConnected.${selectedPlatform}`)}
+            {notConnectedKey === null ? null : t(notConnectedKey)}
           </p>
           <button
             type="button"

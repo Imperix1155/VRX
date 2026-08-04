@@ -4,13 +4,12 @@ import type {
   AdapterEvent,
   AuthStatus,
   Credentials,
-  Friend,
   InstanceInfo,
   JoinMode,
   LoginResult,
   Platform
 } from '@shared/types'
-import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
+import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import { AuthError, NetworkError, RateLimitError } from './errors'
 
 const BASE_RETRY_DELAY_MS = 1_000
@@ -322,7 +321,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   /** Complete a `needs2fa` login (VRX-159). Platforms without 2-leg 2FA reject it. */
   abstract verify2fa(code: string): Promise<LoginResult>
   abstract clearSession(): void
-  abstract getFriends(): Promise<Friend[]>
+  abstract getFriends(): Promise<FriendRoster>
   abstract getInstanceDetails(instanceId: string): Promise<InstanceInfo>
   abstract buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null
   abstract selfInvite(instanceId: string): Promise<void>

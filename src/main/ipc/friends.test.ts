@@ -71,7 +71,10 @@ describe('get-friends location seeding', () => {
   )
 
   it('captures before awaiting and seeds every successful response', async () => {
-    vi.mocked(adapter.getFriends).mockResolvedValue([rosterFriend])
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [rosterFriend],
+      completeness: 'complete'
+    })
     const capture = vi.spyOn(authority, 'captureSeedRevision')
     const seed = vi.spyOn(authority, 'seed')
 
@@ -85,11 +88,14 @@ describe('get-friends location seeding', () => {
       throw new Error('Expected capture and fetch calls')
     }
     expect(captureOrder).toBeLessThan(fetchOrder)
-    expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number))
+    expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number), 'complete')
   })
 
   it('stamps the platform reconcile time only after a successful friends response', async () => {
-    vi.mocked(adapter.getFriends).mockResolvedValue([rosterFriend])
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [rosterFriend],
+      completeness: 'complete'
+    })
 
     expect(appStatus.snapshot().lastReconcileAt.vrchat).toBeNull()
     await handlers.get('get-friends')!(event, { platform: 'vrchat' })
@@ -116,7 +122,10 @@ describe('get-friends location seeding', () => {
         userCount: null
       }
     } as Friend
-    vi.mocked(adapter.getFriends).mockResolvedValue([locationFriend])
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [locationFriend],
+      completeness: 'complete'
+    })
     authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
 
     await handlers.get('get-friends')!(event, { platform: 'vrchat' })
@@ -134,5 +143,24 @@ describe('get-friends location seeding', () => {
       'network'
     )
     expect(seed).not.toHaveBeenCalled()
+  })
+
+  it('preserves friends omitted from a partial adapter roster', async () => {
+    const omittedFriend = { ...rosterFriend, platformUserId: 'usr_omitted' }
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const initialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [rosterFriend, omittedFriend], initialRevision)
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [rosterFriend],
+      completeness: 'partial'
+    })
+
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual([
+      rosterFriend
+    ])
+    expect(authority.resolve('vrchat', omittedFriend.platformUserId)).toMatchObject({
+      ok: true,
+      friend: { platformUserId: omittedFriend.platformUserId }
+    })
   })
 })

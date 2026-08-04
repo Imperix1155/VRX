@@ -113,27 +113,199 @@ describe('LocationAuthority', () => {
     }
   )
 
-  it('ignores profile updates for an unseeded platform and an unknown friend', () => {
+  it('keeps a fenced location stale after a profile-only update', () => {
     const authority = new LocationAuthority()
     authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
-    const unseededRevision = authority.captureSeedRevision('vrchat')
+    const completeRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [
+        friend('vrchat', 'usr_1', 'instance-before-drop-1'),
+        friend('vrchat', 'usr_2', 'instance-before-drop-2')
+      ],
+      completeRevision
+    )
+
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const partialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_1', 'instance-after-reconnect')],
+      partialRevision,
+      'partial'
+    )
     authority.consume({
       type: 'friend-updated',
       platform: 'vrchat',
-      friend: { ...friend('vrchat', 'usr_unseeded'), status: 'ask-me' }
-    })
-    authority.seed('vrchat', [], unseededRevision)
-    expect(authority.resolve('vrchat', 'usr_unseeded')).toEqual({
-      ok: false,
-      reason: 'unknown-friend'
+      friend: {
+        ...friend('vrchat', 'usr_2', 'instance-untrusted'),
+        displayName: 'Renamed Friend'
+      }
     })
 
+    expect(authority.resolve('vrchat', 'usr_2')).toEqual({ ok: false, reason: 'stale' })
+  })
+
+  it.each(['complete', 'partial'] as const)(
+    'lets a %s seed refresh location when only the cached profile is newer than its capture',
+    (completeness) => {
+      const authority = new LocationAuthority()
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+      const initialRevision = authority.captureSeedRevision('vrchat')
+      authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-before-drop')], initialRevision)
+
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+      const reconnectRevision = authority.captureSeedRevision('vrchat')
+      authority.consume({
+        type: 'friend-updated',
+        platform: 'vrchat',
+        friend: {
+          ...friend('vrchat', 'usr_1', 'instance-untrusted'),
+          displayName: 'Updated Profile'
+        }
+      })
+      authority.seed(
+        'vrchat',
+        [friend('vrchat', 'usr_1', 'instance-after-reconnect')],
+        reconnectRevision,
+        completeness
+      )
+
+      expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+        ok: true,
+        friend: {
+          displayName: 'Updated Profile',
+          instance: { instanceId: 'instance-after-reconnect' }
+        }
+      })
+    }
+  )
+
+  it('merges a profile update received after first-seed capture into the REST baseline', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const seedRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: {
+        ...friend('vrchat', 'usr_1', 'instance-untrusted'),
+        displayName: 'Live Profile',
+        presence: { state: 'offline' },
+        instance: null,
+        status: 'ask-me'
+      }
+    })
+    const baseline = friend('vrchat', 'usr_1', 'instance-baseline')
+    baseline.isFavorite = true
+    baseline.favoriteGroupIds = ['group_1']
+    baseline.linkedPersonId = 'person_1'
+    authority.seed('vrchat', [baseline], seedRevision)
+
+    const resolved = authority.resolve('vrchat', 'usr_1')
+    expect(resolved).toMatchObject({
+      ok: true,
+      friend: {
+        displayName: 'Live Profile',
+        status: 'ask-me',
+        presence: baseline.presence,
+        instance: baseline.instance,
+        isFavorite: true,
+        favoriteGroupIds: ['group_1'],
+        linkedPersonId: 'person_1'
+      }
+    })
+  })
+
+  it.each([
+    ['friend-updated then friend-presence', 'friend-presence', 'profile-first'],
+    ['friend-presence then friend-updated', 'friend-presence', 'location-first'],
+    ['friend-updated then friend-added', 'friend-added', 'profile-first'],
+    ['friend-added then friend-updated', 'friend-added', 'location-first']
+  ] as const)(
+    'merges %s before the first seed without losing profile, location, or REST-local fields',
+    (_scenario, liveType, order) => {
+      const authority = new LocationAuthority()
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+      const seedRevision = authority.captureSeedRevision('vrchat')
+      const liveFriend = {
+        ...friend('vrchat', 'usr_1', 'instance-live'),
+        displayName: 'Stale Live Profile'
+      }
+      const profileEvent = {
+        type: 'friend-updated' as const,
+        platform: 'vrchat' as const,
+        friend: {
+          ...friend('vrchat', 'usr_1', 'instance-untrusted'),
+          displayName: 'Updated Profile',
+          status: 'ask-me' as const
+        }
+      }
+      const locationEvent = { type: liveType, platform: 'vrchat' as const, friend: liveFriend }
+
+      if (order === 'profile-first') {
+        authority.consume(profileEvent)
+        authority.consume(locationEvent)
+      } else {
+        authority.consume(locationEvent)
+        authority.consume(profileEvent)
+      }
+
+      const baseline = {
+        ...friend('vrchat', 'usr_1', 'instance-rest'),
+        displayName: 'REST Profile',
+        isFavorite: true,
+        favoriteGroupIds: ['group_1'],
+        linkedPersonId: 'person_1'
+      }
+      authority.seed('vrchat', [baseline], seedRevision)
+
+      expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+        ok: true,
+        friend: {
+          displayName: 'Updated Profile',
+          status: 'ask-me',
+          presence: { state: 'in-game' },
+          instance: { instanceId: 'instance-live' },
+          isFavorite: true,
+          favoriteGroupIds: ['group_1'],
+          linkedPersonId: 'person_1'
+        }
+      })
+    }
+  )
+
+  it('ignores profile updates for an unknown friend after the first seed', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const seedRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [], seedRevision)
     authority.consume({
       type: 'friend-updated',
       platform: 'vrchat',
       friend: { ...friend('vrchat', 'usr_unknown'), status: 'dnd' }
     })
     expect(authority.resolve('vrchat', 'usr_unknown')).toEqual({
+      ok: false,
+      reason: 'unknown-friend'
+    })
+  })
+
+  it('does not let a pre-seed profile update resurrect a newer removal tombstone', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const seedRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({ type: 'friend-removed', platform: 'vrchat', platformUserId: 'usr_1' })
+    authority.consume({
+      type: 'friend-updated',
+      platform: 'vrchat',
+      friend: { ...friend('vrchat', 'usr_1'), displayName: 'Removed Profile' }
+    })
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-rest')], seedRevision)
+
+    expect(authority.resolve('vrchat', 'usr_1')).toEqual({
       ok: false,
       reason: 'unknown-friend'
     })
@@ -194,6 +366,183 @@ describe('LocationAuthority', () => {
     expect(authority.resolve('vrchat', 'usr_2')).toEqual({ ok: false, reason: 'unknown-friend' })
   })
 
+  it('does not tombstone a previously known friend when a partial roster omits them', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const completeRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [
+        friend('vrchat', 'usr_page_1', 'instance-page-1'),
+        friend('vrchat', 'usr_failed_page', 'instance-known')
+      ],
+      completeRevision
+    )
+
+    const partialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_page_1', 'instance-refreshed')],
+      partialRevision,
+      'partial'
+    )
+
+    expect(authority.resolve('vrchat', 'usr_failed_page')).toMatchObject({
+      ok: true,
+      friend: { platformUserId: 'usr_failed_page', instance: { instanceId: 'instance-known' } }
+    })
+  })
+
+  it('fences friends omitted by a partial reconnect seed until a later seed covers them', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const completeRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [
+        friend('vrchat', 'usr_1', 'instance-before-drop-1'),
+        friend('vrchat', 'usr_2', 'instance-before-drop-2')
+      ],
+      completeRevision
+    )
+
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const partialOmittingRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_1', 'instance-after-reconnect-1')],
+      partialOmittingRevision,
+      'partial'
+    )
+
+    expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+      ok: true,
+      friend: { instance: { instanceId: 'instance-after-reconnect-1' } }
+    })
+    expect(authority.resolve('vrchat', 'usr_2')).toEqual({ ok: false, reason: 'stale' })
+
+    const partialIncludingRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_2', 'instance-after-reconnect-2')],
+      partialIncludingRevision,
+      'partial'
+    )
+    expect(authority.resolve('vrchat', 'usr_2')).toMatchObject({
+      ok: true,
+      friend: { instance: { instanceId: 'instance-after-reconnect-2' } }
+    })
+
+    const completeOmittingRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_1', 'instance-complete')],
+      completeOmittingRevision,
+      'complete'
+    )
+    expect(authority.resolve('vrchat', 'usr_2')).toEqual({
+      ok: false,
+      reason: 'unknown-friend'
+    })
+  })
+
+  it('accepts live location data received after reconnect but before partial-seed capture', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const completeRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_1'), friend('vrchat', 'usr_2', 'instance-before-drop')],
+      completeRevision
+    )
+
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    authority.consume({
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: friend('vrchat', 'usr_2', 'instance-live')
+    })
+    const partialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed('vrchat', [friend('vrchat', 'usr_1')], partialRevision, 'partial')
+
+    expect(authority.resolve('vrchat', 'usr_2')).toMatchObject({
+      ok: true,
+      friend: { instance: { instanceId: 'instance-live' } }
+    })
+  })
+
+  it('rejects an older complete seed that lands after a newer partial reconnect seed', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const initialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed'), friend('vrchat', 'usr_fenced')],
+      initialRevision
+    )
+
+    const olderCompleteRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const newerPartialRevision = authority.captureSeedRevision('vrchat')
+
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed', 'instance-new')],
+      newerPartialRevision,
+      'partial'
+    )
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed', 'instance-old')],
+      olderCompleteRevision,
+      'complete'
+    )
+
+    expect(authority.resolve('vrchat', 'usr_refreshed')).toMatchObject({
+      ok: true,
+      friend: { instance: { instanceId: 'instance-new' } }
+    })
+    expect(authority.resolve('vrchat', 'usr_fenced')).toEqual({ ok: false, reason: 'stale' })
+  })
+
+  it('keeps older tombstones stale when the older complete seed lands first', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const initialRevision = authority.captureSeedRevision('vrchat')
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed'), friend('vrchat', 'usr_fenced')],
+      initialRevision
+    )
+
+    const olderCompleteRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'down' })
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const newerPartialRevision = authority.captureSeedRevision('vrchat')
+
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed', 'instance-old')],
+      olderCompleteRevision,
+      'complete'
+    )
+    authority.seed(
+      'vrchat',
+      [friend('vrchat', 'usr_refreshed', 'instance-new')],
+      newerPartialRevision,
+      'partial'
+    )
+
+    expect(authority.resolve('vrchat', 'usr_refreshed')).toMatchObject({
+      ok: true,
+      friend: { instance: { instanceId: 'instance-new' } }
+    })
+    expect(authority.resolve('vrchat', 'usr_fenced')).toEqual({ ok: false, reason: 'stale' })
+  })
+
   it('merges an id-only CVR presence delta that arrives before its roster seed', () => {
     const authority = new LocationAuthority()
     authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
@@ -208,6 +557,19 @@ describe('LocationAuthority', () => {
 
     const resolved = authority.resolve('chilloutvr', 'cvr_1')
     expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('i+live-instance')
+  })
+
+  it('keeps an explicit pre-seed offline location null after the roster seed', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    const seedRevision = authority.captureSeedRevision('vrchat')
+    authority.consume({ type: 'friend-offline', platform: 'vrchat', platformUserId: 'usr_1' })
+    authority.seed('vrchat', [friend('vrchat', 'usr_1', 'instance-rest')], seedRevision)
+
+    expect(authority.resolve('vrchat', 'usr_1')).toMatchObject({
+      ok: true,
+      friend: { presence: { state: 'offline' }, instance: null }
+    })
   })
 
   it.each(['reconnecting', 'down'] as const)(

@@ -43,6 +43,7 @@ interface Rig {
   urls: string[]
   sleeps: number[]
   tokenProvider: ReturnType<typeof vi.fn>
+  log: ReturnType<typeof vi.fn>
 }
 
 function rig(opts: { token?: string | null | (() => string | null) } = {}): Rig {
@@ -50,6 +51,7 @@ function rig(opts: { token?: string | null | (() => string | null) } = {}): Rig 
   const sockets: FakeSocket[] = []
   const urls: string[] = []
   const sleeps: number[] = []
+  const log = vi.fn()
   const tokenValue = 'token' in opts ? opts.token : 'authcookie_tok1'
   const tokenProvider = vi.fn(() =>
     Promise.resolve(typeof tokenValue === 'function' ? tokenValue() : (tokenValue ?? null))
@@ -67,10 +69,11 @@ function rig(opts: { token?: string | null | (() => string | null) } = {}): Rig 
     sleepFn: (ms) => {
       sleeps.push(ms)
       return tick()
-    }
+    },
+    log
   })
 
-  return { pipeline, events, sockets, urls, sleeps, tokenProvider }
+  return { pipeline, events, sockets, urls, sleeps, tokenProvider, log }
 }
 
 /** Wire frame builder — outer envelope with DOUBLE-ENCODED content. */
@@ -101,6 +104,23 @@ describe('VrcPipeline', () => {
       { type: 'connection', platform: 'vrchat', health: 'reconnecting' },
       { type: 'connection', platform: 'vrchat', health: 'live' }
     ])
+    r.pipeline.stop()
+  })
+
+  it('never forwards an authToken-shaped socket error message to the log sink', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+
+    r.sockets[0]!.fire(
+      'error',
+      new Error('Unexpected server response at wss://pipeline.vrchat.cloud/?authToken=secret-token')
+    )
+
+    expect(r.log).toHaveBeenCalledWith('warn', 'pipeline: socket error', {
+      errorName: 'Error'
+    })
+    expect(JSON.stringify(r.log.mock.calls)).not.toContain('secret-token')
     r.pipeline.stop()
   })
 

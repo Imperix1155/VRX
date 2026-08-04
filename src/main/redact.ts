@@ -108,46 +108,50 @@ function isPlainObject(value: object): boolean {
  * value under a sensitive key is replaced wholesale; Errors keep (masked)
  * name/message/stack; other non-plain objects become a visible marker.
  */
-export function redact(value: unknown, seen = new WeakSet<object>()): unknown {
+export function redact(value: unknown, path = new WeakSet<object>()): unknown {
   if (typeof value === 'string') return redactString(value)
   if (value && typeof value === 'object') {
-    if (seen.has(value)) return '[Circular]'
-    seen.add(value)
-    if (Array.isArray(value)) return value.map((v) => redact(v, seen))
-    if (value instanceof Error) {
-      // message/stack are non-enumerable — an entries-walk would silently drop
-      // them (the {} trap this hardening exists to close). Keep them, masked.
-      // Subclasses don't auto-set .name — prefer the constructor name when .name
-      // is still the default (the app's own error classes set both; this covers
-      // third-party ones that don't).
-      const ctorName = value.constructor?.name
-      const out: Record<string, unknown> = {
-        name: value.name === 'Error' && ctorName && ctorName !== 'Error' ? ctorName : value.name,
-        message: redactString(value.message),
-        stack: typeof value.stack === 'string' ? redactString(value.stack) : undefined
+    if (path.has(value)) return '[Circular]'
+    path.add(value)
+    try {
+      if (Array.isArray(value)) return value.map((v) => redact(v, path))
+      if (value instanceof Error) {
+        // message/stack are non-enumerable — an entries-walk would silently drop
+        // them (the {} trap this hardening exists to close). Keep them, masked.
+        // Subclasses don't auto-set .name — prefer the constructor name when .name
+        // is still the default (the app's own error classes set both; this covers
+        // third-party ones that don't).
+        const ctorName = value.constructor?.name
+        const out: Record<string, unknown> = {
+          name: value.name === 'Error' && ctorName && ctorName !== 'Error' ? ctorName : value.name,
+          message: redactString(value.message),
+          stack: typeof value.stack === 'string' ? redactString(value.stack) : undefined
+        }
+        for (const [k, v] of Object.entries(value)) {
+          out[k] = isSensitiveKey(k) ? REDACTED : redact(v, path)
+        }
+        if (value.cause !== undefined) out.cause = redact(value.cause, path)
+        // AggregateError.errors is ALSO non-enumerable — walk it explicitly or the
+        // inner errors vanish silently (the same trap as message/stack).
+        if (value instanceof AggregateError) {
+          out.errors = value.errors.map((e) => redact(e, path))
+        }
+        return out
       }
+      if (!isPlainObject(value)) {
+        // Map/Set/URL/getter-backed class instances: entries-walk sees nothing, so
+        // emit a visible marker instead of a silent (and misleading) `{}`.
+        const ctor = value.constructor?.name ?? 'object'
+        return `[unredactable: ${ctor}]`
+      }
+      const out: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(value)) {
-        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
-      }
-      if (value.cause !== undefined) out.cause = redact(value.cause, seen)
-      // AggregateError.errors is ALSO non-enumerable — walk it explicitly or the
-      // inner errors vanish silently (the same trap as message/stack).
-      if (value instanceof AggregateError) {
-        out.errors = value.errors.map((e) => redact(e, seen))
+        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, path)
       }
       return out
+    } finally {
+      path.delete(value)
     }
-    if (!isPlainObject(value)) {
-      // Map/Set/URL/getter-backed class instances: entries-walk sees nothing, so
-      // emit a visible marker instead of a silent (and misleading) `{}`.
-      const ctor = value.constructor?.name ?? 'object'
-      return `[unredactable: ${ctor}]`
-    }
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value)) {
-      out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
-    }
-    return out
   }
   return value
 }

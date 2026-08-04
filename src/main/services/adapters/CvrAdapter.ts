@@ -8,7 +8,7 @@ import type {
   LoginResult
 } from '@shared/types'
 import { z } from 'zod'
-import type { IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
+import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
 import { CvrPipeline } from './cvr/CvrPipeline'
@@ -315,7 +315,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return this.status(this.session ? 'authenticated' : 'unauthenticated')
   }
 
-  async getFriends(): Promise<Friend[]> {
+  async getFriends(): Promise<FriendRoster> {
     for (;;) {
       // Static roster only (VRX-57); live presence arrives via the pipeline below.
       const generation = this.sessionGeneration
@@ -371,7 +371,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
           this.friendNames.set(friend.platformUserId, friend.displayName)
         }
       }
-      return result.friends
+      return {
+        friends: result.friends,
+        completeness: result.skippedRecords === 0 ? 'complete' : 'partial'
+      }
     }
   }
 

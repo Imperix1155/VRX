@@ -20,6 +20,13 @@ import type {
 /** Returned by `subscribe()`; call it to stop receiving events and close the stream. */
 export type Unsubscribe = () => void
 
+export type RosterCompleteness = 'complete' | 'partial'
+
+export interface FriendRoster {
+  friends: Friend[]
+  completeness: RosterCompleteness
+}
+
 export interface IPlatformAdapter {
   /** Which platform this adapter speaks for. */
   readonly platform: Platform
@@ -37,7 +44,7 @@ export interface IPlatformAdapter {
   /** Explicit logout: delete persisted credentials before clearing memory; throws if deletion fails. */
   clearSession(): void
   // ── Data (REST) ──
-  getFriends(): Promise<Friend[]>
+  getFriends(): Promise<FriendRoster>
   getInstanceDetails(instanceId: string): Promise<InstanceInfo>
   /** Pure platform-specific deep-link builder. Launching is owned by IPC. */
   buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null

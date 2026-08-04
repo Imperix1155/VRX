@@ -30,6 +30,7 @@ import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { stripInstanceSuffix } from '../utils/worldName'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
+import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 
 /** How many friend names show on a card before collapsing to "+N" (VRX-198). */
 const WHO_HERE_MAX_NAMES = 4
@@ -271,6 +272,8 @@ export default function DashboardView(): React.JSX.Element {
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
+  const notConnectedKey =
+    selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
 
   const hasData = scoped.some((q) => q.data != null)
   if (isAuthStatusPending) {
@@ -280,7 +283,7 @@ export default function DashboardView(): React.JSX.Element {
     return (
       <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
         <p className="text-sm font-semibold text-[var(--text-dim)]">
-          {t(`dashboard.notConnected.${selectedPlatform}`)}
+          {notConnectedKey === null ? null : t(notConnectedKey)}
         </p>
         <button
           type="button"
