@@ -36,6 +36,30 @@ describe('main native notification wiring', () => {
   })
 })
 
+describe('main extracted core wiring anchors', () => {
+  it('creates the notification notifier and tears down adapter event wiring before quit', () => {
+    const executableSource = stripComments(source)
+
+    expect(executableSource).toMatch(/\bcreateFriendNotificationNotifier\s*\(/)
+
+    const adapterWiring = executableSource.match(
+      /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*wireAdapterEvents\s*\(/
+    )
+    expect(adapterWiring).not.toBeNull()
+
+    const beforeQuitStart = executableSource.search(/^\s*app\.on\('before-quit', \(\) => \{$/m)
+    expect(beforeQuitStart).toBeGreaterThan(-1)
+    const beforeQuitOpeningBrace = executableSource.indexOf('{', beforeQuitStart)
+    const beforeQuitHandler = executableSource.slice(
+      beforeQuitOpeningBrace + 1,
+      findMatchingBrace(executableSource, beforeQuitOpeningBrace)
+    )
+    const teardownName = adapterWiring?.[1] ?? '[missing-adapter-teardown]'
+
+    expect(beforeQuitHandler).toMatch(new RegExp(`\\b${teardownName}\\s*\\(\\)`))
+  })
+})
+
 describe('main single-instance lock (VRX-230)', () => {
   it('entry takes the lock verdict and hard-exits the losing duplicate', () => {
     expect(entrySource).toContain('const hasSingleInstanceLock = app.requestSingleInstanceLock()')

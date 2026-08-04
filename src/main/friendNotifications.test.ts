@@ -7,9 +7,12 @@ const electron = vi.hoisted(() => {
   class MockNotification {
     static instances: MockNotification[] = []
     static supported = true
+    static showError: Error | null = null
 
     readonly listeners = new Map<string, Array<{ listener: NotificationListener; once: boolean }>>()
-    readonly show = vi.fn()
+    readonly show = vi.fn(() => {
+      if (MockNotification.showError !== null) throw MockNotification.showError
+    })
 
     constructor(readonly options: { title: string; body: string; icon: string }) {
       MockNotification.instances.push(this)
@@ -109,6 +112,13 @@ describe('notificationPresenter', () => {
       body: '1 friend is in the same instance — join them?'
     })
   })
+
+  it('strips trailing instance labels from hot-instance world copy', () => {
+    expect(notificationPresenter(hotAlert(4, 'World Name (#private)'))).toEqual({
+      title: 'Friends Gathering',
+      body: '4 friends are together in World Name — join them?'
+    })
+  })
 })
 
 describe('createFriendNotificationNotifier', () => {
@@ -116,6 +126,7 @@ describe('createFriendNotificationNotifier', () => {
     vi.useFakeTimers()
     electron.MockNotification.instances = []
     electron.MockNotification.supported = true
+    electron.MockNotification.showError = null
   })
 
   afterEach(() => {
@@ -174,6 +185,28 @@ describe('createFriendNotificationNotifier', () => {
     expect(vi.getTimerCount()).toBe(0)
     expect(logFailure).toHaveBeenCalledOnce()
     expect(logFailure).toHaveBeenCalledWith()
+  })
+
+  it('releases retention and logs without throwing when native show fails synchronously', () => {
+    const logFailure = vi.fn()
+    const notify = createFriendNotificationNotifier({
+      icon: '/packaged/icon.png',
+      focusMainWindow: vi.fn(),
+      focusDashboard: vi.fn(),
+      logFailure
+    })
+    electron.MockNotification.showError = new Error('native show failed')
+
+    expect(() => notify(transitionAlert('online'))).not.toThrow()
+    expect(electron.MockNotification.instances[0]?.show).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(logFailure).toHaveBeenCalledOnce()
+    expect(logFailure).toHaveBeenCalledWith()
+
+    electron.MockNotification.showError = null
+    for (let index = 0; index < 21; index += 1) notify(transitionAlert('online'))
+    expect(vi.getTimerCount()).toBe(20)
+    expect(logFailure).toHaveBeenCalledOnce()
   })
 
   it('evicts the oldest retained notification when the 20-entry cap is exceeded', () => {
