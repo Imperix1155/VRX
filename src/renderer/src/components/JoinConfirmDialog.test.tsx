@@ -1674,7 +1674,7 @@ describe('VRX-239/241 liveness contract', () => {
     'T3 $label: fail-closed in place, no Join, no persist, Cancel works, zero IPC',
     async ({ mutate }) => {
       const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
-      window.vrx = { ...window.vrx, saveSettings }
+      window.vrx = { ...window.vrx, saveSettings } as unknown as typeof window.vrx
       const { rerender } = render(
         <>
           <WithPersistence />
@@ -2015,7 +2015,7 @@ describe('VRX-239/241 liveness contract', () => {
       dirty: false
     })
     const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
-    window.vrx = { ...window.vrx, saveSettings }
+    window.vrx = { ...window.vrx, saveSettings } as unknown as typeof window.vrx
     const { rerender } = render(
       <>
         <WithPersistence />
@@ -2080,7 +2080,7 @@ describe('VRX-239/241 liveness contract', () => {
 
   it("T7b Don't ask again does not persist when the cache has drifted since the last render", async () => {
     const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
-    window.vrx = { ...window.vrx, saveSettings }
+    window.vrx = { ...window.vrx, saveSettings } as unknown as typeof window.vrx
     render(
       <>
         <WithPersistence />

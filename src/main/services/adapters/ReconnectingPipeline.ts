@@ -215,7 +215,7 @@ export abstract class ReconnectingPipeline<Prep> {
       socket.on('error', (err: unknown) => {
         // 'close' always follows 'error' — log only; settle on close.
         this.log('warn', 'pipeline: socket error', {
-          message: err instanceof Error ? err.message : String(err)
+          errorName: err instanceof Error ? err.name : typeof err
         })
       })
 

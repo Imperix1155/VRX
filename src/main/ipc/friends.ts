@@ -19,9 +19,9 @@ export function registerFriendsHandlers(
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     const revision = authority.captureSeedRevision(req.platform)
-    const friends = await adapter.getFriends()
-    authority.seed(req.platform, friends, revision)
+    const roster = await adapter.getFriends()
+    authority.seed(req.platform, roster.friends, revision, roster.completeness)
     appStatus.recordReconcile(req.platform)
-    return friends
+    return roster.friends
   })
 }

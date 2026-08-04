@@ -315,6 +315,7 @@ describe('fetchFriends', () => {
       const fetcher = buildFetcher(onlinePages, [makePage(99000, PAGE_SIZE)])
       const result = await fetchFriends(fetcher)
       expect(result.friends).toHaveLength(MAX_FRIENDS)
+      expect(result.completeness).toBe('partial')
     })
 
     it('does not start the offline pass when MAX_FRIENDS already reached', async () => {
@@ -362,19 +363,18 @@ describe('fetchFriends', () => {
       expect(result.failedPages).toBe(3)
     })
 
-    it('gracefully degrades when /auth/user bucket fetch fails (all offline state)', async () => {
+    it('returns an explicit degraded result when presence buckets are unavailable', async () => {
+      let friendPageCalls = 0
       const fetcher: VrcFetcher = <T>(path: string): Promise<T> => {
         if (path === '/auth/user') return Promise.reject(new Error('auth fetch failed'))
-        if (path.includes('offline=false')) {
-          return Promise.resolve([{ ...makeFriend(1) }] as T)
-        }
+        friendPageCalls++
         return Promise.resolve([] as T)
       }
 
       const result = await fetchFriends(fetcher)
-      expect(result.friends).toHaveLength(1)
-      // Without buckets, all friends default to 'offline'
-      expect(result.friends[0]!.presence.state).toBe('offline')
+      expect(result).toMatchObject({ presence: 'degraded', friends: [] })
+      expect(result.completeness).toBe('partial')
+      expect(friendPageCalls).toBe(0)
     })
 
     it('returns empty list with 0 failedPages when there are no friends', async () => {
@@ -383,6 +383,7 @@ describe('fetchFriends', () => {
       expect(result.friends).toHaveLength(0)
       expect(result.failedPages).toBe(0)
       expect(result.skippedRecords).toBe(0)
+      expect(result.completeness).toBe('complete')
     })
 
     it('RETHROWS an AuthError from the buckets probe instead of degrading to empty (VRX-195/197)', async () => {
@@ -449,6 +450,7 @@ describe('fetchFriends', () => {
       // Pages 1 and 3 survive; the failed window is counted, not fatal.
       expect(result.friends).toHaveLength(PAGE_SIZE + 10)
       expect(result.failedPages).toBe(1)
+      expect(result.completeness).toBe('partial')
     })
 
     it('stops a pass after 3 consecutive page failures (dead API is not hammered)', async () => {

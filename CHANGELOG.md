@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Renderer-to-main IPC is now bounded per action.** Every project-owned request channel has a fixed, process-lifetime sliding-window ceiling (including capacity for three full 200-friend avatar paints), while a runaway renderer loop is contained without log storms. Expected action denials stay structured and background query failures preserve cached data. Budgets do not reset on renderer reload, denials do not carry `retryAfterMs`, and repeated dual-platform retry/reconnect cycles can exhaust the current `get-friends` ceiling; those sizing/recovery changes are deferred. (VRX-28)
 - **Join confirmation dialog polish (VRX-245).** The dialog is now heavier frosted glass so the busy background behind it reads as a soft glow instead of garbled text. The platform stripe at the top is clipped cleanly into the panel's corner radius. The openness line is quieter (no tier color, dim text) and uses an open/closed vocabulary axis, while the instance type itself appears as the familiar colored pill under the platform pill. Group instances still get their accurate detail inside the "More info" expander.
+- **Socket handshake construction is now directly unit-tested.** The already-bounded VRChat and ChilloutVR opening handshakes were extracted into dedicated socket factories without changing their approximately 15-second network timeout behavior.
+
+### Fixed
+
+- **A partial friend sync no longer removes friends it did not receive.** If VRChat loses a page or either platform skips a malformed record, VRX keeps previously known friends and still applies the valid entries it received. A slower, older complete sync cannot remove friends fenced as stale by a newer partial reconnect sync.
+- **Live VRChat profile updates are no longer lost while the first friend list is loading.** A status or display-name change received after loading starts is merged into the REST profile when it arrives, without displacing a newer live location, trusting location fields from the profile event, or making a pre-reconnect location fresh.
+- **A temporary VRChat presence-probe failure no longer makes every friend look offline.** VRX keeps the last known roster and presence until a reliable snapshot arrives.
 - **Join confirmation now stays live with the friend's current instance (VRX-239 / VRX-241).** If a friend's instance changes while the dialog is open, VRX shows a drift notice and asks you to review the new target instead of launching the old one. The renderer and main process compare the expected instance identity before any launch, so the dialog never describes one instance and launches another.
 
 ### Fixed
