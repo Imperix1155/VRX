@@ -4,15 +4,36 @@ import type { Query, QueryKey } from '@tanstack/react-query'
 import { QueryClient } from '@tanstack/react-query'
 import {
   buildCacheBuster,
+  bumpCacheEpoch,
   CACHE_SCHEMA_VERSION,
   clearPersistedQueryCache,
+  getCacheEpoch,
+  QUERY_CACHE_EPOCH_KEY,
   QUERY_CACHE_STORAGE_KEY,
   shouldDehydrateQuery
 } from './cache'
 
-describe('query cache constants', () => {
-  it('builds a buster from app version and the schema version', () => {
-    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}`)
+describe('query cache buster', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem(QUERY_CACHE_EPOCH_KEY)
+  })
+
+  afterEach(() => {
+    window.localStorage.removeItem(QUERY_CACHE_EPOCH_KEY)
+  })
+
+  it('builds a buster from app version, schema version, and current epoch', () => {
+    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}.0`)
+    bumpCacheEpoch()
+    expect(buildCacheBuster()).toBe(`${__APP_VERSION__}.${CACHE_SCHEMA_VERSION}.1`)
+  })
+
+  it('bumps and reads the cache epoch via localStorage', () => {
+    expect(getCacheEpoch()).toBe(0)
+    expect(bumpCacheEpoch()).toBe(1)
+    expect(getCacheEpoch()).toBe(1)
+    expect(bumpCacheEpoch()).toBe(2)
+    expect(getCacheEpoch()).toBe(2)
   })
 })
 
@@ -31,18 +52,38 @@ describe('shouldDehydrateQuery', () => {
     return client.getQueryCache().find({ queryKey: key, exact: true })
   }
 
-  it('includes friends queries', () => {
+  it('includes successful friends queries', () => {
     client.setQueryData(['friends', 'vrchat'], [{ id: 'a' }])
     const query = findQuery(['friends', 'vrchat'])
     expect(query).toBeTruthy()
+    expect(query!.state.status).toBe('success')
     expect(shouldDehydrateQuery(query!)).toBe(true)
   })
 
-  it('includes instance queries', () => {
+  it('includes successful instance queries', () => {
     client.setQueryData(['instance', 'wrld_123'], { id: 'wrld_123' })
     const query = findQuery(['instance', 'wrld_123'])
     expect(query).toBeTruthy()
+    expect(query!.state.status).toBe('success')
     expect(shouldDehydrateQuery(query!)).toBe(true)
+  })
+
+  it('excludes pending queries in an allowed namespace', async () => {
+    // Start a fetch that never resolves so the query stays pending.
+    const promise = new Promise<unknown[]>(() => {})
+    const pendingFetch = client.fetchQuery({
+      queryKey: ['friends', 'vrchat'],
+      queryFn: () => promise,
+      retry: false
+    })
+    const query = findQuery(['friends', 'vrchat'])
+    expect(query).toBeTruthy()
+    expect(query!.state.status).toBe('pending')
+    expect(shouldDehydrateQuery(query!)).toBe(false)
+    // Cancel and catch the pending fetch so the shared afterEach clear() does
+    // not surface the cancellation as an unhandled rejection.
+    void client.cancelQueries({ queryKey: ['friends', 'vrchat'] })
+    await expect(pendingFetch).rejects.toThrow()
   })
 
   it('excludes avatar queries', () => {

@@ -7,25 +7,14 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { queryClient } from './queries/queryClient'
-import {
-  buildCacheBuster,
-  createQueryCachePersister,
-  MAX_QUERY_AGE_MS,
-  shouldDehydrateQuery
-} from './queries/cache'
-
-const persister = createQueryCachePersister()
+import { buildPersistOptions, onPersistRestore } from './queries/cache'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{
-        persister,
-        buster: buildCacheBuster(),
-        maxAge: MAX_QUERY_AGE_MS,
-        dehydrateOptions: { shouldDehydrateQuery }
-      }}
+      persistOptions={buildPersistOptions()}
+      onSuccess={() => onPersistRestore(queryClient)}
     >
       <ErrorBoundary>
         <App />

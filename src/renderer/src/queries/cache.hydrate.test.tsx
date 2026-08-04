@@ -17,10 +17,9 @@ import { useSettingsStore } from '../stores/settings'
 import { friendsQueryKey, useFriends } from './friends'
 import {
   buildCacheBuster,
-  createQueryCachePersister,
-  MAX_QUERY_AGE_MS,
-  QUERY_CACHE_STORAGE_KEY,
-  shouldDehydrateQuery
+  buildPersistOptions,
+  onPersistRestore,
+  QUERY_CACHE_STORAGE_KEY
 } from './cache'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -59,7 +58,9 @@ function FriendsProbe({
   onData: (friends: Friend[] | undefined) => void
 }): React.JSX.Element {
   const { data } = useFriends('vrchat')
-  useEffect(() => onData(data), [data, onData])
+  useEffect(() => {
+    onData(data)
+  }, [data, onData])
   return <></>
 }
 
@@ -118,12 +119,8 @@ function mountHydrate(
   return render(
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{
-        persister: createQueryCachePersister(),
-        buster: buildCacheBuster(),
-        maxAge: MAX_QUERY_AGE_MS,
-        dehydrateOptions: { shouldDehydrateQuery }
-      }}
+      persistOptions={buildPersistOptions()}
+      onSuccess={() => onPersistRestore(queryClient)}
     >
       <FriendsProbe onData={onData} />
     </PersistQueryClientProvider>
@@ -163,6 +160,39 @@ describe('PersistQueryClientProvider hydrate', () => {
 
     // Buster mismatch: the stored data is thrown away, so the query has no seed.
     expect(queryClient.getQueryData(friendsQueryKey('vrchat'))).toBeUndefined()
+  })
+
+  it('revalidates immediately even when the hydrated data is still inside staleTime', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: '5m' },
+      dirty: false
+    })
+
+    const seeded = [seededFriend('Seeded')]
+    const fetched = [seededFriend('Refetched')]
+    const getFriends = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve().then<Friend[]>(() => fetched))
+    Object.assign(window, { vrx: { getFriends } })
+
+    // Seed data is FRESH: only 60 seconds old against a 5-minute staleTime.
+    // Without the onSuccess invalidation, useFriends would see this as not stale
+    // and would never dispatch a fetch.
+    const payload = buildPersistedPayload(seeded, {
+      dataUpdatedAt: Date.now() - 60_000
+    })
+    await seedPersistedCache(payload)
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mountHydrate(queryClient, vi.fn())
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))?.[0]?.displayName).toBe(
+        'Refetched'
+      )
+    )
+
+    expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 
   it('paints the seeded friends list immediately, then refetches and replaces it', async () => {

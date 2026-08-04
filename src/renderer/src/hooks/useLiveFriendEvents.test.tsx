@@ -203,9 +203,9 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
 
     // (1) auth is re-checked so the Accounts card flips to reconnect.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: authStatusQueryKey('chilloutvr') })
-    // (2) the now-unauthorized roster is dropped — not shown across the auth
-    // boundary in Friends / Dashboard / TopBar (Codex).
-    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+    // (2) the now-unauthorized roster is dropped — the persisted-namespace
+    // wipe removes the friends query entirely so it cannot resurface.
+    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toBeUndefined()
   })
 
   it('on auth-invalidated: removes the persisted query cache so a restart cannot restore stale data (VRX-155)', () => {
@@ -266,7 +266,8 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     mount(client)
 
     act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
-    expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toEqual([]) // quarantined
+    // The persisted-namespace wipe removes the friends query entirely.
+    expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toBeUndefined() // quarantined
 
     // Re-login writes auth-status directly (a MANUAL setQueryData, not an
     // invalidate/refetch). The lift must still fire so the platform can't get
@@ -295,7 +296,8 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     mount(client)
 
     act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
-    expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toEqual([]) // quarantined
+    // The persisted-namespace wipe removes the friends query entirely.
+    expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toBeUndefined() // quarantined
 
     // Re-login: the auth query resolves to `authenticated` (no connection:live yet).
     await act(async () => {
@@ -358,7 +360,8 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
     // It must NOT invalidate (→ refetch → 401) the friends query while quarantined
     // — auth-invalidated only ever invalidates auth-status, never friends.
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('chilloutvr') })
-    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+    // The persisted-namespace wipe removes the friends query entirely.
+    expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toBeUndefined()
   })
 })
 
@@ -401,8 +404,9 @@ describe('useLiveFriendEvents — identity boundary', () => {
       await Promise.resolve()
     })
 
-    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
-    await waitFor(() => expect(observeData).toHaveBeenLastCalledWith([]))
+    // The persisted-namespace wipe removes the friends query; the mounted
+    // observer goes pending and the boundary invalidation triggers a refetch.
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toBeUndefined()
     expect(getFriends).toHaveBeenCalledTimes(2)
 
     await act(async () => resolveAccountB?.([vrcFriend('Account B')]))
@@ -441,7 +445,8 @@ describe('useLiveFriendEvents — identity boundary', () => {
       })
     })
 
-    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+    // The persisted-namespace wipe removed the VRChat query entirely.
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toBeUndefined()
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))?.[0]?.presence.state).toBe(
       'in-game'
     )
