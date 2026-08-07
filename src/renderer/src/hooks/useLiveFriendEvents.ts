@@ -195,11 +195,18 @@ export function useLiveFriendEvents(): void {
           // If auth disables useFriends (signed out / needs 2FA / unknown state),
           // no refetch will run to disprove that stale disk roster. Quarantine it,
           // cancel any older request, and keep the mounted observer settled at [].
+          // 'error' keeps the query enabled → a refetch will disprove stale data,
+          // so it is not quarantined; it is also never persisted.
+          // A platform whose query is ABSENT stays absent: fabricating [] for a
+          // never-signed-in platform would paint a false "signed in, zero friends"
+          // state and persist it to disk (VRX-155 round 4).
           quarantined.add(platform)
           latestSnapshot.delete(platform)
           void queryClient.cancelQueries({ queryKey: friendsQueryKey(platform) })
-          queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
-          persistQueryCacheNow(queryClient)
+          if (queryClient.getQueryData(friendsQueryKey(platform)) !== undefined) {
+            queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
+            persistQueryCacheNow(queryClient)
+          }
         }
         return
       }

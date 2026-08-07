@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Platform } from '@shared/types'
 import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import { friendsQueryKey } from '../queries/friends'
+import { persistQueryCacheNow } from '../queries/cache'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 import { useAuthFlow } from '../hooks/useAuthFlow'
 import CredentialsForm from './auth/CredentialsForm'
@@ -50,6 +51,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
       // the data must GO (a later login may be a different account), not refetch.
       await queryClient.invalidateQueries({ queryKey: authStatusQueryKey(platform) })
       queryClient.setQueryData(friendsQueryKey(platform), [])
+      persistQueryCacheNow(queryClient)
     } catch {
       flow.setErrorKey('settings.accounts.error.disconnect')
     } finally {

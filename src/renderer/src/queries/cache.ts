@@ -21,7 +21,15 @@ export const CACHE_SCHEMA_VERSION = 1
 /** localStorage key used by the sync storage persister for the dehydrated cache. */
 export const QUERY_CACHE_STORAGE_KEY = 'vrx-query-cache'
 
-/** Persisted queries older than this are discarded on hydration (24 hours). */
+/**
+ * Persisted cache envelope older than this is discarded on hydration.
+ *
+ * Note: this bounds time-since-last-WRITE, not data age. Every throttled save
+ * and every `persistQueryCacheNow` call re-stamps the envelope timestamp, so
+ * maxAge does not limit how old the roster data itself is. Restored queries are
+ * invalidated-on-restore so they refetch in the background; that is the actual
+ * staleness defense. True data-age bound: VRX-253.
+ */
 export const MAX_QUERY_AGE_MS = 24 * 60 * 60 * 1000
 
 /** Query-key namespaces that are allowed to be persisted. */
@@ -43,7 +51,9 @@ export function buildCacheBuster(): string {
  *   immediately.
  * - `avatar` / `image` queries are base64-heavy and are excluded.
  * - Only successful queries are persisted; pending, paused, and errored queries
- *   are excluded so they cannot poison the cache.
+ *   are excluded so they cannot poison the cache. 'error' keeps the query
+ *   enabled → a refetch will disprove stale data, so it is not quarantined; it
+ *   is also never persisted.
  * - Everything else (auth status, friend notes, etc.) is intentionally
  *   re-fetched per session.
  */
@@ -214,8 +224,9 @@ export function createQueryCachePersister(): Persister {
 
 /**
  * Build the persist options object used by both production and tests. Sharing
- * the object guarantees that tests exercise the same buster, maxAge, and
- * dehydration filter as the real renderer root.
+ * the object guarantees that tests exercise the same buster, maxAge
+ * (time-since-last-write; true data-age bound is VRX-253), and dehydration
+ * filter as the real renderer root.
  */
 export function buildPersistOptions(): Omit<PersistQueryClientOptions, 'queryClient'> {
   return {

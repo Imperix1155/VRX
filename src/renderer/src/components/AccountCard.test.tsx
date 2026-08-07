@@ -2,8 +2,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AuthStatus, Platform } from '@shared/types'
+import type { AuthStatus, Friend, Platform } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 import i18n from '../i18n'
 import AccountCard from './AccountCard'
 
@@ -40,9 +41,26 @@ function bridgeFor(status: AuthStatus): TestBridge {
   }
 }
 
+function storedFriends(platform: Platform): Friend[] | undefined {
+  const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+  if (raw === null) return undefined
+  const stored = JSON.parse(raw) as {
+    clientState?: {
+      queries?: Array<{
+        queryKey?: unknown[]
+        state?: { data?: Friend[] }
+      }>
+    }
+  }
+  return stored.clientState?.queries?.find(
+    (query) => query.queryKey?.[0] === 'friends' && query.queryKey[1] === platform
+  )?.state?.data
+}
+
 afterEach(() => {
   cleanup()
   setBridge(undefined)
+  window.localStorage.clear()
 })
 
 describe.each([
@@ -134,6 +152,40 @@ describe.each([
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
     // The settled [] observer must not wake a doomed unauthenticated refetch.
     expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
+  })
+
+  it('persists the cleared roster synchronously on logout and leaves the other platform untouched', async () => {
+    const other = platform === 'vrchat' ? 'chilloutvr' : 'vrchat'
+    let state: AuthStatus = {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-account`,
+      displayName
+    }
+    const bridge = bridgeFor(state)
+    bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
+    bridge.logout.mockImplementation(() => {
+      state = { platform, state: 'unauthenticated', accountId: null, displayName: null }
+      return Promise.resolve()
+    })
+    const queryClient = renderCard(platform, bridge)
+
+    await screen.findByText(msg('settings.accounts.connectedAs', { name: displayName }))
+    queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
+    queryClient.setQueryData(friendsQueryKey(other), [
+      { displayName: 'Other Friend', platform: other } as Friend
+    ])
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.disconnect') }))
+
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
+    expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
+    expect(queryClient.getQueryData(friendsQueryKey(other))).toEqual([
+      { displayName: 'Other Friend', platform: other }
+    ])
+    // The synchronous persist must land immediately, not wait for a later
+    // throttled cache event that may never come before quit.
+    expect(storedFriends(platform)).toEqual([])
+    expect(storedFriends(other)).toEqual([{ displayName: 'Other Friend', platform: other }])
   })
 
   it('shows the unreachable banner with Retry and Sign out — never the Connect form — on error (VRX-201)', async () => {
