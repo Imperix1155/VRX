@@ -1,4 +1,10 @@
-import { dehydrate, type Query, type QueryClient, type QueryKey } from '@tanstack/react-query'
+import {
+  dehydrate,
+  type DehydratedState,
+  type Query,
+  type QueryClient,
+  type QueryKey
+} from '@tanstack/react-query'
 import type {
   PersistedClient,
   Persister,
@@ -50,15 +56,20 @@ export function buildCacheBuster(): string {
  * - `friends` rosters are small and make the cold-start friends list paint
  *   immediately.
  * - `avatar` / `image` queries are base64-heavy and are excluded.
- * - Only successful queries are persisted; pending, paused, and errored queries
- *   are excluded so they cannot poison the cache. 'error' keeps the query
- *   enabled → a refetch will disprove stale data, so it is not quarantined; it
- *   is also never persisted.
+ * - Only queries HOLDING DATA are persisted (`data === undefined` excluded).
+ *   Data survives a failed background refetch (query-core keeps `data` and
+ *   only flips `status` to 'error'), and that last good roster must stay on
+ *   disk — an outage or rate-limit is exactly when the warm cold-start paint
+ *   matters. Gating on `status === 'success'` instead silently EVICTED a
+ *   platform from disk within one throttled save of any refetch failure. A
+ *   never-fetched pending query has no data and is excluded; restore
+ *   invalidation (`onPersistRestore`) revalidates whatever hydrates, so
+ *   persisted data can never render as final without a refetch scheduled.
  * - Everything else (auth status, friend notes, etc.) is intentionally
  *   re-fetched per session.
  */
 export function shouldDehydrateQuery(query: Query<unknown, Error, unknown, QueryKey>): boolean {
-  if (query.state.status !== 'success') return false
+  if (query.state.data === undefined) return false
   const key = query.queryKey
   if (!Array.isArray(key) || key.length === 0) return false
   const namespace: unknown = key[0]
@@ -204,6 +215,38 @@ const dehydrateOptions = {
 }
 
 /**
+ * Persisted entries are canonical SUCCESS-shaped snapshots of the last good
+ * data. A query whose background refetch failed keeps its data but carries
+ * `status:'error'` plus a non-JSON-serializable Error — normalize it at WRITE
+ * time so the strict restore schema (`status:'success'`, `error:null`) stays
+ * exactly as hard as it is, and the disk format has one canonical shape.
+ * Restore-invalidation revalidates whatever hydrates, so erasing the transient
+ * error costs nothing. Applied by BOTH write paths (the throttled auto-save's
+ * `serialize` and `persistQueryCacheNow`) — normalizing only one would make
+ * outage survival depend on which writer ran last.
+ */
+function normalizeDehydratedState(clientState: DehydratedState): DehydratedState {
+  return {
+    ...clientState,
+    queries: clientState.queries.map((query) =>
+      query.state.status === 'success'
+        ? query
+        : {
+            ...query,
+            state: {
+              ...query.state,
+              status: 'success' as const,
+              error: null,
+              fetchStatus: 'idle' as const,
+              fetchFailureReason: null,
+              fetchMeta: null
+            }
+          }
+    )
+  }
+}
+
+/**
  * Create the sync storage persister. The persister is created on demand so
  * node-based unit tests can import the pure helpers above without requiring
  * `window.localStorage` to exist.
@@ -218,6 +261,8 @@ export function createQueryCachePersister(): Persister {
   return createSyncStoragePersister({
     storage,
     key: QUERY_CACHE_STORAGE_KEY,
+    serialize: (client) =>
+      JSON.stringify({ ...client, clientState: normalizeDehydratedState(client.clientState) }),
     deserialize: deserializePersistedQueryCache
   })
 }
@@ -244,7 +289,7 @@ export function persistQueryCacheNow(queryClient: QueryClient): void {
     const persistedClient: PersistedClient = {
       buster: buildCacheBuster(),
       timestamp: Date.now(),
-      clientState: dehydrate(queryClient, dehydrateOptions)
+      clientState: normalizeDehydratedState(dehydrate(queryClient, dehydrateOptions))
     }
     window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, JSON.stringify(persistedClient))
   } catch {

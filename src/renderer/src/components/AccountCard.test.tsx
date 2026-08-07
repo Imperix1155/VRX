@@ -4,7 +4,28 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
-import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+
+// Schema-complete Friend — the persisted-cache deserializer validates every
+// friend strictly, so partial casts would make the whole envelope discard.
+function fullFriend(name: string, platform: Platform): Friend {
+  return {
+    platformUserId: `usr_${name.toLowerCase().replace(/\s+/g, '_')}`,
+    platform,
+    displayName: name,
+    avatarUrl: null,
+    // Platform-true presence: the persisted-cache schema's CVR variant only
+    // allows 'in-game' | 'offline'.
+    presence: { state: platform === 'chilloutvr' ? 'in-game' : 'active' },
+    status: null,
+    statusDescription: null,
+    instance: null,
+    trustRank: null,
+    isFavorite: false,
+    favoriteGroupIds: [],
+    linkedPersonId: null
+  } as unknown as Friend
+}
 import i18n from '../i18n'
 import AccountCard from './AccountCard'
 
@@ -44,17 +65,12 @@ function bridgeFor(status: AuthStatus): TestBridge {
 function storedFriends(platform: Platform): Friend[] | undefined {
   const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
   if (raw === null) return undefined
-  const stored = JSON.parse(raw) as {
-    clientState?: {
-      queries?: Array<{
-        queryKey?: unknown[]
-        state?: { data?: Friend[] }
-      }>
-    }
-  }
-  return stored.clientState?.queries?.find(
-    (query) => query.queryKey?.[0] === 'friends' && query.queryKey[1] === platform
-  )?.state?.data
+  // Route through the REAL restore path — asserting raw bytes could pass on an
+  // envelope an actual hydrate would reject (round-4 F-E).
+  const restored = deserializePersistedQueryCache(raw)
+  return restored.clientState.queries.find(
+    (query) => query.queryKey[0] === 'friends' && query.queryKey[1] === platform
+  )?.state?.data as Friend[] | undefined
 }
 
 afterEach(() => {
@@ -171,21 +187,20 @@ describe.each([
     const queryClient = renderCard(platform, bridge)
 
     await screen.findByText(msg('settings.accounts.connectedAs', { name: displayName }))
-    queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
-    queryClient.setQueryData(friendsQueryKey(other), [
-      { displayName: 'Other Friend', platform: other } as Friend
-    ])
+    const staleFriend = fullFriend('Stale Friend', platform)
+    const otherFriend = fullFriend('Other Friend', other)
+    queryClient.setQueryData(friendsQueryKey(platform), [staleFriend])
+    queryClient.setQueryData(friendsQueryKey(other), [otherFriend])
     fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.disconnect') }))
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
-    expect(queryClient.getQueryData(friendsQueryKey(other))).toEqual([
-      { displayName: 'Other Friend', platform: other }
-    ])
+    expect(queryClient.getQueryData(friendsQueryKey(other))).toEqual([otherFriend])
     // The synchronous persist must land immediately, not wait for a later
-    // throttled cache event that may never come before quit.
+    // throttled cache event that may never come before quit — asserted through
+    // the real restore path with schema-complete friends.
     expect(storedFriends(platform)).toEqual([])
-    expect(storedFriends(other)).toEqual([{ displayName: 'Other Friend', platform: other }])
+    expect(storedFriends(other)?.map((f) => f.displayName)).toEqual(['Other Friend'])
   })
 
   it('shows the unreachable banner with Retry and Sign out — never the Connect form — on error (VRX-201)', async () => {
