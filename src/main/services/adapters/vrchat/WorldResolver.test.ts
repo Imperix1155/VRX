@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WORLD_CACHE_TTL_MS } from '@shared/constants'
-import { WorldResolver } from './WorldResolver'
+import { WorldResolver, WORLD_NEGATIVE_CACHE_TTL_MS } from './WorldResolver'
 import { AuthError } from '../errors'
 
 const VALID_WORLD_RAW = {
@@ -156,19 +156,64 @@ describe('WorldResolver', () => {
     await expect(resolver.resolve('wrld_abc')).rejects.toBeInstanceOf(AuthError)
   })
 
-  it('does not cache a null result — retries fetcher on next call', async () => {
+  it('negative-caches a garbage response shape and retries only after the TTL', async () => {
+    let now = 0
     const fetcher = vi
       .fn()
-      .mockResolvedValueOnce(null) // first: garbage → null
-      .mockResolvedValueOnce(VALID_WORLD_RAW) // second: valid
+      .mockResolvedValueOnce({ totally: 'wrong' })
+      .mockResolvedValueOnce(VALID_WORLD_RAW)
+    const resolver = new WorldResolver(fetcher, () => now)
 
-    const resolver = new WorldResolver(fetcher)
+    expect(await resolver.resolve('wrld_abc')).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    now = WORLD_NEGATIVE_CACHE_TTL_MS - 1
+    expect(await resolver.resolve('wrld_abc')).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    now = WORLD_NEGATIVE_CACHE_TTL_MS
+    expect(await resolver.resolve('wrld_abc')).toEqual(VALID_WORLD_META)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('peek returns null for a negative-cached failure within the TTL', async () => {
+    let now = 0
+    const fetcher = vi.fn().mockResolvedValue({ totally: 'wrong' })
+    const resolver = new WorldResolver(fetcher, () => now)
+    const peekable = resolver as unknown as {
+      peek(worldId: string | null): typeof VALID_WORLD_META | null | undefined
+    }
+
+    await resolver.resolve('wrld_abc')
+    expect(peekable.peek('wrld_abc')).toBeNull()
+
+    now = WORLD_NEGATIVE_CACHE_TTL_MS
+    expect(peekable.peek('wrld_abc')).toBeUndefined()
+  })
+
+  it('caches a null result for the negative TTL, then retries', async () => {
+    let now = 0
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('404 not found')) // first: failure → null
+      .mockResolvedValueOnce(VALID_WORLD_RAW) // second: valid, after TTL
+
+    const resolver = new WorldResolver(fetcher, () => now)
 
     const first = await resolver.resolve('wrld_abc')
-    const second = await resolver.resolve('wrld_abc')
-
     expect(first).toBeNull()
-    expect(second).toEqual(VALID_WORLD_META)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    // Within the negative window the cached null is returned without a fetch.
+    now = WORLD_NEGATIVE_CACHE_TTL_MS - 1
+    const second = await resolver.resolve('wrld_abc')
+    expect(second).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    // After the window expires the next call retries.
+    now = WORLD_NEGATIVE_CACHE_TTL_MS
+    const third = await resolver.resolve('wrld_abc')
+    expect(third).toEqual(VALID_WORLD_META)
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
