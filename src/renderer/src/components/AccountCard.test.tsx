@@ -2,8 +2,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AuthStatus, Platform } from '@shared/types'
+import type { AuthStatus, Friend, Platform } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+
+import { fullFriend } from '../test-utils/friendFixture'
 import i18n from '../i18n'
 import AccountCard from './AccountCard'
 
@@ -40,9 +43,21 @@ function bridgeFor(status: AuthStatus): TestBridge {
   }
 }
 
+function storedFriends(platform: Platform): Friend[] | undefined {
+  const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+  if (raw === null) return undefined
+  // Route through the REAL restore path — asserting raw bytes could pass on an
+  // envelope an actual hydrate would reject (round-4 F-E).
+  const restored = deserializePersistedQueryCache(raw)
+  return restored.clientState.queries.find(
+    (query) => query.queryKey[0] === 'friends' && query.queryKey[1] === platform
+  )?.state?.data as Friend[] | undefined
+}
+
 afterEach(() => {
   cleanup()
   setBridge(undefined)
+  window.localStorage.clear()
 })
 
 describe.each([
@@ -124,17 +139,49 @@ describe.each([
     expect(connected.parentElement?.className).not.toContain('--st-online-text')
     const disconnect = screen.getByRole('button', { name: msg('settings.accounts.disconnect') })
     expect(disconnect).toHaveProperty('disabled', false)
-    // Cached social data for this platform must be REMOVED on logout (a later
-    // login may be a different account), not merely marked stale.
+    // Cached social data for this platform must be emptied on logout (a later
+    // login may be a different account) without removing the mounted query.
     queryClient.setQueryData(friendsQueryKey(platform), [{ displayName: 'Stale Friend' }])
     fireEvent.click(disconnect)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
-    expect(queryClient.getQueryData(friendsQueryKey(platform))).toBeUndefined()
-    // Removal must not have woken a doomed refetch: auth settles unauthenticated
-    // BEFORE the cache drop, so the (now-disabled) friends query stays silent.
+    expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
+    // The settled [] observer must not wake a doomed unauthenticated refetch.
     expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
+  })
+
+  it('persists the cleared roster synchronously on logout and leaves the other platform untouched', async () => {
+    const other = platform === 'vrchat' ? 'chilloutvr' : 'vrchat'
+    let state: AuthStatus = {
+      platform,
+      state: 'authenticated',
+      accountId: `${platform}-account`,
+      displayName
+    }
+    const bridge = bridgeFor(state)
+    bridge.getAuthStatus.mockImplementation(() => Promise.resolve(state))
+    bridge.logout.mockImplementation(() => {
+      state = { platform, state: 'unauthenticated', accountId: null, displayName: null }
+      return Promise.resolve()
+    })
+    const queryClient = renderCard(platform, bridge)
+
+    await screen.findByText(msg('settings.accounts.connectedAs', { name: displayName }))
+    const staleFriend = fullFriend('Stale Friend', platform)
+    const otherFriend = fullFriend('Other Friend', other)
+    queryClient.setQueryData(friendsQueryKey(platform), [staleFriend])
+    queryClient.setQueryData(friendsQueryKey(other), [otherFriend])
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.disconnect') }))
+
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
+    expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
+    expect(queryClient.getQueryData(friendsQueryKey(other))).toEqual([otherFriend])
+    // The synchronous persist must land immediately, not wait for a later
+    // throttled cache event that may never come before quit — asserted through
+    // the real restore path with schema-complete friends.
+    expect(storedFriends(platform)).toEqual([])
+    expect(storedFriends(other)?.map((f) => f.displayName)).toEqual(['Other Friend'])
   })
 
   it('shows the unreachable banner with Retry and Sign out — never the Connect form — on error (VRX-201)', async () => {

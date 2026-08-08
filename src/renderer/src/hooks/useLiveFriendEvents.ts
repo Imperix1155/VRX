@@ -32,6 +32,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
+import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
 export function useLiveFriendEvents(): void {
@@ -115,6 +116,9 @@ export function useLiveFriendEvents(): void {
         void queryClient.cancelQueries({ queryKey: friendsQueryKey(event.platform) })
         queryClient.setQueryData<Friend[]>(friendsQueryKey(event.platform), [])
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
+        // Persist the corrected cache synchronously: this platform is empty,
+        // while the independent platform's legitimate roster stays intact.
+        persistQueryCacheNow(queryClient)
         return
       }
       // From here down, every event either mutates the roster (presence-snapshot,
@@ -154,6 +158,9 @@ export function useLiveFriendEvents(): void {
       void queryClient.cancelQueries({ queryKey })
       queryClient.setQueryData<Friend[]>(queryKey, [])
       void queryClient.invalidateQueries({ queryKey })
+      // Persist the corrected cache synchronously: this platform is empty,
+      // while the independent platform's legitimate roster stays intact.
+      persistQueryCacheNow(queryClient)
     })
 
     // Re-apply the buffered snapshot after a roster FETCH resolves (the fix for
@@ -183,6 +190,23 @@ export function useLiveFriendEvents(): void {
         const status = cacheEvent.query.state.data as { state?: string } | undefined
         if (status?.state === 'authenticated' && quarantined.delete(platform)) {
           void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
+        } else if (status?.state !== 'authenticated' && status?.state !== 'error') {
+          // Hydration can restore a successful friends query before auth settles.
+          // If auth disables useFriends (signed out / needs 2FA / unknown state),
+          // no refetch will run to disprove that stale disk roster. Quarantine it,
+          // cancel any older request, and keep the mounted observer settled at [].
+          // 'error' keeps the query enabled → a refetch will disprove stale data,
+          // so it is not quarantined; it is also never persisted.
+          // A platform whose query is ABSENT stays absent: fabricating [] for a
+          // never-signed-in platform would paint a false "signed in, zero friends"
+          // state and persist it to disk (VRX-155 round 4).
+          quarantined.add(platform)
+          latestSnapshot.delete(platform)
+          void queryClient.cancelQueries({ queryKey: friendsQueryKey(platform) })
+          if (queryClient.getQueryData(friendsQueryKey(platform)) !== undefined) {
+            queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
+            persistQueryCacheNow(queryClient)
+          }
         }
         return
       }
