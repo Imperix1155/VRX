@@ -187,7 +187,7 @@ export default function Sidebar(): React.JSX.Element {
                   (the segmented toggle remains the primary carrier). */}
               {isActive && (
                 <span
-                  className="absolute left-[-16px] w-[3px] h-[20px] rounded-[2px] motion-safe:transition-[background]"
+                  className="absolute left-[-16px] w-[3px] h-[20px] rounded-[2px]"
                   style={{ background: indicatorBackground(platformFilter) }}
                   data-platform-filter={platformFilter}
                   aria-hidden="true"
