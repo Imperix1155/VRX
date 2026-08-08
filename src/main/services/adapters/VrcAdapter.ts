@@ -631,7 +631,8 @@ export class VrcAdapter extends VrcApiClient {
     return new VrcPipeline({
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
-        if (generation === this.sessionGeneration) this.emit(event)
+        if (generation !== this.sessionGeneration) return
+        this.emit(this.enrichPipelineEvent(event, generation))
       },
       socketFactory:
         this.live?.socketFactory ??
@@ -640,6 +641,56 @@ export class VrcAdapter extends VrcApiClient {
         }),
       log: this.live?.log
     })
+  }
+
+  /**
+   * Pipeline boundary enrichment (VRX-254): live events carrying a friend in a
+   * world are patched from the cached resolver before emit, and unseen worlds
+   * kick a single background resolution. This prevents a live location move
+   * from clobbering an already-resolved worldName with the parser's null.
+   */
+  private enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent {
+    if (!('friend' in event) || event.friend.instance === null) return event
+
+    const worldId = event.friend.instance.worldId
+    const cached = this.worldResolver.peek(worldId)
+    if (cached != null) {
+      return { ...event, friend: this.withWorldMetadata(event.friend, cached) }
+    }
+    // A negative-cached failure has no metadata to patch and must not be re-kicked.
+    if (cached === null) return event
+
+    // Miss: start at most one resolution for this id through the existing
+    // deduped, generation-fenced, rate-limited lane.
+    if (!this.pendingWorldResolutions.has(worldId)) {
+      this.pendingWorldResolutions.add(worldId)
+      void fetchWorldMetadata([worldId], this.worldResolver, undefined, (resolvedWorldId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: resolvedWorldId,
+          worldName: meta.name,
+          thumbnailUrl: meta.thumbnailUrl
+        })
+      })
+        .catch((error: unknown) => {
+          if (generation !== this.sessionGeneration) return
+          if (error instanceof AuthError && error.status === 401) {
+            this.bumpSessionGeneration()
+            this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+            return
+          }
+          this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+        .finally(() => {
+          if (generation === this.sessionGeneration) this.pendingWorldResolutions.delete(worldId)
+        })
+    }
+
+    return event
   }
 
   /**

@@ -8,6 +8,7 @@ import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 import { AppStatusService } from '../appStatus'
 import { applyFriendEvent } from '../../../renderer/src/utils/applyFriendEvent'
+import { WorldResolver } from './vrchat/WorldResolver'
 
 /** In-memory credential store that records persisted values + delete calls for assertions. */
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -2473,5 +2474,285 @@ describe('VrcAdapter', () => {
       await expect(invitePromise).rejects.toThrow('Session ended')
       expect(authInvalidatedCount).toBe(0)
     })
+  })
+})
+
+describe('live pipeline world enrichment (VRX-254)', () => {
+  const liveUser = {
+    id: 'usr_live',
+    displayName: 'Live Friend',
+    currentAvatarThumbnailImageUrl: null,
+    status: 'active',
+    statusDescription: null,
+    tags: []
+  }
+
+  function onlineFrame(worldId: string, instanceId: string): string {
+    return pipelineFrame('friend-online', {
+      userId: liveUser.id,
+      user: liveUser,
+      location: `${worldId}:${instanceId}`
+    })
+  }
+
+  it('a live friend-presence for a cached world carries the cached worldName', async () => {
+    const worldId = 'wrld_cached_live'
+    const worldMeta = {
+      name: 'Cached Live World',
+      thumbnailImageUrl: 'https://example.com/cached.jpg',
+      capacity: 10,
+      shortName: null
+    }
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      if (url.includes(`/worlds/${worldId}`)) return Promise.resolve(jsonResponse(worldMeta))
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const events: AdapterEvent[] = []
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    // Pre-seed the resolver cache by resolving directly.
+    const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+    await resolver.resolve(worldId)
+    events.length = 0
+
+    sockets[0]!.fire('message', onlineFrame(worldId, 'inst1'))
+
+    const emitted = events.find((e) => e.type === 'friend-presence')
+    expect(emitted).toMatchObject({
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: {
+        platformUserId: liveUser.id,
+        instance: {
+          worldId,
+          instanceId: 'inst1',
+          worldName: 'Cached Live World',
+          thumbnailUrl: 'https://example.com/cached.jpg'
+        }
+      }
+    })
+    unsubscribe()
+  })
+
+  it('an unseen world is resolved exactly once across repeated live events, then one world-metadata emits', async () => {
+    const worldId = 'wrld_unseen'
+    let worldRequests = 0
+    let releaseWorld!: (response: Response) => void
+    const heldWorld = new Promise<Response>((resolve) => {
+      releaseWorld = resolve
+    })
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      if (url.includes(`/worlds/${worldId}`)) {
+        worldRequests += 1
+        return heldWorld
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const events: AdapterEvent[] = []
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    sockets[0]!.fire('message', onlineFrame(worldId, 'a'))
+    sockets[0]!.fire('message', onlineFrame(worldId, 'b'))
+    await vi.waitFor(() => expect(worldRequests).toBe(1))
+
+    releaseWorld(
+      jsonResponse({
+        name: 'Unseen World',
+        thumbnailImageUrl: null,
+        capacity: 8,
+        shortName: null
+      })
+    )
+
+    await vi.waitFor(() =>
+      expect(events.filter((e) => e.type === 'world-metadata')).toHaveLength(1)
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(worldRequests).toBe(1)
+    expect(events.filter((e) => e.type === 'world-metadata')).toEqual([
+      {
+        type: 'world-metadata',
+        platform: 'vrchat',
+        worldId,
+        worldName: 'Unseen World',
+        thumbnailUrl: null
+      }
+    ])
+    unsubscribe()
+  })
+
+  it('a failed resolution is not re-kicked within the negative-cache window', async () => {
+    const worldId = 'wrld_fail'
+    let worldRequests = 0
+    let now = 0
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      if (url.includes(`/worlds/${worldId}`)) {
+        worldRequests += 1
+        return Promise.reject(new Error('world offline'))
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const events: AdapterEvent[] = []
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    // Inject a clock so we can advance the negative TTL deterministically.
+    const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+    const originalClock = (resolver as unknown as { clock: () => number }).clock
+    vi.spyOn(resolver as unknown as { clock: () => number }, 'clock').mockImplementation(() => {
+      void originalClock
+      return now
+    })
+
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    sockets[0]!.fire('message', onlineFrame(worldId, 'a'))
+    await vi.waitFor(() => expect(worldRequests).toBe(1))
+
+    // Still inside the negative window: another event must not re-kick.
+    sockets[0]!.fire('message', onlineFrame(worldId, 'b'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(worldRequests).toBe(1)
+
+    // Advance past the negative TTL: the next event may retry.
+    now = 61_000
+    sockets[0]!.fire('message', onlineFrame(worldId, 'c'))
+    await vi.waitFor(() => expect(worldRequests).toBe(2))
+
+    expect(events.filter((e) => e.type === 'world-metadata')).toHaveLength(0)
+    unsubscribe()
+  })
+
+  it('a resolution landing with a stale sessionGeneration emits nothing', async () => {
+    const worldId = 'wrld_stalegen'
+    let releaseWorld!: (response: Response) => void
+    const heldWorld = new Promise<Response>((resolve) => {
+      releaseWorld = resolve
+    })
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      if (href.includes(`/worlds/${worldId}`)) return heldWorld
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse({ id: 'NEW', displayName: 'New' }, { setCookies: ['auth=new'] })
+        )
+      }
+      return Promise.reject(new Error(`unexpected: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const events: AdapterEvent[] = []
+    const adapter = new VrcAdapter(fakeStore('auth=old'), noopSleep, {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    sockets[0]!.fire('message', onlineFrame(worldId, 'a'))
+    await vi.waitFor(() => expect(sockets[0]!.closed).toBe(false))
+
+    // Bump the session generation before the held resolution lands.
+    await adapter.login({ username: 'new', password: 'pw' })
+    events.length = 0
+
+    releaseWorld(
+      jsonResponse({ name: 'Stale World', thumbnailImageUrl: null, capacity: 8, shortName: null })
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(events.filter((e) => e.type === 'world-metadata')).toHaveLength(0)
+    unsubscribe()
+  })
+
+  it('a live move to a cached world resolves the name without a refetch (manual-reconcile severity)', async () => {
+    const worldId = 'wrld_manual'
+    const worldMeta = {
+      name: 'Manual Reconcile World',
+      thumbnailImageUrl: 'https://example.com/manual.jpg',
+      capacity: 10,
+      shortName: null
+    }
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      if (url.includes(`/worlds/${worldId}`)) return Promise.resolve(jsonResponse(worldMeta))
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const events: AdapterEvent[] = []
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+    await resolver.resolve(worldId)
+    fetchMock.mockClear()
+    events.length = 0
+
+    sockets[0]!.fire('message', onlineFrame(worldId, 'inst1'))
+
+    const emitted = events.find((e) => e.type === 'friend-presence')
+    expect(emitted).toMatchObject({
+      type: 'friend-presence',
+      friend: {
+        instance: {
+          worldId,
+          worldName: 'Manual Reconcile World',
+          thumbnailUrl: 'https://example.com/manual.jpg'
+        }
+      }
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    unsubscribe()
   })
 })

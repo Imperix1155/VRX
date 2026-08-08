@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Friends moving to a world VRX has already seen no longer flash "Unknown World" until a manual refresh — live events now carry the cached world name, and unknown worlds are fetched immediately through the normal rate-limited lane. (VRX-254)
+
 ## [0.15.1] - 2026-08-08
 
 ### Fixed
