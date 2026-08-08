@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-08
+
 ### Added
 
 - **Consent-based auto-updates (VRX-113).** VRX now surfaces update state in Settings → Behavior and the sidebar footer instead of downloading silently. A new `Automatic updates` toggle defaults to OFF (settings v7). When toggled ON, VRX will auto-download available updates; a consented download applies when VRX next closes, and **Restart to update** applies it immediately. Nothing downloads or installs without your download consent. The sidebar footer shows a collapsed update button that expands on hover/focus; state (update available, downloading, ready to install) is carried by glyph + label, with neutral control styling.
