@@ -1,4 +1,3 @@
-import { RELEASES_URL } from '@shared/constants'
 import { CVR_INSTANCE_ID_RE } from '../services/adapters/cvr/buildCvrJoinUrl'
 
 /**
@@ -16,7 +15,6 @@ const ALLOWED_HOSTS = [
 ] as const
 
 export function isAllowedUrl(raw: string): boolean {
-  if (raw === RELEASES_URL) return true
   let url: URL
   try {
     url = new URL(raw)

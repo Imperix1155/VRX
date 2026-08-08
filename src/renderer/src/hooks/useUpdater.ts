@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { UpdaterSnapshot } from '@shared/ipc'
 
 const DEFAULT_STATE: UpdaterSnapshot = {
@@ -14,7 +14,8 @@ const DEFAULT_STATE: UpdaterSnapshot = {
  *
  * Captures the current snapshot on mount, subscribes to main-process pushes,
  * and exposes manual check/download/install actions. Guards `window.vrx`
- * absence so Preview/tests degrade gracefully.
+ * absence so Preview/tests degrade gracefully. Swallows invoke failures:
+ * rate-limit / missing-service errors are signaled by button state, not crashes.
  */
 export function useUpdater(): {
   state: UpdaterSnapshot
@@ -23,17 +24,25 @@ export function useUpdater(): {
   install: () => Promise<void>
 } {
   const [state, setState] = useState<UpdaterSnapshot>(DEFAULT_STATE)
+  const hasPushRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx) return
     const bridge = window.vrx
     let active = true
 
-    void bridge.getUpdaterState().then((snapshot) => {
-      if (active) setState(snapshot)
-    })
+    void bridge
+      .getUpdaterState()
+      .then((snapshot) => {
+        // Push always wins the ordering race against the initial fetch.
+        if (active && !hasPushRef.current) setState(snapshot)
+      })
+      .catch(() => {
+        // Swallow: missing service / rate limit; the button states carry feedback.
+      })
 
     const unsubscribe = bridge.onUpdaterStateChanged((snapshot) => {
+      hasPushRef.current = true
       if (active) setState(snapshot)
     })
 
@@ -45,17 +54,29 @@ export function useUpdater(): {
 
   const check = async (): Promise<void> => {
     if (typeof window === 'undefined' || !window.vrx?.checkForUpdates) return
-    await window.vrx.checkForUpdates()
+    try {
+      await window.vrx.checkForUpdates()
+    } catch {
+      // Swallow: the UI already disables the button / shows state.
+    }
   }
 
   const download = async (): Promise<void> => {
     if (typeof window === 'undefined' || !window.vrx?.downloadUpdate) return
-    await window.vrx.downloadUpdate()
+    try {
+      await window.vrx.downloadUpdate()
+    } catch {
+      // Swallow: the UI already disables the button / shows state.
+    }
   }
 
   const install = async (): Promise<void> => {
     if (typeof window === 'undefined' || !window.vrx?.installUpdate) return
-    await window.vrx.installUpdate()
+    try {
+      await window.vrx.installUpdate()
+    } catch {
+      // Swallow: the UI already disables the button / shows state.
+    }
   }
 
   return { state, check, download, install }

@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import type { BrowserWindow, App } from 'electron'
-import { UpdaterService, type UpdaterSnapshot } from './updater'
+import { UpdaterService, type UpdaterSnapshot, CHECK_INTERVAL_MS, MAX_JITTER_MS } from './updater'
 
 type EventHandler = (payload: unknown) => void
 type MockFn = ReturnType<typeof vi.fn>
@@ -27,13 +27,13 @@ function createMockAutoUpdater(): {
   const quitAndInstall = vi.fn()
 
   const autoUpdater = {
-    // electron-updater's REAL defaults — the service must actively override
-    // autoDownload (silent-download ban) and allowPrerelease (pre-1.0 feed
-    // visibility). Starting the mock at the library defaults makes the
-    // config-contract test bind: dropping an override goes red.
+    // Start OPPOSITE the service's required settings so the config-contract pin
+    // binds: autoDownload must flip to false, autoInstallOnAppQuit must flip to
+    // true, allowPrerelease must flip to true, and logger must be set.
     autoDownload: true,
-    autoInstallOnAppQuit: true,
+    autoInstallOnAppQuit: false,
     allowPrerelease: false,
+    logger: null,
     on: (event: string, handler: EventHandler) => {
       if (!handlers.has(event)) handlers.set(event, [])
       handlers.get(event)!.push(handler)
@@ -134,16 +134,18 @@ describe('UpdaterService', () => {
     return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
   }
 
-  it('overrides electron-updater defaults at bind: no silent downloads, prerelease feed on', () => {
+  it('overrides electron-updater defaults at bind: no silent downloads, prerelease feed on, logger wired', () => {
     // The consent core. autoDownload must be forced OFF (the library default is
     // true — leaving it would silently download every release), allowPrerelease
     // must be forced ON (pre-1.0 releases are all GitHub prereleases; the
-    // default false empties the update feed), and autoInstallOnAppQuit stays ON
-    // (a consented download may apply at quit).
-    const { autoUpdater } = createService()
+    // default false empties the update feed), autoInstallOnAppQuit must be
+    // forced ON (a consented download applies at quit), and the logger must be
+    // wired so updater diagnostics flow through the redacted VRX log.
+    const { autoUpdater, log } = createService()
     expect(autoUpdater.autoDownload).toBe(false)
     expect(autoUpdater.allowPrerelease).toBe(true)
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
+    expect(autoUpdater.logger).toBe(log)
   })
 
   it('starts in unsupported state when PORTABLE_EXECUTABLE_DIR is set', () => {
@@ -195,11 +197,15 @@ describe('UpdaterService', () => {
 
   it('auto-downloads when autoUpdate is true and an update becomes available', async () => {
     const { service, autoUpdater, downloadUpdate } = createService({ autoUpdate: true })
+    downloadUpdate.mockImplementation(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
     const promise = service.check()
     autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
     await promise
     expect(downloadUpdate).toHaveBeenCalledOnce()
-    expect(service.snapshot().state).toBe('downloading')
+    expect(service.snapshot().state).toBe('downloaded')
   })
 
   it('download no-ops unless state is update-available', async () => {
@@ -257,24 +263,116 @@ describe('UpdaterService', () => {
     expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed', 'disk full')
   })
 
-  it('schedules the next check with jitter (4 h ± 30 min)', () => {
-    const { service } = createService()
+  it('schedules the next check with jitter (4 h + up to 30 min)', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout')
+    const { service, checkForUpdates } = createService()
+
+    // Capture the scheduled re-check delay(s) set by the service.
+    const delays = setTimeoutSpy.mock.calls
+      .filter(([, delay]) => typeof delay === 'number' && delay >= CHECK_INTERVAL_MS)
+      .map(([, delay]) => delay as number)
+    expect(delays.length).toBeGreaterThan(0)
+    const delay = delays[0]!
+    expect(delay).toBeGreaterThanOrEqual(CHECK_INTERVAL_MS)
+    expect(delay).toBeLessThanOrEqual(CHECK_INTERVAL_MS + MAX_JITTER_MS)
+
+    // Firing the pending timer must actually run a check (kills the void mutant).
     vi.runOnlyPendingTimers()
-    // After the initial pending timer fires, a second timer should exist for the
-    // next jittered check.
-    expect(vi.getTimerCount()).toBeGreaterThan(0)
+    expect(checkForUpdates).toHaveBeenCalled()
+
     service.dispose()
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it('a check while not idle/error is a no-op', async () => {
+  it('a check while checking, downloading, or downloaded is a no-op', async () => {
     const { service, checkForUpdates } = createService()
     void service.check()
     const firstCalls = checkForUpdates.mock.calls.length
-    // Force a transition to checking.
     expect(service.snapshot().state).toBe('checking')
-    // Second check while checking should not call checkForUpdates again.
     await service.check()
     expect(checkForUpdates).toHaveBeenCalledTimes(firstCalls)
+
+    // Staged install should never be re-checked over.
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    await service.check()
+    expect(checkForUpdates).toHaveBeenCalledTimes(firstCalls)
+  })
+
+  it('re-checks from update-available on the scheduled timer', () => {
+    const { service, autoUpdater, checkForUpdates } = createService()
+    vi.runOnlyPendingTimers()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    expect(service.snapshot().state).toBe('update-available')
+    expect(checkForUpdates).toHaveBeenCalledOnce()
+
+    vi.advanceTimersByTime(4 * 60 * 60 * 1000 + 30 * 60 * 1000)
+    expect(checkForUpdates).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-evaluates autoUpdate when a new update-available arrives', async () => {
+    const settings = { autoUpdate: false }
+    const { service, autoUpdater, downloadUpdate } = createService()
+    // @ts-expect-error accessing private deps for test setup
+    service.deps.getSettings = () => settings
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    expect(downloadUpdate).not.toHaveBeenCalled()
+
+    settings.autoUpdate = true
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    expect(downloadUpdate).toHaveBeenCalledOnce()
+  })
+
+  it('download falls back to update-available when no update-downloaded event fires', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+
+    const promise = service.download()
+    expect(service.snapshot().state).toBe('downloading')
+    await promise
+
+    expect(downloadUpdate).toHaveBeenCalledOnce()
+    expect(service.snapshot().state).toBe('update-available')
+  })
+
+  it('error listener moves to error state with a string message', () => {
+    const { service, autoUpdater, log } = createService()
+    autoUpdater.emit('error', new Error('feed unreachable'))
+    expect(service.snapshot().state).toBe('error')
+    expect(service.snapshot().errorMessage).toBe('feed unreachable')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: error', 'feed unreachable')
+  })
+
+  it('error listener does not clobber a staged downloaded state', () => {
+    const { service, autoUpdater, log } = createService()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    autoUpdater.emit('error', new Error('post-download hiccup'))
+    expect(service.snapshot().state).toBe('downloaded')
+    expect(service.snapshot().errorMessage).toBe('post-download hiccup')
+    expect(log.warn).toHaveBeenCalledWith(
+      'autoUpdater: error after download staged',
+      'post-download hiccup'
+    )
+  })
+
+  it('install invokes onBeforeQuitAndInstall before quitAndInstall', () => {
+    const beforeInstall = vi.fn()
+    const { service, quitAndInstall } = createService()
+    // @ts-expect-error accessing private deps for test setup
+    service.deps.onBeforeQuitAndInstall = beforeInstall
+
+    void service.check()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    service.install()
+
+    expect(beforeInstall).toHaveBeenCalledOnce()
+    expect(quitAndInstall).toHaveBeenCalledOnce()
+    expect(beforeInstall.mock.invocationCallOrder[0]).toBeLessThan(
+      quitAndInstall.mock.invocationCallOrder[0]!
+    )
   })
 })

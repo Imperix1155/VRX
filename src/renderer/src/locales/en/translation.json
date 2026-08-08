@@ -361,6 +361,7 @@
     "sidebar": {
       "update": "Update",
       "downloading": "Updating…",
+      "downloadingIndeterminate": "Updating…",
       "restart": "Restart",
       "downloadAria": "Download update",
       "downloadingAria": "Update downloading, {{percent}} percent",
@@ -370,8 +371,10 @@
       "label": "Automatic updates",
       "description": "Download new versions in the background and apply them when the app closes.",
       "check": "Check for updates",
+      "checking": "Checking…",
       "updateTo": "Update to v{{version}}",
       "downloading": "Downloading… {{percent}}%",
+      "downloadingIndeterminate": "Downloading…",
       "restart": "Restart to update",
       "releases": "Open releases page",
       "unsupportedNote": "This portable build cannot update itself automatically.",

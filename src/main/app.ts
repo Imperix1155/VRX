@@ -557,12 +557,19 @@ app
       // coalesced snapshot to disk before window teardown can discard it.
       flushPendingSettingsSave()
       // Close both sockets and halt the reconnect loops so quit is clean.
-      teardownAdapterEvents()
+      // Wrapped: a throwing teardown must never skip the quitting flag.
+      try {
+        teardownAdapterEvents()
+      } catch (error) {
+        log.warn('adapter teardown threw during before-quit', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      }
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the
-      // up-to-date value (VRX-112; sole exception: quitAndInstall — see the
-      // `quitting` declaration).
+      // up-to-date value. The updater install path sets this flag BEFORE
+      // calling quitAndInstall (see initAutoUpdater below).
       quitting = true
     })
 
@@ -584,7 +591,11 @@ app
     // .catch and exit an app whose window ALREADY WORKS — auto-update failure
     // is never worth killing a healthy session (audit W7 review).
     try {
-      const updater = initAutoUpdater()
+      const updater = initAutoUpdater({
+        onBeforeQuitAndInstall: () => {
+          quitting = true
+        }
+      })
       void updater.check()
     } catch (error) {
       log.warn('autoUpdater init failed', {

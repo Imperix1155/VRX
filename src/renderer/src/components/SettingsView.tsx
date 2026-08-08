@@ -23,6 +23,7 @@ import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
+import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -95,20 +96,37 @@ function UpdaterSettingsRow(): React.JSX.Element {
     void check()
   }
 
-  const buttonLabel =
-    state.state === 'unsupported'
-      ? t('updater.settings.releases')
-      : state.state === 'update-available'
+  const isChecking = state.state === 'checking'
+  const isDownloading = state.state === 'downloading'
+  const isDownloaded = state.state === 'downloaded'
+  const isUnsupported = state.state === 'unsupported'
+  const isUpdateAvailable = state.state === 'update-available'
+
+  const buttonLabel = isUnsupported
+    ? t('updater.settings.releases')
+    : isChecking
+      ? t('updater.settings.checking')
+      : isUpdateAvailable
         ? t('updater.settings.updateTo', { version: state.availableVersion ?? '' })
-        : state.state === 'downloading'
+        : isDownloading
           ? state.progressPercent > 0
             ? t('updater.settings.downloading', { percent: state.progressPercent })
-            : t('updater.settings.check')
-          : state.state === 'downloaded'
+            : t('updater.settings.downloadingIndeterminate')
+          : isDownloaded
             ? t('updater.settings.restart')
             : t('updater.settings.check')
 
-  const buttonDisabled = state.state === 'downloading'
+  const buttonIcon = isUnsupported ? (
+    <IconExternalLink />
+  ) : isChecking || isDownloading ? (
+    <IconSpinner />
+  ) : isDownloaded ? (
+    <IconRestart />
+  ) : (
+    <IconDownload />
+  )
+
+  const buttonDisabled = isChecking || isDownloading
 
   return (
     <div className="mt-[var(--space-6)] flex items-start justify-between gap-[var(--space-6)]">
@@ -117,9 +135,14 @@ function UpdaterSettingsRow(): React.JSX.Element {
         <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
           {t('updater.settings.description')}
         </p>
-        {state.state === 'unsupported' && (
+        {isUnsupported && (
           <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
             {t('updater.settings.unsupportedNote')}
+          </p>
+        )}
+        {state.errorMessage != null && (
+          <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+            {state.errorMessage}
           </p>
         )}
         <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
@@ -137,6 +160,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
           onClick={handleButtonClick}
           disabled={buttonDisabled}
           className={[
+            'inline-flex items-center gap-[var(--space-1)]',
             'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
             'border border-[var(--border)]',
             'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
@@ -146,6 +170,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
             buttonDisabled ? 'opacity-60 cursor-not-allowed' : ''
           ].join(' ')}
         >
+          {buttonIcon}
           {buttonLabel}
         </button>
       </div>

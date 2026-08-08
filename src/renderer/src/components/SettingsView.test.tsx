@@ -385,6 +385,21 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(updaterState.check).toHaveBeenCalledOnce()
   })
 
+  it('checking state shows "Checking…" and disables the button', () => {
+    updaterState.state = {
+      state: 'checking',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', { name: msg('updater.settings.checking') })
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
   it('update-available state shows the target version and triggers download', () => {
     updaterState.state = {
       state: 'update-available',
@@ -418,6 +433,37 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       name: i18n.t('updater.settings.downloading', { percent: 37 })
     })
     expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('downloading at 0% shows the indeterminate label, not "Check for updates"', () => {
+    updaterState.state = {
+      state: 'downloading',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.queryByRole('button', { name: msg('updater.settings.check') })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: msg('updater.settings.downloadingIndeterminate') })
+    ).toBeTruthy()
+  })
+
+  it('error state renders the error message as quiet helper text', () => {
+    updaterState.state = {
+      state: 'error',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      errorMessage: 'network down'
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.getByText('network down')).toBeTruthy()
   })
 
   it('downloaded state shows "Restart to update" and triggers install', () => {

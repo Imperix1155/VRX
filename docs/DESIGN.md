@@ -455,15 +455,15 @@ A TRUE modal (`aria-modal="true"`) over a soft scrim. Renders from the LIVE frie
 - **State precedence is exclusive, highest first:** waiting for a cache update after a main-side `target-changed` (Confirm disabled, Cancel live) → unhealthy query / missing friend / non-joinable → unavailable (Cancel only) → drift/review, which only healthy live data may enter.
 - The modal is cleared by identity boundary, auth-invalidated, or unmount even while a launch is settling; late IPC completions for the invalidated session are ignored.
 
-### §9.4 Update button (VRX-113)
+### §9.5 Update button (VRX-113)
 
-A consent-first, state-carrying update affordance that NEVER downloads silently.
+A consent-first, state-carrying update affordance that NEVER downloads or installs silently.
 It appears in two places: the **sidebar footer** (when an update is actionable) and **Settings → Behavior** (always visible, plus an `Automatic updates` toggle).
 
 - **Neutral control styling.** The button uses `--control-fill` / `--control-fill-hover` and `--text` / `--text-dim`. NEVER tint it by platform, state, or openness. Color must not be the only signal.
-- **State is carried by glyph + label:** idle/error → “Check for updates” with a download arrow; `update-available` → target version label with a download arrow; `downloading` → progress text + spinner; `downloaded` → “Restart to update” with a restart icon; portable/unsupported → “Open releases page” with an external-link glyph + explanatory helper text.
-- **Sidebar footer button** is anchored right of the version line, a 28px collapsed circle by default, expanding to a ~92px pill on `:hover` / `:focus-visible`. The label is hidden in the collapsed state; the glyph communicates the action. Motion-safe transition; `prefers-reduced-motion` instant swap.
-- **Settings row** pairs a Toggle for `settings.autoUpdate` with the stateful update button. The toggle default is OFF (settings v7). When ON, an available update auto-downloads (but never auto-installs without the user clicking Restart).
+- **State is carried by glyph + label:** idle/error → “Check for updates” with a download arrow; `checking` → spinner + “Checking…” (disabled); `update-available` → target version label with a download arrow; `downloading` → progress text + spinner (or “Downloading…” at 0%); `downloaded` → “Restart to update” with a restart icon; portable/unsupported → “Open releases page” with an external-link glyph + explanatory helper text.
+- **Sidebar footer button** is anchored right of the version line, a 28px collapsed circle by default, expanding to a ~92px pill on `:hover` / `:focus-visible`. The label is hidden in the collapsed state and shows the generic word “Update” due to space constraints; the glyph communicates the action. Motion-safe transition; `prefers-reduced-motion` instant swap.
+- **Settings row** pairs a Toggle for `settings.autoUpdate` with the stateful update button. The toggle default is OFF (settings v7). When ON, an available update auto-downloads; a consented download applies when VRX next closes, and **Restart to update** applies it immediately. Nothing downloads or installs without the user's download consent.
 - **Black-and-white test:** desaturated, the glyph and label must still read as “update action” and the current state must still be distinguishable.
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)

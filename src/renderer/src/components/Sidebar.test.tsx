@@ -143,6 +143,24 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(updaterState.install).not.toHaveBeenCalled()
   })
 
+  it('renders downloading at 0% with the indeterminate label', () => {
+    updaterState.state = {
+      state: 'downloading',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 0,
+      errorMessage: null
+    }
+    render(<Sidebar />)
+
+    const button = screen.getByRole('button', {
+      name: i18n.t('updater.sidebar.downloadingAria', { percent: 0 })
+    })
+    expect(button).toBeTruthy()
+    expect(button.textContent).toContain(i18n.t('updater.sidebar.downloadingIndeterminate'))
+    expect(button.textContent).not.toContain('0%')
+  })
+
   it('renders downloaded state with restart action', () => {
     updaterState.state = {
       state: 'downloaded',

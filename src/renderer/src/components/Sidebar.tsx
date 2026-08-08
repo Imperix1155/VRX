@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useUiStore, type ActiveTab } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useUpdater } from '../hooks/useUpdater'
+import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 
 // SVG icons — inlined per glass.html reference (18×18, stroke-width 1.8)
 function IconDashboard(): React.JSX.Element {
@@ -108,51 +109,6 @@ function IconSettings(): React.JSX.Element {
   )
 }
 
-function IconDownload(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      className="w-[18px] h-[18px] flex-none"
-    >
-      <path d="M12 3v12M7 12l5 5 5-5M5 21h14" />
-    </svg>
-  )
-}
-
-function IconSpinner(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      className="w-[18px] h-[18px] flex-none motion-safe:animate-spin"
-    >
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-    </svg>
-  )
-}
-
-function IconRestart(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      className="w-[18px] h-[18px] flex-none"
-    >
-      <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" />
-    </svg>
-  )
-}
-
 function SidebarUpdateButton(): React.JSX.Element | null {
   const { t } = useTranslation()
   const { state, download, install } = useUpdater()
@@ -167,7 +123,7 @@ function SidebarUpdateButton(): React.JSX.Element | null {
   const label = isDownloading
     ? state.progressPercent > 0
       ? t('updater.sidebar.downloading')
-      : t('updater.sidebar.downloading')
+      : t('updater.sidebar.downloadingIndeterminate')
     : isDownloaded
       ? t('updater.sidebar.restart')
       : t('updater.sidebar.update')
