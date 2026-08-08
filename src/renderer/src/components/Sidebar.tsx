@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { useUiStore, type ActiveTab } from '../stores/ui'
+import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 
 // SVG icons — inlined per glass.html reference (18×18, stroke-width 1.8)
 function IconDashboard(): React.JSX.Element {
@@ -106,6 +107,18 @@ function IconSettings(): React.JSX.Element {
   )
 }
 
+function indicatorBackground(filter: PlatformFilter): string {
+  switch (filter) {
+    case 'vrchat':
+      return 'var(--vrc)'
+    case 'chilloutvr':
+      return 'var(--cvr)'
+    default:
+      // "All" keeps the exact existing blue→orange merge gradient (§8/§9.1).
+      return 'linear-gradient(var(--vrc), var(--cvr))'
+  }
+}
+
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'activity', icon: IconActivity },
@@ -119,6 +132,7 @@ export default function Sidebar(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const platformFilter = useFriendsStore((s) => s.platformFilter)
 
   return (
     <aside className="glass flex flex-col" style={{ padding: '20px 16px' }}>
@@ -167,11 +181,15 @@ export default function Sidebar(): React.JSX.Element {
                   : undefined
               }
             >
-              {/* Left spine gradient — active only (§8: --vrc → --cvr) */}
+              {/* Left spine — active only. Echoes the global platform filter:
+                  All = existing blue→orange gradient; single platform = solid platform
+                  hue. Position carries "active page"; color is a reinforcing echo
+                  (the segmented toggle remains the primary carrier). */}
               {isActive && (
                 <span
-                  className="absolute left-[-16px] w-[3px] h-[20px] rounded-[2px]"
-                  style={{ background: 'linear-gradient(var(--vrc), var(--cvr))' }}
+                  className="absolute left-[-16px] w-[3px] h-[20px] rounded-[2px] motion-safe:transition-[background]"
+                  style={{ background: indicatorBackground(platformFilter) }}
+                  data-platform-filter={platformFilter}
                   aria-hidden="true"
                 />
               )}
