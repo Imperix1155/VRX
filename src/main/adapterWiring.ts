@@ -23,7 +23,15 @@ interface AdapterWiringOptions {
 }
 
 function formatConsumerError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
+  // Total by construction: String() itself can throw for hostile values
+  // (null-prototype objects, throwing toString/Symbol.toPrimitive) — and a
+  // throw HERE would escape the guard and reinstate the exact defect this
+  // module exists to prevent.
+  try {
+    return err instanceof Error ? err.message : String(err)
+  } catch {
+    return '[unformattable error]'
+  }
 }
 
 function runConsumerSafely(name: string, eventType: string, run: () => void): void {
@@ -47,7 +55,9 @@ export function wireAdapterEvents({
 }: AdapterWiringOptions): () => void {
   const handleAdapterEvent = (event: AdapterEvent): void => {
     if (event.type === 'connection') {
-      appStatus.recordConnection(event.platform, event.health)
+      runConsumerSafely('appStatus', event.type, () => {
+        appStatus.recordConnection(event.platform, event.health)
+      })
     }
     runConsumerSafely('locationAuthority', event.type, () => {
       locationAuthority.consume(event)

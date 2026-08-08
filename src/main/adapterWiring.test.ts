@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterEventSource } from './adapterWiring'
 
@@ -35,6 +35,12 @@ function fakeAdapter(): {
 }
 
 describe('wireAdapterEvents', () => {
+  beforeEach(() => {
+    // log.warn is a shared module-level mock — without this, exactly-one-call
+    // assertions in the isolation tests would pass on residue from earlier tests.
+    vi.clearAllMocks()
+  })
+
   it('records connection health before location, alerts, and renderer fan-out', () => {
     const calls: string[] = []
     const source = fakeAdapter()
@@ -173,12 +179,13 @@ describe('wireAdapterEvents', () => {
       platform: 'chilloutvr',
       platformUserId: 'u2'
     }
+    const locationAuthorityConsume = vi.fn()
     const broadcast = vi.fn()
 
     wireAdapterEvents({
       sources: [source.adapter],
       appStatus: { recordConnection: vi.fn() },
-      locationAuthority: { consume: vi.fn() },
+      locationAuthority: { consume: locationAuthorityConsume },
       friendAlerts: {
         consume: (): void => {
           throw new Error('friend alerts boom')
@@ -189,11 +196,103 @@ describe('wireAdapterEvents', () => {
 
     source.emit(event)
 
+    expect(locationAuthorityConsume).toHaveBeenCalledWith(event)
     expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledTimes(1)
     expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
       consumer: 'friendAlerts',
       eventType: 'friend-offline',
       error: 'friend alerts boom'
+    })
+  })
+
+  it('a hostile throw value cannot escape the guard — broadcast still runs', () => {
+    // String() itself throws for null-prototype objects; without a total
+    // formatter the guard's own catch block would rethrow and reinstate the
+    // dropped-broadcast defect through the safety net itself.
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'chilloutvr',
+      platformUserId: 'u5'
+    }
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: {
+        consume: (): void => {
+          throw Object.create(null)
+        }
+      },
+      friendAlerts: { consume: vi.fn() },
+      broadcast
+    })
+
+    expect(() => source.emit(event)).not.toThrow()
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'locationAuthority',
+      eventType: 'friend-offline',
+      error: '[unformattable error]'
+    })
+  })
+
+  it('two consumers throwing on the same event still reach broadcast, with one warn each', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'vrchat',
+      platformUserId: 'u6'
+    }
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: {
+        consume: (): void => {
+          throw new Error('location boom')
+        }
+      },
+      friendAlerts: {
+        consume: (): void => {
+          throw new Error('alerts boom')
+        }
+      },
+      broadcast
+    })
+
+    source.emit(event)
+
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates appStatus.recordConnection so a connection event still fans out on throw', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = { type: 'connection', platform: 'vrchat', health: 'live' }
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: {
+        recordConnection: (): void => {
+          throw new Error('status boom')
+        }
+      },
+      locationAuthority: { consume: vi.fn() },
+      friendAlerts: { consume: vi.fn() },
+      broadcast
+    })
+
+    expect(() => source.emit(event)).not.toThrow()
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'appStatus',
+      eventType: 'connection',
+      error: 'status boom'
     })
   })
 
