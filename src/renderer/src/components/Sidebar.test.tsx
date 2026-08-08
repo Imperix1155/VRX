@@ -105,6 +105,11 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(button).toBeTruthy()
     // Collapsed width (36px, the footer text-block grid height) — the label is hidden.
     expect(button.className).toContain('w-[36px]')
+    // VRX-255 revert tripwires: the grid anchor and height, and the retired
+    // whole-block centering must stay gone.
+    expect(button.className).toContain('top-[14px]')
+    expect(button.className).toContain('h-[36px]')
+    expect(button.className).not.toContain('-translate-y-1/2')
     fireEvent.click(button)
     expect(updaterState.download).toHaveBeenCalledOnce()
   })

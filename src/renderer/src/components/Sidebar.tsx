@@ -158,6 +158,11 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       aria-label={ariaLabel}
       title={title}
       aria-disabled={isDownloading}
+      // VRX-255 footer grid: top-[14px] = the footer's pt-[12px] + ~2px line-box lead
+      // above the 16px mono wordmark's cap — the button's top edge sits on the
+      // wordmark top and its 36px height lands the bottom edge on the version
+      // line's bottom (render-measured 0px deltas, both themes). Re-measure if
+      // the footer padding, wordmark size, or font changes.
       className={[
         'group absolute right-[10px] top-[14px]',
         'flex items-center justify-start',
