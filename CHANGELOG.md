@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A crash inside one live-event consumer no longer stops the event from reaching the UI — each consumer is isolated and the renderer broadcast always runs. (VRX-248)
+
 ## [0.15.1] - 2026-08-08
 
 ### Fixed

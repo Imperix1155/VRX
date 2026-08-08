@@ -1,5 +1,7 @@
 import type { AdapterEvent, ConnectionHealth, Platform } from '@shared/types'
 
+import log from './logger'
+
 export interface AdapterEventSource {
   subscribe: (listener: (event: AdapterEvent) => void) => () => void
 }
@@ -20,6 +22,22 @@ interface AdapterWiringOptions {
   broadcast: (event: AdapterEvent) => void
 }
 
+function formatConsumerError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function runConsumerSafely(name: string, eventType: string, run: () => void): void {
+  try {
+    run()
+  } catch (err) {
+    log.warn('adapter event consumer failed', {
+      consumer: name,
+      eventType,
+      error: formatConsumerError(err)
+    })
+  }
+}
+
 export function wireAdapterEvents({
   sources,
   appStatus,
@@ -31,9 +49,15 @@ export function wireAdapterEvents({
     if (event.type === 'connection') {
       appStatus.recordConnection(event.platform, event.health)
     }
-    locationAuthority.consume(event)
-    friendAlerts.consume(event)
-    broadcast(event)
+    runConsumerSafely('locationAuthority', event.type, () => {
+      locationAuthority.consume(event)
+    })
+    runConsumerSafely('friendAlerts', event.type, () => {
+      friendAlerts.consume(event)
+    })
+    runConsumerSafely('broadcast', event.type, () => {
+      broadcast(event)
+    })
   }
 
   const unsubscribes = sources.map((source) => source.subscribe(handleAdapterEvent))

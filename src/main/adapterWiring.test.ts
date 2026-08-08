@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterEventSource } from './adapterWiring'
 
+import log from './logger'
 import { wireAdapterEvents } from './adapterWiring'
+
+vi.mock('./logger', () => ({
+  default: {
+    warn: vi.fn()
+  }
+}))
 
 type AdapterListener = (event: AdapterEvent) => void
 
@@ -111,5 +118,142 @@ describe('wireAdapterEvents', () => {
     vrc.emit(event)
     cvr.emit(event)
     expect(broadcast).toHaveBeenCalledTimes(2)
+  })
+
+  it('isolates locationAuthority.consume so friendAlerts and broadcast still run on throw', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: {
+        platform: 'vrchat',
+        platformUserId: 'u1',
+        displayName: 'User',
+        avatarUrl: null,
+        status: 'online',
+        statusDescription: null,
+        trustRank: null,
+        presence: { state: 'active' },
+        instance: null,
+        isFavorite: false,
+        favoriteGroupIds: [],
+        linkedPersonId: null
+      }
+    }
+    const friendAlertsConsume = vi.fn()
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: {
+        consume: (): void => {
+          throw new Error('location authority boom')
+        }
+      },
+      friendAlerts: { consume: friendAlertsConsume },
+      broadcast
+    })
+
+    source.emit(event)
+
+    expect(friendAlertsConsume).toHaveBeenCalledWith(event)
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'locationAuthority',
+      eventType: 'friend-presence',
+      error: 'location authority boom'
+    })
+  })
+
+  it('isolates friendAlerts.consume so broadcast still runs on throw', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'chilloutvr',
+      platformUserId: 'u2'
+    }
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: { consume: vi.fn() },
+      friendAlerts: {
+        consume: (): void => {
+          throw new Error('friend alerts boom')
+        }
+      },
+      broadcast
+    })
+
+    source.emit(event)
+
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'friendAlerts',
+      eventType: 'friend-offline',
+      error: 'friend alerts boom'
+    })
+  })
+
+  it('isolates broadcast so a throw does not escape the handler', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'vrchat',
+      platformUserId: 'u3'
+    }
+    const locationAuthorityConsume = vi.fn()
+    const friendAlertsConsume = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: { consume: locationAuthorityConsume },
+      friendAlerts: { consume: friendAlertsConsume },
+      broadcast: (): void => {
+        throw new Error('broadcast boom')
+      }
+    })
+
+    expect(() => source.emit(event)).not.toThrow()
+    expect(locationAuthorityConsume).toHaveBeenCalledWith(event)
+    expect(friendAlertsConsume).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'broadcast',
+      eventType: 'friend-offline',
+      error: 'broadcast boom'
+    })
+  })
+
+  it('reformats non-Error throws to strings in the warning log', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'chilloutvr',
+      platformUserId: 'u4'
+    }
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: {
+        consume: (): void => {
+          // eslint-disable-next-line @typescript-eslint/only-throw-error
+          throw 'stringy failure'
+        }
+      },
+      friendAlerts: { consume: vi.fn() },
+      broadcast: vi.fn()
+    })
+
+    source.emit(event)
+
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'locationAuthority',
+      eventType: 'friend-offline',
+      error: 'stringy failure'
+    })
   })
 })
