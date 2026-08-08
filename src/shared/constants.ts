@@ -67,3 +67,7 @@ export const HOT_INSTANCE_THRESHOLD_MAX = 10
 // ─── Platform / app identity ─────────────────────────────────────────────────
 /** CVR `Platform` header value (verified vs CVRX source). */
 export const CVR_PLATFORM = 'pc_standalone' as const
+
+// ─── External links ──────────────────────────────────────────────────────────
+/** GitHub Releases page for manual update downloads (VRX-113). */
+export const RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases/latest' as const

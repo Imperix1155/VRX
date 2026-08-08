@@ -153,8 +153,12 @@
   .nitem.active.filter-cvr::before { background: var(--cvr); }
   .nitem { position: relative; }
   .nbadge { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--text-faint); font-family: var(--font-mono); }
-  .sfoot { font-size: 11px; color: var(--text-faint); padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 12px; }
+  .sfoot { position: relative; font-size: 11px; color: var(--text-faint); padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 12px; }
   .sfoot b { color: var(--text-dim); font-family: var(--font-mono); font-size: 16px; letter-spacing: 1px; }
+  .ubtn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; gap: 6px; height: 28px; width: 28px; border-radius: 999px; border: 1px solid var(--border); background: var(--control-fill); color: var(--text); overflow: hidden; cursor: pointer; transition: width 200ms ease, background 150ms ease; }
+  .ubtn:hover, .ubtn:focus-visible { width: 92px; background: var(--control-fill-hover); }
+  .ubtn .ulbl { opacity: 0; white-space: nowrap; font-size: 11px; font-weight: 600; transition: opacity 150ms ease; }
+  .ubtn:hover .ulbl, .ubtn:focus-visible .ulbl { opacity: 1; }
 
   /* ---------- Main ---------- */
   .main { overflow-y: auto; padding: 6px 8px 40px; }
@@ -403,7 +407,7 @@
         <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="9" r="2.7"/><circle cx="16" cy="9.5" r="2.2"/><path d="M3.5 18c0-2.7 2.2-4.4 5-4.4 1 0 1.9.2 2.7.6M13.5 14.4c.7-.3 1.5-.5 2.5-.5 2.5 0 4.5 1.5 4.5 3.6"/></svg> Groups</div>
         <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4"/><circle cx="15" cy="16" r="2.4"/></svg> Settings</div>
       </nav>
-      <div class="sfoot"><b>VRX</b><br/>Social VR Companion · v0.1.0</div>
+      <div class="sfoot"><b>VRX</b><br/>Social VR Companion · v0.14.0<button type="button" class="ubtn" aria-label="Update to v0.15.0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg><span class="ulbl">v0.15.0</span></button><div style="font-size:10px;color:var(--text-faint);margin-top:4px;text-align:right">Representative update-available state · see DESIGN.md §9.4</div></div>
     </aside>
 
     <main class="main">

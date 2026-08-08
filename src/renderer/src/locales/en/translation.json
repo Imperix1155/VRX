@@ -356,5 +356,31 @@
   "stepper": {
     "decrease": "Decrease",
     "increase": "Increase"
+  },
+  "updater": {
+    "sidebar": {
+      "update": "Update",
+      "downloadingIndeterminate": "Updating…",
+      "restart": "Restart",
+      "downloadTitle": "Download update",
+      "downloadAria": "Download update",
+      "downloadingAria": "Update downloading, {{percent}} percent",
+      "restartTitle": "Restart to install update",
+      "restartAria": "Restart to install update",
+      "errorSuffix": "— last attempt failed"
+    },
+    "settings": {
+      "label": "Automatic updates",
+      "description": "Download new versions in the background and apply them when the app closes.",
+      "check": "Check for updates",
+      "checking": "Checking…",
+      "updateTo": "Update to v{{version}}",
+      "downloading": "Downloading… {{percent}}%",
+      "downloadingIndeterminate": "Downloading…",
+      "restart": "Restart to update",
+      "releases": "Open releases page",
+      "unsupportedNote": "This portable build cannot update itself automatically.",
+      "currentVersion": "VRX v{{version}}"
+    }
   }
 }

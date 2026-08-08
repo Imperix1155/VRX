@@ -26,6 +26,7 @@
  *   drawerOpener           → friend-drawer pointer opener surface (VRX-228; whole-card default, owner ruling 2026-07-27)
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
+ *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
  */
 import { z } from 'zod'
 import {
@@ -47,7 +48,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 6 as const
+export const SETTINGS_VERSION = 7 as const
 
 export const SettingsSchema = z.object({
   /** Schema version of the persisted object; drives {@link runMigrations}. */
@@ -94,7 +95,9 @@ export const SettingsSchema = z.object({
   /** Whether a Join action asks for confirmation before launching (VRX-210). */
   confirmJoin: z.boolean().catch(true),
   /** Preferred Join launch mode (VRX-210). `ask` defers the choice to each Join action. */
-  joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask')
+  joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask'),
+  /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
+  autoUpdate: z.boolean().catch(false)
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -108,16 +111,17 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2, v2 → v3, v3 → v4, v4 → v5, and v5 → v6 are deliberately identity-only:
- * the shape remains schema-compatible, while the version boundary protects newer
- * fields from older-build key stripping during rollback.
+ * v1 → v2, v2 → v3, v3 → v4, v4 → v5, v5 → v6, and v6 → v7 are deliberately
+ * identity-only: the shape remains schema-compatible, while the version boundary
+ * protects newer fields from older-build key stripping during rollback.
  */
 export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = {
   1: (prev) => ({ ...prev }),
   2: (prev) => ({ ...prev }),
   3: (prev) => ({ ...prev }),
   4: (prev) => ({ ...prev }),
-  5: (prev) => ({ ...prev })
+  5: (prev) => ({ ...prev }),
+  6: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

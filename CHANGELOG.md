@@ -9,12 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Consent-based auto-updates (VRX-113).** VRX now surfaces update state in Settings → Behavior and the sidebar footer instead of downloading silently. A new `Automatic updates` toggle defaults to OFF (settings v7). When toggled ON, VRX will auto-download available updates; a consented download applies when VRX next closes, and **Restart to update** applies it immediately. Nothing downloads or installs without your download consent. The sidebar footer shows a collapsed update button that expands on hover/focus; state (update available, downloading, ready to install) is carried by glyph + label, with neutral control styling.
 - **Friends now appear immediately from the last successful cache when VRX launches.** The cache is validated before use and rechecked in the background; a signed-out or 2FA-blocked platform is cleared instead of painting stale presence, and switching one platform's account no longer blanks or deletes the other platform's roster, and a temporary outage or rate-limit during the background recheck leaves the last good roster cached for the next launch. (VRX-155)
 
 ### Fixed
 
 - A platform the user never signed into no longer gets a fabricated empty friends roster written to disk just because auth settled while another platform was loading. (VRX-155)
 - Logging out now persists the emptied roster synchronously, so quitting right after disconnect no longer restores the previous account's friends on the next launch. (VRX-155)
+- Transient update-check failures and post-download install failures no longer replace an existing update-available state with a generic error; the update stays visible with a sanitized error note, and absolute filesystem paths are stripped from the message. (VRX-113)
 
 ### Changed
 

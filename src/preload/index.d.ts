@@ -21,6 +21,10 @@ type VrxBridge = {
   saveSettings: (
     req: IpcInvoke['save-settings']['req']
   ) => Promise<IpcInvoke['save-settings']['res']>
+  getUpdaterState: () => Promise<IpcInvoke['updater:get-state']['res']>
+  checkForUpdates: () => Promise<IpcInvoke['updater:check']['res']>
+  downloadUpdate: () => Promise<IpcInvoke['updater:download']['res']>
+  installUpdate: () => Promise<IpcInvoke['updater:install']['res']>
   getFriendNote: (
     req: IpcInvoke['get-friend-note']['req']
   ) => Promise<IpcInvoke['get-friend-note']['res']>
@@ -35,6 +39,10 @@ type VrxBridge = {
   onIdentityBoundary: (callback: (event: IpcEvents['identity-boundary']) => void) => () => void
   /** Native hot-instance toast click → Dashboard (VRX-85). */
   onNavigateToDashboard: (callback: () => void) => () => void
+  /** Live updater state pushes from main (VRX-113). Returns an unsubscribe. */
+  onUpdaterStateChanged: (
+    callback: (event: IpcEvents['updater:state-changed']) => void
+  ) => () => void
 }
 
 declare global {
