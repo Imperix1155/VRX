@@ -82,7 +82,12 @@ export class WorldResolver {
     this.negativeTtlMs = negativeTtlMs
   }
 
-  /** Synchronous cache-only lookup: undefined means unresolved or expired. */
+  /**
+   * Synchronous cache-only lookup.
+   * - `undefined` = unresolved or expired (a fresh fetch may start).
+   * - `null` = negative-cached recent failure (within `WORLD_NEGATIVE_CACHE_TTL_MS`).
+   * - `WorldMeta` = cache hit.
+   */
   peek(worldId: string | null): WorldMeta | null | undefined {
     if (!worldId) return null
     const cached = this.cache.get(worldId)

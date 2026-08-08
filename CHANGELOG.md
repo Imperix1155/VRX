@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Friends moving to a world VRX has already seen no longer flash "Unknown World" until a manual refresh — live events now carry the cached world name, and unknown worlds are fetched immediately through the normal rate-limited lane. (VRX-254)
+- Reconciling the VRChat friends list no longer re-fetches a world that failed within the last 60 seconds; the negative-cache window is now respected during roster refreshes. (VRX-254)
 
 ## [0.15.1] - 2026-08-08
 

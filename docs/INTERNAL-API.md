@@ -339,7 +339,7 @@ Production socket construction lives in
 | `buildJoinUrl(worldId, instanceId, region?)`          | `vrchat://launch` deep link (string concat — never `URL()`)                                                                                                                                                      |
 | `fetchFriends(fetcher)`                               | Paginated list with `{friends, presence, completeness, failedPages, skippedRecords}`. Bucket-probe failure returns explicit degraded/partial data; failed pages, skipped records, or a capped roster are partial |
 | `rawFriendSchema` / `normalize(raw, buckets)`         | The raw-friend Zod shape + normalizer — REST and WS share this path                                                                                                                                              |
-| `WorldResolver` / `fetchWorldMetadata`                | TTL-cached world name/thumbnail enrichment (only `name` required)                                                                                                                                                |
+| `WorldResolver` / `fetchWorldMetadata`                | TTL-cached world name/thumbnail enrichment: 24 h success cache, 60 s negative cache (only `name` required)                                                                                                       |
 | `VrcPipeline`                                         | The live WS client (see §4)                                                                                                                                                                                      |
 
 ### ChilloutVR (`main/services/adapters/cvr/`)

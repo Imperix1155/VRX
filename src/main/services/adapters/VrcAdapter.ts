@@ -141,7 +141,8 @@ export class VrcAdapter extends VrcApiClient {
    * COMPLETES, so without this guard two overlapping `getFriends()` calls
    * (launch + an early manual Refresh) would double-fetch every still-unresolved
    * world through the shared 1 req/s slot. Batch-scoped: each kick sweeps its
-   * own ids in `finally`, so failed/private worlds stay retryable next call.
+   * own ids in `finally`, so failed/private worlds become retryable after the
+   * negative-cache window (60 s) or at reconcile.
    */
   private readonly pendingWorldResolutions = new Set<string>()
 
@@ -533,8 +534,9 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids only — resolved worlds are now cached (peek
-        // excludes them) and failed/private ones become retryable again.
+        // Sweep THIS batch's ids unconditionally — resolved worlds are now cached
+        // (peek excludes them) and failed/private ones become retryable after the
+        // 60 s negative-cache window or at reconcile.
         for (const id of kicked) this.pendingWorldResolutions.delete(id)
       })
   }
@@ -686,7 +688,7 @@ export class VrcAdapter extends VrcApiClient {
           })
         })
         .finally(() => {
-          if (generation === this.sessionGeneration) this.pendingWorldResolutions.delete(worldId)
+          this.pendingWorldResolutions.delete(worldId)
         })
     }
 
