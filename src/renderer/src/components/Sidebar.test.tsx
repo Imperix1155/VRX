@@ -110,6 +110,8 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(button.className).toContain('top-[14px]')
     expect(button.className).toContain('h-[36px]')
     expect(button.className).not.toContain('-translate-y-1/2')
+    expect(button.className).toContain('right-[10px]')
+    expect(button.className).toContain('hover:w-[104px]')
     fireEvent.click(button)
     expect(updaterState.download).toHaveBeenCalledOnce()
   })
