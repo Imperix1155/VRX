@@ -27,8 +27,12 @@ function createMockAutoUpdater(): {
   const quitAndInstall = vi.fn()
 
   const autoUpdater = {
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
+    // electron-updater's REAL defaults — the service must actively override
+    // autoDownload (silent-download ban) and allowPrerelease (pre-1.0 feed
+    // visibility). Starting the mock at the library defaults makes the
+    // config-contract test bind: dropping an override goes red.
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
     allowPrerelease: false,
     on: (event: string, handler: EventHandler) => {
       if (!handlers.has(event)) handlers.set(event, [])
@@ -129,6 +133,18 @@ describe('UpdaterService', () => {
     })
     return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
   }
+
+  it('overrides electron-updater defaults at bind: no silent downloads, prerelease feed on', () => {
+    // The consent core. autoDownload must be forced OFF (the library default is
+    // true — leaving it would silently download every release), allowPrerelease
+    // must be forced ON (pre-1.0 releases are all GitHub prereleases; the
+    // default false empties the update feed), and autoInstallOnAppQuit stays ON
+    // (a consented download may apply at quit).
+    const { autoUpdater } = createService()
+    expect(autoUpdater.autoDownload).toBe(false)
+    expect(autoUpdater.allowPrerelease).toBe(true)
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
+  })
 
   it('starts in unsupported state when PORTABLE_EXECUTABLE_DIR is set', () => {
     process.env.PORTABLE_EXECUTABLE_DIR = 'portable'
