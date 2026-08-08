@@ -13,6 +13,7 @@ import type {
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { z } from 'zod'
 import { MAX_FRIENDS } from '@shared/constants'
+import type { Friend } from '@shared/types'
 
 /**
  * Schema version for the TanStack Query persisted cache (VRX-155).
@@ -139,6 +140,17 @@ const friendSchema = z.discriminatedUnion('platform', [
     })
     .strict()
 ])
+// Compile-time drift guard: the schema's inferred output and the shared Friend
+// type must stay mutually assignable — a field added to Friend (or dropped from
+// the schema) breaks this line instead of silently persisting unvalidated data.
+type _FriendSchemaOutput = z.infer<typeof friendSchema>
+const _friendSchemaDriftGuard: [Friend] extends [_FriendSchemaOutput]
+  ? [_FriendSchemaOutput] extends [Friend]
+    ? true
+    : never
+  : never = true
+void _friendSchemaDriftGuard
+
 const persistedQuerySchema = z
   .object({
     dehydratedAt: z.number().finite().nonnegative().optional(),
@@ -183,7 +195,7 @@ const persistedClientSchema = z
     clientState: z
       .object({
         mutations: z.array(z.never()).length(0),
-        queries: z.array(persistedQuerySchema).max(2)
+        queries: z.array(persistedQuerySchema).max(platformSchema.options.length)
       })
       .strict()
   })

@@ -6,26 +6,7 @@ import type { AuthStatus, Friend, Platform } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 
-// Schema-complete Friend — the persisted-cache deserializer validates every
-// friend strictly, so partial casts would make the whole envelope discard.
-function fullFriend(name: string, platform: Platform): Friend {
-  return {
-    platformUserId: `usr_${name.toLowerCase().replace(/\s+/g, '_')}`,
-    platform,
-    displayName: name,
-    avatarUrl: null,
-    // Platform-true presence: the persisted-cache schema's CVR variant only
-    // allows 'in-game' | 'offline'.
-    presence: { state: platform === 'chilloutvr' ? 'in-game' : 'active' },
-    status: null,
-    statusDescription: null,
-    instance: null,
-    trustRank: null,
-    isFavorite: false,
-    favoriteGroupIds: [],
-    linkedPersonId: null
-  } as unknown as Friend
-}
+import { fullFriend } from '../test-utils/friendFixture'
 import i18n from '../i18n'
 import AccountCard from './AccountCard'
 

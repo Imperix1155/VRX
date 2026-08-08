@@ -4,6 +4,7 @@ import type { Query, QueryKey } from '@tanstack/react-query'
 import { dehydrate, QueryClient } from '@tanstack/react-query'
 import type { PersistedClient } from '@tanstack/react-query-persist-client'
 import type { Friend } from '@shared/types'
+import { fullFriend } from '../test-utils/friendFixture'
 import {
   buildCacheBuster,
   buildPersistOptions,
@@ -14,25 +15,6 @@ import {
   QUERY_CACHE_STORAGE_KEY,
   shouldDehydrateQuery
 } from './cache'
-
-function fullFriend(name: string, platform: Friend['platform']): Friend {
-  return {
-    platformUserId: `usr_${name.toLowerCase()}`,
-    platform,
-    displayName: name,
-    avatarUrl: null,
-    // Platform-true presence: the persisted-cache schema's CVR variant only
-    // allows 'in-game' | 'offline'.
-    presence: { state: platform === 'chilloutvr' ? 'in-game' : 'active' },
-    status: null,
-    statusDescription: null,
-    instance: null,
-    trustRank: null,
-    isFavorite: false,
-    favoriteGroupIds: [],
-    linkedPersonId: null
-  } as unknown as Friend
-}
 
 describe('query cache buster', () => {
   it('builds a static buster from app version and schema version', () => {
@@ -184,7 +166,7 @@ describe('persistQueryCacheNow — outage survival (round-4 F-A regression)', ()
     const cvrRestored = restored.clientState.queries.find(
       (q) => JSON.stringify(q.queryKey) === JSON.stringify(['friends', 'chilloutvr'])
     )
-    expect((cvrRestored?.state.data as Friend[])[0]?.displayName).toBe('CvrFriend')
+    expect((cvrRestored?.state.data as Friend[] | undefined)?.[0]?.displayName).toBe('CvrFriend')
     client.clear()
   })
 })
@@ -246,7 +228,10 @@ describe('createQueryCachePersister', () => {
       },
       configurable: true
     })
-    expect(() => createQueryCachePersister()).not.toThrow()
-    if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
+    try {
+      expect(() => createQueryCachePersister()).not.toThrow()
+    } finally {
+      if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
+    }
   })
 })
