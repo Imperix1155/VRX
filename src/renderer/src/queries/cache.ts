@@ -216,33 +216,36 @@ const dehydrateOptions = {
 
 /**
  * Persisted entries are canonical SUCCESS-shaped snapshots of the last good
- * data. A query whose background refetch failed keeps its data but carries
- * `status:'error'` plus a non-JSON-serializable Error — normalize it at WRITE
- * time so the strict restore schema (`status:'success'`, `error:null`) stays
- * exactly as hard as it is, and the disk format has one canonical shape.
- * Restore-invalidation revalidates whatever hydrates, so erasing the transient
- * error costs nothing. Applied by BOTH write paths (the throttled auto-save's
- * `serialize` and `persistQueryCacheNow`) — normalizing only one would make
- * outage survival depend on which writer ran last.
+ * data — normalize EVERY entry at WRITE time, unconditionally. A query whose
+ * background refetch failed carries `status:'error'` plus a non-serializable
+ * Error; worse, a manual `setQueryData` AFTER a failed refetch produces
+ * `status:'success'` with `fetchFailureReason` still holding the live Error
+ * (query-core clears it only on non-manual success), so a success-status
+ * early-return here skipped exactly that shape, `JSON.stringify(Error)`
+ * became `{}`, and the strict restore schema discarded the WHOLE envelope —
+ * both platforms' rosters lost on an ordinary logout-after-outage (round-2
+ * re-review F1, probe-confirmed live). Unconditional normalization keeps the
+ * restore schema (`status:'success'`, `error:null`, `fetchFailureReason:null`)
+ * exactly as hard as C3 made it; restore-invalidation revalidates whatever
+ * hydrates, so erasing transient error/in-flight fields costs nothing.
+ * Applied by BOTH write paths (the throttled auto-save's `serialize` and
+ * `persistQueryCacheNow`) — normalizing only one would make outage survival
+ * depend on which writer ran last.
  */
 function normalizeDehydratedState(clientState: DehydratedState): DehydratedState {
   return {
     ...clientState,
-    queries: clientState.queries.map((query) =>
-      query.state.status === 'success'
-        ? query
-        : {
-            ...query,
-            state: {
-              ...query.state,
-              status: 'success' as const,
-              error: null,
-              fetchStatus: 'idle' as const,
-              fetchFailureReason: null,
-              fetchMeta: null
-            }
-          }
-    )
+    queries: clientState.queries.map((query) => ({
+      ...query,
+      state: {
+        ...query.state,
+        status: 'success' as const,
+        error: null,
+        fetchStatus: 'idle' as const,
+        fetchFailureReason: null,
+        fetchMeta: null
+      }
+    }))
   }
 }
 

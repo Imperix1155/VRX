@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Friends now appear immediately from the last successful cache when VRX launches.** The cache is validated before use and rechecked in the background; a signed-out or 2FA-blocked platform is cleared instead of painting stale presence, and switching one platform's account no longer blanks or deletes the other platform's roster. (VRX-155)
+- **Friends now appear immediately from the last successful cache when VRX launches.** The cache is validated before use and rechecked in the background; a signed-out or 2FA-blocked platform is cleared instead of painting stale presence, and switching one platform's account no longer blanks or deletes the other platform's roster, and a temporary outage or rate-limit during the background recheck leaves the last good roster cached for the next launch. (VRX-155)
 
 ### Fixed
 

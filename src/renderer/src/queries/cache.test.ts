@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import type { Query, QueryKey } from '@tanstack/react-query'
-import { QueryClient } from '@tanstack/react-query'
+import { dehydrate, QueryClient } from '@tanstack/react-query'
+import type { PersistedClient } from '@tanstack/react-query-persist-client'
 import type { Friend } from '@shared/types'
 import {
   buildCacheBuster,
+  buildPersistOptions,
   CACHE_SCHEMA_VERSION,
   createQueryCachePersister,
   deserializePersistedQueryCache,
@@ -184,6 +186,54 @@ describe('persistQueryCacheNow — outage survival (round-4 F-A regression)', ()
     )
     expect((cvrRestored?.state.data as Friend[])[0]?.displayName).toBe('CvrFriend')
     client.clear()
+  })
+})
+
+describe('write-path normalization — logout-after-outage (round-2 re-review F1+F2 regression)', () => {
+  it('a manual write after a failed refetch stays restorable through the THROTTLED serialize path, both platforms intact', async () => {
+    // Manual setQueryData after a failed refetch yields status:'success' with
+    // fetchFailureReason still holding a live Error (query-core clears it only
+    // on non-manual success). A success-status early-return in the normalizer
+    // skipped that shape; JSON.stringify(Error) is {}, the strict schema then
+    // discarded the WHOLE envelope — both platforms lost on ordinary logout.
+    // This one test binds BOTH the serialize hook's presence and the
+    // normalizer's unconditional form.
+    vi.useFakeTimers()
+    try {
+      window.localStorage.clear()
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      client.setQueryData(['friends', 'vrchat'], [fullFriend('VrcFriend', 'vrchat')])
+      client.setQueryData(['friends', 'chilloutvr'], [fullFriend('CvrFriend', 'chilloutvr')])
+      // Real failed background refetch: data retained, fetchFailureReason set.
+      await expect(
+        client.fetchQuery({
+          queryKey: ['friends', 'chilloutvr'],
+          queryFn: () => Promise.reject(new Error('cvr outage')),
+          retry: false
+        })
+      ).rejects.toThrow('cvr outage')
+      // Logout-shaped manual write: success status, retained fetchFailureReason.
+      client.setQueryData(['friends', 'chilloutvr'], [])
+
+      const options = buildPersistOptions()
+      const persisted: PersistedClient = {
+        buster: buildCacheBuster(),
+        timestamp: Date.now(),
+        clientState: dehydrate(client, options.dehydrateOptions)
+      }
+      void options.persister.persistClient(persisted)
+      await vi.advanceTimersByTimeAsync(1200) // past the persister's 1s throttle
+
+      const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
+      expect(raw).toBeTruthy()
+      const restored = deserializePersistedQueryCache(raw!)
+      const keys = restored.clientState.queries.map((q) => q.queryKey)
+      expect(keys).toContainEqual(['friends', 'vrchat'])
+      expect(keys).toContainEqual(['friends', 'chilloutvr'])
+      client.clear()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
