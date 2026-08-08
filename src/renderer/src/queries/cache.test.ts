@@ -11,6 +11,7 @@ import {
   CACHE_SCHEMA_VERSION,
   createQueryCachePersister,
   deserializePersistedQueryCache,
+  MAX_QUERY_AGE_MS,
   persistQueryCacheNow,
   QUERY_CACHE_STORAGE_KEY,
   shouldDehydrateQuery
@@ -216,6 +217,151 @@ describe('write-path normalization — logout-after-outage (round-2 re-review F1
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+function buildPersistedClientEnvelope(
+  queries: Array<{
+    platform: 'vrchat' | 'chilloutvr'
+    dataUpdatedAt: number
+    friends?: Friend[]
+  }>,
+  {
+    timestamp = Date.now(),
+    buster = buildCacheBuster()
+  }: { timestamp?: number; buster?: string } = {}
+): string {
+  return JSON.stringify({
+    timestamp,
+    buster,
+    clientState: {
+      mutations: [],
+      queries: queries.map((query) => {
+        const key: ['friends', 'vrchat' | 'chilloutvr'] = ['friends', query.platform]
+        return {
+          dehydratedAt: timestamp,
+          queryHash: JSON.stringify(key),
+          queryKey: key,
+          state: {
+            data: query.friends ?? [fullFriend(`${query.platform}Friend`, query.platform)],
+            dataUpdateCount: 1,
+            dataUpdatedAt: query.dataUpdatedAt,
+            error: null,
+            errorUpdateCount: 0,
+            errorUpdatedAt: 0,
+            fetchFailureCount: 0,
+            fetchFailureReason: null,
+            fetchMeta: null,
+            isInvalidated: false,
+            status: 'success',
+            fetchStatus: 'idle'
+          }
+        }
+      })
+    }
+  })
+}
+
+describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
+  const now = 1_750_000_000_000
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('keeps a fresh query and drops a stale query from the same fresh envelope', () => {
+    const serialized = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS + 1000 },
+      { platform: 'chilloutvr', dataUpdatedAt: now - MAX_QUERY_AGE_MS - 1000 }
+    ])
+    const restored = deserializePersistedQueryCache(serialized)
+    expect(restored.clientState.queries).toHaveLength(1)
+    expect(restored.clientState.queries[0]!.queryKey).toEqual(['friends', 'vrchat'])
+  })
+
+  it('restores a query just inside the 24h boundary and drops one just outside', () => {
+    const inside = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS + 1 }
+    ])
+    expect(deserializePersistedQueryCache(inside).clientState.queries).toHaveLength(1)
+
+    // Exactly 24h old is still KEPT — the bound is inclusive ("older than 24
+    // hours" drops). Pins <= against a <-mutation, which brackets alone miss.
+    const exact = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS }
+    ])
+    expect(deserializePersistedQueryCache(exact).clientState.queries).toHaveLength(1)
+
+    const outside = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS - 1 }
+    ])
+    expect(deserializePersistedQueryCache(outside).clientState.queries).toHaveLength(0)
+  })
+
+  it('treats a zero dataUpdatedAt as stale and drops it without crashing', () => {
+    const serialized = buildPersistedClientEnvelope([{ platform: 'vrchat', dataUpdatedAt: 0 }])
+    const restored = deserializePersistedQueryCache(serialized)
+    expect(restored.clientState.queries).toHaveLength(0)
+  })
+
+  it('a missing dataUpdatedAt drops ONLY that query — the other platform survives', () => {
+    // Two-query envelope: vrchat OMITS dataUpdatedAt, chilloutvr is fresh.
+    // This binds the schema's .default(0): with it, the malformed query parses
+    // at 0 and only IT is filtered; without it, strict validation rejects the
+    // envelope WHOLE and both platforms' rosters are lost (boundary-safety law).
+    const serialized = JSON.stringify({
+      timestamp: now,
+      buster: buildCacheBuster(),
+      clientState: {
+        mutations: [],
+        queries: [
+          {
+            dehydratedAt: now,
+            queryHash: JSON.stringify(['friends', 'vrchat']),
+            queryKey: ['friends', 'vrchat'],
+            state: {
+              data: [fullFriend('VrcFriend', 'vrchat')],
+              dataUpdateCount: 1,
+              error: null,
+              errorUpdateCount: 0,
+              errorUpdatedAt: 0,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+              fetchMeta: null,
+              isInvalidated: false,
+              status: 'success',
+              fetchStatus: 'idle'
+            }
+          },
+          {
+            dehydratedAt: now,
+            queryHash: JSON.stringify(['friends', 'chilloutvr']),
+            queryKey: ['friends', 'chilloutvr'],
+            state: {
+              data: [fullFriend('CvrFriend', 'chilloutvr')],
+              dataUpdateCount: 1,
+              dataUpdatedAt: now - 1000,
+              error: null,
+              errorUpdateCount: 0,
+              errorUpdatedAt: 0,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+              fetchMeta: null,
+              isInvalidated: false,
+              status: 'success',
+              fetchStatus: 'idle'
+            }
+          }
+        ]
+      }
+    })
+    const restored = deserializePersistedQueryCache(serialized)
+    expect(restored.clientState.queries).toHaveLength(1)
+    expect(restored.clientState.queries[0]!.queryKey).toEqual(['friends', 'chilloutvr'])
   })
 })
 
