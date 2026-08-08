@@ -103,8 +103,8 @@ describe('Sidebar update button (VRX-113)', () => {
 
     const button = screen.getByRole('button', { name: i18n.t('updater.sidebar.downloadAria') })
     expect(button).toBeTruthy()
-    // Collapsed width (28px) — the label is hidden.
-    expect(button.className).toContain('w-[28px]')
+    // Collapsed width (36px, the footer text-block grid height) — the label is hidden.
+    expect(button.className).toContain('w-[36px]')
     fireEvent.click(button)
     expect(updaterState.download).toHaveBeenCalledOnce()
   })
@@ -136,7 +136,7 @@ describe('Sidebar update button (VRX-113)', () => {
     render(<Sidebar />)
 
     const button = screen.getByRole('button', { name: i18n.t('updater.sidebar.downloadAria') })
-    expect(button.className).toContain('focus-visible:w-[92px]')
+    expect(button.className).toContain('focus-visible:w-[104px]')
   })
 
   it('renders downloading state with progress and disables clicks', () => {

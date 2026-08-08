@@ -159,14 +159,14 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       title={title}
       aria-disabled={isDownloading}
       className={[
-        'group absolute right-[10px] top-1/2 -translate-y-1/2',
+        'group absolute right-[10px] top-[14px]',
         'flex items-center justify-start',
-        'h-[28px] w-[28px] hover:w-[92px] focus-visible:w-[92px]',
+        'h-[36px] w-[36px] hover:w-[104px] focus-visible:w-[104px]',
         'rounded-full border border-[var(--border)]',
         'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
         'text-[var(--text)]',
         'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
-        'pl-[5px] pr-0 hover:pr-[10px] focus-visible:pr-[10px]',
+        'pl-[9px] pr-0 hover:pr-[12px] focus-visible:pr-[12px]',
         'cursor-pointer',
         'motion-safe:transition-all motion-safe:duration-200'
       ].join(' ')}
