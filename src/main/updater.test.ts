@@ -438,4 +438,16 @@ describe('UpdaterService', () => {
       "Error in 'VRX'"
     )
   })
+
+  it('sanitizes THROUGH the error listener — a path-bearing error never reaches the snapshot raw', () => {
+    // Pins the wiring, not just the helper: bypassing sanitizeErrorForDisplay at
+    // the listener call site must fail this test even while the direct unit
+    // test above stays green.
+    const winPath = `${String.fromCharCode(67, 58, 92)}${['__fake__', 'me', 'pending.exe'].join(String.fromCharCode(92))}`
+    const { service, autoUpdater } = createService()
+    autoUpdater.emit('error', new Error(`EPERM: cannot stage ${winPath}`))
+    expect(service.snapshot().state).toBe('error')
+    expect(service.snapshot().errorMessage).toBe('EPERM: cannot stage pending.exe')
+    expect(service.snapshot().errorMessage).not.toContain('__fake__')
+  })
 })
