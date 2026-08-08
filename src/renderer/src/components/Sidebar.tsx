@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useUiStore, type ActiveTab } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
+import { useUpdater } from '../hooks/useUpdater'
 
 // SVG icons — inlined per glass.html reference (18×18, stroke-width 1.8)
 function IconDashboard(): React.JSX.Element {
@@ -107,6 +108,123 @@ function IconSettings(): React.JSX.Element {
   )
 }
 
+function IconDownload(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M12 3v12M7 12l5 5 5-5M5 21h14" />
+    </svg>
+  )
+}
+
+function IconSpinner(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none motion-safe:animate-spin"
+    >
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    </svg>
+  )
+}
+
+function IconRestart(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" />
+    </svg>
+  )
+}
+
+function SidebarUpdateButton(): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const { state, download, install } = useUpdater()
+
+  if (!['update-available', 'downloading', 'downloaded'].includes(state.state)) {
+    return null
+  }
+
+  const isDownloading = state.state === 'downloading'
+  const isDownloaded = state.state === 'downloaded'
+
+  const label = isDownloading
+    ? state.progressPercent > 0
+      ? t('updater.sidebar.downloading')
+      : t('updater.sidebar.downloading')
+    : isDownloaded
+      ? t('updater.sidebar.restart')
+      : t('updater.sidebar.update')
+
+  const ariaLabel = isDownloading
+    ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })
+    : isDownloaded
+      ? t('updater.sidebar.restartAria')
+      : t('updater.sidebar.downloadAria')
+
+  const handleClick = (): void => {
+    if (isDownloading) return
+    if (isDownloaded) {
+      void install()
+    } else {
+      void download()
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={ariaLabel}
+      aria-disabled={isDownloading}
+      className={[
+        'group absolute right-[10px] top-1/2 -translate-y-1/2',
+        'flex items-center justify-start',
+        'h-[28px] w-[28px] hover:w-[92px] focus-visible:w-[92px]',
+        'rounded-full border border-[var(--border)]',
+        'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+        'text-[var(--text)]',
+        'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+        'pl-[5px] pr-0 hover:pr-[10px] focus-visible:pr-[10px]',
+        'cursor-pointer',
+        'motion-safe:transition-all motion-safe:duration-200'
+      ].join(' ')}
+    >
+      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+        {isDownloading ? <IconSpinner /> : isDownloaded ? <IconRestart /> : <IconDownload />}
+      </span>
+      <span
+        className={[
+          'overflow-hidden whitespace-nowrap',
+          'max-w-0 group-hover:max-w-[60px] group-focus-visible:max-w-[60px]',
+          'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100',
+          'ml-0 group-hover:ml-[6px] group-focus-visible:ml-[6px]',
+          'text-[11px] font-medium',
+          'motion-safe:transition-all motion-safe:duration-200'
+        ].join(' ')}
+      >
+        {isDownloading && state.progressPercent > 0 ? `${state.progressPercent}%` : label}
+      </span>
+    </button>
+  )
+}
+
 function indicatorBackground(filter: PlatformFilter): string {
   switch (filter) {
     case 'vrchat':
@@ -202,9 +320,10 @@ export default function Sidebar(): React.JSX.Element {
 
       {/* Footer (§8) */}
       <div
-        className="text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px]"
+        className="relative text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px]"
         style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
       >
+        <SidebarUpdateButton />
         <span
           className="font-mono text-[16px] tracking-[1px] text-[var(--text-dim)]"
           aria-hidden="true"

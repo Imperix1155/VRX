@@ -77,6 +77,14 @@ vi.mock('./settings', () => ({
     electron.ipcMain.handle('save-settings', () => ({ theme: 'dark' }))
   }
 }))
+vi.mock('./updater', () => ({
+  registerUpdaterHandlers: () => {
+    electron.ipcMain.handle('updater:get-state', () => ({ state: 'idle' }))
+    electron.ipcMain.handle('updater:check', () => undefined)
+    electron.ipcMain.handle('updater:download', () => undefined)
+    electron.ipcMain.handle('updater:install', () => undefined)
+  }
+}))
 
 import { registerIpcHandlers } from './index'
 
@@ -116,12 +124,12 @@ beforeEach(() => {
 })
 
 describe('registerIpcHandlers rate limiting', () => {
-  it('wraps all 15 invoke channels and restores ipcMain.handle after registration', () => {
+  it('wraps all 19 invoke channels and restores ipcMain.handle after registration', () => {
     const originalHandle = electron.ipcMain.handle
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(15)
+    expect(electron.invokeHandlers.size).toBe(19)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -149,6 +157,10 @@ describe('registerIpcHandlers rate limiting', () => {
         'save-settings',
         'self-invite',
         'set-friend-note',
+        'updater:check',
+        'updater:download',
+        'updater:get-state',
+        'updater:install',
         'verify-2fa'
       ].sort()
     )

@@ -16,6 +16,8 @@ import {
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
+import { useUpdater } from '../hooks/useUpdater'
+import { RELEASES_URL } from '@shared/constants'
 import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
@@ -69,6 +71,86 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
   ask: 'settings.joinMode.ask',
   vr: 'settings.joinMode.vr',
   desktop: 'settings.joinMode.desktop'
+}
+
+function UpdaterSettingsRow(): React.JSX.Element {
+  const { t } = useTranslation()
+  const { state, check, download, install } = useUpdater()
+  const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+
+  const handleButtonClick = (): void => {
+    if (state.state === 'unsupported') {
+      void window.vrx?.openUrl({ url: RELEASES_URL })
+      return
+    }
+    if (state.state === 'update-available') {
+      void download()
+      return
+    }
+    if (state.state === 'downloaded') {
+      void install()
+      return
+    }
+    void check()
+  }
+
+  const buttonLabel =
+    state.state === 'unsupported'
+      ? t('updater.settings.releases')
+      : state.state === 'update-available'
+        ? t('updater.settings.updateTo', { version: state.availableVersion ?? '' })
+        : state.state === 'downloading'
+          ? state.progressPercent > 0
+            ? t('updater.settings.downloading', { percent: state.progressPercent })
+            : t('updater.settings.check')
+          : state.state === 'downloaded'
+            ? t('updater.settings.restart')
+            : t('updater.settings.check')
+
+  const buttonDisabled = state.state === 'downloading'
+
+  return (
+    <div className="mt-[var(--space-6)] flex items-start justify-between gap-[var(--space-6)]">
+      <div>
+        <p className="text-sm font-medium text-[var(--text)]">{t('updater.settings.label')}</p>
+        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          {t('updater.settings.description')}
+        </p>
+        {state.state === 'unsupported' && (
+          <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+            {t('updater.settings.unsupportedNote')}
+          </p>
+        )}
+        <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+          {t('updater.settings.currentVersion', { version: state.currentVersion })}
+        </p>
+      </div>
+      <div className="flex items-center gap-[var(--space-3)] shrink-0">
+        <Toggle
+          checked={autoUpdate}
+          ariaLabel={t('updater.settings.label')}
+          onChange={(checked) => updateSettings({ autoUpdate: checked })}
+        />
+        <button
+          type="button"
+          onClick={handleButtonClick}
+          disabled={buttonDisabled}
+          className={[
+            'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+            'border border-[var(--border)]',
+            'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+            'text-[var(--text)]',
+            'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+            'cursor-pointer',
+            buttonDisabled ? 'opacity-60 cursor-not-allowed' : ''
+          ].join(' ')}
+        >
+          {buttonLabel}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -286,6 +368,9 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ joinMode: value })}
               />
             </div>
+
+            {/* Automatic updates row (VRX-113) */}
+            <UpdaterSettingsRow />
           </section>
         )}
 

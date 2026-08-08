@@ -749,6 +749,15 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
             <div><div class="box-label why">Why</div><div class="why">The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; Private stays neutral, and an active friend with no instance has no pill. A rate-limited Join announces “Too many attempts — try again shortly” in its polite status blip, never the generic failure.</div></div>
           </div>
         </div>
+
+        <div class="el">
+          <div class="el-name"><span class="ix">9.5</span> Update button</div>
+          <div class="el-sum">Consent-first update affordance (VRX-113). Neutral control styling; state is carried by glyph + label, never color.</div>
+          <div class="demo">
+            <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;width:28px;border-radius:999px;border:1px solid var(--border);background:var(--control-fill);color:var(--text);overflow:hidden;cursor:pointer;transition:width 200ms ease,background 150ms ease;" onmouseover="this.style.width='92px';this.style.background='var(--control-fill-hover)'" onmouseout="this.style.width='28px';this.style.background='var(--control-fill)'" onfocus="this.style.width='92px';this.style.background='var(--control-fill-hover)'" onblur="this.style.width='28px';this.style.background='var(--control-fill)'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg><span style="opacity:0;white-space:nowrap;font-size:11px;font-weight:600;transition:opacity 150ms ease;" ontransitionend="if(this.parentElement.style.width==='92px')this.style.opacity='1';else this.style.opacity='0'">v0.15.0</span></button>
+          </div>
+          <div class="why">Sidebar footer: collapsed 28px circle by default, expands to a ~92px pill on hover/focus-visible. Settings → Behavior adds an <b>Automatic updates</b> toggle and a stateful button. Download arrow = check/download; spinner = in-progress; restart icon = install. No platform/state color. The black-and-white test must still read the state.</div>
+        </div>
       </section>
 
       <!-- 10 LINKING -->

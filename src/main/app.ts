@@ -584,7 +584,8 @@ app
     // .catch and exit an app whose window ALREADY WORKS — auto-update failure
     // is never worth killing a healthy session (audit W7 review).
     try {
-      initAutoUpdater()
+      const updater = initAutoUpdater()
+      void updater.check()
     } catch (error) {
       log.warn('autoUpdater init failed', {
         message: error instanceof Error ? error.message : String(error)

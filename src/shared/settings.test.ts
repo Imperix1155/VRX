@@ -30,7 +30,8 @@ describe('settings schema', () => {
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
     })
   })
 
@@ -115,6 +116,13 @@ describe('settings schema', () => {
     expect(parseSettings({ theme: 'dark' }).joinMode).toBe('ask')
     expect(parseSettings({ version: 6, joinMode: 'roomscale' }).joinMode).toBe('ask')
     expect(parseSettings({ joinMode: 1 }).joinMode).toBe('ask')
+  })
+
+  it('autoUpdate: defaults missing/invalid to false (VRX-113)', () => {
+    expect(parseSettings({ autoUpdate: true }).autoUpdate).toBe(true)
+    expect(parseSettings({ autoUpdate: false }).autoUpdate).toBe(false)
+    expect(parseSettings({ theme: 'dark' }).autoUpdate).toBe(false)
+    expect(parseSettings({ autoUpdate: 'yes' }).autoUpdate).toBe(false)
   })
 
   it('maps every reconcile cadence to its background interval', () => {
@@ -231,12 +239,13 @@ describe('migration runner', () => {
 
     expect(parseSettings(v1)).toEqual({
       ...v1,
-      version: 6,
+      version: 7,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
     })
   })
 
@@ -259,12 +268,13 @@ describe('migration runner', () => {
 
     expect(parseSettings(v2)).toEqual({
       ...v2,
-      version: 6,
+      version: 7,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
     })
   })
 
@@ -288,11 +298,12 @@ describe('migration runner', () => {
 
     expect(parseSettings(v3)).toEqual({
       ...v3,
-      version: 6,
+      version: 7,
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
     })
   })
 
@@ -317,10 +328,11 @@ describe('migration runner', () => {
 
     expect(parseSettings(v4)).toEqual({
       ...v4,
-      version: 6,
+      version: 7,
       drawerOpener: 'card',
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
     })
   })
 
@@ -346,9 +358,39 @@ describe('migration runner', () => {
 
     expect(parseSettings(v5)).toEqual({
       ...v5,
-      version: 6,
+      version: 7,
       confirmJoin: true,
-      joinMode: 'ask'
+      joinMode: 'ask',
+      autoUpdate: false
+    })
+  })
+
+  it('migrates v6 → v7 without losing or changing any existing field (VRX-113)', () => {
+    const v6 = {
+      version: 6,
+      theme: 'dark',
+      language: 'ja',
+      density: 'compact',
+      firstRunDisclaimerAcknowledged: true,
+      telemetryEnabled: true,
+      labelScheme: 'chilloutvr',
+      hotInstanceThreshold: 7,
+      collapsedFriendSections: ['in-game', 'online'],
+      notifyFriendOnline: false,
+      notifyFriendInGame: false,
+      notifyFriendOffline: true,
+      notifyHotInstance: false,
+      backgroundGlow: 'vivid',
+      reconcileInterval: 'manual',
+      drawerOpener: 'avatar',
+      confirmJoin: false,
+      joinMode: 'vr'
+    }
+
+    expect(parseSettings(v6)).toEqual({
+      ...v6,
+      version: 7,
+      autoUpdate: false
     })
   })
 
@@ -398,6 +440,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
   it('makes an older v5 build refuse a v6 file', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 6 }, 5)).toBe(false)
+  })
+
+  it('makes an older v6 build refuse a v7 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 7 }, 6)).toBe(false)
   })
 
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
@@ -487,5 +533,22 @@ describe('shouldPersistSettings (rollback safety)', () => {
     expect(disk.joinMode).toBe('vr')
     expect(parseSettings(disk).confirmJoin).toBe(false)
     expect(parseSettings(disk).joinMode).toBe('vr')
+  })
+
+  it('prevents a v6 build from stripping autoUpdate during a downgrade round-trip (VRX-113)', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 7,
+      autoUpdate: true
+    }
+    const oldV6Normalized = { ...disk, version: 6 }
+    Reflect.deleteProperty(oldV6Normalized, 'autoUpdate')
+
+    // This is the v6 build's load-and-tidy write. The v7 boundary must block
+    // the write that would otherwise strip autoUpdate from disk.
+    if (shouldPersistSettings(disk, 6)) disk = oldV6Normalized
+
+    expect(disk.autoUpdate).toBe(true)
+    expect(parseSettings(disk).autoUpdate).toBe(true)
   })
 })

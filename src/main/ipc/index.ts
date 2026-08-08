@@ -12,6 +12,7 @@ import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerSettingsHandlers } from './settings'
+import { registerUpdaterHandlers } from './updater'
 import { isTrustedIpcSender } from './security'
 import type { AuthHandlerOptions } from './auth'
 import type { LocationAuthority } from '../services/locationAuthority'
@@ -98,6 +99,7 @@ export function registerIpcHandlers(
     registerAppStatusHandlers(options.appStatus)
     registerLaunchHandlers()
     registerSettingsHandlers()
+    registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')
     else Object.defineProperty(ipcMain, 'handle', originalHandleDescriptor)
