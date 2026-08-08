@@ -142,10 +142,15 @@
     border-color: rgba(255,255,255,0.16);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
   }
+  /* Active spine echoes the global platform filter (VRX-172). Default (All) keeps
+     the blue→orange merge gradient; a single-platform filter switches to a solid
+     platform hue. The demo below shows the All state. */
   .nitem.active::before {
     content: ""; position: absolute; left: -16px; width: 3px; height: 20px; border-radius: 2px;
     background: linear-gradient(var(--vrc), var(--cvr));
   }
+  .nitem.active.filter-vrc::before { background: var(--vrc); }
+  .nitem.active.filter-cvr::before { background: var(--cvr); }
   .nitem { position: relative; }
   .nbadge { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--text-faint); font-family: var(--font-mono); }
   .sfoot { font-size: 11px; color: var(--text-faint); padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 12px; }
@@ -391,6 +396,7 @@
       <div class="brand"><span class="v">V</span><span class="r">R</span><span class="x">X</span></div>
       <div class="brand-sub">Social VR Companion</div>
       <nav class="nav">
+        <!-- Active spine in the live app echoes the platform filter: All = gradient (shown here), VRChat = solid blue, ChilloutVR = solid orange. -->
         <div class="nitem active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="11" width="7" height="10" rx="1.5"/><rect x="3" y="15" width="7" height="6" rx="1.5"/></svg> Dashboard</div>
         <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6.6a3 3 0 0 1 0 5.8"/><path d="M16.6 14c2.3.2 3.9 2 3.9 4.4"/></svg> Friends <span class="nbadge">47</span></div>
         <div class="nitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17"/></svg> Instances</div>
