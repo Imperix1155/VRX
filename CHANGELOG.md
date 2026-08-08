@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A platform the user never signed into no longer gets a fabricated empty friends roster written to disk just because auth settled while another platform was loading. (VRX-155)
 - Logging out now persists the emptied roster synchronously, so quitting right after disconnect no longer restores the previous account's friends on the next launch. (VRX-155)
 
+### Changed
+
+- **The sidebar's active-item indicator now echoes the global platform filter.** When the filter is set to VRChat or ChilloutVR, the left spine turns solid platform blue or orange; "All" keeps the existing blue→orange gradient. Position still means "active page" — color is a reinforcing cue, not the sole signal. (VRX-172)
+
 ## [0.14.0] - 2026-08-03
 
 ### Hardening
