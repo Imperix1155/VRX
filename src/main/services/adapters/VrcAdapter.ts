@@ -141,7 +141,8 @@ export class VrcAdapter extends VrcApiClient {
    * COMPLETES, so without this guard two overlapping `getFriends()` calls
    * (launch + an early manual Refresh) would double-fetch every still-unresolved
    * world through the shared 1 req/s slot. Batch-scoped: each kick sweeps its
-   * own ids in `finally`, so failed/private worlds stay retryable next call.
+   * own ids in `finally`, so failed/private worlds become retryable after the
+   * negative-cache window (60 s) or at reconcile.
    */
   private readonly pendingWorldResolutions = new Set<string>()
 
@@ -533,8 +534,9 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids only — resolved worlds are now cached (peek
-        // excludes them) and failed/private ones become retryable again.
+        // Sweep THIS batch's ids unconditionally — resolved worlds are now cached
+        // (peek excludes them) and failed/private ones become retryable after the
+        // 60 s negative-cache window or at reconcile.
         for (const id of kicked) this.pendingWorldResolutions.delete(id)
       })
   }
@@ -631,7 +633,8 @@ export class VrcAdapter extends VrcApiClient {
     return new VrcPipeline({
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
-        if (generation === this.sessionGeneration) this.emit(event)
+        if (generation !== this.sessionGeneration) return
+        this.emit(this.enrichPipelineEvent(event, generation))
       },
       socketFactory:
         this.live?.socketFactory ??
@@ -640,6 +643,56 @@ export class VrcAdapter extends VrcApiClient {
         }),
       log: this.live?.log
     })
+  }
+
+  /**
+   * Pipeline boundary enrichment (VRX-254): live events carrying a friend in a
+   * world are patched from the cached resolver before emit, and unseen worlds
+   * kick a single background resolution. This prevents a live location move
+   * from clobbering an already-resolved worldName with the parser's null.
+   */
+  private enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent {
+    if (!('friend' in event) || event.friend.instance === null) return event
+
+    const worldId = event.friend.instance.worldId
+    const cached = this.worldResolver.peek(worldId)
+    if (cached != null) {
+      return { ...event, friend: this.withWorldMetadata(event.friend, cached) }
+    }
+    // A negative-cached failure has no metadata to patch and must not be re-kicked.
+    if (cached === null) return event
+
+    // Miss: start at most one resolution for this id through the existing
+    // deduped, generation-fenced, rate-limited lane.
+    if (!this.pendingWorldResolutions.has(worldId)) {
+      this.pendingWorldResolutions.add(worldId)
+      void fetchWorldMetadata([worldId], this.worldResolver, undefined, (resolvedWorldId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId: resolvedWorldId,
+          worldName: meta.name,
+          thumbnailUrl: meta.thumbnailUrl
+        })
+      })
+        .catch((error: unknown) => {
+          if (generation !== this.sessionGeneration) return
+          if (error instanceof AuthError && error.status === 401) {
+            this.bumpSessionGeneration()
+            this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+            return
+          }
+          this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+        .finally(() => {
+          this.pendingWorldResolutions.delete(worldId)
+        })
+    }
+
+    return event
   }
 
   /**

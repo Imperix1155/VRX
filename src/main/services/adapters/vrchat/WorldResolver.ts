@@ -26,6 +26,13 @@ import { z } from 'zod'
 import { WORLD_CACHE_TTL_MS } from '@shared/constants'
 import { AuthError } from '../errors'
 
+/**
+ * Failure TTL for WorldResolver (VRX-254). Long enough that a deleted/private
+ * world isn't hammered on every live event for it, short enough that a
+ * transient API blip self-heals well before the success TTL would.
+ */
+export const WORLD_NEGATIVE_CACHE_TTL_MS = 60_000
+
 /** The typed world-metadata shape this resolver produces. */
 export interface WorldMeta {
   name: string
@@ -55,26 +62,37 @@ const WorldApiSchema = z.object({
 })
 
 interface CacheEntry {
-  meta: WorldMeta
-  fetchedAt: number
+  meta: WorldMeta | null
+  expiresAt: number
 }
 
 export class WorldResolver {
   private readonly fetcher: (worldId: string) => Promise<unknown>
   private readonly clock: () => number
+  private readonly negativeTtlMs: number
   private readonly cache = new Map<string, CacheEntry>()
 
-  constructor(fetcher: (worldId: string) => Promise<unknown>, clock: () => number = Date.now) {
+  constructor(
+    fetcher: (worldId: string) => Promise<unknown>,
+    clock: () => number = Date.now,
+    negativeTtlMs: number = WORLD_NEGATIVE_CACHE_TTL_MS
+  ) {
     this.fetcher = fetcher
     this.clock = clock
+    this.negativeTtlMs = negativeTtlMs
   }
 
-  /** Synchronous cache-only lookup: undefined means unresolved or expired. */
+  /**
+   * Synchronous cache-only lookup.
+   * - `undefined` = unresolved or expired (a fresh fetch may start).
+   * - `null` = negative-cached recent failure (within `WORLD_NEGATIVE_CACHE_TTL_MS`).
+   * - `WorldMeta` = cache hit.
+   */
   peek(worldId: string | null): WorldMeta | null | undefined {
     if (!worldId) return null
     const cached = this.cache.get(worldId)
     if (cached === undefined) return undefined
-    if (this.clock() - cached.fetchedAt >= WORLD_CACHE_TTL_MS) {
+    if (cached.expiresAt <= this.clock()) {
       this.cache.delete(worldId)
       return undefined
     }
@@ -103,11 +121,15 @@ export class WorldResolver {
       // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
       if (error instanceof AuthError) throw error
+      this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
       return null
     }
 
     const parsed = WorldApiSchema.safeParse(raw)
-    if (!parsed.success) return null
+    if (!parsed.success) {
+      this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+      return null
+    }
 
     const meta: WorldMeta = {
       name: parsed.data.name,
@@ -116,7 +138,7 @@ export class WorldResolver {
       shortName: parsed.data.shortName
     }
 
-    this.cache.set(worldId, { meta, fetchedAt: this.clock() })
+    this.cache.set(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
     return meta
   }
 }
