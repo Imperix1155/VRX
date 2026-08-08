@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The friends cache's 24-hour limit now measures the age of the roster data itself, not the last time the file was written — a days-old roster can no longer restore as fresh just because an unrelated event re-saved the cache. (VRX-253)
+
 ## [0.15.0] - 2026-08-08
 
 ### Added

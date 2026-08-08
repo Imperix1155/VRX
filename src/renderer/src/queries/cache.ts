@@ -29,13 +29,15 @@ export const CACHE_SCHEMA_VERSION = 1
 export const QUERY_CACHE_STORAGE_KEY = 'vrx-query-cache'
 
 /**
- * Persisted cache envelope older than this is discarded on hydration.
+ * Maximum age of persisted roster data before it is discarded on hydration.
  *
- * Note: this bounds time-since-last-WRITE, not data age. Every throttled save
- * and every `persistQueryCacheNow` call re-stamps the envelope timestamp, so
- * maxAge does not limit how old the roster data itself is. Restored queries are
- * invalidated-on-restore so they refetch in the background; that is the actual
- * staleness defense. True data-age bound: VRX-253.
+ * The restore path filters each query by its `state.dataUpdatedAt`, so a query
+ * whose roster was fetched more than 24 hours ago is dropped even if an
+ * unrelated write re-persisted the envelope more recently. The sync-storage
+ * persister's envelope-level `maxAge` also uses this value as an outer bound.
+ * A FUTURE `dataUpdatedAt` (clock skew) is deliberately kept — TanStack's own
+ * envelope-level check behaves the same way for future stamps, and
+ * restore-invalidation refetches restored queries in the background regardless.
  */
 export const MAX_QUERY_AGE_MS = 24 * 60 * 60 * 1000
 
@@ -160,7 +162,7 @@ const persistedQuerySchema = z
       .object({
         data: z.array(friendSchema).max(MAX_FRIENDS),
         dataUpdateCount: z.number().int().nonnegative(),
-        dataUpdatedAt: z.number().finite().nonnegative(),
+        dataUpdatedAt: z.number().finite().nonnegative().default(0),
         error: z.null(),
         errorUpdateCount: z.number().int().nonnegative(),
         errorUpdatedAt: z.number().finite().nonnegative(),
@@ -211,11 +213,25 @@ function discardedPersistedClient(): PersistedClient {
   return { timestamp: 0, buster: '', clientState: { mutations: [], queries: [] } }
 }
 
-/** Parse the persisted cache as untrusted input; any mismatch discards it whole. */
+/**
+ * Parse the persisted cache as untrusted input; any mismatch discards it whole.
+ * After schema validation, each query is also dropped if its `dataUpdatedAt` is
+ * missing or older than `MAX_QUERY_AGE_MS`, so one stale platform cannot poison
+ * a fresh envelope written by an unrelated cache event.
+ */
 export function deserializePersistedQueryCache(serialized: string): PersistedClient {
   try {
     const parsed = persistedClientSchema.safeParse(JSON.parse(serialized) as unknown)
-    return parsed.success ? parsed.data : discardedPersistedClient()
+    if (!parsed.success) return discardedPersistedClient()
+    const now = Date.now()
+    const freshQueries = parsed.data.clientState.queries.filter(
+      (query) =>
+        query.state.dataUpdatedAt > 0 && now - query.state.dataUpdatedAt <= MAX_QUERY_AGE_MS
+    )
+    return {
+      ...parsed.data,
+      clientState: { ...parsed.data.clientState, queries: freshQueries }
+    }
   } catch {
     return discardedPersistedClient()
   }
@@ -285,8 +301,8 @@ export function createQueryCachePersister(): Persister {
 /**
  * Build the persist options object used by both production and tests. Sharing
  * the object guarantees that tests exercise the same buster, maxAge
- * (time-since-last-write; true data-age bound is VRX-253), and dehydration
- * filter as the real renderer root.
+ * (envelope-level outer bound; per-query data-age filtering is applied at
+ * restore time), and dehydration filter as the real renderer root.
  */
 export function buildPersistOptions(): Omit<PersistQueryClientOptions, 'queryClient'> {
   return {
