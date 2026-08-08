@@ -21,15 +21,11 @@ import type {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 
+export type UpdaterState =
+  'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
+
 export interface UpdaterSnapshot {
-  state:
-    | 'idle'
-    | 'checking'
-    | 'update-available'
-    | 'downloading'
-    | 'downloaded'
-    | 'error'
-    | 'unsupported'
+  state: UpdaterState
   currentVersion: string
   availableVersion: string | null
   progressPercent: number

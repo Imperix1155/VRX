@@ -101,6 +101,7 @@ describe('UpdaterService', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     if (portableFlag === undefined) {
       delete process.env.PORTABLE_EXECUTABLE_DIR
     } else {
@@ -126,7 +127,7 @@ describe('UpdaterService', () => {
     log: { warn: MockFn }
   } {
     const { autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall } = createMockAutoUpdater()
-    const log = { warn: vi.fn() }
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     const app = createMockApp(options.packaged ?? true)
     const windows = options.windows ?? []
     const settings = { autoUpdate: options.autoUpdate ?? false }
@@ -424,6 +425,41 @@ describe('UpdaterService', () => {
     expect(service.snapshot().state).toBe('update-available')
     expect(service.snapshot().availableVersion).toBe('0.15.0')
     expect(service.snapshot().errorMessage).toBe('network down')
+  })
+
+  it('clears a stale errorMessage when a successful re-check fires update-available', async () => {
+    const { service, autoUpdater, checkForUpdates } = createService()
+    await service.check()
+    autoUpdater.emit('error', new Error('feed unreachable'))
+    expect(service.snapshot().errorMessage).toBe('feed unreachable')
+
+    checkForUpdates.mockResolvedValue(undefined)
+    const promise = service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    await promise
+
+    expect(service.snapshot().state).toBe('update-available')
+    expect(service.snapshot().errorMessage).toBeNull()
+  })
+
+  it('clears a stale errorMessage when update-downloaded succeeds after a download error', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+
+    downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
+    await service.download()
+    expect(service.snapshot().state).toBe('error')
+    expect(service.snapshot().errorMessage).toBe('disk full')
+
+    // A later retry succeeds: the previous error must not survive.
+    downloadUpdate.mockResolvedValue(undefined)
+    const promise = service.download()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    await promise
+
+    expect(service.snapshot().state).toBe('downloaded')
+    expect(service.snapshot().errorMessage).toBeNull()
   })
 
   it('sanitizes filesystem paths in displayed error messages', () => {

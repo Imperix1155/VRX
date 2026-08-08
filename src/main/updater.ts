@@ -12,20 +12,15 @@ import electronUpdater from 'electron-updater'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
 import { getSettingsSnapshot } from './services/settings'
+import type { UpdaterSnapshot, UpdaterState } from '@shared/ipc'
 
-export type UpdaterState =
-  'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
-
-export interface UpdaterSnapshot {
-  state: UpdaterState
-  currentVersion: string
-  availableVersion: string | null
-  progressPercent: number
-  errorMessage: string | null
-}
+export type { UpdaterSnapshot, UpdaterState }
 
 interface UpdaterLogger {
-  warn(message: string, ...meta: unknown[]): void
+  info(message?: unknown, ...meta: unknown[]): void
+  warn(message?: unknown, ...meta: unknown[]): void
+  error(message?: unknown, ...meta: unknown[]): void
+  debug?(message: string): void
 }
 
 interface AutoUpdateSettings {
@@ -100,7 +95,7 @@ export class UpdaterService {
     autoUpdater.autoDownload = false
     // A consented download applies when VRX next closes; Restart applies it now.
     autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.logger = this.deps.log as unknown as NonNullable<AppUpdater['logger']>
+    autoUpdater.logger = this.deps.log
     // The release pipeline deliberately publishes every pre-1.0 release as a GitHub
     // PRERELEASE (release.yml). electron-updater's allowPrerelease defaults to false
     // for a stable version string like "0.1.1", which filters ALL of our releases out
@@ -109,7 +104,11 @@ export class UpdaterService {
     autoUpdater.allowPrerelease = true
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
-      this.setState({ state: 'update-available', availableVersion: info.version })
+      this.setState({
+        state: 'update-available',
+        availableVersion: info.version,
+        errorMessage: null
+      })
       this.checkOrigin = null
       if (this.deps.getSettings().autoUpdate) {
         void this.download()
@@ -126,7 +125,12 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      this.setState({ state: 'downloaded', availableVersion: info.version, progressPercent: 100 })
+      this.setState({
+        state: 'downloaded',
+        availableVersion: info.version,
+        progressPercent: 100,
+        errorMessage: null
+      })
     })
 
     autoUpdater.on('error', (err: Error) => {

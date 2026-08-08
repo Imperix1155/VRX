@@ -27,7 +27,14 @@ export function useUpdater(): {
   const hasPushRef = useRef(false)
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.vrx) return
+    if (
+      typeof window === 'undefined' ||
+      !window.vrx ||
+      typeof window.vrx.getUpdaterState !== 'function' ||
+      typeof window.vrx.onUpdaterStateChanged !== 'function'
+    ) {
+      return
+    }
     const bridge = window.vrx
     let active = true
 

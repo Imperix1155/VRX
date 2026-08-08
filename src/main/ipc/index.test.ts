@@ -77,13 +77,14 @@ vi.mock('./settings', () => ({
     electron.ipcMain.handle('save-settings', () => ({ theme: 'dark' }))
   }
 }))
-vi.mock('./updater', () => ({
-  registerUpdaterHandlers: () => {
-    electron.ipcMain.handle('updater:get-state', () => ({ state: 'idle' }))
-    electron.ipcMain.handle('updater:check', () => undefined)
-    electron.ipcMain.handle('updater:download', () => undefined)
-    electron.ipcMain.handle('updater:install', () => undefined)
-  }
+const updaterService = vi.hoisted(() => ({
+  snapshot: vi.fn(),
+  check: vi.fn(),
+  download: vi.fn(),
+  install: vi.fn()
+}))
+vi.mock('../updater', () => ({
+  getUpdaterService: () => updaterService
 }))
 
 import { registerIpcHandlers } from './index'
@@ -118,12 +119,29 @@ beforeEach(() => {
   electron.ipcMain.on.mockClear()
   electron.ipcMain.removeAllListeners.mockClear()
   electron.ipcMain.handleOnce.mockClear()
+  updaterService.snapshot.mockReset().mockReturnValue({ state: 'idle' })
+  updaterService.check.mockReset()
+  updaterService.download.mockReset()
+  updaterService.install.mockReset()
   now = 0
   warn = vi.fn()
   hydrated = vi.fn()
 })
 
 describe('registerIpcHandlers rate limiting', () => {
+  it('wraps updater:check with the real rate limiter and denies past budget', () => {
+    registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
+    const check = electron.invokeHandlers.get('updater:check')!
+
+    for (let request = 0; request < 6; request += 1) {
+      check(invokeEvent)
+    }
+    expect(updaterService.check).toHaveBeenCalledTimes(6)
+
+    expect(() => check(invokeEvent)).toThrowError('rate_limited')
+    expect(updaterService.check).toHaveBeenCalledTimes(6)
+  })
+
   it('wraps all 19 invoke channels and restores ipcMain.handle after registration', () => {
     const originalHandle = electron.ipcMain.handle
 
