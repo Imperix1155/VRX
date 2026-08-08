@@ -38,11 +38,19 @@ function runConsumerSafely(name: string, eventType: string, run: () => void): vo
   try {
     run()
   } catch (err) {
-    log.warn('adapter event consumer failed', {
-      consumer: name,
-      eventType,
-      error: formatConsumerError(err)
-    })
+    // The failure report must never become a failure itself: a throwing log
+    // transport would escape this catch and block the remaining consumers —
+    // the exact defect this guard exists to prevent. Nothing left to log with,
+    // so the inner catch swallows.
+    try {
+      log.warn('adapter event consumer failed', {
+        consumer: name,
+        eventType,
+        error: formatConsumerError(err)
+      })
+    } catch {
+      /* intentionally empty */
+    }
   }
 }
 

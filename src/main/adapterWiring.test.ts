@@ -239,6 +239,34 @@ describe('wireAdapterEvents', () => {
     })
   })
 
+  it('a throwing logger cannot escape the guard — broadcast still runs', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = {
+      type: 'friend-offline',
+      platform: 'vrchat',
+      platformUserId: 'u7'
+    }
+    const broadcast = vi.fn()
+    vi.mocked(log.warn).mockImplementationOnce(() => {
+      throw new Error('log transport boom')
+    })
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: {
+        consume: (): void => {
+          throw new Error('location boom')
+        }
+      },
+      friendAlerts: { consume: vi.fn() },
+      broadcast
+    })
+
+    expect(() => source.emit(event)).not.toThrow()
+    expect(broadcast).toHaveBeenCalledWith(event)
+  })
+
   it('two consumers throwing on the same event still reach broadcast, with one warn each', () => {
     const source = fakeAdapter()
     const event: AdapterEvent = {
