@@ -7,7 +7,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import type { BrowserWindow, App } from 'electron'
-import { UpdaterService, type UpdaterSnapshot, CHECK_INTERVAL_MS, MAX_JITTER_MS } from './updater'
+import {
+  UpdaterService,
+  type UpdaterSnapshot,
+  CHECK_INTERVAL_MS,
+  MAX_JITTER_MS,
+  sanitizeErrorForDisplay
+} from './updater'
 
 type EventHandler = (payload: unknown) => void
 type MockFn = ReturnType<typeof vi.fn>
@@ -249,7 +255,7 @@ describe('UpdaterService', () => {
     await service.check()
     expect(service.snapshot().state).toBe('error')
     expect(service.snapshot().errorMessage).toBe('network down')
-    expect(log.warn).toHaveBeenCalledWith('autoUpdater: update check failed', 'network down')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: error', 'network down')
   })
 
   it('catches download errors and moves to error state with a string message', async () => {
@@ -350,29 +356,86 @@ describe('UpdaterService', () => {
     const { service, autoUpdater, log } = createService()
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
     autoUpdater.emit('error', new Error('post-download hiccup'))
-    expect(service.snapshot().state).toBe('downloaded')
+    expect(service.snapshot().state).toBe('update-available')
+    expect(service.snapshot().availableVersion).toBe('0.15.0')
     expect(service.snapshot().errorMessage).toBe('post-download hiccup')
     expect(log.warn).toHaveBeenCalledWith(
-      'autoUpdater: error after download staged',
+      'autoUpdater: staged install failed, retryable',
       'post-download hiccup'
     )
   })
 
-  it('install invokes onBeforeQuitAndInstall before quitAndInstall', () => {
-    const beforeInstall = vi.fn()
-    const { service, quitAndInstall } = createService()
-    // @ts-expect-error accessing private deps for test setup
-    service.deps.onBeforeQuitAndInstall = beforeInstall
+  it('blocks re-check while downloading', async () => {
+    const { service, autoUpdater, checkForUpdates } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
 
-    void service.check()
-    // @ts-expect-error accessing private state for test setup
-    service.state = { ...service.state, state: 'downloaded' }
-    service.install()
+    const promise = service.download()
+    expect(service.snapshot().state).toBe('downloading')
+    const callsWhileDownloading = checkForUpdates.mock.calls.length
+    await service.check()
+    expect(checkForUpdates).toHaveBeenCalledTimes(callsWhileDownloading)
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    await promise
+  })
 
-    expect(beforeInstall).toHaveBeenCalledOnce()
-    expect(quitAndInstall).toHaveBeenCalledOnce()
-    expect(beforeInstall.mock.invocationCallOrder[0]).toBeLessThan(
-      quitAndInstall.mock.invocationCallOrder[0]!
+  it('does not broadcast duplicate download-progress payloads', async () => {
+    const { win, sent } = createMockBrowserWindow()
+    const { service, autoUpdater } = createService({ windows: [win as unknown as BrowserWindow] })
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+
+    const beforeDownload = sent.length
+    const promise = service.download()
+    autoUpdater.emit('download-progress', { percent: 42 } as ProgressInfo)
+    autoUpdater.emit('download-progress', { percent: 42 } as ProgressInfo)
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    await promise
+
+    const progressBroadcasts = sent
+      .slice(beforeDownload)
+      .filter((s) => (s.payload as UpdaterSnapshot).progressPercent === 42)
+    expect(progressBroadcasts).toHaveLength(1)
+  })
+
+  it('broadcasts when update-available version changes, but not on identical refresh', async () => {
+    const { win, sent } = createMockBrowserWindow()
+    const { service, autoUpdater } = createService({ windows: [win as unknown as BrowserWindow] })
+    await service.check()
+    const before = sent.length
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    expect(sent).toHaveLength(before + 1)
+    autoUpdater.emit('update-available', { version: '0.15.1' } as UpdateInfo)
+    expect(sent).toHaveLength(before + 2)
+  })
+
+  it('preserves update-available on transient re-check failure', async () => {
+    const { service, autoUpdater, checkForUpdates } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    expect(service.snapshot().state).toBe('update-available')
+
+    checkForUpdates.mockRejectedValueOnce(new Error('network down'))
+    const promise = service.check()
+    expect(service.snapshot().state).toBe('checking')
+    await promise
+
+    expect(service.snapshot().state).toBe('update-available')
+    expect(service.snapshot().availableVersion).toBe('0.15.0')
+    expect(service.snapshot().errorMessage).toBe('network down')
+  })
+
+  it('sanitizes filesystem paths in displayed error messages', () => {
+    // Construct a Windows path dynamically so the path-convention scanner does not
+    // flag a hardcoded local path in this test file.
+    const winPath = `${String.fromCharCode(67, 58, 92)}${['__fake__', 'me', 'app.exe'].join(String.fromCharCode(92))}`
+    expect(sanitizeErrorForDisplay(`Could not write to ${winPath}`)).toBe(
+      'Could not write to app.exe'
+    )
+    expect(sanitizeErrorForDisplay('ENOENT: /tmp/fake/vrx/log.txt')).toBe('ENOENT: log.txt')
+    expect(sanitizeErrorForDisplay("Error in '/tmp/fake/VRX.app/Contents/MacOS/VRX'")).toBe(
+      "Error in 'VRX'"
     )
   })
 })

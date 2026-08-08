@@ -38,7 +38,6 @@ export interface UpdaterServiceDeps {
   getSettings: () => AutoUpdateSettings
   log: UpdaterLogger
   browserWindow: typeof BrowserWindow
-  onBeforeQuitAndInstall?: () => void
 }
 
 export const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
@@ -52,10 +51,35 @@ function formatError(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/**
+ * Strip absolute filesystem paths from user-facing error messages (R9).
+ * Windows (`C:\Users\name\...`) and Unix (`/home/name/...`) paths are replaced
+ * by their basename; the raw message still goes through the redacted log.
+ */
+export function sanitizeErrorForDisplay(message: string): string {
+  return message
+    .replace(/[A-Za-z]:\\[^\s'"]+/g, (match) => {
+      const parts = match.split(/[\\/]/)
+      return parts[parts.length - 1] ?? '…'
+    })
+    .replace(/(?:^|[\s'"(])\/[^\s'"]+/g, (match) => {
+      const leading = match.charAt(0)
+      if (leading === '/') {
+        const parts = match.split('/').filter(Boolean)
+        return parts[parts.length - 1] ?? '…'
+      }
+      const path = match.slice(1)
+      const parts = path.split('/').filter(Boolean)
+      const base = parts[parts.length - 1] ?? '…'
+      return `${leading}${base}`
+    })
+}
+
 export class UpdaterService {
   private state: UpdaterSnapshot
   private checkTimer?: ReturnType<typeof setTimeout>
   private disposed = false
+  private checkOrigin: UpdaterState | null = null
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = {
@@ -86,13 +110,15 @@ export class UpdaterService {
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
       this.setState({ state: 'update-available', availableVersion: info.version })
+      this.checkOrigin = null
       if (this.deps.getSettings().autoUpdate) {
         void this.download()
       }
     })
 
     autoUpdater.on('update-not-available', () => {
-      this.setState({ state: 'idle' })
+      this.setState({ state: 'idle', availableVersion: null })
+      this.checkOrigin = null
     })
 
     autoUpdater.on('download-progress', (progress: ProgressInfo) => {
@@ -104,16 +130,30 @@ export class UpdaterService {
     })
 
     autoUpdater.on('error', (err: Error) => {
-      const message = formatError(err)
-      if (this.state.state === 'downloaded') {
-        // A staged install still applies at quit; don't hide that from the UI.
-        this.setState({ errorMessage: message })
-        this.deps.log.warn('autoUpdater: error after download staged', message)
-        return
-      }
-      this.setState({ state: 'error', errorMessage: message })
-      this.deps.log.warn('autoUpdater: error', message)
+      this.handleError(formatError(err))
     })
+  }
+
+  private handleError(rawMessage: string): void {
+    const message = sanitizeErrorForDisplay(rawMessage)
+    if (this.state.state === 'downloaded') {
+      // Staged install failed: return to update-available so the user can retry.
+      this.setState({
+        state: 'update-available',
+        errorMessage: message
+      })
+      this.deps.log.warn('autoUpdater: staged install failed, retryable', rawMessage)
+      return
+    }
+    if (this.checkOrigin === 'update-available') {
+      // Re-check failed transiently: keep the existing update visible.
+      this.setState({ state: 'update-available', errorMessage: message })
+      this.checkOrigin = null
+      this.deps.log.warn('autoUpdater: re-check failed, preserving update-available', rawMessage)
+      return
+    }
+    this.setState({ state: 'error', errorMessage: message })
+    this.deps.log.warn('autoUpdater: error', rawMessage)
   }
 
   private setState(next: Partial<UpdaterSnapshot>): void {
@@ -173,6 +213,7 @@ export class UpdaterService {
       return
     }
 
+    this.checkOrigin = this.state.state
     this.setState({ state: 'checking', errorMessage: null })
     try {
       await this.deps.autoUpdater.checkForUpdates()
@@ -181,12 +222,12 @@ export class UpdaterService {
       // test doubles), fall back to idle so the machine doesn't stall.
       // Use snapshot() because event handlers may have moved state asynchronously.
       if (this.snapshot().state === 'checking') {
-        this.setState({ state: 'idle' })
+        this.setState({ state: 'idle', availableVersion: null })
       }
     } catch (err) {
-      const message = formatError(err)
-      this.setState({ state: 'error', errorMessage: message })
-      this.deps.log.warn('autoUpdater: update check failed', message)
+      this.handleError(formatError(err))
+    } finally {
+      this.checkOrigin = null
     }
   }
 
@@ -204,16 +245,15 @@ export class UpdaterService {
         this.setState({ state: 'update-available', progressPercent: 0 })
       }
     } catch (err) {
-      const message = formatError(err)
-      this.setState({ state: 'error', errorMessage: message })
-      this.deps.log.warn('autoUpdater: download failed', message)
+      const rawMessage = formatError(err)
+      this.setState({ state: 'error', errorMessage: sanitizeErrorForDisplay(rawMessage) })
+      this.deps.log.warn('autoUpdater: download failed', rawMessage)
     }
   }
 
   install(): void {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'downloaded') return
-    this.deps.onBeforeQuitAndInstall?.()
     this.deps.autoUpdater.quitAndInstall()
   }
 
@@ -226,15 +266,14 @@ export class UpdaterService {
 
 let updaterService: UpdaterService | undefined
 
-export function initAutoUpdater(options?: { onBeforeQuitAndInstall?: () => void }): UpdaterService {
+export function initAutoUpdater(): UpdaterService {
   if (!updaterService) {
     updaterService = new UpdaterService({
       app,
       autoUpdater: electronUpdater.autoUpdater,
       getSettings: getSettingsSnapshot,
       log,
-      browserWindow: BrowserWindow,
-      onBeforeQuitAndInstall: options?.onBeforeQuitAndInstall
+      browserWindow: BrowserWindow
     })
   }
   return updaterService

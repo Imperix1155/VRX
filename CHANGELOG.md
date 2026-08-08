@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A platform the user never signed into no longer gets a fabricated empty friends roster written to disk just because auth settled while another platform was loading. (VRX-155)
 - Logging out now persists the emptied roster synchronously, so quitting right after disconnect no longer restores the previous account's friends on the next launch. (VRX-155)
+- Transient update-check failures and post-download install failures no longer replace an existing update-available state with a generic error; the update stays visible with a sanitized error note, and absolute filesystem paths are stripped from the message. (VRX-113)
 
 ### Changed
 

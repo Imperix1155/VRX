@@ -360,12 +360,14 @@
   "updater": {
     "sidebar": {
       "update": "Update",
-      "downloading": "Updating…",
       "downloadingIndeterminate": "Updating…",
       "restart": "Restart",
+      "downloadTitle": "Download update",
       "downloadAria": "Download update",
       "downloadingAria": "Update downloading, {{percent}} percent",
-      "restartAria": "Restart to install update"
+      "restartTitle": "Restart to install update",
+      "restartAria": "Restart to install update",
+      "errorSuffix": "— last attempt failed"
     },
     "settings": {
       "label": "Automatic updates",

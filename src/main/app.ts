@@ -48,10 +48,11 @@ import { wireAdapterEvents } from './adapterWiring'
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
 // before a window's own 'close' event, so the close handler below always reads
-// the up-to-date value (VRX-112). EXCEPTION (advisor F1): autoUpdater's
-// quitAndInstall() reverses that order — if a "restart to update" path is ever
-// added, set `quitting = true` BEFORE calling it or close-to-tray will swallow
-// the close and stall the install in the tray.
+// the up-to-date value (VRX-112). autoUpdater's quitAndInstall() ultimately
+// routes through app.quit(), so `before-quit` runs normally and latches the
+// flag correctly. Pre-latching it on the renderer install click is wrong: if
+// the install fails (e.g. signed-app path check fails), the user can no longer
+// close the window to tray for the rest of the session.
 let quitting = false
 
 // Module-scope Tray retention (see whenReady) — if the Tray object is GC'd the
@@ -568,8 +569,8 @@ app
       // Single source of truth for every quit path (tray Quit, Cmd+Q, dock,
       // app menu) — before-quit always fires before a window's own 'close'
       // event, so the close-to-tray handler in createWindow() always sees the
-      // up-to-date value. The updater install path sets this flag BEFORE
-      // calling quitAndInstall (see initAutoUpdater below).
+      // up-to-date value. autoUpdater.quitAndInstall() routes through
+      // app.quit(), so this latch is also correct for restart-to-update.
       quitting = true
     })
 
@@ -591,11 +592,7 @@ app
     // .catch and exit an app whose window ALREADY WORKS — auto-update failure
     // is never worth killing a healthy session (audit W7 review).
     try {
-      const updater = initAutoUpdater({
-        onBeforeQuitAndInstall: () => {
-          quitting = true
-        }
-      })
+      const updater = initAutoUpdater()
       void updater.check()
     } catch (error) {
       log.warn('autoUpdater init failed', {

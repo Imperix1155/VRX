@@ -358,12 +358,14 @@
   "updater": {
     "sidebar": {
       "update": "更新",
-      "downloading": "更新中…",
       "downloadingIndeterminate": "更新中…",
       "restart": "再起動",
+      "downloadTitle": "更新をダウンロード",
       "downloadAria": "更新をダウンロード",
       "downloadingAria": "更新をダウンロード中 {{percent}} パーセント",
-      "restartAria": "インストールするため再起動"
+      "restartTitle": "インストールするため再起動",
+      "restartAria": "インストールするため再起動",
+      "errorSuffix": "— 前回の試行は失敗しました"
     },
     "settings": {
       "label": "自動更新",

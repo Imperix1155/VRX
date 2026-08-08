@@ -120,19 +120,27 @@ function SidebarUpdateButton(): React.JSX.Element | null {
   const isDownloading = state.state === 'downloading'
   const isDownloaded = state.state === 'downloaded'
 
+  // Sidebar has no percent display; the collapsed pill always shows the
+  // indeterminate "Updating…" label while downloading (R5).
   const label = isDownloading
-    ? state.progressPercent > 0
-      ? t('updater.sidebar.downloading')
-      : t('updater.sidebar.downloadingIndeterminate')
+    ? t('updater.sidebar.downloadingIndeterminate')
     : isDownloaded
       ? t('updater.sidebar.restart')
       : t('updater.sidebar.update')
+
+  const suffix = state.errorMessage ? ` ${t('updater.sidebar.errorSuffix')}` : ''
 
   const ariaLabel = isDownloading
     ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })
     : isDownloaded
       ? t('updater.sidebar.restartAria')
-      : t('updater.sidebar.downloadAria')
+      : t('updater.sidebar.downloadAria') + suffix
+
+  const title = isDownloading
+    ? ariaLabel
+    : isDownloaded
+      ? t('updater.sidebar.restartTitle')
+      : t('updater.sidebar.downloadTitle') + suffix
 
   const handleClick = (): void => {
     if (isDownloading) return
@@ -148,6 +156,7 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       type="button"
       onClick={handleClick}
       aria-label={ariaLabel}
+      title={title}
       aria-disabled={isDownloading}
       className={[
         'group absolute right-[10px] top-1/2 -translate-y-1/2',
