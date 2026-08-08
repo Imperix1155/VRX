@@ -35,6 +35,9 @@ export const QUERY_CACHE_STORAGE_KEY = 'vrx-query-cache'
  * whose roster was fetched more than 24 hours ago is dropped even if an
  * unrelated write re-persisted the envelope more recently. The sync-storage
  * persister's envelope-level `maxAge` also uses this value as an outer bound.
+ * A FUTURE `dataUpdatedAt` (clock skew) is deliberately kept — TanStack's own
+ * envelope-level check behaves the same way for future stamps, and
+ * restore-invalidation refetches restored queries in the background regardless.
  */
 export const MAX_QUERY_AGE_MS = 24 * 60 * 60 * 1000
 

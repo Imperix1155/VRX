@@ -289,6 +289,13 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
     ])
     expect(deserializePersistedQueryCache(inside).clientState.queries).toHaveLength(1)
 
+    // Exactly 24h old is still KEPT — the bound is inclusive ("older than 24
+    // hours" drops). Pins <= against a <-mutation, which brackets alone miss.
+    const exact = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS }
+    ])
+    expect(deserializePersistedQueryCache(exact).clientState.queries).toHaveLength(1)
+
     const outside = buildPersistedClientEnvelope([
       { platform: 'vrchat', dataUpdatedAt: now - MAX_QUERY_AGE_MS - 1 }
     ])
@@ -301,7 +308,11 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
     expect(restored.clientState.queries).toHaveLength(0)
   })
 
-  it('treats a missing dataUpdatedAt as stale and drops it without crashing', () => {
+  it('a missing dataUpdatedAt drops ONLY that query — the other platform survives', () => {
+    // Two-query envelope: vrchat OMITS dataUpdatedAt, chilloutvr is fresh.
+    // This binds the schema's .default(0): with it, the malformed query parses
+    // at 0 and only IT is filtered; without it, strict validation rejects the
+    // envelope WHOLE and both platforms' rosters are lost (boundary-safety law).
     const serialized = JSON.stringify({
       timestamp: now,
       buster: buildCacheBuster(),
@@ -325,12 +336,32 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
               status: 'success',
               fetchStatus: 'idle'
             }
+          },
+          {
+            dehydratedAt: now,
+            queryHash: JSON.stringify(['friends', 'chilloutvr']),
+            queryKey: ['friends', 'chilloutvr'],
+            state: {
+              data: [fullFriend('CvrFriend', 'chilloutvr')],
+              dataUpdateCount: 1,
+              dataUpdatedAt: now - 1000,
+              error: null,
+              errorUpdateCount: 0,
+              errorUpdatedAt: 0,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+              fetchMeta: null,
+              isInvalidated: false,
+              status: 'success',
+              fetchStatus: 'idle'
+            }
           }
         ]
       }
     })
     const restored = deserializePersistedQueryCache(serialized)
-    expect(restored.clientState.queries).toHaveLength(0)
+    expect(restored.clientState.queries).toHaveLength(1)
+    expect(restored.clientState.queries[0]!.queryKey).toEqual(['friends', 'chilloutvr'])
   })
 })
 
