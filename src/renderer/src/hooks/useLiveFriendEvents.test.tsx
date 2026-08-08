@@ -8,13 +8,17 @@
  * buffers the latest snapshot per platform and re-applies it when the roster
  * fetch resolves. These tests pin that, and the no-re-apply-loop guard.
  */
-import { render, cleanup, act, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, act, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
+import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+import { useFriendsStore } from '../stores/friends'
+import FriendsList from '../components/FriendsList'
+import i18n from '../i18n'
 import { useLiveFriendEvents } from './useLiveFriendEvents'
 
 const G1 = '11111111-1111-1111-1111-111111111111'
@@ -116,7 +120,9 @@ afterEach(() => {
   fireIdentityBoundary = undefined
   unsubscribeFriendEvent.mockClear()
   unsubscribeIdentityBoundary.mockClear()
+  window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
+  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
 })
 
 describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
@@ -201,9 +207,19 @@ describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
 
     // (1) auth is re-checked so the Accounts card flips to reconnect.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: authStatusQueryKey('chilloutvr') })
-    // (2) the now-unauthorized roster is dropped — not shown across the auth
-    // boundary in Friends / Dashboard / TopBar (Codex).
+    // (2) the now-unauthorized roster is emptied without removing the mounted query.
     expect(client.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))).toEqual([])
+  })
+
+  it('on auth-invalidated: persists the corrected empty roster (VRX-155)', () => {
+    stubBridge()
+    const client = new QueryClient()
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
+    mount(client)
+
+    act(() => fireFriendEvent!({ type: 'auth-invalidated', platform: 'chilloutvr' }))
+
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('"data":[]')
   })
 
   it('quarantines a dead-session platform: a LATE snapshot after auth-invalidated is not applied (Codex)', async () => {
@@ -388,8 +404,9 @@ describe('useLiveFriendEvents — identity boundary', () => {
       await Promise.resolve()
     })
 
+    // The mounted observer stays settled at [] while the boundary invalidation
+    // triggers the new account's refetch.
     expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
-    await waitFor(() => expect(observeData).toHaveBeenLastCalledWith([]))
     expect(getFriends).toHaveBeenCalledTimes(2)
 
     await act(async () => resolveAccountB?.([vrcFriend('Account B')]))
@@ -453,5 +470,94 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(onIdentityBoundary).toHaveBeenCalledOnce()
     mounted.unmount()
     expect(unsubscribeIdentityBoundary).toHaveBeenCalledOnce()
+  })
+
+  it('persists the corrected empty roster on identity boundary (VRX-155)', () => {
+    stubBridge()
+    const client = new QueryClient()
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('"data":[]')
+  })
+})
+
+describe('useLiveFriendEvents — auth-status quarantine guard (VRX-155)', () => {
+  it('does not fabricate an empty roster for a never-signed-in platform when auth settles unauthenticated', () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('chilloutvr'), {
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+    })
+
+    // Absent means "nothing known"; [] would be a false "signed in, zero friends" signal.
+    expect(client.getQueryData(friendsQueryKey('chilloutvr'))).toBeUndefined()
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+  })
+
+  it('still clears a hydrated disk roster to [] and persists when auth settles to needs-2fa', () => {
+    stubBridge()
+    const client = new QueryClient()
+    client.setQueryData(friendsQueryKey('vrchat'), [vrcFriend('Hydrated')])
+    window.localStorage.setItem(QUERY_CACHE_STORAGE_KEY, '{"clientState":{}}')
+    mount(client)
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'needs-2fa',
+        twoFactorMethod: 'totp',
+        accountId: null,
+        displayName: null
+      })
+    })
+
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toContain('"data":[]')
+  })
+
+  it('keeps the all-platform FriendsList loading while the other platform fetch is still pending', async () => {
+    function FriendsListProbe(): React.JSX.Element {
+      useLiveFriendEvents()
+      return <FriendsList />
+    }
+
+    stubBridge({
+      getFriends: vi.fn(() => new Promise<Friend[]>(() => {}))
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    useFriendsStore.setState({ platformFilter: 'all', search: '', selectedFriendId: null })
+
+    render(
+      <QueryClientProvider client={client}>
+        <FriendsListProbe />
+      </QueryClientProvider>
+    )
+
+    await act(async () => {
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated',
+        accountId: 'vrc-account',
+        displayName: 'VRC'
+      })
+      client.setQueryData(authStatusQueryKey('chilloutvr'), {
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+      await Promise.resolve()
+    })
+
+    // The VRChat fetch is still pending; CVR has no fabricated roster. The list
+    // must stay in loading, not flash a false empty state.
+    expect(screen.getByText(i18n.t('friends.loading'))).toBeTruthy()
+    expect(screen.queryByText(i18n.t('friends.empty'))).toBeNull()
   })
 })

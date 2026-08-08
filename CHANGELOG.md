@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Friends now appear immediately from the last successful cache when VRX launches.** The cache is validated before use and rechecked in the background; a signed-out or 2FA-blocked platform is cleared instead of painting stale presence, and switching one platform's account no longer blanks or deletes the other platform's roster, and a temporary outage or rate-limit during the background recheck leaves the last good roster cached for the next launch. (VRX-155)
+
+### Fixed
+
+- A platform the user never signed into no longer gets a fabricated empty friends roster written to disk just because auth settled while another platform was loading. (VRX-155)
+- Logging out now persists the emptied roster synchronously, so quitting right after disconnect no longer restores the previous account's friends on the next launch. (VRX-155)
 ### Changed
 
 - **The sidebar's active-item indicator now echoes the global platform filter.** When the filter is set to VRChat or ChilloutVR, the left spine turns solid platform blue or orange; "All" keeps the existing blue→orange gradient. Position still means "active page" — color is a reinforcing cue, not the sole signal. (VRX-172)
