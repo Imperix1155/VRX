@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar update button now sits on the footer's grid — its top and bottom edges align with the VRX wordmark and version lines instead of floating between them (owner ruling from the 0.15.1 update test). (VRX-255)
+
 ### Fixed
 
+- A crash inside one live-event consumer no longer stops the event from reaching the UI — each consumer is isolated and the renderer broadcast always runs. (VRX-248)
 - Friends moving to a world VRX has already seen no longer flash "Unknown World" until a manual refresh — live events now carry the cached world name, and unknown worlds are fetched immediately through the normal rate-limited lane. (VRX-254)
 - Reconciling the VRChat friends list no longer re-fetches a world that failed within the last 60 seconds; the negative-cache window is now respected during roster refreshes. (VRX-254)
 
