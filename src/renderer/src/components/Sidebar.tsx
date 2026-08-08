@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useUiStore, type ActiveTab } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
+import { useUpdater } from '../hooks/useUpdater'
+import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 
 // SVG icons — inlined per glass.html reference (18×18, stroke-width 1.8)
 function IconDashboard(): React.JSX.Element {
@@ -107,6 +109,87 @@ function IconSettings(): React.JSX.Element {
   )
 }
 
+function SidebarUpdateButton(): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const { state, download, install } = useUpdater()
+
+  if (!['update-available', 'downloading', 'downloaded'].includes(state.state)) {
+    return null
+  }
+
+  const isDownloading = state.state === 'downloading'
+  const isDownloaded = state.state === 'downloaded'
+
+  // Sidebar has no percent display; the collapsed pill always shows the
+  // indeterminate "Updating…" label while downloading (R5).
+  const label = isDownloading
+    ? t('updater.sidebar.downloadingIndeterminate')
+    : isDownloaded
+      ? t('updater.sidebar.restart')
+      : t('updater.sidebar.update')
+
+  const suffix = state.errorMessage ? ` ${t('updater.sidebar.errorSuffix')}` : ''
+
+  const ariaLabel = isDownloading
+    ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })
+    : isDownloaded
+      ? t('updater.sidebar.restartAria')
+      : t('updater.sidebar.downloadAria') + suffix
+
+  const title = isDownloading
+    ? ariaLabel
+    : isDownloaded
+      ? t('updater.sidebar.restartTitle')
+      : t('updater.sidebar.downloadTitle') + suffix
+
+  const handleClick = (): void => {
+    if (isDownloading) return
+    if (isDownloaded) {
+      void install()
+    } else {
+      void download()
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={ariaLabel}
+      title={title}
+      aria-disabled={isDownloading}
+      className={[
+        'group absolute right-[10px] top-1/2 -translate-y-1/2',
+        'flex items-center justify-start',
+        'h-[28px] w-[28px] hover:w-[92px] focus-visible:w-[92px]',
+        'rounded-full border border-[var(--border)]',
+        'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+        'text-[var(--text)]',
+        'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+        'pl-[5px] pr-0 hover:pr-[10px] focus-visible:pr-[10px]',
+        'cursor-pointer',
+        'motion-safe:transition-all motion-safe:duration-200'
+      ].join(' ')}
+    >
+      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+        {isDownloading ? <IconSpinner /> : isDownloaded ? <IconRestart /> : <IconDownload />}
+      </span>
+      <span
+        className={[
+          'overflow-hidden whitespace-nowrap',
+          'max-w-0 group-hover:max-w-[60px] group-focus-visible:max-w-[60px]',
+          'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100',
+          'ml-0 group-hover:ml-[6px] group-focus-visible:ml-[6px]',
+          'text-[11px] font-medium',
+          'motion-safe:transition-all motion-safe:duration-200'
+        ].join(' ')}
+      >
+        {isDownloading && state.progressPercent > 0 ? `${state.progressPercent}%` : label}
+      </span>
+    </button>
+  )
+}
+
 function indicatorBackground(filter: PlatformFilter): string {
   switch (filter) {
     case 'vrchat':
@@ -202,9 +285,10 @@ export default function Sidebar(): React.JSX.Element {
 
       {/* Footer (§8) */}
       <div
-        className="text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px]"
+        className="relative text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px]"
         style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
       >
+        <SidebarUpdateButton />
         <span
           className="font-mono text-[16px] tracking-[1px] text-[var(--text-dim)]"
           aria-hidden="true"

@@ -354,5 +354,31 @@
   "stepper": {
     "decrease": "減らす",
     "increase": "増やす"
+  },
+  "updater": {
+    "sidebar": {
+      "update": "更新",
+      "downloadingIndeterminate": "更新中…",
+      "restart": "再起動",
+      "downloadTitle": "更新をダウンロード",
+      "downloadAria": "更新をダウンロード",
+      "downloadingAria": "更新をダウンロード中 {{percent}} パーセント",
+      "restartTitle": "インストールするため再起動",
+      "restartAria": "インストールするため再起動",
+      "errorSuffix": "— 前回の試行は失敗しました"
+    },
+    "settings": {
+      "label": "自動更新",
+      "description": "新しいバージョンをバックグラウンドでダウンロードし、アプリ終了時に適用します。",
+      "check": "更新を確認",
+      "checking": "確認中…",
+      "updateTo": "v{{version}} に更新",
+      "downloading": "ダウンロード中… {{percent}}%",
+      "downloadingIndeterminate": "ダウンロード中…",
+      "restart": "更新するため再起動",
+      "releases": "リリースページを開く",
+      "unsupportedNote": "このポータブル版は自動更新に対応していません。",
+      "currentVersion": "VRX v{{version}}"
+    }
   }
 }

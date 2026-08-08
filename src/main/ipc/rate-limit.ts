@@ -51,7 +51,13 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
-  'renderer-hydrated': { max: 3, windowMs: 60_000 }
+  'renderer-hydrated': { max: 3, windowMs: 60_000 },
+  // Updater state is queried on mount and after every push; cheap and infrequent.
+  'updater:get-state': { max: 12, windowMs: 30_000 },
+  // Manual check/download/install are deliberate human actions.
+  'updater:check': { max: 6, windowMs: 60_000 },
+  'updater:download': { max: 6, windowMs: 60_000 },
+  'updater:install': { max: 6, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */

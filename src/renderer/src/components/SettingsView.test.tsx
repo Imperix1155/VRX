@@ -8,9 +8,10 @@
  * a TanStack Query hook — SettingsView now needs a QueryClientProvider ancestor).
  */
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import type { UpdaterSnapshot } from '@shared/ipc'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore, SETTINGS_CATEGORIES } from '../stores/ui'
@@ -27,6 +28,29 @@ vi.stubGlobal(
 )
 
 const msg = (key: string): string => i18n.t(key)
+
+type MockFn = ReturnType<typeof vi.fn>
+
+const updaterState: {
+  state: UpdaterSnapshot
+  check: MockFn
+  download: MockFn
+  install: MockFn
+} = vi.hoisted(() => ({
+  state: {
+    state: 'idle',
+    currentVersion: '0.14.0',
+    availableVersion: null,
+    progressPercent: 0,
+    errorMessage: null
+  },
+  check: vi.fn(),
+  download: vi.fn(),
+  install: vi.fn()
+}))
+vi.mock('../hooks/useUpdater', () => ({
+  useUpdater: () => updaterState
+}))
 
 type VrxBridge = {
   getAuthStatus: ReturnType<typeof vi.fn>
@@ -48,6 +72,19 @@ function renderSettings(): { queryClient: QueryClient } {
   )
   return { queryClient }
 }
+
+beforeEach(() => {
+  updaterState.state = {
+    state: 'idle',
+    currentVersion: '0.14.0',
+    availableVersion: null,
+    progressPercent: 0,
+    errorMessage: null
+  }
+  updaterState.check.mockReset()
+  updaterState.download.mockReset()
+  updaterState.install.mockReset()
+})
 
 afterEach(() => {
   cleanup()
@@ -320,5 +357,155 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
     expect(await screen.findByText(msg('settings.accounts.vrchat.label'))).toBeTruthy()
     expect(screen.getByText(msg('settings.accounts.chilloutvr.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
+  })
+})
+
+describe('SettingsView — Automatic updates row (VRX-113)', () => {
+  it('renders on the Behavior page and binds the toggle to autoUpdate', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.getByText(msg('updater.settings.label'))).toBeTruthy()
+    expect(screen.getByText(msg('updater.settings.description'))).toBeTruthy()
+
+    const toggle = screen.getByRole('switch', { name: msg('updater.settings.label') })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+
+    fireEvent.click(toggle)
+    expect(useSettingsStore.getState().settings.autoUpdate).toBe(true)
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
+  it('idle/error state shows "Check for updates" and triggers a check', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', { name: msg('updater.settings.check') })
+    fireEvent.click(button)
+    expect(updaterState.check).toHaveBeenCalledOnce()
+  })
+
+  it('checking state shows "Checking…" and disables the button', () => {
+    updaterState.state = {
+      state: 'checking',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', { name: msg('updater.settings.checking') })
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('update-available state shows the target version and triggers download', () => {
+    updaterState.state = {
+      state: 'update-available',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', {
+      name: i18n.t('updater.settings.updateTo', { version: '0.15.0' })
+    })
+    fireEvent.click(button)
+    expect(updaterState.download).toHaveBeenCalledOnce()
+  })
+
+  it('downloading state shows progress and disables the button', () => {
+    updaterState.state = {
+      state: 'downloading',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 37,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', {
+      name: i18n.t('updater.settings.downloading', { percent: 37 })
+    })
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('downloading at 0% shows the indeterminate label, not "Check for updates"', () => {
+    updaterState.state = {
+      state: 'downloading',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.queryByRole('button', { name: msg('updater.settings.check') })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: msg('updater.settings.downloadingIndeterminate') })
+    ).toBeTruthy()
+  })
+
+  it('error state renders the error message as quiet helper text', () => {
+    updaterState.state = {
+      state: 'error',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      errorMessage: 'network down'
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.getByText('network down')).toBeTruthy()
+  })
+
+  it('downloaded state shows "Restart to update" and triggers install', () => {
+    updaterState.state = {
+      state: 'downloaded',
+      currentVersion: '0.14.0',
+      availableVersion: '0.15.0',
+      progressPercent: 100,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    const button = screen.getByRole('button', { name: msg('updater.settings.restart') })
+    fireEvent.click(button)
+    expect(updaterState.install).toHaveBeenCalledOnce()
+  })
+
+  it('unsupported state shows "Open releases page" and opens the allowlisted URL', () => {
+    const openUrl = vi.fn()
+    setBridge({
+      getAuthStatus: vi.fn(),
+      login: vi.fn(),
+      verify2fa: vi.fn(),
+      logout: vi.fn(),
+      openUrl
+    } as unknown as VrxBridge)
+    updaterState.state = {
+      state: 'unsupported',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      errorMessage: null
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(screen.getByText(msg('updater.settings.unsupportedNote'))).toBeTruthy()
+    const button = screen.getByRole('button', { name: msg('updater.settings.releases') })
+    fireEvent.click(button)
+    expect(openUrl).toHaveBeenCalledWith({
+      url: 'https://github.com/Imperix1155/VRX/releases/latest'
+    })
   })
 })

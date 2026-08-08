@@ -21,6 +21,17 @@ import type {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 
+export type UpdaterState =
+  'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
+
+export interface UpdaterSnapshot {
+  state: UpdaterState
+  currentVersion: string
+  availableVersion: string | null
+  progressPercent: number
+  errorMessage: string | null
+}
+
 export type InstanceActionResult =
   | { ok: true }
   | {
@@ -70,6 +81,10 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   'get-settings': { req: void; res: Settings }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
+  'updater:get-state': { req: void; res: UpdaterSnapshot }
+  'updater:check': { req: void; res: void }
+  'updater:download': { req: void; res: void }
+  'updater:install': { req: void; res: void }
   'get-friend-note': {
     req: { platform: Platform; friendId: string }
     res: { note: string | null; revision?: { platformAccountId: string; epoch: number } }
@@ -96,6 +111,7 @@ export interface IpcEvents {
   'friend-event': AdapterEvent
   'identity-boundary': { platform: Platform }
   'navigate-to-dashboard': void
+  'updater:state-changed': UpdaterSnapshot
 }
 
 /**

@@ -38,6 +38,10 @@ const vrx = {
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
+  getUpdaterState: () => invoke('updater:get-state', undefined),
+  checkForUpdates: () => invoke('updater:check', undefined),
+  downloadUpdate: () => invoke('updater:download', undefined),
+  installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
@@ -79,6 +83,15 @@ const vrx = {
     const listener = (): void => callback()
     ipcRenderer.on('navigate-to-dashboard', listener)
     return () => ipcRenderer.removeListener('navigate-to-dashboard', listener)
+  },
+  /** Live updater state pushes from main (VRX-113). Returns an unsubscribe. */
+  onUpdaterStateChanged: (callback: (event: IpcEvents['updater:state-changed']) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['updater:state-changed']
+    ): void => callback(payload)
+    ipcRenderer.on('updater:state-changed', listener)
+    return () => ipcRenderer.removeListener('updater:state-changed', listener)
   }
 }
 

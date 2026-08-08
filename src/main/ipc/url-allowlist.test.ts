@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { RELEASES_URL } from '@shared/constants'
 import { isAllowedUrl, isAllowedLaunchUrl } from './url-allowlist'
 
 describe('isAllowedUrl', () => {
@@ -43,6 +44,10 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('')).toBe(false)
     expect(isAllowedUrl('not a url')).toBe(false)
     expect(isAllowedUrl('://missing-protocol.com')).toBe(false)
+  })
+
+  it('allows the GitHub releases page used by the updater', () => {
+    expect(isAllowedUrl(RELEASES_URL)).toBe(true)
   })
 
   // ── 2026-07 audit W6 ─────────────────────────────────────────────────────────
