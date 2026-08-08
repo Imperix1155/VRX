@@ -155,10 +155,11 @@
   .nbadge { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--text-faint); font-family: var(--font-mono); }
   .sfoot { position: relative; font-size: 11px; color: var(--text-faint); padding: 12px 8px 0; border-top: 1px solid rgba(255,255,255,0.07); margin-top: 12px; }
   .sfoot b { color: var(--text-dim); font-family: var(--font-mono); font-size: 16px; letter-spacing: 1px; }
-  .ubtn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; gap: 6px; height: 28px; width: 28px; border-radius: 999px; border: 1px solid var(--border); background: var(--control-fill); color: var(--text); overflow: hidden; cursor: pointer; transition: width 200ms ease, background 150ms ease; }
-  .ubtn:hover, .ubtn:focus-visible { width: 92px; background: var(--control-fill-hover); }
+  .ubtn { /* VRX-255 footer grid: top pins the cap-top of the 16px wordmark (12px pad + 2px line-box lead); 36px spans to the version-line bottom; right 2px + 8px pad = 10px off the block edge per DESIGN.md §9.4 */ position: absolute; right: 2px; top: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; width: 36px; border-radius: 999px; border: 1px solid var(--border); background: var(--control-fill); color: var(--text); overflow: hidden; cursor: pointer; transition: width 200ms ease, background 150ms ease; }
+  .ubtn:hover, .ubtn:focus-visible { width: 104px; background: var(--control-fill-hover); }
   .ubtn .ulbl { opacity: 0; white-space: nowrap; font-size: 11px; font-weight: 600; transition: opacity 150ms ease; }
   .ubtn:hover .ulbl, .ubtn:focus-visible .ulbl { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .ubtn, .ubtn .ulbl { transition: none; } }
 
   /* ---------- Main ---------- */
   .main { overflow-y: auto; padding: 6px 8px 40px; }

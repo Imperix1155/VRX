@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar update button now sits on the footer's grid — its top and bottom edges align with the VRX wordmark and version lines instead of floating between them (owner ruling from the 0.15.1 update test). (VRX-255)
+
 ## [0.15.1] - 2026-08-08
 
 ### Fixed
