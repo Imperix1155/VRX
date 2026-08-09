@@ -44,9 +44,11 @@ import type { Friend, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendNote } from '../hooks/useFriendNote'
+import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
+import { opennessAssessmentFor, type OpennessAssessment } from '../utils/instanceOpenness'
 import { ringFor, isWorldHidden } from '../utils/statusRing'
 import InstancePill from './InstancePill'
 import { Avatar } from './Avatar'
@@ -162,6 +164,7 @@ export default function FriendDrawer({
   const descriptorKey = ring ? STATUS_DESCRIPTOR_KEY[ring.labelKey] : undefined
 
   const hideWorld = shown ? isWorldHidden(shown) : false
+  const visibleInstance = shown && !hideWorld && shown.instance != null ? shown.instance : null
   let worldText: string | null = null
   let pillLabel: string | null = null
   let pillTier: OpennessTier | null = null
@@ -178,6 +181,20 @@ export default function FriendDrawer({
       worldText = t('friends.instance.private')
     }
   }
+
+  // VRX-251 enrichment: world image through the SAME avatar pipeline, instance
+  // id, and the VRX-245 open/closed axis sentence. Only for visible instances
+  // (Ask Me / DND / hidden worlds show none of it).
+  const worldImageRef = useRef<HTMLDivElement>(null)
+  const thumbnailUrl = visibleInstance?.thumbnailUrl ?? null
+  const worldImageUrl = useAvatar(thumbnailUrl, worldImageRef)
+  const OPENNESS_KEY: Record<OpennessAssessment, string> = {
+    open: 'joinConfirm.openness.public',
+    closed: 'joinConfirm.openness.private',
+    unknown: 'joinConfirm.openness.unknown'
+  }
+  const opennessKey =
+    visibleInstance != null ? OPENNESS_KEY[opennessAssessmentFor(visibleInstance)] : null
   const trustKey =
     shown?.platform === 'vrchat' && shown.trustRank != null ? TRUST_RANK_KEY[shown.trustRank] : null
   const customStatus = shown?.platform === 'vrchat' ? (shown.statusDescription ?? null) : null
@@ -276,11 +293,27 @@ export default function FriendDrawer({
             </div>
 
             {/* 3 · WHERE */}
-            {(worldText != null || trustKey != null) && (
-              <div className="flex flex-col gap-[var(--space-1)]">
+            {(worldText != null || trustKey != null || visibleInstance != null) && (
+              <div className="flex flex-col gap-[var(--space-2)]">
                 <h3 className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase">
                   {t('drawer.where')}
                 </h3>
+                {thumbnailUrl != null && (
+                  <div
+                    ref={worldImageRef}
+                    className="relative aspect-video w-full overflow-hidden rounded-[12px] bg-[color-mix(in_srgb,var(--text)_7%,transparent)]"
+                  >
+                    {worldImageUrl != null && (
+                      <img
+                        data-testid="friend-drawer-world-image"
+                        src={worldImageUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-full w-full object-cover"
+                      />
+                    )}
+                  </div>
+                )}
                 {worldText != null && (
                   <div className="flex items-center justify-between gap-[var(--space-2)]">
                     <span className="min-w-0 truncate text-[14px] font-semibold text-[var(--text)]">
@@ -290,6 +323,22 @@ export default function FriendDrawer({
                       <InstancePill label={pillLabel} tier={pillTier} className="shrink-0" />
                     )}
                   </div>
+                )}
+                {visibleInstance?.instanceId != null && (
+                  <p
+                    data-testid="friend-drawer-instance-id"
+                    className="break-all font-mono text-[12px] text-[var(--text-faint)]"
+                  >
+                    {visibleInstance.instanceId}
+                  </p>
+                )}
+                {opennessKey != null && (
+                  <p
+                    data-testid="friend-drawer-openness"
+                    className="text-[12px] text-[var(--text-dim)]"
+                  >
+                    {t(opennessKey)}
+                  </p>
                 )}
                 {trustKey != null && (
                   <p className="text-[12px] text-[var(--text-dim)]">
