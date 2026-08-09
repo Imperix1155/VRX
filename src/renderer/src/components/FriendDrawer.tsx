@@ -42,6 +42,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
+import { isHotInstanceMember } from '@shared/hotInstanceKey'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendNote } from '../hooks/useFriendNote'
 import { useAvatar } from '../hooks/useAvatar'
@@ -164,19 +165,19 @@ export default function FriendDrawer({
   const descriptorKey = ring ? STATUS_DESCRIPTOR_KEY[ring.labelKey] : undefined
 
   const hideWorld = shown ? isWorldHidden(shown) : false
-  const visibleInstance = shown && !hideWorld && shown.instance != null ? shown.instance : null
+  const visibleInstance = shown != null && isHotInstanceMember(shown) ? shown.instance : null
   let worldText: string | null = null
   let pillLabel: string | null = null
   let pillTier: OpennessTier | null = null
   if (shown) {
     if (hideWorld) {
       worldText = t('drawer.hidden')
-    } else if (shown.instance != null) {
-      worldText = shown.instance.worldName ?? t('friends.instance.unknownWorld')
+    } else if (visibleInstance != null) {
+      worldText = visibleInstance.worldName ?? t('friends.instance.unknownWorld')
       pillLabel = t(
-        LABEL_KEYS_BY_SCHEME[labelScheme][shown.instance.type] ?? 'friends.instance.unknownWorld'
+        LABEL_KEYS_BY_SCHEME[labelScheme][visibleInstance.type] ?? 'friends.instance.unknownWorld'
       )
-      pillTier = OPENNESS_TIER[shown.instance.type] ?? null
+      pillTier = OPENNESS_TIER[visibleInstance.type] ?? null
     } else if (shown.presence.state === 'in-game') {
       worldText = t('friends.instance.private')
     }
@@ -188,6 +189,13 @@ export default function FriendDrawer({
   const worldImageRef = useRef<HTMLDivElement>(null)
   const thumbnailUrl = visibleInstance?.thumbnailUrl ?? null
   const worldImageUrl = useAvatar(thumbnailUrl, worldImageRef)
+  // Local image-element failure state: the avatar pipeline returns null for both
+  // loading and fetch failure, so we can only collapse on a real <img> error.
+  // `failedKey` remembers the (url + friend) key that failed; any change to that
+  // key implicitly resets the failure flag without an effect-setState.
+  const imageKey = `${thumbnailUrl ?? ''}|${shown?.platform ?? ''}|${shown?.platformUserId ?? ''}`
+  const [failedKey, setFailedKey] = useState<string | null>(null)
+  const imageFailed = failedKey === imageKey
   const OPENNESS_KEY: Record<OpennessAssessment, string> = {
     open: 'joinConfirm.openness.public',
     closed: 'joinConfirm.openness.private',
@@ -298,7 +306,7 @@ export default function FriendDrawer({
                 <h3 className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase">
                   {t('drawer.where')}
                 </h3>
-                {thumbnailUrl != null && (
+                {thumbnailUrl != null && !imageFailed && (
                   <div
                     ref={worldImageRef}
                     className="relative aspect-video w-full overflow-hidden rounded-[12px] bg-[color-mix(in_srgb,var(--text)_7%,transparent)]"
@@ -310,6 +318,7 @@ export default function FriendDrawer({
                         alt=""
                         aria-hidden="true"
                         className="h-full w-full object-cover"
+                        onError={() => setFailedKey(imageKey)}
                       />
                     )}
                   </div>

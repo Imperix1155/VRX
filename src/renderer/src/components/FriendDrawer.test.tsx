@@ -731,6 +731,62 @@ describe('FriendDrawer (VRX-69)', () => {
       )
       expect(scoped.getByText('This instance is considered an open instance.')).toBeTruthy()
     })
+
+    it.each([['ask-me'], ['dnd']] as const)(
+      '%s with a stale offline instance hides image, ID, and openness (VRX-251 privacy fix)',
+      (status) => {
+        useSettingsStore.setState({
+          settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] },
+          dirty: false
+        })
+        mockFriends([
+          {
+            ...joinableFriend,
+            status,
+            presence: { state: 'offline' },
+            instance: { ...publicInstance, thumbnailUrl: 'https://example.com/stale.png' }
+          }
+        ])
+        render(<FriendsList />)
+        openDrawerFor('Alex')
+
+        const scoped = within(dialog())
+        expect(scoped.getByText('Offline')).toBeTruthy()
+        expect(scoped.queryByText('Hidden')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
+      }
+    )
+
+    it('image load failure collapses the slot entirely', async () => {
+      // Use a fresh URL so the module-level avatar cache from the earlier
+      // visible-instance test doesn't satisfy the request without calling getAvatar.
+      const thumbnailUrl = 'https://example.com/world-fail-251.png'
+      const getAvatar = vi
+        .fn()
+        .mockResolvedValue({ ok: true, dataUrl: 'data:image/png;base64,thumb' })
+      window.vrx = { ...window.vrx, getAvatar } as unknown as Window['vrx']
+      const { trigger } = stubIntersectionObserver()
+
+      mockFriends([{ ...joinableFriend, instance: { ...publicInstance, thumbnailUrl } }])
+      render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      act(() => trigger())
+      await waitFor(() => expect(getAvatar).toHaveBeenCalledWith(thumbnailUrl))
+
+      const scoped = within(dialog())
+      const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
+      expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
+
+      fireEvent.error(img)
+
+      expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
+        publicInstance.instanceId
+      )
+    })
   })
 })
 

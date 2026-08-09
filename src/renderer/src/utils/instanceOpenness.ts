@@ -18,14 +18,16 @@ export type OpennessAssessment = 'open' | 'closed' | 'unknown'
  * - Public / Friends+ instances are considered open.
  * - Friends / Invite+ / Invite instances are considered closed.
  * - Group instances follow the same ladder: public/friends-plus → open,
- *   members-only / anything else → closed.
+ *   members-only (openness `invite`) → closed; 'offline' or any unrecognized
+ *   group value falls through to 'unknown' so the helper never guesses.
  */
 export function opennessAssessmentFor(instance: InstanceInfo): OpennessAssessment {
   if (instance.opennessUnknown === true) return 'unknown'
 
   if (instance.isGroup) {
     if (instance.openness === 'public' || instance.openness === 'friends-plus') return 'open'
-    return 'closed'
+    if (instance.openness === 'invite') return 'closed'
+    return 'unknown'
   }
 
   if (instance.openness === 'public' || instance.openness === 'friends-plus') return 'open'
