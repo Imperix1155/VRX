@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Click anywhere on a hot-instance card to open its detail sheet — world banner, every friend in the instance, instance ID, group, a Join button, and a quiet openness line. (VRX-250)
+- The friend panel now shows the current world's image, the instance ID, and a quiet openness line for friends in visible instances — hidden locations stay hidden. (VRX-251)
 
 ### Changed
 
