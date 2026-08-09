@@ -357,8 +357,6 @@ export default function DashboardView(): React.JSX.Element {
     }
   }, [selectedGroupKey, selectedInstance, closeSheet])
 
-
-
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
   }
