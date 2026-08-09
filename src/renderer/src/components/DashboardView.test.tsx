@@ -11,7 +11,7 @@
  * DashboardView consumes only { data, isPending } from useFriends.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act, within } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -376,5 +376,303 @@ describe('HotInstanceCard Join (VRX-237)', () => {
         name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
       })
     ).toBeNull()
+  })
+})
+
+// ─── HotInstanceSheet (VRX-250) ───────────────────────────────────────────────
+
+describe('HotInstanceSheet (VRX-250)', () => {
+  const publicWorld = (id: string, name: string, worldName = 'SunDown'): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: 'wrld_sun',
+        instanceId: 'wrld_sun:1~public',
+        worldName,
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        region: 'us',
+        userCount: 6
+      }
+    })
+
+  const groupWorld = (id: string, name: string): Friend =>
+    makeFriend({
+      platformUserId: id,
+      displayName: name,
+      instance: {
+        worldId: 'wrld_group',
+        instanceId: 'wrld_group:1~groupPlus',
+        worldName: 'Group Hangout',
+        thumbnailUrl: null,
+        type: 'group-plus',
+        openness: 'invite-plus',
+        isGroup: true,
+        groupName: 'The Cool Group',
+        region: 'us',
+        userCount: 4
+      }
+    })
+
+  function PendingProbe(): React.JSX.Element {
+    const { pendingConfirm, cancelPending } = useJoinInstance()
+    return (
+      <div>
+        <span data-testid="pending">{pendingConfirm?.displayName ?? 'none'}</span>
+        <button type="button" data-testid="cancel" onClick={cancelPending} />
+      </div>
+    )
+  }
+
+  it('clicking the card body opens the sheet; clicking the Join pill joins and does not open', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    const card = screen.getByRole('button', {
+      name: msg('hotSheet.ariaLabel', { world: 'SunDown' })
+    })
+
+    // Card click opens the sheet.
+    fireEvent.click(card)
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+    expect(screen.getByText(msg('hotSheet.friendsHereHeading', { count: 2 }))).toBeTruthy()
+
+    // Close the sheet.
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+
+    // The hero Join pill still joins (does not reopen the sheet).
+    const joinPill = screen.getByRole('button', {
+      name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+    })
+    fireEvent.click(joinPill)
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+    // Sheet did NOT open.
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+
+    // Clean up the parked join confirm so later tests are not polluted.
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+  })
+
+  it('sheet shows banner name, ALL member chips, instance id, and openness sentence', () => {
+    // 6 friends proves the sheet never truncates (the card truncates at 4).
+    const names = ['Nyx', 'Kettle', 'GrayCoat', 'Vex', 'Zoe', 'Amy']
+    stubQueries(
+      { data: names.map((n, i) => publicWorld(`usr_${i}`, n)), isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+
+    // Banner world name.
+    expect(screen.getAllByText('SunDown').length).toBeGreaterThanOrEqual(1)
+    // ALL six member chips.
+    for (const name of names) {
+      expect(screen.getByText(name)).toBeTruthy()
+    }
+    // Instance id.
+    expect(screen.getByText('wrld_sun:1~public')).toBeTruthy()
+    // Openness sentence (public).
+    expect(screen.getByText(msg('joinConfirm.openness.public'))).toBeTruthy()
+  })
+
+  it('group instance shows the hosted-by line; non-group shows only the type label', () => {
+    stubQueries(
+      { data: [groupWorld('usr_a', 'Amy'), groupWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Group Hangout hot instance details/ }))
+
+    // Hosted by line + type label.
+    const subtitle = `${msg('hotSheet.hostedBy', { group: 'The Cool Group' })} · Group+`
+    expect(screen.getByText(subtitle)).toBeTruthy()
+
+    // Non-group instance: just the type label, no "Hosted by".
+    cleanup()
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    expect(screen.queryByText(/Hosted by/)).toBeNull()
+  })
+
+  it('opennessUnknown renders the unknown copy', () => {
+    const unknownWorld = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_unk',
+          instanceId: 'wrld_unk:1~public',
+          worldName: 'Mystery World',
+          thumbnailUrl: null,
+          type: 'public',
+          openness: 'public',
+          opennessUnknown: true,
+          isGroup: false,
+          groupName: null,
+          region: 'us',
+          userCount: 2
+        }
+      })
+    stubQueries(
+      { data: [unknownWorld('usr_a', 'Amy'), unknownWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Mystery World hot instance details/ }))
+    expect(screen.getByText(msg('joinConfirm.openness.unknown'))).toBeTruthy()
+  })
+
+  it('sheet Join routes through the shared flow for the first joinable member', () => {
+    stubQueries(
+      { data: [publicWorld('usr_z', 'Zed'), publicWorld('usr_a', 'Amy')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+    const sheetJoin = within(sheet).getByRole('button', {
+      name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+    })
+    fireEvent.click(sheetJoin)
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+  })
+
+  it('sheet Join is absent when no member is joinable', () => {
+    const cvrOfflineInstance = (id: string, name: string): Friend =>
+      ({
+        ...makeFriend({ platformUserId: id, displayName: name }),
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        trustRank: null,
+        instance: {
+          worldId: 'i+offline1',
+          instanceId: 'i+offline1',
+          worldName: 'Private Basement',
+          thumbnailUrl: null,
+          type: 'offline',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          region: null,
+          userCount: 2
+        }
+      }) as unknown as Friend
+    stubQueries(
+      { data: [], isPending: false },
+      {
+        data: [cvrOfflineInstance('cvr_a', 'Amy'), cvrOfflineInstance('cvr_b', 'Bo')],
+        isPending: false
+      }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Private Basement hot instance details/ }))
+    expect(
+      screen.queryByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'Private Basement' })
+      })
+    ).toBeNull()
+  })
+
+  it('closes via ✕, Esc, and outside pointerdown; focus returns to the opener', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    const card = screen.getByRole('button', { name: /SunDown hot instance details/ })
+    fireEvent.click(card)
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+
+    // ✕ closes.
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+    expect(document.activeElement).toBe(card)
+
+    // Esc closes.
+    fireEvent.click(card)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+
+    // Outside pointerdown closes.
+    fireEvent.click(card)
+    const scrim = screen.getByTestId('hot-sheet-scrim')
+    fireEvent.pointerDown(scrim)
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+  })
+
+  it('opening a different card switches the sheet content in place', () => {
+    const worldA1 = publicWorld('usr_a1', 'Amy', 'World A')
+    const worldA2 = publicWorld('usr_a2', 'Ava', 'World A')
+    const worldB1 = publicWorld('usr_b1', 'Bo', 'World B')
+    const worldB2 = publicWorld('usr_b2', 'Bex', 'World B')
+    // Force different instance ids so the two worlds don't collapse into one hot instance.
+    ;(worldB1.instance as NonNullable<typeof worldB1.instance>).instanceId = 'wrld_b:1~public'
+    ;(worldB1.instance as NonNullable<typeof worldB1.instance>).worldId = 'wrld_b'
+    ;(worldB2.instance as NonNullable<typeof worldB2.instance>).instanceId = 'wrld_b:1~public'
+    ;(worldB2.instance as NonNullable<typeof worldB2.instance>).worldId = 'wrld_b'
+    stubQueries(
+      { data: [worldA1, worldA2, worldB1, worldB2], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /World A hot instance details/ }))
+    expect(screen.getByRole('dialog', { name: 'World A' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /World B hot instance details/ }))
+    expect(screen.queryByRole('dialog', { name: 'World A' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'World B' })).toBeTruthy()
+  })
+
+  it('shows a placeholder when no thumbnail is known; no broken image renders', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+    // No <img> in the banner (thumbnailUrl is null).
+    expect(sheet.querySelector('img')).toBeNull()
+    // The world name still renders.
+    expect(screen.getAllByText('SunDown').length).toBeGreaterThanOrEqual(1)
   })
 })

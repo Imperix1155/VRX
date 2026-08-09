@@ -304,6 +304,11 @@
     "cancel": "Cancel",
     "dontAskAgain": "Don't ask again (Settings › re-enable anytime)"
   },
+  "hotSheet": {
+    "ariaLabel": "{{world}} hot instance details",
+    "friendsHereHeading": "FRIENDS HERE — {{count}}",
+    "hostedBy": "Hosted by {{group}}"
+  },
   "dashboard": {
     "loading": "Loading...",
     "error": "Could not load your friends right now",

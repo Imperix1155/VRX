@@ -466,6 +466,34 @@ It appears in two places: the **sidebar footer** (when an update is actionable) 
 - **Settings row** pairs a Toggle for `settings.autoUpdate` with the stateful update button. The toggle default is OFF (settings v7). When ON, an available update auto-downloads; a consented download applies when VRX next closes, and **Restart to update** applies it immediately. Nothing downloads or installs without the user's download consent.
 - **Black-and-white test:** desaturated, the glyph and label must still read as “update action” and the current state must still be distinguishable.
 
+### §9.5 Hot-instance sheet (VRX-250)
+
+Owner-ratified "Banner" design, 2026-08-08. Clicking anywhere on a Dashboard hot-instance card opens a bottom sheet for that instance. The card's Join pill keeps winning over open (the existing `stopPropagation` containment is extended to the card-level click). The card becomes an interactive opener: `role="button"`, `tabIndex={0}`, keyboard Enter/Space handling, and `cursor-pointer`.
+
+**Sheet shell:**
+
+- Bottom-anchored, `max-h-[34vh]`, `min-h-[300px]`, fixed left/right/bottom.
+- Slides up over **220ms** `cubic-bezier(.32,.72,.29,1)`; instant under `prefers-reduced-motion`.
+- Material: `background-color: var(--glass-frost)` + `background-image: var(--glass-bg)` + `backdrop-filter: var(--glass-blur-frosted)`, top corners `var(--radius-panel)`, top border `var(--glass-border)`, upward shadow `var(--hot-sheet-shadow)`.
+- 4px platform-gradient top stripe (`linear-gradient(90deg, var(--vrc|--cvr), transparent)` per instance platform).
+- Grab bar: 44×4px, `var(--border)`, centered, `aria-hidden`.
+- ✕ close: 28px, radius 9px, ghost-button styling matching the friend drawer ✕.
+- **Non-modal** (mirrors FriendDrawer, VRX-225/228): soft scrim `var(--scrim-soft)` closes on outside `pointerdown` but is `pointer-events-none`; `role="dialog"` **without** `aria-modal`; no focus trap; `aria-label` = world name; initial focus on ✕; Esc closes; opening another card switches content in place; focus returns to the opener card on close.
+
+**Banner:**
+
+- Full-width world-image strip, 92px tall, `var(--radius-control)`.
+- Image `filter: brightness(0.66)`; when no thumbnail is known → quiet gradient placeholder (matches Avatar's absence pattern — never a guessed image).
+- Overlaid, bottom-aligned: world name 21px/700 with `var(--hot-sheet-banner-title-shadow)` + a line "Hosted by {groupName} · {type label}" (groupName only when `isGroup`; otherwise just the type label; label vocabulary via `LABEL_KEYS_BY_SCHEME`).
+- Join button on the banner's right edge, bottom-aligned — routed through the ONE shared `useJoinInstance` flow + first joinable member, identical to the card pill. Disabled/absent when no member is joinable, with the existing denial blip pattern.
+
+**Below the banner:**
+
+- Left: heading "FRIENDS HERE — {N}" (10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`) + friend CHIPS. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
+- Right: meta stack, right-aligned. Instance ID in `ui-monospace` 11.5px `var(--text-faint)` (display the real `instanceId`; long values may truncate middle with `title=` full value). Openness sentence in the muted style: reuse the join-confirm dialog's open/closed vocabulary + `opennessUnknown` handling (VRX-240/245). Muted = `var(--text-faint)`, 12.5px — not invisible.
+
+**Color law:** platform via the top stripe only; openness via WORDS in the meta stack; no new color carriers. Must pass the §12 black-and-white test.
+
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 
 - No shared identity exists across platforms → linking is USER-DRIVEN. NEVER auto-merge.

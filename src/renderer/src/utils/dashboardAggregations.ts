@@ -50,6 +50,12 @@ export interface HotInstance {
    * in THIS instance, so the representative's type is the group's type.
    */
   instanceType: InstanceInfo['type']
+  /** True for group instances (carried from every member's InstanceInfo). */
+  isGroup: boolean
+  /** Owning group's display name, when isGroup. */
+  groupName: string | null
+  /** World thumbnail, when known; carried from the shared InstanceInfo. */
+  thumbnailUrl: string | null
   platform: Platform
   friendCount: number
   /**
@@ -121,7 +127,9 @@ export function getHotInstances(
     if (seen.has(identity)) continue
     seen.add(identity)
 
-    const { worldId, worldName, type, instanceId } = f.instance!
+    const instance = f.instance
+    if (instance === null) continue
+    const { worldId, worldName, type, instanceId } = instance
     const key = hotInstanceKey(f.platform, instanceId, worldId)
     if (key === null) continue
     // The shared key is platform-relative (the alert engine namespaces via
@@ -138,6 +146,9 @@ export function getHotInstances(
         worldName,
         instanceId,
         instanceType: type,
+        isGroup: instance.isGroup,
+        groupName: instance.groupName,
+        thumbnailUrl: instance.thumbnailUrl,
         platform: f.platform,
         friendCount: 1,
         friendNames: [],
