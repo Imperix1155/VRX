@@ -115,6 +115,19 @@ describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
     expect(badges(container)).toHaveLength(0)
     expect(container.querySelector('.h-\\[64px\\]')).not.toBeNull()
   })
+
+  it('scales the ring and badge proportionally at the small size (24px sheet chip)', () => {
+    const { container } = render(
+      <Avatar friend={{ ...friend, status: 'join-me' }} variant="small" />
+    )
+    // The face (placeholder or image) carries the scaled ring.
+    const face = container.querySelector('[style*="0 0 0 1.5px"]')
+    expect(face).not.toBeNull()
+    expect(face?.className).toContain('h-[24px]')
+    // Badge scaled from 16px @ 42px → 9px @ 24px.
+    const badge = container.querySelector('.h-\\[9px\\]')
+    expect(badge).not.toBeNull()
+  })
 })
 
 describe('Avatar', () => {
