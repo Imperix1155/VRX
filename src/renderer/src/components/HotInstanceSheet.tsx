@@ -16,6 +16,7 @@
  * - Focus returns to the opener card on close.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useAvatar } from '../hooks/useAvatar'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
 import type { HotInstance } from '../utils/dashboardAggregations'
@@ -87,10 +88,15 @@ export default function HotInstanceSheet({
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const bannerRef = useRef<HTMLDivElement>(null)
 
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinTarget = shown?.members.find(isFriendJoinable) ?? null
   const joinFailure = joinTarget !== null && shown !== null ? joinFailureFor(joinTarget) : null
+  const bannerDataUrl = useAvatar(shown?.thumbnailUrl ?? null, bannerRef)
+  const [failedBannerKey, setFailedBannerKey] = useState<string | null>(null)
+  const bannerImageKey = bannerDataUrl ? `${shown?.thumbnailUrl ?? ''}\u0000${bannerDataUrl}` : null
+  const showBannerImage = bannerImageKey !== null && bannerImageKey !== failedBannerKey
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY, so the join
   // confirmation dialog (a modal sibling) does not steal focus back here.
@@ -209,20 +215,22 @@ export default function HotInstanceSheet({
         <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]">
           {/* Banner */}
           <div
+            ref={bannerRef}
             className="relative h-[92px] w-full shrink-0 overflow-hidden rounded-control"
             style={{
-              background: shown.thumbnailUrl
+              background: showBannerImage
                 ? undefined
                 : 'linear-gradient(135deg, color-mix(in srgb, var(--text) 10%, transparent), color-mix(in srgb, var(--text) 4%, transparent))'
             }}
           >
-            {shown.thumbnailUrl && (
+            {showBannerImage && (
               <img
-                src={shown.thumbnailUrl}
+                src={bannerDataUrl ?? undefined}
                 alt=""
                 aria-hidden="true"
                 className="h-full w-full object-cover"
                 style={{ filter: 'brightness(0.66)' }}
+                onError={() => setFailedBannerKey(bannerImageKey)}
               />
             )}
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-[var(--space-3)] p-[var(--space-3)]">
@@ -270,7 +278,7 @@ export default function HotInstanceSheet({
                   </button>
                   <span
                     role="status"
-                    className="pointer-events-none absolute -bottom-5 left-1/2 w-max max-w-[200px] -translate-x-1/2 truncate text-center text-[11px] text-[var(--text-dim)]"
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-center text-[12px] text-[var(--text-dim)]"
                   >
                     {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
                   </span>
@@ -299,7 +307,7 @@ export default function HotInstanceSheet({
                       background: 'var(--control-fill)'
                     }}
                   >
-                    <Avatar friend={friend} variant="row" ariaLabel={friend.displayName} />
+                    <Avatar friend={friend} variant="small" ariaLabel={friend.displayName} />
                     <span className="truncate text-[12.5px] text-[var(--text)]">
                       {friend.displayName}
                     </span>

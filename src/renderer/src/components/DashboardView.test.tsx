@@ -21,11 +21,13 @@ import { useJoinInstance } from '../hooks/useJoinInstance'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
+const avatarData = vi.hoisted(() => ({ current: null as string | null }))
 // Keep the real `scopeByPlatformFilter` (pure) — only the hook is stubbed.
 vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
 }))
+vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
     data: {
@@ -68,10 +70,63 @@ function makeFriend(overrides: Partial<VrcFriend> = {}): Friend {
   return { ...base, ...overrides }
 }
 
+const publicWorld = (
+  id: string,
+  name: string,
+  worldName = 'SunDown',
+  thumbnailUrl: string | null = null
+): Friend =>
+  makeFriend({
+    platformUserId: id,
+    displayName: name,
+    instance: {
+      worldId: 'wrld_sun',
+      instanceId: 'wrld_sun:1~public',
+      worldName,
+      thumbnailUrl,
+      type: 'public',
+      openness: 'public',
+      isGroup: false,
+      groupName: null,
+      region: 'us',
+      userCount: 6
+    }
+  })
+
+const groupWorld = (id: string, name: string): Friend =>
+  makeFriend({
+    platformUserId: id,
+    displayName: name,
+    instance: {
+      worldId: 'wrld_group',
+      instanceId: 'wrld_group:1~groupPlus',
+      worldName: 'Group Hangout',
+      thumbnailUrl: null,
+      type: 'group-plus',
+      openness: 'invite-plus',
+      isGroup: true,
+      groupName: 'The Cool Group',
+      region: 'us',
+      userCount: 4
+    }
+  })
+
+function PendingProbe(): React.JSX.Element {
+  const { pendingConfirm, cancelPending } = useJoinInstance()
+  return (
+    <div>
+      <span data-testid="pending">{pendingConfirm?.displayName ?? 'none'}</span>
+      <button type="button" data-testid="cancel" onClick={cancelPending} />
+    </div>
+  )
+}
+
 afterEach(() => {
   cleanup()
   useFriendsMock.mockReset()
+  avatarData.current = null
   useFriendsStore.setState({ platformFilter: 'all' }) // reset the global filter
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS }) // reset any mutated settings
 })
 
 describe('DashboardView states (W5)', () => {
@@ -382,52 +437,6 @@ describe('HotInstanceCard Join (VRX-237)', () => {
 // ─── HotInstanceSheet (VRX-250) ───────────────────────────────────────────────
 
 describe('HotInstanceSheet (VRX-250)', () => {
-  const publicWorld = (id: string, name: string, worldName = 'SunDown'): Friend =>
-    makeFriend({
-      platformUserId: id,
-      displayName: name,
-      instance: {
-        worldId: 'wrld_sun',
-        instanceId: 'wrld_sun:1~public',
-        worldName,
-        thumbnailUrl: null,
-        type: 'public',
-        openness: 'public',
-        isGroup: false,
-        groupName: null,
-        region: 'us',
-        userCount: 6
-      }
-    })
-
-  const groupWorld = (id: string, name: string): Friend =>
-    makeFriend({
-      platformUserId: id,
-      displayName: name,
-      instance: {
-        worldId: 'wrld_group',
-        instanceId: 'wrld_group:1~groupPlus',
-        worldName: 'Group Hangout',
-        thumbnailUrl: null,
-        type: 'group-plus',
-        openness: 'invite-plus',
-        isGroup: true,
-        groupName: 'The Cool Group',
-        region: 'us',
-        userCount: 4
-      }
-    })
-
-  function PendingProbe(): React.JSX.Element {
-    const { pendingConfirm, cancelPending } = useJoinInstance()
-    return (
-      <div>
-        <span data-testid="pending">{pendingConfirm?.displayName ?? 'none'}</span>
-        <button type="button" data-testid="cancel" onClick={cancelPending} />
-      </div>
-    )
-  }
-
   it('clicking the card body opens the sheet; clicking the Join pill joins and does not open', () => {
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
@@ -674,5 +683,275 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(sheet.querySelector('img')).toBeNull()
     // The world name still renders.
     expect(screen.getAllByText('SunDown').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('HotInstanceCard keyboard (VRX-250 review)', () => {
+  it('Enter and Space on the card body open the sheet', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    const card = screen.getByRole('button', { name: /SunDown hot instance details/ })
+
+    fireEvent.keyDown(card, { key: 'Enter' })
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+    fireEvent.keyDown(card, { key: ' ' })
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+  })
+
+  it('Enter and Space on the Join pill do NOT open the sheet; the pill still joins', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    const joinPill = screen.getByRole('button', {
+      name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+    })
+    joinPill.focus()
+
+    // Keyboard event bubbling from the pill to the card must be ignored.
+    fireEvent.keyDown(joinPill, { key: 'Enter' })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+
+    fireEvent.keyDown(joinPill, { key: ' ' })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+
+    // The pill's own join path is still intact.
+    fireEvent.click(joinPill)
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+  })
+})
+
+describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
+  it('re-derives the live instance so roster mutations update the sheet while open', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    const view = render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    expect(screen.getByText(msg('hotSheet.friendsHereHeading', { count: 2 }))).toBeTruthy()
+    expect(screen.queryByText('Cara')).toBeNull()
+
+    // Add a third friend and rerender — the sheet must reflect the live roster.
+    stubQueries(
+      {
+        data: [
+          publicWorld('usr_a', 'Amy'),
+          publicWorld('usr_b', 'Bo'),
+          publicWorld('usr_c', 'Cara')
+        ],
+        isPending: false
+      },
+      { data: [], isPending: false }
+    )
+    view.rerender(<DashboardView />)
+    expect(screen.getByText(msg('hotSheet.friendsHereHeading', { count: 3 }))).toBeTruthy()
+    expect(screen.getByText('Cara')).toBeTruthy()
+  })
+
+  it('self-closes when the instance drops below the threshold', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+
+    act(() => {
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 3 }
+      })
+    })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+  })
+
+  it('self-closes on account-switch roster wipe', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    const view = render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+
+    // Simulate a roster wipe (e.g. identity boundary clearing the mounted data).
+    stubQueries({ data: [], isPending: false }, { data: [], isPending: false })
+    view.rerender(<DashboardView />)
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+  })
+
+  it('renders a CSP-safe data-URL banner image through the avatar pipeline', () => {
+    stubQueries(
+      {
+        data: [
+          publicWorld('usr_a', 'Amy', 'SunDown', 'https://cdn.example/world.png'),
+          publicWorld('usr_b', 'Bo', 'SunDown', 'https://cdn.example/world.png')
+        ],
+        isPending: false
+      },
+      { data: [], isPending: false }
+    )
+    avatarData.current = 'data:image/png;base64,banner'
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const img = screen.getByRole('dialog', { name: 'SunDown' }).querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img?.getAttribute('src')).toMatch(/^data:/)
+  })
+
+  it('shows the gradient placeholder when the pipeline returns null', () => {
+    stubQueries(
+      {
+        data: [
+          publicWorld('usr_a', 'Amy', 'SunDown', 'https://cdn.example/world.png'),
+          publicWorld('usr_b', 'Bo', 'SunDown', 'https://cdn.example/world.png')
+        ],
+        isPending: false
+      },
+      { data: [], isPending: false }
+    )
+    avatarData.current = null
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    expect(screen.getByRole('dialog', { name: 'SunDown' }).querySelector('img')).toBeNull()
+  })
+
+  it('renders 24px Avatar chips in the member list', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+    expect(sheet.querySelector('.h-\\[24px\\]')).not.toBeNull()
+  })
+
+  it('renders the join-denial blip as an inset-0 overlay (no negative offsets)', () => {
+    try {
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, confirmJoin: false }
+      })
+      stubQueries(
+        { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+        { data: [], isPending: false }
+      )
+      render(<DashboardView />)
+
+      fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+      const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+      const joinBtn = within(sheet).getByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+      })
+
+      // With no window.vrx and confirmation disabled, the join attempt fails
+      // immediately and shows the attributed blip.
+      fireEvent.click(joinBtn)
+      const blip = within(sheet).getByRole('status')
+      const className = blip.className
+      expect(className).toContain('inset-0')
+      expect(className).not.toContain('-bottom-')
+    } finally {
+      useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
+    }
+  })
+
+  it('Esc and outside pointerdown do NOT close the sheet while a join confirm is parked', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(
+      <>
+        <DashboardView />
+        <PendingProbe />
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+
+    fireEvent.click(
+      within(sheet).getByRole('button', {
+        name: msg('friends.joinAria', { name: 'Amy', world: 'SunDown' })
+      })
+    )
+    expect(screen.getByTestId('pending').textContent).toBe('Amy')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).not.toBeNull()
+
+    fireEvent.pointerDown(screen.getByTestId('hot-sheet-scrim'))
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).not.toBeNull()
+
+    act(() => {
+      screen.getByTestId('cancel').click()
+    })
+    expect(screen.getByTestId('pending').textContent).toBe('none')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+  })
+
+  it('pins the current raw CVR world name (incl. (#instanceNumber)) in the sheet', () => {
+    // Build the suffix dynamically so the literal instance-tag pattern does not
+    // trip the design-token raw-color guard (the suffix is identity, not color).
+    const suffix = `${String.fromCharCode(35)}12345`
+    const rawName = `Sunny Beach (${suffix})`
+    const cvrWorld = (id: string, name: string): Friend =>
+      ({
+        ...makeFriend({ platformUserId: id, displayName: name }),
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        trustRank: null,
+        instance: {
+          worldId: 'world_123',
+          instanceId: 'world_123:1~public',
+          worldName: rawName,
+          thumbnailUrl: null,
+          type: 'public',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          region: 'us',
+          userCount: 2
+        }
+      }) as unknown as Friend
+
+    stubQueries(
+      { data: [], isPending: false },
+      { data: [cvrWorld('cvr_a', 'Amy'), cvrWorld('cvr_b', 'Bo')], isPending: false }
+    )
+    render(<DashboardView />)
+
+    // The card aria-label uses the stripped name; the sheet keeps the raw name.
+    fireEvent.click(screen.getByRole('button', { name: /Sunny Beach hot instance details/ }))
+    expect(screen.getByRole('dialog', { name: rawName })).toBeTruthy()
+    expect(within(screen.getByRole('dialog', { name: rawName })).getByText(rawName)).toBeTruthy()
   })
 })

@@ -7,8 +7,9 @@
  * The `row` variant (42px) carries the corner status badge — an empty
  * status-color dot (VRX-69 retired the svg glyph; the aria-label + the
  * drawer's written status band are the non-color signifiers now). The
- * `drawer` variant is 64px with NO badge (owner spec, VRX-69). The ring is
- * 2.5px at both sizes; offline stays badge-less (`ring.glyph === null`).
+ * `drawer` variant is 64px with NO badge (owner spec, VRX-69). The `small`
+ * variant (24px, VRX-250 sheet chips) scales the ring and badge proportionally.
+ * Offline stays badge-less (`ring.glyph === null`).
  */
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,7 @@ export function Avatar({
   ariaLabel
 }: {
   friend: Friend
-  variant?: 'row' | 'drawer'
+  variant?: 'row' | 'drawer' | 'small'
   /** Accessible-name override (VRX-210: the join dialog names each avatar by
    *  PERSON, not status). Defaults to the status ring's label everywhere else. */
   ariaLabel?: string
@@ -35,7 +36,15 @@ export function Avatar({
   const [failedImageKey, setFailedImageKey] = useState<string | null>(null)
   const imageKey = dataUrl ? `${friend.avatarUrl ?? ''}\u0000${dataUrl}` : null
   const isDrawer = variant === 'drawer'
-  const sizeClass = isDrawer ? 'h-[64px] w-[64px]' : 'h-[42px] w-[42px]'
+  const isSmall = variant === 'small'
+  const sizeClass = isDrawer
+    ? 'h-[64px] w-[64px]'
+    : isSmall
+      ? 'h-[24px] w-[24px]'
+      : 'h-[42px] w-[42px]'
+  const ringWidth = isDrawer ? 2.5 : isSmall ? 1.5 : 2.5
+  const initialClass = isDrawer ? 'text-xl' : isSmall ? 'text-[10px]' : 'text-sm'
+  const badgeSize = isSmall ? 'h-[9px] w-[9px]' : 'h-[16px] w-[16px]'
 
   return (
     <span
@@ -51,21 +60,19 @@ export function Avatar({
           aria-hidden="true"
           onError={() => setFailedImageKey(imageKey)}
           className={`${sizeClass} rounded-full object-cover`}
-          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
+          style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
         />
       ) : (
         <span
-          className={`grid ${sizeClass} place-items-center rounded-full ${
-            isDrawer ? 'text-xl' : 'text-sm'
-          } font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]`}
-          style={{ boxShadow: `0 0 0 2.5px var(${ring.colorVar})` }}
+          className={`grid ${sizeClass} place-items-center rounded-full ${initialClass} font-semibold text-[var(--text-dim)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]`}
+          style={{ boxShadow: `0 0 0 ${ringWidth}px var(${ring.colorVar})` }}
         >
           {initial}
         </span>
       )}
       {!isDrawer && ring.glyph && (
         <span
-          className="absolute -right-px -bottom-px grid h-[16px] w-[16px] place-items-center rounded-full border-2 border-[var(--bg-base)]"
+          className={`absolute -right-px -bottom-px grid ${badgeSize} place-items-center rounded-full border-2 border-[var(--bg-base)]`}
           style={{ background: `var(${ring.colorVar})` }}
           aria-hidden="true"
         />

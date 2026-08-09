@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Click anywhere on a hot-instance card to open its detail sheet — world banner, every friend in the instance, instance ID, group, a Join button, and a quiet openness line. (VRX-250)
+
 ### Changed
 
 - The sidebar update button now sits on the footer's grid — its top and bottom edges align with the VRX wordmark and version lines instead of floating between them (owner ruling from the 0.15.1 update test). (VRX-255)

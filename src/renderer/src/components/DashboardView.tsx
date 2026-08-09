@@ -8,10 +8,8 @@
  *    instance pill hero + who's-here names + quiet platform pill). The hero
  *    pill doubles as the Join affordance when a member is joinable (VRX-237).
  *  - Empty state when no friends are online.
- *
- * Deferred: world thumbnail (VRX-48) + whole-card click → detail panel (VRX-59).
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
@@ -77,9 +75,8 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
 // who's-here (r2c1) share the left 1fr column; the instance pill (r1c2) and platform
 // pill (r2c2) share a right column floored at 78px and grown to `max-content`, so the
 // two pills are always the SAME width and their edges line up (a clean rectangle).
-// The whole-card click → detail panel (world image, full who's-here, the instance
-// number) is deferred to VRX-59; the card is intentionally NOT clickable yet, so
-// the hero pill's Join is its OWN explicit control — a card click never joins.
+// The whole-card click/Enter/Space opens the hot-instance detail sheet (VRX-250).
+// The hero pill's Join is its OWN explicit control — a card click never joins.
 
 function HotInstanceCard({
   instance,
@@ -148,6 +145,10 @@ function HotInstanceCard({
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    // Keyboard containment: nested controls (the Join pill, etc.) must fire
+    // themselves, not open the sheet. This mirrors the pointer target guard and
+    // covers any future nested control (VRX-250 review).
+    if (event.target !== event.currentTarget) return
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       if (cardRef.current !== null) onOpen(instance, cardRef.current)
@@ -308,18 +309,21 @@ export default function DashboardView(): React.JSX.Element {
   // immediately and persist via useSettingsPersistence (VRX-184).
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-  // Hot-instance sheet selection (VRX-250).
-  const [selectedInstance, setSelectedInstance] = useState<HotInstance | null>(null)
+  // Hot-instance sheet selection (VRX-250): store the composite key, derive the
+  // live instance every render so the sheet stays truthful as friends/rosters change.
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
   const openerRef = useRef<HTMLElement | null>(null)
+  const fallbackFocusRef = useRef<HTMLElement | null>(null)
   const openSheet = useCallback((instance: HotInstance, opener: HTMLElement) => {
     openerRef.current = opener
-    setSelectedInstance(instance)
+    setSelectedGroupKey(instance.groupKey)
   }, [])
   const closeSheet = useCallback(() => {
-    setSelectedInstance(null)
+    setSelectedGroupKey(null)
     const opener = openerRef.current
     openerRef.current = null
     if (opener?.isConnected) opener.focus({ preventScroll: true })
+    else fallbackFocusRef.current?.focus({ preventScroll: true })
   }, [])
 
   // The Dashboard is a social surface, so it honors the global platform filter
@@ -332,6 +336,29 @@ export default function DashboardView(): React.JSX.Element {
     selectedPlatform === null ? null : NOT_CONNECTED_KEY.dashboard[selectedPlatform]
 
   const hasData = scoped.some((q) => q.data != null)
+
+  // Compute hot instances BEFORE any early return so the self-close effect can
+  // run on every render without breaking hook order.
+  const friends = scoped.flatMap((q) => q.data ?? [])
+  const hotInstances = getHotInstances(friends, hotThreshold)
+  const stats = getDashboardStats(friends, hotInstances.length)
+
+  // Derive the live selected instance from the current hot list so the sheet
+  // stays truthful as friends/rosters change (VRX-250 review).
+  const selectedInstance = hotInstances.find((h) => h.groupKey === selectedGroupKey) ?? null
+
+  // Self-close when the selected instance ceases to be hot (friends left, account
+  // switched, threshold/filter changed). Mirrors FriendsList's stale-selection
+  // cleanup (VRX-250 review); the setState-in-effect is intentional and bounded.
+  useEffect(() => {
+    if (selectedGroupKey !== null && selectedInstance === null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      closeSheet()
+    }
+  }, [selectedGroupKey, selectedInstance, closeSheet])
+
+
+
   if (isAuthStatusPending) {
     return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
   }
@@ -376,11 +403,6 @@ export default function DashboardView(): React.JSX.Element {
     )
   }
 
-  const friends = scoped.flatMap((q) => q.data ?? [])
-
-  const hotInstances = getHotInstances(friends, hotThreshold)
-  const stats = getDashboardStats(friends, hotInstances.length)
-
   return (
     <div>
       {/* Stat cards row */}
@@ -405,6 +427,7 @@ export default function DashboardView(): React.JSX.Element {
         <div className="flex items-center justify-between gap-[var(--space-4)]">
           <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
           <NumberStepper
+            ref={fallbackFocusRef}
             value={hotThreshold}
             min={HOT_INSTANCE_THRESHOLD_MIN}
             max={HOT_INSTANCE_THRESHOLD_MAX}
