@@ -1081,6 +1081,27 @@ describe('group instances get group-accurate copy', () => {
     expect(within(confirmDialog()).getByText(headline)).toBeTruthy()
   })
 
+  it("group 'offline' uses the unknown-openness copy (never members-only/closed)", () => {
+    const friend: Friend = {
+      ...joinableFriend,
+      instance: { ...groupBase, openness: 'offline', type: 'group' }
+    }
+    mockFriends([friend])
+    render(
+      <>
+        <OpenJoin friend={friend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
+
+    expect(
+      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
+    ).toBeTruthy()
+    expect(within(dialog).queryByText('This instance is considered a closed instance.')).toBeNull()
+  })
+
   it("CVR friends-of-members keeps the friends-of-group-MEMBERS rule (that IS CVR's rule)", () => {
     const cvrGroupFriend: Friend = {
       ...cvrFriend,

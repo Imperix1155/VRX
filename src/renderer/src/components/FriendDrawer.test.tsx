@@ -733,7 +733,7 @@ describe('FriendDrawer (VRX-69)', () => {
     })
 
     it.each([['ask-me'], ['dnd']] as const)(
-      '%s with a stale offline instance hides image, ID, and openness (VRX-251 privacy fix)',
+      '%s with a stale offline instance hides the whole WHERE world line (VRX-251 privacy fix)',
       (status) => {
         useSettingsStore.setState({
           settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] },
@@ -753,23 +753,68 @@ describe('FriendDrawer (VRX-69)', () => {
         const scoped = within(dialog())
         expect(scoped.getByText('Offline')).toBeTruthy()
         expect(scoped.queryByText('Hidden')).toBeNull()
+        expect(scoped.queryByText('The Great Pug')).toBeNull()
+        expect(scoped.queryByText('Public')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
       }
     )
 
-    it('image load failure collapses the slot entirely', async () => {
-      // Use a fresh URL so the module-level avatar cache from the earlier
-      // visible-instance test doesn't satisfy the request without calling getAvatar.
+    it('live transition: in-game friend goes offline with a stale instance → all instance data disappears', () => {
+      const thumbnailUrl = 'https://example.com/world-transition-251.png'
+      mockFriends([
+        {
+          ...joinableFriend,
+          instance: { ...publicInstance, thumbnailUrl }
+        }
+      ])
+      const { rerender } = render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      const scoped = within(dialog())
+      expect(scoped.getByText('The Great Pug')).toBeTruthy()
+      expect(scoped.getByText('Public')).toBeTruthy()
+      expect(scoped.getByTestId('friend-drawer-instance-id')).toBeTruthy()
+      expect(scoped.getByTestId('friend-drawer-openness')).toBeTruthy()
+
+      mockFriends([
+        {
+          ...joinableFriend,
+          status: 'ask-me',
+          presence: { state: 'offline' },
+          instance: { ...publicInstance, thumbnailUrl }
+        }
+      ])
+      rerender(<FriendsList />)
+
+      const next = within(dialog())
+      expect(next.getByText('Offline')).toBeTruthy()
+      expect(next.queryByText('The Great Pug')).toBeNull()
+      expect(next.queryByText('Public')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-instance-id')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-openness')).toBeNull()
+    })
+
+    it('image load failure collapses the slot entirely and resets when the friend changes', async () => {
+      // Use a fresh URL so the module-level avatar cache from earlier tests
+      // doesn't satisfy the request without calling getAvatar.
       const thumbnailUrl = 'https://example.com/world-fail-251.png'
-      const getAvatar = vi
-        .fn()
-        .mockResolvedValue({ ok: true, dataUrl: 'data:image/png;base64,thumb' })
+      const getAvatar = vi.fn().mockImplementation((url: string) => {
+        if (url !== thumbnailUrl) return Promise.resolve({ ok: true, dataUrl: null })
+        return Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,thumb' })
+      })
       window.vrx = { ...window.vrx, getAvatar } as unknown as Window['vrx']
       const { trigger } = stubIntersectionObserver()
 
-      mockFriends([{ ...joinableFriend, instance: { ...publicInstance, thumbnailUrl } }])
+      const bea: Friend = {
+        ...joinableFriend,
+        platformUserId: 'usr_bea',
+        displayName: 'Bea',
+        instance: { ...publicInstance, thumbnailUrl }
+      }
+      mockFriends([{ ...joinableFriend, instance: { ...publicInstance, thumbnailUrl } }, bea])
       render(<FriendsList />)
       openDrawerFor('Alex')
 
@@ -782,10 +827,21 @@ describe('FriendDrawer (VRX-69)', () => {
 
       fireEvent.error(img)
 
+      // The entire 16:9 wrapper must collapse, not just the <img> inside it.
+      expect(scoped.queryByTestId('friend-drawer-world-image-wrapper')).toBeNull()
       expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
       expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
         publicInstance.instanceId
       )
+
+      // Switch to a different friend with the SAME thumbnail — the failure key
+      // must include the user id so the flag resets and the slot renders again.
+      openDrawerFor('Bea')
+      act(() => trigger())
+
+      const beaScoped = within(dialog())
+      const beaImg = await waitFor(() => beaScoped.getByTestId('friend-drawer-world-image'))
+      expect(beaImg.getAttribute('src')).toBe('data:image/png;base64,thumb')
     })
   })
 })

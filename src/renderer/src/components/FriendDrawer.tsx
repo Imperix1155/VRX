@@ -193,7 +193,7 @@ export default function FriendDrawer({
   // loading and fetch failure, so we can only collapse on a real <img> error.
   // `failedKey` remembers the (url + friend) key that failed; any change to that
   // key implicitly resets the failure flag without an effect-setState.
-  const imageKey = `${thumbnailUrl ?? ''}|${shown?.platform ?? ''}|${shown?.platformUserId ?? ''}`
+  const imageKey = JSON.stringify([thumbnailUrl, shown?.platformUserId])
   const [failedKey, setFailedKey] = useState<string | null>(null)
   const imageFailed = failedKey === imageKey
   const OPENNESS_KEY: Record<OpennessAssessment, string> = {
