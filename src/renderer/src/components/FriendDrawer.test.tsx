@@ -824,6 +824,9 @@ describe('FriendDrawer (VRX-69)', () => {
       const scoped = within(dialog())
       const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
       expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
+      // The wrapper exists BEFORE the error — without this, the null-after
+      // assertion would pass vacuously on a missing testid.
+      expect(scoped.getByTestId('friend-drawer-world-image-wrapper')).not.toBeNull()
 
       fireEvent.error(img)
 
