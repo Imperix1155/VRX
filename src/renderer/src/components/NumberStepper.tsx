@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -10,19 +11,16 @@ import { useTranslation } from 'react-i18next'
  * Buttons never take the value out of [min, max]; at a bound the button
  * disables visually but stays in the DOM (no layout shift).
  */
-export default function NumberStepper({
-  value,
-  min,
-  max,
-  onChange,
-  ariaLabel
-}: {
-  value: number
-  min: number
-  max: number
-  onChange: (next: number) => void
-  ariaLabel: string
-}): React.JSX.Element {
+const NumberStepper = forwardRef<
+  HTMLElement,
+  {
+    value: number
+    min: number
+    max: number
+    onChange: (next: number) => void
+    ariaLabel: string
+  }
+>(function NumberStepperInner({ value, min, max, onChange, ariaLabel }, ref): React.JSX.Element {
   const { t } = useTranslation()
   const clamp = (n: number): number => Math.min(max, Math.max(min, n))
   const set = (n: number): void => {
@@ -55,6 +53,7 @@ export default function NumberStepper({
         −
       </button>
       <span
+        ref={ref}
         role="spinbutton"
         tabIndex={0}
         aria-label={ariaLabel}
@@ -95,4 +94,6 @@ export default function NumberStepper({
       </button>
     </div>
   )
-}
+})
+
+export default NumberStepper

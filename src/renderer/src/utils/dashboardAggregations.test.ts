@@ -361,6 +361,26 @@ describe('getHotInstances', () => {
     expect(result[0]!.platform).toBe('chilloutvr')
   })
 
+  it('carries thumbnailUrl, isGroup, and groupName from the instance (VRX-250)', () => {
+    const inst: InstanceInfo = {
+      worldId: 'wrld_group',
+      instanceId: 'wrld_group:1~groupPlus',
+      worldName: 'Group Hangout',
+      thumbnailUrl: 'https://example.com/thumb.jpg',
+      type: 'group-plus',
+      openness: 'invite-plus',
+      isGroup: true,
+      groupName: 'The Cool Group',
+      region: 'us',
+      userCount: 4
+    }
+    const friends: Friend[] = [vrcFriend('a', 'in-game', inst), vrcFriend('b', 'in-game', inst)]
+    const result = getHotInstances(friends)
+    expect(result[0]!.thumbnailUrl).toBe('https://example.com/thumb.jpg')
+    expect(result[0]!.isGroup).toBe(true)
+    expect(result[0]!.groupName).toBe('The Cool Group')
+  })
+
   it('CVR grouping is stable across async world-metadata enrichment (VRX-237 L7)', () => {
     // CVR's unresolved worldId fallback EQUALS the instanceId; the resolved
     // world.id lands later. The CVR key is the instance id alone, so the

@@ -97,6 +97,13 @@
   --scrim: rgba(0, 0, 0, 0.44);
   --scrim-soft: rgba(0, 0, 0, 0.14);
 
+  /* HOT-INSTANCE SHEET (VRX-250, owner-ratified Banner design 2026-08-08):
+     upward shadow + banner text-shadows baked verbatim from the mock. These are
+     structural shadow tints, not themeable surface colors. */
+  --hot-sheet-shadow: 0 -12px 44px rgba(0, 0, 0, 0.34);
+  --hot-sheet-banner-title-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  --hot-sheet-banner-subtitle-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+
   --glass-blur: blur(26px) saturate(165%);
 
   /* GLASS material (§3) — rgba extracted as vars so .glass class uses no raw rgba */

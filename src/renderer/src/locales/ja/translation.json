@@ -302,6 +302,11 @@
     "cancel": "キャンセル",
     "dontAskAgain": "次から確認しない（設定でいつでも再有効化できます）"
   },
+  "hotSheet": {
+    "ariaLabel": "{{world}} ホットインスタンスの詳細",
+    "friendsHereHeading": "ここにいるフレンド — {{count}}",
+    "hostedBy": "{{group}} が主催"
+  },
   "dashboard": {
     "loading": "読み込み中...",
     "error": "フレンドを読み込めませんでした",
