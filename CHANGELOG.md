@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The friend panel now shows the current world's image, the instance ID, and a quiet openness line for friends in visible instances — hidden locations stay hidden. (VRX-251)
+
 ### Changed
 
 - The sidebar update button now sits on the footer's grid — its top and bottom edges align with the VRX wordmark and version lines instead of floating between them (owner ruling from the 0.15.1 update test). (VRX-255)
