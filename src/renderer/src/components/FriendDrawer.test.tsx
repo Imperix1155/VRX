@@ -122,7 +122,12 @@ beforeEach(() => {
     .fn()
     .mockResolvedValue({ note: null, revision: { platformAccountId: 'self', epoch: 1 } })
   setFriendNote = vi.fn().mockResolvedValue({ ok: true })
-  window.vrx = { joinInstance, getFriendNote, setFriendNote } as unknown as Window['vrx']
+  window.vrx = {
+    joinInstance,
+    getFriendNote,
+    setFriendNote,
+    getAvatar: vi.fn().mockResolvedValue(null)
+  } as unknown as Window['vrx']
   useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
   // Drawer/row interactions here exercise the one-click join flow — the
   // VRX-210 confirmation gate (default ON) is covered by JoinConfirmDialog.test.tsx.
@@ -134,6 +139,7 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   useFriendsMock.mockReset()
+  vi.unstubAllGlobals()
 })
 
 describe('FriendDrawer (VRX-69)', () => {
@@ -618,6 +624,228 @@ describe('FriendDrawer (VRX-69)', () => {
       scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
     )
     expect((textarea as HTMLTextAreaElement).value).toBe('')
+  })
+
+  describe('VRX-251 drawer enrichment (world image, instance ID, openness)', () => {
+    function stubIntersectionObserver(): { trigger: () => void } {
+      let callback: ((entries: { isIntersecting: boolean }[]) => void) | null = null
+      vi.stubGlobal(
+        'IntersectionObserver',
+        class {
+          constructor(cb: (entries: { isIntersecting: boolean }[]) => void) {
+            callback = cb
+          }
+          observe = vi.fn()
+          disconnect = vi.fn()
+        }
+      )
+      return {
+        trigger: () => {
+          if (callback !== null) callback([{ isIntersecting: true }])
+        }
+      }
+    }
+
+    it('visible instance: world image through the pipeline, instance ID, and openness sentence', async () => {
+      const thumbnailUrl = 'https://example.com/world-251.png'
+      const getAvatar = vi
+        .fn()
+        .mockResolvedValue({ ok: true, dataUrl: 'data:image/png;base64,thumb' })
+      window.vrx = { ...window.vrx, getAvatar } as unknown as Window['vrx']
+      const { trigger } = stubIntersectionObserver()
+
+      mockFriends([
+        {
+          ...joinableFriend,
+          instance: { ...publicInstance, thumbnailUrl }
+        }
+      ])
+      render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      act(() => trigger())
+      await waitFor(() => expect(getAvatar).toHaveBeenCalledWith(thumbnailUrl))
+
+      const scoped = within(dialog())
+      const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
+      expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
+      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
+        publicInstance.instanceId
+      )
+      expect(scoped.getByText('This instance is considered an open instance.')).toBeTruthy()
+    })
+
+    it('opennessUnknown shows the unknown copy, not open/closed', () => {
+      mockFriends([
+        {
+          ...joinableFriend,
+          instance: {
+            ...publicInstance,
+            type: 'invite',
+            openness: 'invite',
+            opennessUnknown: true
+          }
+        }
+      ])
+      render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      const scoped = within(dialog())
+      expect(
+        scoped.getByText("We couldn't confirm whether this instance is open or closed.")
+      ).toBeTruthy()
+      expect(scoped.queryByText(/considered an open instance/)).toBeNull()
+      expect(scoped.queryByText(/considered a closed instance/)).toBeNull()
+    })
+
+    it.each([['ask-me'], ['dnd']] as const)(
+      '%s hides the world image, instance ID, and openness sentence',
+      (status) => {
+        mockFriends([
+          {
+            ...joinableFriend,
+            status,
+            instance: { ...publicInstance, thumbnailUrl: 'https://example.com/hidden.png' }
+          }
+        ])
+        render(<FriendsList />)
+        openDrawerFor('Alex')
+
+        const scoped = within(dialog())
+        expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
+        expect(scoped.getByText('Hidden')).toBeTruthy()
+      }
+    )
+
+    it('no thumbnailUrl renders no broken image; ID and openness still render', () => {
+      mockFriends([joinableFriend])
+      render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      const scoped = within(dialog())
+      expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
+        publicInstance.instanceId
+      )
+      expect(scoped.getByText('This instance is considered an open instance.')).toBeTruthy()
+    })
+
+    it.each([['ask-me'], ['dnd']] as const)(
+      '%s with a stale offline instance hides the whole WHERE world line (VRX-251 privacy fix)',
+      (status) => {
+        useSettingsStore.setState({
+          settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] },
+          dirty: false
+        })
+        mockFriends([
+          {
+            ...joinableFriend,
+            status,
+            presence: { state: 'offline' },
+            instance: { ...publicInstance, thumbnailUrl: 'https://example.com/stale.png' }
+          }
+        ])
+        render(<FriendsList />)
+        openDrawerFor('Alex')
+
+        const scoped = within(dialog())
+        expect(scoped.getByText('Offline')).toBeTruthy()
+        expect(scoped.queryByText('Hidden')).toBeNull()
+        expect(scoped.queryByText('The Great Pug')).toBeNull()
+        expect(scoped.queryByText('Public')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
+      }
+    )
+
+    it('live transition: in-game friend goes offline with a stale instance → all instance data disappears', () => {
+      const thumbnailUrl = 'https://example.com/world-transition-251.png'
+      mockFriends([
+        {
+          ...joinableFriend,
+          instance: { ...publicInstance, thumbnailUrl }
+        }
+      ])
+      const { rerender } = render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      const scoped = within(dialog())
+      expect(scoped.getByText('The Great Pug')).toBeTruthy()
+      expect(scoped.getByText('Public')).toBeTruthy()
+      expect(scoped.getByTestId('friend-drawer-instance-id')).toBeTruthy()
+      expect(scoped.getByTestId('friend-drawer-openness')).toBeTruthy()
+
+      mockFriends([
+        {
+          ...joinableFriend,
+          status: 'ask-me',
+          presence: { state: 'offline' },
+          instance: { ...publicInstance, thumbnailUrl }
+        }
+      ])
+      rerender(<FriendsList />)
+
+      const next = within(dialog())
+      expect(next.getByText('Offline')).toBeTruthy()
+      expect(next.queryByText('The Great Pug')).toBeNull()
+      expect(next.queryByText('Public')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-instance-id')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-openness')).toBeNull()
+    })
+
+    it('image load failure collapses the slot entirely and resets when the friend changes', async () => {
+      // Use a fresh URL so the module-level avatar cache from earlier tests
+      // doesn't satisfy the request without calling getAvatar.
+      const thumbnailUrl = 'https://example.com/world-fail-251.png'
+      const getAvatar = vi.fn().mockImplementation((url: string) => {
+        if (url !== thumbnailUrl) return Promise.resolve({ ok: true, dataUrl: null })
+        return Promise.resolve({ ok: true, dataUrl: 'data:image/png;base64,thumb' })
+      })
+      window.vrx = { ...window.vrx, getAvatar } as unknown as Window['vrx']
+      const { trigger } = stubIntersectionObserver()
+
+      const bea: Friend = {
+        ...joinableFriend,
+        platformUserId: 'usr_bea',
+        displayName: 'Bea',
+        instance: { ...publicInstance, thumbnailUrl }
+      }
+      mockFriends([{ ...joinableFriend, instance: { ...publicInstance, thumbnailUrl } }, bea])
+      render(<FriendsList />)
+      openDrawerFor('Alex')
+
+      act(() => trigger())
+      await waitFor(() => expect(getAvatar).toHaveBeenCalledWith(thumbnailUrl))
+
+      const scoped = within(dialog())
+      const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
+      expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
+      // The wrapper exists BEFORE the error — without this, the null-after
+      // assertion would pass vacuously on a missing testid.
+      expect(scoped.getByTestId('friend-drawer-world-image-wrapper')).not.toBeNull()
+
+      fireEvent.error(img)
+
+      // The entire 16:9 wrapper must collapse, not just the <img> inside it.
+      expect(scoped.queryByTestId('friend-drawer-world-image-wrapper')).toBeNull()
+      expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
+        publicInstance.instanceId
+      )
+
+      // Switch to a different friend with the SAME thumbnail — the failure key
+      // must include the user id so the flag resets and the slot renders again.
+      openDrawerFor('Bea')
+      act(() => trigger())
+
+      const beaScoped = within(dialog())
+      const beaImg = await waitFor(() => beaScoped.getByTestId('friend-drawer-world-image'))
+      expect(beaImg.getAttribute('src')).toBe('data:image/png;base64,thumb')
+    })
   })
 })
 

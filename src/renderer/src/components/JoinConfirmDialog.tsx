@@ -66,7 +66,11 @@ function opennessCopyFor(instance: InstanceInfo): OpennessCopy {
   if (instance.isGroup) {
     if (instance.openness === 'public') return 'group-public'
     if (instance.openness === 'friends-plus') return 'group-plus'
-    return 'group-only'
+    if (instance.openness === 'invite') return 'group-only'
+    // Defensive: group 'offline' or any unrecognized openness value must not
+    // be sold as members-only/closed. This keeps the dialog aligned with
+    // `opennessAssessmentFor` (instanceOpenness.ts) for the same edge.
+    return 'unknown'
   }
   if (instance.openness === 'public') return 'public'
   if (instance.openness === 'friends-plus') return 'friends-plus'
