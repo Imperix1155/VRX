@@ -360,7 +360,12 @@ describe('useFriends world-name survival during in-flight refetch (VRX-258)', ()
 
     // REST resolves with a still-null name (resolver was cold at fetch start).
     release([friendWith(null)])
-    await waitFor(() => expect(getFriends).toHaveBeenCalledTimes(1))
+    // Wait for the fetch to SETTLE (the queryFn result written), not merely to
+    // have started — an earlier form re-checked the call count, which was
+    // already true, so the final read could race the cache write.
+    await waitFor(() =>
+      expect(queryClient.getQueryState(friendsQueryKey('vrchat'))!.fetchStatus).toBe('idle')
+    )
 
     const after = queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))![0]!.instance!
       .worldName
