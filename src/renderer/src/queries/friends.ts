@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
 import { RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
+import { mergeKnownWorldMetadata } from '../utils/mergeKnownWorldMetadata'
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -50,9 +51,16 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   // the session (existing behavior), auth converges to `unauthenticated`, and
   // the query re-disables — the VRX-191 gating reason was unauthenticated loops.
   const auth = useAuthStatus(platform)
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: friendsQueryKey(platform),
-    queryFn: () => fetchFriends(platform),
+    // Renderer-side sibling of VrcAdapter's enrichPipelineEvent clobber guard
+    // (VRX-254), covering the REST roster path (VRX-258).
+    queryFn: async () =>
+      mergeKnownWorldMetadata(
+        queryClient.getQueryData(friendsQueryKey(platform)),
+        await fetchFriends(platform)
+      ),
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
       reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),

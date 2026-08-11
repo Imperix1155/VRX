@@ -216,14 +216,45 @@ describe('PersistQueryClientProvider hydrate', () => {
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 
-  it('paints the seeded friends list immediately, then refetches and replaces it', async () => {
+  it('paints the seeded list immediately, then refetches and replaces presence/status but preserves known world names for the same world', async () => {
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, reconcileInterval: '5m' },
       dirty: false
     })
 
-    const seeded = [seededFriend('Seeded')]
-    const fetched = [seededFriend('Refetched')]
+    const instanceBase = {
+      worldId: 'wrld_same',
+      instanceId: 'i1',
+      worldName: 'Known World' as const,
+      thumbnailUrl: 'https://example.com/know.jpg' as const,
+      type: 'public' as const,
+      openness: 'public' as const,
+      isGroup: false,
+      groupName: null,
+      region: 'us',
+      userCount: null
+    }
+
+    const seeded = [
+      {
+        ...seededFriend('Seeded'),
+        platformUserId: 'usr_same',
+        status: 'online' as const,
+        presence: { state: 'in-game' as const },
+        instance: instanceBase
+      } as Friend
+    ]
+
+    const fetched = [
+      {
+        ...seededFriend('Refetched'),
+        platformUserId: 'usr_same',
+        status: 'ask-me' as const,
+        presence: { state: 'in-game' as const },
+        instance: { ...instanceBase, instanceId: 'i2', worldName: null, thumbnailUrl: null }
+      } as Friend
+    ]
+
     // Resolve after a microtask so React has time to render the hydrated seed
     // before the refetch replaces it.
     const getFriends = vi
@@ -249,12 +280,17 @@ describe('PersistQueryClientProvider hydrate', () => {
       expect(observed.some((list) => list?.[0]?.displayName === 'Seeded')).toBe(true)
     )
 
-    // Refetch eventually replaces the list.
-    await waitFor(() =>
-      expect(queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))?.[0]?.displayName).toBe(
-        'Refetched'
-      )
-    )
+    // Refetch replaces presence/status wholesale, but known world names survive
+    // when the worldId is unchanged.
+    await waitFor(() => {
+      const data = queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))
+      const friend = data?.[0]
+      expect(friend?.displayName).toBe('Refetched')
+      expect(friend?.status).toBe('ask-me')
+      expect(friend?.instance?.instanceId).toBe('i2')
+      expect(friend?.instance?.worldName).toBe('Known World')
+      expect(friend?.instance?.thumbnailUrl).toBe('https://example.com/know.jpg')
+    })
 
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
   })

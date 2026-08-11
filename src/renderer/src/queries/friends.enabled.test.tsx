@@ -10,9 +10,10 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, type QueryObserverOptions } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AuthState, AuthStatus } from '@shared/types'
+import type { AuthState, AuthStatus, Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
+import { fullFriend } from '../test-utils/friendFixture'
 import { useFriends } from './friends'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -215,5 +216,78 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
       await vi.advanceTimersByTimeAsync(300_000)
     })
     expect(getFriends).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useFriends cold-start merge (VRX-258)', () => {
+  it('keeps cached world names when the REST refetch returns the same worldId without names', async () => {
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: 'manual' },
+      dirty: false
+    })
+
+    const instance = {
+      worldId: 'wrld_same',
+      instanceId: 'i1',
+      worldName: 'Known World' as const,
+      thumbnailUrl: 'https://example.com/know.jpg' as const,
+      type: 'public' as const,
+      openness: 'public' as const,
+      isGroup: false,
+      groupName: null,
+      region: 'us',
+      userCount: null
+    }
+
+    const seeded: Friend[] = [
+      {
+        ...fullFriend('Seeded', 'vrchat'),
+        platformUserId: 'usr_same',
+        status: 'online',
+        presence: { state: 'in-game' },
+        instance
+      } as Friend
+    ]
+
+    const fetched: Friend[] = [
+      {
+        ...fullFriend('Refetched', 'vrchat'),
+        platformUserId: 'usr_same',
+        status: 'ask-me',
+        presence: { state: 'in-game' },
+        instance: { ...instance, instanceId: 'i2', worldName: null, thumbnailUrl: null }
+      } as Friend
+    ]
+
+    const getFriends = vi.fn().mockResolvedValue(fetched)
+    Object.assign(window, { vrx: { getFriends } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(['friends', 'vrchat'], seeded)
+
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    const { result } = renderHook(() => useFriends('vrchat'), { wrapper })
+
+    // With manual reconcile + seeded cache, the observer mounts on the known data
+    // and does not fetch yet.
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data![0]!.displayName).toBe('Seeded')
+    expect(getFriends).not.toHaveBeenCalled()
+
+    // An explicit invalidation simulates the hydrate-driven background refetch.
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['friends', 'vrchat'] })
+    })
+    await waitFor(() => expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' }))
+
+    const data = result.current.data!
+    expect(data[0]!.displayName).toBe('Refetched')
+    expect(data[0]!.status).toBe('ask-me')
+    expect(data[0]!.instance!.instanceId).toBe('i2')
+    expect(data[0]!.instance!.worldName).toBe('Known World')
+    expect(data[0]!.instance!.thumbnailUrl).toBe('https://example.com/know.jpg')
   })
 })
