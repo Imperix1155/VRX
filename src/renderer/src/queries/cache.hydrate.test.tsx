@@ -240,7 +240,6 @@ describe('PersistQueryClientProvider hydrate', () => {
         ...seededFriend('Seeded'),
         platformUserId: 'usr_same',
         status: 'online' as const,
-        presence: { state: 'in-game' as const },
         instance: instanceBase
       } as Friend
     ]
@@ -287,6 +286,7 @@ describe('PersistQueryClientProvider hydrate', () => {
       const friend = data?.[0]
       expect(friend?.displayName).toBe('Refetched')
       expect(friend?.status).toBe('ask-me')
+      expect(friend?.presence.state).toBe('in-game')
       expect(friend?.instance?.instanceId).toBe('i2')
       expect(friend?.instance?.worldName).toBe('Known World')
       expect(friend?.instance?.thumbnailUrl).toBe('https://example.com/know.jpg')

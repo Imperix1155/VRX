@@ -55,12 +55,13 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
   return useQuery({
     queryKey: friendsQueryKey(platform),
     // Renderer-side sibling of VrcAdapter's enrichPipelineEvent clobber guard
-    // (VRX-254), covering the REST roster path (VRX-258).
-    queryFn: async () =>
-      mergeKnownWorldMetadata(
-        queryClient.getQueryData(friendsQueryKey(platform)),
-        await fetchFriends(platform)
-      ),
+    // (VRX-254), covering the REST roster path (VRX-258). The cache is read
+    // AFTER the fetch resolves so any live world-metadata enrichment that lands
+    // mid-flight survives the REST write.
+    queryFn: async () => {
+      const fresh = await fetchFriends(platform)
+      return mergeKnownWorldMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
+    },
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
       reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),

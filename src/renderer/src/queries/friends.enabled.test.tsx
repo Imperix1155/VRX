@@ -14,7 +14,7 @@ import type { AuthState, AuthStatus, Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { fullFriend } from '../test-utils/friendFixture'
-import { useFriends } from './friends'
+import { useFriends, friendsQueryKey } from './friends'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
 vi.mock('./auth', () => ({
@@ -289,5 +289,81 @@ describe('useFriends cold-start merge (VRX-258)', () => {
     expect(data[0]!.instance!.instanceId).toBe('i2')
     expect(data[0]!.instance!.worldName).toBe('Known World')
     expect(data[0]!.instance!.thumbnailUrl).toBe('https://example.com/know.jpg')
+  })
+})
+
+/**
+ * VRX-258 regression: a live `world-metadata` event that resolves a world name
+ * while a REST refetch is in flight must survive the REST write.
+ *
+ * Gotchas carried over from the review probe:
+ *  - The `// @vitest-environment jsdom` docblock at the top of this file is
+ *    required; without it the mount hits "window is not defined".
+ *  - Do NOT `await queryClient.invalidateQueries(...)` when the refetch is
+ *    deliberately blocked on a pending promise — that promise only settles once
+ *    the refetch settles, so awaiting it deadlocks and the test times out.
+ */
+describe('useFriends world-name survival during in-flight refetch (VRX-258)', () => {
+  function friendWith(worldName: string | null): Friend {
+    const inst = {
+      worldId: 'wrld_D',
+      instanceId: 'i1',
+      worldName,
+      thumbnailUrl: null as string | null,
+      type: 'public' as const,
+      openness: 'public' as const,
+      isGroup: false,
+      groupName: null,
+      region: 'us',
+      userCount: null
+    }
+    return {
+      ...fullFriend('Racer', 'vrchat'),
+      platformUserId: 'usr_race',
+      status: 'online',
+      presence: { state: 'in-game' },
+      instance: inst
+    } as Friend
+  }
+
+  it('keeps a world name written mid-fetch when the cache is read after the fetch resolves', async () => {
+    mockAuthState('authenticated')
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, reconcileInterval: 'manual' },
+      dirty: false
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friendWith(null)])
+
+    let release!: (v: Friend[]) => void
+    const pending = new Promise<Friend[]>((r) => {
+      release = r
+    })
+    const getFriends = vi.fn().mockReturnValue(pending)
+    Object.assign(window, { vrx: { getFriends } })
+
+    const wrapper = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    renderHook(() => useFriends('vrchat'), { wrapper })
+
+    // Trigger the refetch, but do not await it — the promise is blocked.
+    void queryClient.invalidateQueries({ queryKey: friendsQueryKey('vrchat') })
+    await waitFor(() => expect(getFriends).toHaveBeenCalled())
+
+    // WorldResolver warms up mid-fetch; a live world-metadata write lands.
+    queryClient.setQueryData(friendsQueryKey('vrchat'), [friendWith("D's Name")])
+    expect(
+      queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))![0]!.instance!.worldName
+    ).toBe("D's Name")
+
+    // REST resolves with a still-null name (resolver was cold at fetch start).
+    release([friendWith(null)])
+    await waitFor(() => expect(getFriends).toHaveBeenCalledTimes(1))
+
+    const after = queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))![0]!.instance!
+      .worldName
+    expect(after).toBe("D's Name")
   })
 })
