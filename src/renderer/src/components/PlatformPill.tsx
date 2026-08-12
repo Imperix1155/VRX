@@ -27,6 +27,7 @@ export default function PlatformPill({
   const isVrc = platform === 'vrchat'
   return (
     <span
+      data-platform-pill=""
       className={`${PILL_BASE} ${className}`}
       style={{
         color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',

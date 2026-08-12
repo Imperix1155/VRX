@@ -59,7 +59,9 @@ function MainContent(): React.JSX.Element {
 /**
  * §8 App shell — 248px sidebar | 1fr main, height:100vh, only .main scrolls.
  * Grid + overflow rules are inline style (not Tailwind) so they exactly match
- * the §8 CSS spec without needing a custom Tailwind plugin.
+ * the §8 CSS spec without needing a custom Tailwind plugin. The 248px sidebar
+ * width is shared via `--sidebar-width` so HotInstanceSheet can stay inside the
+ * main content area instead of covering the sidebar.
  */
 export default function AppShell(): React.JSX.Element {
   const { t } = useTranslation()
@@ -69,7 +71,7 @@ export default function AppShell(): React.JSX.Element {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '248px 1fr',
+        gridTemplateColumns: 'var(--sidebar-width) 1fr',
         height: '100vh',
         padding: 'var(--space-4)',
         gap: 'var(--space-4)'

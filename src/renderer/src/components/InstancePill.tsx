@@ -55,6 +55,7 @@ export default function InstancePill({
   if (onJoin) {
     return (
       <button
+        data-instance-pill=""
         type="button"
         onClick={onJoin}
         disabled={disabled}
@@ -68,7 +69,7 @@ export default function InstancePill({
   }
 
   return (
-    <span className={pillClass} style={style}>
+    <span data-instance-pill="" className={pillClass} style={style}>
       {label}
     </span>
   )

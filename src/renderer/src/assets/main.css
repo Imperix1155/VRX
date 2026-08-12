@@ -34,6 +34,12 @@
   --space-10: 40px;
   --friend-status-description-width: 160px;
 
+  /* SHELL GEOMETRY (§8): sidebar width + main-pane offsets. Shared between
+     AppShell and HotInstanceSheet so the sheet never covers the sidebar. */
+  --sidebar-width: 248px;
+  --content-inset-left: calc(var(--space-4) + var(--sidebar-width) + var(--space-4));
+  --content-inset-right: var(--space-4);
+
   /* PLATFORM — deep + saturated (tab/pill/tint only) */
   --vrc: #2b7ce8; /* VRChat / blue */
   --cvr: #f3711e; /* ChilloutVR / orange */

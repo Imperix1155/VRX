@@ -388,26 +388,29 @@
   .stepper .val{min-width:36px;text-align:center;font:600 12.5px Inter,sans-serif;font-variant-numeric:tabular-nums;color:var(--text)}
 
   /* §9.5 Hot-instance sheet representative (VRX-250). Static shell showing the
-     bottom-anchored glass panel, platform stripe, banner area, and top layout.
-     The live sheet is non-modal, closes on Esc/outside/✕, and replaces content
-     in place when a different card is selected. */
+     bottom-anchored glass panel, platform stripe clipped inside the panel's top
+     radius, banner area, pills, and top layout. The live sheet is non-modal,
+     closes on Esc/outside/✕, and replaces content in place when a different
+     card is selected. Updated 2026-08-12: 150px banner, pills on the banner,
+     openness above friends heading, ID demoted to the bottom of the right zone. */
   .hsheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(720px,100% - 32px);border-radius:24px 24px 0 0;border:1px solid var(--border);border-bottom:none;background:linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03));box-shadow:0 -10px 38px rgba(0,0,0,0.36);overflow:hidden;z-index:50}
   .hsheet::before{content:"";position:absolute;inset:0;background:var(--glass-frost);opacity:0.86;backdrop-filter:var(--glass-blur);z-index:-1}
   .hsheet-stripe{height:4px;background:linear-gradient(90deg,var(--vrc),transparent)}
   .hsheet-grab{display:flex;justify-content:center;padding:12px 0 6px}
   .hsheet-grab span{width:44px;height:4px;border-radius:999px;background:var(--border)}
   .hsheet-close{position:absolute;top:12px;right:12px;width:28px;height:28px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text-dim);display:grid;place-items:center;font-size:14px}
-  .hsheet-banner{height:92px;background:linear-gradient(135deg,color-mix(in srgb,var(--vrc) 28%,transparent),color-mix(in srgb,var(--vrc) 8%,transparent));display:flex;align-items:flex-end;padding:12px 16px;gap:16px}
+  .hsheet-banner{height:150px;background:linear-gradient(135deg,color-mix(in srgb,var(--vrc) 28%,transparent),color-mix(in srgb,var(--vrc) 8%,transparent));display:flex;align-items:flex-end;padding:12px 16px;gap:16px}
   .hsheet-banner-info{flex:1;min-width:0}
   .hsheet-name{font-size:21px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,0.6)}
-  .hsheet-meta{font-size:12.5px;color:var(--text-dim);text-shadow:0 1px 6px rgba(0,0,0,0.6)}
+  .hsheet-pills{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;text-shadow:0 1px 6px rgba(0,0,0,0.6)}
   .hsheet-join{height:28px;padding:0 14px;border-radius:12px;font-size:12px;font-weight:600;color:var(--op-public);background:color-mix(in srgb,var(--op-public) 13%,transparent);border:1px solid color-mix(in srgb,var(--op-public) 36%,transparent);display:inline-flex;align-items:center;justify-content:center}
-  .hsheet-section{display:flex;align-items:center;gap:8px;padding:12px 16px 4px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint)}
+  .hsheet-openness{padding:12px 16px 4px;font-size:12.5px;color:var(--text-faint)}
+  .hsheet-section{display:flex;align-items:center;gap:8px;padding:4px 16px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint)}
   .hsheet-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 14px}
   .hsheet-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px;border:1px solid var(--border);background:var(--control-fill);font-size:12.5px;font-weight:500}
   .hsheet-chip span:first-child{width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,rgba(255,255,255,0.22),rgba(255,255,255,0.06));display:grid;place-items:center;font-size:10px;font-weight:700}
-  .hsheet-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-dim)}
-  .hsheet-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;opacity:0.86}
+  .hsheet-foot{display:flex;justify-content:flex-end;align-items:center;padding:10px 16px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-dim)}
+  .hsheet-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--text-faint);opacity:0.86}
   [data-theme="light"] .hsheet{background:linear-gradient(135deg,rgba(255,255,255,0.7),rgba(255,255,255,0.28));border-color:rgba(40,48,68,0.16)}
   [data-theme="light"] .hsheet::before{opacity:0.6;background:var(--glass-frost)}
 </style>
@@ -470,10 +473,14 @@
         <div class="hsheet-banner">
           <div class="hsheet-banner-info">
             <div class="hsheet-name">SunDown</div>
-            <div class="hsheet-meta">Public</div>
+            <div class="hsheet-pills">
+              <span class="opill" style="--op: var(--op-public)">Public</span>
+              <span class="ppill">VRChat</span>
+            </div>
           </div>
           <div class="hsheet-join" role="button" tabindex="0">Join</div>
         </div>
+        <div class="hsheet-openness">Anyone can join this instance.</div>
         <div class="hsheet-section"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Friends here — 4</div>
         <div class="hsheet-chips">
           <span class="hsheet-chip"><span>A</span>Aria</span>
@@ -482,8 +489,7 @@
           <span class="hsheet-chip"><span>K</span>Kai</span>
         </div>
         <div class="hsheet-foot">
-          <span class="hsheet-id">wrld_…</span>
-          <span>Anyone can join this instance.</span>
+          <span class="hsheet-id" title="wrld_sun:1~public">wrld_sun:1~public</span>
         </div>
       </div>
 
