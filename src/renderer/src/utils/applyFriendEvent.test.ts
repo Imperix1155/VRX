@@ -427,6 +427,55 @@ describe('applyFriendEvent', () => {
     expect(next.find((f) => f.platform === 'vrchat')).toBe(vrcFriend) // other platform: identity kept
   })
 
+  it('presence-snapshot applies an update whose instance differs ONLY in group fields (equality regression, VRX-260)', () => {
+    // Defensive pin: `sameInstance` must compare groupId/groupImageUrl/groupName.
+    // No CVR payload carries group data TODAY (fields are producer-null), so this
+    // uses a synthetic entry — the compares exist so a future producer (or a
+    // misrouted event) can never have its update dropped as "unchanged" (the
+    // VRX-240 opennessUnknown lesson, pinned mutation-real).
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'friends',
+      openness: 'friends',
+      isGroup: true,
+      groupName: 'Old Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const friend = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp',
+      displayName: 'grp',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([friend], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupImageUrl: 'https://files.abidata.io/grp.png' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(friend)
+    expect(next[0]?.instance?.groupImageUrl).toBe('https://files.abidata.io/grp.png')
+  })
+
   it('presence-snapshot keeps identity for listed entries whose presence+instance are unchanged', () => {
     const inst = {
       worldId: 'i_1',
