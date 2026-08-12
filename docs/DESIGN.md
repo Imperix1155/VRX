@@ -182,6 +182,7 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
 - Radius scale: panels/cards `20px`; nav/segmented/buttons `12–13px`; pills/affordances `9–10px`.
   - **The stack model (owner law, 2026-07-11 / VRX-206):** surfaces read as physical LAYERS stacked on top of each other — background → panel → card → pills/tabs on the card. An element placed onto a parent surface gets an EVEN inset on every attached side and a radius derived concentrically from the parent (inner = outer − border − gap; the friend-row platform tab: 13 − 1 − 3 = **9px**). Never butt an element flush on some sides and gapped on others — "stacked on, never slapped on".
   - **Carve-out (owner-ratified 2026-06; cascade note ↻ VRX-225):** the **segmented control track** uses the `20px` panel radius, not 12–13px — the owner chose the rounder look, and the track simply carries no `rounded-[..]` utility so `.glass`'s default radius applies. Its sliding bubble is then `16px` (= 20 − 4px inset) so it seats concentrically. NOTE the cascade REVERSED in VRX-225: `.glass` now lives in `@layer components`, so a Tailwind utility on the same element WINS over the glass defaults (that's what lets the drawer be `fixed`). Putting a control back on the 12–13px scale is now just `rounded-[13px]` — but the 20px track choice above still stands.
+- **Stripe containment rule (owner-ratified 2026-08-12; second shipped defect after join dialog):** platform stripes and accent lines render INSIDE their panel's border-radius and clip to the panel bounds — never full-bleed past a rounded corner, never outside the panel edge. The stripe must be a descendant of the overflow-clipping radius container.
 - Platform tint opacity ceiling = `0.22`. Above → reads as solid plastic (loses glass).
 - `.tint-vrc`/`.tint-cvr` used ONLY where the surface belongs to one platform (e.g. hot-instance cards).
 
@@ -468,31 +469,32 @@ It appears in two places: the **sidebar footer** (when an update is actionable) 
 
 ### §9.5 Hot-instance sheet (VRX-250)
 
-Owner-ratified "Banner" design, 2026-08-08. Clicking anywhere on a Dashboard hot-instance card opens a bottom sheet for that instance. The card's Join pill keeps winning over open (the existing `stopPropagation` containment is extended to the card-level click). The card becomes an interactive opener: `role="button"`, `tabIndex={0}`, keyboard Enter/Space handling, and `cursor-pointer`.
+Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2026-08-12. Clicking anywhere on a Dashboard hot-instance card opens a bottom sheet for that instance. The card's Join pill keeps winning over open (the existing `stopPropagation` containment is extended to the card-level click). The card becomes an interactive opener: `role="button"`, `tabIndex={0}`, keyboard Enter/Space handling, and `cursor-pointer`.
 
 **Sheet shell:**
 
-- Bottom-anchored, `max-h-[34vh]`, `min-h-[300px]`, fixed left/right/bottom.
+- Bottom-anchored, `max-h-[34vh]`, `min-h-[360px]`, fixed left/right/bottom.
+- Contained to the **main content area**: the sheet and its scrim start at `var(--content-inset-left)` (= shell padding `var(--space-4)` + sidebar `248px` + `var(--space-4)` gap — flush with the main panel's left edge) and end at `var(--content-inset-right)` (= `var(--space-4)` gap), so the sidebar, wordmark, version line, and update button stay fully visible when the sheet is open. The inner horizontal padding matches the main pane's own padding (`var(--space-2)`).
 - Slides up over **220ms** `cubic-bezier(.32,.72,.29,1)`; instant under `prefers-reduced-motion`.
 - Material: `background-color: var(--glass-frost)` + `background-image: var(--glass-bg)` + `backdrop-filter: var(--glass-blur-frosted)`, top corners `var(--radius-panel)`, top border `var(--glass-border)`, upward shadow `var(--hot-sheet-shadow)`.
-- 4px platform-gradient top stripe (`linear-gradient(90deg, var(--vrc|--cvr), transparent)` per instance platform).
+- 4px platform-gradient top stripe (`linear-gradient(90deg, var(--vrc|--cvr), transparent)` per instance platform). The stripe is a child of an inner `overflow-hidden rounded-t-[var(--radius-panel)]` wrapper so it follows the panel's rounded top corners and never spans past them (§3 stripe containment rule; fixes the second shipped occurrence of this defect, 2026-08-12).
 - Grab bar: 44×4px, `var(--border)`, centered, `aria-hidden`.
-- ✕ close: 28px, radius 9px, ghost-button styling matching the friend drawer ✕.
+- ✕ close: 28px, radius 9px, ghost-button styling matching the friend drawer ✕; rendered as a sibling of the clip wrapper so it is never clipped by the corner radius.
 - **Non-modal** (mirrors FriendDrawer, VRX-225/228): soft scrim `var(--scrim-soft)` closes on outside `pointerdown` but is `pointer-events-none`; `role="dialog"` **without** `aria-modal`; no focus trap; `aria-label` = world name; initial focus on ✕; Esc closes; opening another card switches content in place; focus returns to the opener card on close.
 
 **Banner:**
 
-- Full-width world-image strip, 92px tall, `var(--radius-control)`.
+- Full-width world-image strip, **150px** tall, `var(--radius-control)`.
 - Image `filter: brightness(0.66)`; when no thumbnail is known → quiet gradient placeholder (matches Avatar's absence pattern — never a guessed image).
-- Overlaid, bottom-aligned: world name 21px/700 with `var(--hot-sheet-banner-title-shadow)` + a line "Hosted by {groupName} · {type label}" (groupName only when `isGroup`; otherwise just the type label; label vocabulary via `LABEL_KEYS_BY_SCHEME`).
+- Overlaid, bottom-aligned: world name 21px/700 with `var(--hot-sheet-banner-title-shadow)` + the **shared `InstancePill`** (tier-colored openness label, same component as the card/row) and the **shared `PlatformPill`** (the §5 non-color platform signifier from DashboardView) clustered in a row under the name. They reuse the banner's subtitle text-shadow so they stay legible over imagery. The old "Hosted by {groupName}" line is removed; the real group card lives in the right-zone metadata pipeline (next issue).
 - Join button on the banner's right edge, bottom-aligned — routed through the ONE shared `useJoinInstance` flow + first joinable member, identical to the card pill. Disabled/absent when no member is joinable, with the existing denial blip pattern.
 
 **Below the banner:**
 
-- Left: heading "FRIENDS HERE — {N}" (10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`) + friend CHIPS. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
-- Right: meta stack, right-aligned. Instance ID in `ui-monospace` 11.5px `var(--text-faint)` (display the real `instanceId`; long values end-truncate via `truncate`, full value in `title=`). Openness sentence in the muted style: reuse the join-confirm dialog's open/closed vocabulary + `opennessUnknown` handling (VRX-240/245). Muted = `var(--text-faint)`, 12.5px — not invisible.
+- Left: the muted openness sentence (`var(--text-faint)`, 12.5px) sits **directly above** the "FRIENDS HERE — {N}" heading — owner rationale: the openness note belongs where the join decision is made. Heading: 10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`. Friend CHIPS follow. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
+- Right: meta stack, right-aligned, justified to the bottom. Instance ID in `ui-monospace` **10.5px** `var(--text-faint)` at the bottom of the zone (display the real `instanceId`; long values end-truncate via `truncate`, full value in `title=`). This is the demoted identity anchor; it will sit under the future group card. The openness sentence no longer lives in this stack.
 
-**Color law:** platform via the top stripe only; openness via WORDS in the meta stack; no new color carriers. Must pass the §12 black-and-white test.
+**Color law:** platform via the top stripe + the `PlatformPill` label only; openness via the `InstancePill` + WORDS in the left zone; no new color carriers. Must pass the §12 black-and-white test.
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 

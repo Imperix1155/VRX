@@ -1,12 +1,13 @@
 /**
  * HotInstanceSheet — the bottom sheet for a hot instance (VRX-250).
  *
- * Owner-ratified "Banner" design, 2026-08-08.
+ * Owner-ratified "Banner" design, 2026-08-08; layout polish round 2026-08-12.
  *
- * A non-modal bottom-anchored sheet that slides up over the dashboard. Clicking
- * anywhere on a hot-instance card opens it; the card's Join pill still wins over
- * open. The sheet shows a world-image banner, every friend in the instance, the
- * instance id, group/type context, and a Join button.
+ * A non-modal bottom-anchored sheet that slides up over the dashboard. The sheet
+ * and its scrim are contained to the main content area so the sidebar stays fully
+ * visible. Clicking anywhere on a hot-instance card opens it; the card's Join pill
+ * still wins over open. The sheet shows a world-image banner, every friend in the
+ * instance, the instance id, and a quiet openness line.
  *
  * A11y mirrors FriendDrawer's ratified non-modal contract (VRX-225/228):
  * - role="dialog" without aria-modal (the dashboard stays interactive).
@@ -23,7 +24,10 @@ import type { HotInstance } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { OPENNESS_TIER } from '../utils/instancePill'
 import { Avatar } from './Avatar'
+import InstancePill from './InstancePill'
+import PlatformPill from './PlatformPill'
 
 /** Openness copy buckets reused from JoinConfirmDialog (VRX-245). */
 type OpennessCopy =
@@ -142,6 +146,7 @@ export default function HotInstanceSheet({
   const isVrc = shown.platform === 'vrchat'
   const worldName = shown.worldName ?? t('friends.instance.unknownWorld')
   const typeLabel = t(LABEL_KEYS_BY_SCHEME[labelScheme][shown.instanceType])
+  const tier = OPENNESS_TIER[shown.instanceType] ?? null
   const opennessCopy = opennessCopyFor(shown)
   const opennessSentence = t(effectivelyKey(opennessCopy, shown.platform), {
     group: shown.groupName ?? t('joinConfirm.theGroup')
@@ -154,11 +159,12 @@ export default function HotInstanceSheet({
 
   return (
     <div inert={!open} aria-hidden={!open}>
-      {/* Soft scrim — pure depth, never an input surface (non-modal). */}
+      {/* Soft scrim — pure depth, never an input surface (non-modal).
+          Contained to the main content area so the sidebar keeps its full color. */}
       <div
         data-testid="hot-sheet-scrim"
         aria-hidden="true"
-        className={`pointer-events-none fixed inset-0 z-40 bg-[var(--scrim-soft)] motion-safe:transition-opacity motion-safe:duration-[220ms] ${
+        className={`pointer-events-none fixed inset-y-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-40 bg-[var(--scrim-soft)] motion-safe:transition-opacity motion-safe:duration-[220ms] ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -167,7 +173,7 @@ export default function HotInstanceSheet({
         ref={panelRef}
         role="dialog"
         aria-label={worldName}
-        className={`fixed right-0 bottom-0 left-0 z-50 flex max-h-[34vh] min-h-[300px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
+        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[34vh] min-h-[360px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
@@ -181,27 +187,9 @@ export default function HotInstanceSheet({
           boxShadow: 'var(--hot-sheet-shadow)'
         }}
       >
-        {/* 4px platform-gradient top stripe */}
-        <div
-          aria-hidden="true"
-          className="h-[4px] w-full shrink-0"
-          style={{
-            background: isVrc
-              ? 'linear-gradient(90deg, var(--vrc), transparent)'
-              : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
-
-        {/* Grab bar */}
-        <div className="flex justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
-          <div
-            aria-hidden="true"
-            className="h-[4px] w-[44px] rounded-full"
-            style={{ background: 'var(--border)' }}
-          />
-        </div>
-
-        {/* ✕ close */}
+        {/* ✕ close — FIRST child of the panel (Tab from initial focus reaches Join
+            next, review 2026-08-12) and a sibling of the clip wrapper so the
+            rounded-corner clipping can never swallow it. */}
         <button
           ref={closeButtonRef}
           type="button"
@@ -212,124 +200,151 @@ export default function HotInstanceSheet({
           <span aria-hidden="true">✕</span>
         </button>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]">
-          {/* Banner */}
+        {/*
+          Inner wrapper: matches the panel's top radius and clips the platform
+          stripe so it follows the rounded corners instead of spanning the full
+          width above them. The close button is a sibling so it cannot be clipped.
+        */}
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
+          {/* 4px platform-gradient top stripe */}
           <div
-            ref={bannerRef}
-            className="relative h-[92px] w-full shrink-0 overflow-hidden rounded-control"
+            aria-hidden="true"
+            data-testid="hot-sheet-stripe"
+            className="h-[4px] w-full shrink-0"
             style={{
-              background: showBannerImage
-                ? undefined
-                : 'linear-gradient(135deg, color-mix(in srgb, var(--text) 10%, transparent), color-mix(in srgb, var(--text) 4%, transparent))'
+              background: isVrc
+                ? 'linear-gradient(90deg, var(--vrc), transparent)'
+                : 'linear-gradient(90deg, var(--cvr), transparent)'
             }}
-          >
-            {showBannerImage && (
-              <img
-                src={bannerDataUrl ?? undefined}
-                alt=""
-                aria-hidden="true"
-                className="h-full w-full object-cover"
-                style={{ filter: 'brightness(0.66)' }}
-                onError={() => setFailedBannerKey(bannerImageKey)}
-              />
-            )}
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-[var(--space-3)] p-[var(--space-3)]">
-              <div className="min-w-0">
-                <h2
-                  className="truncate text-[21px] font-bold"
-                  style={{
-                    color: 'var(--text)',
-                    textShadow: 'var(--hot-sheet-banner-title-shadow)'
-                  }}
-                >
-                  {worldName}
-                </h2>
-                <p
-                  className="truncate text-[12.5px]"
-                  style={{
-                    color: 'var(--text-dim)',
-                    textShadow: 'var(--hot-sheet-banner-subtitle-shadow)'
-                  }}
-                >
-                  {shown.isGroup && shown.groupName
-                    ? `${t('hotSheet.hostedBy', { group: shown.groupName })} · ${typeLabel}`
-                    : typeLabel}
-                </p>
-              </div>
+          />
 
-              {joinTarget !== null && (
-                <span className="relative block shrink-0" data-join-pill>
-                  <button
-                    type="button"
-                    onClick={joinSheetTarget}
-                    disabled={isJoining}
-                    aria-label={t('friends.joinAria', {
-                      name: joinTarget.displayName,
-                      world: worldName
-                    })}
-                    className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
-                    style={{
-                      borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                      background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
-                      color: 'var(--op-public-text)'
-                    }}
-                  >
-                    {t('drawer.join')}
-                  </button>
-                  <span
-                    role="status"
-                    className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-center text-[12px] text-[var(--text-dim)]"
-                  >
-                    {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
-                  </span>
-                </span>
-              )}
-            </div>
+          {/* Grab bar */}
+          <div className="flex justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
+            <div
+              aria-hidden="true"
+              className="h-[4px] w-[44px] rounded-full"
+              style={{ background: 'var(--border)' }}
+            />
           </div>
 
-          {/* Below banner: friends (left) + meta (right) */}
-          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] sm:flex-row sm:justify-between">
-            {/* Friends here */}
-            <div className="min-w-0 flex-1">
-              <h3
-                className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-faint)]"
-                style={{ letterSpacing: '1.4px' }}
-              >
-                {t('hotSheet.friendsHereHeading', { count: shown.friendCount })}
-              </h3>
-              <div className="flex flex-wrap gap-[var(--space-2)]">
-                {shown.members.map((friend) => (
-                  <div
-                    key={`${friend.platform}:${friend.platformUserId}`}
-                    className="inline-flex items-center gap-[var(--space-1)] rounded-[999px] border px-[12px] py-[5px] pl-[6px]"
+          <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto px-[var(--space-2)] py-[var(--space-4)]">
+            {/* Banner */}
+            <div
+              ref={bannerRef}
+              data-testid="hot-sheet-banner"
+              className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-control"
+              style={{
+                background: showBannerImage
+                  ? undefined
+                  : 'linear-gradient(135deg, color-mix(in srgb, var(--text) 10%, transparent), color-mix(in srgb, var(--text) 4%, transparent))'
+              }}
+            >
+              {showBannerImage && (
+                <img
+                  src={bannerDataUrl ?? undefined}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-cover"
+                  style={{ filter: 'brightness(0.66)' }}
+                  onError={() => setFailedBannerKey(bannerImageKey)}
+                />
+              )}
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-[var(--space-3)] p-[var(--space-3)]">
+                <div className="min-w-0">
+                  <h2
+                    className="truncate text-[21px] font-bold"
                     style={{
-                      borderColor: 'var(--border)',
-                      background: 'var(--control-fill)'
+                      color: 'var(--text)',
+                      textShadow: 'var(--hot-sheet-banner-title-shadow)'
                     }}
                   >
-                    <Avatar friend={friend} variant="small" ariaLabel={friend.displayName} />
-                    <span className="truncate text-[12.5px] text-[var(--text)]">
-                      {friend.displayName}
-                    </span>
+                    {worldName}
+                  </h2>
+                  <div
+                    className="mt-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)]"
+                    style={{ textShadow: 'var(--hot-sheet-banner-subtitle-shadow)' }}
+                  >
+                    <InstancePill label={typeLabel} tier={tier} />
+                    <PlatformPill platform={shown.platform} />
                   </div>
-                ))}
+                </div>
+
+                {joinTarget !== null && (
+                  <span className="relative block shrink-0" data-join-pill>
+                    <button
+                      type="button"
+                      onClick={joinSheetTarget}
+                      disabled={isJoining}
+                      aria-label={t('friends.joinAria', {
+                        name: joinTarget.displayName,
+                        world: worldName
+                      })}
+                      className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
+                        background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                        color: 'var(--op-public-text)'
+                      }}
+                    >
+                      {t('drawer.join')}
+                    </button>
+                    <span
+                      role="status"
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-center text-[12px] text-[var(--text-dim)]"
+                    >
+                      {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
+                    </span>
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Meta stack */}
-            <div className="flex shrink-0 flex-col items-end gap-[var(--space-1)] text-right">
-              <div className="group relative max-w-[260px]">
+            {/* Below banner: friends (left) + meta (right) */}
+            <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] sm:flex-row sm:justify-between">
+              {/* Friends here */}
+              <div className="min-w-0 flex-1">
+                <p
+                  className="mb-[var(--space-1)] text-[12.5px] text-[var(--text-faint)]"
+                  data-testid="hot-sheet-openness-sentence"
+                >
+                  {opennessSentence}
+                </p>
+                <h3
+                  className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-faint)]"
+                  style={{ letterSpacing: '1.4px' }}
+                >
+                  {t('hotSheet.friendsHereHeading', { count: shown.friendCount })}
+                </h3>
+                <div className="flex flex-wrap gap-[var(--space-2)]">
+                  {shown.members.map((friend) => (
+                    <div
+                      key={`${friend.platform}:${friend.platformUserId}`}
+                      className="inline-flex items-center gap-[var(--space-1)] rounded-[999px] border px-[12px] py-[5px] pl-[6px]"
+                      style={{
+                        borderColor: 'var(--border)',
+                        background: 'var(--control-fill)'
+                      }}
+                    >
+                      <Avatar friend={friend} variant="small" ariaLabel={friend.displayName} />
+                      <span className="truncate text-[12.5px] text-[var(--text)]">
+                        {friend.displayName}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Meta stack */}
+              <div className="flex shrink-0 flex-col items-end justify-end gap-[var(--space-1)] text-right">
                 <code
-                  className="block truncate text-[11.5px] text-[var(--text-faint)]"
+                  className="block max-w-[260px] truncate text-[10.5px] text-[var(--text-faint)]"
                   style={{ fontFamily: 'ui-monospace, monospace' }}
                   title={shown.instanceId}
+                  data-testid="hot-sheet-instance-id"
                 >
                   {shown.instanceId}
                 </code>
               </div>
-              <p className="max-w-[260px] text-[12.5px] text-[var(--text-faint)]">
-                {opennessSentence}
-              </p>
             </div>
           </div>
         </div>

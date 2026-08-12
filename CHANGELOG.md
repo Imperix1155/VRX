@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The hot-instance sheet's platform stripe now stays inside the panel's rounded corners instead of spanning the window. (vrx-259)
+
+### Changed
+
+- The hot-instance sheet no longer covers the sidebar, gives the world banner more room, carries the instance-type and platform pills on the banner, and moves the openness note next to the friends list. (vrx-259)
+
 ## [0.16.0] - 2026-08-11
 
 ### Added
