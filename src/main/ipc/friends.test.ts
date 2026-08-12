@@ -118,6 +118,8 @@ describe('get-friends location seeding', () => {
         openness: 'invite' as const,
         isGroup: false,
         groupName: null,
+        groupId: null,
+        groupImageUrl: null,
         region: null,
         userCount: null
       }

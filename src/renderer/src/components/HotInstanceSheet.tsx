@@ -93,6 +93,7 @@ export default function HotInstanceSheet({
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const bannerRef = useRef<HTMLDivElement>(null)
+  const groupCardRef = useRef<HTMLDivElement>(null)
 
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const joinTarget = shown?.members.find(isFriendJoinable) ?? null
@@ -101,6 +102,20 @@ export default function HotInstanceSheet({
   const [failedBannerKey, setFailedBannerKey] = useState<string | null>(null)
   const bannerImageKey = bannerDataUrl ? `${shown?.thumbnailUrl ?? ''}\u0000${bannerDataUrl}` : null
   const showBannerImage = bannerImageKey !== null && bannerImageKey !== failedBannerKey
+
+  const groupDataUrl = useAvatar(shown?.groupImageUrl ?? null, groupCardRef)
+  const [failedGroupKey, setFailedGroupKey] = useState<string | null>(null)
+  const groupImageKey = groupDataUrl ? `${shown?.groupImageUrl ?? ''}\u0000${groupDataUrl}` : null
+  const showGroupImage = groupImageKey !== null && groupImageKey !== failedGroupKey
+  // Platform gate is deliberate defense: no CVR producer emits group identity
+  // today, so a CVR instance carrying group fields is stale/malformed data —
+  // never render a card from it (truthful signals).
+  const showGroupCard =
+    shown !== null &&
+    shown.platform === 'vrchat' &&
+    shown.isGroup &&
+    shown.groupId !== null &&
+    shown.groupName !== null
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY, so the join
   // confirmation dialog (a modal sibling) does not steal focus back here.
@@ -335,7 +350,44 @@ export default function HotInstanceSheet({
               </div>
 
               {/* Meta stack */}
-              <div className="flex shrink-0 flex-col items-end justify-end gap-[var(--space-1)] text-right">
+              <div className="flex shrink-0 flex-col items-end justify-end gap-[var(--space-2)] text-right">
+                {showGroupCard && (
+                  <div
+                    ref={groupCardRef}
+                    data-testid="hot-sheet-group-card"
+                    role="img"
+                    aria-label={t('hotSheet.hostedBy', { group: shown.groupName })}
+                    className="relative h-[80px] w-[200px] overflow-hidden rounded-control"
+                    style={{
+                      background: showGroupImage
+                        ? undefined
+                        : 'linear-gradient(135deg, color-mix(in srgb, var(--text) 14%, transparent), color-mix(in srgb, var(--text) 5%, transparent))'
+                    }}
+                  >
+                    {showGroupImage && (
+                      <img
+                        src={groupDataUrl ?? undefined}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-full w-full object-cover"
+                        style={{ filter: 'brightness(0.6)' }}
+                        onError={() => setFailedGroupKey(groupImageKey)}
+                      />
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 p-[var(--space-2)]">
+                      <span
+                        className="block truncate text-[12.5px] font-semibold"
+                        title={shown.groupName ?? undefined}
+                        style={{
+                          color: 'var(--text)',
+                          textShadow: 'var(--hot-sheet-banner-title-shadow)'
+                        }}
+                      >
+                        {shown.groupName}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <code
                   className="block max-w-[260px] truncate text-[10.5px] text-[var(--text-faint)]"
                   style={{ fontFamily: 'ui-monospace, monospace' }}

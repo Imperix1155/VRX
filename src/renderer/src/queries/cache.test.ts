@@ -381,3 +381,130 @@ describe('createQueryCachePersister', () => {
     }
   })
 })
+
+describe('legacy cache tolerance — VRX-260 group fields', () => {
+  it('hydrates an envelope whose InstanceInfo lacks groupId / groupImageUrl', () => {
+    const legacy: PersistedClient = {
+      timestamp: Date.now(),
+      buster: buildCacheBuster(),
+      clientState: {
+        mutations: [],
+        queries: [
+          {
+            dehydratedAt: Date.now(),
+            queryHash: JSON.stringify(['friends', 'vrchat']),
+            queryKey: ['friends', 'vrchat'],
+            state: {
+              data: [
+                {
+                  platform: 'vrchat',
+                  platformUserId: 'usr_legacy',
+                  displayName: 'Legacy',
+                  avatarUrl: null,
+                  presence: { state: 'active' },
+                  status: 'online',
+                  statusDescription: null,
+                  trustRank: null,
+                  instance: {
+                    worldId: 'wrld_legacy',
+                    instanceId: 'i_legacy',
+                    worldName: 'Legacy World',
+                    thumbnailUrl: null,
+                    type: 'group',
+                    openness: 'invite',
+                    isGroup: true,
+                    groupName: null,
+                    region: 'us',
+                    userCount: null
+                  },
+                  isFavorite: false,
+                  favoriteGroupIds: [],
+                  linkedPersonId: null
+                }
+              ],
+              dataUpdateCount: 1,
+              dataUpdatedAt: Date.now(),
+              error: null,
+              errorUpdateCount: 0,
+              errorUpdatedAt: 0,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+              fetchMeta: null,
+              isInvalidated: false,
+              status: 'success',
+              fetchStatus: 'idle'
+            }
+          }
+        ]
+      }
+    }
+
+    const restored = deserializePersistedQueryCache(JSON.stringify(legacy))
+    const friend = (restored.clientState.queries[0]!.state.data as Friend[])[0]
+    expect(friend).toBeTruthy()
+    expect(friend?.instance?.groupId).toBeNull()
+    expect(friend?.instance?.groupImageUrl).toBeNull()
+  })
+
+  it('discards the ENTIRE envelope when a groupId is present but wrong-typed', () => {
+    const envelope: PersistedClient = {
+      timestamp: Date.now(),
+      buster: buildCacheBuster(),
+      clientState: {
+        mutations: [],
+        queries: [
+          {
+            dehydratedAt: Date.now(),
+            queryHash: JSON.stringify(['friends', 'vrchat']),
+            queryKey: ['friends', 'vrchat'],
+            state: {
+              data: [
+                {
+                  platform: 'vrchat',
+                  platformUserId: 'usr_bad_type',
+                  displayName: 'Bad Type',
+                  avatarUrl: null,
+                  presence: { state: 'active' },
+                  status: 'online',
+                  statusDescription: null,
+                  trustRank: null,
+                  instance: {
+                    worldId: 'wrld_bad',
+                    instanceId: 'i_bad',
+                    worldName: 'Bad World',
+                    thumbnailUrl: null,
+                    type: 'group',
+                    openness: 'invite',
+                    isGroup: true,
+                    groupName: null,
+                    groupId: 42,
+                    groupImageUrl: null,
+                    region: 'us',
+                    userCount: null
+                  },
+                  isFavorite: false,
+                  favoriteGroupIds: [],
+                  linkedPersonId: null
+                }
+              ],
+              dataUpdateCount: 1,
+              dataUpdatedAt: Date.now(),
+              error: null,
+              errorUpdateCount: 0,
+              errorUpdatedAt: 0,
+              fetchFailureCount: 0,
+              fetchFailureReason: null,
+              fetchMeta: null,
+              isInvalidated: false,
+              status: 'success',
+              fetchStatus: 'idle'
+            }
+          }
+        ]
+      }
+    }
+
+    const restored = deserializePersistedQueryCache(JSON.stringify(envelope))
+    expect(restored.clientState.queries).toHaveLength(0)
+  })
+})

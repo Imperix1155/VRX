@@ -13,6 +13,8 @@ function instance(
     type: 'public',
     isGroup: false,
     groupName: null,
+    groupId: null,
+    groupImageUrl: null,
     region: 'us',
     userCount: 1,
     ...partial

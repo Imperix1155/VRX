@@ -236,6 +236,8 @@ describe('useFriends cold-start merge (VRX-258)', () => {
       openness: 'public' as const,
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: 'us',
       userCount: null
     }
@@ -314,6 +316,8 @@ describe('useFriends world-name survival during in-flight refetch (VRX-258)', ()
       openness: 'public' as const,
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: 'us',
       userCount: null
     }

@@ -369,6 +369,9 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
       isGroup: access.isGroup,
       groupName: null,
+      // CVR exposes no group identity in any consumed payload.
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: null
     }

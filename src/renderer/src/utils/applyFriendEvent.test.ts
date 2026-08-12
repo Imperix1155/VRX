@@ -27,6 +27,8 @@ function friend(overrides: Partial<VrcFriend> = {}): Friend {
       region: 'us',
       thumbnailUrl: null,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       userCount: null
     },
     isFavorite: true,
@@ -37,6 +39,63 @@ function friend(overrides: Partial<VrcFriend> = {}): Friend {
 }
 
 describe('applyFriendEvent', () => {
+  it('group-metadata patches groupName and groupImageUrl on the current same-group friend', () => {
+    const target = friend({
+      platformUserId: 'usr_target',
+      instance: {
+        ...friend().instance!,
+        type: 'group',
+        openness: 'invite',
+        isGroup: true,
+        groupId: 'grp_1',
+        groupName: null,
+        groupImageUrl: null
+      }
+    })
+    const otherGroup = friend({
+      platformUserId: 'usr_other',
+      instance: {
+        ...friend().instance!,
+        type: 'group',
+        openness: 'invite',
+        isGroup: true,
+        groupId: 'grp_2',
+        groupName: null,
+        groupImageUrl: null
+      }
+    })
+
+    const next = applyFriendEvent([target, otherGroup], {
+      type: 'group-metadata',
+      platform: 'vrchat',
+      groupId: 'grp_1',
+      groupName: 'Pixel Pals',
+      groupImageUrl: 'https://example.com/pals.png'
+    })
+
+    expect(next[0]).toMatchObject({
+      platformUserId: 'usr_target',
+      instance: {
+        groupId: 'grp_1',
+        groupName: 'Pixel Pals',
+        groupImageUrl: 'https://example.com/pals.png'
+      }
+    })
+    expect(next[1]).toBe(otherGroup)
+  })
+
+  it('group-metadata does not resurrect an offline friend', () => {
+    const offline = friend({ platformUserId: 'usr_offline', instance: null })
+    const next = applyFriendEvent([offline], {
+      type: 'group-metadata',
+      platform: 'vrchat',
+      groupId: 'grp_1',
+      groupName: 'Pixel Pals',
+      groupImageUrl: null
+    })
+    expect(next[0]).toBe(offline)
+  })
+
   it('world-metadata does not resurrect an offline friend and patches another current same-world friend', () => {
     const target = friend({
       platformUserId: 'usr_target',
@@ -347,6 +406,8 @@ describe('applyFriendEvent', () => {
             openness: 'friends',
             isGroup: false,
             groupName: null,
+            groupId: null,
+            groupImageUrl: null,
             region: null,
             userCount: null
           }
@@ -366,6 +427,55 @@ describe('applyFriendEvent', () => {
     expect(next.find((f) => f.platform === 'vrchat')).toBe(vrcFriend) // other platform: identity kept
   })
 
+  it('presence-snapshot applies an update whose instance differs ONLY in group fields (equality regression, VRX-260)', () => {
+    // Defensive pin: `sameInstance` must compare groupId/groupImageUrl/groupName.
+    // No CVR payload carries group data TODAY (fields are producer-null), so this
+    // uses a synthetic entry — the compares exist so a future producer (or a
+    // misrouted event) can never have its update dropped as "unchanged" (the
+    // VRX-240 opennessUnknown lesson, pinned mutation-real).
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'friends',
+      openness: 'friends',
+      isGroup: true,
+      groupName: 'Old Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const friend = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp',
+      displayName: 'grp',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([friend], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupImageUrl: 'https://files.abidata.io/grp.png' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(friend)
+    expect(next[0]?.instance?.groupImageUrl).toBe('https://files.abidata.io/grp.png')
+  })
+
   it('presence-snapshot keeps identity for listed entries whose presence+instance are unchanged', () => {
     const inst = {
       worldId: 'i_1',
@@ -376,6 +486,8 @@ describe('applyFriendEvent', () => {
       openness: 'friends',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: null
     }
@@ -454,6 +566,8 @@ describe('applyFriendEvent', () => {
       openness: 'friends',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: 4
     }
@@ -621,5 +735,93 @@ describe('applyFriendEvent', () => {
       ]
     })
     expect(next).toBe(list)
+  })
+
+  it('updates when only groupName differs (per-field equality, VRX-260)', () => {
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'group',
+      openness: 'invite',
+      isGroup: true,
+      groupName: 'Old Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const f = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp_name',
+      displayName: 'name',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([f], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp_name',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupName: 'New Crew' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(f)
+    expect(next[0]?.instance?.groupName).toBe('New Crew')
+  })
+
+  it('updates when only groupId differs (per-field equality, VRX-260)', () => {
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'group',
+      openness: 'invite',
+      isGroup: true,
+      groupName: 'Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const f = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp_id',
+      displayName: 'id',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([f], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp_id',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupId: 'grp_2' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(f)
+    expect(next[0]?.instance?.groupId).toBe('grp_2')
   })
 })
