@@ -43,7 +43,8 @@ export function parseLocation(location: string): InstanceInfo | null {
   const type = parseInstanceType(instanceId)
   const openness = opennessFor(type)
   const isGroup = type === 'group-public' || type === 'group-plus' || type === 'group'
-  const groupId = parseTags(instanceId).get('group') ?? null
+  const groupTag = parseTags(instanceId).get('group')
+  const groupId = groupTag && groupTag.length > 0 ? groupTag : null
 
   return {
     worldId,

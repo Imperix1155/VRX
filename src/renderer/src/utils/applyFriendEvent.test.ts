@@ -736,4 +736,92 @@ describe('applyFriendEvent', () => {
     })
     expect(next).toBe(list)
   })
+
+  it('updates when only groupName differs (per-field equality, VRX-260)', () => {
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'group',
+      openness: 'invite',
+      isGroup: true,
+      groupName: 'Old Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const f = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp_name',
+      displayName: 'name',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([f], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp_name',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupName: 'New Crew' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(f)
+    expect(next[0]?.instance?.groupName).toBe('New Crew')
+  })
+
+  it('updates when only groupId differs (per-field equality, VRX-260)', () => {
+    const inst = {
+      worldId: 'i_1',
+      instanceId: 'i_1',
+      worldName: 'Lounge',
+      thumbnailUrl: null,
+      type: 'group',
+      openness: 'invite',
+      isGroup: true,
+      groupName: 'Crew',
+      groupId: 'grp_1',
+      groupImageUrl: null,
+      region: null,
+      userCount: null
+    }
+    const f = {
+      platform: 'chilloutvr',
+      platformUserId: 'cvr_grp_id',
+      displayName: 'id',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: inst,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null
+    } as Friend
+    const next = applyFriendEvent([f], {
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [
+        {
+          platformUserId: 'cvr_grp_id',
+          presence: { state: 'in-game' },
+          instance: { ...inst, groupId: 'grp_2' }
+        }
+      ]
+    } as never)
+    expect(next[0]).not.toBe(f)
+    expect(next[0]?.instance?.groupId).toBe('grp_2')
+  })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AuthError } from '../errors'
-import { createGroupResolver, GROUP_CACHE_MAX, GROUP_NEGATIVE_TTL_MS } from './GroupResolver'
+import { createGroupResolver, GROUP_NEGATIVE_TTL_MS } from './GroupResolver'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -68,20 +68,25 @@ describe('GroupResolver', () => {
     expect(resolver.peek('grp_5')).toBeUndefined()
   })
 
-  it('bounds the cache to GROUP_CACHE_MAX entries', async () => {
+  it('bounds the cache to GROUP_CACHE_MAX entries and evicts oldest entries on overflow', async () => {
     let id = 0
     const fetcher = vi.fn().mockImplementation(() => {
       id++
       return Promise.resolve({ name: `Group ${id}`, iconUrl: null })
     })
-    const resolver = createGroupResolver({ fetcher })
+    const resolver = createGroupResolver({ fetcher, maxEntries: 2 })
 
-    for (let i = 0; i < GROUP_CACHE_MAX + 10; i++) {
-      await resolver.resolve(`grp_${String(i)}`)
-    }
+    await resolver.resolve('grp_first')
+    await resolver.resolve('grp_second')
+    await resolver.resolve('grp_third')
 
-    // A bounded resolver never throws and never holds more than the cap.
-    expect(fetcher).toHaveBeenCalledTimes(GROUP_CACHE_MAX + 10)
+    // The first entry was evicted at the ceiling; resolving it again refetches.
+    expect(resolver.peek('grp_first')).toBeUndefined()
+    await resolver.resolve('grp_first')
+    expect(fetcher).toHaveBeenCalledTimes(4)
+
+    // The third entry should still be cached (second was evicted on the refetch).
+    expect(resolver.peek('grp_third')).toEqual({ name: 'Group 3', iconUrl: null })
   })
 
   it('degrades a missing iconUrl to null', async () => {
@@ -90,5 +95,24 @@ describe('GroupResolver', () => {
 
     const meta = await resolver.resolve('grp_6')
     expect(meta).toEqual({ name: 'No Icon', iconUrl: null })
+  })
+
+  it('treats an empty group name as unresolvable and negative-caches it', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ name: '', iconUrl: 'https://x/icon.png' })
+    const resolver = createGroupResolver({ fetcher })
+
+    const meta = await resolver.resolve('grp_empty')
+    expect(meta).toBeNull()
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(resolver.peek('grp_empty')).toBeNull()
+  })
+
+  it('treats a whitespace-only group name as unresolvable and negative-caches it', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ name: '   ', iconUrl: null })
+    const resolver = createGroupResolver({ fetcher })
+
+    const meta = await resolver.resolve('grp_blank')
+    expect(meta).toBeNull()
+    expect(fetcher).toHaveBeenCalledOnce()
   })
 })

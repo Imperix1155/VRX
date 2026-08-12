@@ -125,6 +125,13 @@ describe('parseLocation — group instances', () => {
     expect(result!.isGroup).toBe(true)
     expect(result!.groupId).toBe('grp_x')
   })
+
+  it('treats an empty ~group() tag as no groupId', () => {
+    const result = parseLocation('wrld_abc:12345~group()~groupAccessType(plus)')
+    expect(result!.type).toBe('group-plus')
+    expect(result!.isGroup).toBe(true)
+    expect(result!.groupId).toBeNull()
+  })
 })
 
 // ─── Region parsing ───────────────────────────────────────────────────────────

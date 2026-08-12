@@ -17,8 +17,11 @@ import { AuthError } from '../errors'
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
 const rawGroupSchema = z.object({
-  /** Group display name is the only critical field; a missing name is unusable. */
-  name: z.string(),
+  /** Group display name is the only critical field; a missing/blank name is unusable. */
+  name: z
+    .string()
+    .transform((s) => s.trim())
+    .refine((s) => s.length > 0, { message: 'group name must be non-empty' }),
   iconUrl: z.string().nullable().catch(null).optional()
 })
 

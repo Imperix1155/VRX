@@ -369,6 +369,7 @@ export default function HotInstanceSheet({
                     <div className="absolute inset-x-0 bottom-0 p-[var(--space-2)]">
                       <span
                         className="block truncate text-[12.5px] font-semibold"
+                        title={shown.groupName ?? undefined}
                         style={{
                           color: 'var(--text)',
                           textShadow: 'var(--hot-sheet-banner-title-shadow)'

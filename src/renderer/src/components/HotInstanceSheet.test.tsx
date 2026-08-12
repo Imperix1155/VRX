@@ -117,6 +117,8 @@ describe('HotInstanceSheet', () => {
     expect(card).toBeTruthy()
     expect(within(card).getByText('Pixel Pals')).toBeTruthy()
     expect(card.getAttribute('aria-label')).toBe('Hosted by Pixel Pals')
+    const nameSpan = within(card).getByText('Pixel Pals')
+    expect(nameSpan.getAttribute('title')).toBe('Pixel Pals')
     const img = card.querySelector('img')
     expect(img).toBeTruthy()
     expect(img!.getAttribute('src')).toBe('data:image/png;base64,group')

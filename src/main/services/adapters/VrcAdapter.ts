@@ -780,6 +780,7 @@ export class VrcAdapter extends VrcApiClient {
       if (groupCached != null) {
         friend = this.withGroupMetadata(friend, groupCached)
       } else if (groupCached === undefined) {
+        // Miss: start at most one resolution for this id.
         if (!this.pendingGroupResolutions.has(groupId)) {
           this.pendingGroupResolutions.add(groupId)
           void fetchGroupMetadata(
@@ -868,6 +869,7 @@ export class VrcAdapter extends VrcApiClient {
    */
   private bumpSessionGeneration(): void {
     this.sessionGeneration += 1
+    this.groupResolver.clear()
     this.live?.onSessionBoundary?.()
 
     const wasRunning = this.subscribers.size > 0
