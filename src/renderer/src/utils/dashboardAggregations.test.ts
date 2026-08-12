@@ -22,6 +22,8 @@ const instance = (
   openness: 'public',
   isGroup: false,
   groupName: null,
+  groupId: null,
+  groupImageUrl: null,
   region: 'us',
   userCount: null
 })
@@ -361,7 +363,7 @@ describe('getHotInstances', () => {
     expect(result[0]!.platform).toBe('chilloutvr')
   })
 
-  it('carries thumbnailUrl, isGroup, and groupName from the instance (VRX-250)', () => {
+  it('carries thumbnailUrl, isGroup, groupId, groupName, and groupImageUrl from the instance (VRX-250 / VRX-260)', () => {
     const inst: InstanceInfo = {
       worldId: 'wrld_group',
       instanceId: 'wrld_group:1~groupPlus',
@@ -371,6 +373,8 @@ describe('getHotInstances', () => {
       openness: 'invite-plus',
       isGroup: true,
       groupName: 'The Cool Group',
+      groupId: 'grp_cool',
+      groupImageUrl: 'https://example.com/cool.png',
       region: 'us',
       userCount: 4
     }
@@ -378,7 +382,9 @@ describe('getHotInstances', () => {
     const result = getHotInstances(friends)
     expect(result[0]!.thumbnailUrl).toBe('https://example.com/thumb.jpg')
     expect(result[0]!.isGroup).toBe(true)
+    expect(result[0]!.groupId).toBe('grp_cool')
     expect(result[0]!.groupName).toBe('The Cool Group')
+    expect(result[0]!.groupImageUrl).toBe('https://example.com/cool.png')
   })
 
   it('CVR grouping is stable across async world-metadata enrichment (VRX-237 L7)', () => {

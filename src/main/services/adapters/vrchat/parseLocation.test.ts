@@ -102,25 +102,28 @@ describe('parseLocation — invite instance', () => {
 // ─── Group instances ──────────────────────────────────────────────────────────
 
 describe('parseLocation — group instances', () => {
-  it('group-public: type=group-public, openness=public, isGroup=true', () => {
+  it('group-public: type=group-public, openness=public, isGroup=true, groupId extracted', () => {
     const result = parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(public)')
     expect(result!.type).toBe('group-public')
     expect(result!.openness).toBe('public')
     expect(result!.isGroup).toBe(true)
+    expect(result!.groupId).toBe('grp_x')
   })
 
-  it('group-plus: type=group-plus, openness=friends-plus, isGroup=true', () => {
+  it('group-plus: type=group-plus, openness=friends-plus, isGroup=true, groupId extracted', () => {
     const result = parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(plus)')
     expect(result!.type).toBe('group-plus')
     expect(result!.openness).toBe('friends-plus')
     expect(result!.isGroup).toBe(true)
+    expect(result!.groupId).toBe('grp_x')
   })
 
-  it('group (members-only): type=group, openness=invite, isGroup=true', () => {
+  it('group (members-only): type=group, openness=invite, isGroup=true, groupId extracted', () => {
     const result = parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(members)')
     expect(result!.type).toBe('group')
     expect(result!.openness).toBe('invite')
     expect(result!.isGroup).toBe(true)
+    expect(result!.groupId).toBe('grp_x')
   })
 })
 
@@ -157,6 +160,19 @@ describe('parseLocation — deferred enrichment fields', () => {
   it('groupName is always null', () => {
     expect(
       parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(public)')!.groupName
+    ).toBeNull()
+  })
+
+  it('groupId is extracted from ~group(grp_x) and null otherwise', () => {
+    expect(parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(public)')!.groupId).toBe(
+      'grp_x'
+    )
+    expect(parseLocation('wrld_abc:12345')!.groupId).toBeNull()
+  })
+
+  it('groupImageUrl is always null at parse time', () => {
+    expect(
+      parseLocation('wrld_abc:12345~group(grp_x)~groupAccessType(public)')!.groupImageUrl
     ).toBeNull()
   })
 

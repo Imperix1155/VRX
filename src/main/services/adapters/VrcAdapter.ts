@@ -16,8 +16,10 @@ import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
+import { fetchGroupMetadata } from './vrchat/fetchGroupMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
 import { WorldResolver, type WorldMeta } from './vrchat/WorldResolver'
+import { createGroupResolver, type GroupMeta, type GroupResolver } from './vrchat/GroupResolver'
 import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
 
 /**
@@ -145,6 +147,15 @@ export class VrcAdapter extends VrcApiClient {
    * negative-cache window (60 s) or at reconcile.
    */
   private readonly pendingWorldResolutions = new Set<string>()
+  /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded. */
+  private readonly groupResolver: GroupResolver = createGroupResolver({
+    fetcher: (groupId) => this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown())
+  })
+  /**
+   * GroupIds with an enrichment fetch in flight. Mirrors the world dedupe
+   * pattern; batch-scoped so failed/private groups become retryable.
+   */
+  private readonly pendingGroupResolutions = new Set<string>()
 
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
@@ -454,10 +465,15 @@ export class VrcAdapter extends VrcApiClient {
           throw new Error('Session ended')
         }
         const roster = friends.map((friend) => {
-          const cached = this.worldResolver.peek(friend.instance?.worldId ?? null)
-          return cached == null ? friend : this.withWorldMetadata(friend, cached)
+          let patched = friend
+          const worldCached = this.worldResolver.peek(friend.instance?.worldId ?? null)
+          if (worldCached != null) patched = this.withWorldMetadata(patched, worldCached)
+          const groupCached = this.groupResolver.peek(friend.instance?.groupId ?? null)
+          if (groupCached != null) patched = this.withGroupMetadata(patched, groupCached)
+          return patched
         })
         this.kickWorldMetadata(roster, generation)
+        this.kickGroupMetadata(roster, generation)
         return { friends: roster, completeness: result.completeness }
       } catch (error) {
         // Staleness is checked before auth invalidation or any other outcome.
@@ -486,6 +502,52 @@ export class VrcAdapter extends VrcApiClient {
         throw error
       }
     }
+  }
+
+  /**
+   * Resolve optional group metadata without delaying the roster. Each answer
+   * emits one narrow `group-metadata` event. Consumers apply it only to friends
+   * whose current location still names that group, so a late answer cannot replay
+   * roster-time presence, location, or profile.
+   */
+  private kickGroupMetadata(friends: Friend[], generation: number): void {
+    const groupIds = friends.map((friend) => {
+      const groupId = friend.instance?.groupId ?? null
+      if (groupId === null) return null
+      if (this.groupResolver.peek(groupId) !== undefined) return null
+      // In-flight dedup: a group already being resolved by an overlapping kick
+      // must not be fetched twice through the shared slot.
+      if (this.pendingGroupResolutions.has(groupId)) return null
+      return groupId
+    })
+    const kicked = groupIds.filter((id): id is string => id !== null)
+    for (const id of kicked) this.pendingGroupResolutions.add(id)
+    void fetchGroupMetadata(groupIds, this.groupResolver, undefined, (groupId, meta) => {
+      if (generation !== this.sessionGeneration) return
+      this.emit({
+        type: 'group-metadata',
+        platform: 'vrchat',
+        groupId,
+        groupName: meta.name,
+        groupImageUrl: meta.iconUrl
+      })
+    })
+      .catch((error: unknown) => {
+        if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthError && error.status === 401) {
+          this.bumpSessionGeneration()
+          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+          return
+        }
+        this.live?.log?.('warn', 'vrc adapter: group enrichment failed', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+      .finally(() => {
+        // Sweep THIS batch's ids unconditionally so failed/private groups become
+        // retryable after the negative-cache window or at reconcile (VRX-258).
+        for (const id of kicked) this.pendingGroupResolutions.delete(id)
+      })
   }
 
   /**
@@ -541,7 +603,7 @@ export class VrcAdapter extends VrcApiClient {
       })
   }
 
-  private withWorldMetadata(friend: Friend, meta: WorldMeta): Friend {
+  private withWorldMetadata<T extends Friend>(friend: T, meta: WorldMeta): T {
     if (friend.instance === null) return friend
     return {
       ...friend,
@@ -549,6 +611,18 @@ export class VrcAdapter extends VrcApiClient {
         ...friend.instance,
         worldName: meta.name,
         thumbnailUrl: meta.thumbnailUrl
+      }
+    }
+  }
+
+  private withGroupMetadata<T extends Friend>(friend: T, meta: GroupMeta): T {
+    if (friend.instance === null || friend.instance.groupId === null) return friend
+    return {
+      ...friend,
+      instance: {
+        ...friend.instance,
+        groupName: meta.name,
+        groupImageUrl: meta.iconUrl
       }
     }
   }
@@ -646,53 +720,102 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   /**
-   * Pipeline boundary enrichment (VRX-254): live events carrying a friend in a
-   * world are patched from the cached resolver before emit, and unseen worlds
-   * kick a single background resolution. This prevents a live location move
-   * from clobbering an already-resolved worldName with the parser's null.
+   * Pipeline boundary enrichment (VRX-254 + VRX-260): live events carrying a
+   * friend in an instance are patched from cached world/group resolvers before
+   * emit, and unseen ids kick single background resolutions. This prevents a live
+   * location move from clobbering already-resolved metadata with the parser's
+   * nulls.
    */
   private enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent {
     if (!('friend' in event) || event.friend.instance === null) return event
 
-    const worldId = event.friend.instance.worldId
-    const cached = this.worldResolver.peek(worldId)
-    if (cached != null) {
-      return { ...event, friend: this.withWorldMetadata(event.friend, cached) }
-    }
-    // A negative-cached failure has no metadata to patch and must not be re-kicked.
-    if (cached === null) return event
-
-    // Miss: start at most one resolution for this id through the existing
-    // deduped, generation-fenced, rate-limited lane.
-    if (!this.pendingWorldResolutions.has(worldId)) {
-      this.pendingWorldResolutions.add(worldId)
-      void fetchWorldMetadata([worldId], this.worldResolver, undefined, (resolvedWorldId, meta) => {
-        if (generation !== this.sessionGeneration) return
-        this.emit({
-          type: 'world-metadata',
-          platform: 'vrchat',
-          worldId: resolvedWorldId,
-          worldName: meta.name,
-          thumbnailUrl: meta.thumbnailUrl
-        })
-      })
-        .catch((error: unknown) => {
-          if (generation !== this.sessionGeneration) return
-          if (error instanceof AuthError && error.status === 401) {
-            this.bumpSessionGeneration()
-            this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-            return
+    let friend = event.friend
+    const instance = friend.instance
+    if (instance === null) return event
+    const worldId = instance.worldId
+    const worldCached = this.worldResolver.peek(worldId)
+    if (worldCached != null) {
+      friend = this.withWorldMetadata(friend, worldCached)
+    } else if (worldCached === undefined) {
+      // Miss: start at most one resolution for this id through the existing
+      // deduped, generation-fenced, rate-limited lane.
+      if (!this.pendingWorldResolutions.has(worldId)) {
+        this.pendingWorldResolutions.add(worldId)
+        void fetchWorldMetadata(
+          [worldId],
+          this.worldResolver,
+          undefined,
+          (resolvedWorldId, meta) => {
+            if (generation !== this.sessionGeneration) return
+            this.emit({
+              type: 'world-metadata',
+              platform: 'vrchat',
+              worldId: resolvedWorldId,
+              worldName: meta.name,
+              thumbnailUrl: meta.thumbnailUrl
+            })
           }
-          this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
-            message: error instanceof Error ? error.message : String(error)
+        )
+          .catch((error: unknown) => {
+            if (generation !== this.sessionGeneration) return
+            if (error instanceof AuthError && error.status === 401) {
+              this.bumpSessionGeneration()
+              this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+              return
+            }
+            this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
+              message: error instanceof Error ? error.message : String(error)
+            })
           })
-        })
-        .finally(() => {
-          this.pendingWorldResolutions.delete(worldId)
-        })
+          .finally(() => {
+            this.pendingWorldResolutions.delete(worldId)
+          })
+      }
+    }
+    // A negative-cached world failure has no metadata to patch and must not be re-kicked.
+
+    const groupId = instance.groupId
+    if (groupId !== null) {
+      const groupCached = this.groupResolver.peek(groupId)
+      if (groupCached != null) {
+        friend = this.withGroupMetadata(friend, groupCached)
+      } else if (groupCached === undefined) {
+        if (!this.pendingGroupResolutions.has(groupId)) {
+          this.pendingGroupResolutions.add(groupId)
+          void fetchGroupMetadata(
+            [groupId],
+            this.groupResolver,
+            undefined,
+            (resolvedGroupId, meta) => {
+              if (generation !== this.sessionGeneration) return
+              this.emit({
+                type: 'group-metadata',
+                platform: 'vrchat',
+                groupId: resolvedGroupId,
+                groupName: meta.name,
+                groupImageUrl: meta.iconUrl
+              })
+            }
+          )
+            .catch((error: unknown) => {
+              if (generation !== this.sessionGeneration) return
+              if (error instanceof AuthError && error.status === 401) {
+                this.bumpSessionGeneration()
+                this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+                return
+              }
+              this.live?.log?.('warn', 'vrc adapter: live group enrichment failed', {
+                message: error instanceof Error ? error.message : String(error)
+              })
+            })
+            .finally(() => {
+              this.pendingGroupResolutions.delete(groupId)
+            })
+        }
+      }
     }
 
-    return event
+    return friend === event.friend ? event : { ...event, friend }
   }
 
   /**

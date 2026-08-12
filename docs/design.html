@@ -761,9 +761,9 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.5</span> Hot-instance sheet</div>
-          <div class="el-sum">Bottom sheet for a hot instance (VRX-250, owner-ratified Banner design 2026-08-08; layout polish 2026-08-12). Non-modal; opens from the whole card; Join pill still joins; contained to the main content area.</div>
+          <div class="el-sum">Bottom sheet for a hot instance (VRX-250 / VRX-260, owner-ratified Banner design 2026-08-08; layout polish 2026-08-12). Non-modal; opens from the whole card; Join pill still joins; group card in the right-zone meta stack.</div>
           <div class="demo">
-            <div style="position:relative;width:100%;max-width:520px;height:218px;border-radius:20px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.025));overflow:hidden;box-shadow:0 -10px 34px rgba(0,0,0,0.34);">
+            <div style="position:relative;width:100%;max-width:520px;height:246px;border-radius:20px;border:1px solid var(--border);background:linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.025));overflow:hidden;box-shadow:0 -10px 34px rgba(0,0,0,0.34);">
               <div style="height:4px;background:linear-gradient(90deg,var(--vrc),transparent);"></div>
               <div style="display:flex;justify-content:center;padding:12px 0 8px;"><div style="width:44px;height:4px;border-radius:999px;background:var(--border);"></div></div>
               <div style="position:absolute;top:12px;right:12px;width:28px;height:28px;border-radius:9px;border:1px solid var(--border);display:grid;place-items:center;color:var(--text-dim);font-size:14px;">✕</div>
@@ -777,11 +777,22 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
                 </div>
                 <div style="display:inline-flex;align-items:center;justify-content:center;height:28px;padding:0 14px;border-radius:12px;font-size:12px;font-weight:600;color:var(--op-public);background:color-mix(in srgb,var(--op-public) 13%,transparent);border:1px solid color-mix(in srgb,var(--op-public) 36%,transparent);">Join</div>
               </div>
-              <div style="padding:0 16px 4px;font-size:12.5px;color:var(--text-faint);">Anyone can join this instance.</div>
-              <div style="padding:4px 16px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint);">FRIENDS HERE — 4</div>
+              <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:0 16px 12px;">
+                <div style="flex:1;min-width:0;">
+                  <div style="padding:0 0 4px;font-size:12.5px;color:var(--text-faint);">Anyone can join this instance.</div>
+                  <div style="padding:4px 0;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint);">FRIENDS HERE — 4</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                  <div style="position:relative;width:200px;height:80px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,var(--text) 14%,transparent),color-mix(in srgb,var(--text) 5%,transparent));" aria-label="Hosted by Pixel Pals">
+                    <div style="position:absolute;inset:0;background:linear-gradient(135deg,#444,#222);"></div>
+                    <span style="position:absolute;left:8px;right:8px;bottom:8px;font-size:12.5px;font-weight:600;color:var(--text);text-shadow:0 2px 10px rgba(0,0,0,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="Pixel Pals">Pixel Pals</span>
+                  </div>
+                  <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--text-faint);opacity:0.86;" title="wrld_sun:1~public">wrld_sun:1~public</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="why">The live sheet is bottom-anchored, ~34vh, frosted glass, with a 4px platform top stripe <b>clipped inside the panel's rounded top corners</b>, grab bar, and ✕. It is contained to the main content area so the sidebar stays visible. The banner is 150px tall and carries the world image (or quiet placeholder), name, the shared <code>InstancePill</code> (openness), the shared <code>PlatformPill</code> (non-color platform signifier), and a Join button. The openness sentence now sits directly above the "FRIENDS HERE" heading; the instance ID is a smaller mono line at the bottom of the right zone, with its full value in <code>title</code>. <i>This static representative shows the shell + banner shape; the full non-modal interaction, motion, and light-mode parity are in the app and DESIGN.md §9.5.</i></div>
+          <div class="why">The live sheet is bottom-anchored, ~34vh, frosted glass, with a 4px platform top stripe <b>clipped inside the panel's rounded top corners</b>, grab bar, and ✕. It is contained to the main content area so the sidebar stays visible. The banner is 150px tall and carries the world image (or quiet placeholder), name, the shared <code>InstancePill</code> (openness), the shared <code>PlatformPill</code> (non-color platform signifier), and a Join button. The openness sentence sits directly above the "FRIENDS HERE" heading; the right-zone meta stack shows the group card (200×80px, image or gradient placeholder, name overlaid bottom-left, <code>aria-label</code> "Hosted by {groupName}") above a smaller mono instance ID with its full value in <code>title</code>. <i>This static representative shows the shell + banner shape; the full non-modal interaction, motion, and light-mode parity are in the app and DESIGN.md §9.5.</i></div>
         </div>
 
         <div class="el">

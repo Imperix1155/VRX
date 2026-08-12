@@ -54,6 +54,10 @@ export interface HotInstance {
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
   groupName: string | null
+  /** Owning group's id, when isGroup and the platform exposes it. */
+  groupId: string | null
+  /** Owning group's image/icon URL, when known. */
+  groupImageUrl: string | null
   /** World thumbnail, when known; carried from the shared InstanceInfo. */
   thumbnailUrl: string | null
   platform: Platform
@@ -148,6 +152,8 @@ export function getHotInstances(
         instanceType: type,
         isGroup: instance.isGroup,
         groupName: instance.groupName,
+        groupId: instance.groupId,
+        groupImageUrl: instance.groupImageUrl,
         thumbnailUrl: instance.thumbnailUrl,
         platform: f.platform,
         friendCount: 1,

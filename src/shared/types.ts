@@ -102,6 +102,10 @@ export interface InstanceInfo {
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
   groupName: string | null
+  /** Owning group's id, when isGroup and the platform exposes it. */
+  groupId: string | null
+  /** Owning group's image/icon URL, when known. */
+  groupImageUrl: string | null
   region: string | null
   /** Current occupant count, when known. */
   userCount: number | null
@@ -321,6 +325,13 @@ export type AdapterEvent =
       worldId: string
       worldName: string
       thumbnailUrl: string | null
+    }
+  | {
+      type: 'group-metadata'
+      platform: Platform
+      groupId: string
+      groupName: string
+      groupImageUrl: string | null
     }
   | { type: 'friend-added'; platform: Platform; friend: Friend }
   | { type: 'friend-removed'; platform: Platform; platformUserId: string }

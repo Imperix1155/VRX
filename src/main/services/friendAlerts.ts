@@ -132,9 +132,10 @@ export class FriendAlerts {
         })
         return
       case 'world-metadata':
-        // Metadata-only (VRX-214): no presence or location claim. Feeding the
-        // resolved worldName in here would make a late enrichment look like a
-        // move and fabricate in-game / hot-instance alerts.
+      case 'group-metadata':
+        // Metadata-only (VRX-214 / VRX-260): no presence or location claim. Feeding
+        // resolved metadata in here would make a late enrichment look like a move
+        // and fabricate in-game / hot-instance alerts.
         return
       case 'friend-added':
         this.rememberName(event.friend)

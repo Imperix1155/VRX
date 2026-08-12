@@ -231,6 +231,8 @@ describe('PersistQueryClientProvider hydrate', () => {
       openness: 'public' as const,
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: 'us',
       userCount: null
     }

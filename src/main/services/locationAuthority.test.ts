@@ -20,6 +20,9 @@ function friend(platform: Platform, id: string, instanceId = 'instance-old'): Fr
       openness: 'friends' as const,
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
+
       region: null,
       userCount: null
     },

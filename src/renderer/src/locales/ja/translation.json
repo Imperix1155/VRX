@@ -304,7 +304,8 @@
   },
   "hotSheet": {
     "ariaLabel": "{{world}} ホットインスタンスの詳細",
-    "friendsHereHeading": "ここにいるフレンド — {{count}}"
+    "friendsHereHeading": "ここにいるフレンド — {{count}}",
+    "hostedBy": "{{group}} がホスト"
   },
   "dashboard": {
     "loading": "読み込み中...",

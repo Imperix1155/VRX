@@ -28,6 +28,8 @@ function vrcFriend(overrides: Partial<VrcFriend> = {}): Friend {
       region: 'us',
       thumbnailUrl: 'https://example.com/pug.jpg',
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       userCount: null
     },
     isFavorite: true,
@@ -57,6 +59,8 @@ function cvrFriend(overrides: Partial<CvrFriend> = {}): Friend {
       region: null,
       thumbnailUrl: 'https://example.com/cvr.jpg',
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       userCount: null
     },
     isFavorite: false,

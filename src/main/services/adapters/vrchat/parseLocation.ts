@@ -16,7 +16,7 @@
  */
 
 import type { InstanceInfo } from '@shared/types'
-import { opennessFor, parseInstanceType } from './parseInstanceType'
+import { opennessFor, parseInstanceType, parseTags } from './parseInstanceType'
 
 /** Extracts the ~region(xx) tag value, or null if absent. */
 function parseRegion(instanceId: string): string | null {
@@ -43,6 +43,7 @@ export function parseLocation(location: string): InstanceInfo | null {
   const type = parseInstanceType(instanceId)
   const openness = opennessFor(type)
   const isGroup = type === 'group-public' || type === 'group-plus' || type === 'group'
+  const groupId = parseTags(instanceId).get('group') ?? null
 
   return {
     worldId,
@@ -53,6 +54,8 @@ export function parseLocation(location: string): InstanceInfo | null {
     openness,
     isGroup,
     groupName: null,
+    groupId,
+    groupImageUrl: null,
     region: parseRegion(instanceId),
     userCount: null
   }

@@ -27,6 +27,8 @@ function friend(overrides: Partial<VrcFriend> = {}): Friend {
       region: 'us',
       thumbnailUrl: null,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       userCount: null
     },
     isFavorite: true,
@@ -37,6 +39,63 @@ function friend(overrides: Partial<VrcFriend> = {}): Friend {
 }
 
 describe('applyFriendEvent', () => {
+  it('group-metadata patches groupName and groupImageUrl on the current same-group friend', () => {
+    const target = friend({
+      platformUserId: 'usr_target',
+      instance: {
+        ...friend().instance!,
+        type: 'group',
+        openness: 'invite',
+        isGroup: true,
+        groupId: 'grp_1',
+        groupName: null,
+        groupImageUrl: null
+      }
+    })
+    const otherGroup = friend({
+      platformUserId: 'usr_other',
+      instance: {
+        ...friend().instance!,
+        type: 'group',
+        openness: 'invite',
+        isGroup: true,
+        groupId: 'grp_2',
+        groupName: null,
+        groupImageUrl: null
+      }
+    })
+
+    const next = applyFriendEvent([target, otherGroup], {
+      type: 'group-metadata',
+      platform: 'vrchat',
+      groupId: 'grp_1',
+      groupName: 'Pixel Pals',
+      groupImageUrl: 'https://example.com/pals.png'
+    })
+
+    expect(next[0]).toMatchObject({
+      platformUserId: 'usr_target',
+      instance: {
+        groupId: 'grp_1',
+        groupName: 'Pixel Pals',
+        groupImageUrl: 'https://example.com/pals.png'
+      }
+    })
+    expect(next[1]).toBe(otherGroup)
+  })
+
+  it('group-metadata does not resurrect an offline friend', () => {
+    const offline = friend({ platformUserId: 'usr_offline', instance: null })
+    const next = applyFriendEvent([offline], {
+      type: 'group-metadata',
+      platform: 'vrchat',
+      groupId: 'grp_1',
+      groupName: 'Pixel Pals',
+      groupImageUrl: null
+    })
+    expect(next[0]).toBe(offline)
+  })
+
   it('world-metadata does not resurrect an offline friend and patches another current same-world friend', () => {
     const target = friend({
       platformUserId: 'usr_target',
@@ -347,6 +406,8 @@ describe('applyFriendEvent', () => {
             openness: 'friends',
             isGroup: false,
             groupName: null,
+            groupId: null,
+            groupImageUrl: null,
             region: null,
             userCount: null
           }
@@ -376,6 +437,8 @@ describe('applyFriendEvent', () => {
       openness: 'friends',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: null
     }
@@ -454,6 +517,8 @@ describe('applyFriendEvent', () => {
       openness: 'friends',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: 4
     }
