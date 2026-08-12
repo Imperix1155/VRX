@@ -22,6 +22,8 @@ const instance = (
   openness: 'public',
   isGroup: false,
   groupName: null,
+  groupId: null,
+  groupImageUrl: null,
   region: 'us',
   userCount: null
 })
@@ -361,7 +363,7 @@ describe('getHotInstances', () => {
     expect(result[0]!.platform).toBe('chilloutvr')
   })
 
-  it('carries thumbnailUrl, isGroup, and groupName from the instance (VRX-250)', () => {
+  it('carries thumbnailUrl, isGroup, groupId, groupName, and groupImageUrl from the instance (VRX-250 / VRX-260)', () => {
     const inst: InstanceInfo = {
       worldId: 'wrld_group',
       instanceId: 'wrld_group:1~groupPlus',
@@ -371,6 +373,8 @@ describe('getHotInstances', () => {
       openness: 'invite-plus',
       isGroup: true,
       groupName: 'The Cool Group',
+      groupId: 'grp_cool',
+      groupImageUrl: 'https://example.com/cool.png',
       region: 'us',
       userCount: 4
     }
@@ -378,7 +382,9 @@ describe('getHotInstances', () => {
     const result = getHotInstances(friends)
     expect(result[0]!.thumbnailUrl).toBe('https://example.com/thumb.jpg')
     expect(result[0]!.isGroup).toBe(true)
+    expect(result[0]!.groupId).toBe('grp_cool')
     expect(result[0]!.groupName).toBe('The Cool Group')
+    expect(result[0]!.groupImageUrl).toBe('https://example.com/cool.png')
   })
 
   it('CVR grouping is stable across async world-metadata enrichment (VRX-237 L7)', () => {
@@ -556,5 +562,33 @@ describe('hot-instance key alignment (VRX-237)', () => {
     // One person, twice reported — NEITHER consumer calls it two friends.
     expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
     expect(getHotInstances([a, { ...a }], 2)).toEqual([])
+  })
+  it('back-fills group metadata from a later member of the same instance (same groupId only)', () => {
+    // Members of one exact instance can transiently disagree after hydration:
+    // the first member may still carry nulls while a later member retained the
+    // resolved name/image. The hot record must not lose that knowledge.
+    const inst: InstanceInfo = {
+      worldId: 'wrld_group',
+      instanceId: 'wrld_group:1~groupPlus',
+      worldName: 'Group Hangout',
+      thumbnailUrl: null,
+      type: 'group-plus',
+      openness: 'invite-plus',
+      isGroup: true,
+      groupName: null,
+      groupId: 'grp_cool',
+      groupImageUrl: null,
+      region: 'us',
+      userCount: 4
+    }
+    const first = vrcFriend('a', 'in-game', inst)
+    const second = vrcFriend('b', 'in-game', {
+      ...inst,
+      groupName: 'Pixel Pals',
+      groupImageUrl: 'https://example.com/pals.png'
+    })
+    const [hot] = getHotInstances([first, second], 2)
+    expect(hot!.groupName).toBe('Pixel Pals')
+    expect(hot!.groupImageUrl).toBe('https://example.com/pals.png')
   })
 })

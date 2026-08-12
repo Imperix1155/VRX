@@ -5,7 +5,7 @@ import { RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
-import { mergeKnownWorldMetadata } from '../utils/mergeKnownWorldMetadata'
+import { mergeKnownInstanceMetadata } from '../utils/mergeKnownInstanceMetadata'
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -60,7 +60,7 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // mid-flight survives the REST write.
     queryFn: async () => {
       const fresh = await fetchFriends(platform)
-      return mergeKnownWorldMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
+      return mergeKnownInstanceMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
     },
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:

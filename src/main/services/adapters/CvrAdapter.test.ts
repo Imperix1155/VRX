@@ -1079,6 +1079,9 @@ describe('CvrAdapter', () => {
               openness: 'public',
               isGroup: false,
               groupName: null,
+              groupId: null,
+              groupImageUrl: null,
+
               region: null,
               userCount: null
             }
@@ -1150,6 +1153,9 @@ describe('CvrAdapter', () => {
             openness: 'public' as const,
             isGroup: false,
             groupName: null,
+            groupId: null,
+            groupImageUrl: null,
+
             region: null,
             userCount: null
           }
@@ -1377,6 +1383,9 @@ describe('CvrAdapter', () => {
               openness: 'public',
               isGroup: false,
               groupName: null,
+              groupId: null,
+              groupImageUrl: null,
+
               region: null,
               userCount: null
             }
@@ -1493,6 +1502,9 @@ describe('CvrAdapter', () => {
               openness: 'public',
               isGroup: false,
               groupName: null,
+              groupId: null,
+              groupImageUrl: null,
+
               region: null,
               userCount: null
             }
@@ -1575,6 +1587,9 @@ describe('CvrAdapter', () => {
               openness: 'public',
               isGroup: false,
               groupName: null,
+              groupId: null,
+              groupImageUrl: null,
+
               region: null,
               userCount: null
             }
@@ -1754,6 +1769,9 @@ describe('CvrAdapter', () => {
         openness: 'friends',
         isGroup: false,
         groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+
         region: null,
         userCount: 5
       })

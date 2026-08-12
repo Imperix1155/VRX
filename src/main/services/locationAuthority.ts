@@ -161,7 +161,7 @@ export class LocationAuthority {
     // Metadata-only (VRX-214): no presence or location claim, so it must exit
     // ABOVE the revision bump below — advancing the fence for a metadata event
     // would invalidate an in-flight seed captured at a lower revision.
-    if (event.type === 'world-metadata') return
+    if (event.type === 'world-metadata' || event.type === 'group-metadata') return
 
     const revision = ++this.revision
     const updatedAt = this.clock()

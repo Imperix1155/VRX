@@ -36,6 +36,8 @@ function sameInstance(a: Friend['instance'], b: Friend['instance']): boolean {
     a.opennessUnknown === b.opennessUnknown &&
     a.isGroup === b.isGroup &&
     a.groupName === b.groupName &&
+    a.groupId === b.groupId &&
+    a.groupImageUrl === b.groupImageUrl &&
     a.region === b.region &&
     a.userCount === b.userCount
   )
@@ -126,6 +128,32 @@ export function applyFriendEvent(friends: Friend[], event: AdapterEvent): Friend
             ...instance,
             worldName: event.worldName,
             thumbnailUrl: event.thumbnailUrl
+          }
+        }
+      })
+      return changed ? next : friends
+    }
+
+    case 'group-metadata': {
+      let changed = false
+      const next = friends.map((friend): Friend => {
+        const instance = friend.instance
+        if (friend.platform !== event.platform || instance?.groupId !== event.groupId) {
+          return friend
+        }
+        if (
+          instance.groupName === event.groupName &&
+          instance.groupImageUrl === event.groupImageUrl
+        ) {
+          return friend
+        }
+        changed = true
+        return {
+          ...friend,
+          instance: {
+            ...instance,
+            groupName: event.groupName,
+            groupImageUrl: event.groupImageUrl
           }
         }
       })

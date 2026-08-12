@@ -54,6 +54,10 @@ export interface HotInstance {
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
   groupName: string | null
+  /** Owning group's id, when isGroup and the platform exposes it. */
+  groupId: string | null
+  /** Owning group's image/icon URL, when known. */
+  groupImageUrl: string | null
   /** World thumbnail, when known; carried from the shared InstanceInfo. */
   thumbnailUrl: string | null
   platform: Platform
@@ -140,6 +144,18 @@ export function getHotInstances(
     if (existing) {
       existing.friendCount++
       existing.members.push(f)
+      // Members of the SAME exact instance can transiently disagree on group
+      // metadata (e.g. after hydration the merge filled one member but a
+      // fresh-roster member is still null). Back-fill nulls from any member
+      // that knows more — same groupId only, never across (CodeRabbit, VRX-260).
+      if (existing.isGroup && existing.groupId !== null && instance.groupId === existing.groupId) {
+        if (existing.groupName === null && instance.groupName !== null) {
+          existing.groupName = instance.groupName
+        }
+        if (existing.groupImageUrl === null && instance.groupImageUrl !== null) {
+          existing.groupImageUrl = instance.groupImageUrl
+        }
+      }
     } else {
       map.set(groupKey, {
         worldId,
@@ -148,6 +164,8 @@ export function getHotInstances(
         instanceType: type,
         isGroup: instance.isGroup,
         groupName: instance.groupName,
+        groupId: instance.groupId,
+        groupImageUrl: instance.groupImageUrl,
         thumbnailUrl: instance.thumbnailUrl,
         platform: f.platform,
         friendCount: 1,

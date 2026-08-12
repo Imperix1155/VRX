@@ -423,6 +423,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
         isGroup: access.isGroup,
         groupName: null,
+        // CVR exposes no group identity in any consumed payload.
+        groupId: null,
+        groupImageUrl: null,
         region: null,
         userCount: resolved.playerCount
       }

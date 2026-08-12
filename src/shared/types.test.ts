@@ -26,6 +26,9 @@ const vrchatFriend = {
     openness: 'public',
     isGroup: false,
     groupName: null,
+    groupId: null,
+    groupImageUrl: null,
+
     region: null,
     userCount: null
   },

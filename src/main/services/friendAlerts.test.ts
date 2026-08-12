@@ -26,6 +26,9 @@ function instance(instanceId: string, worldName: string | null = 'The Great Pug'
     openness: 'public',
     isGroup: false,
     groupName: null,
+    groupId: null,
+    groupImageUrl: null,
+
     region: null,
     userCount: null
   }

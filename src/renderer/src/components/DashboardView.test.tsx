@@ -88,6 +88,8 @@ const publicWorld = (
       openness: 'public',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: 'us',
       userCount: 6
     }
@@ -106,6 +108,8 @@ const groupWorld = (id: string, name: string): Friend =>
       openness: 'invite-plus',
       isGroup: true,
       groupName: 'The Cool Group',
+      groupId: null,
+      groupImageUrl: null,
       region: 'us',
       userCount: 4
     }
@@ -221,6 +225,8 @@ describe('DashboardView states (W5)', () => {
           openness: 'invite-plus',
           isGroup: true,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: 'us',
           userCount: 5
         }
@@ -258,6 +264,8 @@ describe('DashboardView states (W5)', () => {
           openness: 'public',
           isGroup: false,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: 'us',
           userCount: 6
         }
@@ -292,6 +300,8 @@ describe('DashboardView states (W5)', () => {
         openness: 'public',
         isGroup: false,
         groupName: null,
+        groupId: null,
+        groupImageUrl: null,
         region: 'us',
         userCount: 1
       }
@@ -337,6 +347,8 @@ describe('HotInstanceCard Join (VRX-237)', () => {
         openness: 'public',
         isGroup: false,
         groupName: null,
+        groupId: null,
+        groupImageUrl: null,
         region: 'us',
         userCount: 3
       }
@@ -410,6 +422,8 @@ describe('HotInstanceCard Join (VRX-237)', () => {
           openness: 'public',
           isGroup: false,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: null,
           userCount: 2
         }
@@ -653,6 +667,8 @@ describe('HotInstanceSheet (VRX-250)', () => {
           opennessUnknown: true,
           isGroup: false,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: 'us',
           userCount: 2
         }
@@ -710,6 +726,8 @@ describe('HotInstanceSheet (VRX-250)', () => {
           openness: 'public',
           isGroup: false,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: null,
           userCount: 2
         }
@@ -1051,6 +1069,8 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
           openness: 'public',
           isGroup: false,
           groupName: null,
+          groupId: null,
+          groupImageUrl: null,
           region: 'us',
           userCount: 2
         }

@@ -107,6 +107,8 @@ const instanceSchema = z
     opennessUnknown: z.boolean().optional(),
     isGroup: z.boolean(),
     groupName: z.string().nullable(),
+    groupId: z.string().nullable().default(null),
+    groupImageUrl: z.string().nullable().default(null),
     region: z.string().nullable(),
     userCount: z.number().int().nonnegative().nullable()
   })

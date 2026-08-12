@@ -306,7 +306,8 @@
   },
   "hotSheet": {
     "ariaLabel": "{{world}} hot instance details",
-    "friendsHereHeading": "FRIENDS HERE — {{count}}"
+    "friendsHereHeading": "FRIENDS HERE — {{count}}",
+    "hostedBy": "Hosted by {{group}}"
   },
   "dashboard": {
     "loading": "Loading...",

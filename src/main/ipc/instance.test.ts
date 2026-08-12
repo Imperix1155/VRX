@@ -42,6 +42,8 @@ function friend(overrides: Partial<Friend> = {}): Friend {
       openness: 'friends',
       isGroup: false,
       groupName: null,
+      groupId: null,
+      groupImageUrl: null,
       region: null,
       userCount: null
     },

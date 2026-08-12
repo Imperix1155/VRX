@@ -31,7 +31,7 @@
 import type { OpennessTier, VrcInstanceType } from '@shared/types'
 
 /** Splits a raw instanceId into its tag names and values. */
-function parseTags(instanceId: string): Map<string, string> {
+export function parseTags(instanceId: string): Map<string, string> {
   const tags = new Map<string, string>()
   // Tags appear after the first `~`; each is `tagname` or `tagname(value)`.
   const tagRe = /~([a-zA-Z]+)(?:\(([^)]*)\))?/g

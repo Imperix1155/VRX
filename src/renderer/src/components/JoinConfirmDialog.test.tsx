@@ -67,6 +67,9 @@ const publicInstance: InstanceInfo = {
   openness: 'public',
   isGroup: false,
   groupName: null,
+  groupId: null,
+  groupImageUrl: null,
+
   region: 'us',
   userCount: 14
 }
@@ -93,6 +96,8 @@ const cvrInstance: InstanceInfo = {
   worldName: 'CVR Hub',
   type: 'friends-of-friends',
   openness: 'friends-plus',
+  groupId: null,
+  groupImageUrl: null,
   region: null
 }
 
@@ -547,6 +552,36 @@ describe('openness copy (the safety context)', () => {
     expect(
       within(dialog).getByText(
         'Anyone can walk into a public instance — treat it as a fully open space.'
+      )
+    ).toBeTruthy()
+  })
+
+  it('group instances render the real groupName instead of the fallback', () => {
+    const groupFriend: Friend = {
+      ...joinableFriend,
+      instance: {
+        ...publicInstance,
+        type: 'group',
+        openness: 'invite',
+        isGroup: true,
+        groupId: 'grp_pixpals',
+        groupName: 'Pixel Pals'
+      }
+    }
+    mockFriends([groupFriend])
+    render(
+      <>
+        <OpenJoin friend={groupFriend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More info' }))
+
+    expect(
+      within(dialog).getByText(
+        /Only Pixel Pals members can get in — friendship and invites don't apply here/
       )
     ).toBeTruthy()
   })

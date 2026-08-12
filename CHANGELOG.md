@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Group instances now show their real group name and icon in the hot-instance sheet. VRChat group metadata is resolved in the background through a bounded TTL cache and patched live as friends move between group instances; the parser extracts `groupId` from `~group(grp_x)` and leaves `groupName`/`groupImageUrl` for enrichment. CVR continues to report no group identity explicitly. (VRX-260)
+
 ### Fixed
 
 - The hot-instance sheet's platform stripe now stays inside the panel's rounded corners instead of spanning the window. (vrx-259)
