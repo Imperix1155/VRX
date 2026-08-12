@@ -501,7 +501,80 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(screen.getByText(msg('joinConfirm.openness.public'))).toBeTruthy()
   })
 
-  it('group instance shows the hosted-by line; non-group shows only the type label', () => {
+  it('platform stripe is clipped inside the panel radius container, not full-window', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const stripe = screen.getByTestId('hot-sheet-stripe')
+    // The stripe must be a descendant of the overflow-clipping radius wrapper.
+    const clipper = stripe.closest('.overflow-hidden')
+    expect(clipper).not.toBeNull()
+    expect(clipper?.className).toContain('rounded-t-[var(--radius-panel)]')
+  })
+
+  it('sheet and scrim are offset from the left edge so they do not cover the sidebar', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const panel = screen.getByRole('dialog', { name: 'SunDown' })
+    const scrim = screen.getByTestId('hot-sheet-scrim')
+
+    // Both surfaces carry the shared content-inset offset, not a full-window left-0.
+    expect(panel.className).toContain('left-[var(--content-inset-left)]')
+    expect(panel.className).not.toContain('left-0')
+    expect(scrim.className).toContain('left-[var(--content-inset-left)]')
+    expect(scrim.className).not.toContain('left-0')
+  })
+
+  it('openness sentence sits above the friends-here heading in DOM order', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+    const openness = within(sheet).getByTestId('hot-sheet-openness-sentence')
+    const heading = within(sheet).getByRole('heading', {
+      name: msg('hotSheet.friendsHereHeading', { count: 2 })
+    })
+
+    expect(openness.textContent).toBe(msg('joinConfirm.openness.public'))
+    // The openness sentence precedes the friends-here heading in the DOM.
+    expect(heading.compareDocumentPosition(openness) & Node.DOCUMENT_POSITION_PRECEDING).toBe(
+      Node.DOCUMENT_POSITION_PRECEDING
+    )
+  })
+
+  it('instance id is demoted to a small mono line at the bottom of the right zone with full value in title', () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'SunDown' })
+    const idEl = within(sheet).getByTestId('hot-sheet-instance-id')
+
+    expect(idEl.textContent).toBe('wrld_sun:1~public')
+    expect(idEl.getAttribute('title')).toBe('wrld_sun:1~public')
+    expect(idEl.className).toContain('text-[10.5px]')
+    expect(idEl.className).toContain('text-[var(--text-faint)]')
+    // It lives in the right-hand meta zone (justified to the end of the row).
+    expect(idEl.parentElement?.className).toContain('justify-end')
+  })
+
+  it('banner carries the shared InstancePill and PlatformPill; hosted-by line is gone', () => {
     stubQueries(
       { data: [groupWorld('usr_a', 'Amy'), groupWorld('usr_b', 'Bo')], isPending: false },
       { data: [], isPending: false }
@@ -509,12 +582,17 @@ describe('HotInstanceSheet (VRX-250)', () => {
     render(<DashboardView />)
 
     fireEvent.click(screen.getByRole('button', { name: /Group Hangout hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'Group Hangout' })
+    const banner = within(sheet).getByTestId('hot-sheet-banner')
 
-    // Hosted by line + type label.
-    const subtitle = `${msg('hotSheet.hostedBy', { group: 'The Cool Group' })} · Group+`
-    expect(screen.getByText(subtitle)).toBeTruthy()
+    // The shared InstancePill (tier-colored openness label) sits on the banner.
+    expect(within(banner).getByText('Group+')).toBeTruthy()
+    // The shared PlatformPill (non-color platform signifier) sits on the banner.
+    expect(within(banner).getByText(msg('dashboard.platformVrc'))).toBeTruthy()
+    // The old hosted-by line is fully removed — no "Hosted by" anywhere.
+    expect(screen.queryByText(/Hosted by/)).toBeNull()
 
-    // Non-group instance: just the type label, no "Hosted by".
+    // Non-group instance: still has both pills, no hosted-by line.
     cleanup()
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
@@ -522,6 +600,10 @@ describe('HotInstanceSheet (VRX-250)', () => {
     )
     render(<DashboardView />)
     fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
+    const publicSheet = screen.getByRole('dialog', { name: 'SunDown' })
+    const publicBanner = within(publicSheet).getByTestId('hot-sheet-banner')
+    expect(within(publicBanner).getByText('Public')).toBeTruthy()
+    expect(within(publicBanner).getByText(msg('dashboard.platformVrc'))).toBeTruthy()
     expect(screen.queryByText(/Hosted by/)).toBeNull()
   })
 
