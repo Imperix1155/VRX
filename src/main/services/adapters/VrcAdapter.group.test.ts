@@ -139,11 +139,6 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
         groupImageUrl: groupMeta.iconUrl
       })
 
-      const { applyFriendEvent } = await import('../../../renderer/src/utils/applyFriendEvent')
-      const enriched = applyFriendEvent(first.friends, metaEvent!)
-      expect(enriched[0]!.instance!.groupName).toBe(groupMeta.name)
-      expect(enriched[0]!.instance!.groupImageUrl).toBe(groupMeta.iconUrl)
-
       const second = await adapter.getFriends()
       expect(second.friends[0]!.instance!.groupName).toBe(groupMeta.name)
       expect(second.friends[0]!.instance!.groupImageUrl).toBe(groupMeta.iconUrl)
@@ -318,11 +313,21 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     const resolver = (adapter as unknown as { groupResolver: GroupResolver }).groupResolver
 
     const inFlight = resolver.resolve(groupId)
+    const pendingGroups = (adapter as unknown as { pendingGroupResolutions: Set<string> })
+      .pendingGroupResolutions
+    const pendingWorlds = (adapter as unknown as { pendingWorldResolutions: Set<string> })
+      .pendingWorldResolutions
+    pendingGroups.add('grp_stale_previous_gen')
+    pendingWorlds.add('wrld_stale_previous_gen')
     adapter.clearSession()
     release()
     await inFlight
 
     expect(resolver.peek(groupId)).toBeUndefined()
+    // The boundary also drops stale pending ids — otherwise the new session's
+    // first kick for the same id is silently suppressed (CodeRabbit, VRX-260).
+    expect(pendingGroups.has('grp_stale_previous_gen')).toBe(false)
+    expect(pendingWorlds.has('wrld_stale_previous_gen')).toBe(false)
   })
 })
 

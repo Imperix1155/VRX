@@ -115,4 +115,31 @@ describe('GroupResolver', () => {
     expect(meta).toBeNull()
     expect(fetcher).toHaveBeenCalledOnce()
   })
+  it('an older bypassed request settling late cannot overwrite the newer result (write epoch)', async () => {
+    // Interactive bypasses the pending default → two fetches in flight. The
+    // DEFAULT one settles last with stale data; only the newest launch may
+    // write, so the cache must keep the interactive result.
+    let releaseDefault!: (value: unknown) => void
+    const heldDefault = new Promise((resolve) => {
+      releaseDefault = resolve
+    })
+    let calls = 0
+    const resolver = createGroupResolver({
+      fetcher: () => {
+        calls += 1
+        if (calls === 1) return heldDefault
+        return Promise.resolve({ name: 'Fresh Name', iconUrl: null })
+      },
+      clock: () => 1000
+    })
+
+    const defaultRequest = resolver.resolve('grp_epoch')
+    const interactive = await resolver.resolve('grp_epoch', { priority: 'interactive' })
+    expect(interactive).toEqual({ name: 'Fresh Name', iconUrl: null })
+
+    releaseDefault({ name: 'Stale Name', iconUrl: null })
+    await defaultRequest
+
+    expect(resolver.peek('grp_epoch')).toEqual({ name: 'Fresh Name', iconUrl: null })
+  })
 })

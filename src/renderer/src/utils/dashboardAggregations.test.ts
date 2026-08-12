@@ -563,4 +563,32 @@ describe('hot-instance key alignment (VRX-237)', () => {
     expect(alerts.filter((x) => x.type === 'hot-instance')).toEqual([])
     expect(getHotInstances([a, { ...a }], 2)).toEqual([])
   })
+  it('back-fills group metadata from a later member of the same instance (same groupId only)', () => {
+    // Members of one exact instance can transiently disagree after hydration:
+    // the first member may still carry nulls while a later member retained the
+    // resolved name/image. The hot record must not lose that knowledge.
+    const inst: InstanceInfo = {
+      worldId: 'wrld_group',
+      instanceId: 'wrld_group:1~groupPlus',
+      worldName: 'Group Hangout',
+      thumbnailUrl: null,
+      type: 'group-plus',
+      openness: 'invite-plus',
+      isGroup: true,
+      groupName: null,
+      groupId: 'grp_cool',
+      groupImageUrl: null,
+      region: 'us',
+      userCount: 4
+    }
+    const first = vrcFriend('a', 'in-game', inst)
+    const second = vrcFriend('b', 'in-game', {
+      ...inst,
+      groupName: 'Pixel Pals',
+      groupImageUrl: 'https://example.com/pals.png'
+    })
+    const [hot] = getHotInstances([first, second], 2)
+    expect(hot!.groupName).toBe('Pixel Pals')
+    expect(hot!.groupImageUrl).toBe('https://example.com/pals.png')
+  })
 })

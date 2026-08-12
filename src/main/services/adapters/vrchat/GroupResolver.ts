@@ -97,6 +97,13 @@ export function createGroupResolver(options: {
 
   const cache = new Map<string, CacheEntry>()
   const inFlight = new Map<string, Promise<GroupMeta | null>>()
+  /**
+   * Per-group write epoch: an interactive request may BYPASS a pending default
+   * request (two fetches in flight for one id), and whichever settles LAST
+   * would win the cache. Only the newest launch may write, so an older default
+   * settling late can never overwrite fresher metadata (CodeRabbit, VRX-260).
+   */
+  const writeEpoch = new Map<string, number>()
   let generation = 0
 
   function fresh(entry: CacheEntry | undefined): entry is CacheEntry {
@@ -124,13 +131,17 @@ export function createGroupResolver(options: {
     requestGeneration: number,
     options?: Pick<AdapterRequestOptions, 'priority'>
   ): Promise<GroupMeta | null> {
+    const epoch = (writeEpoch.get(groupId) ?? 0) + 1
+    writeEpoch.set(groupId, epoch)
+    const mayWrite = (): boolean =>
+      requestGeneration === generation && writeEpoch.get(groupId) === epoch
     try {
       const raw = await fetcher(groupId, options)
       const parsed = rawGroupSchema.safeParse(raw)
       if (!parsed.success) {
         // Treat an unparseable group body as a negative-cache miss so a bad
         // response shape can't crash enrichment.
-        if (requestGeneration === generation) {
+        if (mayWrite()) {
           store(groupId, { expiresAt: clock() + negativeTtlMs, value: null })
         }
         return null
@@ -139,7 +150,7 @@ export function createGroupResolver(options: {
         name: parsed.data.name,
         iconUrl: parsed.data.iconUrl ?? null
       }
-      if (requestGeneration === generation) {
+      if (mayWrite()) {
         store(groupId, { expiresAt: clock() + ttlMs, value })
       }
       return value
@@ -149,7 +160,7 @@ export function createGroupResolver(options: {
 
       // Private/deleted groups and non-auth transient failures negative-cache to
       // null so repeated roster/snapshot cycles don't hammer the API.
-      if (requestGeneration === generation) {
+      if (mayWrite()) {
         store(groupId, { expiresAt: clock() + negativeTtlMs, value: null })
       }
       return null
@@ -190,6 +201,7 @@ export function createGroupResolver(options: {
       generation += 1
       cache.clear()
       inFlight.clear()
+      writeEpoch.clear()
     }
   }
 }

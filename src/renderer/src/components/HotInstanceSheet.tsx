@@ -107,8 +107,15 @@ export default function HotInstanceSheet({
   const [failedGroupKey, setFailedGroupKey] = useState<string | null>(null)
   const groupImageKey = groupDataUrl ? `${shown?.groupImageUrl ?? ''}\u0000${groupDataUrl}` : null
   const showGroupImage = groupImageKey !== null && groupImageKey !== failedGroupKey
+  // Platform gate is deliberate defense: no CVR producer emits group identity
+  // today, so a CVR instance carrying group fields is stale/malformed data —
+  // never render a card from it (truthful signals).
   const showGroupCard =
-    shown !== null && shown.isGroup && shown.groupId !== null && shown.groupName !== null
+    shown !== null &&
+    shown.platform === 'vrchat' &&
+    shown.isGroup &&
+    shown.groupId !== null &&
+    shown.groupName !== null
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY, so the join
   // confirmation dialog (a modal sibling) does not steal focus back here.
@@ -348,6 +355,7 @@ export default function HotInstanceSheet({
                   <div
                     ref={groupCardRef}
                     data-testid="hot-sheet-group-card"
+                    role="img"
                     aria-label={t('hotSheet.hostedBy', { group: shown.groupName })}
                     className="relative h-[80px] w-[200px] overflow-hidden rounded-control"
                     style={{
@@ -376,9 +384,6 @@ export default function HotInstanceSheet({
                         }}
                       >
                         {shown.groupName}
-                      </span>
-                      <span className="sr-only">
-                        {t('hotSheet.hostedBy', { group: shown.groupName })}
                       </span>
                     </div>
                   </div>

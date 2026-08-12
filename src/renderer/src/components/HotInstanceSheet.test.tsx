@@ -116,6 +116,9 @@ describe('HotInstanceSheet', () => {
     const card = screen.getByTestId('hot-sheet-group-card')
     expect(card).toBeTruthy()
     expect(within(card).getByText('Pixel Pals')).toBeTruthy()
+    // role="img" is what exposes the aria-label as an accessible name — a
+    // generic div would not (CodeRabbit, VRX-260).
+    expect(card.getAttribute('role')).toBe('img')
     expect(card.getAttribute('aria-label')).toBe('Hosted by Pixel Pals')
     const nameSpan = within(card).getByText('Pixel Pals')
     expect(nameSpan.getAttribute('title')).toBe('Pixel Pals')
@@ -127,6 +130,17 @@ describe('HotInstanceSheet', () => {
   it('omits the group card when the group has no name', () => {
     stubIntersectionObserver()
     render(<HotInstanceSheet instance={makeHotInstance({ groupName: null })} onClose={() => {}} />)
+
+    expect(screen.queryByTestId('hot-sheet-group-card')).toBeNull()
+  })
+
+  it('never renders a group card for a ChilloutVR instance, even with stale group fields', () => {
+    // No CVR producer emits group identity; fields arriving anyway are stale or
+    // malformed data and must not paint a card (truthful signals; CodeRabbit).
+    stubIntersectionObserver()
+    render(
+      <HotInstanceSheet instance={makeHotInstance({ platform: 'chilloutvr' })} onClose={() => {}} />
+    )
 
     expect(screen.queryByTestId('hot-sheet-group-card')).toBeNull()
   })

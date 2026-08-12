@@ -870,6 +870,11 @@ export class VrcAdapter extends VrcApiClient {
   private bumpSessionGeneration(): void {
     this.sessionGeneration += 1
     this.groupResolver.clear()
+    // Stale pending ids from the previous generation would suppress the new
+    // session's first kick until their in-flight promises settle (both kick
+    // paths skip ids already in the set) — drop them with the caches.
+    this.pendingGroupResolutions.clear()
+    this.pendingWorldResolutions.clear()
     this.live?.onSessionBoundary?.()
 
     const wasRunning = this.subscribers.size > 0
