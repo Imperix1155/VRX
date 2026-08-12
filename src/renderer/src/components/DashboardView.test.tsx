@@ -532,6 +532,13 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(panel.className).not.toContain('left-0')
     expect(scrim.className).toContain('left-[var(--content-inset-left)]')
     expect(scrim.className).not.toContain('left-0')
+
+    // The panel must be genuinely viewport-fixed: a bare `relative` utility on
+    // the same element FIGHTS `fixed` in the cascade and won (render-check,
+    // 2026-08-12) — the sheet silently became in-flow while every class-name
+    // pin still passed. Same defect family as the v0.10.0 `.glass` drawer bug.
+    expect(panel.className).toMatch(/\bfixed\b/)
+    expect(panel.className).not.toMatch(/\brelative\b/)
   })
 
   it('openness sentence sits above the friends-here heading in DOM order', () => {

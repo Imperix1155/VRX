@@ -175,7 +175,7 @@ export default function HotInstanceSheet({
         aria-label={worldName}
         className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[34vh] min-h-[360px] flex-col motion-safe:transition-transform motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-y-0' : 'translate-y-full'
-        } relative`}
+        }`}
         style={{
           backgroundColor: 'var(--glass-frost)',
           backgroundImage: 'var(--glass-bg)',

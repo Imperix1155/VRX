@@ -474,7 +474,7 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 **Sheet shell:**
 
 - Bottom-anchored, `max-h-[34vh]`, `min-h-[360px]`, fixed left/right/bottom.
-- Contained to the **main content area**: the sheet and its scrim start at `var(--content-inset-left)` (= sidebar `248px` + `var(--space-4)` gap) and end at `var(--content-inset-right)` (= `var(--space-4)` gap), so the sidebar, wordmark, version line, and update button stay fully visible when the sheet is open. The inner horizontal padding matches the main pane's own padding (`var(--space-2)`).
+- Contained to the **main content area**: the sheet and its scrim start at `var(--content-inset-left)` (= shell padding `var(--space-4)` + sidebar `248px` + `var(--space-4)` gap — flush with the main panel's left edge) and end at `var(--content-inset-right)` (= `var(--space-4)` gap), so the sidebar, wordmark, version line, and update button stay fully visible when the sheet is open. The inner horizontal padding matches the main pane's own padding (`var(--space-2)`).
 - Slides up over **220ms** `cubic-bezier(.32,.72,.29,1)`; instant under `prefers-reduced-motion`.
 - Material: `background-color: var(--glass-frost)` + `background-image: var(--glass-bg)` + `backdrop-filter: var(--glass-blur-frosted)`, top corners `var(--radius-panel)`, top border `var(--glass-border)`, upward shadow `var(--hot-sheet-shadow)`.
 - 4px platform-gradient top stripe (`linear-gradient(90deg, var(--vrc|--cvr), transparent)` per instance platform). The stripe is a child of an inner `overflow-hidden rounded-t-[var(--radius-panel)]` wrapper so it follows the panel's rounded top corners and never spans past them (§3 stripe containment rule; fixes the second shipped occurrence of this defect, 2026-08-12).
