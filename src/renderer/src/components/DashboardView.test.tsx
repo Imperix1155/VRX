@@ -589,6 +589,8 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(idEl.getAttribute('title')).toBe('wrld_sun:1~public')
     expect(idEl.className).toContain('text-[10.5px]')
     expect(idEl.className).toContain('text-[var(--text-faint)]')
+    // The monospace face is the identity-string signifier — pin it too.
+    expect(idEl.style.fontFamily).toContain('ui-monospace')
     // It lives in the right-hand meta zone (justified to the end of the row).
     expect(idEl.parentElement?.className).toContain('justify-end')
   })
@@ -627,8 +629,12 @@ describe('HotInstanceSheet (VRX-250)', () => {
     fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
     const publicSheet = screen.getByRole('dialog', { name: 'SunDown' })
     const publicBanner = within(publicSheet).getByTestId('hot-sheet-banner')
-    expect(within(publicBanner).getByText('Public')).toBeTruthy()
-    expect(within(publicBanner).getByText(msg('dashboard.platformVrc'))).toBeTruthy()
+    const publicInstancePill = publicBanner.querySelector('[data-instance-pill]')
+    expect(publicInstancePill).toBeTruthy()
+    expect(publicInstancePill?.textContent).toBe('Public')
+    const publicPlatformPill = publicBanner.querySelector('[data-platform-pill]')
+    expect(publicPlatformPill).toBeTruthy()
+    expect(publicPlatformPill?.textContent).toBe(msg('dashboard.platformVrc'))
     expect(screen.queryByText(/Hosted by/)).toBeNull()
   })
 
