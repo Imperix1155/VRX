@@ -164,7 +164,7 @@ export default function HotInstanceSheet({
       <div
         data-testid="hot-sheet-scrim"
         aria-hidden="true"
-        className={`pointer-events-none fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-40 bg-[var(--scrim-soft)] motion-safe:transition-opacity motion-safe:duration-[220ms] ${
+        className={`pointer-events-none fixed inset-y-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-40 bg-[var(--scrim-soft)] motion-safe:transition-opacity motion-safe:duration-[220ms] ${
           open ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -187,6 +187,19 @@ export default function HotInstanceSheet({
           boxShadow: 'var(--hot-sheet-shadow)'
         }}
       >
+        {/* ✕ close — FIRST child of the panel (Tab from initial focus reaches Join
+            next, review 2026-08-12) and a sibling of the clip wrapper so the
+            rounded-corner clipping can never swallow it. */}
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          aria-label={t('drawer.close')}
+          className="absolute top-[var(--space-3)] right-[var(--space-3)] z-10 grid h-[28px] w-[28px] place-items-center rounded-[9px] text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
+
         {/*
           Inner wrapper: matches the panel's top radius and clips the platform
           stripe so it follows the rounded corners instead of spanning the full
@@ -335,18 +348,6 @@ export default function HotInstanceSheet({
             </div>
           </div>
         </div>
-
-        {/* ✕ close — sibling of the clip wrapper so it cannot be clipped by the
-            rounded top corners. */}
-        <button
-          ref={closeButtonRef}
-          type="button"
-          onClick={onClose}
-          aria-label={t('drawer.close')}
-          className="absolute top-[var(--space-3)] right-[var(--space-3)] z-10 grid h-[28px] w-[28px] place-items-center rounded-[9px] text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors"
-        >
-          <span aria-hidden="true">✕</span>
-        </button>
       </div>
     </div>
   )

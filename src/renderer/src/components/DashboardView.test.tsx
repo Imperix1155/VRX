@@ -539,6 +539,18 @@ describe('HotInstanceSheet (VRX-250)', () => {
     // pin still passed. Same defect family as the v0.10.0 `.glass` drawer bug.
     expect(panel.className).toMatch(/\bfixed\b/)
     expect(panel.className).not.toMatch(/\brelative\b/)
+
+    // Right edge is half the containment fix — pin it symmetrically.
+    expect(panel.className).toContain('right-[var(--content-inset-right)]')
+    expect(panel.className).not.toMatch(/\bright-0\b/)
+    expect(scrim.className).toContain('right-[var(--content-inset-right)]')
+    expect(scrim.className).not.toMatch(/\bright-0\b/)
+
+    // The scrim needs BOTH vertical anchors or it resolves to zero height and
+    // paints nothing (review 2026-08-12: `bottom-0` alone shipped an invisible
+    // scrim while every class pin stayed green).
+    expect(scrim.className).toContain('inset-y-0')
+    expect(scrim.className).not.toMatch(/\bbottom-0\b/)
   })
 
   it('openness sentence sits above the friends-here heading in DOM order', () => {
@@ -592,10 +604,16 @@ describe('HotInstanceSheet (VRX-250)', () => {
     const sheet = screen.getByRole('dialog', { name: 'Group Hangout' })
     const banner = within(sheet).getByTestId('hot-sheet-banner')
 
-    // The shared InstancePill (tier-colored openness label) sits on the banner.
-    expect(within(banner).getByText('Group+')).toBeTruthy()
+    // The shared InstancePill (tier-colored openness label) sits on the banner —
+    // asserted via the component-owned marker, so a locally re-implemented span
+    // with the right words cannot pass (review 2026-08-12).
+    const instancePill = banner.querySelector('[data-instance-pill]')
+    expect(instancePill).toBeTruthy()
+    expect(instancePill?.textContent).toBe('Group+')
     // The shared PlatformPill (non-color platform signifier) sits on the banner.
-    expect(within(banner).getByText(msg('dashboard.platformVrc'))).toBeTruthy()
+    const platformPill = banner.querySelector('[data-platform-pill]')
+    expect(platformPill).toBeTruthy()
+    expect(platformPill?.textContent).toBe(msg('dashboard.platformVrc'))
     // The old hosted-by line is fully removed — no "Hosted by" anywhere.
     expect(screen.queryByText(/Hosted by/)).toBeNull()
 
