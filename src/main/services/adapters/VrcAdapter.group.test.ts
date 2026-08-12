@@ -152,6 +152,142 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     }
   })
 
+  it('overlapping getFriends calls do not double-fetch an in-flight group (roster-kick dedupe)', async () => {
+    // peek() stays undefined until a resolve COMPLETES, so without the
+    // pendingGroupResolutions guard in kickGroupMetadata a second getFriends
+    // during the held window would re-fetch the same group through the shared
+    // slot (the VRX-214 world lesson, ported per the VRX-260 review).
+    const groupId = 'grp_dedup'
+    const worldId = 'wrld_dedup'
+    const location = `${worldId}:inst~group(${groupId})~groupAccessType(plus)`
+    let releaseGroup!: (response: Response) => void
+    const heldGroup = new Promise<Response>((resolve) => {
+      releaseGroup = resolve
+    })
+    let groupFetches = 0
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      if (href.endsWith('/auth/user')) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'usr_self',
+            displayName: 'Self',
+            onlineFriends: ['usr_friend'],
+            activeFriends: [],
+            offlineFriends: []
+          })
+        )
+      }
+      if (href.includes('/auth/user/friends')) {
+        return Promise.resolve(
+          jsonResponse(
+            href.includes('offline=true')
+              ? []
+              : [
+                  {
+                    id: 'usr_friend',
+                    displayName: 'Friend',
+                    currentAvatarThumbnailImageUrl: null,
+                    status: 'active',
+                    statusDescription: null,
+                    tags: [],
+                    location
+                  }
+                ]
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        return Promise.resolve(jsonResponse({ name: 'Dedup World', thumbnailImageUrl: null }))
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        groupFetches += 1
+        return heldGroup
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    const events: AdapterEvent[] = []
+    const unsubscribe = adapter.subscribe((event) => events.push(event))
+    try {
+      await adapter.getFriends()
+      await vi.waitFor(() => expect(groupFetches).toBe(1))
+      // Second roster fetch while the group resolution is still held. The
+      // resolver's internal in-flight map already prevents a double FETCH; the
+      // adapter-level pendingGroupResolutions guard is what prevents the second
+      // kick from ALSO subscribing and double-emitting the resolution. Assert
+      // the count, not presence.
+      await adapter.getFriends()
+      releaseGroup(jsonResponse({ name: 'Dedup Crew', iconUrl: null }))
+      await vi.waitFor(() =>
+        expect(events.filter((e) => e.type === 'group-metadata').length).toBeGreaterThan(0)
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(events.filter((e) => e.type === 'group-metadata')).toHaveLength(1)
+      expect(groupFetches).toBe(1)
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('a failed roster-kick group fetch sweeps pendingGroupResolutions (unconditional finally)', async () => {
+    // Without the unconditional sweep in kickGroupMetadata, a failed id stays
+    // in the pending set forever and every later kick skips it — the VRX-258
+    // stranded-worldId trap, ported to the group path.
+    const groupId = 'grp_sweep'
+    const worldId = 'wrld_sweep'
+    const location = `${worldId}:inst~group(${groupId})~groupAccessType(plus)`
+    const fetchMock = vi.fn((url: RequestInfo | URL) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      if (href.endsWith('/auth/user')) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'usr_self',
+            displayName: 'Self',
+            onlineFriends: ['usr_friend'],
+            activeFriends: [],
+            offlineFriends: []
+          })
+        )
+      }
+      if (href.includes('/auth/user/friends')) {
+        return Promise.resolve(
+          jsonResponse(
+            href.includes('offline=true')
+              ? []
+              : [
+                  {
+                    id: 'usr_friend',
+                    displayName: 'Friend',
+                    currentAvatarThumbnailImageUrl: null,
+                    status: 'active',
+                    statusDescription: null,
+                    tags: [],
+                    location
+                  }
+                ]
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        return Promise.resolve(jsonResponse({ name: 'Sweep World', thumbnailImageUrl: null }))
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        return Promise.reject(new Error('network down'))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    await adapter.getFriends()
+    const pending = (adapter as unknown as { pendingGroupResolutions: Set<string> })
+      .pendingGroupResolutions
+    await vi.waitFor(() => expect(pending.size).toBe(0))
+  })
+
   it('clears the group resolver on session boundary so the next account does not inherit cached entries', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
