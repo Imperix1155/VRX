@@ -46,9 +46,10 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     expect(parseCvrPrivacy('constructor')).toEqual(UNKNOWN_RESTRICTED)
   })
 
-  // The LIVE wire (WS ONLINE_FRIENDS + /1/instances) sends privacy as an INTEGER
-  // enum, not a string. Values 0–6 from the owner's prior app; 7 captured live
-  // 2026-07-08 on a KNOWN group instance (owner ground truth).
+  // The WS ONLINE_FRIENDS wire sends privacy as an INTEGER enum; GET
+  // /instances/{id} sends a PascalCase STRING (observed live 2026-08-12).
+  // Values 0–6 from the owner's prior app; 7 captured live 2026-07-08 on a
+  // KNOWN group instance (owner ground truth).
   describe('numeric enum (live wire)', () => {
     it.each([
       [0, 'public', 'public', false], // live-confirmed

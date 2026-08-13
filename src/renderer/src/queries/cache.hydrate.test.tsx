@@ -78,7 +78,7 @@ async function seedPersistedCache(payload: {
 
 function buildPersistedPayload(
   friends: Friend[],
-  overrides: { buster?: string; timestamp?: number; dataUpdatedAt?: number } = {}
+  overrides: { buster?: string; timestamp?: number; dataUpdatedAt?: number; platform?: string } = {}
 ): {
   buster: string
   timestamp: number
@@ -95,8 +95,8 @@ function buildPersistedPayload(
       queries: [
         {
           dehydratedAt: timestamp,
-          queryHash: '["friends","vrchat"]',
-          queryKey: ['friends', 'vrchat'],
+          queryHash: `["friends","${overrides.platform ?? 'vrchat'}"]`,
+          queryKey: ['friends', overrides.platform ?? 'vrchat'],
           state: {
             data: friends,
             dataUpdateCount: 1,
@@ -214,6 +214,62 @@ describe('PersistQueryClientProvider hydrate', () => {
     )
 
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
+  })
+
+  it('hydration round-trips CVR group fields (VRX-263 — the card must survive a restart)', async () => {
+    // The hydration schema is platform-agnostic today; this pins that a future
+    // platform-specific transform can never silently null CVR group metadata
+    // (card would vanish after restart until REST re-enrichment).
+    const cvrGroupFriend = {
+      platformUserId: 'usr_cvrgrp',
+      platform: 'chilloutvr',
+      displayName: 'CvrGrouper',
+      avatarUrl: null,
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      isFavorite: false,
+      favoriteGroupIds: [],
+      linkedPersonId: null,
+      instance: {
+        worldId: 'world-guid-1',
+        instanceId: 'i+grp1',
+        worldName: 'Movie World',
+        thumbnailUrl: null,
+        type: 'friends-of-members',
+        openness: 'friends-plus',
+        isGroup: true,
+        groupName: 'Bonos Movie Night',
+        groupId: '8c7cad5b-0000-0000-0000-000000000000',
+        groupImageUrl: 'https://files.chilloutvr.net/groups/x/images/y.png',
+        region: 'eu',
+        userCount: 5
+      }
+    } as unknown as Friend
+
+    // Hang the refetch so we inspect the pure hydrated state.
+    const getFriends = vi.fn().mockImplementation(() => new Promise<Friend[]>(() => {}))
+    Object.assign(window, { vrx: { getFriends } })
+    await seedPersistedCache(
+      buildPersistedPayload([cvrGroupFriend], {
+        dataUpdatedAt: Date.now() - 1000,
+        platform: 'chilloutvr'
+      })
+    )
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    mountHydrate(queryClient, vi.fn())
+
+    await waitFor(() => {
+      const hydrated = queryClient.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))
+      expect(hydrated?.[0]?.instance?.groupName).toBe('Bonos Movie Night')
+    })
+    const hydrated = queryClient.getQueryData<Friend[]>(friendsQueryKey('chilloutvr'))
+    expect(hydrated?.[0]?.instance?.groupId).toBe('8c7cad5b-0000-0000-0000-000000000000')
+    expect(hydrated?.[0]?.instance?.groupImageUrl).toBe(
+      'https://files.chilloutvr.net/groups/x/images/y.png'
+    )
   })
 
   it('paints the seeded list immediately, then refetches and replaces presence/status but preserves known world names for the same world', async () => {

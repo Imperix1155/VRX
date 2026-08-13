@@ -36,6 +36,10 @@ const PRIVACY_MAP: Record<string, CvrInstanceAccess> = {
   everyonecaninvite: { type: 'everyone-can-invite', openness: 'invite-plus', isGroup: false },
   ownermustinvite: { type: 'owner-must-invite', openness: 'invite', isGroup: false },
   groupsonly: { type: 'members-only', openness: 'invite', isGroup: true },
+  // DELIBERATE divergence from PRIVACY_MAP_NUMERIC[6] (members-only/invite): the
+  // vendor table says GroupPlus=6, but numeric-6 has never been live-captured and
+  // loosening a displayed access label on a doc alone is the unsafe direction —
+  // understate on doubt. Reconcile only after a live numeric-6 capture (VRX-264).
   groupplus: { type: 'friends-of-members', openness: 'friends-plus', isGroup: true }
 }
 
