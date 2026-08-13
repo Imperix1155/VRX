@@ -214,3 +214,94 @@ describe('createCvrInstanceResolver', () => {
     expect(resolver.peek('i+other')).toBeUndefined()
   })
 })
+
+// ─── VRX-262 group probe ──────────────────────────────────────────────────────
+
+describe('group-instance key probe (VRX-262)', () => {
+  it('fires with keys-only for a group-typed instance, INCLUDING unknown raw keys', async () => {
+    const seen: Array<{ top: string[]; owner: string[]; author: string[]; world: string[] }> = []
+    const { fetcher } = makeFetcher({
+      ...fullDetail,
+      instanceSettingPrivacy: 7,
+      // Unknown keys the strict schema used to strip — passthrough must keep
+      // them visible or the probe can never observe a group field.
+      hypotheticalGroup: { id: 'guid-1', name: 'Secret Crew' },
+      owner: { id: 'guid-2', name: 'Owner', rank: 'user', avatar: {} },
+      author: { id: 'guid-3', name: 'Author' },
+      world: { ...fullDetail.world, hiddenWorldGroup: 'guid-4' }
+    })
+    const resolver = createCvrInstanceResolver({
+      fetcher,
+      onGroupInstanceKeys: (keys) => seen.push(keys)
+    })
+    await resolver.resolve('i+abc123')
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.top).toContain('hypotheticalGroup')
+    expect(seen[0]!.owner).toEqual(['id', 'name', 'rank', 'avatar'])
+    expect(seen[0]!.author).toEqual(['id', 'name'])
+    // Nested world keys must be observable too (Greptile P1: a group field
+    // under `world` would otherwise false-negative the whole experiment).
+    expect(seen[0]!.world).toContain('hiddenWorldGroup')
+    // Keys ONLY — the payload must never carry VALUES (no-PII logging rule):
+    // assert the fixture's values are absent, not merely that entries are strings.
+    const flat = JSON.stringify(seen[0])
+    for (const leaked of [
+      'Secret Crew',
+      'Owner',
+      'Author',
+      'guid-1',
+      'guid-2',
+      'guid-3',
+      'guid-4'
+    ]) {
+      expect(flat).not.toContain(leaked)
+    }
+  })
+
+  it('a throwing diagnostic callback never affects resolution (no poisoned negative-cache)', async () => {
+    const { fetcher, calls } = makeFetcher({ ...fullDetail, instanceSettingPrivacy: 7 })
+    const resolver = createCvrInstanceResolver({
+      fetcher,
+      onGroupInstanceKeys: () => {
+        throw new Error('transport down')
+      }
+    })
+    const resolved = await resolver.resolve('i+abc123')
+    expect(resolved?.privacy).toBe(7)
+    // The SUCCESSFUL result is cached (not negative-cached null from the throw).
+    expect(resolver.peek('i+abc123')?.privacy).toBe(7)
+    await resolver.resolve('i+abc123')
+    expect(calls).toHaveLength(1)
+  })
+
+  it('does not fire for non-group privacy', async () => {
+    const seen: unknown[] = []
+    const { fetcher } = makeFetcher({ ...fullDetail, instanceSettingPrivacy: 0 })
+    const resolver = createCvrInstanceResolver({
+      fetcher,
+      onGroupInstanceKeys: (keys) => seen.push(keys)
+    })
+    await resolver.resolve('i+abc123')
+    expect(seen).toHaveLength(0)
+  })
+
+  it('normalization is unchanged by passthrough (named fields only)', async () => {
+    const { fetcher } = makeFetcher({
+      ...fullDetail,
+      instanceSettingPrivacy: 7,
+      surpriseKey: 'x'
+    })
+    const resolver = createCvrInstanceResolver({ fetcher })
+    const resolved = await resolver.resolve('i+abc123')
+    expect(resolved).toEqual({
+      instanceId: 'i+abc123',
+      instanceName: withTag('SunDown', '816332'),
+      worldId: 'wrld-guid-1',
+      worldName: 'SunDown',
+      worldImageUrl: 'https://files.abinteractive.net/w/1.png',
+      playerCount: 7,
+      privacy: 7
+    })
+  })
+})
