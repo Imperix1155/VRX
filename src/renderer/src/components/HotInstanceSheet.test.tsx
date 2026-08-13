@@ -27,6 +27,21 @@ const groupInstance: InstanceInfo = {
   userCount: 4
 }
 
+const cvrGroupInstance: InstanceInfo = {
+  worldId: 'wrld_cvr',
+  instanceId: 'i+cvrgroup',
+  worldName: 'CVR Group World',
+  thumbnailUrl: 'https://example.com/cvrworld.png',
+  type: 'friends-of-members',
+  openness: 'friends-plus',
+  isGroup: true,
+  groupName: 'CVR Crew',
+  groupId: 'grp_cvr',
+  groupImageUrl: 'https://files.chilloutvr.net/g/cvr.png',
+  region: null,
+  userCount: 3
+}
+
 function makeFriend(platform: Platform, displayName: string, instance: InstanceInfo): Friend {
   const base = {
     platformUserId: `usr_${displayName.toLowerCase()}`,
@@ -69,6 +84,27 @@ function makeHotInstance(overrides?: Partial<HotInstance>): HotInstance {
     groupKey: 'vrchat key',
     ...overrides
   }
+}
+
+function makeCvrHotInstance(overrides?: Partial<HotInstance>): HotInstance {
+  const members = [makeFriend('chilloutvr', 'Alex', cvrGroupInstance)]
+  return makeHotInstance({
+    worldId: cvrGroupInstance.worldId,
+    worldName: cvrGroupInstance.worldName,
+    instanceId: cvrGroupInstance.instanceId,
+    instanceType: cvrGroupInstance.type,
+    isGroup: true,
+    groupName: cvrGroupInstance.groupName,
+    groupId: cvrGroupInstance.groupId,
+    groupImageUrl: cvrGroupInstance.groupImageUrl,
+    thumbnailUrl: cvrGroupInstance.thumbnailUrl,
+    platform: 'chilloutvr',
+    friendCount: members.length,
+    friendNames: members.map((m) => m.displayName),
+    members,
+    groupKey: 'cvr key',
+    ...overrides
+  })
 }
 
 function stubIntersectionObserver(): { trigger: () => void } {
@@ -134,12 +170,27 @@ describe('HotInstanceSheet', () => {
     expect(screen.queryByTestId('hot-sheet-group-card')).toBeNull()
   })
 
-  it('never renders a group card for a ChilloutVR instance, even with stale group fields', () => {
-    // No CVR producer emits group identity; fields arriving anyway are stale or
-    // malformed data and must not paint a card (truthful signals; CodeRabbit).
+  it('renders a group card for a ChilloutVR instance with verified group fields', async () => {
+    const { trigger } = stubIntersectionObserver()
+    render(<HotInstanceSheet instance={makeCvrHotInstance()} onClose={() => {}} />)
+
+    act(() => trigger())
+    await waitFor(() =>
+      expect(window.vrx!.getAvatar).toHaveBeenCalledWith('https://files.chilloutvr.net/g/cvr.png')
+    )
+
+    const card = screen.getByTestId('hot-sheet-group-card')
+    expect(card).toBeTruthy()
+    expect(within(card).getByText('CVR Crew')).toBeTruthy()
+  })
+
+  it('omits the group card for a ChilloutVR instance with null group fields', () => {
     stubIntersectionObserver()
     render(
-      <HotInstanceSheet instance={makeHotInstance({ platform: 'chilloutvr' })} onClose={() => {}} />
+      <HotInstanceSheet
+        instance={makeCvrHotInstance({ groupName: null, groupId: null, groupImageUrl: null })}
+        onClose={() => {}}
+      />
     )
 
     expect(screen.queryByTestId('hot-sheet-group-card')).toBeNull()
