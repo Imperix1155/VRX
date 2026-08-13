@@ -81,6 +81,9 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * presence over the shared `CvrPipeline` (VRX-58); instances = VRX-59/60. CVR
  * has NO 2FA leg — `verify2fa` rejects per the IPlatformAdapter contract.
  */
+/** VRX-262: one probe line per PROCESS (module scope — a re-created adapter must not re-log). */
+let groupProbeLogged = false
+
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
@@ -118,13 +121,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // CVR's raw instance body carries the hosting group anywhere. Keys only —
     // never values (no-PII logging rule). Remove once the question is settled.
     onGroupInstanceKeys: (keys) => {
-      if (this.groupProbeLogged) return
-      this.groupProbeLogged = true
+      if (groupProbeLogged) return
+      groupProbeLogged = true
       this.live?.log?.('info', 'CVR-GROUP-PROBE', keys)
     }
   })
-  /** VRX-262: log the group probe at most once per process. */
-  private groupProbeLogged = false
   /** Last snapshot from the pipeline — re-enriched + re-emitted as resolutions land. */
   private lastSnapshot: PresenceSnapshotEvent | null = null
   /** Ids with a re-emit callback already attached — in-flight ids still `peek()`

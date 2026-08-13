@@ -37,6 +37,9 @@ const rawCvrInstanceDetailSchema = z
         name: z.string().nullable().catch(null).optional(),
         imageUrl: z.string().nullable().catch(null).optional()
       })
+      /* VRX-262: nested unknown keys must be observable too — a group field
+         hiding under `world` would otherwise false-negative the probe. */
+      .passthrough()
       .nullable()
       .catch(null)
       .optional(),
@@ -128,7 +131,12 @@ export function createCvrInstanceResolver(options: {
    * type, so one live capture can settle whether CVR exposes the hosting
    * group anywhere in the raw body. Remove once the question is settled.
    */
-  onGroupInstanceKeys?: (keys: { top: string[]; owner: string[]; author: string[] }) => void
+  onGroupInstanceKeys?: (keys: {
+    top: string[]
+    owner: string[]
+    author: string[]
+    world: string[]
+  }) => void
 }): CvrInstanceResolver {
   const { fetcher, onGroupInstanceKeys } = options
   const clock = options.clock ?? Date.now
@@ -190,11 +198,18 @@ export function createCvrInstanceResolver(options: {
         const rec = raw as Record<string, unknown>
         const keysOf = (v: unknown): string[] =>
           v !== null && typeof v === 'object' ? Object.keys(v) : []
-        onGroupInstanceKeys({
-          top: Object.keys(rec),
-          owner: keysOf(rec['owner']),
-          author: keysOf(rec['author'])
-        })
+        try {
+          onGroupInstanceKeys({
+            top: Object.keys(rec),
+            owner: keysOf(rec['owner']),
+            author: keysOf(rec['author']),
+            world: keysOf(rec['world'])
+          })
+        } catch {
+          // The diagnostic must NEVER affect resolution: a throwing transport
+          // would otherwise convert this SUCCESSFUL fetch into a negative-cached
+          // null via the enclosing catch (both review engines, PR #252).
+        }
       }
       if (requestGeneration === generation) {
         store(instanceId, { expiresAt: clock() + ttlMs, value })
