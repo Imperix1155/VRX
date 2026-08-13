@@ -107,15 +107,10 @@ export default function HotInstanceSheet({
   const [failedGroupKey, setFailedGroupKey] = useState<string | null>(null)
   const groupImageKey = groupDataUrl ? `${shown?.groupImageUrl ?? ''}\u0000${groupDataUrl}` : null
   const showGroupImage = groupImageKey !== null && groupImageKey !== failedGroupKey
-  // Platform gate is deliberate defense: no CVR producer emits group identity
-  // today, so a CVR instance carrying group fields is stale/malformed data —
-  // never render a card from it (truthful signals).
+  // The groupId/groupName null-discriminator IS the truthfulness gate;
+  // CVR data is live-verified real (VRX-263).
   const showGroupCard =
-    shown !== null &&
-    shown.platform === 'vrchat' &&
-    shown.isGroup &&
-    shown.groupId !== null &&
-    shown.groupName !== null
+    shown !== null && shown.isGroup && shown.groupId !== null && shown.groupName !== null
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY, so the join
   // confirmation dialog (a modal sibling) does not steal focus back here.

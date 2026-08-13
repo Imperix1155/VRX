@@ -17,7 +17,9 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     ['OwnerMustInvite', 'owner-must-invite', 'invite', false],
     // Group-family: openness normalizes into the friend ladder (like VRChat's
     // opennessFor: group → invite); isGroup carries the §6 chip modifier.
-    ['GroupsOnly', 'members-only', 'invite', true]
+    ['GroupsOnly', 'members-only', 'invite', true],
+    // Observed live 2026-08-12 on `GET /instances/{id}` as a PascalCase string.
+    ['GroupPlus', 'friends-of-members', 'friends-plus', true]
   ])('maps the verified wire value %s', (wire, type, openness, isGroup) => {
     expect(parseCvrPrivacy(wire)).toEqual({ type, openness, isGroup })
     expect(parseCvrPrivacy(wire)).not.toHaveProperty('opennessUnknown')
@@ -44,9 +46,10 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     expect(parseCvrPrivacy('constructor')).toEqual(UNKNOWN_RESTRICTED)
   })
 
-  // The LIVE wire (WS ONLINE_FRIENDS + /1/instances) sends privacy as an INTEGER
-  // enum, not a string. Values 0–6 from the owner's prior app; 7 captured live
-  // 2026-07-08 on a KNOWN group instance (owner ground truth).
+  // The WS ONLINE_FRIENDS wire sends privacy as an INTEGER enum; GET
+  // /instances/{id} sends a PascalCase STRING (observed live 2026-08-12).
+  // Values 0–6 from the owner's prior app; 7 captured live 2026-07-08 on a
+  // KNOWN group instance (owner ground truth).
   describe('numeric enum (live wire)', () => {
     it.each([
       [0, 'public', 'public', false], // live-confirmed
