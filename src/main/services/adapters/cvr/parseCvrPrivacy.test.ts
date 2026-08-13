@@ -17,7 +17,9 @@ describe('parseCvrPrivacy (VRX-147)', () => {
     ['OwnerMustInvite', 'owner-must-invite', 'invite', false],
     // Group-family: openness normalizes into the friend ladder (like VRChat's
     // opennessFor: group → invite); isGroup carries the §6 chip modifier.
-    ['GroupsOnly', 'members-only', 'invite', true]
+    ['GroupsOnly', 'members-only', 'invite', true],
+    // Observed live 2026-08-12 on `GET /instances/{id}` as a PascalCase string.
+    ['GroupPlus', 'friends-of-members', 'friends-plus', true]
   ])('maps the verified wire value %s', (wire, type, openness, isGroup) => {
     expect(parseCvrPrivacy(wire)).toEqual({ type, openness, isGroup })
     expect(parseCvrPrivacy(wire)).not.toHaveProperty('opennessUnknown')

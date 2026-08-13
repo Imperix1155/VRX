@@ -1030,6 +1030,13 @@ describe('CvrAdapter', () => {
       instanceSettingPrivacy: 2 // friends (live-confirmed numeric)
     }
 
+    const groupInstanceDetail = {
+      ...instanceDetail,
+      id: 'i_group',
+      instanceSettingPrivacy: 'GroupPlus',
+      group: { id: 'grp-real', name: 'CVR Group', image: 'https://img.example/g.png' }
+    }
+
     it('dispatches getInstanceDetails interactively ahead of pipeline-driven default resolution', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)
@@ -1232,6 +1239,55 @@ describe('CvrAdapter', () => {
       expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
         instanceId: 'i_abc',
         type: 'public'
+      })
+      unsub()
+    })
+
+    it('enriched presence-snapshot populates group fields from the resolved detail (VRX-263)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(groupInstanceDetail))))
+      )
+      const rig = drivableSocket()
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
+        socketFactory: () => rig.socket
+      })
+      const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
+      const unsub = adapter.subscribe((e) => {
+        if (e.type === 'presence-snapshot') snapshots.push(e)
+      })
+      await new Promise((r) => setImmediate(r))
+      rig.fire('open')
+      rig.fire(
+        'message',
+        JSON.stringify({
+          ResponseType: 10,
+          Message: null,
+          Data: [
+            {
+              Id: 'A1B2C3D4-0000-0000-0000-000000000001',
+              IsOnline: true,
+              Instance: { Id: 'i_group', Name: taggedName, Privacy: 7 }
+            }
+          ]
+        })
+      )
+
+      // Immediate WS-built snapshot has no group identity.
+      expect(snapshots[0]!.entries[0]!.instance).toMatchObject({
+        groupId: null,
+        groupName: null,
+        groupImageUrl: null
+      })
+
+      // REST enrichment fills the group fields.
+      await vi.waitFor(() => {
+        expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('wrld-real')
+      })
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        groupId: 'grp-real',
+        groupName: 'CVR Group',
+        groupImageUrl: 'https://img.example/g.png'
       })
       unsub()
     })
@@ -1774,6 +1830,22 @@ describe('CvrAdapter', () => {
 
         region: null,
         userCount: 5
+      })
+    })
+
+    it('getInstanceDetails populates group fields from a resolved group object (VRX-263)', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(groupInstanceDetail))))
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      const info = await adapter.getInstanceDetails('i_group')
+      expect(info).toMatchObject({
+        type: 'friends-of-members',
+        isGroup: true,
+        groupId: 'grp-real',
+        groupName: 'CVR Group',
+        groupImageUrl: 'https://img.example/g.png'
       })
     })
 

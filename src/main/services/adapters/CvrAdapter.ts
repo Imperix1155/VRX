@@ -81,9 +81,6 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
  * presence over the shared `CvrPipeline` (VRX-58); instances = VRX-59/60. CVR
  * has NO 2FA leg — `verify2fa` rejects per the IPlatformAdapter contract.
  */
-/** VRX-262: one probe line per PROCESS (module scope — a re-created adapter must not re-log). */
-let groupProbeLogged = false
-
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
   private displayName: string | null = null
@@ -116,15 +113,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
   private readonly instanceResolver = createCvrInstanceResolver({
-    fetcher: (path, schema, options) => this.get(path, schema, options),
-    // VRX-262 flip-experiment: one keys-only line per session settles whether
-    // CVR's raw instance body carries the hosting group anywhere. Keys only —
-    // never values (no-PII logging rule). Remove once the question is settled.
-    onGroupInstanceKeys: (keys) => {
-      if (groupProbeLogged) return
-      groupProbeLogged = true
-      this.live?.log?.('info', 'CVR-GROUP-PROBE', keys)
-    }
+    fetcher: (path, schema, options) => this.get(path, schema, options)
   })
   /** Last snapshot from the pipeline — re-enriched + re-emitted as resolutions land. */
   private lastSnapshot: PresenceSnapshotEvent | null = null
@@ -433,10 +422,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         openness: access.openness,
         ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
         isGroup: access.isGroup,
-        groupName: null,
-        // CVR exposes no group identity in any consumed payload.
-        groupId: null,
-        groupImageUrl: null,
+        // Group identity comes from the REST instance detail (live-verified 2026-08-12).
+        groupName: resolved.groupName,
+        groupId: resolved.groupId,
+        groupImageUrl: resolved.groupImageUrl,
         region: null,
         userCount: resolved.playerCount
       }
@@ -552,7 +541,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       // Only resolver world.name is authoritative; instanceName is a label.
       worldName: resolved.worldName,
       thumbnailUrl: resolved.worldImageUrl ?? instance.thumbnailUrl,
-      userCount: resolved.playerCount ?? instance.userCount
+      userCount: resolved.playerCount ?? instance.userCount,
+      // Group identity comes from the REST instance detail (live-verified 2026-08-12).
+      groupName: resolved.groupName,
+      groupId: resolved.groupId,
+      groupImageUrl: resolved.groupImageUrl
     }
   }
 

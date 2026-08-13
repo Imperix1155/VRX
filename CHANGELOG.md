@@ -7,11 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.17.1] - 2026-08-13
+### Added
 
-### Changed
-
-- Internal diagnostic: when a ChilloutVR group-type instance is resolved, VRX logs a one-time `CVR-GROUP-PROBE` line containing only the response's field NAMES (never values) — one live capture settles whether CVR's API identifies the hosting group, which decides if the group card can ever work on CVR. (VRX-262)
+- ChilloutVR group instances now show the hosting group's name and image in the hot-instance sheet — same card as VRChat. (VRX-263)
 
 ## [0.17.0] - 2026-08-12
 

@@ -368,8 +368,9 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       openness: access.openness,
       ...(access.opennessUnknown === true ? { opennessUnknown: true } : {}),
       isGroup: access.isGroup,
+      // The WS carries no group identity; REST enrichment fills these fields
+      // after the adapter resolves the instance detail (VRX-263).
       groupName: null,
-      // CVR exposes no group identity in any consumed payload.
       groupId: null,
       groupImageUrl: null,
       region: null,

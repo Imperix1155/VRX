@@ -35,7 +35,8 @@ const PRIVACY_MAP: Record<string, CvrInstanceAccess> = {
   friends: { type: 'friends', openness: 'friends', isGroup: false },
   everyonecaninvite: { type: 'everyone-can-invite', openness: 'invite-plus', isGroup: false },
   ownermustinvite: { type: 'owner-must-invite', openness: 'invite', isGroup: false },
-  groupsonly: { type: 'members-only', openness: 'invite', isGroup: true }
+  groupsonly: { type: 'members-only', openness: 'invite', isGroup: true },
+  groupplus: { type: 'friends-of-members', openness: 'friends-plus', isGroup: true }
 }
 
 const UNKNOWN_ACCESS: CvrInstanceAccess = {
@@ -46,7 +47,8 @@ const UNKNOWN_ACCESS: CvrInstanceAccess = {
 }
 
 /**
- * The WS wire (and `/1/instances/{id}`) sends privacy as an INTEGER enum.
+ * The WS `Instance.Privacy` sends an INTEGER enum. `GET /instances/{id}` sends a
+ * PascalCase STRING (`Public`, `Friends`, `GroupPlus` observed live 2026-08-12).
  * Mapping follows the owner's prior WORKING app (Social-VR-Companion
  * `cvrx-friends-reader.js`): 0=public, 1|2=friends, 3|6=group, 4|5=private.
  * `0`, `2`, `7` are additionally confirmed LIVE 2026-07-08 (a known public,
