@@ -113,8 +113,18 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
   private readonly instanceResolver = createCvrInstanceResolver({
-    fetcher: (path, schema, options) => this.get(path, schema, options)
+    fetcher: (path, schema, options) => this.get(path, schema, options),
+    // VRX-262 flip-experiment: one keys-only line per session settles whether
+    // CVR's raw instance body carries the hosting group anywhere. Keys only —
+    // never values (no-PII logging rule). Remove once the question is settled.
+    onGroupInstanceKeys: (keys) => {
+      if (this.groupProbeLogged) return
+      this.groupProbeLogged = true
+      this.live?.log?.('info', 'CVR-GROUP-PROBE', keys)
+    }
   })
+  /** VRX-262: log the group probe at most once per process. */
+  private groupProbeLogged = false
   /** Last snapshot from the pipeline — re-enriched + re-emitted as resolutions land. */
   private lastSnapshot: PresenceSnapshotEvent | null = null
   /** Ids with a re-emit callback already attached — in-flight ids still `peek()`

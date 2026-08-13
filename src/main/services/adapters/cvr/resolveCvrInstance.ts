@@ -26,23 +26,32 @@ import type { CvrFetcher } from './fetchCvrFriends'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
-const rawCvrInstanceDetailSchema = z.object({
-  id: z.string(),
-  /** Creator-set instance label — may embed a "(#tag)" suffix; NOT the world name. */
-  name: z.string().nullable().catch(null).optional(),
-  world: z
-    .object({
-      id: z.string(),
-      name: z.string().nullable().catch(null).optional(),
-      imageUrl: z.string().nullable().catch(null).optional()
-    })
-    .nullable()
-    .catch(null)
-    .optional(),
-  currentPlayerCount: z.number().int().nonnegative().nullable().catch(null).optional(),
-  /** Numeric on the live wire, string in CVRX docs — parseCvrPrivacy takes both. */
-  instanceSettingPrivacy: z.union([z.string(), z.number()]).nullable().catch(null).optional()
-})
+const rawCvrInstanceDetailSchema = z
+  .object({
+    id: z.string(),
+    /** Creator-set instance label — may embed a "(#tag)" suffix; NOT the world name. */
+    name: z.string().nullable().catch(null).optional(),
+    world: z
+      .object({
+        id: z.string(),
+        name: z.string().nullable().catch(null).optional(),
+        imageUrl: z.string().nullable().catch(null).optional()
+      })
+      .nullable()
+      .catch(null)
+      .optional(),
+    currentPlayerCount: z.number().int().nonnegative().nullable().catch(null).optional(),
+    /** Numeric on the live wire, string in CVRX docs — parseCvrPrivacy takes both. */
+    instanceSettingPrivacy: z.union([z.string(), z.number()]).nullable().catch(null).optional()
+  })
+  /**
+   * VRX-262: passthrough keeps UNKNOWN keys on the parsed value so the group
+   * probe can observe them — normalization still reads only the named fields.
+   * Every prior instrument (this schema, CVRX's allowlist, chilloutvr_rs's
+   * serde) stripped unknown keys, so "CVR has no group field" was never
+   * actually observable.
+   */
+  .passthrough()
 
 // ─── Result type ──────────────────────────────────────────────────────────────
 
@@ -113,8 +122,15 @@ export function createCvrInstanceResolver(options: {
   clock?: () => number
   ttlMs?: number
   negativeTtlMs?: number
+  /**
+   * VRX-262 group probe: invoked with KEY NAMES ONLY (never values — the
+   * no-PII logging rule) when a resolved instance's privacy maps to a group
+   * type, so one live capture can settle whether CVR exposes the hosting
+   * group anywhere in the raw body. Remove once the question is settled.
+   */
+  onGroupInstanceKeys?: (keys: { top: string[]; owner: string[]; author: string[] }) => void
 }): CvrInstanceResolver {
-  const { fetcher } = options
+  const { fetcher, onGroupInstanceKeys } = options
   const clock = options.clock ?? Date.now
   const ttlMs = options.ttlMs ?? INSTANCE_CACHE_TTL_MS
   const negativeTtlMs = options.negativeTtlMs ?? CVR_INSTANCE_NEGATIVE_TTL_MS
@@ -165,6 +181,20 @@ export function createCvrInstanceResolver(options: {
         worldImageUrl: raw.world?.imageUrl ?? null,
         playerCount: raw.currentPlayerCount ?? null,
         privacy: raw.instanceSettingPrivacy ?? null
+      }
+      // VRX-262: group-typed instance → surface the raw body's KEY SETS (only)
+      // so the flip-experiment can run on a live capture. 3/6/7 are the
+      // group-typed privacy values; the wire is numeric, docs say string.
+      const privacyNum = Number(raw.instanceSettingPrivacy)
+      if (onGroupInstanceKeys && (privacyNum === 3 || privacyNum === 6 || privacyNum === 7)) {
+        const rec = raw as Record<string, unknown>
+        const keysOf = (v: unknown): string[] =>
+          v !== null && typeof v === 'object' ? Object.keys(v) : []
+        onGroupInstanceKeys({
+          top: Object.keys(rec),
+          owner: keysOf(rec['owner']),
+          author: keysOf(rec['author'])
+        })
       }
       if (requestGeneration === generation) {
         store(instanceId, { expiresAt: clock() + ttlMs, value })

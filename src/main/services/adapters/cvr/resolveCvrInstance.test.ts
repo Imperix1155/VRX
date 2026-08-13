@@ -214,3 +214,64 @@ describe('createCvrInstanceResolver', () => {
     expect(resolver.peek('i+other')).toBeUndefined()
   })
 })
+
+// ─── VRX-262 group probe ──────────────────────────────────────────────────────
+
+describe('group-instance key probe (VRX-262)', () => {
+  it('fires with keys-only for a group-typed instance, INCLUDING unknown raw keys', async () => {
+    const seen: Array<{ top: string[]; owner: string[]; author: string[] }> = []
+    const { fetcher } = makeFetcher({
+      ...fullDetail,
+      instanceSettingPrivacy: 7,
+      // Unknown keys the strict schema used to strip — passthrough must keep
+      // them visible or the probe can never observe a group field.
+      hypotheticalGroup: { id: 'guid-1', name: 'Secret Crew' },
+      owner: { id: 'guid-2', name: 'Owner', rank: 'user', avatar: {} },
+      author: { id: 'guid-3', name: 'Author' }
+    })
+    const resolver = createCvrInstanceResolver({
+      fetcher,
+      onGroupInstanceKeys: (keys) => seen.push(keys)
+    })
+    await resolver.resolve('i+abc123')
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]!.top).toContain('hypotheticalGroup')
+    expect(seen[0]!.owner).toEqual(['id', 'name', 'rank', 'avatar'])
+    expect(seen[0]!.author).toEqual(['id', 'name'])
+    // Keys ONLY — the payload must never carry values (no-PII logging rule).
+    for (const arr of [seen[0]!.top, seen[0]!.owner, seen[0]!.author]) {
+      for (const k of arr) expect(typeof k).toBe('string')
+    }
+  })
+
+  it('does not fire for non-group privacy', async () => {
+    const seen: unknown[] = []
+    const { fetcher } = makeFetcher({ ...fullDetail, instanceSettingPrivacy: 0 })
+    const resolver = createCvrInstanceResolver({
+      fetcher,
+      onGroupInstanceKeys: (keys) => seen.push(keys)
+    })
+    await resolver.resolve('i+abc123')
+    expect(seen).toHaveLength(0)
+  })
+
+  it('normalization is unchanged by passthrough (named fields only)', async () => {
+    const { fetcher } = makeFetcher({
+      ...fullDetail,
+      instanceSettingPrivacy: 7,
+      surpriseKey: 'x'
+    })
+    const resolver = createCvrInstanceResolver({ fetcher })
+    const resolved = await resolver.resolve('i+abc123')
+    expect(resolved).toEqual({
+      instanceId: 'i+abc123',
+      instanceName: withTag('SunDown', '816332'),
+      worldId: 'wrld-guid-1',
+      worldName: 'SunDown',
+      worldImageUrl: 'https://files.abinteractive.net/w/1.png',
+      playerCount: 7,
+      privacy: 7
+    })
+  })
+})
