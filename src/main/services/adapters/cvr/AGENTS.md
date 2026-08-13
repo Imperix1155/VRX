@@ -30,6 +30,14 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 - Same as `vrchat/`: no electron imports; injected socketFactory/headers/log; defensive parsing — unknown values degrade, never throw; CVR has NO status/trust (§5) — never fabricate them.
 - The shared lifecycle machinery lives in `../ReconnectingPipeline.ts` — don't fork it; extend it.
 
+## Work Guidance
+
+None beyond the Local Contracts above.
+
 ## Verification
 
 `npm run typecheck && npm run lint && npm test`
+
+## Child DOX Index
+
+No children.
