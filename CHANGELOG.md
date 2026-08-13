@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-13
+
 ### Added
 
 - ChilloutVR group instances now show the hosting group's name and image in the hot-instance sheet — same card as VRChat. (VRX-263)
