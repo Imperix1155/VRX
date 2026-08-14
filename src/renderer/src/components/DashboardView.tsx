@@ -18,7 +18,7 @@ import { useFriendsStore } from '../stores/friends'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import NumberStepper from './NumberStepper'
 import InstancePill from './InstancePill'
-import { OPENNESS_TIER } from '../utils/instancePill'
+import { instancePillFor } from '../utils/instancePill'
 import PlatformPill from './PlatformPill'
 import {
   getDashboardStats,
@@ -26,7 +26,6 @@ import {
   type HotInstance
 } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
-import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { stripInstanceSuffix } from '../utils/worldName'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
@@ -97,8 +96,12 @@ function HotInstanceCard({
   const isVrc = instance.platform === 'vrchat'
   const cardRef = useRef<HTMLDivElement>(null)
 
-  const opennessLabel = t(LABEL_KEYS_BY_SCHEME[labelScheme][instance.instanceType])
-  const tier = OPENNESS_TIER[instance.instanceType] ?? null
+  const resolvedPill = instancePillFor(
+    { type: instance.instanceType, opennessUnknown: instance.opennessUnknown },
+    labelScheme
+  )
+  const opennessLabel = t(resolvedPill.labelKey)
+  const tier = resolvedPill.tier
   // Display-only: drop the CVR "(#instanceNumber)" from the face (VRX-198).
   const worldName = instance.worldName
     ? stripInstanceSuffix(instance.worldName)

@@ -607,7 +607,7 @@ describe('instance-type pill (VRX-245)', () => {
     expect(pills).toHaveLength(1)
   })
 
-  it('does NOT render the type pill when openness is unknown', () => {
+  it('renders the neutral "Unknown" pill (never the degraded typed label) when openness is unknown (VRX-244)', () => {
     const unknown: Friend = {
       ...cvrFriend,
       instance: {
@@ -627,9 +627,40 @@ describe('instance-type pill (VRX-245)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
 
+    // The headline stays neutral (VRX-245 pin, above) — but the pill itself
+    // must not be silently hidden either: hiding it would be the same
+    // withhold-the-truth failure the honest "Unknown" pill exists to fix.
     expect(within(dialog).queryByText('Invite')).toBeNull()
+    const pill = within(dialog).getByText('Unknown')
+    expect(pill.style.color).toBe('var(--text-dim)')
     // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
     expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
+  })
+
+  it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const known: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite'
+      }
+    }
+    mockFriends([], [known])
+    render(
+      <>
+        <OpenJoin friend={known} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    const pill = within(dialog)
+      .getAllByText('Invite')
+      .find((el) => el.tagName === 'SPAN')
+    expect(pill).toBeTruthy()
+    expect(pill!.style.color).toBe('var(--op-invite-text)')
   })
 })
 

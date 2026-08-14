@@ -50,6 +50,16 @@ export interface HotInstance {
    * in THIS instance, so the representative's type is the group's type.
    */
   instanceType: InstanceInfo['type']
+  /**
+   * True when ANY member's privacy value was unrecognized and openness was
+   * degraded (VRX-244) — OR'd across members in `getHotInstances` so a
+   * transient per-member disagreement (a cache-restored member still
+   * degraded while a fresh-roster member resolved cleanly) can only widen
+   * toward the honest answer, never narrow past it. Every pill surface
+   * renders the honest "Unknown" treatment from this ONE field instead of
+   * asserting a degraded fallback type as fact.
+   */
+  opennessUnknown?: boolean
   /** True for group instances (carried from every member's InstanceInfo). */
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
@@ -144,6 +154,14 @@ export function getHotInstances(
     if (existing) {
       existing.friendCount++
       existing.members.push(f)
+      // Members of the SAME exact instance can transiently disagree on
+      // opennessUnknown too (e.g. a cache-restored member still carries the
+      // degraded flag while a fresh-roster member for the same instance
+      // resolved cleanly). OR across members — any member unknown makes the
+      // whole card's privacy claim unknown — so the flag can only ever widen
+      // toward the safe/honest answer, matching the defensive-understatement
+      // philosophy `parseCvrPrivacy` already applies per-member (VRX-244).
+      if (instance.opennessUnknown === true) existing.opennessUnknown = true
       // Members of the SAME exact instance can transiently disagree on group
       // metadata (e.g. after hydration the merge filled one member but a
       // fresh-roster member is still null). Back-fill nulls from any member
@@ -162,6 +180,7 @@ export function getHotInstances(
         worldName,
         instanceId,
         instanceType: type,
+        opennessUnknown: instance.opennessUnknown,
         isGroup: instance.isGroup,
         groupName: instance.groupName,
         groupId: instance.groupId,

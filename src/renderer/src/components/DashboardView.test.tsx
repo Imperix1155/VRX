@@ -446,6 +446,69 @@ describe('HotInstanceCard Join (VRX-237)', () => {
       })
     ).toBeNull()
   })
+
+  it('hero pill: opennessUnknown renders the neutral "Unknown" pill instead of the degraded typed label (VRX-244)', () => {
+    const unknownInvite = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_unk_invite',
+          instanceId: 'wrld_unk_invite:1~invite',
+          worldName: 'Locked Room',
+          thumbnailUrl: null,
+          type: 'invite',
+          openness: 'invite',
+          opennessUnknown: true,
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null,
+          region: 'us',
+          userCount: 2
+        }
+      })
+    stubQueries(
+      { data: [unknownInvite('usr_a', 'Amy'), unknownInvite('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    const pill = screen.getByText('Unknown')
+    expect(pill.getAttribute('data-instance-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--text-dim)')
+  })
+
+  it('hero pill: the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const known = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_unk_invite',
+          instanceId: 'wrld_unk_invite:1~invite',
+          worldName: 'Locked Room',
+          thumbnailUrl: null,
+          type: 'invite',
+          openness: 'invite',
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null,
+          region: 'us',
+          userCount: 2
+        }
+      })
+    stubQueries(
+      { data: [known('usr_a', 'Amy'), known('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    const pill = screen.getByText('Invite')
+    expect(pill.getAttribute('data-instance-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--op-invite-text)')
+  })
 })
 
 // ─── HotInstanceSheet (VRX-250) ───────────────────────────────────────────────
@@ -681,6 +744,49 @@ describe('HotInstanceSheet (VRX-250)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Mystery World hot instance details/ }))
     expect(screen.getByText(msg('joinConfirm.openness.unknown'))).toBeTruthy()
+
+    // The banner instance-type pill (VRX-244): a degraded CVR privacy value
+    // must not paint the guessed "Public" tier as fact — the neutral
+    // "Unknown" pill renders instead, same recipe as Private/Offline Instance.
+    const sheet = screen.getByRole('dialog', { name: 'Mystery World' })
+    const banner = within(sheet).getByTestId('hot-sheet-banner')
+    const pill = banner.querySelector('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Unknown')
+    expect((pill as HTMLElement).style.color).toBe('var(--text-dim)')
+  })
+
+  it('banner pill: the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const knownWorld = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_unk',
+          instanceId: 'wrld_unk:1~public',
+          worldName: 'Mystery World',
+          thumbnailUrl: null,
+          type: 'public',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null,
+          region: 'us',
+          userCount: 2
+        }
+      })
+    stubQueries(
+      { data: [knownWorld('usr_a', 'Amy'), knownWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Mystery World hot instance details/ }))
+    const sheet = screen.getByRole('dialog', { name: 'Mystery World' })
+    const banner = within(sheet).getByTestId('hot-sheet-banner')
+    const pill = banner.querySelector('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Public')
+    expect((pill as HTMLElement).style.color).toBe('var(--op-public-text)')
   })
 
   it('sheet Join routes through the shared flow for the first joinable member', () => {
