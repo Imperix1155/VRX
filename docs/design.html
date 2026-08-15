@@ -612,6 +612,7 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
           </table>
           <div class="anno" style="margin-top:10px;"><span>✓ verified vs VRChat wiki + ChilloutVR docs</span><span>8 shared tiers — near 1:1</span><span>+ CVR Offline instance</span><span>tracked in VRX-130</span></div>
           <div class="why" style="margin-top:14px;">The pill is colored by <b>tier</b>, never by platform (§6.1, owner-approved 2026-07-01): the friend ladder runs <b>green (open) → orange (locked)</b> — the oranges kept deliberately light so Invite never reads as ChilloutVR's deep red-orange — and the <b>group family owns purple</b>, lighter = more open, so hue names the family and shade names the tier without reading the label. <b>Private / Offline Instance stay hueless</b> (readable, but they recede behind joinable pills). "Group" is a <b>chip modifier</b> conceptually — a group instance can still be public, friends-only, etc. — but each group tier gets its own purple.</div>
+          <div class="why" style="margin-top:10px;">VRX-244 (owner design round 2026-08-14): when a CVR privacy value can't be recognized, the fallback is a GUESSED tier — coloring the pill from it would assert that guess as fact. The <b>Unknown</b> pill reuses the same neutral recipe as Private/Offline Instance but never their word, so the pill's text still tells "hidden by privacy" apart from "couldn't be read."</div>
           <div class="demo" style="margin-top:13px; flex-wrap:wrap; gap:8px;">
             <span class="opill" style="--op: var(--op-public)">Public</span>
             <span class="opill" style="--op: var(--op-friends-plus)">Friends+</span>
@@ -622,6 +623,7 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
             <span class="opill" style="--op: var(--op-group-plus)">Group+</span>
             <span class="opill" style="--op: var(--op-group); --opc: var(--op-group-text)">Group</span>
             <span class="opill neutral">Private</span>
+            <span class="opill neutral">Unknown</span>
             <span style="font-size:12px;color:var(--text-faint)">← hue = family · shade = tier · same colors on both platforms</span>
           </div>
         </div>

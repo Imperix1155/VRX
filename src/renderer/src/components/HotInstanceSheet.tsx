@@ -23,8 +23,7 @@ import { isFriendJoinable } from '@shared/joinability'
 import type { HotInstance } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
-import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
-import { OPENNESS_TIER } from '../utils/instancePill'
+import { instancePillFor } from '../utils/instancePill'
 import { Avatar } from './Avatar'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
@@ -35,7 +34,11 @@ type OpennessCopy =
 
 function opennessCopyFor(instance: HotInstance): OpennessCopy {
   const first = instance.members[0]?.instance
-  if (first?.opennessUnknown === true) return 'unknown'
+  // Reads the ONE carried `HotInstance.opennessUnknown` (VRX-244, OR'd across
+  // every member in `getHotInstances`) rather than a single member's flag —
+  // the banner pill (`instancePillFor`, also keyed off this same field) and
+  // this sentence must never disagree about which friend they're describing.
+  if (instance.opennessUnknown === true) return 'unknown'
   if (instance.isGroup) {
     if (first?.openness === 'public') return 'group-public'
     if (first?.openness === 'friends-plus') return 'group-plus'
@@ -155,8 +158,12 @@ export default function HotInstanceSheet({
 
   const isVrc = shown.platform === 'vrchat'
   const worldName = shown.worldName ?? t('friends.instance.unknownWorld')
-  const typeLabel = t(LABEL_KEYS_BY_SCHEME[labelScheme][shown.instanceType])
-  const tier = OPENNESS_TIER[shown.instanceType] ?? null
+  const resolvedPill = instancePillFor(
+    { type: shown.instanceType, opennessUnknown: shown.opennessUnknown },
+    labelScheme
+  )
+  const typeLabel = t(resolvedPill.labelKey)
+  const tier = resolvedPill.tier
   const opennessCopy = opennessCopyFor(shown)
   const opennessSentence = t(effectivelyKey(opennessCopy, shown.platform), {
     group: shown.groupName ?? t('joinConfirm.theGroup')

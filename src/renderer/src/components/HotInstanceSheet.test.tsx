@@ -196,6 +196,83 @@ describe('HotInstanceSheet', () => {
     expect(screen.queryByTestId('hot-sheet-group-card')).toBeNull()
   })
 
+  it('opennessUnknown renders the neutral "Unknown" banner pill instead of the degraded typed label (VRX-244)', () => {
+    stubIntersectionObserver()
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({
+          instanceType: 'invite',
+          opennessUnknown: true,
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null
+        })}
+        onClose={() => {}}
+      />
+    )
+
+    const banner = screen.getByTestId('hot-sheet-banner')
+    const pill = banner.querySelector('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Unknown')
+    expect((pill as HTMLElement).style.color).toBe('var(--text-dim)')
+  })
+
+  it('the banner pill and the openness sentence read the SAME source even when a member disagrees (VRX-244)', () => {
+    // Regression for a review finding: the pill and the sentence used to read
+    // two different members after `getHotInstances` sorts `members`
+    // alphabetically — a founding member's degraded flag could paint the
+    // pill "Unknown" while the sentence, reading a DIFFERENT (alphabetically
+    // first) member, asserted a confident open/closed claim. Both must now
+    // derive from the ONE carried `HotInstance.opennessUnknown` field.
+    stubIntersectionObserver()
+    const cleanMemberInstance: InstanceInfo = { ...groupInstance, type: 'invite', isGroup: false }
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({
+          instanceType: 'invite',
+          opennessUnknown: true,
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null,
+          // The member array's own instance disagrees with the carried flag —
+          // a stale/mismatched per-member snapshot must not leak through.
+          members: [makeFriend('vrchat', 'Alex', cleanMemberInstance)]
+        })}
+        onClose={() => {}}
+      />
+    )
+
+    const banner = screen.getByTestId('hot-sheet-banner')
+    const pill = banner.querySelector('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Unknown')
+    expect(
+      screen.getByText("We couldn't confirm whether this instance is open or closed.")
+    ).toBeTruthy()
+  })
+
+  it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    stubIntersectionObserver()
+    render(
+      <HotInstanceSheet
+        instance={makeHotInstance({
+          instanceType: 'invite',
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null
+        })}
+        onClose={() => {}}
+      />
+    )
+
+    const banner = screen.getByTestId('hot-sheet-banner')
+    const pill = banner.querySelector('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Invite')
+    expect((pill as HTMLElement).style.color).toBe('var(--op-invite-text)')
+  })
+
   it('closes when the scrim is clicked', () => {
     stubIntersectionObserver()
     const onClose = vi.fn()

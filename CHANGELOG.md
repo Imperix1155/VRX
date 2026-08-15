@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Friends-list, drawer, dashboard-card, hot-instance-sheet, and dialog pills now say "Unknown" instead of asserting "Invite" when ChilloutVR reports a privacy value VRX can't read. (VRX-244)
+
 ## [0.18.0] - 2026-08-13
 
 ### Added

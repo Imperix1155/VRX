@@ -258,7 +258,8 @@
   .fcs { font-size: 12px; color: var(--text-dim); margin-left: 8px; font-weight: 400; }
   .fworld { font-size: 12.5px; color: var(--text-dim); height: 16px; line-height: 16px; margin-top: 1px; }
   /* Instance pill — §6.1 tier-colored (set --op per row); .neutral = Private / CVR
-     Offline Instance (hueless but readable). 13% bg / 36% border mixes = the app's. */
+     Offline Instance / Unknown (VRX-244, opennessUnknown; hueless but readable).
+     13% bg / 36% border mixes = the app's. */
   .opill { display: inline-flex; align-items: center; justify-content: center; min-width: 78px; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--opc, var(--op)); background: color-mix(in srgb, var(--op) 13%, transparent); border: 1px solid color-mix(in srgb, var(--op) 36%, transparent); }
   .opill.neutral { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); }
 
@@ -523,6 +524,7 @@
         <span class="opill" style="--op: var(--op-group); --opc: var(--op-group-text)">Group</span>
         <span class="opill neutral">Private</span>
         <span class="opill neutral">Offline Instance</span>
+        <span class="opill neutral">Unknown</span>
       </div>
     </main>
   </div>

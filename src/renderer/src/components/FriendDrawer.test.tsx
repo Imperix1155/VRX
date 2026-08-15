@@ -162,6 +162,34 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
+  it('opennessUnknown renders the neutral "Unknown" pill instead of the degraded typed label (VRX-244)', () => {
+    const unknown: Friend = {
+      ...cvrFriend,
+      instance: { ...publicInstance, type: 'owner-must-invite', opennessUnknown: true }
+    }
+    mockFriends([unknown])
+    render(<FriendsList />)
+    openDrawerFor('Mika')
+
+    const panel = screen.getByRole('dialog', { name: 'Mika' })
+    const pill = within(panel).getByText('Unknown')
+    expect(pill.style.color).toBe('var(--text-dim)')
+  })
+
+  it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const known: Friend = {
+      ...cvrFriend,
+      instance: { ...publicInstance, type: 'owner-must-invite' }
+    }
+    mockFriends([known])
+    render(<FriendsList />)
+    openDrawerFor('Mika')
+
+    const panel = screen.getByRole('dialog', { name: 'Mika' })
+    const pill = within(panel).getByText('Invite')
+    expect(pill.style.color).toBe('var(--op-invite-text)')
+  })
+
   it('renders the frosted glass variant on the panel (VRX-226)', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')

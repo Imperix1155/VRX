@@ -47,8 +47,7 @@ import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance
 import { useFriendNote } from '../hooks/useFriendNote'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
-import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
-import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
+import { instancePillFor, type OpennessTier } from '../utils/instancePill'
 import { opennessAssessmentFor, type OpennessAssessment } from '../utils/instanceOpenness'
 import { ringFor, isWorldHidden } from '../utils/statusRing'
 import InstancePill from './InstancePill'
@@ -174,10 +173,9 @@ export default function FriendDrawer({
       worldText = t('drawer.hidden')
     } else if (visibleInstance != null) {
       worldText = visibleInstance.worldName ?? t('friends.instance.unknownWorld')
-      pillLabel = t(
-        LABEL_KEYS_BY_SCHEME[labelScheme][visibleInstance.type] ?? 'friends.instance.unknownWorld'
-      )
-      pillTier = OPENNESS_TIER[visibleInstance.type] ?? null
+      const resolved = instancePillFor(visibleInstance, labelScheme)
+      pillLabel = t(resolved.labelKey)
+      pillTier = resolved.tier
     } else if (shown.presence.state === 'in-game') {
       worldText = t('friends.instance.private')
     }

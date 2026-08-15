@@ -221,7 +221,8 @@
         "owner-must-invite": "オーナー招待のみ",
         "friends-of-members": "メンバーのフレンド",
         "members-only": "メンバーのみ",
-        "offline": "オフラインインスタンス"
+        "offline": "オフラインインスタンス",
+        "unknown": "不明"
       }
     },
     "platform": {

@@ -405,6 +405,123 @@ describe('getHotInstances', () => {
     // Mixed enrichment states (one friend resolved, one not) still group.
     expect(getHotInstances([unresolved('a'), resolved('b')], 2)).toHaveLength(1)
   })
+
+  it('carries opennessUnknown from the representative member onto the HotInstance (VRX-244)', () => {
+    const unknownInstance = instance('wrld_unk')
+    unknownInstance.opennessUnknown = true
+    const friends = [
+      vrcFriend('a', 'in-game', unknownInstance),
+      vrcFriend('b', 'in-game', unknownInstance)
+    ]
+    const result = getHotInstances(friends, 2)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.opennessUnknown).toBe(true)
+  })
+
+  it('ORs opennessUnknown across disagreeing members — any member unknown makes the whole card unknown (VRX-244)', () => {
+    // Members of the SAME exact instance can transiently disagree per-member
+    // (a cache-restored member still carrying the degraded flag while a
+    // fresh-roster member for the same instance resolved cleanly) — the
+    // aggregate must widen toward the honest answer regardless of which
+    // member happens to found the group or sort first.
+    const cleanInstance = instance('wrld_disagree')
+    const unknownInstance = instance('wrld_disagree')
+    unknownInstance.opennessUnknown = true
+
+    // Founding member resolved cleanly, second member still degraded.
+    const cleanFirst = getHotInstances(
+      [vrcFriend('a', 'in-game', cleanInstance), vrcFriend('b', 'in-game', unknownInstance)],
+      2
+    )
+    expect(cleanFirst).toHaveLength(1)
+    expect(cleanFirst[0]!.opennessUnknown).toBe(true)
+
+    // Founding member degraded, second member resolved cleanly — order never matters.
+    const unknownFirst = getHotInstances(
+      [vrcFriend('a', 'in-game', unknownInstance), vrcFriend('b', 'in-game', cleanInstance)],
+      2
+    )
+    expect(unknownFirst).toHaveLength(1)
+    expect(unknownFirst[0]!.opennessUnknown).toBe(true)
+  })
+
+  it('leaves opennessUnknown falsy when the representative instance has no degraded flag (regression pin)', () => {
+    const friends = [
+      vrcFriend('a', 'in-game', instance('wrld_known')),
+      vrcFriend('b', 'in-game', instance('wrld_known'))
+    ]
+    const result = getHotInstances(friends, 2)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.opennessUnknown).toBeFalsy()
+  })
+
+  it("ORs a DUPLICATE row's opennessUnknown into the same instance in both arrival orders (VRX-244 review F1)", () => {
+    // The identity dedupe (first occurrence wins) used to discard a duplicate
+    // row BEFORE the OR branch ran — so whether the card said "Unknown"
+    // depended on which copy of the row arrived first. Both orders must land
+    // on the honest answer, and the duplicate must still never double-count.
+    const clean = instance('wrld_duporder')
+    const flagged = instance('wrld_duporder')
+    flagged.opennessUnknown = true
+
+    // Clean copy first, flagged duplicate last — the order that lost the flag.
+    const cleanFirst = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', clean),
+        vrcFriend('b', 'in-game', clean),
+        vrcFriend('a', 'in-game', flagged)
+      ],
+      2
+    )
+    expect(cleanFirst).toHaveLength(1)
+    expect(cleanFirst[0]!.friendCount).toBe(2)
+    expect(cleanFirst[0]!.opennessUnknown).toBe(true)
+
+    // Flagged copy first, clean duplicate last.
+    const unknownFirst = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', flagged),
+        vrcFriend('b', 'in-game', clean),
+        vrcFriend('a', 'in-game', clean)
+      ],
+      2
+    )
+    expect(unknownFirst).toHaveLength(1)
+    expect(unknownFirst[0]!.friendCount).toBe(2)
+    expect(unknownFirst[0]!.opennessUnknown).toBe(true)
+  })
+
+  it("never smears a duplicate row's opennessUnknown across DIFFERENT instances (VRX-244 review F1)", () => {
+    // The same person duplicated across snapshots in two different instances:
+    // the flag from instance B must not mark instance A's card unknown.
+    const here = instance('wrld_here')
+    const elsewhere = instance('wrld_elsewhere')
+    elsewhere.opennessUnknown = true
+    const result = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', here),
+        vrcFriend('b', 'in-game', here),
+        vrcFriend('a', 'in-game', elsewhere)
+      ],
+      2
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]!.worldId).toBe('wrld_here')
+    expect(result[0]!.opennessUnknown).toBeFalsy()
+  })
+
+  it('still becomes hot with opennessUnknown set — the flag never affects hot eligibility (regression pin)', () => {
+    const unknownInstance = instance('wrld_unk2')
+    unknownInstance.opennessUnknown = true
+    const friends = [
+      vrcFriend('a', 'in-game', unknownInstance),
+      vrcFriend('b', 'in-game', unknownInstance),
+      vrcFriend('c', 'in-game', unknownInstance)
+    ]
+    const result = getHotInstances(friends, 3)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.friendCount).toBe(3)
+  })
 })
 
 // ─── Alignment pin: dashboard grouping ≡ alert-engine hot key (VRX-237) ──────

@@ -116,6 +116,42 @@ describe('FriendsList join pill (VRX-166)', () => {
     )
   })
 
+  it('opennessUnknown renders the neutral "Unknown" pill instead of the degraded typed label (VRX-244)', () => {
+    const unknown: Friend = {
+      ...joinableFriend,
+      platform: 'chilloutvr',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: { ...publicInstance, type: 'owner-must-invite', opennessUnknown: true }
+    }
+    mockFriends([unknown])
+    render(<FriendsList />)
+
+    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    expect(button.textContent).toBe('Unknown')
+    expect(button.style.color).toBe('var(--text-dim)')
+  })
+
+  it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const known: Friend = {
+      ...joinableFriend,
+      platform: 'chilloutvr',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null,
+      instance: { ...publicInstance, type: 'owner-must-invite' }
+    }
+    mockFriends([known])
+    render(<FriendsList />)
+
+    const button = screen.getByRole('button', { name: 'Join Alex in The Great Pug' })
+    expect(button.textContent).toBe('Invite')
+    expect(button.style.color).toBe('var(--op-invite-text)')
+  })
+
   it('join click never opens the drawer and calls the bridge exactly once (desktop join request)', async () => {
     // VRX-225: the drawer opener is the AVATAR button, so the Join pill no
     // longer needs stopPropagation (nothing sits beneath it) — the real
