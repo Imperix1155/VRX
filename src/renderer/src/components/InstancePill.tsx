@@ -6,7 +6,9 @@
  * everywhere (owner's consistency rule, 2026-07-08).
  * Word-only (no icon), `rounded-[10px]`, tier-colored via the §6 `--op-*` openness
  * ladder (green open → orange locked; purple = groups); a neutral readable pill
- * for the hueless cases (Private / CVR Offline Instance, `tier = null`).
+ * for the hueless cases (Private / CVR Offline Instance / Unknown, `tier = null`
+ * — Unknown per VRX-244: unreadable CVR privacy reuses THIS neutral treatment,
+ * never a new one; the pill's word is what discriminates the three).
  *
  * Geometry only (`PILL_BASE`) — no `min-width`: consumers own the width floor via
  * their layout (FriendsList passes `min-w-[78px]`; the Dashboard floors the shared
@@ -18,7 +20,7 @@ import { PILL_BASE, type OpennessTier } from '../utils/instancePill'
 interface InstancePillProps {
   /** The already-resolved, i18n'd label to show (scheme resolution stays with the caller). */
   label: string
-  /** Openness tier → `--op-*` tokens; `null` = neutral (Private / CVR Offline). */
+  /** Openness tier → `--op-*` tokens; `null` = neutral (Private / CVR Offline / Unknown, VRX-244). */
   tier: OpennessTier | null
   /** Layout extras from the consumer (width floor, grid placement). */
   className?: string

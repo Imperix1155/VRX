@@ -455,6 +455,61 @@ describe('getHotInstances', () => {
     expect(result[0]!.opennessUnknown).toBeFalsy()
   })
 
+  it("ORs a DUPLICATE row's opennessUnknown into the same instance in both arrival orders (VRX-244 review F1)", () => {
+    // The identity dedupe (first occurrence wins) used to discard a duplicate
+    // row BEFORE the OR branch ran — so whether the card said "Unknown"
+    // depended on which copy of the row arrived first. Both orders must land
+    // on the honest answer, and the duplicate must still never double-count.
+    const clean = instance('wrld_duporder')
+    const flagged = instance('wrld_duporder')
+    flagged.opennessUnknown = true
+
+    // Clean copy first, flagged duplicate last — the order that lost the flag.
+    const cleanFirst = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', clean),
+        vrcFriend('b', 'in-game', clean),
+        vrcFriend('a', 'in-game', flagged)
+      ],
+      2
+    )
+    expect(cleanFirst).toHaveLength(1)
+    expect(cleanFirst[0]!.friendCount).toBe(2)
+    expect(cleanFirst[0]!.opennessUnknown).toBe(true)
+
+    // Flagged copy first, clean duplicate last.
+    const unknownFirst = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', flagged),
+        vrcFriend('b', 'in-game', clean),
+        vrcFriend('a', 'in-game', clean)
+      ],
+      2
+    )
+    expect(unknownFirst).toHaveLength(1)
+    expect(unknownFirst[0]!.friendCount).toBe(2)
+    expect(unknownFirst[0]!.opennessUnknown).toBe(true)
+  })
+
+  it("never smears a duplicate row's opennessUnknown across DIFFERENT instances (VRX-244 review F1)", () => {
+    // The same person duplicated across snapshots in two different instances:
+    // the flag from instance B must not mark instance A's card unknown.
+    const here = instance('wrld_here')
+    const elsewhere = instance('wrld_elsewhere')
+    elsewhere.opennessUnknown = true
+    const result = getHotInstances(
+      [
+        vrcFriend('a', 'in-game', here),
+        vrcFriend('b', 'in-game', here),
+        vrcFriend('a', 'in-game', elsewhere)
+      ],
+      2
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]!.worldId).toBe('wrld_here')
+    expect(result[0]!.opennessUnknown).toBeFalsy()
+  })
+
   it('still becomes hot with opennessUnknown set — the flag never affects hot eligibility (regression pin)', () => {
     const unknownInstance = instance('wrld_unk2')
     unknownInstance.opennessUnknown = true
