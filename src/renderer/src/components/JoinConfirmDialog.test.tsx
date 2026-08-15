@@ -607,7 +607,7 @@ describe('instance-type pill (VRX-245)', () => {
     expect(pills).toHaveLength(1)
   })
 
-  it('does NOT render the type pill when openness is unknown', () => {
+  it('renders the neutral "Unknown" pill (never the degraded typed label) when openness is unknown (VRX-244)', () => {
     const unknown: Friend = {
       ...cvrFriend,
       instance: {
@@ -627,9 +627,40 @@ describe('instance-type pill (VRX-245)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
 
+    // The headline stays neutral (VRX-245 pin, above) — but the pill itself
+    // must not be silently hidden either: hiding it would be the same
+    // withhold-the-truth failure the honest "Unknown" pill exists to fix.
     expect(within(dialog).queryByText('Invite')).toBeNull()
+    const pill = within(dialog).getByText('Unknown')
+    expect(pill.style.color).toBe('var(--text-dim)')
     // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
     expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
+  })
+
+  it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
+    const known: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        type: 'owner-must-invite',
+        openness: 'invite'
+      }
+    }
+    mockFriends([], [known])
+    render(
+      <>
+        <OpenJoin friend={known} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    const pill = within(dialog)
+      .getAllByText('Invite')
+      .find((el) => el.tagName === 'SPAN')
+    expect(pill).toBeTruthy()
+    expect(pill!.style.color).toBe('var(--op-invite-text)')
   })
 })
 
@@ -1135,6 +1166,13 @@ describe('group instances get group-accurate copy', () => {
       within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
     ).toBeTruthy()
     expect(within(dialog).queryByText('This instance is considered a closed instance.')).toBeNull()
+
+    // Review F5a pin (VRX-244): the typed pill stays VISIBLE — `type` is real
+    // data (`'group'` → "Group", group tier) even while the openness sentence
+    // is the unknown copy; only `opennessUnknown` swaps the typed claim for
+    // the neutral "Unknown" pill.
+    const pill = within(dialog).getByText('Group')
+    expect(pill.style.color).toBe('var(--op-group-text)')
   })
 
   it("CVR friends-of-members keeps the friends-of-group-MEMBERS rule (that IS CVR's rule)", () => {
@@ -1929,23 +1967,27 @@ describe('VRX-239/241 liveness contract', () => {
     rerender(<TestSurface friend={joinableFriend} />)
     await act(async () => await Promise.resolve())
 
-    // Then the background query fails while the stale drift data is retained.
+    // Then the background query fails while the stale drift data is GENUINELY
+    // retained (review F5b: the old version set `data: undefined` everywhere,
+    // so the name was a lie — nothing stale survived). TanStack keeps the last
+    // good data on a background error; mirror that: the hook reports the real
+    // drifted list with `isError: true`, and the cache entry flips to error
+    // WITHOUT clearing its data (partial setState merges, `data` untouched).
+    const staleQuery = queryClient.getQueryCache().find({ queryKey: friendsQueryKey('vrchat') })
+    const staleFriends = queryClient.getQueryData<Friend[]>(friendsQueryKey('vrchat'))
+    expect(staleFriends?.[0]?.instance?.instanceId).toBe(movedInstance.instanceId)
     useFriendsMock.mockReturnValue({
-      data: undefined,
+      data: staleFriends,
       isPending: false,
       isError: true,
       isFetching: false,
-      dataUpdatedAt: 0,
+      dataUpdatedAt: staleQuery!.state.dataUpdatedAt,
       refetch: vi.fn()
     })
-    queryClient
-      .getQueryCache()
-      .find({ queryKey: friendsQueryKey('vrchat') })
-      ?.setState({
-        status: 'error',
-        data: undefined,
-        error: new Error('query failed')
-      })
+    staleQuery?.setState({
+      status: 'error',
+      error: new Error('query failed')
+    })
     rerender(<TestSurface friend={joinableFriend} />)
     await act(async () => await Promise.resolve())
 

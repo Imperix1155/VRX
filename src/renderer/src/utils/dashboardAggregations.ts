@@ -50,6 +50,16 @@ export interface HotInstance {
    * in THIS instance, so the representative's type is the group's type.
    */
   instanceType: InstanceInfo['type']
+  /**
+   * True when ANY member's privacy value was unrecognized and openness was
+   * degraded (VRX-244) — OR'd across members in `getHotInstances` so a
+   * transient per-member disagreement (a cache-restored member still
+   * degraded while a fresh-roster member resolved cleanly) can only widen
+   * toward the honest answer, never narrow past it. Every pill surface
+   * renders the honest "Unknown" treatment from this ONE field instead of
+   * asserting a degraded fallback type as fact.
+   */
+  opennessUnknown?: boolean
   /** True for group instances (carried from every member's InstanceInfo). */
   isGroup: boolean
   /** Owning group's display name, when isGroup. */
@@ -117,19 +127,39 @@ export function getHotInstances(
   threshold: number = HOT_INSTANCE_THRESHOLD
 ): HotInstance[] {
   const map = new Map<string, HotInstance>()
-  // Dedupe by identity (first occurrence wins): a duplicated normalized
-  // friend row (a paginated fetch shifting mid-run is a real producer) must
-  // never count ONE person twice — that would fabricate the exact false
-  // togetherness VRX-237 exists to kill. The alert engine keys by
-  // platformUserId; the dashboard now agrees.
-  const seen = new Set<string>()
+  // Dedupe by identity (first occurrence wins for membership and friendCount):
+  // a duplicated normalized friend row (a paginated fetch shifting mid-run is
+  // a real producer) must never count ONE person twice — that would fabricate
+  // the exact false togetherness VRX-237 exists to kill. The alert engine keys
+  // by platformUserId; the dashboard now agrees. Maps identity → the groupKey
+  // that person's first row landed in (null when it was filtered out) so a
+  // duplicate's opennessUnknown can still be consulted below (VRX-244).
+  const seen = new Map<string, string | null>()
 
   for (const f of friends) {
     // THE shared membership predicate (VRX-237) — see the docblock above.
     if (!isHotInstanceMember(f)) continue
     const identity = `${f.platform}:${f.platformUserId}`
-    if (seen.has(identity)) continue
-    seen.add(identity)
+    if (seen.has(identity)) {
+      // First-wins holds for membership and friendCount, but a duplicate row
+      // for the SAME person can still carry the degraded opennessUnknown flag
+      // its first row lacked (VRX-244 review F1) — discarding it here made a
+      // card's honesty depend on row arrival order (clean-row-first silently
+      // lost the flag). OR it into the person's own entry ONLY when the
+      // duplicate names that exact same instance: a duplicate locating them
+      // in a DIFFERENT instance must never smear its flag across.
+      const dup = f.instance
+      if (dup !== null && dup.opennessUnknown === true) {
+        const dupKey = hotInstanceKey(f.platform, dup.instanceId, dup.worldId)
+        const dupGroupKey = dupKey === null ? null : `${f.platform} ${dupKey}`
+        if (dupGroupKey !== null && dupGroupKey === seen.get(identity)) {
+          const entry = map.get(dupGroupKey)
+          if (entry !== undefined) entry.opennessUnknown = true
+        }
+      }
+      continue
+    }
+    seen.set(identity, null)
 
     const instance = f.instance
     if (instance === null) continue
@@ -140,10 +170,19 @@ export function getHotInstances(
     // per-platform maps); the dashboard merges both platforms into one list,
     // so it prefixes the platform — cross-platform collision is impossible.
     const groupKey = `${f.platform} ${key}`
+    seen.set(identity, groupKey)
     const existing = map.get(groupKey)
     if (existing) {
       existing.friendCount++
       existing.members.push(f)
+      // Members of the SAME exact instance can transiently disagree on
+      // opennessUnknown too (e.g. a cache-restored member still carries the
+      // degraded flag while a fresh-roster member for the same instance
+      // resolved cleanly). OR across members — any member unknown makes the
+      // whole card's privacy claim unknown — so the flag can only ever widen
+      // toward the safe/honest answer, matching the defensive-understatement
+      // philosophy `parseCvrPrivacy` already applies per-member (VRX-244).
+      if (instance.opennessUnknown === true) existing.opennessUnknown = true
       // Members of the SAME exact instance can transiently disagree on group
       // metadata (e.g. after hydration the merge filled one member but a
       // fresh-roster member is still null). Back-fill nulls from any member
@@ -162,6 +201,7 @@ export function getHotInstances(
         worldName,
         instanceId,
         instanceType: type,
+        opennessUnknown: instance.opennessUnknown,
         isGroup: instance.isGroup,
         groupName: instance.groupName,
         groupId: instance.groupId,

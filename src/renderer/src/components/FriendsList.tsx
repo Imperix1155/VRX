@@ -8,12 +8,11 @@ import { useFriends, useCombineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
-import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { groupFriendsBySection } from '../utils/groupFriendsBySection'
 import InstancePill from './InstancePill'
 import FriendDrawer from './FriendDrawer'
 import { Avatar } from './Avatar'
-import { OPENNESS_TIER, type OpennessTier } from '../utils/instancePill'
+import { instancePillFor, type OpennessTier } from '../utils/instancePill'
 import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
@@ -123,10 +122,9 @@ const FriendRow = memo(function FriendRow({
   let instancePill: string | null = null
   let pillTier: OpennessTier | null = null
   if (!hideWorld && instance != null) {
-    instancePill = t(
-      LABEL_KEYS_BY_SCHEME[labelScheme][instance.type] ?? 'friends.instance.unknownWorld'
-    )
-    pillTier = OPENNESS_TIER[instance.type] ?? null
+    const resolved = instancePillFor(instance, labelScheme)
+    instancePill = t(resolved.labelKey)
+    pillTier = resolved.tier
   } else if (friend.presence.state === 'in-game') {
     instancePill = t('friends.instance.private')
   }

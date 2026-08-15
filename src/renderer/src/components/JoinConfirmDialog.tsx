@@ -36,7 +36,7 @@ import { useFriends } from '../queries/friends'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
-import { OPENNESS_TIER } from '../utils/instancePill'
+import { instancePillFor } from '../utils/instancePill'
 import { Avatar } from './Avatar'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
@@ -413,6 +413,12 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
         )
       : null
   const opennessCopy = instanceForCopy !== null ? opennessCopyFor(instanceForCopy) : 'unknown'
+  // The pill is resolved independently of the headline (VRX-244): an unknown-
+  // openness instance still gets an honest "Unknown" pill rather than being
+  // hidden — hiding it would be the same "quietly withhold the truth" failure
+  // the truthful-signals law exists to prevent. `instanceForCopy === null`
+  // (no live instance data at all) has nothing to resolve, so no pill.
+  const pill = instanceForCopy !== null ? instancePillFor(instanceForCopy, labelScheme) : null
   // Unknown openness (a degraded CVR privacy flag OR missing instance data)
   // must not headline a type claim that contradicts the "Openness unknown"
   // body — fall back to the neutral titleUnknown in both cases.
@@ -509,9 +515,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           </h2>
           <div className="flex flex-col items-end gap-[var(--space-1)]">
             <PlatformPill platform={friendForCopy.platform} />
-            {typeLabel !== null && opennessCopy !== 'unknown' && instanceForCopy !== null && (
-              <InstancePill label={typeLabel} tier={OPENNESS_TIER[instanceForCopy.type] ?? null} />
-            )}
+            {pill !== null && <InstancePill label={t(pill.labelKey)} tier={pill.tier} />}
           </div>
         </div>
 
