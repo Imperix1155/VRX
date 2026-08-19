@@ -1,108 +1,211 @@
-# DOX framework
+# VRX Agent Contract
 
-- DOX is highly performant AGENTS.md hierarchy installed here
-- Agent must follow DOX instructions across any edits
+This repository uses the [DOX framework](https://github.com/agent0ai/dox).
+`AGENTS.md` files are binding work contracts for their subtrees. Read this file,
+then every `AGENTS.md` on the path to each file you touch. The closest contract
+controls local details, but no child may weaken DOX.
 
-## Core Contract
+## What VRX Is
 
-- AGENTS.md files are binding work contracts for their subtrees
-- Work products, source materials, instructions, records, assets, and durable docs must stay understandable from the nearest applicable AGENTS.md plus every parent AGENTS.md above it
+VRX is a local Electron companion for **VRChat** and **ChilloutVR**. It
+authenticates as the user on their machine and reads only that user's social
+data: friends, presence, instances, and invites. It is not a bot, server, or
+content uploader.
 
-## Read Before Editing
+## Before Editing
 
-1. Read the root AGENTS.md
-2. Identify every file or folder you expect to touch
-3. Walk from the repository root to each target path
-4. Read every AGENTS.md found along each route
-5. If a parent AGENTS.md lists a child AGENTS.md whose scope contains the path, read that child and continue from there
-6. Use the nearest AGENTS.md as the local contract and parent docs for repo-wide rules
-7. If docs conflict, the closer doc controls local work details, but no child doc may weaken DOX
+1. Identify every file or folder the task may touch.
+2. Walk from the repository root to each path and read every `AGENTS.md` found.
+3. Read the owning technical documentation named by this contract.
+4. Establish a verified baseline, confirm constraints and compatibility, then
+   make incremental changes with verification between meaningful steps.
 
-Do not rely on memory. Re-read the applicable DOX chain in the current session before editing.
+Do not rely on remembered instructions from another task.
 
-## Update After Editing
+## Architecture
 
-Every meaningful change requires a DOX pass before the task is done.
+- electron-vite + React 19 + strict TypeScript.
+- Processes: `src/main`, `src/preload`, and `src/renderer`.
+- Cross-process types and plain values live in `src/shared`, imported through
+  `@shared`. Shared code must remain pure: no Electron or Node imports.
+- Platform integrations use adapters. State uses Zustand; server/cache state
+  uses TanStack Query.
+- Prefer string-literal unions over `const enum` for esbuild and Zod safety.
+- Before adding a channel, event, hook, store, parser, service, utility, or
+  shared constant, consult [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md).
+  Reuse an existing surface when possible and update the catalog in the same PR
+  whenever the callable surface changes.
 
-Update the closest owning AGENTS.md when a change affects:
+## Design Contract
 
-- purpose, scope, ownership, or responsibilities
-- durable structure, contracts, workflows, or operating rules
-- required inputs, outputs, permissions, constraints, side effects, or artifacts
-- user preferences about behavior, communication, process, organization, or quality
-- AGENTS.md creation, deletion, move, rename, or index contents
+Before UI work, read [`docs/DESIGN.md`](docs/DESIGN.md), the rendered guide at
+`docs/design.html`, and the living reference at `docs/glass.html`.
 
-Update parent docs when parent-level structure, ownership, workflow, or child index changes. Update child docs when parent changes alter local rules. Remove stale or contradictory text immediately. Small edits that do not change behavior or contracts may leave docs unchanged, but the DOX pass still must happen.
+- Liquid glass is the material language. Dark is default; light is a
+  `[data-theme="light"]` parity override, not a fork.
+- Color communicates meaning, never decoration. Each meaning needs one fixed
+  location and a non-color glyph.
+- Platform identity is blue for VRChat and orange for ChilloutVR, expressed
+  only through tint, spine, and glyph.
+- Presence has two independent axes: `state` drives the dot; `status` drives
+  the VRChat pill. Never conflate them.
+- Use design tokens for color and spacing; do not introduce stray hex values.
 
-## Hierarchy
+## Security Non-Negotiables
 
-- Root AGENTS.md is the DOX rail: project-wide instructions, global preferences, durable workflow rules, and the top-level Child DOX Index
-- Child AGENTS.md files own domain-specific instructions and their own Child DOX Index
-- Each parent explains what its direct children cover and what stays owned by the parent
-- The closer a doc is to the work, the more specific and practical it must be
+For every BrowserWindow or IPC change:
 
-## Child Doc Shape
+- Keep `contextIsolation: true`, `sandbox: true`, and
+  `nodeIntegration: false`.
+- Guard every IPC handler with `isTrustedIpcSender`.
+- Store credentials with `safeStorage`; never expose raw tokens to the
+  renderer.
+- Apply a URL allowlist before `shell.openExternal`.
+- Do not permit `unsafe-inline` in CSP.
+- Never log credentials, tokens, or PII; use `electron-log` with redaction.
+- Never write to VRCX or CVRX folders.
+- Never commit secrets. The CI `secret-scan` job and local pre-commit hook use
+  gitleaks. Allowlist only confirmed fake fixture values, never whole paths.
 
-- Create a child AGENTS.md when a folder becomes a durable boundary with its own purpose, rules, responsibilities, workflow, materials, or quality standards
-- Work Guidance must reflect the current standards of the project or user instructions; if there are no specific standards or instructions yet, leave it empty
-- Verification must reflect an existing check; if no verification framework exists yet, leave it empty and update it when one exists
+## External API Etiquette
 
-Default section order:
+- Prefer WebSockets (VRChat Pipeline and CVR `/users/ws`) for real-time data.
+  Do not poll friend status.
+- Treat one request per second as the safe ceiling. Use exponential backoff,
+  jittered intervals, and a proper User-Agent.
+- Do not implement mass invites or other bot-like behavior.
+- Parse defensively: unknown enum values must degrade gracefully.
+- Record changed assumptions about unofficial API shapes or behavior in
+  `docs/api-volatility.md`; update `docs/api-policy.md` when etiquette or policy
+  changes.
 
-- Purpose
-- Ownership
-- Local Contracts
-- Work Guidance
-- Verification
-- Child DOX Index
+## Work and Git Rules
 
-## Style
+- Solve the requested problem with the smallest coherent change. State
+  assumptions and important tradeoffs before coding.
+- Same-lineage Codex subagents may handle independent, bounded work in separate
+  worktrees. Their output is fresh context, not independent model-lineage
+  review; the driver remains responsible for verification and integration.
+- Never commit or push unless the owner explicitly asks. `main` is protected;
+  agents never self-merge and stop after opening a PR.
+- Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
+  `vrx-XX`.
+- Pin third-party GitHub Actions to full commit SHAs with exact version
+  comments. Set `actions/checkout` credential persistence to false unless a job
+  intentionally pushes commits or tags.
+- Use `app.getPath()` rather than hardcoded `C:\\`, `%APPDATA%`, or `~` paths.
+- Use `electron-log`, not `console.log`.
+- Do not add `any` or `@ts-ignore` without an explanation comment.
 
-- Keep docs concise, current, and operational
-- Document stable contracts, not diary entries
-- Put broad rules in parent docs and concrete details in child docs
-- Prefer direct bullets with explicit names
-- Do not duplicate rules across many files unless each scope needs a local version
-- Delete stale notes instead of explaining history
-- Trim obvious statements, repeated rules, misplaced detail, and warnings for risks that no longer exist
+## Verification and Done
 
-## Closeout
+Before declaring implementation complete, run:
 
-1. Re-check changed paths against the DOX chain
-2. Update nearest owning docs and any affected parents or children
-3. Walk the Doc-Sync Matrix below and update every doc a changed surface maps to
-4. Refresh every affected Child DOX Index
-5. Remove stale or contradictory text
-6. Run existing verification when relevant
-7. Report any docs intentionally left unchanged and why
+```bash
+npm run typecheck && npm run lint && npm run format:check && npm run build
+```
 
-## Doc-Sync Matrix
+Run focused tests for the changed behavior as well. Read the final sentinel or
+exit status; silence is not proof. For bug fixes, demonstrate that the new test
+fails without the fix when practical.
 
-Each kind of change owns a doc that must be updated **in the same PR** — doc drift is a defect, not a chore for later.
+Before every PR, invoke the available `review-loop` skill over the actual
+PR diff. Its deterministic pass includes `fallow dead-code` and `fallow dupes`
+for JavaScript/TypeScript. Apply material fixes, rerun the relevant gates, and
+review the final head rather than an earlier snapshot.
 
-| If the change touches…                                                                                                                                                   | Update                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The callable surface — any IPC channel, `window.vrx` method, `AdapterEvent`, hook, store, parser, service, or shared constant (added, renamed, resignatured, or removed) | its row in `docs/INTERNAL-API.md`                                                                                                                            |
-| Visual or interaction design — tokens, component looks/behavior, design rules                                                                                            | `docs/DESIGN.md` (exact values, rule text) AND the reference renderings `docs/glass.html` / `docs/design.html` — they are design docs too and drift silently |
-| Assumptions about the external VRChat/CVR APIs — wire shapes, endpoints, enum values, 🟡 unverified markers                                                              | `docs/api-volatility.md` (and `docs/api-policy.md` if etiquette/policy changed)                                                                              |
-| User-visible behavior                                                                                                                                                    | `CHANGELOG.md`                                                                                                                                               |
-| Purpose, structure, contracts, or workflows of a directory                                                                                                               | the nearest owning `AGENTS.md` (Update After Editing rules)                                                                                                  |
-| Project-level facts — stack versions, feature status, doc links                                                                                                          | `README.md`                                                                                                                                                  |
+If the personal `review-loop` skill is unavailable, use this repository-portable
+fallback: inspect the final PR diff from a fresh context; run the documented
+project gate; run `fallow dead-code` and `fallow dupes` when Fallow is
+installed. If it is unavailable, record that limitation and use the repository
+TypeScript and ESLint results plus a targeted diff inspection for unused
+exports and duplicated logic. Check security, correctness, tests, and
+documentation sync; reconcile every finding; then re-review the final head
+after material fixes. Record that this fallback is a same-lineage Codex review,
+not independent model confirmation.
 
-## User Preferences
+## Code Review Rules
 
-When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
+These rules apply to local review and Codex GitHub PR review:
 
-- Measure twice, cut once: establish a verified baseline, confirm constraints and compatibility, then make incremental changes with verification between steps.
+- GitHub automatic Codex review is enabled for every push with exhaustive
+  review. Push coherent checkpoints rather than tiny incremental updates, and
+  check Codex usage during long work blocks and after unusually review-heavy
+  PRs. If review usage becomes disproportionate, surface it to the owner and
+  revisit the trigger or depth instead of silently exhausting the allowance.
+- Starting 2026-08-18, re-evaluate exhaustive auto-review after one week or
+  the first three VRX PRs opened after that date, whichever comes first.
+  Compare usage consumed, actionable findings found, false-positive burden,
+  and whether the findings escaped the local `review-loop`; keep or change the
+  setting from that evidence.
+- Review the actual PR head and changed lines. Report only actionable findings
+  introduced or exposed by the diff.
+- Prioritize data loss, credential exposure, authentication mistakes, unsafe
+  IPC or BrowserWindow settings, renderer trust-boundary violations, API
+  etiquette/rate-limit regressions, crashes, and user-visible correctness.
+- Treat missing `isTrustedIpcSender` guards, renderer-visible raw tokens,
+  unallowlisted external URLs, polling of social presence, or writes to
+  VRCX/CVRX data as blocking findings.
+- Check that new callable surfaces reuse or update
+  `docs/INTERNAL-API.md`, design changes update all three design artifacts,
+  external-API assumptions update API docs, and user-visible behavior updates
+  `CHANGELOG.md`.
+- Check for focused tests and for compatibility with strict TypeScript, the
+  Electron process boundary, both supported platforms, and dark/light parity
+  where applicable.
+- Do not report formatting-only preferences already enforced by repository
+  tooling. Give a file/line reference, concrete failure mode, and evidence for
+  every finding. If no material finding exists, say so plainly.
+- Review feedback never authorizes a merge.
+
+## Documentation Sync
+
+Every meaningful change requires a DOX pass before closeout. Update the closest
+owning `AGENTS.md` when purpose, structure, contracts, workflows, permissions,
+constraints, or durable user preferences change. Update parent and child
+indexes when their boundaries change. Delete stale or contradictory text.
+
+Create a child `AGENTS.md` when a directory becomes a durable boundary with
+its own purpose, rules, responsibilities, workflow, materials, or quality
+standards. When parent changes alter local behavior, update the affected child
+contracts too. New child contracts use this concise section order when the
+sections apply: Purpose, Ownership, Local Contracts, Work Guidance,
+Verification, Child DOX Index.
+
+| If the change touches…                                                              | Update in the same PR                                                   |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| IPC, `window.vrx`, `AdapterEvent`, hook, store, parser, service, or shared constant | `docs/INTERNAL-API.md`                                                  |
+| Visual or interaction design                                                        | `docs/DESIGN.md`, `docs/glass.html`, and `docs/design.html`             |
+| VRChat/CVR API assumptions                                                          | `docs/api-volatility.md` and, when policy changes, `docs/api-policy.md` |
+| User-visible behavior                                                               | `CHANGELOG.md`                                                          |
+| Directory purpose, structure, contracts, or workflows                               | Nearest owning `AGENTS.md`                                              |
+| Project facts, stack versions, feature status, or doc links                         | `README.md`                                                             |
+
+Small edits that do not alter behavior or contracts may leave docs unchanged,
+but the DOX pass still happens and intentionally unchanged docs are reported.
+
+## Linear
+
+Work is tracked on Linear team **VRX**. Issues use `VRX-N`. The `v1.0` label
+means ships in 1.0; `v1.x` is deferred. M1 (Foundation) precedes later
+milestones.
+
+- Starting an issue: set it to **In Progress**.
+- Opening a PR: set it to **In Review**.
+- After required verification and merge: set it to **Done** and record a brief
+  build/verification summary.
+- Keep the board current during the work. Use the Linear integration directly;
+  ask the owner only when a state change requires their authorization.
 
 ## Child DOX Index
 
-VRX project-wide rules — architecture, security non-negotiables, API etiquette, Git/PR workflow, Linear board hygiene, and behavioral guidelines — live in **[`CLAUDE.md`](./CLAUDE.md)**; read it alongside this contract. The design system spec is **[`docs/DESIGN.md`](./docs/DESIGN.md)** (rendered guide: `docs/design.html`; visual reference: `docs/glass.html`). The internal callable surface — every IPC channel, `AdapterEvent`, hook, store, parser, and constant — is catalogued in **[`docs/INTERNAL-API.md`](./docs/INTERNAL-API.md)**: consult it BEFORE building new surfaces (reuse beats rebuild), and update its rows in the same PR whenever a surface is added or changed (part of the DOX pass).
+- [`src/shared/AGENTS.md`](src/shared/AGENTS.md): pure cross-process types and
+  constants.
+- [`src/main/AGENTS.md`](src/main/AGENTS.md): Electron main-process security,
+  logging, credential redaction, and the small preload bridge contract.
+- [`src/renderer/AGENTS.md`](src/renderer/AGENTS.md): React UI, Tailwind v4,
+  design-token-only styling, and populated renderer subtrees.
 
-Children own their local technical contracts:
-
-- **[`src/shared`](./src/shared/AGENTS.md)** — pure cross-process types + constants (no electron/node imports).
-- **[`src/main`](./src/main/AGENTS.md)** — Electron main process: security trinity, electron-log + credential redaction.
-- **[`src/renderer`](./src/renderer/AGENTS.md)** — React UI: Tailwind v4, design-token-only styling.
-
-Not yet durable boundaries (no child doc until they gain real content): `src/preload` (owns `index.ts` + `index.d.ts` — the `window.vrx` bridge — durable but small; contracts documented in `src/main/AGENTS.md`), and the `.gitkeep`-only placeholder dirs `src/main/platform/` and `src/renderer/src/routes/`. The populated `src/renderer/src/{hooks,queries,utils}` subtrees are owned by `src/renderer/AGENTS.md` (see its per-file entries).
+`src/preload` remains owned by `src/main/AGENTS.md`. The `.gitkeep`-only
+`src/main/platform` and `src/renderer/src/routes` directories do not yet need
+child contracts.

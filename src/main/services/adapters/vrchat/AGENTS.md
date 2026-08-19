@@ -28,7 +28,7 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 - Pure parsers/builders: no electron/node imports, no side effects, no I/O. Importable + testable in isolation.
 - Fetchers (`fetchFriends`/`WorldResolver`/`fetchWorldMetadata`): never import HTTP/electron directly — take an injected fetcher/resolver; stay electron-free + unit-testable (mock the fetcher).
-- Defensive parsing — unknown enum/tag/suffix/shape values degrade gracefully, never throw (CLAUDE.md API etiquette).
+- Defensive parsing — unknown enum/tag/suffix/shape values degrade gracefully, never throw (root `AGENTS.md` API etiquette).
 - Read shared types from `@shared/types`; do not redefine the canonical model here.
 
 ## Verification
