@@ -1037,6 +1037,98 @@ describe('CvrAdapter', () => {
       group: { id: 'grp-real', name: 'CVR Group', image: 'https://img.example/g.png' }
     }
 
+    function groupWireSnapshot(): Extract<AdapterEvent, { type: 'presence-snapshot' }> {
+      return {
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: [
+          {
+            platformUserId: 'a1b2c3d4-0000-0000-0000-000000000001',
+            presence: { state: 'in-game' },
+            instance: {
+              worldId: 'i_group',
+              instanceId: 'i_group',
+              worldName: taggedName,
+              thumbnailUrl: null,
+              type: 'group-plus',
+              openness: 'friends-plus',
+              isGroup: true,
+              groupName: null,
+              groupId: null,
+              groupImageUrl: null,
+              region: null,
+              userCount: null
+            }
+          }
+        ]
+      }
+    }
+
+    function directPresenceHarness(adapter: CvrAdapter): {
+      snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>>
+      drive: { handlePipelineEvent: (event: AdapterEvent) => void }
+    } {
+      const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
+      const drive = adapter as unknown as {
+        subscribers: Set<(event: AdapterEvent) => void>
+        handlePipelineEvent: (event: AdapterEvent) => void
+      }
+      drive.subscribers.add((event) => {
+        if (event.type === 'presence-snapshot') snapshots.push(event)
+      })
+      return { snapshots, drive }
+    }
+
+    function stubHeldInstanceRefresh(): {
+      requests: { count: number }
+      release: (response: Response) => void
+    } {
+      let releaseRefresh!: (response: Response) => void
+      const heldRefresh = new Promise<Response>((resolve) => {
+        releaseRefresh = resolve
+      })
+      const requests = { count: 0 }
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          requests.count += 1
+          return requests.count === 1
+            ? Promise.resolve(jsonResponse(envelope(groupInstanceDetail)))
+            : heldRefresh
+        })
+      )
+      return { requests, release: releaseRefresh }
+    }
+
+    function expiringResolverClock(): () => void {
+      let now = 10_000
+      vi.spyOn(Date, 'now').mockImplementation(() => now)
+      return () => {
+        now += 5 * 60 * 1_000
+      }
+    }
+
+    async function startResolvedGroupSnapshot(): Promise<{
+      adapter: CvrAdapter
+      snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>>
+      drive: { handlePipelineEvent: (event: AdapterEvent) => void }
+      snapshot: Extract<AdapterEvent, { type: 'presence-snapshot' }>
+    }> {
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      const { snapshots, drive } = directPresenceHarness(adapter)
+      const snapshot = groupWireSnapshot()
+      drive.handlePipelineEvent(snapshot)
+      await vi.waitFor(() => expect(snapshots).toHaveLength(2))
+      return { adapter, snapshots, drive, snapshot }
+    }
+
+    function stubGroupInstanceSuccess(): void {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse(envelope(groupInstanceDetail))))
+      )
+    }
+
     it('dispatches getInstanceDetails interactively ahead of pipeline-driven default resolution', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)
@@ -1290,6 +1382,105 @@ describe('CvrAdapter', () => {
         groupImageUrl: 'https://img.example/g.png'
       })
       unsub()
+    })
+
+    it('retains same-instance enrichment while an expired resolver entry refreshes (VRX-265)', async () => {
+      const expireResolver = expiringResolverClock()
+      const refresh = stubHeldInstanceRefresh()
+      const { snapshots, drive } = await startResolvedGroupSnapshot()
+
+      // The resolver's success TTL is five minutes. Hold the refresh open so
+      // this assertion can only pass if the adapter preserves its last-known
+      // same-instance enrichment instead of briefly reverting to WS nulls.
+      expireResolver()
+      const refreshSnapshot = groupWireSnapshot()
+      refreshSnapshot.entries[0]!.presence = { state: 'active' }
+      refreshSnapshot.entries[0]!.instance = {
+        ...refreshSnapshot.entries[0]!.instance!,
+        type: 'friends',
+        openness: 'friends',
+        isGroup: false
+      }
+      drive.handlePipelineEvent(refreshSnapshot)
+      expect(snapshots).toHaveLength(3)
+      await vi.waitFor(() => {
+        expect(refresh.requests.count).toBe(2)
+      })
+
+      expect(snapshots.at(-1)!.entries[0]!.presence.state).toBe('active')
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-real',
+        worldName: 'SunDown',
+        thumbnailUrl: 'https://img.example/w.png',
+        userCount: 5,
+        groupId: 'grp-real',
+        groupName: 'CVR Group',
+        groupImageUrl: 'https://img.example/g.png',
+        type: 'friends',
+        openness: 'friends',
+        isGroup: false
+      })
+      refresh.release(jsonResponse(envelope(groupInstanceDetail)))
+      await vi.waitFor(() => expect(snapshots).toHaveLength(4))
+    })
+
+    it('drops retained enrichment when the TTL refresh fails (VRX-265)', async () => {
+      const expireResolver = expiringResolverClock()
+      let instanceRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          instanceRequests += 1
+          return instanceRequests === 1
+            ? Promise.resolve(jsonResponse(envelope(groupInstanceDetail)))
+            : Promise.reject(new Error('offline'))
+        })
+      )
+      const { snapshots, drive, snapshot } = await startResolvedGroupSnapshot()
+
+      expireResolver()
+      drive.handlePipelineEvent(snapshot)
+      expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('wrld-real')
+
+      await vi.waitFor(() => expect(snapshots).toHaveLength(4))
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'i_group',
+        worldName: taggedName,
+        thumbnailUrl: null,
+        userCount: null,
+        groupId: null,
+        groupName: null,
+        groupImageUrl: null
+      })
+    })
+
+    it('prunes retained enrichment when an instance leaves the full snapshot (VRX-265)', async () => {
+      const expireResolver = expiringResolverClock()
+      const refresh = stubHeldInstanceRefresh()
+      const { snapshots, drive, snapshot } = await startResolvedGroupSnapshot()
+
+      expireResolver()
+      drive.handlePipelineEvent({ ...snapshot, entries: [] })
+      drive.handlePipelineEvent(snapshot)
+      await vi.waitFor(() => expect(refresh.requests.count).toBe(2))
+
+      expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('i_group')
+      refresh.release(jsonResponse(envelope(groupInstanceDetail)))
+      await vi.waitFor(() =>
+        expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('wrld-real')
+      )
+    })
+
+    it('clears retained enrichment at an account boundary (VRX-265)', async () => {
+      const expireResolver = expiringResolverClock()
+      stubGroupInstanceSuccess()
+      const { adapter, snapshots, drive, snapshot } = await startResolvedGroupSnapshot()
+
+      expireResolver()
+      adapter.clearSession()
+      drive.handlePipelineEvent(snapshot)
+
+      expect(snapshots.at(-1)!.entries[0]!.instance?.worldId).toBe('i_group')
     })
 
     it('keeps opennessUnknown on the re-emitted snapshot after mergeResolved (unmapped WS privacy)', async () => {
@@ -1834,10 +2025,7 @@ describe('CvrAdapter', () => {
     })
 
     it('getInstanceDetails populates group fields from a resolved group object (VRX-263)', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(() => Promise.resolve(jsonResponse(envelope(groupInstanceDetail))))
-      )
+      stubGroupInstanceSuccess()
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
       const info = await adapter.getInstanceDetails('i_group')
       expect(info).toMatchObject({
