@@ -52,7 +52,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Local Contracts
 
-- Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in CLAUDE.md). Trinity applied in VRX-25.
+- Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in the root `AGENTS.md`). Trinity applied in VRX-25.
 - NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
 - No hardcoded paths — use `app.getPath()`.
 - `redact.ts` MUST stay pure (no electron imports) so it remains unit-testable in isolation.
