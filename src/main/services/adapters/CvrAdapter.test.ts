@@ -1454,6 +1454,118 @@ describe('CvrAdapter', () => {
       })
     })
 
+    it('keeps a newer interactive resolution when an older background refresh fails (VRX-265)', async () => {
+      const expireResolver = expiringResolverClock()
+      let rejectBackgroundRefresh!: (error: Error) => void
+      const backgroundRefresh = new Promise<Response>((_resolve, reject) => {
+        rejectBackgroundRefresh = reject
+      })
+      let instanceRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          instanceRequests += 1
+          if (instanceRequests === 1) {
+            return Promise.resolve(jsonResponse(envelope(groupInstanceDetail)))
+          }
+          if (instanceRequests === 2) return backgroundRefresh
+          return Promise.resolve(
+            jsonResponse(
+              envelope({
+                ...groupInstanceDetail,
+                world: { id: 'wrld-newer', name: 'Newer World', imageUrl: null }
+              })
+            )
+          )
+        })
+      )
+      const { adapter, snapshots, drive, snapshot } = await startResolvedGroupSnapshot()
+
+      expireResolver()
+      drive.handlePipelineEvent(snapshot)
+      await vi.waitFor(() => expect(instanceRequests).toBe(2))
+
+      await expect(adapter.getInstanceDetails('i_group')).resolves.toMatchObject({
+        worldId: 'wrld-newer',
+        worldName: 'Newer World'
+      })
+      // Record the newer interactive cache value in the live snapshot before
+      // the older background request resolves.
+      drive.handlePipelineEvent(snapshot)
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-newer',
+        worldName: 'Newer World'
+      })
+
+      rejectBackgroundRefresh(new Error('offline'))
+
+      await new Promise((resolve) => setImmediate(resolve))
+      // The stale failure is deliberately silent: it must neither erase nor
+      // re-emit over the newer interactive result.
+      expect(snapshots).toHaveLength(4)
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-newer',
+        worldName: 'Newer World'
+      })
+    })
+
+    it('uses an interactive cache value when an instance leaves before that lookup settles (VRX-265)', async () => {
+      let rejectBackgroundRefresh!: (error: Error) => void
+      const backgroundRefresh = new Promise<Response>((_resolve, reject) => {
+        rejectBackgroundRefresh = reject
+      })
+      let releaseInteractive!: (response: Response) => void
+      const interactiveLookup = new Promise<Response>((resolve) => {
+        releaseInteractive = resolve
+      })
+      let instanceRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          instanceRequests += 1
+          return instanceRequests === 1 ? backgroundRefresh : interactiveLookup
+        })
+      )
+      const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      const { snapshots, drive } = directPresenceHarness(adapter)
+      const snapshot = groupWireSnapshot()
+
+      drive.handlePipelineEvent(snapshot)
+      await vi.waitFor(() => expect(instanceRequests).toBe(1))
+      const details = adapter.getInstanceDetails('i_group')
+      await vi.waitFor(() => expect(instanceRequests).toBe(2))
+      drive.handlePipelineEvent({ ...snapshot, entries: [] })
+
+      releaseInteractive(
+        jsonResponse(
+          envelope({
+            ...groupInstanceDetail,
+            world: { id: 'wrld-interactive', name: 'Interactive World', imageUrl: null }
+          })
+        )
+      )
+      await expect(details).resolves.toMatchObject({
+        worldId: 'wrld-interactive',
+        worldName: 'Interactive World'
+      })
+
+      // The older background failure lands while the instance is absent and
+      // overwrites the resolver cache with null. Re-entry must still prefer
+      // the newer interactive answer.
+      rejectBackgroundRefresh(new Error('offline'))
+      await new Promise((resolve) => setImmediate(resolve))
+      drive.handlePipelineEvent(snapshot)
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-interactive',
+        worldName: 'Interactive World'
+      })
+      drive.handlePipelineEvent(snapshot)
+      expect(snapshots.at(-1)!.entries[0]!.instance).toMatchObject({
+        worldId: 'wrld-interactive',
+        worldName: 'Interactive World'
+      })
+    })
+
     it('prunes retained enrichment when an instance leaves the full snapshot (VRX-265)', async () => {
       const expireResolver = expiringResolverClock()
       const refresh = stubHeldInstanceRefresh()

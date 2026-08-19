@@ -124,6 +124,15 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    *  as undefined, so without this every rapid delta snapshot would stack another
    *  callback on the same promise → N×M duplicate re-emits (Sol review, High). */
   private readonly pendingResolutions = new Set<string>()
+  /**
+   * Default-priority presence refreshes may overlap an interactive detail
+   * lookup for the same id. The resolver deliberately permits that bypass, so
+   * the adapter keeps a request-order fence for the last-known UI enrichment:
+   * an older background completion must not replace a newer interactive value.
+   */
+  private instanceResolutionRequestSequence = 0
+  private readonly latestBackgroundResolutionSequence = new Map<string, number>()
+  private readonly latestInteractiveResolutionSequence = new Map<string, number>()
   /** One best-effort REST name warm per session; failures remain retryable. */
   private rosterWarmStarted = false
 
@@ -394,6 +403,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
     for (;;) {
       const generation = this.sessionGeneration
+      const requestSequence = ++this.instanceResolutionRequestSequence
       let resolved: ResolvedCvrInstance | null
       try {
         resolved = await this.instanceResolver.resolve(instanceId, { priority: 'interactive' })
@@ -413,6 +423,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       if (resolved === null) {
         throw new CVRNetworkError('CVR instance is private or could not be resolved')
       }
+      this.latestInteractiveResolutionSequence.set(instanceId, requestSequence)
+      // Keep a newer interactive answer available to the presence path while
+      // an older background refresh settles. It is pruned by the next full
+      // snapshot that omits this id, but must survive a temporary absence while
+      // the older request is still able to settle.
+      this.lastResolvedInstances.set(instanceId, resolved)
       const access = parseCvrPrivacy(resolved.privacy)
       return {
         // True world id when the API supplied one; the instance id otherwise
@@ -518,23 +534,46 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       )
     )
     for (const instanceId of this.lastResolvedInstances.keys()) {
-      if (!currentInstanceIds.has(instanceId)) this.lastResolvedInstances.delete(instanceId)
+      if (!currentInstanceIds.has(instanceId)) {
+        this.lastResolvedInstances.delete(instanceId)
+      }
+    }
+    // The request-order maps also receive ids that never enriched (for example
+    // a failed first lookup), so prune them independently of the value cache.
+    for (const instanceId of this.latestBackgroundResolutionSequence.keys()) {
+      if (!currentInstanceIds.has(instanceId)) {
+        this.latestBackgroundResolutionSequence.delete(instanceId)
+      }
+    }
+    for (const instanceId of this.latestInteractiveResolutionSequence.keys()) {
+      if (!currentInstanceIds.has(instanceId)) {
+        this.latestInteractiveResolutionSequence.delete(instanceId)
+      }
     }
 
     return {
       ...snapshot,
       entries: snapshot.entries.map((entry) => {
         if (entry.instance == null) return entry
-        const resolved = this.instanceResolver.peek(entry.instance.instanceId)
-        if (resolved != null) {
-          this.lastResolvedInstances.set(entry.instance.instanceId, resolved)
-        } else if (resolved === null) {
-          this.lastResolvedInstances.delete(entry.instance.instanceId)
+        const instanceId = entry.instance.instanceId
+        const resolved = this.instanceResolver.peek(instanceId)
+        const preferInteractive = this.hasNewerInteractiveResolution(instanceId)
+        if (resolved != null && !preferInteractive) {
+          this.lastResolvedInstances.set(instanceId, resolved)
+        } else if (resolved === null && !preferInteractive) {
+          this.lastResolvedInstances.delete(instanceId)
         }
+        const retained = this.lastResolvedInstances.get(instanceId)
+        // Usually the newer interactive result is retained above. If the id
+        // left the full snapshot while that lookup settled, there is no
+        // retained value to protect on re-entry; use its valid resolver cache
+        // rather than degrading to the wire fallback indefinitely.
         const enrichment =
-          resolved === undefined
-            ? this.lastResolvedInstances.get(entry.instance.instanceId)
-            : resolved
+          preferInteractive && retained !== undefined
+            ? retained
+            : resolved === undefined
+              ? retained
+              : resolved
         if (enrichment == null) {
           // Unresolved: keep the wire values — the creator-set Instance.Name
           // stays as the UI's world-line fallback (VRX-59 UX; display strips
@@ -570,6 +609,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
+  /** True when an interactive result started after the latest background refresh. */
+  private hasNewerInteractiveResolution(instanceId: string): boolean {
+    return (
+      (this.latestInteractiveResolutionSequence.get(instanceId) ?? 0) >
+      (this.latestBackgroundResolutionSequence.get(instanceId) ?? 0)
+    )
+  }
+
   /**
    * Fire resolution for every DISTINCT unseen instance id in the snapshot; when
    * any resolution yields data, re-enrich + re-emit the CURRENT last snapshot
@@ -588,6 +635,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       }
     }
     for (const id of unseen) {
+      const requestSequence = ++this.instanceResolutionRequestSequence
+      this.latestBackgroundResolutionSequence.set(id, requestSequence)
       this.pendingResolutions.add(id)
       void this.instanceResolver
         .resolve(id)
@@ -598,6 +647,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
           // Only re-emit if the id is still present in the current snapshot.
           const relevant = this.lastSnapshot.entries.some((e) => e.instance?.instanceId === id)
           if (!relevant) return
+          // The resolver permits an interactive lookup to bypass this pending
+          // refresh. If that newer lookup won, this older completion must not
+          // replace its enrichment (including by caching null on failure).
+          if (this.hasNewerInteractiveResolution(id)) return
           if (resolved === null && !this.lastResolvedInstances.delete(id)) return
           this.emit(this.enrichSnapshot(this.lastSnapshot))
         })
@@ -700,6 +753,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.lastResolvedInstances.clear()
     this.lastSnapshot = null
     this.pendingResolutions.clear()
+    this.instanceResolutionRequestSequence = 0
+    this.latestBackgroundResolutionSequence.clear()
+    this.latestInteractiveResolutionSequence.clear()
     this.rosterWarmStarted = false
     this.live?.onSessionBoundary?.()
 
