@@ -31,6 +31,7 @@ import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
+import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
 import { FriendAlerts, type FriendAlertType } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
@@ -119,40 +120,18 @@ function createWindow(): BrowserWindow {
     showGate.dispose()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    if (isAllowedUrl(details.url)) {
-      shell.openExternal(details.url).catch((err: unknown) => {
-        log.warn('openExternal failed', { message: String(err) })
-      })
-    } else {
-      // Log protocol+host only — the full URL may contain tokens in query params.
-      try {
-        const u = new URL(details.url)
-        log.warn('window-open blocked', { protocol: u.protocol, host: u.hostname })
-      } catch {
-        log.warn('window-open blocked', { url: '[unparseable]' })
-      }
-    }
-    return { action: 'deny' }
-  })
-
   const rendererPath = join(__dirname, '../renderer/index.html')
   const hasDevServer = is.dev && Boolean(process.env['ELECTRON_RENDERER_URL'])
   const rendererEntry =
     hasDevServer && process.env['ELECTRON_RENDERER_URL']
       ? process.env['ELECTRON_RENDERER_URL']
       : pathToFileURL(rendererPath).href
-  const entryUrl = new URL(rendererEntry)
-  const entryOrigin = entryUrl.origin
-  mainWindow.webContents.on('will-frame-navigate', (event) => {
-    try {
-      const url = new URL(event.url)
-      const isOwnEntry =
-        entryUrl.protocol === 'file:' ? url.href === entryUrl.href : url.origin === entryOrigin
-      if (!isOwnEntry) event.preventDefault()
-    } catch {
-      event.preventDefault()
-    }
+  installNavigationGuards({
+    webContents: mainWindow.webContents,
+    rendererEntry,
+    isAllowedUrl,
+    openExternal: (url) => shell.openExternal(url),
+    warn: (message, metadata) => log.warn(message, metadata)
   })
 
   // A notification click can recreate a window whose renderer has not mounted
