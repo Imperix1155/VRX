@@ -31,6 +31,7 @@ export function joinFailureMessageKey(reason: JoinFailureReason): string {
   if (reason === 'cooldown') return 'friends.joinFailure.cooldown'
   if (reason === 'rate-limited') return 'friends.joinFailure.rateLimited'
   if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
+  if (reason === 'joining-disabled') return 'friends.joinFailure.joiningDisabled'
   return 'friends.joinFailed'
 }
 
@@ -206,7 +207,12 @@ function createJoinStore(): JoinStore {
     // every join path — the row pill, the drawer button, and the hot-instance
     // card Join (VRX-237) — is intercepted identically. `confirmJoin: false`
     // keeps one-click joining.
-    const { confirmJoin, joinMode } = useSettingsStore.getState().settings
+    const { allowJoinInstances, confirmJoin, joinMode } = useSettingsStore.getState().settings
+    if (!allowJoinInstances) {
+      clearFailureBlip()
+      showFailureBlip(friendJoinKey(friend), 'joining-disabled')
+      return
+    }
     if (confirmJoin) {
       // Opening the dialog is a new attempt too: clear any lingering blip.
       clearFailureBlip()
