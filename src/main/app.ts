@@ -531,6 +531,7 @@ app
       locationAuthority,
       onRendererHydrated,
       instance: {
+        isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)
       }
