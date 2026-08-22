@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Direct sign-in now rejects control characters before a request is made, while retaining valid Unicode input exactly as entered. VRChat and ChilloutVR also reject non-printable platform-issued session values before they can be used in headers or saved. (VRX-38)
 - ChilloutVR world and group details no longer blink away when their five-minute background cache refreshes. (VRX-265)
 
 ## [0.18.1] - 2026-08-14

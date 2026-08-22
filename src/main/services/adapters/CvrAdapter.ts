@@ -18,6 +18,7 @@ import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resol
 import { CVRAuthError, CVRNetworkError } from './errors'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
+import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -54,14 +55,6 @@ export interface CvrCredentialStore {
   /** Remove the persisted session so a dead accessKey can't survive a restart. */
   delete(): void
 }
-
-/**
- * CVR credentials travel in HTTP HEADERS (`Username`/`AccessKey`), so a control
- * character in an input is header injection, not just bad data — reject before
- * any wire use (VRX-37 AC; the app-wide input-sanitization sweep is VRX-38).
- */
-// eslint-disable-next-line no-control-regex -- rejecting control chars IS the point (header-injection guard)
-const CONTROL_CHARS = /[\u0000-\u001f\u007f]/
 
 /**
  * Concrete ChilloutVR adapter (VRX-37) — direct login + session persistence and
@@ -147,7 +140,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // reauthenticates server-side before 'authenticated' is ever reported.
     try {
       const stored = this.store.load()
-      if (stored) this.adoptSession(stored)
+      if (stored && isValidCvrSession(stored.username, stored.accessKey)) this.adoptSession(stored)
     } catch {
       /* no usable persisted session */
     }
@@ -175,9 +168,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // API contract (probe it live), never against our own implementation.
     if (creds.twoFactorCode) return { ok: false, needs2fa: false, error: 'unsupported_2fa' }
 
-    const email = creds.username.trim()
+    const email = creds.username
     const password = creds.password
-    if (!email || !password || CONTROL_CHARS.test(email) || CONTROL_CHARS.test(password)) {
+    if (
+      !email.trim() ||
+      !password ||
+      hasUnsafeCredentialCharacters(email) ||
+      hasUnsafeCredentialCharacters(password)
+    ) {
       // Indistinguishable from a wrong password on purpose — no oracle for
       // which characters the validator rejects (safe generic error, VRX-37 AC).
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
@@ -215,6 +213,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
     const parsed = cvrCurrentUserSchema.safeParse(body)
     if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    if (!isValidCvrSession(parsed.data.data.username, parsed.data.data.accessKey)) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
 
     // The accessKey — not the password — is the session from here on. The
     // password is never stored, logged, or persisted (VRX-37 AC).
@@ -302,6 +303,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     if (!parsed.success) return this.status('error')
 
     const { username, accessKey } = parsed.data.data
+    if (!isValidCvrSession(username, accessKey)) {
+      this.invalidateSession(false)
+      return this.status('unauthenticated')
+    }
     // CVR may ROTATE the accessKey on reauth — persist the rotation, or the next
     // restore would present the stale key and silently log the user out.
     if (accessKey !== validated.accessKey || username !== validated.username) {
