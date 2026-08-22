@@ -39,7 +39,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   locationAuthority: LocationAuthority
   socialStore: SocialStore
   appStatus: AppStatusService
-  instance?: InstanceHandlerOptions
+  instance: InstanceHandlerOptions
   onRendererHydrated: (event: IpcMainEvent) => void
   rateLimit?: IpcRateLimitOptions
 }

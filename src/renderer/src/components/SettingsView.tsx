@@ -201,6 +201,7 @@ export default function SettingsView(): React.JSX.Element {
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
@@ -358,6 +359,22 @@ export default function SettingsView(): React.JSX.Element {
 
             {/* Join rows (VRX-210) — permanently homed on the Behavior page
                 (VRX-231; their earlier 'dashboard' placement was temporary). */}
+            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.allowJoinInstances.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.allowJoinInstances.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={allowJoinInstances}
+                ariaLabel={t('settings.allowJoinInstances.aria')}
+                onChange={(checked) => updateSettings({ allowJoinInstances: checked })}
+              />
+            </div>
+
             <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">

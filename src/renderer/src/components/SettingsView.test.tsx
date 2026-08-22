@@ -264,6 +264,19 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 
+  it('renders joining enabled by default and persists the disabled choice (VRX-39)', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+    const toggle = screen.getByRole('switch', {
+      name: msg('settings.allowJoinInstances.aria')
+    })
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(toggle)
+    expect(useSettingsStore.getState().settings.allowJoinInstances).toBe(false)
+    expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
   it('renders the confirm-before-joining row (On default) and writes confirmJoin (VRX-210)', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()

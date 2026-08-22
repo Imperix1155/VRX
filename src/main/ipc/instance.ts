@@ -21,6 +21,7 @@ type InstanceLog = (
 ) => void
 
 export interface InstanceHandlerOptions {
+  isJoinAllowed: () => boolean
   clock?: () => number
   log?: InstanceLog
 }
@@ -28,7 +29,7 @@ export interface InstanceHandlerOptions {
 export function registerInstanceHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   authority: LocationAuthority,
-  options: InstanceHandlerOptions = {}
+  options: InstanceHandlerOptions
 ): void {
   const clock = options.clock ?? Date.now
   const log = options.log ?? (() => undefined)
@@ -61,6 +62,7 @@ export function registerInstanceHandlers(
     ) {
       throw new Error('Invalid join-instance request')
     }
+    if (!options.isJoinAllowed()) return denied(req.platform, 'joining-disabled')
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     const resolved = authority.resolve(req.platform, req.friendId)
