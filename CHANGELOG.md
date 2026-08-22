@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hardening
+
+- Renderer-created windows and off-origin frame navigations remain blocked and now log only their scheme and host. Dropping local files or HTML into VRX can no longer replace the app document. (VRX-30)
+
 ### Fixed
 
 - ChilloutVR world and group details no longer blink away when their five-minute background cache refreshes. (VRX-265)

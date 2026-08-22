@@ -8,6 +8,9 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { queryClient } from './queries/queryClient'
 import { buildPersistOptions, onPersistRestore } from './queries/cache'
+import { installDocumentDropGuard } from './installDocumentDropGuard'
+
+installDocumentDropGuard(document)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
