@@ -21,6 +21,7 @@ import { parseInstanceType } from './vrchat/parseInstanceType'
 import { WorldResolver, type WorldMeta } from './vrchat/WorldResolver'
 import { createGroupResolver, type GroupMeta, type GroupResolver } from './vrchat/GroupResolver'
 import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
+import { hasUnsafeCredentialCharacters, isValidVrcSessionCookie } from './credentialValidation'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -79,7 +80,7 @@ function extractCookie(setCookies: string[], name: string): string | null {
     const key = match?.[1]
     const value = match?.[2]
     if (key !== undefined && value !== undefined && key.trim() === name) {
-      return `${name}=${value.trim()}`
+      return `${name}=${value}`
     }
   }
   return null
@@ -175,7 +176,7 @@ export class VrcAdapter extends VrcApiClient {
     // Session restore — adopt any persisted cookie; tolerate a missing/locked store.
     try {
       const stored = this.credentials.load()
-      if (stored) this.adoptSession(stored)
+      if (stored && isValidVrcSessionCookie(stored)) this.adoptSession(stored)
     } catch {
       /* no usable persisted session */
     }
@@ -184,6 +185,14 @@ export class VrcAdapter extends VrcApiClient {
   async login(creds: Credentials): Promise<LoginResult> {
     // Second leg of a 2FA flow: the renderer re-calls login with the code.
     if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode)
+    if (
+      !creds.username ||
+      !creds.password ||
+      hasUnsafeCredentialCharacters(creds.username) ||
+      hasUnsafeCredentialCharacters(creds.password)
+    ) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
 
     // A deliberate login must always reach the wire — background data-call
     // failures can open the shared breaker and fast-fail this as a network
@@ -216,6 +225,9 @@ export class VrcAdapter extends VrcApiClient {
     // the body below says 2FA is still required. Fence and replace the old
     // account's pipeline before returning control to the renderer's 2FA prompt.
     const authCookie = extractCookie(response.headers.getSetCookie(), 'auth')
+    if (authCookie && !isValidVrcSessionCookie(authCookie)) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
     if (authCookie) {
       this.setCookie(authCookie)
       this.displayName = null
@@ -324,6 +336,9 @@ export class VrcAdapter extends VrcApiClient {
     const authCookie = extractCookie(setCookies, 'auth') ?? cookiePart(this.cookie, 'auth')
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
+    if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 

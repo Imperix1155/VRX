@@ -197,6 +197,48 @@ function headerOf(options: RequestInit, name: string): string | undefined {
 }
 
 describe('VrcAdapter', () => {
+  it('rejects control-character direct credentials before making a request', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await new VrcAdapter(fakeStore(), noopSleep).login({
+      username: 'neo\nadmin',
+      password: 'redpill'
+    })
+
+    expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-printable auth cookie instead of persisting it', async () => {
+    const response = jsonResponse({
+      id: 'usr_12345678-1234-1234-1234-123456789abc',
+      displayName: 'Neo'
+    })
+    vi.spyOn(response.headers, 'getSetCookie').mockReturnValue(['auth=session\npoison'])
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+    const store = fakeStore()
+
+    const result = await new VrcAdapter(store, noopSleep).login(creds)
+
+    expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    expect(store.saved).toEqual([])
+  })
+
+  it('allows Unicode direct-login credentials', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ id: 'usr_12345678-1234-1234-1234-123456789abc', displayName: 'Neo' })
+        )
+    )
+
+    await expect(
+      new VrcAdapter(fakeStore(), noopSleep).login({ username: 'ユーザー', password: '秘密🔐' })
+    ).resolves.toEqual({ ok: true })
+  })
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -488,6 +530,22 @@ describe('VrcAdapter', () => {
       await new VrcAdapter(fakeStore(), noopSleep).login({ username: 'a:b@c', password: 'p:w@d' })
 
       const expected = `Basic ${Buffer.from('a%3Ab%40c:p%3Aw%40d').toString('base64')}`
+      expect(headerOf(lastCall(fetchMock)[1], 'Authorization')).toBe(expected)
+    })
+
+    it('preserves Unicode direct-login text in the exact Basic auth value', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'u', displayName: 'X' }, { setCookies: ['auth=t'] }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await new VrcAdapter(fakeStore(), noopSleep).login({
+        username: 'ユーザー🔐',
+        password: 'pässwörd'
+      })
+
+      const encoded = `${encodeURIComponent('ユーザー🔐')}:${encodeURIComponent('pässwörd')}`
+      const expected = `Basic ${Buffer.from(encoded).toString('base64')}`
       expect(headerOf(lastCall(fetchMock)[1], 'Authorization')).toBe(expected)
     })
 
@@ -826,6 +884,29 @@ describe('VrcAdapter', () => {
       expect(store.saved.at(-1)).toBe('auth=rotated9; twoFactorAuth=tf2')
     })
 
+    it('rejects a non-printable cookie issued by the 2FA response', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2\tpoison'] })
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore()
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await adapter.login(creds)
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'invalid_credentials'
+      })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(store.saved).toEqual([])
+    })
+
     it('verify2fa completes the second leg via the session cookie, no credentials resent (VRX-159)', async () => {
       const fetchMock = vi
         .fn()
@@ -851,6 +932,18 @@ describe('VrcAdapter', () => {
   })
 
   describe('getAuthStatus & session restore', () => {
+    it('does not adopt or send a persisted cookie containing non-printable bytes', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(
+        fakeStore('auth=clean;\r\ntwoFactorAuth=also-clean'),
+        noopSleep
+      )
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('backfills the owner for the restored ciphertext after validation', async () => {
       vi.stubGlobal(
         'fetch',
