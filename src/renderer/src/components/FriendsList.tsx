@@ -32,6 +32,13 @@ const DETAIL_FRIEND_ROW_ESTIMATE = 72
 const VIRTUAL_ROW_GAP = 4
 const VIRTUAL_OVERSCAN = 5
 
+function findActiveStickyIndex(
+  stickyIndexes: readonly number[],
+  startIndex: number
+): number | undefined {
+  return [...stickyIndexes].reverse().find((index) => startIndex >= index) ?? stickyIndexes[0]
+}
+
 function friendRowKey(friend: Friend): string {
   return friend.platform + ':' + friend.platformUserId
 }
@@ -628,7 +635,6 @@ export default function FriendsList(): React.JSX.Element {
   const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
-  const activeStickyIndexRef = useRef(0)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
   const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -662,9 +668,7 @@ export default function FriendsList(): React.JSX.Element {
   )
   const rangeExtractor = useCallback(
     (range: Range) => {
-      const activeStickyIndex =
-        [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? stickyIndexes[0]
-      if (activeStickyIndex !== undefined) activeStickyIndexRef.current = activeStickyIndex
+      const activeStickyIndex = findActiveStickyIndex(stickyIndexes, range.startIndex)
 
       const indexes = new Set(defaultRangeExtractor(range))
       if (activeStickyIndex !== undefined) indexes.add(activeStickyIndex)
@@ -821,6 +825,8 @@ export default function FriendsList(): React.JSX.Element {
   }
 
   const virtualItems = rowVirtualizer.getVirtualItems()
+  const activeStickyIndex =
+    findActiveStickyIndex(stickyIndexes, rowVirtualizer.range?.startIndex ?? 0) ?? 0
   const renderedFriendKeys = new Set(
     virtualItems.flatMap((item) => {
       const row = virtualRows[item.index]
@@ -838,7 +844,7 @@ export default function FriendsList(): React.JSX.Element {
     const row = virtualRows[item.index]
     if (row?.kind === 'section') {
       if (
-        item.index === activeStickyIndexRef.current ||
+        item.index === activeStickyIndex ||
         (item.end > viewportStart && item.start < viewportEnd)
       ) {
         focusableSectionIndexSet.add(item.index)
@@ -865,7 +871,6 @@ export default function FriendsList(): React.JSX.Element {
         intersectingFriendKeys[0] ??
         renderedFriendKeys.values().next().value ??
         null)
-  const activeStickyIndex = activeStickyIndexRef.current
   const activeStickyRow = virtualRows[activeStickyIndex]
   const activeStickySection = activeStickyRow?.kind === 'section' ? activeStickyRow.section : null
   const focusedSectionNeedsHandoff =
@@ -1002,7 +1007,7 @@ export default function FriendsList(): React.JSX.Element {
                 const row = virtualRows[virtualItem.index]
                 if (row === undefined) return null
                 const activeSticky =
-                  row.kind === 'section' && virtualItem.index === activeStickyIndexRef.current
+                  row.kind === 'section' && virtualItem.index === activeStickyIndex
                 const virtualStyle: CSSProperties = activeSticky
                   ? {
                       position: 'sticky',
