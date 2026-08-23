@@ -409,20 +409,34 @@ function SectionHeader({
   count,
   collapsed,
   onToggle,
-  collapseIgnored
+  collapseIgnored,
+  virtualIndex,
+  tabIndex,
+  setButtonElement,
+  onFocus,
+  onBlur
 }: {
   section: FriendSection
   count: number
   collapsed: boolean
   onToggle: () => void
   collapseIgnored: boolean
+  virtualIndex: number
+  tabIndex: 0 | -1
+  setButtonElement: (index: number, element: HTMLButtonElement | null) => void
+  onFocus: (index: number) => void
+  onBlur: (index: number) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <button
+      ref={(element) => setButtonElement(virtualIndex, element)}
       type="button"
       onClick={onToggle}
+      onFocus={() => onFocus(virtualIndex)}
+      onBlur={() => onBlur(virtualIndex)}
       disabled={collapseIgnored}
+      tabIndex={collapseIgnored ? -1 : tabIndex}
       aria-expanded={!collapsed}
       // All sections share one virtual list, so no header claims that whole
       // list as its controlled object. aria-expanded carries disclosure state.
@@ -613,10 +627,12 @@ export default function FriendsList(): React.JSX.Element {
 
   const virtualListRef = useRef<HTMLUListElement>(null)
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
+  const sectionButtonElementsRef = useRef(new Map<number, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
   const activeStickyIndexRef = useRef(0)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
+  const [focusedSectionIndex, setFocusedSectionIndex] = useState<number | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
   const effectiveRovingKey =
     rovingKey !== null && friendPositionByKey.has(rovingKey) ? rovingKey : (friendKeys[0] ?? null)
@@ -647,9 +663,10 @@ export default function FriendsList(): React.JSX.Element {
 
       const indexes = new Set(defaultRangeExtractor(range))
       if (activeStickyIndex !== undefined) indexes.add(activeStickyIndex)
+      if (focusedSectionIndex !== null) indexes.add(focusedSectionIndex)
       return [...indexes].sort((a, b) => a - b)
     },
-    [stickyIndexes]
+    [focusedSectionIndex, stickyIndexes]
   )
 
   // TanStack Virtual intentionally exposes a mutable instance; React Compiler
@@ -665,10 +682,7 @@ export default function FriendsList(): React.JSX.Element {
     overscan: VIRTUAL_OVERSCAN,
     scrollMargin,
     scrollPaddingStart: SECTION_ROW_ESTIMATE + VIRTUAL_ROW_GAP,
-    initialRect: INITIAL_VIRTUAL_VIEWPORT,
-    // TanStack recommends this for React 19 to avoid flushSync lifecycle
-    // warnings; the list tolerates React's normal event batching.
-    useFlushSync: false
+    initialRect: INITIAL_VIRTUAL_VIEWPORT
   })
 
   // This list intentionally shares AppShell's one <main> scroller. Tell the
@@ -706,6 +720,13 @@ export default function FriendsList(): React.JSX.Element {
     if (element === null) avatarElementsRef.current.delete(key)
     else avatarElementsRef.current.set(key, element)
   }, [])
+  const setSectionButtonElement = useCallback(
+    (index: number, element: HTMLButtonElement | null): void => {
+      if (element === null) sectionButtonElementsRef.current.delete(index)
+      else sectionButtonElementsRef.current.set(index, element)
+    },
+    []
+  )
   const onRovingFocus = useCallback((key: string): void => {
     setRovingKey(key)
   }, [])
@@ -714,6 +735,12 @@ export default function FriendsList(): React.JSX.Element {
   }, [])
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
+  }, [])
+  const onSectionFocus = useCallback((index: number): void => {
+    setFocusedSectionIndex(index)
+  }, [])
+  const onSectionBlur = useCallback((index: number): void => {
+    setFocusedSectionIndex((current) => (current === index ? null : current))
   }, [])
   const onArrowNavigate = useCallback(
     (key: string, direction: -1 | 1): void => {
@@ -797,8 +824,18 @@ export default function FriendsList(): React.JSX.Element {
     (rowVirtualizer.scrollRect?.height ?? INITIAL_VIRTUAL_VIEWPORT.height)
   const fullyVisibleFriendKeys: string[] = []
   const intersectingFriendKeys: string[] = []
+  const focusableSectionIndexSet = new Set<number>()
   for (const item of virtualItems) {
     const row = virtualRows[item.index]
+    if (row?.kind === 'section') {
+      if (
+        item.index === activeStickyIndexRef.current ||
+        (item.end > viewportStart && item.start < viewportEnd)
+      ) {
+        focusableSectionIndexSet.add(item.index)
+      }
+      continue
+    }
     if (row?.kind !== 'friend') continue
     if (item.end > viewportStart && item.start < viewportEnd) {
       intersectingFriendKeys.push(row.key)
@@ -819,6 +856,24 @@ export default function FriendsList(): React.JSX.Element {
         intersectingFriendKeys[0] ??
         renderedFriendKeys.values().next().value ??
         null)
+  const activeStickyIndex = activeStickyIndexRef.current
+  const focusedSectionNeedsHandoff =
+    focusedSectionIndex !== null && !focusableSectionIndexSet.has(focusedSectionIndex)
+
+  // Overscanned section toggles are not sequential Tab stops. If pointer or
+  // scrollbar scrolling carries a focused header out of view, its retained
+  // virtual row hands focus to the newly active sticky header before it can be
+  // unmounted and strand focus on <body>.
+  useLayoutEffect(() => {
+    if (!focusedSectionNeedsHandoff) return
+    const target = sectionButtonElementsRef.current.get(activeStickyIndex)
+    if (target !== undefined) {
+      target.focus({ preventScroll: true })
+      return
+    }
+    setFocusedSectionIndex(null)
+    searchInputRef.current?.focus({ preventScroll: true })
+  }, [activeStickyIndex, focusedSectionNeedsHandoff])
 
   // A scrollbar drag, wheel, or PageDown can unmount the focused avatar. The
   // browser then falls back to <body>, so move real focus along with the
@@ -968,6 +1023,11 @@ export default function FriendsList(): React.JSX.Element {
                           if (!searchActive) toggleSection(row.section)
                         }}
                         collapseIgnored={searchActive}
+                        virtualIndex={virtualItem.index}
+                        tabIndex={focusableSectionIndexSet.has(virtualItem.index) ? 0 : -1}
+                        setButtonElement={setSectionButtonElement}
+                        onFocus={onSectionFocus}
+                        onBlur={onSectionBlur}
                       />
                     </li>
                   )
