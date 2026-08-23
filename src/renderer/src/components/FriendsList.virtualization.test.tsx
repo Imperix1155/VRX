@@ -32,6 +32,7 @@ const COMPACT_ROW_HEIGHT_FOR_TEST = 60
 const FIRST_DETAIL_ROW_HEIGHT = 92
 const SECTION_ROW_HEIGHT = 32
 const VIRTUAL_ROW_GAP_FOR_TEST = 4
+const ALTERNATE_TOKEN_ROW_GAP_FOR_TEST = 7
 const JOINABLE_INSTANCE: InstanceInfo = {
   worldId: 'wrld_virtual',
   instanceId: 'wrld_virtual:1~public',
@@ -176,6 +177,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  document.documentElement.style.removeProperty('--space-1')
   useFriendsMock.mockReset()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -291,6 +293,22 @@ describe('FriendsList virtualization (VRX-63)', () => {
         COMPACT_ROW_HEIGHT_FOR_TEST + VIRTUAL_ROW_GAP_FOR_TEST
       )
       expect(document.activeElement).toBe(opener('Friend 0000'))
+    })
+  })
+
+  it('derives rendered row spacing from the renderer design token', async () => {
+    document.documentElement.style.setProperty('--space-1', `${ALTERNATE_TOKEN_ROW_GAP_FOR_TEST}px`)
+    const view = renderInScrollContainer()
+
+    await waitFor(() => {
+      const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
+      const second = view.container.querySelector<HTMLElement>(
+        '[data-friend-key="vrchat:usr_0001"]'
+      )
+      if (first === null || second === null) throw new Error('missing initial detail rows')
+      expect(translateY(second) - translateY(first)).toBe(
+        FIRST_DETAIL_ROW_HEIGHT + ALTERNATE_TOKEN_ROW_GAP_FOR_TEST
+      )
     })
   })
 
