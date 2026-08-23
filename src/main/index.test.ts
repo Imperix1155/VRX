@@ -104,6 +104,16 @@ describe('main single-instance lock (VRX-230)', () => {
   })
 })
 
+describe('main join policy wiring', () => {
+  it('reads the live allowJoinInstances setting at the main-process authority boundary', () => {
+    const executableSource = stripComments(source)
+
+    expect(executableSource).toMatch(
+      /^\s*isJoinAllowed:\s*\(\)\s*=>\s*getSettingsSnapshot\(\)\.allowJoinInstances,\s*$/m
+    )
+  })
+})
+
 describe('main account-registry adoption', () => {
   it('passes the authenticated status identity and captured session epoch', () => {
     expect(source).toContain('const resolution = accountSession.resolve(status.platform)')

@@ -60,6 +60,7 @@ function friend(overrides: Partial<Friend> = {}): Friend {
 let adapter: IPlatformAdapter
 let authority: LocationAuthority
 let now: number
+let allowJoinInstances: boolean
 const log =
   vi.fn<(level: 'warn', message: string, meta: { platform: Platform; reason: string }) => void>()
 
@@ -73,10 +74,12 @@ beforeEach(() => {
   vi.mocked(adapter.buildJoinUrl).mockReturnValue(launchUrl)
   authority = new LocationAuthority()
   now = 10_000
+  allowJoinInstances = true
   log.mockReset()
   registerInstanceHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), authority, {
     clock: () => now,
-    log
+    log,
+    isJoinAllowed: () => allowJoinInstances
   })
 })
 
@@ -148,6 +151,19 @@ describe('join-instance handler', () => {
     }
   ])('schema-rejects malformed request %j', async (req) => {
     await expect(call('join-instance', req)).rejects.toThrow('Invalid join-instance request')
+  })
+
+  it('blocks a valid join before resolving authority or building a launch URL when disabled', async () => {
+    allowJoinInstances = false
+    const resolve = vi.spyOn(authority, 'resolve')
+
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'joining-disabled'
+    })
+    expect(resolve).not.toHaveBeenCalled()
+    expect(adapter.buildJoinUrl).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -320,6 +336,16 @@ describe('join-instance handler', () => {
 })
 
 describe('self-invite handler', () => {
+  it('remains available when direct joining is disabled', async () => {
+    allowJoinInstances = false
+    seed()
+
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'usr_friend' })
+    ).resolves.toEqual({ ok: true })
+    expect(adapter.selfInvite).toHaveBeenCalledWith('wrld_example:instance-1')
+  })
+
   it('is VRChat-only and resolves the instance through the authority', async () => {
     seed()
     await expect(

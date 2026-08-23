@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
 import { friendsQueryKey } from '../queries/friends'
-import { useJoinInstance } from './useJoinInstance'
+import { joinFailureMessageKey, useJoinInstance } from './useJoinInstance'
 
 const publicInstance: InstanceInfo = {
   worldId: 'wrld_fixture',
@@ -67,6 +67,10 @@ afterEach(() => {
 })
 
 describe('useJoinInstance', () => {
+  it('maps the main-process joining-disabled denial to specific copy', () => {
+    expect(joinFailureMessageKey('joining-disabled')).toBe('friends.joinFailure.joiningDisabled')
+  })
+
   it('cross-surface latch: while ANY join is in flight, every other surface no-ops', async () => {
     let resolveJoin!: (result: { ok: boolean }) => void
     joinInstance.mockImplementation(
@@ -180,7 +184,7 @@ describe('useJoinInstance', () => {
     expect(hook.result.current.joinFailedFor(cvrTwin)).toBe(false)
   })
 
-  it.each(['stale', 'cooldown', 'rate-limited'] as const)(
+  it.each(['stale', 'cooldown', 'rate-limited', 'joining-disabled'] as const)(
     'retains the typed %s denial reason for the failed friend',
     async (reason) => {
       joinInstance.mockResolvedValueOnce({ ok: false, reason })
@@ -232,6 +236,22 @@ describe('useJoinInstance', () => {
       })
     )
     expect(hook.result.current.pendingConfirm).toBeNull()
+  })
+
+  it('disabled joining blips immediately without opening confirmation or invoking IPC', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, allowJoinInstances: false, confirmJoin: true },
+      dirty: false
+    })
+    const hook = renderHook(() => useJoinInstance())
+
+    await act(async () => {
+      await hook.result.current.join(friend)
+    })
+
+    expect(hook.result.current.pendingConfirm).toBeNull()
+    expect(hook.result.current.joinFailureFor(friend)).toBe('joining-disabled')
+    expect(joinInstance).not.toHaveBeenCalled()
   })
 
   it('confirmPending returns review-required on target-changed and arms awaitingCacheAfter', async () => {

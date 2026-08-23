@@ -46,6 +46,7 @@ export type InstanceActionResult =
         | 'launch-failed'
         | 'invite-failed'
         | 'target-changed'
+        | 'joining-disabled'
     }
 
 /**

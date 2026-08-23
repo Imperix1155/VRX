@@ -84,6 +84,11 @@
       "description": "Minimum friends in one instance before it counts as hot.",
       "aria": "Hot instance threshold"
     },
+    "allowJoinInstances": {
+      "label": "Allow joining friends",
+      "description": "Let VRX launch the game when you join a friend. Turn this off to block every Join action.",
+      "aria": "Allow joining friends"
+    },
     "confirmJoin": {
       "label": "Confirm before joining",
       "description": "Ask before VRX launches you into a friend's instance.",
@@ -182,7 +187,8 @@
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
       "cooldown": "One moment — just launched a join",
       "rateLimited": "Too many attempts — try again shortly",
-      "targetChanged": "Location changed — try Join again"
+      "targetChanged": "Location changed — try Join again",
+      "joiningDisabled": "Joining is disabled in Settings"
     },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
