@@ -86,11 +86,11 @@ For every BrowserWindow or IPC change:
 - Same-lineage Codex subagents may handle independent, bounded work in separate
   worktrees. Their output is fresh context, not independent model-lineage
   review; the driver remains responsible for verification and integration.
-- For any user-authorized implementation or delivery task, the driver may
-  commit only on a non-protected feature branch, push that branch, open or
-  update a PR, push review fixes, and keep Linear current without a separate
-  permission prompt. These are normal, reversible delivery steps. Never commit
-  or push directly to protected `main`.
+- For any user-authorized implementation or delivery task not explicitly
+  restricted to local-only work, the driver may commit only on a non-protected
+  feature branch, push that branch, open or update a PR, push review fixes, and
+  keep Linear current without a separate permission prompt. These are normal,
+  reversible delivery steps. Never commit or push directly to protected `main`.
 - Merge only with explicit merge authority, `review-loop` coverage of the exact
   final diff, final-head project and CI gates green, and substantive CodeRabbit
   output covering that head with every finding resolved or refuted. Only a
