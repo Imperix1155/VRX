@@ -37,6 +37,14 @@ describe('main native notification wiring', () => {
 })
 
 describe('main extracted core wiring anchors', () => {
+  it('installs the tested navigation guard on the production window', () => {
+    const executableSource = stripComments(source)
+
+    expect(executableSource).toMatch(
+      /installNavigationGuards\(\{\s*webContents: mainWindow\.webContents,\s*rendererEntry,/
+    )
+  })
+
   it('creates the notification notifier and tears down adapter event wiring before quit', () => {
     const executableSource = stripComments(source)
 
@@ -93,41 +101,6 @@ describe('main single-instance lock (VRX-230)', () => {
     // Reuses focusMainWindow (restore → show → focus), guarded for early boot
     // where no window exists yet and BrowserWindow creation would throw.
     expect(source).toContain('if (app.isReady()) focusMainWindow()')
-  })
-})
-
-describe('main navigation hardening', () => {
-  it('fail-closes renderer frame navigation while preserving the entry origin', () => {
-    expect(source).toContain("mainWindow.webContents.on('will-frame-navigate'")
-    expect(source).toContain('event.preventDefault()')
-    expect(source).toContain("entryUrl.protocol === 'file:'")
-    expect(source).toContain('url.href === entryUrl.href')
-    expect(source).toContain('url.origin === entryOrigin')
-    expect(source).toContain('if (!isOwnEntry) event.preventDefault()')
-  })
-
-  it('opens only allowlisted window URLs externally and always denies the new window (VRX-33)', () => {
-    // Keep this line-anchored: a bare substring would still pass if the
-    // handler, gate, or denial line were commented out (VRX-243 lesson).
-    const handlerStart = source.search(
-      /^\s*mainWindow\.webContents\.setWindowOpenHandler\(\(details\) => \{$/m
-    )
-    expect(handlerStart).toBeGreaterThan(-1)
-
-    const handlerOpeningBrace = source.indexOf('{', handlerStart)
-    const handler = source.slice(
-      handlerOpeningBrace + 1,
-      findMatchingBrace(source, handlerOpeningBrace)
-    )
-    const executableHandler = stripComments(handler)
-
-    expect(executableHandler).toMatch(/^\s*if \(isAllowedUrl\(details\.url\)\) \{$/m)
-
-    const [allowedBranch, disallowedBranch] = executableHandler.split(/^\s*} else \{$/m)
-    expect(allowedBranch).toMatch(/^\s*shell\.openExternal\(details\.url\)\.catch\(/m)
-    expect(disallowedBranch).toBeDefined()
-    expect(disallowedBranch).not.toMatch(/^\s*shell\.openExternal\(details\.url\)/m)
-    expect(executableHandler).toMatch(/^\s*return \{ action: 'deny' \}$/m)
   })
 })
 

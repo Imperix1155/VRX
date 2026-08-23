@@ -52,6 +52,45 @@ function envelope(data: Record<string, unknown>): { message: string; data: unkno
 const creds = { username: 'trinity@example.com', password: 'whiterabbit' }
 
 describe('CvrAdapter', () => {
+  it('rejects control-character direct credentials before making a request', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await new CvrAdapter(fakeStore(), noopSleep).login({
+      username: 'trinity\u007f',
+      password: 'whiterabbit'
+    })
+
+    expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-printable issued access key instead of persisting it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ accessKey: 'key\npoison' }))))
+    )
+    const store = fakeStore()
+
+    const result = await new CvrAdapter(store, noopSleep).login(creds)
+
+    expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    expect(store.saved).toEqual([])
+  })
+
+  it('sends valid Unicode direct-login credentials without altering them', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload())))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      new CvrAdapter(fakeStore(), noopSleep).login({ username: ' ユーザー ', password: '秘密🔐' })
+    ).resolves.toEqual({ ok: true })
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      Username: ' ユーザー ',
+      Password: '秘密🔐'
+    })
+  })
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -427,6 +466,18 @@ describe('CvrAdapter', () => {
   })
 
   describe('session restore + validation (VRX-174)', () => {
+    it('does not adopt or send a persisted session containing non-printable bytes', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key\npoison' }),
+        noopSleep
+      )
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('backfills the owner for the restored credential after validation', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       const restored = { username: 'trinity', accessKey: 'key-1' }
@@ -469,6 +520,21 @@ describe('CvrAdapter', () => {
       await adapter.getAuthStatus()
       expect(store.saved).toEqual([{ username: 'trinity', accessKey: 'key-2' }])
       expect(identities).toEqual([null, null, 'a1b2c3d4-0000-0000-0000-000000000001'])
+    })
+
+    it('rejects and clears a non-printable session returned by reauth', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key\npoison' }))))
+        )
+      )
+      const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+      const adapter = new CvrAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
     })
 
     it('a rejected accessKey (401) clears the persisted session — no zombie restore', async () => {

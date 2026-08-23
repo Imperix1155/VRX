@@ -11,8 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Settings → Behavior now includes an **Allow joining friends** switch. It defaults to ON; turning it off makes the main process reject every Join action before resolving a friend or constructing a launch URL, while VRChat self-invites and ordinary web links remain available. (VRX-39)
 
+### Hardening
+
+- Renderer-created windows and off-origin frame navigations remain blocked and now log only their scheme and host. Dropping local files or HTML into VRX can no longer replace the app document. (VRX-30)
+
 ### Fixed
 
+- Direct sign-in now rejects control characters before a request is made, while retaining valid Unicode input exactly as entered. VRChat and ChilloutVR also reject non-printable platform-issued session values before they can be used in headers or saved. (VRX-38)
 - ChilloutVR world and group details no longer blink away when their five-minute background cache refreshes. (VRX-265)
 
 ## [0.18.1] - 2026-08-14
