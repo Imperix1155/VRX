@@ -358,6 +358,71 @@ describe('FriendsList virtualization (VRX-63)', () => {
     })
   })
 
+  it('keeps overscanned section toggles out of the sequential Tab order', async () => {
+    vrchatFriends = [
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index + 6, 'active')),
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index + 12, 'offline'))
+    ]
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+
+    act(() => {
+      main.scrollTop = 200
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() =>
+      expect(
+        view.container.querySelectorAll<HTMLButtonElement>('[data-virtual-kind="section"] > button')
+      ).toHaveLength(3)
+    )
+    const viewportStart =
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + VIRTUAL_ROW_GAP_FOR_TEST
+    const viewportEnd = main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
+    let sawFocusable = false
+    let sawOffscreen = false
+
+    for (const button of view.container.querySelectorAll<HTMLButtonElement>(
+      '[data-virtual-kind="section"] > button'
+    )) {
+      const row = button.closest<HTMLElement>('[data-virtual-kind="section"]')
+      if (row === null) throw new Error('section toggle had no virtual row')
+      const activeSticky = row.style.position === 'sticky'
+      const intersecting =
+        activeSticky ||
+        (translateY(row) + SECTION_ROW_HEIGHT > viewportStart && translateY(row) < viewportEnd)
+      if (intersecting) sawFocusable = true
+      else sawOffscreen = true
+      expect(button.tabIndex).toBe(intersecting ? 0 : -1)
+    }
+    expect(sawFocusable).toBe(true)
+    expect(sawOffscreen).toBe(true)
+  })
+
+  it('hands focus to the next sticky section when scrolling evicts a focused header', async () => {
+    vrchatFriends = [
+      ...Array.from({ length: 12 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 12 }, (_, index) => makeFriend(index + 12, 'active'))
+    ]
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+    screen.getByRole<HTMLButtonElement>('button', { name: /In-Game \(12\)/ }).focus()
+
+    act(() => {
+      main.scrollTop = 1_120
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole<HTMLButtonElement>('button', { name: /Online \(12\)/ })
+      )
+    )
+  })
+
   it('keeps the same scroll window when settled friend objects rerender', async () => {
     const view = renderInScrollContainer()
     const main = view.container.querySelector('main')
