@@ -60,7 +60,7 @@ Then:
 
 ## Review & merge
 
-The project owner reviews all PRs and controls merge authority. Contributors never self-merge. An agent may merge only under an active, explicit owner grant after every required review and CI gate is green on the final PR head. `main` is branch-protected; all changes land through a PR.
+The project owner controls review policy and merge authority. Human contributors never self-merge. An owner-operated agent may author and merge a PR only under an active, explicit owner grant after every required review and CI gate is green on the final PR head. The grant supplies merge authorization, not review evidence. `main` is branch-protected; all changes land through a PR.
 
 ## Dependency & advisory triage
 
