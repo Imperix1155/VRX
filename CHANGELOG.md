@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Behavior now includes an **Allow joining friends** switch. It defaults to ON; turning it off makes the main process reject every Join action before resolving a friend or constructing a launch URL, while VRChat self-invites and ordinary web links remain available. (VRX-39)
+
 ### Hardening
 
 - Renderer-created windows and off-origin frame navigations remain blocked and now log only their scheme and host. Dropping local files or HTML into VRX can no longer replace the app document. (VRX-30)

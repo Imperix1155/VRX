@@ -29,6 +29,7 @@ describe('settings schema', () => {
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
+      allowJoinInstances: true,
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false
@@ -107,6 +108,13 @@ describe('settings schema', () => {
     expect(parseSettings({ confirmJoin: false }).confirmJoin).toBe(false)
     expect(parseSettings({ theme: 'dark' }).confirmJoin).toBe(true)
     expect(parseSettings({ confirmJoin: 'yes' }).confirmJoin).toBe(true)
+  })
+
+  it('allowJoinInstances: defaults missing/invalid to true and preserves explicit choices', () => {
+    expect(parseSettings({ allowJoinInstances: true }).allowJoinInstances).toBe(true)
+    expect(parseSettings({ allowJoinInstances: false }).allowJoinInstances).toBe(false)
+    expect(parseSettings({ theme: 'dark' }).allowJoinInstances).toBe(true)
+    expect(parseSettings({ allowJoinInstances: 'no' }).allowJoinInstances).toBe(true)
   })
 
   it('joinMode: accepts every mode and degrades missing/invalid disk values to ask', () => {
@@ -239,13 +247,14 @@ describe('migration runner', () => {
 
     expect(parseSettings(v1)).toEqual({
       ...v1,
-      version: 7,
+      version: 8,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      allowJoinInstances: true
     })
   })
 
@@ -268,13 +277,14 @@ describe('migration runner', () => {
 
     expect(parseSettings(v2)).toEqual({
       ...v2,
-      version: 7,
+      version: 8,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      allowJoinInstances: true
     })
   })
 
@@ -298,12 +308,13 @@ describe('migration runner', () => {
 
     expect(parseSettings(v3)).toEqual({
       ...v3,
-      version: 7,
+      version: 8,
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      allowJoinInstances: true
     })
   })
 
@@ -328,11 +339,12 @@ describe('migration runner', () => {
 
     expect(parseSettings(v4)).toEqual({
       ...v4,
-      version: 7,
+      version: 8,
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      allowJoinInstances: true
     })
   })
 
@@ -358,10 +370,11 @@ describe('migration runner', () => {
 
     expect(parseSettings(v5)).toEqual({
       ...v5,
-      version: 7,
+      version: 8,
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      allowJoinInstances: true
     })
   })
 
@@ -389,8 +402,20 @@ describe('migration runner', () => {
 
     expect(parseSettings(v6)).toEqual({
       ...v6,
-      version: 7,
-      autoUpdate: false
+      version: 8,
+      autoUpdate: false,
+      allowJoinInstances: true
+    })
+  })
+
+  it('migrates v7 → v8 with joining enabled by default (VRX-39)', () => {
+    const v7 = { ...DEFAULT_SETTINGS, version: 7 }
+    Reflect.deleteProperty(v7, 'allowJoinInstances')
+
+    expect(parseSettings(v7)).toEqual({
+      ...v7,
+      version: 8,
+      allowJoinInstances: true
     })
   })
 
@@ -444,6 +469,10 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
   it('makes an older v6 build refuse a v7 file', () => {
     expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 7 }, 6)).toBe(false)
+  })
+
+  it('makes an older v7 build refuse a v8 file', () => {
+    expect(shouldPersistSettings({ ...DEFAULT_SETTINGS, version: 8 }, 7)).toBe(false)
   })
 
   it('prevents the reviewer strip-and-rewrite downgrade round-trip from losing the choice', () => {
@@ -550,5 +579,20 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.autoUpdate).toBe(true)
     expect(parseSettings(disk).autoUpdate).toBe(true)
+  })
+
+  it('prevents a v7 build from stripping the join permission during downgrade (VRX-39)', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 8,
+      allowJoinInstances: false
+    }
+    const oldV7Normalized = { ...disk, version: 7 }
+    Reflect.deleteProperty(oldV7Normalized, 'allowJoinInstances')
+
+    if (shouldPersistSettings(disk, 7)) disk = oldV7Normalized
+
+    expect(disk.allowJoinInstances).toBe(false)
+    expect(parseSettings(disk).allowJoinInstances).toBe(false)
   })
 })
