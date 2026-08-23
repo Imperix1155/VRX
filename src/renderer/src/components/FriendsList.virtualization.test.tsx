@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Friend } from '@shared/types'
+import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useFriendsStore } from '../stores/friends'
@@ -30,6 +30,21 @@ const LIST_SCROLL_MARGIN = 224
 const FRIEND_ROW_HEIGHT = 64
 const FIRST_DETAIL_ROW_HEIGHT = 92
 const SECTION_ROW_HEIGHT = 32
+const VIRTUAL_ROW_GAP_FOR_TEST = 4
+const JOINABLE_INSTANCE: InstanceInfo = {
+  worldId: 'wrld_virtual',
+  instanceId: 'wrld_virtual:1~public',
+  worldName: 'Synthetic World',
+  thumbnailUrl: null,
+  type: 'public',
+  openness: 'public',
+  isGroup: false,
+  groupName: null,
+  groupId: null,
+  groupImageUrl: null,
+  region: 'us',
+  userCount: 1
+}
 
 function measuredHeight(target: Element): number {
   if (target.tagName === 'MAIN') return VIEWPORT_HEIGHT
@@ -104,6 +119,10 @@ function makeFriend(index: number, state: Friend['presence']['state'] = 'in-game
     favoriteGroupIds: [],
     linkedPersonId: null
   }
+}
+
+function makeJoinableFriend(index: number): Friend {
+  return { ...makeFriend(index), instance: JOINABLE_INSTANCE }
 }
 
 function opener(name: string): HTMLButtonElement {
@@ -192,7 +211,13 @@ describe('FriendsList virtualization (VRX-63)', () => {
     expect(screen.getByRole('list', { name: 'Friends' })).toBeTruthy()
     expect(screen.getByText('Friend 0000')).toBeTruthy()
     expect(screen.queryByText(`Friend ${(count - 1).toString().padStart(4, '0')}`)).toBeNull()
-    expect(screen.getAllByRole('listitem').length).toBeLessThanOrEqual(25)
+    const listItems = screen.getAllByRole('listitem')
+    expect(listItems.length).toBeLessThanOrEqual(25)
+    for (const [mountedIndex, item] of listItems.entries()) {
+      expect(item.getAttribute('aria-setsize')).toBe(String(count))
+      expect(Number(item.getAttribute('aria-posinset'))).toBeGreaterThan(mountedIndex)
+    }
+    expect(listItems[0]?.getAttribute('aria-posinset')).toBe('1')
   })
 
   it('measures variable detail rows and uses a fixed compact-row stride', async () => {
@@ -263,6 +288,74 @@ describe('FriendsList virtualization (VRX-63)', () => {
       )
     }
     expect(main.scrollTop).toBeGreaterThan(0)
+  })
+
+  it('keeps focus on an intersecting opener until virtualization actually removes it', async () => {
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+    const partiallyVisible = opener('Friend 0005')
+    const row = partiallyVisible.closest<HTMLElement>('[data-friend-key]')
+    if (row === null) throw new Error('partial opener had no friend row')
+    const viewportEnd = main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
+    expect(translateY(row)).toBeLessThan(viewportEnd)
+    expect(translateY(row) + measuredHeight(row)).toBeGreaterThan(viewportEnd)
+
+    act(() => partiallyVisible.focus())
+
+    await waitFor(() => expect(document.activeElement).toBe(partiallyVisible))
+    expect(partiallyVisible.tabIndex).toBe(0)
+  })
+
+  it('keeps overscanned join pills out of the sequential Tab order', () => {
+    vrchatFriends = Array.from({ length: 500 }, (_, index) => makeJoinableFriend(index))
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+    const viewportStart =
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + VIRTUAL_ROW_GAP_FOR_TEST
+    const viewportEnd = main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
+    let sawVisible = false
+    let sawOverscan = false
+
+    for (const button of screen.getAllByRole<HTMLButtonElement>('button', {
+      name: /^Join Friend/
+    })) {
+      const row = button.closest<HTMLElement>('[data-friend-key]')
+      if (row === null) throw new Error('join button had no friend row')
+      const fullyVisible =
+        translateY(row) >= viewportStart && translateY(row) + measuredHeight(row) <= viewportEnd
+      if (fullyVisible) sawVisible = true
+      else sawOverscan = true
+      expect(button.tabIndex).toBe(fullyVisible ? 0 : -1)
+    }
+    expect(sawVisible).toBe(true)
+    expect(sawOverscan).toBe(true)
+  })
+
+  it('hands focus to a visible opener when scrolling evicts a focused join pill', async () => {
+    vrchatFriends = Array.from({ length: 500 }, (_, index) => makeJoinableFriend(index))
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+    const firstJoin = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Join Friend 0000 in Synthetic World'
+    })
+    firstJoin.focus()
+
+    act(() => {
+      main.scrollTop = 900
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() => expect(firstJoin.isConnected).toBe(false))
+    await waitFor(() => {
+      const visibleStop = view.container.querySelector<HTMLButtonElement>(
+        '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
+      )
+      expect(visibleStop).not.toBeNull()
+      expect(document.activeElement).toBe(visibleStop)
+    })
   })
 
   it('keeps the same scroll window when settled friend objects rerender', async () => {
