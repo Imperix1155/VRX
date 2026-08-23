@@ -60,7 +60,7 @@ Then:
 
 ## Review & merge
 
-The project owner reviews and merges all PRs. **Never self-merge.** `main` is branch-protected; open the PR, then wait for review. CI must be green before merge.
+The project owner reviews all PRs and controls merge authority. Contributors never self-merge. An agent may merge only under an active, explicit owner grant after every required review and CI gate is green. `main` is branch-protected; all changes land through a PR.
 
 ## Dependency & advisory triage
 
