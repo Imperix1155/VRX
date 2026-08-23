@@ -24,12 +24,12 @@ import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
 
 const INITIAL_VIRTUAL_VIEWPORT = { width: 0, height: 720 }
 const SECTION_ROW_ESTIMATE = 32
 const COMPACT_FRIEND_ROW_ESTIMATE = 60
 const DETAIL_FRIEND_ROW_ESTIMATE = 72
-const VIRTUAL_ROW_GAP = 4
 const VIRTUAL_OVERSCAN = 5
 
 function findActiveStickyIndex(
@@ -638,6 +638,9 @@ export default function FriendsList(): React.JSX.Element {
   const [rovingKey, setRovingKey] = useState<string | null>(null)
   const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  const [virtualRowGap, setVirtualRowGap] = useState<number>(
+    RENDERER_PIXEL_TOKENS.space1.fallbackPx
+  )
   const focusedSectionIndex =
     focusedSection === null
       ? null
@@ -651,6 +654,10 @@ export default function FriendsList(): React.JSX.Element {
   const getScrollElement = useCallback((): HTMLElement | null => {
     const element = virtualListRef.current?.closest('main')
     return element instanceof HTMLElement ? element : null
+  }, [])
+  useLayoutEffect(() => {
+    const tokenGap = readPixelDesignToken(RENDERER_PIXEL_TOKENS.space1)
+    setVirtualRowGap((current) => (current === tokenGap ? current : tokenGap))
   }, [])
   const getItemKey = useCallback(
     (index: number) => {
@@ -687,10 +694,10 @@ export default function FriendsList(): React.JSX.Element {
     estimateSize,
     getItemKey,
     rangeExtractor,
-    gap: VIRTUAL_ROW_GAP,
+    gap: virtualRowGap,
     overscan: VIRTUAL_OVERSCAN,
     scrollMargin,
-    scrollPaddingStart: SECTION_ROW_ESTIMATE + VIRTUAL_ROW_GAP,
+    scrollPaddingStart: SECTION_ROW_ESTIMATE + virtualRowGap,
     initialRect: INITIAL_VIRTUAL_VIEWPORT
   })
 
@@ -858,7 +865,7 @@ export default function FriendsList(): React.JSX.Element {
       return row?.kind === 'friend' ? [row.key] : []
     })
   )
-  const viewportStart = (rowVirtualizer.scrollOffset ?? 0) + SECTION_ROW_ESTIMATE + VIRTUAL_ROW_GAP
+  const viewportStart = (rowVirtualizer.scrollOffset ?? 0) + SECTION_ROW_ESTIMATE + virtualRowGap
   const viewportEnd =
     (rowVirtualizer.scrollOffset ?? 0) +
     (rowVirtualizer.scrollRect?.height ?? INITIAL_VIRTUAL_VIEWPORT.height)
