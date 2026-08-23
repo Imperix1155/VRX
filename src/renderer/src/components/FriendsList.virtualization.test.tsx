@@ -423,6 +423,82 @@ describe('FriendsList virtualization (VRX-63)', () => {
     )
   })
 
+  it('keeps focused section identity stable when preceding rows change', async () => {
+    vrchatFriends = [
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index + 6, 'active'))
+    ]
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+
+    act(() => {
+      main.scrollTop = 200
+      fireEvent.scroll(main)
+    })
+    const onlineHeader = await screen.findByRole<HTMLButtonElement>('button', {
+      name: /Online \(6\)/
+    })
+    expect(onlineHeader.tabIndex).toBe(0)
+    onlineHeader.focus()
+
+    vrchatFriends = [
+      ...Array.from({ length: 5 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 6 }, (_, index) => makeFriend(index + 6, 'active'))
+    ]
+    view.rerender(
+      <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+        <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
+        <FriendsList />
+      </main>
+    )
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole<HTMLButtonElement>('button', { name: /Online \(6\)/ })
+      )
+    )
+  })
+
+  it('bounds retained section focus when a live roster sharply shrinks', async () => {
+    vrchatFriends = [
+      ...Array.from({ length: 80 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 12 }, (_, index) => makeFriend(index + 80, 'active'))
+    ]
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+
+    act(() => {
+      main.scrollTop = 6_600
+      fireEvent.scroll(main)
+    })
+    const onlineHeader = await screen.findByRole<HTMLButtonElement>('button', {
+      name: /Online \(12\)/
+    })
+    await waitFor(() =>
+      expect(
+        onlineHeader.closest<HTMLElement>('[data-virtual-kind="section"]')?.style.position
+      ).toBe('sticky')
+    )
+    onlineHeader.focus()
+
+    vrchatFriends = [makeFriend(0, 'in-game'), makeFriend(80, 'active')]
+    expect(() =>
+      view.rerender(
+        <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+          <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
+          <FriendsList />
+        </main>
+      )
+    ).not.toThrow()
+
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement?.closest('[data-virtual-kind="section"]')).not.toBeNull()
+    })
+  })
+
   it('keeps the same scroll window when settled friend objects rerender', async () => {
     const view = renderInScrollContainer()
     const main = view.container.querySelector('main')

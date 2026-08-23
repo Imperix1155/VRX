@@ -410,7 +410,6 @@ function SectionHeader({
   collapsed,
   onToggle,
   collapseIgnored,
-  virtualIndex,
   tabIndex,
   setButtonElement,
   onFocus,
@@ -421,20 +420,19 @@ function SectionHeader({
   collapsed: boolean
   onToggle: () => void
   collapseIgnored: boolean
-  virtualIndex: number
   tabIndex: 0 | -1
-  setButtonElement: (index: number, element: HTMLButtonElement | null) => void
-  onFocus: (index: number) => void
-  onBlur: (index: number) => void
+  setButtonElement: (section: FriendSection, element: HTMLButtonElement | null) => void
+  onFocus: (section: FriendSection) => void
+  onBlur: (section: FriendSection) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <button
-      ref={(element) => setButtonElement(virtualIndex, element)}
+      ref={(element) => setButtonElement(section, element)}
       type="button"
       onClick={onToggle}
-      onFocus={() => onFocus(virtualIndex)}
-      onBlur={() => onBlur(virtualIndex)}
+      onFocus={() => onFocus(section)}
+      onBlur={() => onBlur(section)}
       disabled={collapseIgnored}
       tabIndex={collapseIgnored ? -1 : tabIndex}
       aria-expanded={!collapsed}
@@ -627,13 +625,20 @@ export default function FriendsList(): React.JSX.Element {
 
   const virtualListRef = useRef<HTMLUListElement>(null)
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
-  const sectionButtonElementsRef = useRef(new Map<number, HTMLButtonElement>())
+  const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
   const activeStickyIndexRef = useRef(0)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
-  const [focusedSectionIndex, setFocusedSectionIndex] = useState<number | null>(null)
+  const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
+  const focusedSectionIndex =
+    focusedSection === null
+      ? null
+      : (stickyIndexes.find((index) => {
+          const row = virtualRows[index]
+          return row?.kind === 'section' && row.section === focusedSection
+        }) ?? null)
   const effectiveRovingKey =
     rovingKey !== null && friendPositionByKey.has(rovingKey) ? rovingKey : (friendKeys[0] ?? null)
 
@@ -721,9 +726,9 @@ export default function FriendsList(): React.JSX.Element {
     else avatarElementsRef.current.set(key, element)
   }, [])
   const setSectionButtonElement = useCallback(
-    (index: number, element: HTMLButtonElement | null): void => {
-      if (element === null) sectionButtonElementsRef.current.delete(index)
-      else sectionButtonElementsRef.current.set(index, element)
+    (section: FriendSection, element: HTMLButtonElement | null): void => {
+      if (element === null) sectionButtonElementsRef.current.delete(section)
+      else sectionButtonElementsRef.current.set(section, element)
     },
     []
   )
@@ -736,11 +741,11 @@ export default function FriendsList(): React.JSX.Element {
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
   }, [])
-  const onSectionFocus = useCallback((index: number): void => {
-    setFocusedSectionIndex(index)
+  const onSectionFocus = useCallback((section: FriendSection): void => {
+    setFocusedSection(section)
   }, [])
-  const onSectionBlur = useCallback((index: number): void => {
-    setFocusedSectionIndex((current) => (current === index ? null : current))
+  const onSectionBlur = useCallback((section: FriendSection): void => {
+    setFocusedSection((current) => (current === section ? null : current))
   }, [])
   const onArrowNavigate = useCallback(
     (key: string, direction: -1 | 1): void => {
@@ -857,8 +862,11 @@ export default function FriendsList(): React.JSX.Element {
         renderedFriendKeys.values().next().value ??
         null)
   const activeStickyIndex = activeStickyIndexRef.current
+  const activeStickyRow = virtualRows[activeStickyIndex]
+  const activeStickySection = activeStickyRow?.kind === 'section' ? activeStickyRow.section : null
   const focusedSectionNeedsHandoff =
-    focusedSectionIndex !== null && !focusableSectionIndexSet.has(focusedSectionIndex)
+    focusedSection !== null &&
+    (focusedSectionIndex === null || !focusableSectionIndexSet.has(focusedSectionIndex))
 
   // Overscanned section toggles are not sequential Tab stops. If pointer or
   // scrollbar scrolling carries a focused header out of view, its retained
@@ -866,14 +874,17 @@ export default function FriendsList(): React.JSX.Element {
   // unmounted and strand focus on <body>.
   useLayoutEffect(() => {
     if (!focusedSectionNeedsHandoff) return
-    const target = sectionButtonElementsRef.current.get(activeStickyIndex)
+    const target =
+      activeStickySection === null
+        ? undefined
+        : sectionButtonElementsRef.current.get(activeStickySection)
     if (target !== undefined) {
       target.focus({ preventScroll: true })
       return
     }
-    setFocusedSectionIndex(null)
+    setFocusedSection(null)
     searchInputRef.current?.focus({ preventScroll: true })
-  }, [activeStickyIndex, focusedSectionNeedsHandoff])
+  }, [activeStickySection, focusedSectionNeedsHandoff])
 
   // A scrollbar drag, wheel, or PageDown can unmount the focused avatar. The
   // browser then falls back to <body>, so move real focus along with the
@@ -1023,7 +1034,6 @@ export default function FriendsList(): React.JSX.Element {
                           if (!searchActive) toggleSection(row.section)
                         }}
                         collapseIgnored={searchActive}
-                        virtualIndex={virtualItem.index}
                         tabIndex={focusableSectionIndexSet.has(virtualItem.index) ? 0 : -1}
                         setButtonElement={setSectionButtonElement}
                         onFocus={onSectionFocus}
