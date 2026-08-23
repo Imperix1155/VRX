@@ -25,6 +25,8 @@ vi.mock('../queries/auth', () => ({
 }))
 
 const VIEWPORT_HEIGHT = 640
+const MAIN_VIEWPORT_TOP = 16
+const LIST_SCROLL_MARGIN = 224
 const FRIEND_ROW_HEIGHT = 64
 const FIRST_DETAIL_ROW_HEIGHT = 92
 const SECTION_ROW_HEIGHT = 32
@@ -38,18 +40,27 @@ function measuredHeight(target: Element): number {
   return FRIEND_ROW_HEIGHT
 }
 
-function rect(height: number): DOMRect {
+function rect(height: number, top = 0): DOMRect {
   return {
     x: 0,
-    y: 0,
-    top: 0,
+    y: top,
+    top,
     right: 800,
-    bottom: height,
+    bottom: top + height,
     left: 0,
     width: 800,
     height,
     toJSON: () => ({})
   }
+}
+
+function measuredTop(target: Element): number {
+  if (target.tagName === 'MAIN') return MAIN_VIEWPORT_TOP
+  if (target.id === 'friends-virtual-list') {
+    const main = target.closest('main')
+    return MAIN_VIEWPORT_TOP + LIST_SCROLL_MARGIN - (main?.scrollTop ?? 0)
+  }
+  return 0
 }
 
 class ResizeObserverStub {
@@ -77,14 +88,14 @@ class ResizeObserverStub {
   }
 }
 
-function makeFriend(index: number): Friend {
+function makeFriend(index: number, state: Friend['presence']['state'] = 'in-game'): Friend {
   const number = index.toString().padStart(4, '0')
   return {
     platformUserId: `usr_${number}`,
     platform: 'vrchat',
     displayName: `Friend ${number}`,
     avatarUrl: null,
-    presence: { state: 'in-game' },
+    presence: { state },
     status: 'online',
     statusDescription: null,
     trustRank: null,
@@ -100,12 +111,14 @@ function opener(name: string): HTMLButtonElement {
 }
 
 let vrchatFriends: Friend[]
+let chilloutvrFriends: Friend[]
 let originalScrollTo: typeof HTMLElement.prototype.scrollTo | undefined
 
 beforeEach(() => {
   vrchatFriends = Array.from({ length: 500 }, (_, index) => makeFriend(index))
+  chilloutvrFriends = []
   useFriendsMock.mockImplementation((platform: string) => ({
-    data: platform === 'vrchat' ? vrchatFriends : [],
+    data: platform === 'vrchat' ? vrchatFriends : chilloutvrFriends,
     isPending: false,
     isError: false,
     isFetching: false,
@@ -118,7 +131,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement
   ) {
-    return rect(measuredHeight(this))
+    return rect(measuredHeight(this), measuredTop(this))
   })
 
   originalScrollTo = HTMLElement.prototype.scrollTo
@@ -131,8 +144,9 @@ beforeEach(() => {
           : typeof options.top === 'number'
             ? options.top
             : this.scrollTop
+      const previousTop = this.scrollTop
       this.scrollTop = nextTop
-      this.dispatchEvent(new Event('scroll'))
+      if (nextTop !== previousTop) this.dispatchEvent(new Event('scroll'))
     }
   })
 })
@@ -149,6 +163,7 @@ afterEach(() => {
 function renderInScrollContainer(): ReturnType<typeof render> {
   const view = render(
     <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+      <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
       <FriendsList />
     </main>
   )
@@ -181,7 +196,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
   })
 
   it('measures variable detail rows and uses a fixed compact-row stride', async () => {
-    let view = renderInScrollContainer()
+    const view = renderInScrollContainer()
     await waitFor(() => {
       const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
       const second = view.container.querySelector<HTMLElement>(
@@ -190,18 +205,24 @@ describe('FriendsList virtualization (VRX-63)', () => {
       if (first === null || second === null) throw new Error('missing initial detail rows')
       expect(translateY(second) - translateY(first)).toBe(FIRST_DETAIL_ROW_HEIGHT + 4)
     })
+    opener('Friend 0000').focus()
 
-    cleanup()
-    useSettingsStore.setState({
-      settings: { ...DEFAULT_SETTINGS, density: 'compact' },
-      dirty: false
+    act(() => {
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, density: 'compact' },
+        dirty: false
+      })
     })
-    view = renderInScrollContainer()
-    const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
-    const second = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0001"]')
-    if (first === null || second === null) throw new Error('missing initial compact rows')
-    expect(first.style.height).toBe('60px')
-    expect(translateY(second) - translateY(first)).toBe(64)
+    await waitFor(() => {
+      const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
+      const second = view.container.querySelector<HTMLElement>(
+        '[data-friend-key="vrchat:usr_0001"]'
+      )
+      if (first === null || second === null) throw new Error('missing live compact rows')
+      expect(first.style.height).toBe('60px')
+      expect(translateY(second) - translateY(first)).toBe(64)
+      expect(document.activeElement).toBe(opener('Friend 0000'))
+    })
   })
 
   it('uses one roving avatar stop and moves it with Up and Down arrows', async () => {
@@ -213,6 +234,12 @@ describe('FriendsList virtualization (VRX-63)', () => {
 
     expect(first.tabIndex).toBe(0)
     expect(second.tabIndex).toBe(-1)
+
+    // Let initial virtualizer measurements settle; arrow focus must not rely
+    // on an unrelated post-mount rerender to drain the pending target.
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 50))
+    })
 
     first.focus()
     fireEvent.keyDown(first, { key: 'ArrowDown' })
@@ -258,8 +285,12 @@ describe('FriendsList virtualization (VRX-63)', () => {
     if (rovingRow === null || rovingRow === undefined) {
       throw new Error('roving stop had no friend row')
     }
-    expect(translateY(rovingRow)).toBeGreaterThanOrEqual(main.scrollTop + SECTION_ROW_HEIGHT + 4)
-    expect(translateY(rovingRow)).toBeLessThan(main.scrollTop + VIEWPORT_HEIGHT)
+    expect(translateY(rovingRow)).toBeGreaterThanOrEqual(
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + 4
+    )
+    expect(translateY(rovingRow)).toBeLessThan(
+      main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
+    )
     const activeHeaderRow = screen
       .getByRole('button', { name: /In-Game/ })
       .closest<HTMLElement>('[data-virtual-kind="section"]')
@@ -275,6 +306,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     vrchatFriends = vrchatFriends.map((friend) => ({ ...friend }))
     view.rerender(
       <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+        <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
         <FriendsList />
       </main>
     )
@@ -288,5 +320,62 @@ describe('FriendsList virtualization (VRX-63)', () => {
       )
       expect(visibleAfter.has(anchorKey)).toBe(true)
     })
+  })
+
+  it('hands focus to the visible roving opener when pointer scrolling unmounts its row', async () => {
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+    opener('Friend 0000').focus()
+
+    act(() => {
+      main.scrollTop = 900
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() => expect(screen.queryByText('Friend 0000')).toBeNull())
+    await waitFor(() => {
+      const visibleStop = view.container.querySelector<HTMLButtonElement>(
+        '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
+      )
+      expect(visibleStop).not.toBeNull()
+      expect(document.activeElement).toBe(visibleStop)
+    })
+  })
+
+  it('uses the AppShell list offset while advancing the sticky section header', async () => {
+    vrchatFriends = [
+      ...Array.from({ length: 12 }, (_, index) => makeFriend(index, 'in-game')),
+      ...Array.from({ length: 12 }, (_, index) => makeFriend(index + 12, 'active'))
+    ]
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+
+    act(() => {
+      main.scrollTop = 1_120
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() => {
+      const onlineHeaderRow = screen
+        .getByRole('button', { name: /Online \(12\)/ })
+        .closest<HTMLElement>('[data-virtual-kind="section"]')
+      expect(onlineHeaderRow?.style.position).toBe('sticky')
+    })
+    const visibleStop = view.container.querySelector<HTMLButtonElement>(
+      '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
+    )
+    const visibleRow = visibleStop?.closest<HTMLElement>('[data-friend-key]')
+    if (visibleRow === null || visibleRow === undefined) {
+      throw new Error('offset viewport had no visible roving row')
+    }
+    expect(visibleRow.dataset.friendKey).toBe('vrchat:usr_0013')
+    expect(translateY(visibleRow)).toBeGreaterThanOrEqual(
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + 4
+    )
+    expect(translateY(visibleRow)).toBeLessThan(
+      main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
+    )
   })
 })
