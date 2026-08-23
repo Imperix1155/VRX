@@ -737,6 +737,10 @@ export default function FriendsList(): React.JSX.Element {
   }, [])
   const onRowFocus = useCallback((key: string): void => {
     focusedRowKeyRef.current = key
+    // Join is a separate native control after the avatar in each row. If Tab
+    // reaches it, that row must also own the roving avatar stop so a live
+    // update that removes Join can hand focus back to the connected avatar.
+    setRovingKey(key)
   }, [])
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null

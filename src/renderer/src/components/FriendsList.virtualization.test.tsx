@@ -358,6 +358,26 @@ describe('FriendsList virtualization (VRX-63)', () => {
     })
   })
 
+  it('returns focus to the same row when a live update removes its focused Join button', async () => {
+    vrchatFriends = Array.from({ length: 12 }, (_, index) => makeJoinableFriend(index))
+    const view = renderInScrollContainer()
+    const targetJoin = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Join Friend 0003 in Synthetic World'
+    })
+    targetJoin.focus()
+
+    vrchatFriends = vrchatFriends.map((friend, index) => (index === 3 ? makeFriend(3) : friend))
+    view.rerender(
+      <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+        <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
+        <FriendsList />
+      </main>
+    )
+
+    await waitFor(() => expect(targetJoin.isConnected).toBe(false))
+    await waitFor(() => expect(document.activeElement).toBe(opener('Friend 0003')))
+  })
+
   it('keeps overscanned section toggles out of the sequential Tab order', async () => {
     vrchatFriends = [
       ...Array.from({ length: 6 }, (_, index) => makeFriend(index, 'in-game')),
