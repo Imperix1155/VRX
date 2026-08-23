@@ -494,7 +494,7 @@ export default function FriendsList(): React.JSX.Element {
   const openDrawer = useCallback(
     (friend: Friend, opener: HTMLElement) => {
       openerRef.current = opener
-      setSelectedFriendId(`${friend.platform}:${friend.platformUserId}`)
+      setSelectedFriendId(friendRowKey(friend))
     },
     [setSelectedFriendId]
   )
@@ -792,6 +792,31 @@ export default function FriendsList(): React.JSX.Element {
     pendingFocusKeyRef.current = null
     element.focus({ preventScroll: true })
   })
+
+  // A wheel, touch gesture, or scrollbar interaction supersedes an arrow-key
+  // target that has not mounted yet. Without clearing it, focus recovery
+  // mistakes the stale target for an active navigation request after the user
+  // scrolls the focused row out of the virtual window.
+  useEffect(() => {
+    const scrollElement = getScrollElement()
+    if (scrollElement === null) return
+    const cancelPendingFocus = (): void => {
+      pendingFocusKeyRef.current = null
+    }
+    const cancelPendingFocusOnScrollKey = (event: globalThis.KeyboardEvent): void => {
+      if (['PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) cancelPendingFocus()
+    }
+    scrollElement.addEventListener('wheel', cancelPendingFocus, { passive: true })
+    scrollElement.addEventListener('touchmove', cancelPendingFocus, { passive: true })
+    scrollElement.addEventListener('pointerdown', cancelPendingFocus)
+    scrollElement.addEventListener('keydown', cancelPendingFocusOnScrollKey)
+    return () => {
+      scrollElement.removeEventListener('wheel', cancelPendingFocus)
+      scrollElement.removeEventListener('touchmove', cancelPendingFocus)
+      scrollElement.removeEventListener('pointerdown', cancelPendingFocus)
+      scrollElement.removeEventListener('keydown', cancelPendingFocusOnScrollKey)
+    }
+  }, [getScrollElement])
 
   // Look up in the UNFILTERED (but platform-scoped) list so an active search
   // can't close an open drawer. A friend that leaves the roster closes it.

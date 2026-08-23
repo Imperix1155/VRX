@@ -28,6 +28,7 @@ const VIEWPORT_HEIGHT = 640
 const MAIN_VIEWPORT_TOP = 16
 const LIST_SCROLL_MARGIN = 224
 const FRIEND_ROW_HEIGHT = 64
+const COMPACT_ROW_HEIGHT_FOR_TEST = 60
 const FIRST_DETAIL_ROW_HEIGHT = 92
 const SECTION_ROW_HEIGHT = 32
 const VIRTUAL_ROW_GAP_FOR_TEST = 4
@@ -228,7 +229,9 @@ describe('FriendsList virtualization (VRX-63)', () => {
         '[data-friend-key="vrchat:usr_0001"]'
       )
       if (first === null || second === null) throw new Error('missing initial detail rows')
-      expect(translateY(second) - translateY(first)).toBe(FIRST_DETAIL_ROW_HEIGHT + 4)
+      expect(translateY(second) - translateY(first)).toBe(
+        FIRST_DETAIL_ROW_HEIGHT + VIRTUAL_ROW_GAP_FOR_TEST
+      )
     })
     opener('Friend 0000').focus()
 
@@ -244,8 +247,10 @@ describe('FriendsList virtualization (VRX-63)', () => {
         '[data-friend-key="vrchat:usr_0001"]'
       )
       if (first === null || second === null) throw new Error('missing live compact rows')
-      expect(first.style.height).toBe('60px')
-      expect(translateY(second) - translateY(first)).toBe(64)
+      expect(first.style.height).toBe(`${COMPACT_ROW_HEIGHT_FOR_TEST}px`)
+      expect(translateY(second) - translateY(first)).toBe(
+        COMPACT_ROW_HEIGHT_FOR_TEST + VIRTUAL_ROW_GAP_FOR_TEST
+      )
       expect(document.activeElement).toBe(opener('Friend 0000'))
     })
   })
@@ -288,6 +293,41 @@ describe('FriendsList virtualization (VRX-63)', () => {
       )
     }
     expect(main.scrollTop).toBeGreaterThan(0)
+  })
+
+  it('recovers visible focus when pointer scrolling interrupts a pending arrow target', async () => {
+    const view = renderInScrollContainer()
+    const main = view.container.querySelector('main')
+    if (main === null) throw new Error('missing test scroll container')
+
+    // Hold the arrow-navigation scroll so its next logical friend stays
+    // unmounted, then simulate the user scrolling somewhere else first.
+    const scrollTo = vi.spyOn(main, 'scrollTo').mockImplementation(() => undefined)
+    const mountedOpeners = [
+      ...view.container.querySelectorAll<HTMLButtonElement>(
+        '[data-friend-key] > button[data-drawer-opener]'
+      )
+    ]
+    const lastMounted = mountedOpeners.at(-1)
+    if (lastMounted === undefined) throw new Error('virtual window had no mounted opener')
+    lastMounted.focus()
+    fireEvent.keyDown(lastMounted, { key: 'ArrowDown' })
+    expect(scrollTo).toHaveBeenCalled()
+    fireEvent.wheel(main)
+
+    act(() => {
+      main.scrollTop = 9_000
+      fireEvent.scroll(main)
+    })
+
+    await waitFor(() => expect(lastMounted.isConnected).toBe(false))
+    await waitFor(() => {
+      const visibleStop = view.container.querySelector<HTMLButtonElement>(
+        '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
+      )
+      expect(visibleStop).not.toBeNull()
+      expect(document.activeElement).toBe(visibleStop)
+    })
   })
 
   it('keeps focus on an intersecting opener until virtualization actually removes it', async () => {
@@ -540,7 +580,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
       throw new Error('roving stop had no friend row')
     }
     expect(translateY(rovingRow)).toBeGreaterThanOrEqual(
-      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + 4
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + VIRTUAL_ROW_GAP_FOR_TEST
     )
     expect(translateY(rovingRow)).toBeLessThan(
       main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
@@ -626,7 +666,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     }
     expect(visibleRow.dataset.friendKey).toBe('vrchat:usr_0013')
     expect(translateY(visibleRow)).toBeGreaterThanOrEqual(
-      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + 4
+      main.scrollTop - LIST_SCROLL_MARGIN + SECTION_ROW_HEIGHT + VIRTUAL_ROW_GAP_FOR_TEST
     )
     expect(translateY(visibleRow)).toBeLessThan(
       main.scrollTop - LIST_SCROLL_MARGIN + VIEWPORT_HEIGHT
