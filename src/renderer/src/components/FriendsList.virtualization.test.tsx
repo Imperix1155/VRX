@@ -132,14 +132,17 @@ function opener(name: string): HTMLButtonElement {
 
 let vrchatFriends: Friend[]
 let chilloutvrFriends: Friend[]
+let vrchatFriendsReady: boolean
 let originalScrollTo: typeof HTMLElement.prototype.scrollTo | undefined
 
 beforeEach(() => {
   vrchatFriends = Array.from({ length: 500 }, (_, index) => makeFriend(index))
   chilloutvrFriends = []
+  vrchatFriendsReady = true
   useFriendsMock.mockImplementation((platform: string) => ({
-    data: platform === 'vrchat' ? vrchatFriends : chilloutvrFriends,
-    isPending: false,
+    data:
+      platform === 'vrchat' ? (vrchatFriendsReady ? vrchatFriends : undefined) : chilloutvrFriends,
+    isPending: platform === 'vrchat' && !vrchatFriendsReady,
     isError: false,
     isFetching: false,
     refetch: vi.fn()
@@ -202,6 +205,42 @@ function translateY(element: HTMLElement): number {
   const match = /translateY\(([-\d.]+)px\)/.exec(element.style.transform)
   if (match?.[1] === undefined) throw new Error('virtual row had no translateY position')
   return Number(match[1])
+}
+
+async function expectInterruptedArrowTargetToRecover(
+  view: ReturnType<typeof render>
+): Promise<void> {
+  const main = view.container.querySelector('main')
+  if (main === null) throw new Error('missing test scroll container')
+
+  // Hold the arrow-navigation scroll so its next logical friend stays
+  // unmounted, then simulate the user scrolling somewhere else first.
+  const scrollTo = vi.spyOn(main, 'scrollTo').mockImplementation(() => undefined)
+  const mountedOpeners = [
+    ...view.container.querySelectorAll<HTMLButtonElement>(
+      '[data-friend-key] > button[data-drawer-opener]'
+    )
+  ]
+  const lastMounted = mountedOpeners.at(-1)
+  if (lastMounted === undefined) throw new Error('virtual window had no mounted opener')
+  lastMounted.focus()
+  fireEvent.keyDown(lastMounted, { key: 'ArrowDown' })
+  expect(scrollTo).toHaveBeenCalled()
+  fireEvent.wheel(main)
+
+  act(() => {
+    main.scrollTop = 9_000
+    fireEvent.scroll(main)
+  })
+
+  await waitFor(() => expect(lastMounted.isConnected).toBe(false))
+  await waitFor(() => {
+    const visibleStop = view.container.querySelector<HTMLButtonElement>(
+      '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
+    )
+    expect(visibleStop).not.toBeNull()
+    expect(document.activeElement).toBe(visibleStop)
+  })
 }
 
 describe('FriendsList virtualization (VRX-63)', () => {
@@ -297,37 +336,24 @@ describe('FriendsList virtualization (VRX-63)', () => {
 
   it('recovers visible focus when pointer scrolling interrupts a pending arrow target', async () => {
     const view = renderInScrollContainer()
-    const main = view.container.querySelector('main')
-    if (main === null) throw new Error('missing test scroll container')
+    await expectInterruptedArrowTargetToRecover(view)
+  })
 
-    // Hold the arrow-navigation scroll so its next logical friend stays
-    // unmounted, then simulate the user scrolling somewhere else first.
-    const scrollTo = vi.spyOn(main, 'scrollTo').mockImplementation(() => undefined)
-    const mountedOpeners = [
-      ...view.container.querySelectorAll<HTMLButtonElement>(
-        '[data-friend-key] > button[data-drawer-opener]'
-      )
-    ]
-    const lastMounted = mountedOpeners.at(-1)
-    if (lastMounted === undefined) throw new Error('virtual window had no mounted opener')
-    lastMounted.focus()
-    fireEvent.keyDown(lastMounted, { key: 'ArrowDown' })
-    expect(scrollTo).toHaveBeenCalled()
-    fireEvent.wheel(main)
+  it('attaches interrupted-focus recovery when the list mounts after loading', async () => {
+    vrchatFriendsReady = false
+    const view = renderInScrollContainer()
+    expect(screen.queryByRole('list', { name: 'Friends' })).toBeNull()
 
-    act(() => {
-      main.scrollTop = 9_000
-      fireEvent.scroll(main)
-    })
+    vrchatFriendsReady = true
+    view.rerender(
+      <main style={{ height: VIEWPORT_HEIGHT, overflowY: 'auto' }}>
+        <div data-testid="app-shell-topbar-offset" aria-hidden="true" />
+        <FriendsList />
+      </main>
+    )
+    await screen.findByRole('list', { name: 'Friends' })
 
-    await waitFor(() => expect(lastMounted.isConnected).toBe(false))
-    await waitFor(() => {
-      const visibleStop = view.container.querySelector<HTMLButtonElement>(
-        '[data-friend-key] > button[data-drawer-opener][tabindex="0"]'
-      )
-      expect(visibleStop).not.toBeNull()
-      expect(document.activeElement).toBe(visibleStop)
-    })
+    await expectInterruptedArrowTargetToRecover(view)
   })
 
   it('keeps focus on an intersecting opener until virtualization actually removes it', async () => {
