@@ -98,8 +98,12 @@ const FriendRow = memo(function FriendRow({
   searchQuery,
   onOpen,
   isRovingStop,
+  isFullyVisible,
+  positionInSet,
+  setSize,
   onRovingFocus,
-  onRovingBlur,
+  onRowFocus,
+  onRowBlur,
   onArrowNavigate,
   setAvatarElement,
   virtualIndex,
@@ -111,8 +115,12 @@ const FriendRow = memo(function FriendRow({
   /** Open the friend drawer (VRX-69). Stable callback so the memo holds. */
   onOpen: (friend: Friend, opener: HTMLElement) => void
   isRovingStop: boolean
+  isFullyVisible: boolean
+  positionInSet: number
+  setSize: number
   onRovingFocus: (key: string) => void
-  onRovingBlur: (key: string) => void
+  onRowFocus: (key: string) => void
+  onRowBlur: (key: string) => void
   onArrowNavigate: (key: string, direction: -1 | 1) => void
   setAvatarElement: (key: string, element: HTMLButtonElement | null) => void
   virtualIndex: number
@@ -229,6 +237,14 @@ const FriendRow = memo(function FriendRow({
       data-index={virtualIndex}
       data-virtual-kind="friend"
       data-friend-key={key}
+      aria-posinset={positionInSet}
+      aria-setsize={setSize}
+      onFocusCapture={() => onRowFocus(key)}
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+        onRowBlur(key)
+      }}
       style={virtualStyle}
       {...(cardOpens
         ? {
@@ -273,7 +289,6 @@ const FriendRow = memo(function FriendRow({
         data-drawer-opener
         onClick={(event) => onOpen(friend, event.currentTarget)}
         onFocus={() => onRovingFocus(key)}
-        onBlur={() => onRovingBlur(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
         aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
@@ -328,6 +343,7 @@ const FriendRow = memo(function FriendRow({
               className="min-w-[78px]"
               onJoin={joinFriend}
               disabled={isJoining}
+              tabIndex={isFullyVisible ? undefined : -1}
               aria-label={t('friends.joinAria', {
                 name: friend.displayName,
                 world: instance?.worldName ?? instancePill
@@ -598,7 +614,7 @@ export default function FriendsList(): React.JSX.Element {
   const virtualListRef = useRef<HTMLUListElement>(null)
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
-  const focusedAvatarKeyRef = useRef<string | null>(null)
+  const focusedRowKeyRef = useRef<string | null>(null)
   const activeStickyIndexRef = useRef(0)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -691,11 +707,13 @@ export default function FriendsList(): React.JSX.Element {
     else avatarElementsRef.current.set(key, element)
   }, [])
   const onRovingFocus = useCallback((key: string): void => {
-    focusedAvatarKeyRef.current = key
     setRovingKey(key)
   }, [])
-  const onRovingBlur = useCallback((key: string): void => {
-    if (focusedAvatarKeyRef.current === key) focusedAvatarKeyRef.current = null
+  const onRowFocus = useCallback((key: string): void => {
+    focusedRowKeyRef.current = key
+  }, [])
+  const onRowBlur = useCallback((key: string): void => {
+    if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
   }, [])
   const onArrowNavigate = useCallback(
     (key: string, direction: -1 | 1): void => {
@@ -789,12 +807,13 @@ export default function FriendsList(): React.JSX.Element {
       fullyVisibleFriendKeys.push(row.key)
     }
   }
-  const visibleFriendKeys = new Set(fullyVisibleFriendKeys)
+  const fullyVisibleFriendKeySet = new Set(fullyVisibleFriendKeys)
+  const intersectingFriendKeySet = new Set(intersectingFriendKeys)
   // Overscan rows are mounted but can sit hundreds of pixels outside the
-  // viewport. After a pointer scroll, keep the one Tab stop on a genuinely
-  // visible friend (below the sticky header), not merely the first mounted row.
+  // viewport. Preserve a focused/intersecting opener until its row leaves the
+  // viewport, then hand the one Tab stop to a fully visible friend.
   const renderedRovingKey =
-    effectiveRovingKey !== null && visibleFriendKeys.has(effectiveRovingKey)
+    effectiveRovingKey !== null && intersectingFriendKeySet.has(effectiveRovingKey)
       ? effectiveRovingKey
       : (fullyVisibleFriendKeys[0] ??
         intersectingFriendKeys[0] ??
@@ -811,20 +830,19 @@ export default function FriendsList(): React.JSX.Element {
       pendingFocusKeyRef.current = null
     }
 
-    const focusedKey = focusedAvatarKeyRef.current
+    const focusedKey = focusedRowKeyRef.current
     if (focusedKey === null) return
-    const previousElement = avatarElementsRef.current.get(focusedKey)
-    const focusFellOutWithRow =
-      previousElement === document.activeElement ||
-      (document.activeElement === document.body && previousElement?.isConnected !== true)
+    const replacementAvatar = avatarElementsRef.current.get(focusedKey)
+    const focusedRowWasRemoved =
+      document.activeElement === document.body && replacementAvatar?.isConnected !== true
     const focusedRowWasReplaced =
       focusedKey === renderedRovingKey &&
       document.activeElement === document.body &&
-      previousElement?.isConnected === true
-    if (!focusFellOutWithRow && !focusedRowWasReplaced) return
+      replacementAvatar?.isConnected === true
+    if (!focusedRowWasRemoved && !focusedRowWasReplaced) return
 
     if (renderedRovingKey === null) {
-      focusedAvatarKeyRef.current = null
+      focusedRowKeyRef.current = null
       searchInputRef.current?.focus({ preventScroll: true })
       return
     }
@@ -955,6 +973,9 @@ export default function FriendsList(): React.JSX.Element {
                   )
                 }
 
+                const positionInSet = friendPositionByKey.get(row.key)
+                if (positionInSet === undefined) return null
+
                 return (
                   <FriendRow
                     key={virtualItem.key}
@@ -962,8 +983,12 @@ export default function FriendsList(): React.JSX.Element {
                     searchQuery={appliedSearch}
                     onOpen={openDrawer}
                     isRovingStop={row.key === renderedRovingKey}
+                    isFullyVisible={fullyVisibleFriendKeySet.has(row.key)}
+                    positionInSet={positionInSet + 1}
+                    setSize={friendKeys.length}
                     onRovingFocus={onRovingFocus}
-                    onRovingBlur={onRovingBlur}
+                    onRowFocus={onRowFocus}
+                    onRowBlur={onRowBlur}
                     onArrowNavigate={onArrowNavigate}
                     setAvatarElement={setAvatarElement}
                     virtualIndex={virtualItem.index}
