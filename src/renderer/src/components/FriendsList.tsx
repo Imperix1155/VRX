@@ -816,7 +816,7 @@ export default function FriendsList(): React.JSX.Element {
       scrollElement.removeEventListener('pointerdown', cancelPendingFocus)
       scrollElement.removeEventListener('keydown', cancelPendingFocusOnScrollKey)
     }
-  }, [getScrollElement])
+  }, [getScrollElement, virtualRows.length])
 
   // Look up in the UNFILTERED (but platform-scoped) list so an active search
   // can't close an open drawer. A friend that leaves the roster closes it.
