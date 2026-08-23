@@ -60,13 +60,13 @@ Then:
 
 ## Review & merge
 
-The project owner reviews all PRs and controls merge authority. Contributors never self-merge. An agent may merge only under an active, explicit owner grant after every required review and CI gate is green. `main` is branch-protected; all changes land through a PR.
+The project owner reviews all PRs and controls merge authority. Contributors never self-merge. An agent may merge only under an active, explicit owner grant after every required review and CI gate is green on the final PR head. `main` is branch-protected; all changes land through a PR.
 
 ## Dependency & advisory triage
 
 VRX handles user credentials, so supply-chain scanning is automated and treated as non-optional:
 
-- **Dependabot** opens weekly grouped PRs for npm + GitHub Actions updates (minor/patch grouped; majors separate). Review the changelog, let CI run, and merge when green. Give majors a deliberate look.
+- **Dependabot** opens weekly grouped PRs for npm + GitHub Actions updates (minor/patch grouped; majors separate). Review the changelog and follow the Review & merge requirements above. Give majors a deliberate look.
 - **`npm audit`** runs in CI and **fails the build on high/critical advisories**. To clear one: bump the dependency (or its parent), or — if it's a dev-only advisory with no forward fix — add its GHSA URL to the per-advisory allowlist in the `audit` job of [`ci.yml`](.github/workflows/ci.yml), with a comment explaining why and a tracking issue to remove it once upstream ships a fix. Never relax `--audit-level` or disable the gate globally.
 - **CodeQL** scans JS/TS on every push and PR; results appear under **Security → Code scanning**. Fix true positives; dismiss false positives with a stated reason.
 - **Secret scanning (gitleaks)** runs in CI on every push and PR and **fails the build if a credential, token, or key is committed**. A local pre-commit hook catches secrets before they leave your machine — it's wired up automatically by `npm install` (via `core.hooksPath`), so install [gitleaks](https://github.com/gitleaks/gitleaks#installing) to have it run locally. If gitleaks flags a value that is a _confirmed_ false positive (e.g. a fake fixture in a test), allowlist its **exact value — never a whole path** — in [`.gitleaks.toml`](.gitleaks.toml) with a comment explaining why. Real secrets never belong in the repo; credentials go through the OS keychain (`safeStorage`).

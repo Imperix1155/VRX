@@ -91,9 +91,11 @@ For every BrowserWindow or IPC change:
   update a PR, push review fixes, and keep Linear current without a separate
   permission prompt. These are normal, reversible delivery steps. Never commit
   or push directly to protected `main`.
-- Merge only with explicit merge authority and every applicable gate green on
-  the final head. Without that authority, leave the green PR open for owner
-  approval; with it, merge when all gates are satisfied.
+- Merge only with explicit merge authority, `review-loop` coverage of the exact
+  final diff, final-head project and CI gates green, and substantive CodeRabbit
+  output covering that head with every finding resolved or refuted. Without
+  that authority, leave the green PR open for owner approval; with it, merge
+  when all gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
