@@ -99,6 +99,7 @@ const FriendRow = memo(function FriendRow({
   onOpen,
   isRovingStop,
   onRovingFocus,
+  onRovingBlur,
   onArrowNavigate,
   setAvatarElement,
   virtualIndex,
@@ -111,6 +112,7 @@ const FriendRow = memo(function FriendRow({
   onOpen: (friend: Friend, opener: HTMLElement) => void
   isRovingStop: boolean
   onRovingFocus: (key: string) => void
+  onRovingBlur: (key: string) => void
   onArrowNavigate: (key: string, direction: -1 | 1) => void
   setAvatarElement: (key: string, element: HTMLButtonElement | null) => void
   virtualIndex: number
@@ -271,6 +273,7 @@ const FriendRow = memo(function FriendRow({
         data-drawer-opener
         onClick={(event) => onOpen(friend, event.currentTarget)}
         onFocus={() => onRovingFocus(key)}
+        onBlur={() => onRovingBlur(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
         aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
@@ -405,9 +408,8 @@ function SectionHeader({
       onClick={onToggle}
       disabled={collapseIgnored}
       aria-expanded={!collapsed}
-      // The virtual stream is one stable list. Only expanded headers reference
-      // it; aria-expanded remains the section's actual collapsed-state signal.
-      aria-controls={collapsed ? undefined : 'friends-virtual-list'}
+      // All sections share one virtual list, so no header claims that whole
+      // list as its controlled object. aria-expanded carries disclosure state.
       className={[
         'flex w-full items-center gap-[var(--space-2)]',
         'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
@@ -594,10 +596,9 @@ export default function FriendsList(): React.JSX.Element {
   )
 
   const virtualListRef = useRef<HTMLUListElement>(null)
-  const virtualRowsRef = useRef(virtualRows)
-  virtualRowsRef.current = virtualRows
   const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
+  const focusedAvatarKeyRef = useRef<string | null>(null)
   const activeStickyIndexRef = useRef(0)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -608,13 +609,19 @@ export default function FriendsList(): React.JSX.Element {
     const element = virtualListRef.current?.closest('main')
     return element instanceof HTMLElement ? element : null
   }, [])
-  const getItemKey = useCallback((index: number) => virtualRowsRef.current[index]?.key ?? index, [])
+  const getItemKey = useCallback(
+    (index: number) => {
+      const row = virtualRows[index]
+      return row === undefined ? index : density + ':' + row.key
+    },
+    [density, virtualRows]
+  )
   const estimateSize = useCallback(
     (index: number) => {
-      if (virtualRowsRef.current[index]?.kind === 'section') return SECTION_ROW_ESTIMATE
+      if (virtualRows[index]?.kind === 'section') return SECTION_ROW_ESTIMATE
       return density === 'compact' ? COMPACT_FRIEND_ROW_ESTIMATE : DETAIL_FRIEND_ROW_ESTIMATE
     },
-    [density]
+    [density, virtualRows]
   )
   const rangeExtractor = useCallback(
     (range: Range) => {
@@ -683,7 +690,13 @@ export default function FriendsList(): React.JSX.Element {
     if (element === null) avatarElementsRef.current.delete(key)
     else avatarElementsRef.current.set(key, element)
   }, [])
-  const onRovingFocus = useCallback((key: string): void => setRovingKey(key), [])
+  const onRovingFocus = useCallback((key: string): void => {
+    focusedAvatarKeyRef.current = key
+    setRovingKey(key)
+  }, [])
+  const onRovingBlur = useCallback((key: string): void => {
+    if (focusedAvatarKeyRef.current === key) focusedAvatarKeyRef.current = null
+  }, [])
   const onArrowNavigate = useCallback(
     (key: string, direction: -1 | 1): void => {
       const currentPosition = friendPositionByKey.get(key)
@@ -712,6 +725,10 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     const pendingKey = pendingFocusKeyRef.current
     if (pendingKey === null) return
+    if (!friendPositionByKey.has(pendingKey)) {
+      pendingFocusKeyRef.current = null
+      return
+    }
     const element = avatarElementsRef.current.get(pendingKey)
     if (element?.isConnected !== true) return
     pendingFocusKeyRef.current = null
@@ -783,6 +800,36 @@ export default function FriendsList(): React.JSX.Element {
         intersectingFriendKeys[0] ??
         renderedFriendKeys.values().next().value ??
         null)
+
+  // A scrollbar drag, wheel, or PageDown can unmount the focused avatar. The
+  // browser then falls back to <body>, so move real focus along with the
+  // roving Tab stop. Arrow navigation owns its pending target separately.
+  useLayoutEffect(() => {
+    const pendingKey = pendingFocusKeyRef.current
+    if (pendingKey !== null) {
+      if (friendPositionByKey.has(pendingKey)) return
+      pendingFocusKeyRef.current = null
+    }
+
+    const focusedKey = focusedAvatarKeyRef.current
+    if (focusedKey === null) return
+    const previousElement = avatarElementsRef.current.get(focusedKey)
+    const focusFellOutWithRow =
+      previousElement === document.activeElement ||
+      (document.activeElement === document.body && previousElement?.isConnected !== true)
+    const focusedRowWasReplaced =
+      focusedKey === renderedRovingKey &&
+      document.activeElement === document.body &&
+      previousElement?.isConnected === true
+    if (!focusFellOutWithRow && !focusedRowWasReplaced) return
+
+    if (renderedRovingKey === null) {
+      focusedAvatarKeyRef.current = null
+      searchInputRef.current?.focus({ preventScroll: true })
+      return
+    }
+    avatarElementsRef.current.get(renderedRovingKey)?.focus({ preventScroll: true })
+  }, [density, friendPositionByKey, renderedRovingKey])
 
   return (
     <section
@@ -916,6 +963,7 @@ export default function FriendsList(): React.JSX.Element {
                     onOpen={openDrawer}
                     isRovingStop={row.key === renderedRovingKey}
                     onRovingFocus={onRovingFocus}
+                    onRovingBlur={onRovingBlur}
                     onArrowNavigate={onArrowNavigate}
                     setAvatarElement={setAvatarElement}
                     virtualIndex={virtualItem.index}
