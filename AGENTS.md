@@ -86,8 +86,13 @@ For every BrowserWindow or IPC change:
 - Same-lineage Codex subagents may handle independent, bounded work in separate
   worktrees. Their output is fresh context, not independent model-lineage
   review; the driver remains responsible for verification and integration.
-- Never commit or push unless the owner explicitly asks. `main` is protected;
-  agents never self-merge and stop after opening a PR.
+- For any in-scope repository task, the driver may commit on the working branch,
+  push that branch, open or update a PR, push review fixes, and keep Linear
+  current without a separate permission prompt. These are normal, reversible
+  delivery steps. Never push directly to protected `main`.
+- Merge only with explicit merge authority and every applicable gate green on
+  the final head. Without that authority, leave the green PR open for owner
+  approval; with it, merge when all gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
@@ -138,6 +143,14 @@ These rules apply to local review and Codex GitHub PR review:
   Compare usage consumed, actionable findings found, false-positive burden,
   and whether the findings escaped the local `review-loop`; keep or change the
   setting from that evidence.
+- An autonomous block that opens or updates a PR must wait for final-head CI
+  and substantive CodeRabbit output. A skipped/manual-review/rate-limit message
+  or bare green check is not substantive; request a full review and wait. A
+  valid finding triggers a focused test or probe, a fix, the full gate, a new
+  final-diff `review-loop`, a push, and another CodeRabbit wait. Refute invalid
+  findings with evidence. Repeat until the current head is green and has no
+  valid unresolved finding, then ask for merge permission or merge if an active
+  grant already covers the PR.
 - Review the actual PR head and changed lines. Report only actionable findings
   introduced or exposed by the diff.
 - Prioritize data loss, credential exposure, authentication mistakes, unsafe
