@@ -86,8 +86,17 @@ For every BrowserWindow or IPC change:
 - Same-lineage Codex subagents may handle independent, bounded work in separate
   worktrees. Their output is fresh context, not independent model-lineage
   review; the driver remains responsible for verification and integration.
-- Never commit or push unless the owner explicitly asks. `main` is protected;
-  agents never self-merge and stop after opening a PR.
+- For any user-authorized implementation or delivery task not explicitly
+  restricted to local-only work, the driver may commit only on a non-protected
+  feature branch, push that branch, open or update a PR, push review fixes, and
+  keep Linear current without a separate permission prompt. These are normal,
+  reversible delivery steps. Never commit or push directly to protected `main`.
+- Merge only with explicit merge authority, `review-loop` coverage of the exact
+  final diff, final-head project and CI gates green, and substantive CodeRabbit
+  output covering that head with every finding resolved or refuted. Only a
+  narrow safe-class exception explicitly defined by its owning skill may waive
+  a review leg; it does not generalize. Without merge authority, leave the green
+  PR open for owner approval; with it, merge when all gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
@@ -138,6 +147,16 @@ These rules apply to local review and Codex GitHub PR review:
   Compare usage consumed, actionable findings found, false-positive burden,
   and whether the findings escaped the local `review-loop`; keep or change the
   setting from that evidence.
+- Except for a narrow safe-class review exception explicitly defined by its
+  owning skill, every PR handled in an autonomous block must wait for final-head
+  CI and substantive CodeRabbit output, including an inherited PR whose head
+  did not change during the block. A skipped/manual-review/rate-limit message or
+  bare green check is not substantive; request a full review and wait. A valid
+  finding triggers a focused test or probe, a fix, the full gate, a new
+  final-diff `review-loop`, a push, and another CodeRabbit wait. Refute invalid
+  findings with evidence. Repeat until the current head is green and has no
+  valid unresolved finding, then ask for merge permission or merge if an active
+  grant already covers the PR.
 - Review the actual PR head and changed lines. Report only actionable findings
   introduced or exposed by the diff.
 - Prioritize data loss, credential exposure, authentication mistakes, unsafe
