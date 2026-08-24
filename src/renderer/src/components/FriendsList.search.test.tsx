@@ -112,8 +112,9 @@ describe('FriendsList search (VRX-65)', () => {
   it('ignores section collapse during search and restores it after clear', async () => {
     mockFriends([friend('Zed', 'offline'), friend('Alice')])
     render(<FriendsList />)
-    const offlineHeader = screen.getByRole('button', { name: /Offline/ })
-    expect(offlineHeader.getAttribute('aria-expanded')).toBe('false')
+    const offlineHeader = (): HTMLButtonElement =>
+      screen.getByRole<HTMLButtonElement>('button', { name: /^Offline \(1\)$/ })
+    expect(offlineHeader().getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('Zed')).toBeNull()
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Search friends' }), {
@@ -121,12 +122,14 @@ describe('FriendsList search (VRX-65)', () => {
     })
     await finishDebounce()
 
-    expect(offlineHeader.getAttribute('aria-expanded')).toBe('true')
+    // Virtualization can remount a header when filtering changes its stream
+    // index, so assert against the current accessible node after each update.
+    expect(offlineHeader().getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText('Zed')).toBeTruthy()
     expect(useSettingsStore.getState().settings.collapsedFriendSections).toEqual(['offline'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
-    expect(offlineHeader.getAttribute('aria-expanded')).toBe('false')
+    expect(offlineHeader().getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('Zed')).toBeNull()
     expect(useSettingsStore.getState().settings.collapsedFriendSections).toEqual(['offline'])
   })

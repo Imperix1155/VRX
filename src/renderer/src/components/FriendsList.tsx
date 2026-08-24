@@ -1,5 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import type { Range } from '@tanstack/react-virtual'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent,
+  RefCallback
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Friend, FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
@@ -17,6 +24,24 @@ import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
+import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
+
+const INITIAL_VIRTUAL_VIEWPORT = { width: 0, height: 720 }
+const SECTION_ROW_ESTIMATE = 32
+const COMPACT_FRIEND_ROW_ESTIMATE = 60
+const DETAIL_FRIEND_ROW_ESTIMATE = 72
+const VIRTUAL_OVERSCAN = 5
+
+function findActiveStickyIndex(
+  stickyIndexes: readonly number[],
+  startIndex: number
+): number | undefined {
+  return [...stickyIndexes].reverse().find((index) => startIndex >= index) ?? stickyIndexes[0]
+}
+
+function friendRowKey(friend: Friend): string {
+  return friend.platform + ':' + friend.platformUserId
+}
 
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + badge REPLACE the old presence-dot + status-
@@ -73,19 +98,41 @@ function PlatformTab({
 // Avatar moved to components/Avatar.tsx (VRX-69) — shared with FriendDrawer
 // without a FriendsList ⇄ FriendDrawer import cycle.
 
-// memo: the query cache's structuralSharing keeps unchanged Friend object
-// references across refetches, so memoizing the row skips re-rendering every
-// unchanged friend on each reconcile tick (audit W5 stopgap; virtualization is
-// the real fix and lands with VRX-64).
+// The virtual window keeps only a small row set mounted. memo still avoids
+// re-rendering an unchanged visible row when unrelated list state changes.
 const FriendRow = memo(function FriendRow({
   friend,
   searchQuery,
-  onOpen
+  onOpen,
+  isRovingStop,
+  isFullyVisible,
+  positionInSet,
+  setSize,
+  onRovingFocus,
+  onRowFocus,
+  onRowBlur,
+  onArrowNavigate,
+  setAvatarElement,
+  virtualIndex,
+  virtualStyle,
+  measureElement
 }: {
   friend: Friend
   searchQuery: string
   /** Open the friend drawer (VRX-69). Stable callback so the memo holds. */
   onOpen: (friend: Friend, opener: HTMLElement) => void
+  isRovingStop: boolean
+  isFullyVisible: boolean
+  positionInSet: number
+  setSize: number
+  onRovingFocus: (key: string) => void
+  onRowFocus: (key: string) => void
+  onRowBlur: (key: string) => void
+  onArrowNavigate: (key: string, direction: -1 | 1) => void
+  setAvatarElement: (key: string, element: HTMLButtonElement | null) => void
+  virtualIndex: number
+  virtualStyle: CSSProperties
+  measureElement?: RefCallback<HTMLLIElement>
 }): React.JSX.Element {
   const { t } = useTranslation()
   // Store subscription (not a prop) so memo'd rows still re-render on change.
@@ -98,6 +145,14 @@ const FriendRow = memo(function FriendRow({
   // row clicks delegate to the same open path with THIS element as the opener
   // so focus return still lands on the avatar (VRX-228 contract).
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
+  const key = friendRowKey(friend)
+  const setAvatarButton = useCallback(
+    (element: HTMLButtonElement | null) => {
+      avatarButtonRef.current = element
+      setAvatarElement(key, element)
+    },
+    [key, setAvatarElement]
+  )
   // Shared join flow (VRX-166; one implementation with the drawer — VRX-69).
   const { isJoining, joinFailureFor, join } = useJoinInstance()
 
@@ -174,11 +229,30 @@ const FriendRow = memo(function FriendRow({
     if (opener !== null) onOpen(friend, opener)
   }
 
+  function navigateFromAvatar(event: ReactKeyboardEvent<HTMLButtonElement>): void {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    onArrowNavigate(key, event.key === 'ArrowDown' ? 1 : -1)
+  }
+
   // Ids for the opener's composed accessible name (aria-labelledby below).
   const rowId = `friend-row-${friend.platform}-${friend.platformUserId}`
 
   return (
     <li
+      ref={measureElement}
+      data-index={virtualIndex}
+      data-virtual-kind="friend"
+      data-friend-key={key}
+      aria-posinset={positionInSet}
+      aria-setsize={setSize}
+      onFocusCapture={() => onRowFocus(key)}
+      onBlurCapture={(event) => {
+        const nextTarget = event.relatedTarget
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+        onRowBlur(key)
+      }}
+      style={virtualStyle}
       {...(cardOpens
         ? {
             // VRX-228 card mode: the card surface joins the drawer's
@@ -197,6 +271,8 @@ const FriendRow = memo(function FriendRow({
         'border border-[color-mix(in_srgb,var(--text)_7%,transparent)]',
         'bg-[color-mix(in_srgb,var(--text)_4%,transparent)]',
         'hover:bg-[var(--surface-hover)] motion-safe:transition-colors',
+        'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--text-dim)]',
+        'has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-transparent',
         cardOpens ? 'cursor-pointer' : ''
       ].join(' ')}
     >
@@ -214,11 +290,14 @@ const FriendRow = memo(function FriendRow({
           same path — the li above carries the handler/exemption; this button
           stays the semantic/keyboard opener and focus-return target.) */}
       <button
-        ref={avatarButtonRef}
+        ref={setAvatarButton}
         type="button"
         id={`${rowId}-avatar`}
         data-drawer-opener
         onClick={(event) => onOpen(friend, event.currentTarget)}
+        onFocus={() => onRovingFocus(key)}
+        onKeyDown={navigateFromAvatar}
+        tabIndex={isRovingStop ? 0 : -1}
         aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
       >
@@ -271,6 +350,7 @@ const FriendRow = memo(function FriendRow({
               className="min-w-[78px]"
               onJoin={joinFriend}
               disabled={isJoining}
+              tabIndex={isFullyVisible ? undefined : -1}
               aria-label={t('friends.joinAria', {
                 name: friend.displayName,
                 world: instance?.worldName ?? instancePill
@@ -326,38 +406,47 @@ function ChevronGlyph({ collapsed }: { collapsed: boolean }): React.JSX.Element 
 }
 
 /**
- * Sticky, collapsible presence-section header (VRX-67). A real `<button>` with
- * `aria-expanded` — keyboard accessible for free. Sticks to the top of the
- * existing `<main>` scroll container; the background is opaque enough (a
- * `--bg-base` color-mix, not the translucent `.glass` recipe) that rows don't
- * bleed through as they scroll underneath.
+ * Collapsible presence-section header (VRX-67). A real `<button>` with
+ * `aria-expanded` — keyboard accessible for free. The virtual-row wrapper owns
+ * sticky positioning so the active header remains mounted outside its natural
+ * range; this button keeps the opaque background that prevents row bleed.
  */
 function SectionHeader({
   section,
   count,
   collapsed,
   onToggle,
-  collapseIgnored
+  collapseIgnored,
+  tabIndex,
+  setButtonElement,
+  onFocus,
+  onBlur
 }: {
   section: FriendSection
   count: number
   collapsed: boolean
   onToggle: () => void
   collapseIgnored: boolean
+  tabIndex: 0 | -1
+  setButtonElement: (section: FriendSection, element: HTMLButtonElement | null) => void
+  onFocus: (section: FriendSection) => void
+  onBlur: (section: FriendSection) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <button
+      ref={(element) => setButtonElement(section, element)}
       type="button"
       onClick={onToggle}
+      onFocus={() => onFocus(section)}
+      onBlur={() => onBlur(section)}
       disabled={collapseIgnored}
+      tabIndex={collapseIgnored ? -1 : tabIndex}
       aria-expanded={!collapsed}
-      // Only reference the list while it EXISTS — a collapsed section unmounts
-      // its <ul> (per AC), and a dangling aria-controls id is an a11y defect
-      // (Sol review, Med). aria-expanded alone carries the collapsed state.
-      aria-controls={collapsed ? undefined : `friends-section-${section}`}
+      // All sections share one virtual list, so no header claims that whole
+      // list as its controlled object. aria-expanded carries disclosure state.
       className={[
-        'sticky top-0 z-10 flex w-full items-center gap-[var(--space-2)]',
+        'flex w-full items-center gap-[var(--space-2)]',
         'rounded-control px-[var(--space-2)] py-[var(--space-1)]',
         'bg-[color-mix(in_srgb,var(--bg-base)_92%,transparent)] backdrop-blur-md',
         'text-xs font-semibold tracking-widest text-[var(--text-dim)] uppercase',
@@ -369,6 +458,20 @@ function SectionHeader({
     </button>
   )
 }
+
+type VirtualFriendRow =
+  | {
+      kind: 'section'
+      key: `section:${FriendSection}`
+      section: FriendSection
+      count: number
+      collapsed: boolean
+    }
+  | {
+      kind: 'friend'
+      key: string
+      friend: Friend
+    }
 
 export default function FriendsList(): React.JSX.Element {
   const { t } = useTranslation()
@@ -391,7 +494,7 @@ export default function FriendsList(): React.JSX.Element {
   const openDrawer = useCallback(
     (friend: Friend, opener: HTMLElement) => {
       openerRef.current = opener
-      setSelectedFriendId(`${friend.platform}:${friend.platformUserId}`)
+      setSelectedFriendId(friendRowKey(friend))
     },
     [setSelectedFriendId]
   )
@@ -465,6 +568,7 @@ export default function FriendsList(): React.JSX.Element {
   }, [pendingConfirm])
 
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
+  const density = useSettingsStore((s) => s.settings.density)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   const { filteredFriends, sections, searchActive } = useMemo(() => {
     const searchActive = appliedSearch.length > 0
@@ -480,12 +584,253 @@ export default function FriendsList(): React.JSX.Element {
       filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
     return { filteredFriends, sections, searchActive }
   }, [friends, appliedSearch])
+
+  // One flattened stream lets a single virtualizer own headers and friend rows.
+  // Keeping headers in the same index space is what makes a section-aware sticky
+  // range possible without adding a second scroll container inside <main>.
+  const virtualRows = useMemo(() => {
+    const rows: VirtualFriendRow[] = []
+    if (sections === undefined) return rows
+
+    for (const { section, friends: sectionFriends } of sections) {
+      const collapsed = !searchActive && collapsedSections.includes(section)
+      rows.push({
+        kind: 'section',
+        key: `section:${section}`,
+        section,
+        count: sectionFriends.length,
+        collapsed
+      })
+      if (!collapsed) {
+        for (const friend of sectionFriends) {
+          rows.push({ kind: 'friend', key: friendRowKey(friend), friend })
+        }
+      }
+    }
+    return rows
+  }, [sections, searchActive, collapsedSections])
+
+  const friendKeys = useMemo(
+    () => virtualRows.flatMap((row) => (row.kind === 'friend' ? [row.key] : [])),
+    [virtualRows]
+  )
+  const friendPositionByKey = useMemo(
+    () => new Map(friendKeys.map((key, index) => [key, index])),
+    [friendKeys]
+  )
+  const friendVirtualIndexByKey = useMemo(() => {
+    const indexes = new Map<string, number>()
+    virtualRows.forEach((row, index) => {
+      if (row.kind === 'friend') indexes.set(row.key, index)
+    })
+    return indexes
+  }, [virtualRows])
+  const stickyIndexes = useMemo(
+    () => virtualRows.flatMap((row, index) => (row.kind === 'section' ? [index] : [])),
+    [virtualRows]
+  )
+
+  const virtualListRef = useRef<HTMLUListElement>(null)
+  const avatarElementsRef = useRef(new Map<string, HTMLButtonElement>())
+  const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
+  const pendingFocusKeyRef = useRef<string | null>(null)
+  const focusedRowKeyRef = useRef<string | null>(null)
+  const [rovingKey, setRovingKey] = useState<string | null>(null)
+  const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
+  const [scrollMargin, setScrollMargin] = useState(0)
+  const [virtualRowGap, setVirtualRowGap] = useState<number>(
+    RENDERER_PIXEL_TOKENS.space1.fallbackPx
+  )
+  const focusedSectionIndex =
+    focusedSection === null
+      ? null
+      : (stickyIndexes.find((index) => {
+          const row = virtualRows[index]
+          return row?.kind === 'section' && row.section === focusedSection
+        }) ?? null)
+  const effectiveRovingKey =
+    rovingKey !== null && friendPositionByKey.has(rovingKey) ? rovingKey : (friendKeys[0] ?? null)
+
+  const getScrollElement = useCallback((): HTMLElement | null => {
+    const element = virtualListRef.current?.closest('main')
+    return element instanceof HTMLElement ? element : null
+  }, [])
+  useLayoutEffect(() => {
+    const tokenGap = readPixelDesignToken(RENDERER_PIXEL_TOKENS.space1)
+    setVirtualRowGap((current) => (current === tokenGap ? current : tokenGap))
+  }, [])
+  const getItemKey = useCallback(
+    (index: number) => {
+      const row = virtualRows[index]
+      return row === undefined ? index : density + ':' + row.key
+    },
+    [density, virtualRows]
+  )
+  const estimateSize = useCallback(
+    (index: number) => {
+      if (virtualRows[index]?.kind === 'section') return SECTION_ROW_ESTIMATE
+      return density === 'compact' ? COMPACT_FRIEND_ROW_ESTIMATE : DETAIL_FRIEND_ROW_ESTIMATE
+    },
+    [density, virtualRows]
+  )
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      const activeStickyIndex = findActiveStickyIndex(stickyIndexes, range.startIndex)
+
+      const indexes = new Set(defaultRangeExtractor(range))
+      if (activeStickyIndex !== undefined) indexes.add(activeStickyIndex)
+      if (focusedSectionIndex !== null) indexes.add(focusedSectionIndex)
+      return [...indexes].sort((a, b) => a - b)
+    },
+    [focusedSectionIndex, stickyIndexes]
+  )
+
+  // TanStack Virtual intentionally exposes a mutable instance; React Compiler
+  // must leave this component's hook result unmemoized.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer<HTMLElement, HTMLLIElement>({
+    count: virtualRows.length,
+    getScrollElement,
+    estimateSize,
+    getItemKey,
+    rangeExtractor,
+    gap: virtualRowGap,
+    overscan: VIRTUAL_OVERSCAN,
+    scrollMargin,
+    scrollPaddingStart: SECTION_ROW_ESTIMATE + virtualRowGap,
+    initialRect: INITIAL_VIRTUAL_VIEWPORT
+  })
+
+  // This list intentionally shares AppShell's one <main> scroller. Tell the
+  // virtualizer where the list begins within that larger scroll surface, and
+  // keep the offset current if the header/search geometry changes.
+  useLayoutEffect(() => {
+    const list = virtualListRef.current
+    const scrollElement = getScrollElement()
+    if (list === null || scrollElement === null) return
+
+    const measureMargin = (): void => {
+      const next = Math.max(
+        0,
+        list.getBoundingClientRect().top -
+          scrollElement.getBoundingClientRect().top +
+          scrollElement.scrollTop
+      )
+      setScrollMargin((current) => (current === next ? current : next))
+    }
+
+    measureMargin()
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureMargin)
+    observer?.observe(scrollElement)
+    if (list.parentElement !== null) observer?.observe(list.parentElement)
+    observer?.observe(list)
+    window.addEventListener('resize', measureMargin)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measureMargin)
+    }
+  }, [getScrollElement, virtualRows.length])
+
+  const setAvatarElement = useCallback((key: string, element: HTMLButtonElement | null): void => {
+    if (element === null) avatarElementsRef.current.delete(key)
+    else avatarElementsRef.current.set(key, element)
+  }, [])
+  const setSectionButtonElement = useCallback(
+    (section: FriendSection, element: HTMLButtonElement | null): void => {
+      if (element === null) sectionButtonElementsRef.current.delete(section)
+      else sectionButtonElementsRef.current.set(section, element)
+    },
+    []
+  )
+  const onRovingFocus = useCallback((key: string): void => {
+    setRovingKey(key)
+  }, [])
+  const onRowFocus = useCallback((key: string): void => {
+    focusedRowKeyRef.current = key
+    // Join is a separate native control after the avatar in each row. If Tab
+    // reaches it, that row must also own the roving avatar stop so a live
+    // update that removes Join can hand focus back to the connected avatar.
+    setRovingKey(key)
+  }, [])
+  const onRowBlur = useCallback((key: string): void => {
+    if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
+  }, [])
+  const onSectionFocus = useCallback((section: FriendSection): void => {
+    setFocusedSection(section)
+  }, [])
+  const onSectionBlur = useCallback((section: FriendSection): void => {
+    setFocusedSection((current) => (current === section ? null : current))
+  }, [])
+  const onArrowNavigate = useCallback(
+    (key: string, direction: -1 | 1): void => {
+      const currentPosition = friendPositionByKey.get(key)
+      if (currentPosition === undefined) return
+      const targetPosition = Math.min(
+        friendKeys.length - 1,
+        Math.max(0, currentPosition + direction)
+      )
+      const targetKey = friendKeys[targetPosition]
+      if (targetKey === undefined || targetKey === key) return
+      const virtualIndex = friendVirtualIndexByKey.get(targetKey)
+      if (virtualIndex === undefined) return
+
+      pendingFocusKeyRef.current = targetKey
+      setRovingKey(targetKey)
+      // `auto` preserves the current viewport when the next opener is already
+      // visible, and performs the smallest necessary scroll at a window edge.
+      rowVirtualizer.scrollToIndex(virtualIndex, { align: 'auto' })
+    },
+    [friendPositionByKey, friendKeys, friendVirtualIndexByKey, rowVirtualizer]
+  )
+
+  // Arrow navigation may target the next row just outside the current window.
+  // Leave the pending key armed until the virtualizer mounts that opener, then
+  // focus without asking the browser to perform a second, competing scroll.
+  useEffect(() => {
+    const pendingKey = pendingFocusKeyRef.current
+    if (pendingKey === null) return
+    if (!friendPositionByKey.has(pendingKey)) {
+      pendingFocusKeyRef.current = null
+      return
+    }
+    const element = avatarElementsRef.current.get(pendingKey)
+    if (element?.isConnected !== true) return
+    pendingFocusKeyRef.current = null
+    element.focus({ preventScroll: true })
+  })
+
+  // A wheel, touch gesture, or scrollbar interaction supersedes an arrow-key
+  // target that has not mounted yet. Without clearing it, focus recovery
+  // mistakes the stale target for an active navigation request after the user
+  // scrolls the focused row out of the virtual window.
+  useEffect(() => {
+    const scrollElement = getScrollElement()
+    if (scrollElement === null) return
+    const cancelPendingFocus = (): void => {
+      pendingFocusKeyRef.current = null
+    }
+    const cancelPendingFocusOnScrollKey = (event: globalThis.KeyboardEvent): void => {
+      if (['PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) cancelPendingFocus()
+    }
+    scrollElement.addEventListener('wheel', cancelPendingFocus, { passive: true })
+    scrollElement.addEventListener('touchmove', cancelPendingFocus, { passive: true })
+    scrollElement.addEventListener('pointerdown', cancelPendingFocus)
+    scrollElement.addEventListener('keydown', cancelPendingFocusOnScrollKey)
+    return () => {
+      scrollElement.removeEventListener('wheel', cancelPendingFocus)
+      scrollElement.removeEventListener('touchmove', cancelPendingFocus)
+      scrollElement.removeEventListener('pointerdown', cancelPendingFocus)
+      scrollElement.removeEventListener('keydown', cancelPendingFocusOnScrollKey)
+    }
+  }, [getScrollElement, virtualRows.length])
+
   // Look up in the UNFILTERED (but platform-scoped) list so an active search
   // can't close an open drawer. A friend that leaves the roster closes it.
   const selectedFriend =
     selectedFriendId === null
       ? null
-      : (friends?.find((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId) ?? null)
+      : (friends?.find((friend) => friendRowKey(friend) === selectedFriendId) ?? null)
 
   // A selection whose friend is no longer renderable — gone from the settled
   // roster OR the roster itself went undefined (refetch gap, account switch) —
@@ -495,8 +840,7 @@ export default function FriendsList(): React.JSX.Element {
   useEffect(() => {
     if (selectedFriendId === null) return
     const stillPresent =
-      friends !== undefined &&
-      friends.some((f) => `${f.platform}:${f.platformUserId}` === selectedFriendId)
+      friends !== undefined && friends.some((friend) => friendRowKey(friend) === selectedFriendId)
     if (!stillPresent) closeDrawer()
   }, [friends, selectedFriendId, closeDrawer])
 
@@ -511,6 +855,106 @@ export default function FriendsList(): React.JSX.Element {
     setSearch(value)
     if (value.length === 0) setAppliedSearch('')
   }
+
+  const virtualItems = rowVirtualizer.getVirtualItems()
+  const activeStickyIndex =
+    findActiveStickyIndex(stickyIndexes, rowVirtualizer.range?.startIndex ?? 0) ?? 0
+  const renderedFriendKeys = new Set(
+    virtualItems.flatMap((item) => {
+      const row = virtualRows[item.index]
+      return row?.kind === 'friend' ? [row.key] : []
+    })
+  )
+  const viewportStart = (rowVirtualizer.scrollOffset ?? 0) + SECTION_ROW_ESTIMATE + virtualRowGap
+  const viewportEnd =
+    (rowVirtualizer.scrollOffset ?? 0) +
+    (rowVirtualizer.scrollRect?.height ?? INITIAL_VIRTUAL_VIEWPORT.height)
+  const fullyVisibleFriendKeys: string[] = []
+  const intersectingFriendKeys: string[] = []
+  const focusableSectionIndexSet = new Set<number>()
+  for (const item of virtualItems) {
+    const row = virtualRows[item.index]
+    if (row?.kind === 'section') {
+      if (
+        item.index === activeStickyIndex ||
+        (item.end > viewportStart && item.start < viewportEnd)
+      ) {
+        focusableSectionIndexSet.add(item.index)
+      }
+      continue
+    }
+    if (row?.kind !== 'friend') continue
+    if (item.end > viewportStart && item.start < viewportEnd) {
+      intersectingFriendKeys.push(row.key)
+    }
+    if (item.start >= viewportStart && item.end <= viewportEnd) {
+      fullyVisibleFriendKeys.push(row.key)
+    }
+  }
+  const fullyVisibleFriendKeySet = new Set(fullyVisibleFriendKeys)
+  const intersectingFriendKeySet = new Set(intersectingFriendKeys)
+  // Overscan rows are mounted but can sit hundreds of pixels outside the
+  // viewport. Preserve a focused/intersecting opener until its row leaves the
+  // viewport, then hand the one Tab stop to a fully visible friend.
+  const renderedRovingKey =
+    effectiveRovingKey !== null && intersectingFriendKeySet.has(effectiveRovingKey)
+      ? effectiveRovingKey
+      : (fullyVisibleFriendKeys[0] ??
+        intersectingFriendKeys[0] ??
+        renderedFriendKeys.values().next().value ??
+        null)
+  const activeStickyRow = virtualRows[activeStickyIndex]
+  const activeStickySection = activeStickyRow?.kind === 'section' ? activeStickyRow.section : null
+  const focusedSectionNeedsHandoff =
+    focusedSection !== null &&
+    (focusedSectionIndex === null || !focusableSectionIndexSet.has(focusedSectionIndex))
+
+  // Overscanned section toggles are not sequential Tab stops. If pointer or
+  // scrollbar scrolling carries a focused header out of view, its retained
+  // virtual row hands focus to the newly active sticky header before it can be
+  // unmounted and strand focus on <body>.
+  useLayoutEffect(() => {
+    if (!focusedSectionNeedsHandoff) return
+    const target =
+      activeStickySection === null
+        ? undefined
+        : sectionButtonElementsRef.current.get(activeStickySection)
+    if (target !== undefined) {
+      target.focus({ preventScroll: true })
+      return
+    }
+    setFocusedSection(null)
+    searchInputRef.current?.focus({ preventScroll: true })
+  }, [activeStickySection, focusedSectionNeedsHandoff])
+
+  // A scrollbar drag, wheel, or PageDown can unmount the focused avatar. The
+  // browser then falls back to <body>, so move real focus along with the
+  // roving Tab stop. Arrow navigation owns its pending target separately.
+  useLayoutEffect(() => {
+    const pendingKey = pendingFocusKeyRef.current
+    if (pendingKey !== null) {
+      if (friendPositionByKey.has(pendingKey)) return
+      pendingFocusKeyRef.current = null
+    }
+
+    const focusedKey = focusedRowKeyRef.current
+    if (focusedKey === null) return
+    const replacementAvatar = avatarElementsRef.current.get(focusedKey)
+    const focusedRowWasRemoved =
+      document.activeElement === document.body && replacementAvatar?.isConnected !== true
+    const focusedRowWasReplaced =
+      focusedKey === renderedRovingKey &&
+      document.activeElement === document.body &&
+      replacementAvatar?.isConnected === true
+    if (!focusedRowWasRemoved && !focusedRowWasReplaced) return
+
+    if (renderedRovingKey === null) {
+      focusedRowKeyRef.current = null
+      searchInputRef.current?.focus({ preventScroll: true })
+      return
+    }
+    avatarElementsRef.current.get(renderedRovingKey)?.focus({ preventScroll: true })
+  }, [density, friendPositionByKey, renderedRovingKey])
 
   return (
     <section
@@ -584,47 +1028,93 @@ export default function FriendsList(): React.JSX.Element {
             </p>
           )}
           {friends && friends.length > 0 && sections && (
-            <div className="flex flex-col gap-[var(--space-2)]">
-              {sections.map(({ section, friends: sectionFriends }) => {
-                // VRX-65 decision: an active search ignores persisted collapse so
-                // every match is visible. The setting itself remains untouched.
-                const collapsed = !searchActive && collapsedSections.includes(section)
+            <ul
+              ref={virtualListRef}
+              id="friends-virtual-list"
+              aria-label={t('friends.title')}
+              className="relative m-0 list-none p-0"
+              style={{ height: rowVirtualizer.getTotalSize() }}
+            >
+              {virtualItems.map((virtualItem) => {
+                const row = virtualRows[virtualItem.index]
+                if (row === undefined) return null
+                const activeSticky =
+                  row.kind === 'section' && virtualItem.index === activeStickyIndex
+                const virtualStyle: CSSProperties = activeSticky
+                  ? {
+                      position: 'sticky',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      zIndex: 10
+                    }
+                  : {
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualItem.start - scrollMargin}px)`
+                    }
+
+                if (row.kind === 'section') {
+                  return (
+                    <li
+                      key={virtualItem.key}
+                      ref={rowVirtualizer.measureElement}
+                      role="presentation"
+                      data-index={virtualItem.index}
+                      data-virtual-kind="section"
+                      style={virtualStyle}
+                      className="list-none"
+                    >
+                      <SectionHeader
+                        section={row.section}
+                        count={row.count}
+                        collapsed={row.collapsed}
+                        onToggle={() => {
+                          if (!searchActive) toggleSection(row.section)
+                        }}
+                        collapseIgnored={searchActive}
+                        tabIndex={focusableSectionIndexSet.has(virtualItem.index) ? 0 : -1}
+                        setButtonElement={setSectionButtonElement}
+                        onFocus={onSectionFocus}
+                        onBlur={onSectionBlur}
+                      />
+                    </li>
+                  )
+                }
+
+                const positionInSet = friendPositionByKey.get(row.key)
+                if (positionInSet === undefined) return null
+
                 return (
-                  <div key={section}>
-                    <SectionHeader
-                      section={section}
-                      count={sectionFriends.length}
-                      collapsed={collapsed}
-                      onToggle={() => {
-                        if (!searchActive) toggleSection(section)
-                      }}
-                      collapseIgnored={searchActive}
-                    />
-                    {!collapsed && (
-                      <ul
-                        id={`friends-section-${section}`}
-                        // Name the list so SR list navigation identifies WHICH
-                        // presence section it is (Sol review, Med) — count included,
-                        // same string as the visible header.
-                        aria-label={t(SECTION_LABEL_KEY[section], {
-                          count: sectionFriends.length
-                        })}
-                        className="flex flex-col gap-[var(--space-1)] pt-[var(--space-1)]"
-                      >
-                        {sectionFriends.map((f) => (
-                          <FriendRow
-                            key={`${f.platform}:${f.platformUserId}`}
-                            friend={f}
-                            searchQuery={appliedSearch}
-                            onOpen={openDrawer}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  <FriendRow
+                    key={virtualItem.key}
+                    friend={row.friend}
+                    searchQuery={appliedSearch}
+                    onOpen={openDrawer}
+                    isRovingStop={row.key === renderedRovingKey}
+                    isFullyVisible={fullyVisibleFriendKeySet.has(row.key)}
+                    positionInSet={positionInSet + 1}
+                    setSize={friendKeys.length}
+                    onRovingFocus={onRovingFocus}
+                    onRowFocus={onRowFocus}
+                    onRowBlur={onRowBlur}
+                    onArrowNavigate={onArrowNavigate}
+                    setAvatarElement={setAvatarElement}
+                    virtualIndex={virtualItem.index}
+                    virtualStyle={
+                      density === 'compact'
+                        ? { ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }
+                        : virtualStyle
+                    }
+                    measureElement={
+                      density === 'compact' ? undefined : rowVirtualizer.measureElement
+                    }
+                  />
                 )
               })}
-            </div>
+            </ul>
           )}
         </>
       )}

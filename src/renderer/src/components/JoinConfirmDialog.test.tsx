@@ -1361,9 +1361,12 @@ describe('focus management', () => {
   it('Confirm: the pill latches disabled, so focus lands on the main landmark (never <body>)', async () => {
     render(
       <>
-        <main tabIndex={-1} data-testid="main-landmark">
-          <FriendsList />
-        </main>
+        {/* jsdom gives <main> zero layout, which would collapse TanStack
+            Virtual's measured rows. This focus-only test keeps the list out of
+            that synthetic scroll surface; FriendsList's suites cover the real
+            AppShell containment. */}
+        <main tabIndex={-1} data-testid="main-landmark" />
+        <FriendsList />
         <JoinConfirmDialog />
       </>
     )

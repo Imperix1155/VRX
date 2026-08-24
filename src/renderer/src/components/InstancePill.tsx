@@ -30,6 +30,8 @@ interface InstancePillProps {
   disabled?: boolean
   /** Accessible action name for the button variant. */
   'aria-label'?: string
+  /** Consumer-owned sequential focus policy for the actionable variant. */
+  tabIndex?: number
 }
 
 export default function InstancePill({
@@ -38,7 +40,8 @@ export default function InstancePill({
   className = '',
   onJoin,
   disabled = false,
-  'aria-label': ariaLabel
+  'aria-label': ariaLabel,
+  tabIndex
 }: InstancePillProps): React.JSX.Element {
   const style: React.CSSProperties & { '--instance-pill-bg': string } =
     tier != null
@@ -62,6 +65,7 @@ export default function InstancePill({
         onClick={onJoin}
         disabled={disabled}
         aria-label={ariaLabel}
+        tabIndex={tabIndex}
         className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter,color]`}
         style={style}
       >

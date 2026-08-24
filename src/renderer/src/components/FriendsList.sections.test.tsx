@@ -77,6 +77,11 @@ describe('FriendsList presence sections — interaction (VRX-67)', () => {
     )
     expect(screen.queryByText('Zed')).toBeNull() // collapsed section's row is not rendered
     expect(screen.getByText('Anna')).toBeTruthy() // In-Game (expanded by default) still shows
+    for (const name of [/^In-Game/, /^Online/, /^Offline/]) {
+      // The virtual stream is one list, not three section-owned objects.
+      // aria-expanded carries disclosure state without a false shared target.
+      expect(screen.getByRole('button', { name }).getAttribute('aria-controls')).toBeNull()
+    }
   })
 
   it('clicking a section header expands it, shows its rows, and persists via updateSettings (marks dirty)', () => {

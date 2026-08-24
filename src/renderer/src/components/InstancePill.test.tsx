@@ -20,12 +20,14 @@ describe('InstancePill', () => {
         label: 'Public',
         tier: 'public',
         onJoin: vi.fn(),
+        tabIndex: -1,
         'aria-label': 'Join Alex in The Great Pug'
       })
     )
 
     expect(markup).toMatch(/^<button/)
     expect(markup).toContain('type="button"')
+    expect(markup).toContain('tabindex="-1"')
     expect(markup).toContain('aria-label="Join Alex in The Great Pug"')
     expect(markup).toContain('rounded-[10px]')
     expect(markup).toContain('var(--op-public-text)')
