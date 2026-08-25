@@ -4,22 +4,23 @@ import { open, readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { inflateRawSync } from 'node:zlib'
+import { blake2b } from '@noble/hashes/blake2.js'
 import { load } from 'js-yaml'
 
 const packagePath = fileURLToPath(new URL('../package.json', import.meta.url))
 const builderConfigPath = fileURLToPath(new URL('../electron-builder.yml', import.meta.url))
 const maxCompressedBlockMapBytes = 16 * 1024 * 1024
 const maxInflatedBlockMapBytes = 32 * 1024 * 1024
+const blockMapReadBufferBytes = 1024 * 1024
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function blockMapFileDescribesPayload(value, payloadSize) {
+async function blockMapFileDescribesPayload(handle, value, payloadSize) {
   if (
     !isRecord(value) ||
-    typeof value.name !== 'string' ||
-    value.name.length === 0 ||
+    value.name !== 'file' ||
     value.offset !== 0 ||
     !Array.isArray(value.checksums) ||
     !Array.isArray(value.sizes) ||
@@ -47,7 +48,33 @@ function blockMapFileDescribesPayload(value, payloadSize) {
     }
   }
 
-  return describedSize === payloadSize
+  if (describedSize !== payloadSize) {
+    return false
+  }
+
+  const readBuffer = Buffer.allocUnsafe(blockMapReadBufferBytes)
+  let position = 0
+  for (let index = 0; index < value.checksums.length; index += 1) {
+    const digest = blake2b.create({ dkLen: 18 })
+    let remaining = value.sizes[index]
+
+    while (remaining > 0) {
+      const bytesToRead = Math.min(remaining, readBuffer.length)
+      const { bytesRead } = await handle.read(readBuffer, 0, bytesToRead, position)
+      if (bytesRead !== bytesToRead) {
+        return false
+      }
+      digest.update(readBuffer.subarray(0, bytesRead))
+      remaining -= bytesRead
+      position += bytesRead
+    }
+
+    if (Buffer.from(digest.digest()).toString('base64') !== value.checksums[index]) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function requireCondition(condition, message) {
@@ -138,10 +165,11 @@ async function embeddedBlockMapSize(path) {
     )
     requireCondition(
       blockMap.files.length === 1 &&
-        blockMapFileDescribesPayload(
+        (await blockMapFileDescribesPayload(
+          handle,
           blockMap.files[0],
           size - trailer.length - compressedBlockMap.length
-        ),
+        )),
       'AppImage embedded block map files must describe the AppImage payload'
     )
 
