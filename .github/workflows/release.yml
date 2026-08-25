@@ -113,6 +113,50 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Inspect the real Linux packages before the publish job can make the draft
+      # public. AppImage extraction does not require FUSE, and dpkg-deb ships on
+      # ubuntu-latest. This proves package contents, not GNOME/KDE runtime behavior.
+      - name: Verify Linux desktop and updater metadata
+        if: matrix.platform == 'linux'
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          APPIMAGE="$GITHUB_WORKSPACE/dist/vrx-$VERSION-x86_64.AppImage"
+          DEB="$GITHUB_WORKSPACE/dist/vrx_${VERSION}_amd64.deb"
+          MANIFEST="$GITHUB_WORKSPACE/dist/latest-linux.yml"
+          APPIMAGE_DIR="$(mktemp -d)"
+          DEB_DIR="$(mktemp -d)"
+
+          test -f "$APPIMAGE"
+          test -f "$DEB"
+          test -f "$MANIFEST"
+
+          cd "$APPIMAGE_DIR"
+          "$APPIMAGE" --appimage-extract >/dev/null
+          APPIMAGE_DESKTOP="$APPIMAGE_DIR/squashfs-root/com.imperix.vrx.desktop"
+          test -f "$APPIMAGE_DESKTOP"
+          grep -Fx 'Name=VRX' "$APPIMAGE_DESKTOP"
+          grep -Fx 'Icon=vrx' "$APPIMAGE_DESKTOP"
+          grep -Fx 'StartupWMClass=com.imperix.vrx' "$APPIMAGE_DESKTOP"
+          grep -Fx 'Categories=Network;' "$APPIMAGE_DESKTOP"
+          file "$APPIMAGE_DIR/squashfs-root/usr/share/icons/hicolor/512x512/apps/vrx.png" \
+            | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
+          APPIMAGE_UPDATE="$APPIMAGE_DIR/squashfs-root/resources/app-update.yml"
+
+          dpkg-deb -x "$DEB" "$DEB_DIR"
+          DEB_DESKTOP="$DEB_DIR/usr/share/applications/com.imperix.vrx.desktop"
+          test -f "$DEB_DESKTOP"
+          grep -Fx 'Name=VRX' "$DEB_DESKTOP"
+          grep -Fx 'Icon=vrx' "$DEB_DESKTOP"
+          grep -Fx 'StartupWMClass=com.imperix.vrx' "$DEB_DESKTOP"
+          grep -Fx 'Categories=Network;' "$DEB_DESKTOP"
+          file "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/vrx.png" \
+            | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
+          test "$(cat "$DEB_DIR/opt/VRX/resources/package-type")" = 'deb'
+          DEB_UPDATE="$DEB_DIR/opt/VRX/resources/app-update.yml"
+
+          node "$GITHUB_WORKSPACE/scripts/verify-linux-update-metadata.mjs" \
+            "$MANIFEST" "$APPIMAGE" "$DEB" "$APPIMAGE_UPDATE" "$DEB_UPDATE"
+
   publish-release:
     name: publish release
     needs: build
@@ -143,7 +187,7 @@ jobs:
             "vrx-\($v)-setup.exe",
             "vrx-\($v)-setup.exe.blockmap",
             "VRX-\($v).exe",
-            "vrx-\($v).AppImage",
+            "vrx-\($v)-x86_64.AppImage",
             "vrx_\($v)_amd64.deb",
             "latest.yml",
             "latest-linux.yml"
@@ -178,13 +222,12 @@ jobs:
             exit 1
           fi
 
-          # Candidates = drafts carrying the FULL expected artifact set (every
-          # EXPECTED name present). Filtering on NAMES (not a count) means an
-          # invalid 7-asset draft with a wrong filename cannot crowd out an older
-          # valid draft. All matches are drafts here (published guard above).
-          CANDIDATES="$(echo "$MATCHING" | jq --argjson exp "$EXPECTED" '[.[] | select(($exp - .assets) == [])]')"
+          # Candidates = drafts carrying the EXACT expected artifact set. Filtering
+          # on both set differences rejects missing, renamed, stale, or unexpected
+          # assets. All matches are drafts here (published guard above).
+          CANDIDATES="$(echo "$MATCHING" | jq --argjson exp "$EXPECTED" '[.[] | select(($exp - .assets) == [] and (.assets - $exp) == [])]')"
           if [ "$(echo "$CANDIDATES" | jq 'length')" -eq 0 ]; then
-            echo "::error::No draft for $TAG carries the full installer set. A build leg failed to upload, or electron-builder skipped uploads. Fix the build (or delete/re-draft the stale $TAG release), then rerun." >&2
+            echo "::error::No draft for $TAG carries the exact installer set. A build leg failed to upload, electron-builder skipped uploads, or the draft contains stale assets. Fix the build (or delete/re-draft the stale $TAG release), then rerun." >&2
             echo "Releases seen for $TAG: $(echo "$MATCHING" | jq -c '[.[] | {id, draft, asset_count}]')" >&2
             exit 1
           fi
@@ -196,8 +239,8 @@ jobs:
           TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
           echo "Resolved draft release id=$TARGET_ID ($(echo "$TARGET" | jq -r '.asset_count') assets) for $TAG."
 
-          # Belt-and-braces (unreachable — candidates already carry the full set):
-          # every expected name must be present; extras only warn.
+          # Belt-and-braces (unreachable — candidates already carry the exact set):
+          # every expected name must be present and no extra name may remain.
           MISSING="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '$exp - .assets')"
           if [ "$(echo "$MISSING" | jq 'length')" -ne 0 ]; then
             echo "::error::Release $TARGET_ID for $TAG is missing expected artifact(s): $MISSING" >&2
@@ -206,7 +249,8 @@ jobs:
           fi
           EXTRA="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '.assets - $exp')"
           if [ "$(echo "$EXTRA" | jq 'length')" -ne 0 ]; then
-            echo "::warning::Release $TARGET_ID for $TAG has unexpected extra asset(s): $EXTRA"
+            echo "::error::Release $TARGET_ID for $TAG has unexpected extra asset(s): $EXTRA" >&2
+            exit 1
           fi
 
           # Loudly flag (never delete) any other release left on this tag with no

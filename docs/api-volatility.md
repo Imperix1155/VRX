@@ -375,6 +375,16 @@ Zod tolerance is field-level, not page-level:
 
 ## Known Volatile Areas (Watch List)
 
+### VRCX local session database
+
+VRX-54 depends on VRCX's local SQLite session shape, verified against upstream VRCX source on 2026-08-24:
+
+- Electron's `appData` directory contains `VRCX/VRCX.sqlite3` on Windows and Linux.
+- The active .NET `CookieContainer` is a base64-encoded JSON array in `cookies.value` where `cookies.key = 'default'`.
+- VRChat entries use `Name`, `Value`, and `Domain`; VRX accepts only `auth` and `twoFactorAuth` for `vrchat.cloud`.
+
+`importVrcxSession()` accepts only this WAL-format main database when no nonempty WAL, shared-memory lock, or rollback journal is active. SQLite does not strongly bind an offline WAL to its main file, so active sidecars are treated as running/locked VRCX: one transient retry, then `null` rather than risking a stale or foreign session. Symlinked or hard-linked main and sidecar entries are rejected before open. For a checkpointed database, header validation and the capped 512 MiB copy use one generation-bound source handle; platforms that expose `O_NOFOLLOW` and `O_NONBLOCK` receive those flags as an additional guard. The resolved temp and VRCX trees must be disjoint. The destination is created exclusively below that atomically random-named, owner-only root, with no-follow semantics where supported, and its handle stays open through SQLite parsing. Before the read-only parse, VRX changes only the private copy's SQLite header from WAL to rollback mode so SQLite ignores snapshot WAL sidecars. Source-handle/path, VRCX-directory, app-data-directory, and source-sidecar generations are checked around the copy; destination-handle/path and snapshot-directory/root generations are checked around parsing. These prevent path aliases or swaps from changing the imported file, hiding active source sidecars, or redirecting VRX writes into VRCX. Crash scavenging removes only roots with the exact generated-name form, VRX's private marker, and a recorded process that is no longer running; unrelated prefix matches and active roots are preserved. The temp root is removed before credential persistence. Before evaluating external values, the importer requires an ordinary rowid `cookies` table with stored `key`/`value` columns and at most 64 rows; metadata-only `octet_length()` bounds candidate keys and `cookies/default` to 256 KiB before materialization. Its one unambiguous row, fatal-valid UTF-8 CookieCollection, exact VRChat domain/name set, and RFC cookie-octet values then reach the shared ASCII validator and `saveCredential`. Any drift returns `null` without logging external values or errors and falls through to direct login once VRX-35 wires the importer into the hybrid-auth flow. VRX-54 queries no VRCX history table and never writes VRCX.
+
 ### VRChat
 
 - **Presence bucket structure:** The `onlineFriends`, `activeFriends`, `offlineFriends` arrays in `/auth/user` are core to the two-axis presence model (VRX-44). If the API removes or renames these, presence parsing breaks and requires a code update.

@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - VRX can reuse an existing ChilloutVR session from the game's auto-login profile or CVRX's credential store. It reads those files only when VRX has no CVR session, rejects malformed, unsafe, or ambiguous credentials, encrypts the selected username and access key before use, and validates the key through the existing one-shot CVR re-authentication path. Missing sources still fall through to direct sign-in. (VRX-56)
+- Linux packages now carry launcher search metadata, a stable desktop identity, and the VRX icon explicitly. AppImage filenames include the architecture, and electron-builder generates their update metadata for electron-updater 2.16 or newer. (VRX-101)
 - Settings → Behavior now includes an **Allow joining friends** switch. It defaults to ON; turning it off makes the main process reject every Join action before resolving a friend or constructing a launch URL, while VRChat self-invites and ordinary web links remain available. (VRX-39)
 - The friends list now renders only the visible row window, stays responsive with large rosters, and supports Up/Down arrow navigation through one roving friend-details opener. Section headers remain sticky, virtual rows announce their logical list position, only visible section and Join buttons enter the Tab order, focus follows the sticky header when a focused section scrolls away, and the list keeps its scroll position when live friend data refreshes. (VRX-63)
+
+### Changed
+
+- VRX now bundles Latin and supported-symbol coverage for its Inter UI face and VT323 accent face as local WOFF2 files. Japanese and other unsupported scripts still use the operating system's fallback fonts. The standalone design references now use the bundled files instead of Google Fonts. (VRX-32)
 
 ### Hardening
 

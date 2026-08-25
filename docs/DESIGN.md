@@ -357,8 +357,10 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 
 ## §7 Typography
 
+- The renderer and both living design references load licensed local WOFF2 files from `src/renderer/src/assets/fonts/`. Inter uses the variable 400–800 face; VT323 uses its 400 face. `SOURCES.json` pins the upstream Fontsource packages and SHA-256 values; it and the SIL OFL 1.1 notices ship in `resources/licenses/fonts/` and are verified after packaging.
 - Inter (400–800): ALL body/UI — names, labels, copy, buttons, world titles, statuses, helper text, modal body.
 - VT323 (`--font-mono`): accent ONLY — VRX mark, big stat numbers, section kickers (uppercase, +tracking), `V`/`C` glyphs, technical IDs/versions. That is the complete allow-list.
+- No third display face is part of the design. In particular, do not add Press Start 2P.
 - NEVER VT323 for body/helper/status/form-label/modal text. NEVER negative letter-spacing. NEVER scale font-size with viewport width. WHY: VT323 is a CRT terminal face — accent-legible, body-illegible.
 
 ## §8 App shell
@@ -519,7 +521,7 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 
 ## §12 Implementation mapping + GENERATION CHECKLIST
 
-- Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Self-host Inter + VT323 (M2 — Security Core).
+- Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
 - `glass.html` = living visual reference (the dashboard); keep in sync with this file — it carries BOTH themes (dark default; add `data-theme="light"` to `<html>` to preview light per §2A–§4A). `design.html` = human contributor guide (served at root `/`; embeds glass.html live). `platform-colors.html` = retired early explainer (superseded by design.html). On repo creation, this file → repo root / `docs/DESIGN.md`.
 - Light theme: dark is the DEFAULT baseline (§2–§4); light is specified by the `[data-theme="light"]` token/material/background overrides in §2A–§4A (VRX-115). Light MUST NOT fork layout, components, typography, or channel meanings — overrides only.
 
