@@ -162,7 +162,6 @@ async function main() {
     appImageUpdatePath,
     debUpdatePath
   })
-  console.log('Linux updater metadata verified.')
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
