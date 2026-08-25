@@ -17,6 +17,7 @@ const fail = (message) => {
 
 const entry = readFileSync('out/main/index.js', 'utf8')
 const appChunks = readdirSync('out/main').filter((f) => /^app-.*\.js$/.test(f))
+const rendererAssets = readdirSync('out/renderer/assets')
 
 if (appChunks.length !== 1) {
   fail(`expected exactly one out/main/app-*.js chunk, found ${appChunks.length}`)
@@ -31,4 +32,11 @@ for (const dep of ['electron-log', 'electron-updater', 'ws', 'zod', 'electron-st
     )
   }
 }
-console.log('assert-entry-chunk: OK — entry minimal, app chunk deferred')
+
+for (const font of ['inter-latin-wght-normal', 'vt323-latin-400-normal']) {
+  if (!rendererAssets.some((asset) => asset.startsWith(`${font}-`) && asset.endsWith('.woff2'))) {
+    fail(`renderer bundle is missing ${font}-*.woff2`)
+  }
+}
+
+console.log('assert-entry-chunk: OK — entry minimal, app chunk deferred, renderer fonts bundled')
