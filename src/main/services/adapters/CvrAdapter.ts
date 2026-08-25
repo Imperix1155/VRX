@@ -71,8 +71,10 @@ export interface CvrCredentialStore {
  * clearing, so a flaky boot never logs the user out.
  *
  * `getFriends` returns the static roster (VRX-57) and `subscribe` drives live
- * presence over the shared `CvrPipeline` (VRX-58); instances = VRX-59/60. CVR
- * has NO 2FA leg — `verify2fa` rejects per the IPlatformAdapter contract.
+ * presence over the shared `CvrPipeline` (VRX-58). Restored credentials remain
+ * unavailable to that pipeline until one-shot ACCESS_KEY validation succeeds;
+ * validation restarts the waiting loop without another auth request. Instances
+ * = VRX-59/60. CVR has NO 2FA leg — `verify2fa` rejects per the interface.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
@@ -229,6 +231,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.validated = true
     this.persist()
     this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
     return { ok: true }
   }
 
@@ -312,12 +315,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     if (accessKey !== validated.accessKey || username !== validated.username) {
       this.adoptSession({ username, accessKey })
     }
+    // Restored session proven once — trust it for the rest of this launch.
     this.displayName = username
     this.accountId = parsed.data.data.userId
+    this.validated = true
     this.persist()
     this.live?.onIdentity?.(this.accountId)
-    // Restored session proven once — trust it for the rest of this launch.
-    this.validated = true
+    this.restartPipeline()
     return this.status('authenticated')
   }
 
@@ -485,6 +489,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
         this.pendingResolutions.clear()
       }
     }
+  }
+
+  /** A restored session cannot reach the live socket until ACCESS_KEY re-auth
+   *  has proved it during this launch. Fresh-login sessions are already proven. */
+  protected override pipelineHeaders(): Record<string, string> | null {
+    if (!this.validated) return null
+    return super.pipelineHeaders()
   }
 
   /** A pipeline object is stamped with the account generation that created it. */
@@ -695,6 +706,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.setCredentials(credentials)
     this.displayName = credentials.username
     this.accountId = null
+    this.validated = false
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
@@ -748,6 +760,17 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     })
   }
 
+  /** Replace the current loop so newly validated credentials dial immediately
+   *  instead of waiting for a no-session backoff to expire. */
+  private restartPipeline(): void {
+    const wasRunning = this.subscribers.size > 0
+    this.pipeline?.stop()
+    this.pipeline = null
+    if (!wasRunning) return
+    this.pipeline = this.createPipeline()
+    this.pipeline.start()
+  }
+
   /** Reset every account-scoped cache and replace a running socket pipeline. */
   private bumpSessionGeneration(): void {
     this.sessionGeneration += 1
@@ -764,13 +787,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.rosterWarmStarted = false
     this.live?.onSessionBoundary?.()
 
-    const wasRunning = this.subscribers.size > 0
-    this.pipeline?.stop()
-    this.pipeline = null
-    if (wasRunning) {
-      this.pipeline = this.createPipeline()
-      this.pipeline.start()
-    }
+    this.restartPipeline()
   }
 
   private status(state: AuthStatus['state']): AuthStatus {

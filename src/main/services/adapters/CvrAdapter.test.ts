@@ -51,6 +51,12 @@ function envelope(data: Record<string, unknown>): { message: string; data: unkno
 
 const creds = { username: 'trinity@example.com', password: 'whiterabbit' }
 
+/** Pipeline-focused tests below bypass the auth leg deliberately; mark their
+ *  synthetic restored sessions as already proven for the behavior under test. */
+function markSessionValidatedForPipelineTest(adapter: CvrAdapter): void {
+  Object.assign(adapter as unknown as { validated: boolean }, { validated: true })
+}
+
 describe('CvrAdapter', () => {
   it('rejects control-character direct credentials before making a request', async () => {
     const fetchMock = vi.fn()
@@ -1002,7 +1008,35 @@ describe('CvrAdapter', () => {
   })
 
   describe('live pipeline (VRX-58)', () => {
+    it('withholds restored credentials from the pipeline until ACCESS_KEY validation succeeds', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload())))
+      vi.stubGlobal('fetch', fetchMock)
+      let dials = 0
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        () => new Promise<void>(() => undefined),
+        {
+          socketFactory: () => {
+            dials++
+            return { on: () => {}, close: () => {} }
+          }
+        }
+      )
+
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(dials).toBe(0)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(dials).toBe(1)
+      unsubscribe()
+    })
+
     it('subscribe starts ONE shared pipeline and stops it when the last handler leaves', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       let dials = 0
       const fakeSocket = { on: () => {}, close: () => {} }
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
@@ -1011,6 +1045,7 @@ describe('CvrAdapter', () => {
           return fakeSocket
         }
       })
+      await adapter.getAuthStatus()
 
       const unsubA = adapter.subscribe(() => {})
       const unsubB = adapter.subscribe(() => {})
@@ -1354,6 +1389,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1410,6 +1446,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1670,6 +1707,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1730,6 +1768,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const snapshots: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1865,6 +1904,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const snapshots: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -2046,6 +2086,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
+      markSessionValidatedForPipelineTest(adapter)
       const events: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => events.push(e))
       await new Promise((r) => setImmediate(r))
@@ -2114,6 +2155,7 @@ describe('CvrAdapter', () => {
           onSessionBoundary: () => friendAlerts.resetPlatform('chilloutvr')
         }
       )
+      markSessionValidatedForPipelineTest(adapter)
       const unsub = adapter.subscribe((event) => {
         events.push(event)
         friendAlerts.consume(event)

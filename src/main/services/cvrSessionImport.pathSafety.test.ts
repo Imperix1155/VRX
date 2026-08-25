@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fileMock = vi.hoisted(() => ({
   contents: new Map<string, string>(),
@@ -43,11 +43,37 @@ vi.mock('node:fs/promises', () => ({
 import { importCvrSession } from './cvrSessionImport'
 
 describe('CVR session import path authority', () => {
+  const windowsSeparator = String.fromCharCode(92)
+  const windowsNetworkPrefix = windowsSeparator.repeat(2)
+  const unsafeAppDataRoots = [
+    ['a UNC path', [`${windowsNetworkPrefix}attacker`, 'share'].join(windowsSeparator)],
+    ['a device path', [`${windowsNetworkPrefix}?`, 'C:', 'redirected'].join(windowsSeparator)]
+  ] as const
+
+  beforeEach(() => {
+    fileMock.contents.clear()
+    fileMock.inspectedPaths.length = 0
+  })
+
+  it.each(unsafeAppDataRoots)(
+    'never inspects an app-data root supplied as %s',
+    async (_label, appDataPath) => {
+      await expect(
+        importCvrSession({
+          appDataPath,
+          homePath: ['C:', 'Users', 'test'].join(windowsSeparator),
+          platform: 'win32',
+          environment: {}
+        })
+      ).resolves.toBeNull()
+
+      expect(fileMock.inspectedPaths).toEqual([])
+    }
+  )
+
   it('never inspects UNC or device paths supplied by CVRX or Steam metadata', async () => {
     const appDataPath = '/app-data'
     const homePath = '/home'
-    const windowsSeparator = String.fromCharCode(92)
-    const windowsNetworkPrefix = windowsSeparator.repeat(2)
     const programFiles = ['C:', 'Program Files'].join(windowsSeparator)
     const uncExecutable = [`${windowsNetworkPrefix}attacker`, 'share', 'ChilloutVR.exe'].join(
       windowsSeparator
