@@ -1,11 +1,12 @@
 import { app } from 'electron'
-import { constants } from 'node:fs'
-import { chmod, copyFile, lstat, mkdtemp, open, readdir, rm, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { constants, type BigIntStats } from 'node:fs'
+import { chmod, lstat, mkdtemp, open, readdir, realpath, rm } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { TextDecoder } from 'node:util'
 import { CREDENTIAL_KEYS, saveCredential } from './credentials'
 import { isValidVrcSessionCookie } from './adapters/credentialValidation'
+import { copyOpenFile } from './vrcxSnapshotCopy'
 
 const MAX_COOKIE_STORAGE_BYTES = 256 * 1024
 const MAX_COOKIE_STORAGE_ROWS = 64
@@ -64,9 +65,21 @@ interface TableColumnRow {
 interface SourceFileVersion {
   dev: bigint
   ino: bigint
+  nlink: bigint
   size: bigint
   mtimeNs: bigint
   ctimeNs: bigint
+}
+
+function sourceVersion(value: BigIntStats): SourceFileVersion {
+  return {
+    dev: value.dev,
+    ino: value.ino,
+    nlink: value.nlink,
+    size: value.size,
+    mtimeNs: value.mtimeNs,
+    ctimeNs: value.ctimeNs
+  }
 }
 
 function hasStoredCookieColumns(database: DatabaseSync): boolean {
@@ -107,7 +120,7 @@ function readCookieStorage(databasePath: string): unknown {
 
   try {
     const journalMode = database.prepare('PRAGMA journal_mode').get() as JournalModeRow
-    if (journalMode.journal_mode !== 'wal') return null
+    if (journalMode.journal_mode !== 'delete') return null
     if (!hasStoredCookieColumns(database)) return null
 
     const metadataRows = database
@@ -273,17 +286,47 @@ async function sourceFileVersion(
   optional = false
 ): Promise<SourceFileVersion | null> {
   try {
-    const value = await stat(path, { bigint: true })
-    if (!value.isFile()) throw new RejectedSnapshotError()
-    return {
-      dev: value.dev,
-      ino: value.ino,
-      size: value.size,
-      mtimeNs: value.mtimeNs,
-      ctimeNs: value.ctimeNs
-    }
+    const value = await lstat(path, { bigint: true })
+    if (!value.isFile() || value.nlink !== 1n) throw new RejectedSnapshotError()
+    return sourceVersion(value)
   } catch (error) {
     if (optional && isMissing(error)) return null
+    throw error
+  }
+}
+
+async function sourceDirectoryVersion(path: string): Promise<SourceFileVersion> {
+  const value = await lstat(path, { bigint: true })
+  if (!value.isDirectory() || value.isSymbolicLink()) throw new RejectedSnapshotError()
+  return sourceVersion(value)
+}
+
+async function sourceHandleVersion(
+  handle: Awaited<ReturnType<typeof open>>
+): Promise<SourceFileVersion> {
+  const value = await handle.stat({ bigint: true })
+  if (!value.isFile() || value.nlink !== 1n) throw new RejectedSnapshotError()
+  return sourceVersion(value)
+}
+
+async function openSourceFile(
+  path: string
+): Promise<{ handle: Awaited<ReturnType<typeof open>>; version: SourceFileVersion }> {
+  const beforePathVersion = await sourceFileVersion(path)
+  if (beforePathVersion === null) throw new RejectedSnapshotError()
+  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW)
+  try {
+    const version = await sourceHandleVersion(handle)
+    const afterPathVersion = await sourceFileVersion(path)
+    if (
+      !sameSourceVersion(beforePathVersion, version) ||
+      !sameSourceVersion(version, afterPathVersion)
+    ) {
+      throw new RejectedSnapshotError()
+    }
+    return { handle, version }
+  } catch (error) {
+    await handle.close().catch(() => undefined)
     throw error
   }
 }
@@ -296,32 +339,57 @@ function sameSourceVersion(
   return (
     left.dev === right.dev &&
     left.ino === right.ino &&
+    left.nlink === right.nlink &&
     left.size === right.size &&
     left.mtimeNs === right.mtimeNs &&
     left.ctimeNs === right.ctimeNs
   )
 }
 
-async function requireWalDatabaseHeader(sourcePath: string): Promise<void> {
-  const handle = await open(sourcePath, 'r')
+function isAtOrBelow(parent: string, candidate: string): boolean {
+  const path = relative(parent, candidate)
+  return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path))
+}
+
+function requireSameSourceVersion(
+  expected: SourceFileVersion,
+  actual: SourceFileVersion | null
+): void {
+  if (!sameSourceVersion(expected, actual)) throw new RejectedSnapshotError()
+}
+
+async function requireWalDatabaseHeader(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
   const header = Buffer.alloc(20)
-  try {
-    const { bytesRead } = await handle.read(header, 0, header.length, 0)
-    if (
-      bytesRead !== header.length ||
-      header.toString('binary', 0, 16) !== 'SQLite format 3\0' ||
-      header[18] !== 2 ||
-      header[19] !== 2
-    ) {
-      throw new RejectedSnapshotError()
-    }
-  } finally {
-    await handle.close()
+  const { bytesRead } = await handle.read(header, 0, header.length, 0)
+  if (
+    bytesRead !== header.length ||
+    header.toString('binary', 0, 16) !== 'SQLite format 3\0' ||
+    header[18] !== 2 ||
+    header[19] !== 2
+  ) {
+    throw new RejectedSnapshotError()
   }
 }
 
 function assertSourceBounds(main: SourceFileVersion): void {
   if (main.size > BigInt(MAX_VRCX_DATABASE_BYTES)) throw new RejectedSnapshotError()
+}
+
+async function normalizeSnapshotForRead(handle: Awaited<ReturnType<typeof open>>): Promise<void> {
+  // The source was already proven to be a checkpointed WAL database. Switching
+  // only the private copy's SQLite header to rollback mode makes the read-only
+  // parser ignore any WAL sidecars planted beside the snapshot.
+  const rollbackMode = Buffer.from([1, 1])
+  const { bytesWritten } = await handle.write(rollbackMode, 0, rollbackMode.length, 18)
+  if (bytesWritten !== rollbackMode.length) throw new RejectedSnapshotError()
+  await handle.sync()
+}
+
+async function requireOnlySnapshotDatabase(path: string): Promise<void> {
+  const entries = await readdir(path)
+  if (entries.length !== 1 || entries[0] !== 'VRCX.sqlite3') {
+    throw new RejectedSnapshotError()
+  }
 }
 
 async function readCookieStorageFromSnapshot(
@@ -330,35 +398,84 @@ async function readCookieStorageFromSnapshot(
 ): Promise<unknown> {
   const snapshotDirectory = await mkdtemp(join(snapshotRoot, 'snapshot-'))
   const snapshotPath = join(snapshotDirectory, 'VRCX.sqlite3')
+  let sourceHandle: Awaited<ReturnType<typeof open>> | undefined
+  let snapshotHandle: Awaited<ReturnType<typeof open>> | undefined
 
   try {
-    const beforeMain = await sourceFileVersion(sourcePath)
+    const sourceDirectory = dirname(sourcePath)
+    const sourceDirectoryParent = dirname(sourceDirectory)
+    const beforeDirectoryParent = await sourceDirectoryVersion(sourceDirectoryParent)
+    const beforeDirectory = await sourceDirectoryVersion(sourceDirectory)
+    const source = await openSourceFile(sourcePath)
+    sourceHandle = source.handle
+    const beforeMain = source.version
     const beforeWal = await sourceFileVersion(`${sourcePath}-wal`, true)
+    const beforeShm = await sourceFileVersion(`${sourcePath}-shm`, true)
     const beforeJournal = await sourceFileVersion(`${sourcePath}-journal`, true)
-    if (beforeMain === null) throw new RejectedSnapshotError()
     if (beforeWal !== null && beforeWal.size > 0n) throw new TransientSnapshotError()
+    if (beforeShm !== null && beforeShm.size > 0n) throw new TransientSnapshotError()
     if (beforeJournal !== null && beforeJournal.size > 0n) {
       throw new TransientSnapshotError()
     }
     assertSourceBounds(beforeMain)
-    await requireWalDatabaseHeader(sourcePath)
+    await requireWalDatabaseHeader(sourceHandle)
 
-    await copyFile(sourcePath, snapshotPath, constants.COPYFILE_FICLONE)
+    const copiedSnapshot = await copyOpenFile(sourceHandle, snapshotPath, Number(beforeMain.size))
+    snapshotHandle = copiedSnapshot.handle
+    requireSameSourceVersion(copiedSnapshot.version, await sourceFileVersion(snapshotPath))
+    requireSameSourceVersion(copiedSnapshot.version, await sourceHandleVersion(snapshotHandle))
 
+    const afterHandle = await sourceHandleVersion(sourceHandle)
     const afterMain = await sourceFileVersion(sourcePath)
     const afterWal = await sourceFileVersion(`${sourcePath}-wal`, true)
+    const afterShm = await sourceFileVersion(`${sourcePath}-shm`, true)
     const afterJournal = await sourceFileVersion(`${sourcePath}-journal`, true)
+    const afterDirectory = await sourceDirectoryVersion(sourceDirectory)
+    const afterDirectoryParent = await sourceDirectoryVersion(sourceDirectoryParent)
     if (
       afterMain === null ||
+      (afterShm !== null && afterShm.size > 0n) ||
       (afterJournal !== null && afterJournal.size > 0n) ||
+      !sameSourceVersion(beforeMain, afterHandle) ||
       !sameSourceVersion(beforeMain, afterMain) ||
       !sameSourceVersion(beforeWal, afterWal) ||
-      !sameSourceVersion(beforeJournal, afterJournal)
+      !sameSourceVersion(beforeShm, afterShm) ||
+      !sameSourceVersion(beforeJournal, afterJournal) ||
+      !sameSourceVersion(beforeDirectory, afterDirectory) ||
+      !sameSourceVersion(beforeDirectoryParent, afterDirectoryParent)
     ) {
       throw new TransientSnapshotError()
     }
-    return readCookieStorage(snapshotPath)
+
+    const beforeNormalizationDirectory = await sourceDirectoryVersion(snapshotDirectory)
+    await requireOnlySnapshotDatabase(snapshotDirectory)
+    await normalizeSnapshotForRead(snapshotHandle)
+    await requireOnlySnapshotDatabase(snapshotDirectory)
+    requireSameSourceVersion(
+      beforeNormalizationDirectory,
+      await sourceDirectoryVersion(snapshotDirectory)
+    )
+    const snapshotVersion = await sourceHandleVersion(snapshotHandle)
+    const beforeSnapshot = await sourceFileVersion(snapshotPath)
+    requireSameSourceVersion(snapshotVersion, beforeSnapshot)
+    requireSameSourceVersion(snapshotVersion, await sourceHandleVersion(snapshotHandle))
+    await requireOnlySnapshotDatabase(snapshotDirectory)
+    const beforeSnapshotRoot = await sourceDirectoryVersion(snapshotRoot)
+    const beforeSnapshotDirectory = await sourceDirectoryVersion(snapshotDirectory)
+    const result = readCookieStorage(snapshotPath)
+    const afterSnapshot = await sourceFileVersion(snapshotPath)
+    const afterSnapshotHandle = await sourceHandleVersion(snapshotHandle)
+    await requireOnlySnapshotDatabase(snapshotDirectory)
+    const afterSnapshotDirectory = await sourceDirectoryVersion(snapshotDirectory)
+    const afterSnapshotRoot = await sourceDirectoryVersion(snapshotRoot)
+    requireSameSourceVersion(snapshotVersion, afterSnapshot)
+    requireSameSourceVersion(snapshotVersion, afterSnapshotHandle)
+    requireSameSourceVersion(beforeSnapshotDirectory, afterSnapshotDirectory)
+    requireSameSourceVersion(beforeSnapshotRoot, afterSnapshotRoot)
+    return result
   } finally {
+    await snapshotHandle?.close().catch(() => undefined)
+    await sourceHandle?.close().catch(() => undefined)
     await removeSnapshotPath(snapshotDirectory)
   }
 }
@@ -377,11 +494,17 @@ async function readCookieStorageWithRetry(
 }
 
 async function readCookieStorageInTemporaryRoot(databasePath: string): Promise<unknown> {
-  const tempPath = app.getPath('temp')
+  const sourceDirectory = await realpath(dirname(databasePath))
+  const tempPath = await realpath(app.getPath('temp'))
+  if (isAtOrBelow(sourceDirectory, tempPath) || isAtOrBelow(tempPath, sourceDirectory)) {
+    throw new RejectedSnapshotError()
+  }
   await scavengeSnapshotRoots(tempPath)
   const snapshotRoot = await mkdtemp(join(tempPath, SNAPSHOT_ROOT_PREFIX))
 
   try {
+    const resolvedSnapshotRoot = await realpath(snapshotRoot)
+    if (isAtOrBelow(sourceDirectory, resolvedSnapshotRoot)) throw new RejectedSnapshotError()
     await chmod(snapshotRoot, 0o700)
     await createSnapshotMarker(snapshotRoot)
     return await readCookieStorageWithRetry(databasePath, snapshotRoot)
