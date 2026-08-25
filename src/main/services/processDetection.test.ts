@@ -49,6 +49,20 @@ describe('detectVrProcesses', () => {
     ).toEqual({ vrchat: true, chilloutvr: true, steamvr: false })
   })
 
+  it('detects a Wine target under an unquoted Steam library path with spaces', () => {
+    expect(
+      detectVrProcesses([
+        {
+          pid: 303,
+          name: 'wine64-preloader',
+          ppid: 1,
+          path: '/usr/lib/wine/wine64-preloader',
+          cmd: 'wine64-preloader /mnt/VR Games/SteamLibrary/steamapps/common/VRChat/VRChat.exe --no-vr'
+        }
+      ])
+    ).toEqual({ vrchat: true, chilloutvr: false, steamvr: false })
+  })
+
   it('does not treat partial executable-name matches as running apps', () => {
     expect(
       detectVrProcesses([
@@ -65,7 +79,7 @@ describe('detectVrProcesses', () => {
           pid: 405,
           name: 'wine64-preloader',
           ppid: 1,
-          cmd: 'wine64-preloader /compatdata/438100/pfx/drive_c/VRChat/crashhandler.exe'
+          cmd: 'wine64-preloader /compatdata/438100/pfx/drive_c/VRChat/crashhandler.exe --label /tmp/VRChat.exe'
         },
         {
           pid: 406,
