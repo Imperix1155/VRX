@@ -4,6 +4,7 @@ import { constants } from 'node:fs'
 import {
   copyFile,
   link,
+  lstat,
   mkdir,
   mkdtemp,
   open,
@@ -505,7 +506,7 @@ describe('VRCX session import', () => {
     locker.exec('BEGIN EXCLUSIVE')
 
     try {
-      expect((await readFile(`${path}-shm`)).length).toBeGreaterThan(0)
+      expect((await lstat(`${path}-shm`)).size).toBeGreaterThan(0)
       await expect(importVrcxSession()).resolves.toBeNull()
       expect(mocks.copyOpenFile).not.toHaveBeenCalled()
       expect(mocks.saveCredential).not.toHaveBeenCalled()
