@@ -21,14 +21,31 @@ function blockMapForPayload({ name = 'file', checksum = blockMapChecksum(appImag
   }
 }
 
-function appImageWithBlockMap(blockMap) {
+function appImageWithBlockMap(blockMap, payload = appImagePayload) {
   const compressedBlockMap = deflateRawSync(JSON.stringify(blockMap))
   const trailer = Buffer.alloc(4)
   trailer.writeUInt32BE(compressedBlockMap.length)
   return {
-    bytes: Buffer.concat([appImagePayload, compressedBlockMap, trailer]),
+    bytes: Buffer.concat([payload, compressedBlockMap, trailer]),
     blockMapSize: compressedBlockMap.length
   }
+}
+
+function appImageWithPayloadChunks(payload, chunks) {
+  return appImageWithBlockMap(
+    {
+      version: '2',
+      files: [
+        {
+          name: 'file',
+          offset: 0,
+          checksums: chunks.map(blockMapChecksum),
+          sizes: chunks.map((chunk) => chunk.length)
+        }
+      ]
+    },
+    payload
+  )
 }
 
 const validAppImage = appImageWithBlockMap(blockMapForPayload())
@@ -236,6 +253,33 @@ describe('verifyLinuxUpdateMetadata', () => {
     const appImage = appImageWithBlockMap(
       blockMapForPayload({ checksum: blockMapChecksum(Buffer.from('different payload')) })
     )
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map files must describe the AppImage payload'
+    )
+  })
+
+  it('rejects non-final chunks smaller than electron-builder can emit', async () => {
+    const payload = Buffer.alloc(8193)
+    const chunks = [payload.subarray(0, 1), payload.subarray(1)]
+    const appImage = appImageWithPayloadChunks(payload, chunks)
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map files must describe the AppImage payload'
+    )
+  })
+
+  it('rejects chunks larger than electron-builder can emit', async () => {
+    const payload = Buffer.alloc(32769)
+    const appImage = appImageWithPayloadChunks(payload, [payload])
     const fixture = await createFixture({
       appImage: appImage.bytes,
       blockMapSize: appImage.blockMapSize
