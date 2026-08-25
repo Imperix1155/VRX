@@ -540,12 +540,18 @@ const selectCredential = (
 /**
  * Read-only CVR session discovery. Game auto-login profiles are preferred;
  * CVRX credentials are the fallback. Malformed, unsafe, absent, ambiguous, or
- * over-budget inputs are ignored; null means neither source produced one safe,
- * unambiguous credential pair.
+ * over-budget inputs and unsafe root paths are ignored before source I/O; null
+ * means neither source produced one safe, unambiguous credential pair.
  */
 export async function importCvrSession(
   paths: CvrSessionImportPaths
 ): Promise<CVRCredentials | null> {
+  if (
+    !isLocalAbsolutePath(paths.appDataPath, paths.platform) ||
+    !isLocalAbsolutePath(paths.homePath, paths.platform)
+  ) {
+    return null
+  }
   const controller = new AbortController()
   const context: ImportContext = {
     controller,
