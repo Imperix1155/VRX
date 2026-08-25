@@ -266,31 +266,22 @@
       "counter": "{{current}}/500"
     }
   },
+  "policySpace": {
+    "public": "Public space",
+    "private": "Private space",
+    "unknown": "Unknown",
+    "more": {
+      "public": "Public spaces use stricter public-instance moderation rules. Conduct allowed in a private space may still be moderated here.",
+      "privateVrc": "VRChat uses different moderation rules in private spaces. Some public-space restrictions do not apply, but reports are handled under public-instance moderation rules. Platform-wide rules still apply.",
+      "privateCvr": "ChilloutVR uses different moderation rules in private spaces. Some public-space restrictions do not apply, and moderation relies more on local safety and instance-management tools. Platform-wide rules and enforcement still apply.",
+      "unknown": "VRX couldn't confirm which moderation context applies. Platform-wide rules still apply."
+    }
+  },
   "joinConfirm": {
     "title": "Join this {{type}} instance?",
     "titleUnknown": "Join this instance?",
     "context": "{{name}} is in {{world}}",
-    "openness": {
-      "public": "This instance is considered an open instance.",
-      "private": "This instance is considered a closed instance.",
-      "unknown": "We couldn't confirm whether this instance is open or closed.",
-      "groupPublic": "This instance is considered an open instance.",
-      "groupPlus": "This instance is considered an open instance.",
-      "groupPlusCvr": "This instance is considered an open instance.",
-      "groupOnly": "This instance is considered a closed instance."
-    },
-    "theGroup": "the group",
     "moreToggle": "More info",
-    "more": {
-      "public": "Anyone can walk into a public instance — treat it as a fully open space.",
-      "friendsPlus": "Friends of anyone already inside can join, so the crowd can be wider than your own friend list. Treat it as open.",
-      "private": "Only friends of people inside — or players holding an invite — can get in. It's still not a private channel: the instance owner and moderators can see everything.",
-      "unknown": "VRX couldn't read this instance's privacy, so it can't say how open it is. Treat it as open.",
-      "groupPublic": "This instance of {{group}} is open to everyone, not just group members — treat it as a fully open space.",
-      "groupPlus": "Group+ admits group members plus friends of anyone currently in the instance, so the crowd can be wider than your own friend list. Treat it as open.",
-      "groupPlusCvr": "You don't need to be in {{group}}: friends of its members can join, so the crowd can be wider than your own friend list. Treat it as open.",
-      "groupOnly": "Only {{group}} members can get in — friendship and invites don't apply here. It's still not a private channel: group staff and moderators can see everything."
-    },
     "peopleCount_one": "· {{count}} person",
     "peopleCount_other": "· {{count}} people",
     "mode": {

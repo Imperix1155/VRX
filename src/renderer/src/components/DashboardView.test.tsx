@@ -555,7 +555,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(screen.getByTestId('pending').textContent).toBe('none')
   })
 
-  it('sheet shows banner name, ALL member chips, instance id, and openness sentence', () => {
+  it('sheet shows banner name, ALL member chips, instance id, and policy space', () => {
     // 6 friends proves the sheet never truncates (the card truncates at 4).
     const names = ['Nyx', 'Kettle', 'GrayCoat', 'Vex', 'Zoe', 'Amy']
     stubQueries(
@@ -574,8 +574,8 @@ describe('HotInstanceSheet (VRX-250)', () => {
     }
     // Instance id.
     expect(screen.getByText('wrld_sun:1~public')).toBeTruthy()
-    // Openness sentence (public).
-    expect(screen.getByText(msg('joinConfirm.openness.public'))).toBeTruthy()
+    // Policy space (public).
+    expect(screen.getByText(msg('policySpace.public'))).toBeTruthy()
   })
 
   it('platform stripe is clipped inside the panel radius container, not full-window', () => {
@@ -630,7 +630,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(scrim.className).not.toMatch(/\bbottom-0\b/)
   })
 
-  it('openness sentence sits above the friends-here heading in DOM order', () => {
+  it('policy-space pill sits above the friends-here heading in DOM order', () => {
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
       { data: [], isPending: false }
@@ -639,14 +639,14 @@ describe('HotInstanceSheet (VRX-250)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /SunDown hot instance details/ }))
     const sheet = screen.getByRole('dialog', { name: 'SunDown' })
-    const openness = within(sheet).getByTestId('hot-sheet-openness-sentence')
+    const policy = within(sheet).getByTestId('hot-sheet-policy-space')
     const heading = within(sheet).getByRole('heading', {
       name: msg('hotSheet.friendsHereHeading', { count: 2 })
     })
 
-    expect(openness.textContent).toBe(msg('joinConfirm.openness.public'))
-    // The openness sentence precedes the friends-here heading in the DOM.
-    expect(heading.compareDocumentPosition(openness) & Node.DOCUMENT_POSITION_PRECEDING).toBe(
+    expect(policy.textContent).toBe(msg('policySpace.public'))
+    // The policy-space pill precedes the friends-here heading in the DOM.
+    expect(heading.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_PRECEDING).toBe(
       Node.DOCUMENT_POSITION_PRECEDING
     )
   })
@@ -715,7 +715,7 @@ describe('HotInstanceSheet (VRX-250)', () => {
     expect(screen.queryByText(/Hosted by/)).toBeNull()
   })
 
-  it('opennessUnknown renders the unknown copy', () => {
+  it('opennessUnknown renders the neutral Unknown policy pill', () => {
     const unknownWorld = (id: string, name: string): Friend =>
       makeFriend({
         platformUserId: id,
@@ -743,7 +743,11 @@ describe('HotInstanceSheet (VRX-250)', () => {
     render(<DashboardView />)
 
     fireEvent.click(screen.getByRole('button', { name: /Mystery World hot instance details/ }))
-    expect(screen.getByText(msg('joinConfirm.openness.unknown'))).toBeTruthy()
+    const policy = screen
+      .getByTestId('hot-sheet-policy-space')
+      .querySelector('[data-policy-space-pill]')
+    expect(policy?.textContent).toBe(msg('policySpace.unknown'))
+    expect(policy?.getAttribute('data-policy-space')).toBe('unknown')
 
     // The banner instance-type pill (VRX-244): a degraded CVR privacy value
     // must not paint the guessed "Public" tier as fact — the neutral

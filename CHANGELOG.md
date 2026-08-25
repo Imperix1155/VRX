@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Join confirmations, friend details, and hot-instance details now show moderation context separately from instance access: Rose **Public space**, Ice **Private space**, or neutral **Unknown**. Join confirmation's More-info text explains that public and private spaces use different moderation approaches without behavior examples. Hot-instance details fall back to **Unknown** if member data disagrees, instead of letting friend arrival order choose the moderation context. (VRX-245)
 - VRX now bundles Latin and supported-symbol coverage for its Inter UI face and VT323 accent face as local WOFF2 files. Japanese and other unsupported scripts still use the operating system's fallback fonts. The standalone design references now use the bundled files instead of Google Fonts. (VRX-32)
 
 ### Hardening

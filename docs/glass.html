@@ -52,6 +52,12 @@
     --op-group: #8d61f0;
     --op-group-text: #b795ff;    /* Group's lifted dark text */
 
+    /* POLICY SPACE (§6.2) — moderation context, independent of access */
+    --policy-public: #ed7ab6;
+    --policy-public-text: #ed7ab6;
+    --policy-private: #62d3e8;
+    --policy-private-text: #62d3e8;
+
     /* DASHBOARD CARD (VRX-198) — who's-here lift + platform ghost pill (dark) */
     --names-lift: rgba(233, 228, 250, 0.88);
     --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 76%, white);
@@ -267,6 +273,10 @@
      13% bg / 36% border mixes = the app's. */
   .opill { display: inline-flex; align-items: center; justify-content: center; min-width: 78px; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--opc, var(--op)); background: color-mix(in srgb, var(--op) 13%, transparent); border: 1px solid color-mix(in srgb, var(--op) 36%, transparent); }
   .opill.neutral { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); }
+  .policy-pill { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--policy-text); background: color-mix(in srgb, var(--policy-base) 13%, transparent); border: 1px solid color-mix(in srgb, var(--policy-base) 36%, transparent); }
+  .policy-pill.public { --policy-base: var(--policy-public); --policy-text: var(--policy-public-text); }
+  .policy-pill.private { --policy-base: var(--policy-private); --policy-text: var(--policy-private-text); }
+  .policy-pill.unknown { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border-color: color-mix(in srgb, var(--text) 16%, transparent); }
 
   /* ---------- VRChat status pills (labeled) — the §5 status-pill FORM. After the
      §9.1 carve-out the friend ROW carries status via the avatar ring; this pill form
@@ -316,6 +326,10 @@
     --op-group-plus: #6d4fc9;
     --op-group: #5f3fc4;
     --op-group-text: #452f96;
+    --policy-public: #c84f91;
+    --policy-public-text: #8b3265;
+    --policy-private: #228eaa;
+    --policy-private-text: #17667a;
 
     /* DASHBOARD CARD (VRX-198) — light: names-lift + ghost label mixes toward black */
     --names-lift: rgba(30, 28, 42, 0.86);
@@ -398,7 +412,8 @@
      radius, banner area, pills, group card, and top layout. The live sheet is non-modal,
      closes on Esc/outside/✕, and replaces content in place when a different
      card is selected. Updated 2026-08-12: 150px banner, pills on the banner,
-     openness above friends heading, group card + ID in the right-zone meta stack. */
+     policy space above friends heading (aggregate disagreements widen to Unknown),
+     group card + ID in the right-zone meta stack. */
   .hsheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(720px,100% - 32px);border-radius:24px 24px 0 0;border:1px solid var(--border);border-bottom:none;background:linear-gradient(135deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03));box-shadow:0 -10px 38px rgba(0,0,0,0.36);overflow:hidden;z-index:50}
   .hsheet::before{content:"";position:absolute;inset:0;background:var(--glass-frost);opacity:0.86;backdrop-filter:var(--glass-blur);z-index:-1}
   .hsheet-stripe{height:4px;background:linear-gradient(90deg,var(--vrc),transparent)}
@@ -410,7 +425,7 @@
   .hsheet-name{font-size:21px;font-weight:700;text-shadow:0 2px 10px rgba(0,0,0,0.6)}
   .hsheet-pills{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;text-shadow:0 1px 6px rgba(0,0,0,0.6)}
   .hsheet-join{height:28px;padding:0 14px;border-radius:12px;font-size:12px;font-weight:600;color:var(--op-public);background:color-mix(in srgb,var(--op-public) 13%,transparent);border:1px solid color-mix(in srgb,var(--op-public) 36%,transparent);display:inline-flex;align-items:center;justify-content:center}
-  .hsheet-openness{padding:12px 16px 4px;font-size:12.5px;color:var(--text-faint)}
+  .hsheet-policy{padding:12px 16px 4px}
   .hsheet-section{display:flex;align-items:center;gap:8px;padding:4px 16px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint)}
   .hsheet-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 14px}
   .hsheet-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px;border:1px solid var(--border);background:var(--control-fill);font-size:12.5px;font-weight:500}
@@ -490,7 +505,7 @@
           </div>
           <div class="hsheet-join" role="button" tabindex="0">Join</div>
         </div>
-        <div class="hsheet-openness">Anyone can join this instance.</div>
+        <div class="hsheet-policy"><span class="policy-pill public">Public space</span></div>
         <div class="hsheet-section"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Friends here — 4</div>
         <div class="hsheet-chips">
           <span class="hsheet-chip"><span>A</span>Aria</span>
@@ -516,7 +531,7 @@
         <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Active" style="--ring: var(--active)"><span class="disc">P</span><span class="rb"></span></span><span><span class="fname">Pixel<span class="fcs">on the web — not in a world, no pill</span></span><span class="fworld" style="display:block"></span></span><span></span></div>
         <div class="frow cvr"><span class="ftab">CVR</span><span class="rav" role="img" aria-label="Online" style="--ring: var(--st-online)"><span class="disc">M</span><span class="rb"></span></span><span><span class="fname">Mika</span><span class="fworld" style="display:block">The Black Cat</span></span><span class="opill" style="--op: var(--op-friends-plus)">Friends+</span></div>
       </div>
-      <div style="font-size:10px;color:var(--text-faint);margin-top:6px;text-align:right">Friend drawer preview omitted — live rendering (world image, instance ID, openness line) follows DESIGN.md §9.2 / VRX-251</div>
+      <div style="font-size:10px;color:var(--text-faint);margin-top:6px;text-align:right">Friend drawer preview omitted — live rendering (world image, instance ID, policy-space pill) follows DESIGN.md §9.2</div>
       <div class="secline" style="margin-top:18px"><span class="kick">Openness Ladder</span> <span class="hint">§6.1 — green (open) → orange (locked) · groups purple, lighter = more open · hidden/offline-instance neutral</span></div>
       <div class="glass" style="padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
         <span class="opill" style="--op: var(--op-public)">Public</span>
@@ -530,6 +545,12 @@
         <span class="opill neutral">Private</span>
         <span class="opill neutral">Offline Instance</span>
         <span class="opill neutral">Unknown</span>
+      </div>
+      <div class="secline" style="margin-top:18px"><span class="kick">Policy Space</span> <span class="hint">§6.2 — moderation context, separate from access</span></div>
+      <div class="glass" style="padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <span class="policy-pill public">Public space</span>
+        <span class="policy-pill private">Private space</span>
+        <span class="policy-pill unknown">Unknown</span>
       </div>
     </main>
   </div>
