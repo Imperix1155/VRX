@@ -25,30 +25,34 @@ function executableName(value: string): string {
   return (value.split(/[\\/]/).at(-1) ?? value).toLowerCase()
 }
 
-function commandTokens(command: string): string[] {
-  return (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((token) => {
-    const quote = token[0]
-    return (quote === '"' || quote === "'") && token.at(-1) === quote ? token.slice(1, -1) : token
-  })
+function firstCommandExecutable(command: string): string | null {
+  const match = command.match(/^\s*(?:"([^"]*)"|'([^']*)'|(\S+))/)
+  const value = match?.[1] ?? match?.[2] ?? match?.[3]
+  return value ? executableName(value) : null
 }
 
-function commandExecutableNames(command: string): string[] {
-  const tokens = commandTokens(command)
-  if (!tokens[0]) return []
+function firstWineTargetExecutable(command: string): string | null {
+  const match = command.match(/(?:^|[\\/\s"'])([^\\/\s"']+\.exe)(?=["'\s]|$)/i)
+  return match?.[1]?.toLowerCase() ?? null
+}
 
-  const first = executableName(tokens[0])
-  if (!WINE_LAUNCHERS.has(first)) return [first]
+function commandExecutableNames(command: string, wineHost: boolean): string[] {
+  const first = firstCommandExecutable(command)
+  if (!first) return []
 
-  const targetIndex = tokens[1] === '--' ? 2 : 1
-  return tokens[targetIndex] ? [first, executableName(tokens[targetIndex])] : [first]
+  if (!wineHost && !WINE_LAUNCHERS.has(first)) return [first]
+
+  const target = firstWineTargetExecutable(command)
+  return target ? [first, target] : [first]
 }
 
 function processExecutableNames(process: ProcessDescriptor): string[] {
-  return [
+  const hostNames = [
     executableName(process.name),
-    ...(process.path ? [executableName(process.path)] : []),
-    ...(process.cmd ? commandExecutableNames(process.cmd) : [])
+    ...(process.path ? [executableName(process.path)] : [])
   ]
+  const wineHost = hostNames.some((name) => WINE_LAUNCHERS.has(name))
+  return [...hostNames, ...(process.cmd ? commandExecutableNames(process.cmd, wineHost) : [])]
 }
 
 /** Classify a process snapshot without performing I/O. */
