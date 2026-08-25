@@ -48,10 +48,11 @@ import { useFriendNote } from '../hooks/useFriendNote'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { instancePillFor, type OpennessTier } from '../utils/instancePill'
-import { opennessAssessmentFor, type OpennessAssessment } from '../utils/instanceOpenness'
+import { policySpaceFor } from '../utils/instancePolicySpace'
 import { ringFor, isWorldHidden } from '../utils/statusRing'
 import InstancePill from './InstancePill'
 import { Avatar } from './Avatar'
+import PolicySpacePill from './PolicySpacePill'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -182,7 +183,7 @@ export default function FriendDrawer({
   }
 
   // VRX-251 enrichment: world image through the SAME avatar pipeline, instance
-  // id, and the VRX-245 open/closed axis sentence. Only for visible instances
+  // id, and the policy-space pill. Only for visible instances
   // (Ask Me / DND / hidden worlds show none of it).
   const worldImageRef = useRef<HTMLDivElement>(null)
   const thumbnailUrl = visibleInstance?.thumbnailUrl ?? null
@@ -194,13 +195,10 @@ export default function FriendDrawer({
   const imageKey = JSON.stringify([thumbnailUrl, shown?.platform, shown?.platformUserId])
   const [failedKey, setFailedKey] = useState<string | null>(null)
   const imageFailed = failedKey === imageKey
-  const OPENNESS_KEY: Record<OpennessAssessment, string> = {
-    open: 'joinConfirm.openness.public',
-    closed: 'joinConfirm.openness.private',
-    unknown: 'joinConfirm.openness.unknown'
-  }
-  const opennessKey =
-    visibleInstance != null ? OPENNESS_KEY[opennessAssessmentFor(visibleInstance)] : null
+  const policySpace =
+    shown !== null && visibleInstance !== null
+      ? policySpaceFor(shown.platform, visibleInstance)
+      : null
   const trustKey =
     shown?.platform === 'vrchat' && shown.trustRank != null ? TRUST_RANK_KEY[shown.trustRank] : null
   const customStatus = shown?.platform === 'vrchat' ? (shown.statusDescription ?? null) : null
@@ -340,13 +338,10 @@ export default function FriendDrawer({
                     {visibleInstance.instanceId}
                   </p>
                 )}
-                {opennessKey != null && (
-                  <p
-                    data-testid="friend-drawer-openness"
-                    className="text-[12px] text-[var(--text-dim)]"
-                  >
-                    {t(opennessKey)}
-                  </p>
+                {policySpace !== null && (
+                  <div data-testid="friend-drawer-policy-space">
+                    <PolicySpacePill space={policySpace} />
+                  </div>
                 )}
                 {trustKey != null && (
                   <p className="text-[12px] text-[var(--text-dim)]">

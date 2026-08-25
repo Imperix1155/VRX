@@ -38,6 +38,11 @@
     --op-group-plus: #9d80f6;
     --op-group: #8d61f0;
     --op-group-text: #b795ff;
+    /* §6.2 policy space — moderation context, independent of access */
+    --policy-public: #ed7ab6;
+    --policy-public-text: #ed7ab6;
+    --policy-private: #62d3e8;
+    --policy-private-text: #62d3e8;
     /* Dashboard card (VRX-198) — who's-here lift + platform ghost pill */
     --names-lift: rgba(233, 228, 250, 0.88);
     --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 76%, white);
@@ -279,6 +284,10 @@
   /* §6.1 tier-colored instance pill (mirrors the app's friend-row pill) */
   .opill { display: inline-flex; align-items: center; justify-content: center; min-width: 78px; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--opc, var(--op)); background: color-mix(in srgb, var(--op) 13%, transparent); border: 1px solid color-mix(in srgb, var(--op) 36%, transparent); }
   .opill.neutral { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); }
+  .policy-pill { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--policy-text); background: color-mix(in srgb, var(--policy-base) 13%, transparent); border: 1px solid color-mix(in srgb, var(--policy-base) 36%, transparent); }
+  .policy-pill.public { --policy-base: var(--policy-public); --policy-text: var(--policy-public-text); }
+  .policy-pill.private { --policy-base: var(--policy-private); --policy-text: var(--policy-private-text); }
+  .policy-pill.unknown { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border-color: color-mix(in srgb, var(--text) 16%, transparent); }
 
   /* type samples */
   .type-inter { display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline; }
@@ -379,7 +388,7 @@
       <section class="panel glass" id="color">
         <div class="kick">02 · Tokens</div>
         <div class="stitle">Color tokens</div>
-        <p class="slead">Three families: <b>base/text</b>, the <b>platform</b> pair, and <b>presence</b>. Everything in the app pulls from these CSS variables — no raw hex anywhere else.</p>
+        <p class="slead">Base/text, platform, presence, access, and policy-space colors all come from semantic tokens. Everything in the app pulls from these CSS variables — no raw hex anywhere else.</p>
         <div class="el" style="border:0;padding-top:14px;">
           <div class="swatches">
             <div class="sw"><div class="chip" style="background:#08080b"></div><div class="nm">--bg-base</div><div class="hex">#08080b</div><div class="role">App background</div></div>
@@ -388,6 +397,8 @@
             <div class="sw"><div class="chip" style="background:#f3711e"></div><div class="nm">--cvr</div><div class="hex">#f3711e</div><div class="role"><b style="color:var(--cvr)">ChilloutVR</b> · orange</div></div>
             <div class="sw"><div class="chip" style="background:#e8e8f0"></div><div class="nm">--bridge</div><div class="hex">#e8e8f0</div><div class="role">Merge / shared</div></div>
             <div class="sw"><div class="chip" style="background:#34d399"></div><div class="nm">--ingame</div><div class="hex">#34d399</div><div class="role">In a world (green)</div></div>
+            <div class="sw"><div class="chip" style="background:#ed7ab6"></div><div class="nm">--policy-public</div><div class="hex">#ed7ab6</div><div class="role">Public policy space · Rose</div></div>
+            <div class="sw"><div class="chip" style="background:#62d3e8"></div><div class="nm">--policy-private</div><div class="hex">#62d3e8</div><div class="role">Private policy space · Ice</div></div>
             <div class="sw"><div class="chip" style="background:#2dd4bf"></div><div class="nm">--active</div><div class="hex">#2dd4bf</div><div class="role">Active — online, not in&#8209;game (teal)</div></div>
             <div class="sw"><div class="chip" style="background:#6b6480"></div><div class="nm">--offline</div><div class="hex">#6b6480</div><div class="role">Offline (gray)</div></div>
           </div>
@@ -490,6 +501,7 @@ body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
             <tr><td><b>State</b></td><td>the avatar <b>dot</b></td><td>green in-game · teal active · gray offline</td><td class="no">a text/panel color</td></tr>
             <tr><td><b>Status</b> <span style="color:var(--text-faint)">(VRChat)</span></td><td>a labeled <b>pill</b></td><td>Join Me · Online · Ask Me · DND · custom msg</td><td class="no">a bare dot; a CVR equivalent</td></tr>
             <tr><td><b>Openness</b></td><td>the instance <b>pill</b> (friend row) / icon badge</td><td>§6.1 tier color + VRChat-scheme label (VRX-182); hidden = neutral</td><td class="no">colored by platform; a hue for Private</td></tr>
+            <tr><td><b>Policy space</b></td><td>below location context in confirmation/detail surfaces</td><td>Rose Public space · Ice Private space · neutral Unknown</td><td class="no">calling it an access type</td></tr>
             <tr><td><b>Joinability</b></td><td>right-side <b>affordance</b></td><td>Join / Ask / ⊘ (derived)</td><td class="no">reusing a platform hue</td></tr>
             <tr><td><b>Trust</b></td><td>opt-in muted pill</td><td><b>off by default; names neutral</b></td><td class="no">a name color, or on by default</td></tr>
           </table>
@@ -631,6 +643,13 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
             <span class="opill neutral">Unknown</span>
             <span style="font-size:12px;color:var(--text-faint)">← hue = family · shade = tier · same colors on both platforms</span>
           </div>
+          <div class="why" style="margin-top:16px;"><b>Policy space is a second axis, not another instance type.</b> The type pill still answers who can join. The policy pill summarizes the broad moderation context in a fixed location, using visible words plus Rose/Ice so it remains legible without color.</div>
+          <div class="demo" style="margin-top:10px;flex-wrap:wrap;gap:8px;">
+            <span class="policy-pill public">Public space</span>
+            <span class="policy-pill private">Private space</span>
+            <span class="policy-pill unknown">Unknown</span>
+            <span style="font-size:12px;color:var(--text-faint)">same 28px / 10px / 13% / 36% pill recipe</span>
+          </div>
         </div>
       </section>
 
@@ -763,7 +782,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 .opill { <span class="c">/* openness label; the join target */</span> }</div></div>
             <div><div class="box-label why">Why</div><div class="why">The list keeps only the visible row window mounted, so large rosters remain responsive without adding a nested scroller. The active presence header stays sticky, offscreen overscan section toggles leave the sequential Tab order, and focus moves to the newly sticky header if scrolling carries a focused section away. Stable friend keys retain the scroll window across live rerenders, and one intersecting avatar opener owns the roving Tab stop; ↑/↓ moves it across virtual-window boundaries. Mounted rows publish their logical position and full virtual list size to assistive technology. The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; only fully visible Join pills enter sequential Tab order, while overscan controls remain programmatically available with <code style="font-family:var(--code)">tabIndex=-1</code>. Private stays neutral, and an active friend with no instance has no pill. A rate-limited Join announces “Too many attempts — try again shortly” in its polite status blip, never the generic failure.</div></div>
           </div>
-          <div class="why" style="margin-top:12px;font-size:12px;color:var(--text-faint)"><i>Friend drawer preview is representative only — the live drawer adds the world image block, instance ID line, and openness sentence described in DESIGN.md §9.2 (VRX-251).</i></div>
+          <div class="why" style="margin-top:12px;font-size:12px;color:var(--text-faint)"><i>Friend drawer preview is representative only — the live drawer adds the world image block, instance ID line, and separate policy-space pill described in DESIGN.md §9.2.</i></div>
         </div>
 
         <div class="el">
@@ -786,7 +805,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:0 16px 12px;">
                 <div style="flex:1;min-width:0;">
-                  <div style="padding:0 0 4px;font-size:12.5px;color:var(--text-faint);">Anyone can join this instance.</div>
+                  <span class="policy-pill public" style="margin-bottom:4px;">Public space</span>
                   <div style="padding:4px 0;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-faint);">FRIENDS HERE — 4</div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
@@ -799,7 +818,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
               </div>
             </div>
           </div>
-          <div class="why">The live sheet is bottom-anchored, ~34vh, frosted glass, with a 4px platform top stripe <b>clipped inside the panel's rounded top corners</b>, grab bar, and ✕. It is contained to the main content area so the sidebar stays visible. The banner is 150px tall and carries the world image (or quiet placeholder), name, the shared <code>InstancePill</code> (openness), the shared <code>PlatformPill</code> (non-color platform signifier), and a Join button. The openness sentence sits directly above the "FRIENDS HERE" heading; the right-zone meta stack shows the group card (200×80px, image or gradient placeholder, name overlaid bottom-left, <code>aria-label</code> "Hosted by {groupName}") above a smaller mono instance ID with its full value in <code>title</code>. <i>This static representative shows the shell + banner shape; the full non-modal interaction, motion, and light-mode parity are in the app and DESIGN.md §9.5.</i></div>
+          <div class="why">The live sheet is bottom-anchored, ~34vh, frosted glass, with a 4px platform top stripe <b>clipped inside the panel's rounded top corners</b>, grab bar, and ✕. It is contained to the main content area so the sidebar stays visible. The banner is 150px tall and carries the world image (or quiet placeholder), name, the shared <code>InstancePill</code> (access), the shared <code>PlatformPill</code> (non-color platform signifier), and a Join button. The separate <code>PolicySpacePill</code> sits directly above the "FRIENDS HERE" heading; its value is reconciled across every visible member and widens to neutral <b>Unknown</b> on disagreement, so arrival order cannot produce a confident moderation claim. The right-zone meta stack shows the group card (200×80px, image or gradient placeholder, name overlaid bottom-left, <code>aria-label</code> "Hosted by {groupName}") above a smaller mono instance ID with its full value in <code>title</code>. <i>This static representative shows the shell + banner shape; the full non-modal interaction, motion, and light-mode parity are in the app and DESIGN.md §9.5.</i></div>
         </div>
 
         <div class="el">
@@ -837,14 +856,14 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
       <section class="panel glass" id="light">
         <div class="kick">11 · Light mode</div>
         <div class="stitle">Same app, lights on</div>
-        <p class="slead">Dark is the default and the focus. Light mode is fully supported — but it is <b>not a second design</b>. It is the exact same VRX: same layout, same components, same channel law (§05), same openness ladder (§06), same typography (§07), same glyphs. Only the <b>tokens, glass material, and background</b> shift lighter, behind a single <code style="font-family:var(--code)">[data-theme="light"]</code> selector on <code style="font-family:var(--code)">&lt;html&gt;</code>. A user who flips the switch should feel like someone turned the lights on — not like they opened a different product. (See the live dark/light pair in §01.)</p>
+        <p class="slead">Dark is the default and the focus. Light mode is fully supported — but it is <b>not a second design</b>. It is the exact same VRX: same layout, same components, same channel law (§05), same openness ladder and policy-space axis (§06), same typography (§07), same glyphs. Only the <b>tokens, glass material, and background</b> shift lighter, behind a single <code style="font-family:var(--code)">[data-theme="light"]</code> selector on <code style="font-family:var(--code)">&lt;html&gt;</code>. A user who flips the switch should feel like someone turned the lights on — not like they opened a different product. (See the live dark/light pair in §01.)</p>
 
         <div class="el">
           <div class="el-name"><span class="ix">11.1</span> What changes vs. what stays</div>
           <div class="el-sum">The discipline that keeps the two themes in parity: a short list changes, everything structural stays.</div>
           <div class="grid2">
-            <div><div class="box-label" style="color:#8fb6e8">Shifts in light</div><div class="why" style="line-height:1.9;">• <b>Tokens</b> — base, text, platform, state, status all retune (below)<br>• <b>Glass material</b> — white pane instead of translucent-white-on-black<br>• <b>Background</b> — near-white canvas; glows softened; scanlines → dark-ink <code style="font-family:var(--code)">multiply</code><br>• <b>Contrast tuning</b> — borders/shadows become ink; pill text darkens</div></div>
-            <div><div class="box-label" style="color:#d2a8f0">Stays identical (theme-invariant)</div><div class="why" style="line-height:1.9;">• <b>Layout &amp; app shell</b> (§08) — pixel-for-pixel<br>• <b>The channel law</b> (§05) — platform/state/status/openness/trust, same locations<br>• <b>Openness ladder</b> (§06) — same icons, same neutral badges<br>• <b>Typography</b> (§07) — Inter + VT323, same roles<br>• <b>Every component</b> (§09) — no light-only classes, ever</div></div>
+            <div><div class="box-label" style="color:#8fb6e8">Shifts in light</div><div class="why" style="line-height:1.9;">• <b>Tokens</b> — base, text, platform, state, status, openness, and policy-space all retune (below)<br>• <b>Glass material</b> — white pane instead of translucent-white-on-black<br>• <b>Background</b> — near-white canvas; glows softened; scanlines → dark-ink <code style="font-family:var(--code)">multiply</code><br>• <b>Contrast tuning</b> — borders/shadows become ink; pill text darkens</div></div>
+            <div><div class="box-label" style="color:#d2a8f0">Stays identical (theme-invariant)</div><div class="why" style="line-height:1.9;">• <b>Layout &amp; app shell</b> (§08) — pixel-for-pixel<br>• <b>The channel law</b> (§05) — platform/state/status/openness/policy/trust, same locations<br>• <b>Access + policy axes</b> (§06) — same labels and neutral fallbacks<br>• <b>Typography</b> (§07) — Inter + VT323, same roles<br>• <b>Every component</b> (§09) — no light-only classes, ever</div></div>
           </div>
         </div>
 
@@ -860,8 +879,10 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
             <div class="sw"><div class="chip" style="background:#0f9f6e"></div><div class="nm">--ingame</div><div class="hex">#0f9f6e</div><div class="role">In a world (green)</div></div>
             <div class="sw"><div class="chip" style="background:#0d9488"></div><div class="nm">--active</div><div class="hex">#0d9488</div><div class="role">Active (teal)</div></div>
             <div class="sw"><div class="chip" style="background:#8a8d99"></div><div class="nm">--offline</div><div class="hex">#8a8d99</div><div class="role">Offline (gray)</div></div>
+            <div class="sw"><div class="chip" style="background:#c84f91"></div><div class="nm">--policy-public</div><div class="hex">#c84f91</div><div class="role">Public policy base · Rose</div></div>
+            <div class="sw"><div class="chip" style="background:#228eaa"></div><div class="nm">--policy-private</div><div class="hex">#228eaa</div><div class="role">Private policy base · Ice</div></div>
           </div>
-          <div class="why" style="margin-top:14px;"><b>Status pills</b> get darker companion text for contrast on light fills: Join Me <code style="font-family:var(--code)">#124e91</code> · Online <code style="font-family:var(--code)">#0f6e35</code> · Ask Me <code style="font-family:var(--code)">#91480e</code> · DND <code style="font-family:var(--code)">#8d2428</code>. Authoritative set: DESIGN.md §2A.</div>
+          <div class="why" style="margin-top:14px;"><b>Status pills</b> get darker companion text for contrast on light fills: Join Me <code style="font-family:var(--code)">#124e91</code> · Online <code style="font-family:var(--code)">#0f6e35</code> · Ask Me <code style="font-family:var(--code)">#91480e</code> · DND <code style="font-family:var(--code)">#8d2428</code>. Policy-space text also darkens: Rose <code style="font-family:var(--code)">#8b3265</code> · Ice <code style="font-family:var(--code)">#17667a</code>. Authoritative set: DESIGN.md §2A.</div>
         </div>
 
         <div class="el">

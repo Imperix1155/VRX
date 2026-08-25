@@ -80,6 +80,11 @@ LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interacti
   --st-online-text: var(--st-online);
   --st-askme-text: var(--st-askme);
   --st-dnd-text: var(--st-dnd);
+  /* POLICY SPACE — moderation context, separate from instance access */
+  --policy-public: #ed7ab6;
+  --policy-public-text: #ed7ab6;
+  --policy-private: #62d3e8;
+  --policy-private-text: #62d3e8;
   --glass-blur: blur(26px) saturate(165%);
   /* FROSTED variant (VRX-226) — panels floating OVER content */
   --glass-frost: rgba(13, 15, 22, 0.78);
@@ -124,6 +129,10 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
   --st-online-text: #0f6e35;
   --st-askme-text: #91480e;
   --st-dnd-text: #8d2428;
+  --policy-public: #c84f91;
+  --policy-public-text: #8b3265;
+  --policy-private: #228eaa;
+  --policy-private-text: #17667a;
   --glass-blur: blur(24px) saturate(142%);
   --glass-frost: rgba(244, 247, 252, 0.84);
   --glass-blur-frosted: blur(30px) saturate(142%);
@@ -269,6 +278,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 | State (presence) | the avatar **dot**                                                                  | in-game `--ingame` green · active `--active` teal · offline `--offline` gray                                   | color on text/panel; making it blue                              |
 | Status (VRChat)  | a **labeled pill**                                                                  | Join Me / Online / Ask Me / DND (VRChat hues) + custom msg                                                     | a bare dot; reusing the dot; a CVR equivalent                    |
 | Openness         | right-side instance **pill** (friend row) / icon badge                              | `--op-*` tier color + VRChat-scheme label (§6 ladder + label rule, VRX-182); hidden/offline-instance = neutral | color by platform; a hue for Private                             |
+| Policy space     | below location context in join confirmation / detail surfaces                       | Rose `Public space` · Ice `Private space` · neutral `Unknown` (§6.2)                                           | treating it as another access type; color without the label      |
 | Joinability      | right-side **affordance**                                                           | `Join` / `Ask` / `⊘` (neutral, derived)                                                                        | reusing a platform/status hue                                    |
 | Trust            | opt-in muted pill (right)                                                           | OFF by default; names neutral                                                                                  | name color; default-on                                           |
 
@@ -310,7 +320,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
 Scale (most open → most closed): `Public → Friends+ → Friends → Invite+ → Invite`. `Group` = chip MODIFIER on top of openness (a group instance is still public / friends-extended / members-only).
 
-**Openness-axis copy rule (VRX-245, owner 2026-08-02):** user-facing copy on the openness AXIS speaks only "open/closed" (the join dialog's assessment line). Public/Friends/Private vocabulary belongs exclusively to instance-TYPE labels/pills — the two may never share words.
+**Access and policy are separate axes (VRX-245 follow-up, owner 2026-08-25):** the instance-type pill answers who can join using the platform-true §6 ladder. The separate policy-space pill answers which broad moderation context applies. Never derive access wording from the policy label, describe policy space as an access type, or remove the instance-type pill because the policy pill is present.
 Shared icon sprite: `#o-public`(globe) `#o-fof`(person+plus) `#o-friends`(person) `#o-invite`(envelope) `#o-group`(two people).
 
 ### §6.1 Openness COLORS (owner-approved 2026-07-01 — replaces "badge always neutral gray")
@@ -333,6 +343,25 @@ The instance pill is colored by TIER so the type reads by color alone (hue = fam
 Pill treatment: text `--op-<tier>-text` · bg `color-mix(in srgb, var(--op-<tier>) 13%, transparent)` · border `36%` mix. Rules: friend ladder = green (open) → orange (locked), deliberately LIGHT oranges so Invite never reads as the CVR platform hue (`--cvr` stays deep red-orange); groups = purple family, lighter = more open; **Private/Offline-instance = hueless but readable** (they must recede behind joinable pills, never strain). CVR types color by their tier column above (FoF = Friends+, Everyone-Can-Invite = Invite+, Owner-Must-Invite = Invite, Friends-of-Members = Group+, Members-Only = Group).
 
 **Unknown pill (owner design round 2026-08-14, VRX-244):** when `parseCvrPrivacy` can't recognize a CVR privacy value it degrades to a safe `owner-must-invite`/`invite` fallback and flags `InstanceInfo.opennessUnknown: true` — defensive understatement, correct and unchanged by this rule. Resolving the pill from `instance.type` alone then painted that GUESSED tier as fact (e.g. "Invite" in the locked-orange tier) — a truthful-signals violation. Every pill surface (FriendsList, FriendDrawer, DashboardView hot card, JoinConfirmDialog, HotInstanceSheet) instead renders the EXISTING neutral treatment — `tier: null`, no new token, no glyph, no dashed border — with the scheme-INVARIANT label **"Unknown"** (same word under all three label schemes, like "Offline Instance"): neutral = outside the openness ladder, the word alone is the signifier. Chosen with the Private/Offline-instance no-reading collision explicitly flagged — Unknown and Private/Offline Instance share one neutral recipe but never one word, so the pill's TEXT still discriminates "hidden by privacy" from "couldn't be read." The one resolver is `instancePillFor` (`src/renderer/src/utils/instancePill.ts`) — every pill surface must call it instead of indexing `LABEL_KEYS_BY_SCHEME`/`OPENNESS_TIER` directly.
+
+### §6.2 Policy-space pill (moderation context, owner-approved 2026-08-25)
+
+This pill is a separate semantic channel from the access/type pill above. It uses the same `PILL_BASE` geometry — 28px high, 10px radius, 1px border, 12px horizontal padding, 12px/600 word-only label — with a 13% background tint and 36% border mix. The visible words are the required non-color signifier.
+
+| Policy space  | Dark base/text                        | Light base           | Light text | Meaning                                                          |
+| ------------- | ------------------------------------- | -------------------- | ---------- | ---------------------------------------------------------------- |
+| Public space  | Rose `#ed7ab6`                        | `#c84f91`            | `#8b3265`  | The platform's stricter public-space moderation context applies. |
+| Private space | Ice `#62d3e8`                         | `#228eaa`            | `#17667a`  | The platform's private-space moderation context applies.         |
+| Unknown       | neutral `--text-dim` / `--text` mixes | same semantic tokens | same       | VRX cannot confirm the context; never guess Rose or Ice.         |
+
+Classifier mapping (`policySpaceFor`), based on platform + platform-true `InstanceInfo.type`:
+
+| Platform   | Public space                                                 | Private space                                     | Unknown                                                                                                    |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| VRChat     | Public, Group Public                                         | Friends+, Friends, Invite+, Invite, Group+, Group | `opennessUnknown`, offline/unexpected, or impossible platform/type pairs                                   |
+| ChilloutVR | Public, Group Public, Friends of Friends, Friends of Members | Friends, Everyone Can Invite, Owner Must Invite   | Members Only (group join privacy is not carried), Offline Instance, `opennessUnknown`, or impossible pairs |
+
+The pill is an at-a-glance summary, not conduct advice or a promise about individual enforcement. Do not add behavior examples. Rose and Ice are reserved for this channel; Ice is distinguishable from active-state teal by its fixed location and always-visible label.
 
 **Pill presence rule (owner 2026-07-01):** a friend IN A WORLD always gets a pill — the tier label when visible, **"Private"** when the location is hidden (VRChat sends `location:"private"` for ANY friend in a private instance, regardless of status — `presence.state` is the in-world truth, never `status`). No pill ONLY when truly not in a world: offline, or online-on-web/app (`state:"active"`).
 
@@ -448,7 +477,7 @@ Clicking a friend's **avatar** (or Enter/Space on it — the avatar is the row's
 
 1. **Header** — 64px avatar with the 2.5px status ring (**NO corner badge at this size**); name 18px/700; custom status under it (12.5px `--text-dim`, VRChat only); ghost platform pill below ("VRChat"/"ChilloutVR" **full word**; `--plat-*-ghost-text/-border` tokens, transparent fill; height 24px, radius 9px, 11px/600).
 2. **Status band — the headline: status in WORDS.** Full-width rounded-10px band; border `color-mix(in srgb, var(--sc) 30%, transparent)`, bg `10%` mix, where `--sc` is the status token from the SAME `ringFor` fold as the row (CVR online = tier-2 Online — never forked); 10px dot in `--sc`; the status word 14px/700 in the status **`-text` companion token** (identical hue in dark; the §2A-mandated darker read in light); right-aligned descriptor 12px `--text-dim`. Copy (en; ja mirrors): Join Me/"Open to joins — hop in freely" · Online/"Around and reachable" · Ask Me/"Ask before joining" · Do Not Disturb/"Not accepting joins" · Offline/"Not connected". Web-active shows the word alone (no phase-1 descriptor). This band is the drawer-side non-color signifier that lets the row badge drop its glyph (R12).
-3. **WHERE** — uppercase 10.5px letterspaced label; for a **visible instance** (one that passes `isHotInstanceMember`): the current world's image through the shared avatar pipeline from `instance.thumbnailUrl` (16:9, rounded control-scale, collapsing when absent or when the image element fails to load; a quiet placeholder holds the slot while loading or when the fetch pipeline returns nothing), world name 14px/600 truncating + the SHARED `InstancePill` (identical tier logic/labels as the row), a quiet instance-ID line in `text-faint` VT323, and the VRX-245 openness sentence in `text-dim` ("This instance is considered an open/closed instance." — `opennessUnknown` shows the unknown copy, never a guessed tier). The enrichment fields render ONLY for an in-game friend passing `isHotInstanceMember`; Ask Me/DND show **"Hidden"** as the world and render NONE of the enrichment fields while in-game (`isWorldHidden` requires in-world presence, so an offline friend with a retained status never reads "Offline" + "Hidden"); hidden-but-in-world shows "Private" (same rule as the row's pill); a stale populated instance on a non-in-game friend renders nothing. Trust line `Trust: {rank}` (VRChat only, when known).
+3. **WHERE** — uppercase 10.5px letterspaced label; for a **visible instance** (one that passes `isHotInstanceMember`): the current world's image through the shared avatar pipeline from `instance.thumbnailUrl` (16:9, rounded control-scale, collapsing when absent or when the image element fails to load; a quiet placeholder holds the slot while loading or when the fetch pipeline returns nothing), world name 14px/600 truncating + the SHARED `InstancePill` (identical tier logic/labels as the row), a quiet instance-ID line in `text-faint` VT323, and the separate §6.2 `PolicySpacePill`. The enrichment fields render ONLY for an in-game friend passing `isHotInstanceMember`; Ask Me/DND show **"Hidden"** as the world and render NONE of the enrichment fields while in-game (`isWorldHidden` requires in-world presence, so an offline friend with a retained status never reads "Offline" + "Hidden"); hidden-but-in-world shows "Private" (same rule as the row's pill); a stale populated instance on a non-in-game friend renders nothing. Trust line `Trust: {rank}` (VRChat only, when known).
 4. **Actions** — ONE primary **Join** button, full width, shown ONLY when `isFriendJoinable(friend)`: border `color-mix(var(--op-public) 45%)`, bg `16%` mix, text `--op-public-text`; reuses the row's join flow (bridge call, in-flight guard, 2.5s failure blip in a polite live region).
 
 State: the selected friend id lives in the friends store (`selectedFriendId`, view state — composite `platform:platformUserId`). Future phases (VRX-70/72/75) add favorite/notes/history INTO this drawer.
@@ -456,6 +485,9 @@ State: the selected friend id lives in the friends store (`selectedFriendId`, vi
 ### §9.3 Join confirmation modal (VRX-210 / VRX-239/241)
 
 A TRUE modal (`aria-modal="true"`) over a soft scrim. Renders from the LIVE friend in the TanStack cache: drift shows a review notice, unhealthy/missing data shows Cancel-only unavailable.
+
+- The platform and instance-type pills stay together in the heading area. A separate §6.2 policy-space pill appears below the friend/world context: Rose **Public space**, Ice **Private space**, or neutral **Unknown**.
+- **More info** expands one short policy explanation inline. Public: “Public spaces use stricter public-instance moderation rules. Conduct allowed in a private space may still be moderated here.” VRChat private and ChilloutVR private use their approved platform-specific copy from `policySpace.more`; Unknown states that VRX could not confirm the context and that platform-wide rules still apply. No behavior examples or 18+ subject matter belong here.
 
 - **Focus trap** stays active while the modal is open, including during an in-flight launch. Disabled, hidden, and `aria-disabled` controls are excluded from the trap. When every control is disabled in flight, focus anchors on the dialog panel itself so Tab can never escape to the background.
 - **State precedence is exclusive, highest first:** waiting for a cache update after a main-side `target-changed` (Confirm disabled, Cancel live) → unhealthy query / missing friend / non-joinable → unavailable (Cancel only) → drift/review, which only healthy live data may enter.
@@ -498,12 +530,12 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 
 **Below the banner:**
 
-- Left: the muted openness sentence (`var(--text-faint)`, 12.5px) sits **directly above** the "FRIENDS HERE — {N}" heading — owner rationale: the openness note belongs where the join decision is made. Heading: 10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`. Friend CHIPS follow. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
+- Left: the §6.2 policy-space pill sits **directly above** the "FRIENDS HERE — {N}" heading, separate from the banner's instance-type/access pill. Its value is reconciled across every visible member in the aggregate; any transient policy-classification disagreement widens to neutral **Unknown**, so friend arrival order can never produce a confident moderation claim. Heading: 10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`. Friend CHIPS follow. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
 - Right: meta stack, right-aligned, justified to the bottom.
   - **Group card (VRX-260 / VRX-263):** rendered ONLY when `isGroup && groupId != null && groupName != null` on both VRChat and ChilloutVR group instances. Rectangular frame **200×80px**, `var(--radius-control)` overflow-hidden, above the instance ID. Image layer: loaded through the existing `useAvatar` pipeline (`window.vrx.getAvatar`) so only `data:` URLs enter the DOM; `object-cover`, `brightness(0.6)`. When no `groupImageUrl` is known → quiet gradient placeholder (`color-mix(in srgb, var(--text) 14%, transparent)` to `5%`). Group name overlaid bottom-left in **12.5px/600** with `var(--hot-sheet-banner-title-shadow)`; full name in `title=`. `aria-label` / sr-only text reads "Hosted by {groupName}" (`hotSheet.hostedBy`). A failed group image degrades to the gradient placeholder; a nameless group frame is forbidden.
-  - Instance ID in `ui-monospace` **10.5px** `var(--text-faint)` at the bottom of the zone (display the real `instanceId`; long values end-truncate via `truncate`, full value in `title=`). This is the demoted identity anchor. The openness sentence no longer lives in this stack.
+  - Instance ID in `ui-monospace` **10.5px** `var(--text-faint)` at the bottom of the zone (display the real `instanceId`; long values end-truncate via `truncate`, full value in `title=`). This is the demoted identity anchor. The policy-space pill lives in the left zone, never this stack.
 
-**Color law:** platform via the top stripe + the `PlatformPill` label only; openness via the `InstancePill` + WORDS in the left zone; no new color carriers. Must pass the §12 black-and-white test.
+**Color law:** platform via the top stripe + `PlatformPill`; access via `InstancePill`; moderation context via the fixed-location, visibly labeled `PolicySpacePill`. Must pass the §12 black-and-white test.
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 

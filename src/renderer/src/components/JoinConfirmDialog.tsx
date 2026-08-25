@@ -9,8 +9,8 @@
  * reserves the heavier `--scrim` for true modals, so the scrim choice is
  * flagged for the owner's eyeball rather than silently "upgraded".
  *
- * Visual-weight order (owner-ruled): type-named headline → openness (the
- * safety context) → who's-there → mode → actions. The "More info" expander
+ * Visual-weight order (owner-ruled): type-named headline → policy space (the
+ * moderation context) → who's-there → mode → actions. The "More info" expander
  * and the never-show-again control stay quiet footnotes, never peers of the
  * Confirm/Cancel buttons. Focus lands on Cancel (the safe default); Confirm
  * is visually primary but never auto-focused.
@@ -36,10 +36,12 @@ import { useFriends } from '../queries/friends'
 import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
+import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
 import { instancePillFor } from '../utils/instancePill'
 import { Avatar } from './Avatar'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
+import PolicySpacePill from './PolicySpacePill'
 import SegmentedControl from './SegmentedControl'
 
 /** Same ≤4-then-overflow discipline as the hot-instance card's who's-here. */
@@ -51,86 +53,13 @@ const MODE_LABEL_KEYS: Record<JoinMode, string> = {
   desktop: 'joinConfirm.mode.desktop'
 }
 
-/** The copy buckets the openness ladder collapses into for this dialog. */
-type OpennessCopy =
-  'public' | 'friends-plus' | 'private' | 'group-public' | 'group-plus' | 'group-only' | 'unknown'
-
-function opennessCopyFor(instance: InstanceInfo): OpennessCopy {
-  if (instance.opennessUnknown === true) return 'unknown'
-  // GROUP instances need group-accurate copy: their openness tier says WHO
-  // the group opened to (public / friends-of-members / members-only), but
-  // "gated by friendship or invites" would be FALSE for members-only — entry
-  // is gated by GROUP MEMBERSHIP (a friend-of-someone-inside cannot get in; a
-  // group member who is nobody's friend can). VRChat members-only maps to
-  // openness 'invite' (parseLocation pin); CVR members-only likewise.
-  if (instance.isGroup) {
-    if (instance.openness === 'public') return 'group-public'
-    if (instance.openness === 'friends-plus') return 'group-plus'
-    if (instance.openness === 'invite') return 'group-only'
-    // Defensive: group 'offline' or any unrecognized openness value must not
-    // be sold as members-only/closed. This keeps the dialog aligned with
-    // `opennessAssessmentFor` (instanceOpenness.ts) for the same edge.
-    return 'unknown'
+/** Platform-specific explanatory copy for the same classification as the pill. */
+function moreInfoKey(space: PolicySpace, platform: Platform): string {
+  if (space === 'public') return 'policySpace.more.public'
+  if (space === 'private') {
+    return platform === 'vrchat' ? 'policySpace.more.privateVrc' : 'policySpace.more.privateCvr'
   }
-  if (instance.openness === 'public') return 'public'
-  if (instance.openness === 'friends-plus') return 'friends-plus'
-  if (
-    instance.openness === 'friends' ||
-    instance.openness === 'invite-plus' ||
-    instance.openness === 'invite'
-  ) {
-    return 'private'
-  }
-  return 'unknown'
-}
-
-/** i18n key for the "Effectively …" safety sentence. Group variants keep the
- *  effectively-public/private framing (group-public/group-plus stay on the
- *  public side) and name the group via the {{group}} interpolation.
- *  Group+ is PLATFORM-SPECIFIC: VRChat's Group+ admits group members plus
- *  friends of whoever is CURRENTLY IN THE INSTANCE, while CVR's
- *  friends-of-members really is "friends of group members". */
-function effectivelyKey(copy: OpennessCopy, platform: Platform): string {
-  switch (copy) {
-    case 'public':
-    case 'friends-plus':
-      return 'joinConfirm.openness.public'
-    case 'private':
-      return 'joinConfirm.openness.private'
-    case 'group-public':
-      return 'joinConfirm.openness.groupPublic'
-    case 'group-plus':
-      return platform === 'chilloutvr'
-        ? 'joinConfirm.openness.groupPlusCvr'
-        : 'joinConfirm.openness.groupPlus'
-    case 'group-only':
-      return 'joinConfirm.openness.groupOnly'
-    default:
-      return 'joinConfirm.openness.unknown'
-  }
-}
-
-/** i18n key for the "More info" explainer — per tier where the meaning differs
- *  (group-plus additionally per platform — see effectivelyKey). */
-function moreInfoKey(copy: OpennessCopy, platform: Platform): string {
-  switch (copy) {
-    case 'public':
-      return 'joinConfirm.more.public'
-    case 'friends-plus':
-      return 'joinConfirm.more.friendsPlus'
-    case 'private':
-      return 'joinConfirm.more.private'
-    case 'group-public':
-      return 'joinConfirm.more.groupPublic'
-    case 'group-plus':
-      return platform === 'chilloutvr'
-        ? 'joinConfirm.more.groupPlusCvr'
-        : 'joinConfirm.more.groupPlus'
-    case 'group-only':
-      return 'joinConfirm.more.groupOnly'
-    default:
-      return 'joinConfirm.more.unknown'
-  }
+  return 'policySpace.more.unknown'
 }
 
 /** The quiet "will launch in …" line for a CVR friend with an EXPLICIT mode
@@ -412,23 +341,22 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           LABEL_KEYS_BY_SCHEME[labelScheme][instanceForCopy.type] ?? 'friends.instance.unknownWorld'
         )
       : null
-  const opennessCopy = instanceForCopy !== null ? opennessCopyFor(instanceForCopy) : 'unknown'
+  const policySpace =
+    instanceForCopy !== null ? policySpaceFor(friendForCopy.platform, instanceForCopy) : 'unknown'
   // The pill is resolved independently of the headline (VRX-244): an unknown-
   // openness instance still gets an honest "Unknown" pill rather than being
   // hidden — hiding it would be the same "quietly withhold the truth" failure
   // the truthful-signals law exists to prevent. `instanceForCopy === null`
   // (no live instance data at all) has nothing to resolve, so no pill.
   const pill = instanceForCopy !== null ? instancePillFor(instanceForCopy, labelScheme) : null
-  // Unknown openness (a degraded CVR privacy flag OR missing instance data)
-  // must not headline a type claim that contradicts the "Openness unknown"
-  // body — fall back to the neutral titleUnknown in both cases.
+  // A degraded CVR privacy flag or missing instance data must not headline a
+  // guessed type. A known type may still have an Unknown policy classification
+  // (for example CVR Members Only), so policy space does not drive the title.
   const title =
-    typeLabel !== null && opennessCopy !== 'unknown'
+    typeLabel !== null && instanceForCopy?.opennessUnknown !== true
       ? t('joinConfirm.title', { type: typeLabel })
       : t('joinConfirm.titleUnknown')
   const worldName = instanceForCopy?.worldName ?? t('friends.instance.unknownWorld')
-  // Group copy names the group when known ({{group}} interpolation).
-  const groupName = instanceForCopy?.groupName ?? t('joinConfirm.theGroup')
 
   // Mode: the CVR picker only appears for joinMode 'ask' (research-settled —
   // CVR's deep link genuinely honors startInVR). VRChat can never select a
@@ -519,13 +447,15 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           </div>
         </div>
 
-        {/* The safety context: world + friend + the effectively-openness sentence. */}
+        {/* World/friend context followed by the independent moderation context. */}
         <p className="text-sm text-[var(--text-dim)]">
           {t('joinConfirm.context', { name: friendForCopy.displayName, world: worldName })}
         </p>
-        <p className="text-sm text-[var(--text-dim)]">
-          {t(effectivelyKey(opennessCopy, friendForCopy.platform), { group: groupName })}
-        </p>
+        {instanceForCopy !== null && (
+          <div>
+            <PolicySpacePill space={policySpace} />
+          </div>
+        )}
 
         {/* Drift / unavailable / waiting notices — quiet-styled per VRX-245. */}
         {isDrift && (
@@ -553,7 +483,7 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
           </button>
           {moreOpen && (
             <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
-              {t(moreInfoKey(opennessCopy, friendForCopy.platform), { group: groupName })}
+              {t(moreInfoKey(policySpace, friendForCopy.platform))}
             </p>
           )}
         </div>

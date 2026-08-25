@@ -7,6 +7,7 @@
 import type { Friend, InstanceInfo, Platform } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
+import { policySpaceFor, type PolicySpace } from './instancePolicySpace'
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -46,10 +47,17 @@ export interface HotInstance {
   /** The exact instance id EVERY member shares (VRX-237). */
   instanceId: string
   /**
-   * Platform-true instance type — now truthful automatically: every member is
-   * in THIS instance, so the representative's type is the group's type.
+   * Representative platform instance type for the access pill. Transient
+   * member disagreement does not leak into moderation context; `policySpace`
+   * is reconciled independently below.
    */
   instanceType: InstanceInfo['type']
+  /**
+   * Moderation context reconciled across every visible member. Any
+   * disagreement widens to Unknown so the answer never depends on which
+   * member happened to create the aggregate.
+   */
+  policySpace: PolicySpace
   /**
    * True when ANY member's privacy value was unrecognized and openness was
    * degraded (VRX-244) — OR'd across members in `getHotInstances` so a
@@ -149,12 +157,17 @@ export function getHotInstances(
       // duplicate names that exact same instance: a duplicate locating them
       // in a DIFFERENT instance must never smear its flag across.
       const dup = f.instance
-      if (dup !== null && dup.opennessUnknown === true) {
+      if (dup !== null) {
         const dupKey = hotInstanceKey(f.platform, dup.instanceId, dup.worldId)
         const dupGroupKey = dupKey === null ? null : `${f.platform} ${dupKey}`
         if (dupGroupKey !== null && dupGroupKey === seen.get(identity)) {
           const entry = map.get(dupGroupKey)
-          if (entry !== undefined) entry.opennessUnknown = true
+          if (entry !== undefined) {
+            if (dup.opennessUnknown === true) entry.opennessUnknown = true
+            if (entry.policySpace !== policySpaceFor(f.platform, dup)) {
+              entry.policySpace = 'unknown'
+            }
+          }
         }
       }
       continue
@@ -183,6 +196,12 @@ export function getHotInstances(
       // toward the safe/honest answer, matching the defensive-understatement
       // philosophy `parseCvrPrivacy` already applies per-member (VRX-244).
       if (instance.opennessUnknown === true) existing.opennessUnknown = true
+      // Policy space is a separate axis from access. Reconcile its broad
+      // classification across every member so transient type disagreement can
+      // only widen to Unknown and never make the sheet row-order dependent.
+      if (existing.policySpace !== policySpaceFor(f.platform, instance)) {
+        existing.policySpace = 'unknown'
+      }
       // Members of the SAME exact instance can transiently disagree on group
       // metadata (e.g. after hydration the merge filled one member but a
       // fresh-roster member is still null). Back-fill nulls from any member
@@ -201,6 +220,7 @@ export function getHotInstances(
         worldName,
         instanceId,
         instanceType: type,
+        policySpace: policySpaceFor(f.platform, instance),
         opennessUnknown: instance.opennessUnknown,
         isGroup: instance.isGroup,
         groupName: instance.groupName,
