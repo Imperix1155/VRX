@@ -451,9 +451,11 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
         <p className="text-sm text-[var(--text-dim)]">
           {t('joinConfirm.context', { name: friendForCopy.displayName, world: worldName })}
         </p>
-        <div>
-          <PolicySpacePill space={policySpace} />
-        </div>
+        {instanceForCopy !== null && (
+          <div>
+            <PolicySpacePill space={policySpace} />
+          </div>
+        )}
 
         {/* Drift / unavailable / waiting notices — quiet-styled per VRX-245. */}
         {isDrift && (
