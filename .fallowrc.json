@@ -1,0 +1,4 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/config-schema.json",
+  "entry": ["scripts/assert-packaged-fonts.cjs"]
+}
