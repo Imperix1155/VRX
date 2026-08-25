@@ -222,13 +222,12 @@ jobs:
             exit 1
           fi
 
-          # Candidates = drafts carrying the FULL expected artifact set (every
-          # EXPECTED name present). Filtering on NAMES (not a count) means an
-          # invalid 7-asset draft with a wrong filename cannot crowd out an older
-          # valid draft. All matches are drafts here (published guard above).
-          CANDIDATES="$(echo "$MATCHING" | jq --argjson exp "$EXPECTED" '[.[] | select(($exp - .assets) == [])]')"
+          # Candidates = drafts carrying the EXACT expected artifact set. Filtering
+          # on both set differences rejects missing, renamed, stale, or unexpected
+          # assets. All matches are drafts here (published guard above).
+          CANDIDATES="$(echo "$MATCHING" | jq --argjson exp "$EXPECTED" '[.[] | select(($exp - .assets) == [] and (.assets - $exp) == [])]')"
           if [ "$(echo "$CANDIDATES" | jq 'length')" -eq 0 ]; then
-            echo "::error::No draft for $TAG carries the full installer set. A build leg failed to upload, or electron-builder skipped uploads. Fix the build (or delete/re-draft the stale $TAG release), then rerun." >&2
+            echo "::error::No draft for $TAG carries the exact installer set. A build leg failed to upload, electron-builder skipped uploads, or the draft contains stale assets. Fix the build (or delete/re-draft the stale $TAG release), then rerun." >&2
             echo "Releases seen for $TAG: $(echo "$MATCHING" | jq -c '[.[] | {id, draft, asset_count}]')" >&2
             exit 1
           fi
@@ -240,8 +239,8 @@ jobs:
           TARGET_ID="$(echo "$TARGET" | jq -r '.id')"
           echo "Resolved draft release id=$TARGET_ID ($(echo "$TARGET" | jq -r '.asset_count') assets) for $TAG."
 
-          # Belt-and-braces (unreachable — candidates already carry the full set):
-          # every expected name must be present; extras only warn.
+          # Belt-and-braces (unreachable — candidates already carry the exact set):
+          # every expected name must be present and no extra name may remain.
           MISSING="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '$exp - .assets')"
           if [ "$(echo "$MISSING" | jq 'length')" -ne 0 ]; then
             echo "::error::Release $TARGET_ID for $TAG is missing expected artifact(s): $MISSING" >&2
@@ -250,7 +249,8 @@ jobs:
           fi
           EXTRA="$(echo "$TARGET" | jq -c --argjson exp "$EXPECTED" '.assets - $exp')"
           if [ "$(echo "$EXTRA" | jq 'length')" -ne 0 ]; then
-            echo "::warning::Release $TARGET_ID for $TAG has unexpected extra asset(s): $EXTRA"
+            echo "::error::Release $TARGET_ID for $TAG has unexpected extra asset(s): $EXTRA" >&2
+            exit 1
           fi
 
           # Loudly flag (never delete) any other release left on this tag with no

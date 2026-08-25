@@ -10,6 +10,7 @@ import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
 
 const projectDir = resolve(import.meta.dirname, '..')
 const packageMetadata = JSON.parse(await readFile(resolve(projectDir, 'package.json'), 'utf8'))
+const releaseWorkflow = await readFile(resolve(projectDir, '.github/workflows/release.yml'), 'utf8')
 const updaterMetadata = JSON.parse(
   await readFile(resolve(projectDir, 'node_modules/electron-updater/package.json'), 'utf8')
 )
@@ -103,5 +104,9 @@ describe('Linux packaging contract (VRX-101)', () => {
     expect(config.linux.target).toContain('AppImage')
     expect(config.publish).toMatchObject({ provider: 'github', owner: 'Imperix1155', repo: 'VRX' })
     expect(satisfies(updaterMetadata.version, config.linux.electronUpdaterCompatibility)).toBe(true)
+  })
+
+  it('publishes only a draft whose release assets exactly match the allowlist', () => {
+    expect(releaseWorkflow).toContain('select(($exp - .assets) == [] and (.assets - $exp) == [])')
   })
 })
