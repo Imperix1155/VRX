@@ -221,6 +221,33 @@ describe('renderer design token contract', () => {
   )
 
   it.each([
+    [
+      ':root',
+      [
+        ['--policy-public', 'ed7ab6'],
+        ['--policy-public-text', 'ed7ab6'],
+        ['--policy-private', '62d3e8'],
+        ['--policy-private-text', '62d3e8']
+      ]
+    ],
+    [
+      "[data-theme='light']",
+      [
+        ['--policy-public', 'c84f91'],
+        ['--policy-public-text', '8b3265'],
+        ['--policy-private', '228eaa'],
+        ['--policy-private-text', '17667a']
+      ]
+    ]
+  ] as const)('%s pins the approved Rose and Ice policy-space tokens', (selector, tokens) => {
+    const block = themeBlock(selector)
+
+    for (const [name, hex] of tokens) {
+      expect(block).toContain(`${name}: ${['#', hex].join('')};`)
+    }
+  })
+
+  it.each([
     ['Tailwind palette utility', ['hover:bg', 'white/10'].join('-')],
     ['Tailwind gradient stop', ['from', 'blue-500'].join('-')],
     ['Tailwind placeholder', ['placeholder', 'zinc-400'].join('-')],

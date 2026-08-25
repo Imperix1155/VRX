@@ -222,7 +222,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 **Degradation if changed:**
 
-- **Missing or wrong-typed `name`:** The resolver treats the response as unresolvable and negative-caches to `null` for 60 s. The UI degrades to the parser's `groupName: null`; `JoinConfirmDialog` falls back to `joinConfirm.theGroup`.
+- **Missing or wrong-typed `name`:** The resolver treats the response as unresolvable and negative-caches to `null` for 60 s. The UI degrades to the parser's `groupName: null`; `JoinConfirmDialog` keeps its generic platform/policy-space explanation, and `HotInstanceSheet` omits the group card until a usable name is available.
 - **Missing or wrong-typed `iconUrl`:** Degrades to `null` via Zod `.catch(null).optional()`; the group card renders the gradient placeholder instead of an image.
 - **New metadata fields:** Zod ignores them. Non-breaking.
 - **Non-auth failure (404, 5xx, private/deleted group):** Negative-cached to `null` for 60 s; repeated roster/snapshot cycles do not hammer the API.
@@ -327,7 +327,7 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 **Degradation if changed:**
 
-- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`) with `opennessUnknown:true`, never crashes. The instance still shows, but safety copy says "We couldn't confirm whether this instance is open or closed." rather than claiming the fallback is private.
+- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`) with `opennessUnknown:true`, never crashes. The instance still shows, but both the access and policy-space pills render neutral **Unknown** rather than claiming the fallback as fact.
 - **New enum value:** treated as tagged unknown → restrictive. Non-breaking; capture it live and add to the map.
 
 **Code reference:** `/src/main/services/adapters/cvr/parseCvrPrivacy.ts` (`PRIVACY_MAP_NUMERIC` + string map).
@@ -352,7 +352,7 @@ When an unknown enum value is encountered:
 - **Unknown `status` string** → `'online'` (generic green pill; never crashes)
 - **Unknown instance-access tag** → `'public'` (most open interpretation; join-attempt may fail gracefully at game level)
 - **Unknown trust tag** → ignored; final rank is either a known tag or `'visitor'` (never crashes)
-- **Unknown CVR privacy value** → restrictively degraded and tagged `opennessUnknown:true`; rendered as "We couldn't confirm whether this instance is open or closed." (non-critical for core UI)
+- **Unknown CVR privacy value** → restrictively degraded and tagged `opennessUnknown:true`; rendered with neutral **Unknown** access and policy-space pills (non-critical for core UI)
 
 ### 3. Graceful Degradation on Parse Failure
 

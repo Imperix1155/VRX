@@ -7,7 +7,7 @@
  * and its scrim are contained to the main content area so the sidebar stays fully
  * visible. Clicking anywhere on a hot-instance card opens it; the card's Join pill
  * still wins over open. The sheet shows a world-image banner, every friend in the
- * instance, the instance id, and a quiet openness line.
+ * instance, the instance id, and a policy-space pill.
  *
  * A11y mirrors FriendDrawer's ratified non-modal contract (VRX-225/228):
  * - role="dialog" without aria-modal (the dashboard stays interactive).
@@ -27,54 +27,7 @@ import { instancePillFor } from '../utils/instancePill'
 import { Avatar } from './Avatar'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
-
-/** Openness copy buckets reused from JoinConfirmDialog (VRX-245). */
-type OpennessCopy =
-  'public' | 'friends-plus' | 'private' | 'group-public' | 'group-plus' | 'group-only' | 'unknown'
-
-function opennessCopyFor(instance: HotInstance): OpennessCopy {
-  const first = instance.members[0]?.instance
-  // Reads the ONE carried `HotInstance.opennessUnknown` (VRX-244, OR'd across
-  // every member in `getHotInstances`) rather than a single member's flag —
-  // the banner pill (`instancePillFor`, also keyed off this same field) and
-  // this sentence must never disagree about which friend they're describing.
-  if (instance.opennessUnknown === true) return 'unknown'
-  if (instance.isGroup) {
-    if (first?.openness === 'public') return 'group-public'
-    if (first?.openness === 'friends-plus') return 'group-plus'
-    return 'group-only'
-  }
-  if (first?.openness === 'public') return 'public'
-  if (first?.openness === 'friends-plus') return 'friends-plus'
-  if (
-    first?.openness === 'friends' ||
-    first?.openness === 'invite-plus' ||
-    first?.openness === 'invite'
-  ) {
-    return 'private'
-  }
-  return 'unknown'
-}
-
-function effectivelyKey(copy: OpennessCopy, platform: HotInstance['platform']): string {
-  switch (copy) {
-    case 'public':
-    case 'friends-plus':
-      return 'joinConfirm.openness.public'
-    case 'private':
-      return 'joinConfirm.openness.private'
-    case 'group-public':
-      return 'joinConfirm.openness.groupPublic'
-    case 'group-plus':
-      return platform === 'chilloutvr'
-        ? 'joinConfirm.openness.groupPlusCvr'
-        : 'joinConfirm.openness.groupPlus'
-    case 'group-only':
-      return 'joinConfirm.openness.groupOnly'
-    default:
-      return 'joinConfirm.openness.unknown'
-  }
-}
+import PolicySpacePill from './PolicySpacePill'
 
 interface HotInstanceSheetProps {
   instance: HotInstance | null
@@ -164,10 +117,7 @@ export default function HotInstanceSheet({
   )
   const typeLabel = t(resolvedPill.labelKey)
   const tier = resolvedPill.tier
-  const opennessCopy = opennessCopyFor(shown)
-  const opennessSentence = t(effectivelyKey(opennessCopy, shown.platform), {
-    group: shown.groupName ?? t('joinConfirm.theGroup')
-  })
+  const policySpace = shown.policySpace
 
   function joinSheetTarget(event: React.MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation()
@@ -320,12 +270,9 @@ export default function HotInstanceSheet({
             <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] sm:flex-row sm:justify-between">
               {/* Friends here */}
               <div className="min-w-0 flex-1">
-                <p
-                  className="mb-[var(--space-1)] text-[12.5px] text-[var(--text-faint)]"
-                  data-testid="hot-sheet-openness-sentence"
-                >
-                  {opennessSentence}
-                </p>
+                <div className="mb-[var(--space-1)]" data-testid="hot-sheet-policy-space">
+                  <PolicySpacePill space={policySpace} />
+                </div>
                 <h3
                   className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-faint)]"
                   style={{ letterSpacing: '1.4px' }}

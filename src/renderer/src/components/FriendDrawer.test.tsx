@@ -162,7 +162,7 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
-  it('opennessUnknown renders the neutral "Unknown" pill instead of the degraded typed label (VRX-244)', () => {
+  it('opennessUnknown renders neutral Unknown pills instead of the degraded typed label (VRX-244)', () => {
     const unknown: Friend = {
       ...cvrFriend,
       instance: { ...publicInstance, type: 'owner-must-invite', opennessUnknown: true }
@@ -172,8 +172,12 @@ describe('FriendDrawer (VRX-69)', () => {
     openDrawerFor('Mika')
 
     const panel = screen.getByRole('dialog', { name: 'Mika' })
-    const pill = within(panel).getByText('Unknown')
-    expect(pill.style.color).toBe('var(--text-dim)')
+    const instancePill = panel.querySelector<HTMLElement>('[data-instance-pill]')
+    const policyPill = panel.querySelector<HTMLElement>('[data-policy-space-pill]')
+    expect(instancePill?.textContent).toBe('Unknown')
+    expect(instancePill?.style.color).toBe('var(--text-dim)')
+    expect(policyPill?.textContent).toBe('Unknown')
+    expect(policyPill?.style.color).toBe('var(--text-dim)')
   })
 
   it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
@@ -676,7 +680,7 @@ describe('FriendDrawer (VRX-69)', () => {
       }
     }
 
-    it('visible instance: world image through the pipeline, instance ID, and openness sentence', async () => {
+    it('visible instance: world image through the pipeline, instance ID, and policy-space pill', async () => {
       const thumbnailUrl = 'https://example.com/world-251.png'
       const getAvatar = vi
         .fn()
@@ -702,10 +706,12 @@ describe('FriendDrawer (VRX-69)', () => {
       expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
         publicInstance.instanceId
       )
-      expect(scoped.getByText('This instance is considered an open instance.')).toBeTruthy()
+      const policyPill = scoped.getByText('Public space')
+      expect(policyPill.getAttribute('data-policy-space-pill')).toBe('')
+      expect(policyPill.style.color).toBe('var(--policy-public-text)')
     })
 
-    it('opennessUnknown shows the unknown copy, not open/closed', () => {
+    it('opennessUnknown shows a neutral Unknown policy pill', () => {
       mockFriends([
         {
           ...joinableFriend,
@@ -721,15 +727,15 @@ describe('FriendDrawer (VRX-69)', () => {
       openDrawerFor('Alex')
 
       const scoped = within(dialog())
-      expect(
-        scoped.getByText("We couldn't confirm whether this instance is open or closed.")
-      ).toBeTruthy()
-      expect(scoped.queryByText(/considered an open instance/)).toBeNull()
-      expect(scoped.queryByText(/considered a closed instance/)).toBeNull()
+      const policyPill = scoped
+        .getByTestId('friend-drawer-policy-space')
+        .querySelector('[data-policy-space-pill]')
+      expect(policyPill?.textContent).toBe('Unknown')
+      expect(policyPill?.getAttribute('data-policy-space')).toBe('unknown')
     })
 
     it.each([['ask-me'], ['dnd']] as const)(
-      '%s hides the world image, instance ID, and openness sentence',
+      '%s hides the world image, instance ID, and policy-space pill',
       (status) => {
         mockFriends([
           {
@@ -744,12 +750,12 @@ describe('FriendDrawer (VRX-69)', () => {
         const scoped = within(dialog())
         expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
-        expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-policy-space')).toBeNull()
         expect(scoped.getByText('Hidden')).toBeTruthy()
       }
     )
 
-    it('no thumbnailUrl renders no broken image; ID and openness still render', () => {
+    it('no thumbnailUrl renders no broken image; ID and policy space still render', () => {
       mockFriends([joinableFriend])
       render(<FriendsList />)
       openDrawerFor('Alex')
@@ -759,7 +765,7 @@ describe('FriendDrawer (VRX-69)', () => {
       expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
         publicInstance.instanceId
       )
-      expect(scoped.getByText('This instance is considered an open instance.')).toBeTruthy()
+      expect(scoped.getByText('Public space')).toBeTruthy()
     })
 
     it.each([['ask-me'], ['dnd']] as const)(
@@ -787,7 +793,7 @@ describe('FriendDrawer (VRX-69)', () => {
         expect(scoped.queryByText('Public')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
-        expect(scoped.queryByTestId('friend-drawer-openness')).toBeNull()
+        expect(scoped.queryByTestId('friend-drawer-policy-space')).toBeNull()
       }
     )
 
@@ -806,7 +812,7 @@ describe('FriendDrawer (VRX-69)', () => {
       expect(scoped.getByText('The Great Pug')).toBeTruthy()
       expect(scoped.getByText('Public')).toBeTruthy()
       expect(scoped.getByTestId('friend-drawer-instance-id')).toBeTruthy()
-      expect(scoped.getByTestId('friend-drawer-openness')).toBeTruthy()
+      expect(scoped.getByTestId('friend-drawer-policy-space')).toBeTruthy()
 
       mockFriends([
         {
@@ -824,7 +830,7 @@ describe('FriendDrawer (VRX-69)', () => {
       expect(next.queryByText('Public')).toBeNull()
       expect(next.queryByTestId('friend-drawer-world-image')).toBeNull()
       expect(next.queryByTestId('friend-drawer-instance-id')).toBeNull()
-      expect(next.queryByTestId('friend-drawer-openness')).toBeNull()
+      expect(next.queryByTestId('friend-drawer-policy-space')).toBeNull()
     })
 
     it('image load failure collapses the slot entirely and resets when the friend changes', async () => {

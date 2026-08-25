@@ -2,7 +2,7 @@
 /**
  * JoinConfirmDialog (VRX-210) — the confirmation gate over the shared join
  * flow. Covers: interception of the row-pill and drawer-button join paths,
- * confirm/cancel/Esc/outside semantics, the openness honesty copy, the CVR
+ * confirm/cancel/Esc/outside semantics, the policy-space context, the CVR
  * mode picker vs the VRChat honest note, the never-show-again footnote, the
  * who's-there row (shared hot-instance key + platform + visibility filter, ≤4 avatars + "+N"), and
  * the one-shot CVR people count. Path-integration tests render the REAL
@@ -413,14 +413,11 @@ describe('confirmJoin off (one-click behavior preserved)', () => {
   })
 })
 
-describe('openness copy (the safety context)', () => {
-  it.each([
-    ['public', 'public'],
-    ['friends-plus', 'friends-plus']
-  ] as const)('%s → effectively-public wording', (type, openness) => {
+describe('policy-space context', () => {
+  it('VRChat Public renders the Rose Public space pill', () => {
     const friend: Friend = {
       ...joinableFriend,
-      instance: { ...publicInstance, type, openness }
+      instance: { ...publicInstance, type: 'public', openness: 'public' }
     }
     render(
       <>
@@ -430,16 +427,17 @@ describe('openness copy (the safety context)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    expect(
-      within(confirmDialog()).getByText('This instance is considered an open instance.')
-    ).toBeTruthy()
+    const pill = within(confirmDialog()).getByText('Public space')
+    expect(pill.getAttribute('data-policy-space-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--policy-public-text)')
   })
 
   it.each([
+    ['friends-plus', 'friends-plus'],
     ['friends', 'friends'],
     ['invite-plus', 'invite-plus'],
     ['invite', 'invite']
-  ] as const)('%s → effectively-private wording', (type, openness) => {
+  ] as const)('%s → Ice Private space', (type, openness) => {
     const friend: Friend = {
       ...joinableFriend,
       instance: { ...publicInstance, type, openness }
@@ -453,9 +451,9 @@ describe('openness copy (the safety context)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    expect(
-      within(confirmDialog()).getByText('This instance is considered a closed instance.')
-    ).toBeTruthy()
+    const pill = within(confirmDialog()).getByText('Private space')
+    expect(pill.getAttribute('data-policy-space-pill')).toBe('')
+    expect(pill.style.color).toBe('var(--policy-private-text)')
   })
 
   it('unknown CVR openness uses the safe unknown copy instead of the degraded Invite copy', () => {
@@ -481,10 +479,9 @@ describe('openness copy (the safety context)', () => {
     // The headline stays NEUTRAL: a degraded privacy flag must not title the
     // dialog with the type it degraded to ("Invite") above an "unknown" body.
     expect(within(dialog).getByRole('heading', { name: 'Join this instance?' })).toBeTruthy()
-    expect(
-      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
-    ).toBeTruthy()
-    expect(within(dialog).queryByText(/considered a closed/)).toBeNull()
+    const policyPill = dialog.querySelector<HTMLElement>('[data-policy-space-pill]')
+    expect(policyPill?.textContent).toBe('Unknown')
+    expect(policyPill?.style.color).toBe('var(--text-dim)')
     // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
     expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
   })
@@ -512,7 +509,7 @@ describe('openness copy (the safety context)', () => {
 
     expect(
       within(dialog).getByText(
-        "VRX couldn't read this instance's privacy, so it can't say how open it is. Treat it as open."
+        "VRX couldn't confirm which moderation context applies. Platform-wide rules still apply."
       )
     ).toBeTruthy()
     // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
@@ -551,12 +548,36 @@ describe('openness copy (the safety context)', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     expect(
       within(dialog).getByText(
-        'Anyone can walk into a public instance — treat it as a fully open space.'
+        'Public spaces use stricter public-instance moderation rules. Conduct allowed in a private space may still be moderated here.'
       )
     ).toBeTruthy()
   })
 
-  it('group instances render the real groupName instead of the fallback', () => {
+  it('ChilloutVR private space uses the approved self-moderation explanation', () => {
+    const friend: Friend = {
+      ...cvrFriend,
+      instance: { ...cvrInstance, type: 'friends', openness: 'friends' }
+    }
+    mockFriends([], [friend])
+    render(
+      <>
+        <OpenJoin friend={friend} />
+        <JoinConfirmDialog />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    expect(within(dialog).getByText('Private space')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'More info' }))
+    expect(
+      within(dialog).getByText(
+        'ChilloutVR uses different moderation rules in private spaces. Some public-space restrictions do not apply, and moderation relies more on local safety and instance-management tools. Platform-wide rules and enforcement still apply.'
+      )
+    ).toBeTruthy()
+  })
+
+  it('VRChat private groups use the approved private-space explanation', () => {
     const groupFriend: Friend = {
       ...joinableFriend,
       instance: {
@@ -581,7 +602,7 @@ describe('openness copy (the safety context)', () => {
 
     expect(
       within(dialog).getByText(
-        /Only Pixel Pals members can get in — friendship and invites don't apply here/
+        'VRChat uses different moderation rules in private spaces. Some public-space restrictions do not apply, but reports are handled under public-instance moderation rules. Platform-wide rules still apply.'
       )
     ).toBeTruthy()
   })
@@ -631,8 +652,9 @@ describe('instance-type pill (VRX-245)', () => {
     // must not be silently hidden either: hiding it would be the same
     // withhold-the-truth failure the honest "Unknown" pill exists to fix.
     expect(within(dialog).queryByText('Invite')).toBeNull()
-    const pill = within(dialog).getByText('Unknown')
-    expect(pill.style.color).toBe('var(--text-dim)')
+    const pill = dialog.querySelector<HTMLElement>('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Unknown')
+    expect(pill?.style.color).toBe('var(--text-dim)')
     // Discriminate from the UNAVAILABLE fallback: the live CVR cache is seeded.
     expect(within(dialog).queryByText(/is no longer available to join/)).toBeNull()
   })
@@ -664,8 +686,8 @@ describe('instance-type pill (VRX-245)', () => {
   })
 })
 
-describe('openness line is visually quiet (VRX-245)', () => {
-  it('uses --text-dim and has no inline color style', () => {
+describe('policy-space pill placement (VRX-245)', () => {
+  it('is a separate non-actionable pill beneath the context sentence', () => {
     render(
       <>
         <OpenJoin friend={joinableFriend} />
@@ -674,10 +696,11 @@ describe('openness line is visually quiet (VRX-245)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = confirmDialog()
-    const line = within(dialog).getByText('This instance is considered an open instance.')
+    const pill = dialog.querySelector<HTMLElement>('[data-policy-space-pill]')
 
-    expect(line.className).toContain('text-[var(--text-dim)]')
-    expect(line.hasAttribute('style')).toBe(false)
+    expect(pill?.tagName).toBe('SPAN')
+    expect(pill?.textContent).toBe('Public space')
+    expect(pill?.style.color).toBe('var(--policy-public-text)')
   })
 })
 
@@ -1114,7 +1137,7 @@ describe('modal behavior', () => {
   })
 })
 
-describe('group instances get group-accurate copy', () => {
+describe('group instances get policy-space context', () => {
   const groupBase: InstanceInfo = {
     ...publicInstance,
     isGroup: true,
@@ -1122,15 +1145,10 @@ describe('group instances get group-accurate copy', () => {
   }
 
   it.each([
-    ['group-public', 'public', 'group-public', 'This instance is considered an open instance.'],
-    [
-      'group-plus (VRChat: friends of whoever is INSIDE)',
-      'friends-plus',
-      'group-plus',
-      'This instance is considered an open instance.'
-    ],
-    ['members-only group', 'invite', 'group', 'This instance is considered a closed instance.']
-  ] as const)('%s → openness line maps to open/closed', (_case, openness, type, headline) => {
+    ['group-public', 'public', 'group-public', 'Public space', 'public'],
+    ['group-plus', 'friends-plus', 'group-plus', 'Private space', 'private'],
+    ['group', 'invite', 'group', 'Private space', 'private']
+  ] as const)('%s → %s', (_case, openness, type, label, space) => {
     const friend: Friend = {
       ...joinableFriend,
       instance: { ...groupBase, openness, type }
@@ -1144,38 +1162,12 @@ describe('group instances get group-accurate copy', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    expect(within(confirmDialog()).getByText(headline)).toBeTruthy()
+    const policyPill = confirmDialog().querySelector('[data-policy-space-pill]')
+    expect(policyPill?.textContent).toBe(label)
+    expect(policyPill?.getAttribute('data-policy-space')).toBe(space)
   })
 
-  it("group 'offline' uses the unknown-openness copy (never members-only/closed)", () => {
-    const friend: Friend = {
-      ...joinableFriend,
-      instance: { ...groupBase, openness: 'offline', type: 'group' }
-    }
-    mockFriends([friend])
-    render(
-      <>
-        <OpenJoin friend={friend} />
-        <JoinConfirmDialog />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
-    const dialog = screen.getByRole('dialog', { name: 'Join this instance?' })
-
-    expect(
-      within(dialog).getByText("We couldn't confirm whether this instance is open or closed.")
-    ).toBeTruthy()
-    expect(within(dialog).queryByText('This instance is considered a closed instance.')).toBeNull()
-
-    // Review F5a pin (VRX-244): the typed pill stays VISIBLE — `type` is real
-    // data (`'group'` → "Group", group tier) even while the openness sentence
-    // is the unknown copy; only `opennessUnknown` swaps the typed claim for
-    // the neutral "Unknown" pill.
-    const pill = within(dialog).getByText('Group')
-    expect(pill.style.color).toBe('var(--op-group-text)')
-  })
-
-  it("CVR friends-of-members keeps the friends-of-group-MEMBERS rule (that IS CVR's rule)", () => {
+  it('CVR Friends of Members uses the public policy context', () => {
     const cvrGroupFriend: Friend = {
       ...cvrFriend,
       instance: {
@@ -1196,21 +1188,27 @@ describe('group instances get group-accurate copy', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     const dialog = confirmDialog()
 
-    expect(within(dialog).getByText('This instance is considered an open instance.')).toBeTruthy()
+    expect(within(dialog).getByText('Public space')).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: 'More info' }))
     expect(
       within(dialog).getByText(
-        /friends of its members can join, so the crowd can be wider than your own friend list. Treat it as open./
+        'Public spaces use stricter public-instance moderation rules. Conduct allowed in a private space may still be moderated here.'
       )
     ).toBeTruthy()
   })
 
-  it('members-only more-info: friendship and invites do NOT apply', () => {
+  it('CVR Members Only stays Unknown because its group join privacy is not carried', () => {
     const friend: Friend = {
-      ...joinableFriend,
-      instance: { ...groupBase, openness: 'invite', type: 'group' }
+      ...cvrFriend,
+      instance: {
+        ...cvrInstance,
+        openness: 'invite',
+        type: 'members-only',
+        isGroup: true,
+        groupName: 'Night Owls'
+      }
     }
-    mockFriends([friend])
+    mockFriends([], [friend])
     render(
       <>
         <OpenJoin friend={friend} />
@@ -1220,29 +1218,12 @@ describe('group instances get group-accurate copy', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
     fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'More info' }))
 
+    const policyPill = confirmDialog().querySelector('[data-policy-space-pill]')
+    expect(policyPill?.textContent).toBe('Unknown')
     expect(
       within(confirmDialog()).getByText(
-        /Only Night Owls members can get in — friendship and invites don't apply/
+        "VRX couldn't confirm which moderation context applies. Platform-wide rules still apply."
       )
-    ).toBeTruthy()
-  })
-
-  it('a null groupName degrades to "the group" (never a blank hole)', () => {
-    const friend: Friend = {
-      ...joinableFriend,
-      instance: { ...groupBase, groupName: null, openness: 'invite', type: 'group' }
-    }
-    mockFriends([friend])
-    render(
-      <>
-        <OpenJoin friend={friend} />
-        <JoinConfirmDialog />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
-
-    expect(
-      within(confirmDialog()).getByText('This instance is considered a closed instance.')
     ).toBeTruthy()
   })
 })
