@@ -3,11 +3,13 @@ import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
 import {
   copyFile,
+  link,
   mkdir,
   mkdtemp,
   open,
   readFile,
   readdir,
+  rename,
   rm,
   symlink,
   truncate,
@@ -22,16 +24,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getPath: vi.fn<(name: string) => string>(),
   saveCredential: vi.fn<(key: string, value: string) => void>(),
-  copyFile: vi.fn<typeof import('node:fs/promises').copyFile>(),
-  realCopyFile: undefined as typeof import('node:fs/promises').copyFile | undefined
+  copyOpenFile: vi.fn<typeof import('./vrcxSnapshotCopy').copyOpenFile>(),
+  realCopyOpenFile: undefined as typeof import('./vrcxSnapshotCopy').copyOpenFile | undefined
 }))
 
 vi.mock('electron', () => ({ app: { getPath: mocks.getPath } }))
-vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
-  mocks.realCopyFile = actual.copyFile
-  mocks.copyFile.mockImplementation(actual.copyFile)
-  return { ...actual, copyFile: mocks.copyFile }
+vi.mock('./vrcxSnapshotCopy', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./vrcxSnapshotCopy')>()
+  mocks.realCopyOpenFile = actual.copyOpenFile
+  mocks.copyOpenFile.mockImplementation(actual.copyOpenFile)
+  return { copyOpenFile: mocks.copyOpenFile }
 })
 vi.mock('./credentials', () => ({
   CREDENTIAL_KEYS: { VRCHAT_PRIMARY: 'vrchat:primary' },
@@ -61,6 +63,7 @@ const COOKIE_PAYLOAD = Buffer.from(
   ])
 ).toString('base64')
 const execFileAsync = promisify(execFile)
+type CopyOpenFile = typeof import('./vrcxSnapshotCopy').copyOpenFile
 
 function encodeCookies(cookies: unknown): string {
   return Buffer.from(JSON.stringify(cookies)).toString('base64')
@@ -91,6 +94,53 @@ describe('VRCX session import', () => {
     return path
   }
 
+  async function expectRejectedDatabaseAlias(
+    plantAlias: (path: string, targetPath: string) => Promise<void>
+  ): Promise<void> {
+    const path = await createDatabase()
+    const targetPath = join(rootPath, 'target.sqlite3')
+    await plantAlias(path, targetPath)
+    mocks.copyOpenFile.mockClear()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+
+    expect(mocks.copyOpenFile).not.toHaveBeenCalled()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+    expect(await readdir(tempPath)).toEqual([])
+  }
+
+  async function expectRejectedBeforeCopy(): Promise<void> {
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.copyOpenFile).not.toHaveBeenCalled()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  }
+
+  async function expectRetryThenNull(): Promise<void> {
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  }
+
+  async function expectSingleRejectedCopy(): Promise<void> {
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.copyOpenFile).toHaveBeenCalledTimes(1)
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  }
+
+  async function copySnapshotThen(
+    source: Parameters<CopyOpenFile>[0],
+    destination: Parameters<CopyOpenFile>[1],
+    sourceBytes: Parameters<CopyOpenFile>[2],
+    afterCopy: () => Promise<void>
+  ): Promise<Awaited<ReturnType<CopyOpenFile>>> {
+    if (mocks.realCopyOpenFile === undefined) {
+      throw new Error('snapshot copy mock was not initialized')
+    }
+    const copiedSnapshot = await mocks.realCopyOpenFile(source, destination, sourceBytes)
+    await afterCopy()
+    return copiedSnapshot
+  }
+
   beforeEach(async () => {
     rootPath = await mkdtemp(join(tmpdir(), 'vrx-vrcx-import-'))
     appDataPath = join(rootPath, 'app-data')
@@ -104,9 +154,11 @@ describe('VRCX session import', () => {
       throw new Error(`Unexpected Electron path: ${name}`)
     })
     mocks.saveCredential.mockClear()
-    mocks.copyFile.mockClear()
-    if (mocks.realCopyFile === undefined) throw new Error('fs copyFile mock was not initialized')
-    mocks.copyFile.mockImplementation(mocks.realCopyFile)
+    mocks.copyOpenFile.mockClear()
+    if (mocks.realCopyOpenFile === undefined) {
+      throw new Error('snapshot copy mock was not initialized')
+    }
+    mocks.copyOpenFile.mockImplementation(mocks.realCopyOpenFile)
   })
 
   afterEach(async () => {
@@ -145,7 +197,7 @@ describe('VRCX session import', () => {
     const beforeEntries = (await readdir(dirname(path))).sort()
     const beforeMain = digest(await readFile(path))
     const beforeWal = digest(await readFile(`${path}-wal`))
-    mocks.copyFile.mockClear()
+    mocks.copyOpenFile.mockClear()
 
     try {
       await expect(importVrcxSession()).resolves.toBeNull()
@@ -154,7 +206,7 @@ describe('VRCX session import', () => {
       expect(digest(await readFile(path))).toBe(beforeMain)
       expect(digest(await readFile(`${path}-wal`))).toBe(beforeWal)
       expect(await readdir(tempPath)).toEqual([])
-      expect(mocks.copyFile).not.toHaveBeenCalled()
+      expect(mocks.copyOpenFile).not.toHaveBeenCalled()
       expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       writer.close()
@@ -173,8 +225,72 @@ describe('VRCX session import', () => {
 
     await expect(importVrcxSession()).resolves.toBeNull()
     expect(mocks.saveCredential).not.toHaveBeenCalled()
-    expect(mocks.copyFile).not.toHaveBeenCalled()
+    expect(mocks.copyOpenFile).not.toHaveBeenCalled()
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'rejects a symlinked database before checking or copying its target',
+    async () => {
+      await expectRejectedDatabaseAlias(async (path, targetPath) => {
+        await copyFile(path, targetPath)
+        await rm(path)
+        await symlink(targetPath, path)
+      })
+    }
+  )
+
+  it('rejects a hard-linked database alias before checking or copying it', async () => {
+    await expectRejectedDatabaseAlias(async (path, targetPath) => {
+      await rename(path, targetPath)
+      await link(targetPath, path)
+    })
+  })
+
+  it('rejects a temp path that resolves inside the VRCX directory', async () => {
+    const path = await createDatabase()
+    const beforeMain = digest(await readFile(path))
+    const beforeEntries = await readdir(dirname(path))
+    await rm(tempPath, { recursive: true })
+    await symlink(dirname(path), tempPath, process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+
+    expect(digest(await readFile(path))).toBe(beforeMain)
+    expect(await readdir(dirname(path))).toEqual(beforeEntries)
+    expect(mocks.copyOpenFile).not.toHaveBeenCalled()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('does not scavenge a marked temp root containing the VRCX source tree', async () => {
+    const markedRoot = join(tempPath, 'vrx-vrcx-session-import-Ab12Cd')
+    appDataPath = join(markedRoot, 'app-data')
+    await mkdir(appDataPath, { recursive: true })
+    const path = await createDatabase()
+    await writeFile(
+      join(markedRoot, '.vrx-vrcx-session-import-root'),
+      'VRX VRCX snapshot v1\n2147483647\n'
+    )
+    const beforeMain = digest(await readFile(path))
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+
+    expect(digest(await readFile(path))).toBe(beforeMain)
+    expect(await readdir(markedRoot)).toContain('app-data')
+    expect(mocks.copyOpenFile).not.toHaveBeenCalled()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it.runIf(process.platform !== 'win32')(
+    'rejects a symlinked SQLite sidecar before copying the database',
+    async () => {
+      const path = await createDatabase()
+      const targetPath = join(rootPath, 'foreign-shm')
+      await writeFile(targetPath, Buffer.alloc(32_768))
+      await symlink(targetPath, `${path}-shm`)
+
+      await expectRejectedBeforeCopy()
+    }
+  )
 
   it('returns null when the cookies table is missing', async () => {
     const path = databasePath()
@@ -383,14 +499,16 @@ describe('VRCX session import', () => {
     expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
-  it('imports while the source database has an exclusive SQLite lock', async () => {
+  it('retries once and fails closed while the source database has an exclusive lock', async () => {
     const path = await createDatabase()
     const locker = new DatabaseSync(path)
     locker.exec('BEGIN EXCLUSIVE')
 
     try {
-      await expect(importVrcxSession()).resolves.toBe('imported')
-      expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+      expect((await readFile(`${path}-shm`)).length).toBeGreaterThan(0)
+      await expect(importVrcxSession()).resolves.toBeNull()
+      expect(mocks.copyOpenFile).not.toHaveBeenCalled()
+      expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       locker.exec('ROLLBACK')
       locker.close()
@@ -506,37 +624,117 @@ describe('VRCX session import', () => {
     const replacement = encodeCookies([
       { Name: 'auth', Value: 'authcookie_new', Domain: '.vrchat.cloud' }
     ])
-    mocks.copyFile.mockImplementationOnce(async (source, destination, mode) => {
-      if (mocks.realCopyFile === undefined) throw new Error('fs copyFile mock was not initialized')
-      await mocks.realCopyFile(source, destination, mode)
+    mocks.copyOpenFile.mockImplementationOnce(async (source, destination, sourceBytes) => {
+      if (mocks.realCopyOpenFile === undefined) {
+        throw new Error('snapshot copy mock was not initialized')
+      }
+      const copiedSnapshot = await mocks.realCopyOpenFile(source, destination, sourceBytes)
       const database = new DatabaseSync(databasePath())
       database.prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?').run(replacement, 'default')
       database.close()
+      return copiedSnapshot
     })
 
     await expect(importVrcxSession()).resolves.toBe('imported')
 
-    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
+    expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
     expect(mocks.saveCredential).toHaveBeenCalledWith('vrchat:primary', 'auth=authcookie_new')
+  })
+
+  it('rejects a snapshot pathname replaced after its exclusive copy', async () => {
+    await createDatabase()
+    const alternatePath = join(rootPath, 'alternate.sqlite3')
+    const alternate = new DatabaseSync(alternatePath)
+    alternate.exec(
+      'PRAGMA journal_mode=WAL; CREATE TABLE cookies (`key` TEXT PRIMARY KEY, `value` TEXT)'
+    )
+    alternate
+      .prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
+      .run(
+        'default',
+        encodeCookies([{ Name: 'auth', Value: 'substituted_cookie', Domain: '.vrchat.cloud' }])
+      )
+    alternate.close()
+    mocks.copyOpenFile.mockImplementation(async (source, destination, sourceBytes) => {
+      return copySnapshotThen(source, destination, sourceBytes, async () => {
+        await rm(destination)
+        await copyFile(alternatePath, destination)
+      })
+    })
+
+    await expectSingleRejectedCopy()
+  })
+
+  it('rejects a valid WAL planted beside the private snapshot before parsing', async () => {
+    await createDatabase()
+    mocks.copyOpenFile.mockImplementation(async (source, destination, sourceBytes) => {
+      if (mocks.realCopyOpenFile === undefined) {
+        throw new Error('snapshot copy mock was not initialized')
+      }
+      const copiedSnapshot = await mocks.realCopyOpenFile(source, destination, sourceBytes)
+      const checkpointedMain = await readFile(destination)
+      const attacker = new DatabaseSync(destination)
+      attacker.exec('PRAGMA wal_autocheckpoint=0')
+      attacker
+        .prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?')
+        .run(
+          encodeCookies([
+            { Name: 'auth', Value: 'attacker_sidecar_cookie', Domain: '.vrchat.cloud' }
+          ]),
+          'default'
+        )
+      const plantedWal = await readFile(`${destination}-wal`)
+      const plantedShm = await readFile(`${destination}-shm`)
+      attacker.close()
+      await writeFile(destination, checkpointedMain)
+      await writeFile(`${destination}-wal`, plantedWal)
+      await writeFile(`${destination}-shm`, plantedShm)
+      const value = await copiedSnapshot.handle.stat({ bigint: true })
+      return {
+        handle: copiedSnapshot.handle,
+        version: {
+          dev: value.dev,
+          ino: value.ino,
+          nlink: value.nlink,
+          size: value.size,
+          mtimeNs: value.mtimeNs,
+          ctimeNs: value.ctimeNs
+        }
+      }
+    })
+
+    await expectSingleRejectedCopy()
+  })
+
+  it('fails closed when the VRCX directory entry changes during every copy', async () => {
+    await createDatabase()
+    mocks.copyOpenFile.mockImplementation(async (source, destination, sourceBytes) => {
+      return copySnapshotThen(source, destination, sourceBytes, async () => {
+        const vrcxDirectory = dirname(databasePath())
+        const movedDirectory = join(appDataPath, 'VRCX-moved')
+        await rename(vrcxDirectory, movedDirectory)
+        await rename(movedDirectory, vrcxDirectory)
+      })
+    })
+
+    await expectRetryThenNull()
   })
 
   it('retries once after a transient sharing failure', async () => {
     await createDatabase()
     const busy = Object.assign(new Error('busy'), { code: 'EBUSY' })
-    mocks.copyFile.mockRejectedValueOnce(busy)
+    mocks.copyOpenFile.mockRejectedValueOnce(busy)
 
     await expect(importVrcxSession()).resolves.toBe('imported')
-    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
+    expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
     expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
   })
 
   it('returns null after exactly one retry when sharing remains unavailable', async () => {
     await createDatabase()
-    mocks.copyFile.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+    mocks.copyOpenFile.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
 
-    await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
+    await expectRetryThenNull()
   })
 
   it('rejects rollback-journal databases instead of importing uncommitted data', async () => {
@@ -551,7 +749,7 @@ describe('VRCX session import', () => {
 
     try {
       await expect(importVrcxSession()).resolves.toBeNull()
-      expect(mocks.copyFile).not.toHaveBeenCalled()
+      expect(mocks.copyOpenFile).not.toHaveBeenCalled()
       expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       writer.exec('ROLLBACK')
@@ -564,7 +762,7 @@ describe('VRCX session import', () => {
     await writeFile(`${path}-journal`, Buffer.alloc(0))
 
     await expect(importVrcxSession()).resolves.toBe('imported')
-    expect(mocks.copyFile).toHaveBeenCalledTimes(1)
+    expect(mocks.copyOpenFile).toHaveBeenCalledTimes(1)
     expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
   })
 
@@ -572,9 +770,7 @@ describe('VRCX session import', () => {
     const path = await createDatabase()
     await truncate(path, 512 * 1024 * 1024 + 1)
 
-    await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.copyFile).not.toHaveBeenCalled()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
+    await expectRejectedBeforeCopy()
   })
 
   it('shares one import operation across concurrent callers', async () => {
