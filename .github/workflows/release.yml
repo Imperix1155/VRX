@@ -140,7 +140,7 @@ jobs:
           grep -Fx 'Categories=Network;' "$APPIMAGE_DESKTOP"
           file "$APPIMAGE_DIR/squashfs-root/usr/share/icons/hicolor/512x512/apps/vrx.png" \
             | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
-          test -f "$APPIMAGE_DIR/squashfs-root/resources/app-update.yml"
+          APPIMAGE_UPDATE="$APPIMAGE_DIR/squashfs-root/resources/app-update.yml"
 
           dpkg-deb -x "$DEB" "$DEB_DIR"
           DEB_DESKTOP="$DEB_DIR/usr/share/applications/com.imperix.vrx.desktop"
@@ -152,10 +152,10 @@ jobs:
           file "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/vrx.png" \
             | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
           test "$(cat "$DEB_DIR/opt/VRX/resources/package-type")" = 'deb'
-          test -f "$DEB_DIR/opt/VRX/resources/app-update.yml"
+          DEB_UPDATE="$DEB_DIR/opt/VRX/resources/app-update.yml"
 
-          grep -F "url: vrx-$VERSION-x86_64.AppImage" "$MANIFEST"
-          grep -F 'blockMapSize:' "$MANIFEST"
+          node "$GITHUB_WORKSPACE/scripts/verify-linux-update-metadata.mjs" \
+            "$MANIFEST" "$APPIMAGE" "$DEB" "$APPIMAGE_UPDATE" "$DEB_UPDATE"
 
   publish-release:
     name: publish release
