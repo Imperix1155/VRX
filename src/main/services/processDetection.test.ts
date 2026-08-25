@@ -1,5 +1,13 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { detectVrProcesses, getRunningVrProcesses } from './processDetection'
+
+const { psList } = vi.hoisted(() => ({ psList: vi.fn() }))
+
+vi.mock('ps-list', () => ({ default: psList }))
+
+beforeEach(() => {
+  psList.mockReset()
+})
 
 describe('detectVrProcesses', () => {
   it('detects Windows executables by exact process name', () => {
@@ -51,7 +59,19 @@ describe('detectVrProcesses', () => {
           pid: 404,
           name: 'diagnostics',
           ppid: 1,
-          cmd: 'diagnostics --label=VRChat.exe'
+          cmd: 'diagnostics /tmp/VRChat.exe'
+        },
+        {
+          pid: 405,
+          name: 'wine64-preloader',
+          ppid: 1,
+          cmd: 'wine64-preloader /compatdata/438100/pfx/drive_c/VRChat/crashhandler.exe'
+        },
+        {
+          pid: 406,
+          name: 'backup',
+          ppid: 1,
+          cmd: 'backup /tmp/VRChat.exe/config.json'
         }
       ])
     ).toEqual({ vrchat: false, chilloutvr: false, steamvr: false })
@@ -59,6 +79,18 @@ describe('detectVrProcesses', () => {
 })
 
 describe('getRunningVrProcesses', () => {
+  it('enumerates only the current user through ps-list by default', async () => {
+    psList.mockResolvedValue([{ pid: 500, name: 'VRChat.exe', ppid: 1 }])
+
+    await expect(getRunningVrProcesses()).resolves.toEqual({
+      vrchat: true,
+      chilloutvr: false,
+      steamvr: false
+    })
+    expect(psList).toHaveBeenCalledOnce()
+    expect(psList).toHaveBeenCalledWith({ all: false })
+  })
+
   it('enumerates processes once and returns the detected applications', async () => {
     const listProcesses = vi.fn().mockResolvedValue([
       { pid: 501, name: 'VRChat.exe', ppid: 1 },

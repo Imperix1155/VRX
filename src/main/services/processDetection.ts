@@ -19,41 +19,51 @@ const EXECUTABLES = {
   steamvr: ['vrserver', 'vrserver.exe']
 } as const satisfies Record<keyof RunningVrProcesses, readonly string[]>
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const WINE_LAUNCHERS = new Set(['wine', 'wine64', 'wine-preloader', 'wine64-preloader'])
+
+function executableName(value: string): string {
+  return (value.split(/[\\/]/).at(-1) ?? value).toLowerCase()
 }
 
-function commandContainsExecutable(command: string, executable: string): boolean {
-  const boundary = `[\\s"'\\\\/]`
-  return new RegExp(`(?:^|${boundary})${escapeRegex(executable)}(?=$|${boundary})`, 'i').test(
-    command
-  )
+function commandTokens(command: string): string[] {
+  return (command.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((token) => {
+    const quote = token[0]
+    return (quote === '"' || quote === "'") && token.at(-1) === quote ? token.slice(1, -1) : token
+  })
 }
 
-function processMatchesExecutable(process: ProcessDescriptor, executable: string): boolean {
-  if (process.name.toLowerCase() === executable.toLowerCase()) {
-    return true
-  }
+function commandExecutableNames(command: string): string[] {
+  const tokens = commandTokens(command)
+  if (!tokens[0]) return []
 
-  const pathName = process.path?.split(/[\\/]/).at(-1)
-  if (pathName?.toLowerCase() === executable.toLowerCase()) {
-    return true
-  }
+  const first = executableName(tokens[0])
+  if (!WINE_LAUNCHERS.has(first)) return [first]
 
-  return process.cmd ? commandContainsExecutable(process.cmd, executable) : false
+  const targetIndex = tokens[1] === '--' ? 2 : 1
+  return tokens[targetIndex] ? [first, executableName(tokens[targetIndex])] : [first]
+}
+
+function processExecutableNames(process: ProcessDescriptor): string[] {
+  return [
+    executableName(process.name),
+    ...(process.path ? [executableName(process.path)] : []),
+    ...(process.cmd ? commandExecutableNames(process.cmd) : [])
+  ]
 }
 
 /** Classify a process snapshot without performing I/O. */
 export function detectVrProcesses(processes: readonly ProcessDescriptor[]): RunningVrProcesses {
+  const runningExecutables = new Set(processes.flatMap(processExecutableNames))
+
   return {
-    vrchat: processes.some((process) =>
-      EXECUTABLES.vrchat.some((executable) => processMatchesExecutable(process, executable))
+    vrchat: EXECUTABLES.vrchat.some((executable) =>
+      runningExecutables.has(executable.toLowerCase())
     ),
-    chilloutvr: processes.some((process) =>
-      EXECUTABLES.chilloutvr.some((executable) => processMatchesExecutable(process, executable))
+    chilloutvr: EXECUTABLES.chilloutvr.some((executable) =>
+      runningExecutables.has(executable.toLowerCase())
     ),
-    steamvr: processes.some((process) =>
-      EXECUTABLES.steamvr.some((executable) => processMatchesExecutable(process, executable))
+    steamvr: EXECUTABLES.steamvr.some((executable) =>
+      runningExecutables.has(executable.toLowerCase())
     )
   }
 }
