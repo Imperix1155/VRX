@@ -1,5 +1,6 @@
 /// <reference types="node" />
 
+import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import ts from 'typescript'
@@ -8,7 +9,24 @@ import { describe, expect, it } from 'vitest'
 const rendererRoot = join(process.cwd(), 'src/renderer')
 const rendererSource = join(rendererRoot, 'src')
 const tokenDeclaration = join(rendererSource, 'assets/main.css')
+const rendererEntry = join(rendererRoot, 'index.html')
+const fontDirectory = join(rendererSource, 'assets/fonts')
+const fontSources = JSON.parse(readFileSync(join(fontDirectory, 'SOURCES.json'), 'utf8')) as {
+  fonts: Record<
+    string,
+    {
+      package: string
+      version: string
+      tarball: string
+      fontFile: string
+      fontSha256: string
+      licenseFile: string
+      licenseSha256: string
+    }
+  >
+}
 const css = readFileSync(tokenDeclaration, 'utf8')
+const indexHtml = readFileSync(rendererEntry, 'utf8')
 const sourceExtensions = new Set([
   '.css',
   '.html',
@@ -127,6 +145,68 @@ function componentsLayerSpans(code: string): Array<[number, number]> {
 }
 
 describe('renderer design token contract', () => {
+  it.each([
+    [
+      'Inter',
+      '@fontsource-variable/inter',
+      '5.3.0',
+      '3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62',
+      '3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345'
+    ],
+    [
+      'VT323',
+      '@fontsource/vt323',
+      '5.3.0',
+      '8ddbebcc1048154132e1d78eb9b1f7850bca1b7d857035ccf1cb4318ebc615b6',
+      '27d9af34210253e7ca1251fbace86c6f65b40031d6ce1a75493a1b2093631298'
+    ]
+  ])(
+    'bundles the pinned, licensed %s WOFF2 face',
+    (family, packageName, version, fontSha256, licenseSha256) => {
+      const source = fontSources.fonts[family]
+      if (!source) throw new Error(`missing SOURCES.json entry for ${family}`)
+      expect(source.package).toBe(packageName)
+      expect(source.version).toBe(version)
+      expect(source.tarball).toBe(
+        `https://registry.npmjs.org/${packageName}/-/${packageName.split('/').at(-1)}-${version}.tgz`
+      )
+
+      const font = readFileSync(join(fontDirectory, source.fontFile))
+      const license = readFileSync(join(fontDirectory, source.licenseFile), 'utf8')
+
+      expect(font.subarray(0, 4).toString('ascii')).toBe('wOF2')
+      expect(createHash('sha256').update(font).digest('hex')).toBe(fontSha256)
+      expect(createHash('sha256').update(license).digest('hex')).toBe(licenseSha256)
+      expect(source.fontSha256).toBe(fontSha256)
+      expect(source.licenseSha256).toBe(licenseSha256)
+      expect(license).toContain('SIL OPEN FONT LICENSE Version 1.1')
+      expect(license).toMatch(/^Copyright /)
+    }
+  )
+
+  it.each([
+    ['Inter', '400 800', 'inter-latin-wght-normal.woff2'],
+    ['VT323', '400', 'vt323-latin-400-normal.woff2']
+  ])('loads %s from its local WOFF2 asset', (family, weight, fontFile) => {
+    const face = css.match(
+      new RegExp(`@font-face\\s*{[^}]*font-family:\\s*['"]${family}['"][^}]*}`, 's')
+    )?.[0]
+
+    expect(face, `${family} @font-face`).toBeDefined()
+    expect(face).toMatch(new RegExp(`font-weight:\\s*${weight.replace(' ', '\\s+')};`))
+    expect(face).toContain(`url('./fonts/${fontFile}')`)
+    expect(face).toMatch(/format\('woff2(?:-variations)?'\)/)
+    expect(face).toMatch(/font-display:\s*swap;/)
+  })
+
+  it('restricts renderer fonts to local files', () => {
+    const csp = indexHtml.match(/Content-Security-Policy[\s\S]*?content="([^"]+)"/)?.[1]
+
+    expect(csp).toBeDefined()
+    expect(csp).toMatch(/(?:^|;)\s*font-src\s+'self'\s*(?:;|$)/)
+    expect(indexHtml).not.toMatch(/fonts\.(?:googleapis|gstatic)\.com/)
+  })
+
   it.each([':root', "[data-theme='light']"])(
     '%s defines every shared surface and error token',
     (selector) => {
