@@ -11,6 +11,8 @@ const packagePath = fileURLToPath(new URL('../package.json', import.meta.url))
 const builderConfigPath = fileURLToPath(new URL('../electron-builder.yml', import.meta.url))
 const maxCompressedBlockMapBytes = 16 * 1024 * 1024
 const maxInflatedBlockMapBytes = 32 * 1024 * 1024
+const minBlockMapChunkBytes = 8 * 1024
+const maxBlockMapChunkBytes = 32 * 1024
 const blockMapReadBufferBytes = 1024 * 1024
 
 function isRecord(value) {
@@ -34,11 +36,14 @@ async function blockMapFileDescribesPayload(handle, value, payloadSize) {
   for (let index = 0; index < value.checksums.length; index += 1) {
     const checksum = value.checksums[index]
     const chunkSize = value.sizes[index]
+    const isFinalChunk = index === value.sizes.length - 1
     if (
       typeof checksum !== 'string' ||
       checksum.length === 0 ||
       !Number.isSafeInteger(chunkSize) ||
-      chunkSize <= 0
+      chunkSize <= 0 ||
+      chunkSize > maxBlockMapChunkBytes ||
+      (!isFinalChunk && chunkSize < minBlockMapChunkBytes)
     ) {
       return false
     }
