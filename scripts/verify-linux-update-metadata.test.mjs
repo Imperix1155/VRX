@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -8,6 +8,9 @@ import { verifyLinuxUpdateMetadata } from './verify-linux-update-metadata.mjs'
 const temporaryDirectories = []
 const appImageBytes = Buffer.from('appimage fixture')
 const debBytes = Buffer.from('deb fixture')
+const packageMetadata = JSON.parse(
+  await readFile(new URL('../package.json', import.meta.url), 'utf8')
+)
 
 function sha512(bytes) {
   return createHash('sha512').update(bytes).digest('base64')
@@ -17,8 +20,8 @@ async function createFixture({ manifestTransform = (value) => value, appUpdate =
   const directory = await mkdtemp(join(tmpdir(), 'vrx-linux-update-'))
   temporaryDirectories.push(directory)
 
-  const appImageName = 'vrx-0.18.1-x86_64.AppImage'
-  const debName = 'vrx_0.18.1_amd64.deb'
+  const appImageName = `${packageMetadata.name}-${packageMetadata.version}-x86_64.AppImage`
+  const debName = `${packageMetadata.name}_${packageMetadata.version}_amd64.deb`
   const appImagePath = join(directory, appImageName)
   const debPath = join(directory, debName)
   const manifestPath = join(directory, 'latest-linux.yml')
@@ -30,7 +33,7 @@ provider: github
 releaseType: draft
 updaterCacheDirName: vrx-updater
 `
-  const validManifest = `version: 0.18.1
+  const validManifest = `version: ${packageMetadata.version}
 files:
   - url: ${appImageName}
     sha512: ${sha512(appImageBytes)}
@@ -69,7 +72,10 @@ describe('verifyLinuxUpdateMetadata', () => {
   it('rejects an AppImage URL that only starts with the expected artifact name', async () => {
     const fixture = await createFixture({
       manifestTransform: (value) =>
-        value.replace('url: vrx-0.18.1-x86_64.AppImage', 'url: vrx-0.18.1-x86_64.AppImage.corrupt')
+        value.replace(
+          `url: ${packageMetadata.name}-${packageMetadata.version}-x86_64.AppImage`,
+          `url: ${packageMetadata.name}-${packageMetadata.version}-x86_64.AppImage.corrupt`
+        )
     })
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('exact AppImage entry')
@@ -81,6 +87,20 @@ describe('verifyLinuxUpdateMetadata', () => {
     })
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('positive blockMapSize')
+  })
+
+  it('rejects unverified extra files that electron-updater could select first', async () => {
+    const fixture = await createFixture({
+      manifestTransform: (value) =>
+        value.replace(
+          'files:\n',
+          `files:\n  - url: stale-x64.AppImage\n    sha512: ${sha512(appImageBytes)}\n    size: ${appImageBytes.length}\n`
+        )
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'exactly the AppImage and deb entries'
+    )
   })
 
   it('rejects a manifest digest that does not match the AppImage bytes', async () => {

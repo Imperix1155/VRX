@@ -116,6 +116,10 @@ export async function verifyLinuxUpdateMetadata({
 
   requireCondition(manifest.version === version, 'latest-linux.yml version must match package.json')
   requireCondition(Array.isArray(manifest.files), 'latest-linux.yml files must be an array')
+  requireCondition(
+    manifest.files.length === 2,
+    'latest-linux.yml files must contain exactly the AppImage and deb entries'
+  )
 
   const appImageEntry = exactFileEntry(manifest.files, appImageName, 'AppImage')
   const debEntry = exactFileEntry(manifest.files, debName, 'deb')

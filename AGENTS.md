@@ -126,7 +126,7 @@ review the final head rather than an earlier snapshot.
 Linux release builds must keep the AppImage and deb launcher identity, desktop
 metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
 and release asset allowlist in sync. The tag workflow extracts both packages
-and checks those contents before it may publish the draft release.
+and checks those contents before it may make the draft release public.
 
 If the personal `review-loop` skill is unavailable, use this repository-portable
 fallback: inspect the final PR diff from a fresh context; run the documented
