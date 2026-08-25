@@ -398,7 +398,7 @@ app
       }
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
-    // (VRX-37/174/56). On an empty VRX slot, the read-only importer checks the
+    // (VRX-37/174/56). With no valid stored session, the read-only importer checks the
     // game profile first and CVRX second. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
