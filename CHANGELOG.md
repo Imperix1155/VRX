@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Linux packages now carry launcher search metadata, a stable desktop identity, and the VRX icon explicitly. AppImage filenames include the architecture, and the Linux update feed declares its supported electron-updater range. (VRX-101)
 - Settings → Behavior now includes an **Allow joining friends** switch. It defaults to ON; turning it off makes the main process reject every Join action before resolving a friend or constructing a launch URL, while VRChat self-invites and ordinary web links remain available. (VRX-39)
 - The friends list now renders only the visible row window, stays responsive with large rosters, and supports Up/Down arrow navigation through one roving friend-details opener. Section headers remain sticky, virtual rows announce their logical list position, only visible section and Join buttons enter the Tab order, focus follows the sticky header when a focused section scrolls away, and the list keeps its scroll position when live friend data refreshes. (VRX-63)
 

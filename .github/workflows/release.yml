@@ -113,6 +113,50 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Inspect the real Linux packages before the publish job can make the draft
+      # public. AppImage extraction does not require FUSE, and dpkg-deb ships on
+      # ubuntu-latest. This proves package contents, not GNOME/KDE runtime behavior.
+      - name: Verify Linux desktop and updater metadata
+        if: matrix.platform == 'linux'
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          APPIMAGE="$GITHUB_WORKSPACE/dist/vrx-$VERSION-x86_64.AppImage"
+          DEB="$GITHUB_WORKSPACE/dist/vrx_${VERSION}_amd64.deb"
+          MANIFEST="$GITHUB_WORKSPACE/dist/latest-linux.yml"
+          APPIMAGE_DIR="$(mktemp -d)"
+          DEB_DIR="$(mktemp -d)"
+
+          test -f "$APPIMAGE"
+          test -f "$DEB"
+          test -f "$MANIFEST"
+
+          cd "$APPIMAGE_DIR"
+          "$APPIMAGE" --appimage-extract >/dev/null
+          APPIMAGE_DESKTOP="$APPIMAGE_DIR/squashfs-root/com.imperix.vrx.desktop"
+          test -f "$APPIMAGE_DESKTOP"
+          grep -Fx 'Name=VRX' "$APPIMAGE_DESKTOP"
+          grep -Fx 'Icon=vrx' "$APPIMAGE_DESKTOP"
+          grep -Fx 'StartupWMClass=com.imperix.vrx' "$APPIMAGE_DESKTOP"
+          grep -Fx 'Categories=Network;' "$APPIMAGE_DESKTOP"
+          file "$APPIMAGE_DIR/squashfs-root/usr/share/icons/hicolor/512x512/apps/vrx.png" \
+            | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
+          test -f "$APPIMAGE_DIR/squashfs-root/resources/app-update.yml"
+
+          dpkg-deb -x "$DEB" "$DEB_DIR"
+          DEB_DESKTOP="$DEB_DIR/usr/share/applications/com.imperix.vrx.desktop"
+          test -f "$DEB_DESKTOP"
+          grep -Fx 'Name=VRX' "$DEB_DESKTOP"
+          grep -Fx 'Icon=vrx' "$DEB_DESKTOP"
+          grep -Fx 'StartupWMClass=com.imperix.vrx' "$DEB_DESKTOP"
+          grep -Fx 'Categories=Network;' "$DEB_DESKTOP"
+          file "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/vrx.png" \
+            | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
+          test "$(cat "$DEB_DIR/opt/VRX/resources/package-type")" = 'deb'
+          test -f "$DEB_DIR/opt/VRX/resources/app-update.yml"
+
+          grep -F "url: vrx-$VERSION-x86_64.AppImage" "$MANIFEST"
+          grep -F 'blockMapSize:' "$MANIFEST"
+
   publish-release:
     name: publish release
     needs: build
@@ -143,7 +187,7 @@ jobs:
             "vrx-\($v)-setup.exe",
             "vrx-\($v)-setup.exe.blockmap",
             "VRX-\($v).exe",
-            "vrx-\($v).AppImage",
+            "vrx-\($v)-x86_64.AppImage",
             "vrx_\($v)_amd64.deb",
             "latest.yml",
             "latest-linux.yml"

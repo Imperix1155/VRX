@@ -123,6 +123,11 @@ PR diff. Its deterministic pass includes `fallow dead-code` and `fallow dupes`
 for JavaScript/TypeScript. Apply material fixes, rerun the relevant gates, and
 review the final head rather than an earlier snapshot.
 
+Linux release builds must keep the AppImage and deb launcher identity, desktop
+metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
+and release asset allowlist in sync. The tag workflow extracts both packages
+and checks those contents before it may publish the draft release.
+
 If the personal `review-loop` skill is unavailable, use this repository-portable
 fallback: inspect the final PR diff from a fresh context; run the documented
 project gate; run `fallow dead-code` and `fallow dupes` when Fallow is

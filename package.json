@@ -1,9 +1,11 @@
 {
   "name": "vrx",
+  "desktopName": "com.imperix.vrx",
   "version": "0.18.1",
   "description": "VRX — Social VR companion for VRChat + ChilloutVR",
   "main": "./out/main/index.js",
   "author": "Imperix1155",
+  "homepage": "https://github.com/Imperix1155/VRX",
   "license": "MIT",
   "scripts": {
     "format": "prettier --write .",
