@@ -115,9 +115,10 @@ describe('CVR session import', () => {
     const paths = makePaths()
     const steamRoot = join(paths.homePath, '.local', 'share', 'Steam')
     const customLibrary = join(paths.homePath, 'games', 'steam-library')
+    const encodedCustomLibrary = customLibrary.replaceAll('\\', '\\\\')
     writeText(
       join(steamRoot, 'steamapps', 'libraryfolders.vdf'),
-      `"libraryfolders" { "0" { "path" "${customLibrary}" } }`
+      `"libraryfolders" { "0" { "path" "${encodedCustomLibrary}" } }`
     )
     writeText(
       join(
@@ -258,7 +259,8 @@ describe('CVR session import', () => {
 
   it('rejects a relative executable path that could escape the CVRX directory', async () => {
     const paths = makePaths('win32')
-    const gameRoot = join(paths.homePath, 'outside')
+    const gameRoot = mkdtempSync(join(process.cwd(), '.vrx-cvr-import-relative-'))
+    temporaryDirectories.push(gameRoot)
     writeText(
       cvrxConfigPath(paths),
       JSON.stringify({
