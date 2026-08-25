@@ -8,12 +8,23 @@ import { verifyLinuxUpdateMetadata } from './verify-linux-update-metadata.mjs'
 
 const temporaryDirectories = []
 const appImagePayload = Buffer.from('appimage fixture')
-const appImageBlockMap = deflateRawSync(
-  JSON.stringify({ version: '2', files: [{ name: 'vrx', offset: 0, checksums: [], sizes: [] }] })
-)
-const appImageTrailer = Buffer.alloc(4)
-appImageTrailer.writeUInt32BE(appImageBlockMap.length)
-const appImageBytes = Buffer.concat([appImagePayload, appImageBlockMap, appImageTrailer])
+
+function appImageWithBlockMap(blockMap) {
+  const compressedBlockMap = deflateRawSync(JSON.stringify(blockMap))
+  const trailer = Buffer.alloc(4)
+  trailer.writeUInt32BE(compressedBlockMap.length)
+  return {
+    bytes: Buffer.concat([appImagePayload, compressedBlockMap, trailer]),
+    blockMapSize: compressedBlockMap.length
+  }
+}
+
+const validAppImage = appImageWithBlockMap({
+  version: '2',
+  files: [{ name: 'vrx', offset: 0, checksums: ['fixture'], sizes: [appImagePayload.length] }]
+})
+const appImageBlockMapSize = validAppImage.blockMapSize
+const appImageBytes = validAppImage.bytes
 const debBytes = Buffer.from('deb fixture')
 const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
@@ -27,7 +38,7 @@ async function createFixture({
   manifestTransform = (value) => value,
   appUpdate = null,
   appImage = appImageBytes,
-  blockMapSize = appImageBlockMap.length
+  blockMapSize = appImageBlockMapSize
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'vrx-linux-update-'))
   temporaryDirectories.push(directory)
@@ -96,7 +107,7 @@ describe('verifyLinuxUpdateMetadata', () => {
   it('rejects a non-numeric AppImage block-map size', async () => {
     const fixture = await createFixture({
       manifestTransform: (value) =>
-        value.replace(`blockMapSize: ${appImageBlockMap.length}`, 'blockMapSize: nonsense')
+        value.replace(`blockMapSize: ${appImageBlockMapSize}`, 'blockMapSize: nonsense')
     })
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('positive blockMapSize')
@@ -106,8 +117,8 @@ describe('verifyLinuxUpdateMetadata', () => {
     const fixture = await createFixture({
       manifestTransform: (value) =>
         value.replace(
-          `blockMapSize: ${appImageBlockMap.length}`,
-          `blockMapSize: ${appImageBlockMap.length + 1}`
+          `blockMapSize: ${appImageBlockMapSize}`,
+          `blockMapSize: ${appImageBlockMapSize + 1}`
         )
     })
 
@@ -143,6 +154,29 @@ describe('verifyLinuxUpdateMetadata', () => {
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
       'embedded block map must be valid deflate-compressed JSON'
+    )
+  })
+
+  it.each([
+    ['an empty files array', { version: '2', files: [] }],
+    ['a file without chunk arrays', { version: '2', files: [{ name: 'vrx', offset: 0 }] }],
+    [
+      'mismatched checksum and size counts',
+      { version: '2', files: [{ name: 'vrx', offset: 0, checksums: ['fixture'], sizes: [] }] }
+    ],
+    [
+      'chunk sizes that do not cover the AppImage payload',
+      { version: '2', files: [{ name: 'vrx', offset: 0, checksums: ['fixture'], sizes: [1] }] }
+    ]
+  ])('rejects embedded block-map files with %s', async (_description, blockMap) => {
+    const appImage = appImageWithBlockMap(blockMap)
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map files must describe the AppImage payload'
     )
   })
 

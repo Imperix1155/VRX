@@ -13,6 +13,41 @@ function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function blockMapFileDescribesPayload(value, payloadSize) {
+  if (
+    !isRecord(value) ||
+    typeof value.name !== 'string' ||
+    value.name.length === 0 ||
+    value.offset !== 0 ||
+    !Array.isArray(value.checksums) ||
+    !Array.isArray(value.sizes) ||
+    value.checksums.length === 0 ||
+    value.checksums.length !== value.sizes.length
+  ) {
+    return false
+  }
+
+  let describedSize = 0
+  for (let index = 0; index < value.checksums.length; index += 1) {
+    const checksum = value.checksums[index]
+    const chunkSize = value.sizes[index]
+    if (
+      typeof checksum !== 'string' ||
+      checksum.length === 0 ||
+      !Number.isSafeInteger(chunkSize) ||
+      chunkSize <= 0
+    ) {
+      return false
+    }
+    describedSize += chunkSize
+    if (!Number.isSafeInteger(describedSize)) {
+      return false
+    }
+  }
+
+  return describedSize === payloadSize
+}
+
 function requireCondition(condition, message) {
   if (!condition) {
     throw new Error(message)
@@ -80,6 +115,14 @@ async function embeddedBlockMapSize(path) {
     requireCondition(
       isRecord(blockMap) && blockMap.version === '2' && Array.isArray(blockMap.files),
       'AppImage embedded block map must use the electron-updater v2 files format'
+    )
+    requireCondition(
+      blockMap.files.length === 1 &&
+        blockMapFileDescribesPayload(
+          blockMap.files[0],
+          size - trailer.length - compressedBlockMap.length
+        ),
+      'AppImage embedded block map files must describe the AppImage payload'
     )
 
     return blockMapSize
