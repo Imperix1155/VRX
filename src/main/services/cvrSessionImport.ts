@@ -595,14 +595,15 @@ export async function importCvrSession(
 }
 
 /**
- * Preserve an existing VRX session. A newly imported session becomes usable
- * only after the caller has persisted it through safeStorage.
+ * Preserve an existing valid VRX session. Invalid stored material is treated
+ * as absent so a safe local import can replace it. A newly imported session
+ * becomes usable only after the caller has persisted it through safeStorage.
  */
 export async function loadStoredOrImportedCvrSession(
   options: LoadStoredOrImportedOptions
 ): Promise<CVRCredentials | undefined> {
   const stored = options.loadStored()
-  if (stored !== undefined) return stored
+  if (stored !== undefined && isValidCvrSession(stored.username, stored.accessKey)) return stored
 
   const imported = await options.importSession()
   if (imported === null || !isValidCvrSession(imported.username, imported.accessKey)) {

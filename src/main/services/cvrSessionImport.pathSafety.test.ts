@@ -71,6 +71,19 @@ describe('CVR session import path authority', () => {
     }
   )
 
+  it('never inspects sources when the app home root is not absolute', async () => {
+    await expect(
+      importCvrSession({
+        appDataPath: '/app-data',
+        homePath: 'relative-home',
+        platform: 'linux',
+        environment: {}
+      })
+    ).resolves.toBeNull()
+
+    expect(fileMock.inspectedPaths).toEqual([])
+  })
+
   it('never inspects UNC or device paths supplied by CVRX or Steam metadata', async () => {
     const appDataPath = '/app-data'
     const homePath = '/home'
