@@ -510,6 +510,61 @@ describe('getHotInstances', () => {
     expect(result[0]!.opennessUnknown).toBeFalsy()
   })
 
+  it("widens a same-instance DUPLICATE row's conflicting policy space in both arrival orders", () => {
+    const publicInstance: InstanceInfo = {
+      ...instance('wrld_policy_dup', 'Policy World', 'i+policy-dup'),
+      type: 'friends-of-members',
+      openness: 'friends-plus'
+    }
+    const privateInstance: InstanceInfo = {
+      ...publicInstance,
+      type: 'friends',
+      openness: 'friends'
+    }
+
+    for (const [first, duplicate] of [
+      [publicInstance, privateInstance],
+      [privateInstance, publicInstance]
+    ]) {
+      const result = getHotInstances(
+        [
+          cvrFriend('a', 'in-game', first),
+          cvrFriend('b', 'in-game', first),
+          cvrFriend('a', 'in-game', duplicate)
+        ],
+        2
+      )
+      expect(result).toHaveLength(1)
+      expect(result[0]!.friendCount).toBe(2)
+      expect(result[0]!.policySpace).toBe('unknown')
+    }
+  })
+
+  it("never smears a duplicate row's policy space across DIFFERENT instances", () => {
+    const here: InstanceInfo = {
+      ...instance('wrld_policy_here', 'Here', 'i+policy-here'),
+      type: 'friends-of-members',
+      openness: 'friends-plus'
+    }
+    const elsewhere: InstanceInfo = {
+      ...instance('wrld_policy_elsewhere', 'Elsewhere', 'i+policy-elsewhere'),
+      type: 'friends',
+      openness: 'friends'
+    }
+    const result = getHotInstances(
+      [
+        cvrFriend('a', 'in-game', here),
+        cvrFriend('b', 'in-game', here),
+        cvrFriend('a', 'in-game', elsewhere)
+      ],
+      2
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.instanceId).toBe('i+policy-here')
+    expect(result[0]!.policySpace).toBe('public')
+  })
+
   it('still becomes hot with opennessUnknown set — the flag never affects hot eligibility (regression pin)', () => {
     const unknownInstance = instance('wrld_unk2')
     unknownInstance.opennessUnknown = true

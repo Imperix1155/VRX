@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import HotInstanceSheet from './HotInstanceSheet'
-import type { HotInstance } from '../utils/dashboardAggregations'
+import { getHotInstances, type HotInstance } from '../utils/dashboardAggregations'
 
 const groupInstance: InstanceInfo = {
   worldId: 'wrld_group',
@@ -72,6 +72,7 @@ function makeHotInstance(overrides?: Partial<HotInstance>): HotInstance {
     worldName: groupInstance.worldName,
     instanceId: groupInstance.instanceId,
     instanceType: groupInstance.type,
+    policySpace: 'private',
     isGroup: true,
     groupName: groupInstance.groupName,
     groupId: groupInstance.groupId,
@@ -93,6 +94,7 @@ function makeCvrHotInstance(overrides?: Partial<HotInstance>): HotInstance {
     worldName: cvrGroupInstance.worldName,
     instanceId: cvrGroupInstance.instanceId,
     instanceType: cvrGroupInstance.type,
+    policySpace: 'public',
     isGroup: true,
     groupName: cvrGroupInstance.groupName,
     groupId: cvrGroupInstance.groupId,
@@ -202,6 +204,7 @@ describe('HotInstanceSheet', () => {
       <HotInstanceSheet
         instance={makeHotInstance({
           instanceType: 'invite',
+          policySpace: 'unknown',
           opennessUnknown: true,
           isGroup: false,
           groupName: null,
@@ -218,12 +221,12 @@ describe('HotInstanceSheet', () => {
     expect((pill as HTMLElement).style.color).toBe('var(--text-dim)')
   })
 
-  it('the banner pill and the openness sentence read the SAME source even when a member disagrees (VRX-244)', () => {
-    // Regression for a review finding: the pill and the sentence used to read
+  it('the instance pill and policy pill read the SAME carried unknown flag (VRX-244)', () => {
+    // Regression for a review finding: the pill and the policy context used to read
     // two different members after `getHotInstances` sorts `members`
     // alphabetically — a founding member's degraded flag could paint the
-    // pill "Unknown" while the sentence, reading a DIFFERENT (alphabetically
-    // first) member, asserted a confident open/closed claim. Both must now
+    // pill "Unknown" while the secondary signal, reading a DIFFERENT
+    // (alphabetically first) member, asserted a confident claim. Both must now
     // derive from the ONE carried `HotInstance.opennessUnknown` field.
     stubIntersectionObserver()
     const cleanMemberInstance: InstanceInfo = { ...groupInstance, type: 'invite', isGroup: false }
@@ -231,6 +234,7 @@ describe('HotInstanceSheet', () => {
       <HotInstanceSheet
         instance={makeHotInstance({
           instanceType: 'invite',
+          policySpace: 'unknown',
           opennessUnknown: true,
           isGroup: false,
           groupName: null,
@@ -247,9 +251,11 @@ describe('HotInstanceSheet', () => {
     const banner = screen.getByTestId('hot-sheet-banner')
     const pill = banner.querySelector('[data-instance-pill]')
     expect(pill?.textContent).toBe('Unknown')
-    expect(
-      screen.getByText("We couldn't confirm whether this instance is open or closed.")
-    ).toBeTruthy()
+    const policyPill = screen
+      .getByTestId('hot-sheet-policy-space')
+      .querySelector('[data-policy-space-pill]')
+    expect(policyPill?.textContent).toBe('Unknown')
+    expect(policyPill?.getAttribute('data-policy-space')).toBe('unknown')
   })
 
   it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
@@ -271,6 +277,47 @@ describe('HotInstanceSheet', () => {
     const pill = banner.querySelector('[data-instance-pill]')
     expect(pill?.textContent).toBe('Invite')
     expect((pill as HTMLElement).style.color).toBe('var(--op-invite-text)')
+  })
+
+  it('renders policy space separately from the access-type pill', () => {
+    stubIntersectionObserver()
+    render(<HotInstanceSheet instance={makeHotInstance()} onClose={() => {}} />)
+
+    const banner = screen.getByTestId('hot-sheet-banner')
+    expect(banner.querySelector('[data-instance-pill]')?.textContent).toBe('Group+')
+    const policyPill = screen.getByText('Private space')
+    expect(policyPill.getAttribute('data-policy-space-pill')).toBe('')
+    expect(policyPill.style.color).toBe('var(--policy-private-text)')
+  })
+
+  it('renders Unknown policy space when same-instance members disagree, regardless of arrival order', () => {
+    stubIntersectionObserver()
+    const publicInstance: InstanceInfo = {
+      ...cvrGroupInstance,
+      type: 'friends-of-members'
+    }
+    const unknownInstance: InstanceInfo = {
+      ...cvrGroupInstance,
+      type: 'members-only'
+    }
+    const publicMember = makeFriend('chilloutvr', 'Alex', publicInstance)
+    const unknownMember = makeFriend('chilloutvr', 'Blair', unknownInstance)
+
+    for (const members of [
+      [publicMember, unknownMember],
+      [unknownMember, publicMember]
+    ]) {
+      const hot = getHotInstances(members, 2)[0]
+      expect(hot).toBeTruthy()
+      const { unmount } = render(<HotInstanceSheet instance={hot!} onClose={() => {}} />)
+
+      const policyPill = screen
+        .getByTestId('hot-sheet-policy-space')
+        .querySelector('[data-policy-space-pill]')
+      expect(policyPill?.textContent).toBe('Unknown')
+      expect(policyPill?.getAttribute('data-policy-space')).toBe('unknown')
+      unmount()
+    }
   })
 
   it('closes when the scrim is clicked', () => {
