@@ -13,6 +13,10 @@ const MAX_COOKIE_COUNT = 64
 const MAX_VRCX_DATABASE_BYTES = 512 * 1024 * 1024
 const LOCK_RETRY_DELAY_MS = 25
 const SNAPSHOT_ROOT_PREFIX = 'vrx-vrcx-session-import-'
+const SNAPSHOT_ROOT_PATTERN = /^vrx-vrcx-session-import-[A-Za-z0-9]{6}$/
+const SNAPSHOT_MARKER_NAME = '.vrx-vrcx-session-import-root'
+const SNAPSHOT_MARKER_PATTERN = /^VRX VRCX snapshot v1\n([1-9][0-9]{0,9})\n$/
+const MAX_SNAPSHOT_MARKER_BYTES = 64
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 const COOKIE_OCTETS = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
@@ -197,12 +201,70 @@ async function isOwnedDirectory(path: string): Promise<boolean> {
   }
 }
 
+async function readSnapshotMarkerPid(path: string): Promise<number | null> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+  try {
+    const markerPath = join(path, SNAPSHOT_MARKER_NAME)
+    const pathMetadata = await lstat(markerPath)
+    if (
+      !pathMetadata.isFile() ||
+      pathMetadata.isSymbolicLink() ||
+      pathMetadata.size < 1 ||
+      pathMetadata.size > MAX_SNAPSHOT_MARKER_BYTES
+    ) {
+      return null
+    }
+    handle = await open(
+      markerPath,
+      constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW
+    )
+    const metadata = await handle.stat()
+    if (!metadata.isFile() || metadata.size < 1 || metadata.size > MAX_SNAPSHOT_MARKER_BYTES) {
+      return null
+    }
+    const marker = Buffer.alloc(metadata.size)
+    const { bytesRead } = await handle.read(marker, 0, marker.length, 0)
+    if (bytesRead !== marker.length) return null
+    const match = SNAPSHOT_MARKER_PATTERN.exec(marker.toString('ascii'))
+    if (match?.[1] === undefined) return null
+    const pid = Number(match[1])
+    return Number.isSafeInteger(pid) && pid > 0 ? pid : null
+  } catch {
+    return null
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
+async function createSnapshotMarker(path: string): Promise<void> {
+  const handle = await open(join(path, SNAPSHOT_MARKER_NAME), 'wx', 0o600)
+  try {
+    await handle.writeFile(`VRX VRCX snapshot v1\n${process.pid}\n`)
+  } finally {
+    await handle.close()
+  }
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    if (typeof error !== 'object' || error === null || !('code' in error)) return true
+    return (error as { code?: unknown }).code !== 'ESRCH'
+  }
+}
+
 async function scavengeSnapshotRoots(tempPath: string): Promise<void> {
   const entries = await readdir(tempPath)
   for (const entry of entries) {
-    if (!entry.startsWith(SNAPSHOT_ROOT_PREFIX)) continue
+    if (!SNAPSHOT_ROOT_PATTERN.test(entry)) continue
     const path = join(tempPath, entry)
-    if (await isOwnedDirectory(path)) await removeSnapshotPath(path)
+    if (!(await isOwnedDirectory(path))) continue
+    const markerPid = await readSnapshotMarkerPid(path)
+    if (markerPid !== null && !isProcessRunning(markerPid)) {
+      await removeSnapshotPath(path)
+    }
   }
 }
 
@@ -318,9 +380,10 @@ async function readCookieStorageInTemporaryRoot(databasePath: string): Promise<u
   const tempPath = app.getPath('temp')
   await scavengeSnapshotRoots(tempPath)
   const snapshotRoot = await mkdtemp(join(tempPath, SNAPSHOT_ROOT_PREFIX))
-  await chmod(snapshotRoot, 0o700)
 
   try {
+    await chmod(snapshotRoot, 0o700)
+    await createSnapshotMarker(snapshotRoot)
     return await readCookieStorageWithRetry(databasePath, snapshotRoot)
   } finally {
     await removeSnapshotPath(snapshotRoot)
