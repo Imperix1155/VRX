@@ -404,35 +404,31 @@ describe('CVR import persistence boundary', () => {
     expect(imported).toBe(false)
   })
 
-  it('treats an unsafe stored session as absent and imports a valid replacement', async () => {
-    let persisted: CVRCredentials | undefined
+  const unusableStoredSessions: Array<[string, () => CVRCredentials | undefined]> = [
+    ['unsafe', () => ({ username: 'stored-user', accessKey: 'unsafe\nkey' })],
+    [
+      'unreadable',
+      () => {
+        throw new Error('safeStorage ciphertext is unreadable')
+      }
+    ]
+  ]
 
-    await expect(
-      loadStoredOrImportedCvrSession({
-        loadStored: () => ({ username: 'stored-user', accessKey: 'unsafe\nkey' }),
-        importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
-        persistImported: (credentials) => {
-          persisted = credentials
-        }
-      })
-    ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
-    expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
-  })
+  it.each(unusableStoredSessions)(
+    'treats an %s stored session as absent and imports a valid replacement',
+    async (_label, loadStored) => {
+      let persisted: CVRCredentials | undefined
 
-  it('treats an unreadable stored session as absent and imports a valid replacement', async () => {
-    let persisted: CVRCredentials | undefined
-
-    await expect(
-      loadStoredOrImportedCvrSession({
-        loadStored: () => {
-          throw new Error('safeStorage ciphertext is unreadable')
-        },
-        importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
-        persistImported: (credentials) => {
-          persisted = credentials
-        }
-      })
-    ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
-    expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
-  })
+      await expect(
+        loadStoredOrImportedCvrSession({
+          loadStored,
+          importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
+          persistImported: (credentials) => {
+            persisted = credentials
+          }
+        })
+      ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
+      expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
+    }
+  )
 })
