@@ -1,0 +1,22 @@
+{
+  "fonts": {
+    "Inter": {
+      "package": "@fontsource-variable/inter",
+      "version": "5.3.0",
+      "tarball": "https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.3.0.tgz",
+      "fontFile": "inter-latin-wght-normal.woff2",
+      "fontSha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+      "licenseFile": "LICENSE-Inter.txt",
+      "licenseSha256": "3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345"
+    },
+    "VT323": {
+      "package": "@fontsource/vt323",
+      "version": "5.3.0",
+      "tarball": "https://registry.npmjs.org/@fontsource/vt323/-/vt323-5.3.0.tgz",
+      "fontFile": "vt323-latin-400-normal.woff2",
+      "fontSha256": "8ddbebcc1048154132e1d78eb9b1f7850bca1b7d857035ccf1cb4318ebc615b6",
+      "licenseFile": "LICENSE-VT323.txt",
+      "licenseSha256": "27d9af34210253e7ca1251fbace86c6f65b40031d6ce1a75493a1b2093631298"
+    }
+  }
+}

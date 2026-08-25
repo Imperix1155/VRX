@@ -357,7 +357,7 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 
 ## §7 Typography
 
-- The renderer and both living design references load licensed local WOFF2 files from `src/renderer/src/assets/fonts/`. Inter uses the variable 400–800 face; VT323 uses its 400 face. Their SIL OFL 1.1 notices live beside the assets and ship in `resources/licenses/fonts/`.
+- The renderer and both living design references load licensed local WOFF2 files from `src/renderer/src/assets/fonts/`. Inter uses the variable 400–800 face; VT323 uses its 400 face. `SOURCES.json` pins the upstream Fontsource packages and SHA-256 values; it and the SIL OFL 1.1 notices ship in `resources/licenses/fonts/` and are verified after packaging.
 - Inter (400–800): ALL body/UI — names, labels, copy, buttons, world titles, statuses, helper text, modal body.
 - VT323 (`--font-mono`): accent ONLY — VRX mark, big stat numbers, section kickers (uppercase, +tracking), `V`/`C` glyphs, technical IDs/versions. That is the complete allow-list.
 - No third display face is part of the design. In particular, do not add Press Start 2P.
