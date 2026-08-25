@@ -8,6 +8,8 @@ import { load } from 'js-yaml'
 
 const packagePath = fileURLToPath(new URL('../package.json', import.meta.url))
 const builderConfigPath = fileURLToPath(new URL('../electron-builder.yml', import.meta.url))
+const maxCompressedBlockMapBytes = 16 * 1024 * 1024
+const maxInflatedBlockMapBytes = 32 * 1024 * 1024
 
 function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -88,6 +90,10 @@ async function embeddedBlockMapSize(path) {
     requireCondition(bytesRead === trailer.length, 'AppImage block-map trailer must be readable')
     const blockMapSize = trailer.readUInt32BE(0)
     requireCondition(
+      blockMapSize <= maxCompressedBlockMapBytes,
+      'AppImage compressed block map cannot exceed 16 MiB'
+    )
+    requireCondition(
       blockMapSize <= size - trailer.length,
       'AppImage block-map size cannot exceed the bytes before its trailer'
     )
@@ -104,9 +110,23 @@ async function embeddedBlockMapSize(path) {
       'AppImage embedded block map must be readable'
     )
 
+    let blockMapJson
+    try {
+      blockMapJson = inflateRawSync(compressedBlockMap, {
+        maxOutputLength: maxInflatedBlockMapBytes
+      })
+    } catch (error) {
+      if (isRecord(error) && error.code === 'ERR_BUFFER_TOO_LARGE') {
+        throw new Error('AppImage inflated block map cannot exceed 32 MiB', { cause: error })
+      }
+      throw new Error('AppImage embedded block map must be valid deflate-compressed JSON', {
+        cause: error
+      })
+    }
+
     let blockMap
     try {
-      blockMap = JSON.parse(inflateRawSync(compressedBlockMap).toString())
+      blockMap = JSON.parse(blockMapJson.toString())
     } catch (error) {
       throw new Error('AppImage embedded block map must be valid deflate-compressed JSON', {
         cause: error
@@ -150,7 +170,7 @@ async function verifyPackageEntry(entry, path, label) {
   return digest
 }
 
-function verifyUpdaterConfig(config, expectedPublish, label) {
+function verifyUpdaterConfig(config, expectedPublish, expectedUpdaterCacheDirName, label) {
   requireCondition(
     config.provider === expectedPublish.provider,
     `${label} updater provider must be "github"`
@@ -168,8 +188,8 @@ function verifyUpdaterConfig(config, expectedPublish, label) {
     `${label} updater releaseType must match electron-builder.yml`
   )
   requireCondition(
-    typeof config.updaterCacheDirName === 'string' && config.updaterCacheDirName.length > 0,
-    `${label} updater cache directory must be present`
+    config.updaterCacheDirName === expectedUpdaterCacheDirName,
+    `${label} updater cache directory must match electron-builder`
   )
 }
 
@@ -186,7 +206,11 @@ async function expectedConfiguration() {
     'electron-builder.yml publish configuration must be present'
   )
 
-  return { version: packageMetadata.version, publish: builderConfig.publish }
+  return {
+    version: packageMetadata.version,
+    publish: builderConfig.publish,
+    updaterCacheDirName: `${packageMetadata.name.toLowerCase()}-updater`
+  }
 }
 
 export async function verifyLinuxUpdateMetadata({
@@ -196,12 +220,13 @@ export async function verifyLinuxUpdateMetadata({
   appImageUpdatePath,
   debUpdatePath
 }) {
-  const [{ version, publish }, manifest, appImageUpdate, debUpdate] = await Promise.all([
-    expectedConfiguration(),
-    readYaml(manifestPath, 'latest-linux.yml'),
-    readYaml(appImageUpdatePath, 'AppImage app-update.yml'),
-    readYaml(debUpdatePath, 'deb app-update.yml')
-  ])
+  const [{ version, publish, updaterCacheDirName }, manifest, appImageUpdate, debUpdate] =
+    await Promise.all([
+      expectedConfiguration(),
+      readYaml(manifestPath, 'latest-linux.yml'),
+      readYaml(appImageUpdatePath, 'AppImage app-update.yml'),
+      readYaml(debUpdatePath, 'deb app-update.yml')
+    ])
   const appImageName = basename(appImagePath)
   const debName = basename(debPath)
 
@@ -238,8 +263,8 @@ export async function verifyLinuxUpdateMetadata({
     'latest-linux.yml top-level sha512 must match the AppImage'
   )
 
-  verifyUpdaterConfig(appImageUpdate, publish, 'AppImage')
-  verifyUpdaterConfig(debUpdate, publish, 'deb')
+  verifyUpdaterConfig(appImageUpdate, publish, updaterCacheDirName, 'AppImage')
+  verifyUpdaterConfig(debUpdate, publish, updaterCacheDirName, 'deb')
 }
 
 async function main() {

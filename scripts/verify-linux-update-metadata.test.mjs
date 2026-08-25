@@ -157,6 +157,37 @@ describe('verifyLinuxUpdateMetadata', () => {
     )
   })
 
+  it('rejects a compressed block map larger than the verifier limit', async () => {
+    const compressedBlockMap = Buffer.alloc(16 * 1024 * 1024 + 1)
+    const trailer = Buffer.alloc(4)
+    trailer.writeUInt32BE(compressedBlockMap.length)
+    const appImage = Buffer.concat([appImagePayload, compressedBlockMap, trailer])
+    const fixture = await createFixture({
+      appImage,
+      blockMapSize: compressedBlockMap.length
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'compressed block map cannot exceed 16 MiB'
+    )
+  })
+
+  it('rejects a block map whose inflated JSON exceeds the verifier limit', async () => {
+    const appImage = appImageWithBlockMap({
+      version: '2',
+      files: [{ name: 'vrx', offset: 0, checksums: ['fixture'], sizes: [appImagePayload.length] }],
+      padding: 'x'.repeat(32 * 1024 * 1024)
+    })
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'inflated block map cannot exceed 32 MiB'
+    )
+  })
+
   it.each([
     ['an empty files array', { version: '2', files: [] }],
     ['a file without chunk arrays', { version: '2', files: [{ name: 'vrx', offset: 0 }] }],
@@ -206,5 +237,20 @@ describe('verifyLinuxUpdateMetadata', () => {
     const fixture = await createFixture({ appUpdate: '' })
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('AppImage updater provider')
+  })
+
+  it('rejects an updater cache directory that does not match electron-builder', async () => {
+    const fixture = await createFixture({
+      appUpdate: `owner: Imperix1155
+repo: VRX
+provider: github
+releaseType: draft
+updaterCacheDirName: ../../Documents
+`
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'AppImage updater cache directory must match electron-builder'
+    )
   })
 })
