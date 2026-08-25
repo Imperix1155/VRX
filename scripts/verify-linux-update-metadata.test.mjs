@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { verifyLinuxUpdateMetadata } from './verify-linux-update-metadata.mjs'
 
 const temporaryDirectories = []
-const appImageBytes = Buffer.from('appimage fixture')
+const appImagePayload = Buffer.from('appimage fixture')
+const appImageBlockMap = Buffer.from('embedded block map fixture')
+const appImageTrailer = Buffer.alloc(4)
+appImageTrailer.writeUInt32BE(appImageBlockMap.length)
+const appImageBytes = Buffer.concat([appImagePayload, appImageBlockMap, appImageTrailer])
 const debBytes = Buffer.from('deb fixture')
 const packageMetadata = JSON.parse(
   await readFile(new URL('../package.json', import.meta.url), 'utf8')
@@ -38,7 +42,7 @@ files:
   - url: ${appImageName}
     sha512: ${sha512(appImageBytes)}
     size: ${appImageBytes.length}
-    blockMapSize: 137078
+    blockMapSize: ${appImageBlockMap.length}
   - url: ${debName}
     sha512: ${sha512(debBytes)}
     size: ${debBytes.length}
@@ -83,10 +87,25 @@ describe('verifyLinuxUpdateMetadata', () => {
 
   it('rejects a non-numeric AppImage block-map size', async () => {
     const fixture = await createFixture({
-      manifestTransform: (value) => value.replace('blockMapSize: 137078', 'blockMapSize: nonsense')
+      manifestTransform: (value) =>
+        value.replace(`blockMapSize: ${appImageBlockMap.length}`, 'blockMapSize: nonsense')
     })
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('positive blockMapSize')
+  })
+
+  it('rejects an AppImage block-map size that disagrees with its embedded trailer', async () => {
+    const fixture = await createFixture({
+      manifestTransform: (value) =>
+        value.replace(
+          `blockMapSize: ${appImageBlockMap.length}`,
+          `blockMapSize: ${appImageBlockMap.length + 1}`
+        )
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'blockMapSize must match the AppImage trailer'
+    )
   })
 
   it('rejects unverified extra files that electron-updater could select first', async () => {

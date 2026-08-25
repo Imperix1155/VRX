@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
+import { open, readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { load } from 'js-yaml'
@@ -38,6 +38,23 @@ async function sha512File(path) {
   }
 
   return hash.digest('base64')
+}
+
+async function embeddedBlockMapSize(path) {
+  const handle = await open(path, 'r')
+
+  try {
+    const { size } = await handle.stat()
+    requireCondition(size >= 4, 'AppImage must contain an embedded block-map trailer')
+
+    const trailer = Buffer.alloc(4)
+    const { bytesRead } = await handle.read(trailer, 0, trailer.length, size - trailer.length)
+    requireCondition(bytesRead === trailer.length, 'AppImage block-map trailer must be readable')
+
+    return trailer.readUInt32BE(0)
+  } finally {
+    await handle.close()
+  }
 }
 
 function exactFileEntry(files, expectedUrl, label) {
@@ -127,6 +144,10 @@ export async function verifyLinuxUpdateMetadata({
   requireCondition(
     Number.isInteger(appImageEntry.blockMapSize) && appImageEntry.blockMapSize > 0,
     'AppImage entry must contain a positive blockMapSize'
+  )
+  requireCondition(
+    appImageEntry.blockMapSize === (await embeddedBlockMapSize(appImagePath)),
+    'AppImage blockMapSize must match the AppImage trailer'
   )
 
   const [appImageDigest] = await Promise.all([
