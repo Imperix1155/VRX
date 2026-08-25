@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto'
+import { execFile } from 'node:child_process'
+import { constants } from 'node:fs'
 import {
   copyFile,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   readdir,
   rm,
@@ -13,6 +16,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -56,6 +60,7 @@ const COOKIE_PAYLOAD = Buffer.from(
     }
   ])
 ).toString('base64')
+const execFileAsync = promisify(execFile)
 
 function encodeCookies(cookies: unknown): string {
   return Buffer.from(JSON.stringify(cookies)).toString('base64')
@@ -394,27 +399,105 @@ describe('VRCX session import', () => {
 
   it('removes a stale plaintext snapshot before reading VRCX', async () => {
     await createDatabase()
-    const staleRoot = join(tempPath, 'vrx-vrcx-session-import-stale', 'snapshot-stale')
-    await mkdir(staleRoot, { recursive: true })
-    await writeFile(join(staleRoot, 'VRCX.sqlite3'), COOKIE_PAYLOAD)
+    const staleRoot = join(tempPath, 'vrx-vrcx-session-import-Ab12Cd')
+    const staleSnapshot = join(staleRoot, 'snapshot-stale')
+    await mkdir(staleSnapshot, { recursive: true })
+    await writeFile(
+      join(staleRoot, '.vrx-vrcx-session-import-root'),
+      'VRX VRCX snapshot v1\n2147483647\n'
+    )
+    await writeFile(join(staleSnapshot, 'VRCX.sqlite3'), COOKIE_PAYLOAD)
 
     await expect(importVrcxSession()).resolves.toBe('imported')
 
     expect(await readdir(tempPath)).toEqual([])
   })
 
+  it('preserves an unrelated directory that only matches the snapshot prefix', async () => {
+    await createDatabase()
+    const unrelatedRoot = join(tempPath, 'vrx-vrcx-session-import-Zy98Xw')
+    await mkdir(unrelatedRoot)
+    await writeFile(join(unrelatedRoot, 'keep.txt'), 'user data')
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(await readFile(join(unrelatedRoot, 'keep.txt'), 'utf8')).toBe('user data')
+    expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-Zy98Xw'])
+  })
+
+  it('preserves a marked snapshot root owned by a running process', async () => {
+    await createDatabase()
+    const activeRoot = join(tempPath, 'vrx-vrcx-session-import-Rt56Yu')
+    await mkdir(activeRoot)
+    await writeFile(
+      join(activeRoot, '.vrx-vrcx-session-import-root'),
+      `VRX VRCX snapshot v1\n${process.pid}\n`
+    )
+    await writeFile(join(activeRoot, 'keep.txt'), 'active snapshot')
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(await readFile(join(activeRoot, 'keep.txt'), 'utf8')).toBe('active snapshot')
+  })
+
   it('does not follow a planted snapshot-root symlink', async () => {
     await createDatabase()
     const attackerPath = join(rootPath, 'attacker')
-    const plantedRoot = join(tempPath, 'vrx-vrcx-session-import-planted')
+    const plantedRoot = join(tempPath, 'vrx-vrcx-session-import-Qw12Er')
     await mkdir(attackerPath)
     await symlink(attackerPath, plantedRoot, process.platform === 'win32' ? 'junction' : 'dir')
 
     await expect(importVrcxSession()).resolves.toBe('imported')
 
     expect(await readdir(attackerPath)).toEqual([])
-    expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-planted'])
+    expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-Qw12Er'])
   })
+
+  it.runIf(process.platform !== 'win32')(
+    'does not block on a planted FIFO snapshot marker',
+    async () => {
+      await createDatabase()
+      const plantedRoot = join(tempPath, 'vrx-vrcx-session-import-Ff34Gg')
+      const markerPath = join(plantedRoot, '.vrx-vrcx-session-import-root')
+      await mkdir(plantedRoot)
+      await execFileAsync('mkfifo', [markerPath])
+
+      const operation = importVrcxSession()
+      const outcome = await Promise.race([
+        operation,
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 250))
+      ])
+      if (outcome === 'timeout') {
+        let releaseHandle
+        try {
+          releaseHandle = await open(
+            markerPath,
+            constants.O_WRONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW
+          )
+        } catch (error) {
+          if (
+            typeof error !== 'object' ||
+            error === null ||
+            !('code' in error) ||
+            error.code !== 'ENXIO'
+          ) {
+            throw error
+          }
+        }
+        if (releaseHandle !== undefined) {
+          try {
+            await releaseHandle.writeFile(`VRX VRCX snapshot v1\n${process.pid}\n`)
+          } finally {
+            await releaseHandle.close()
+          }
+        }
+        await operation
+      }
+
+      expect(outcome).toBe('imported')
+      expect(await readdir(plantedRoot)).toEqual(['.vrx-vrcx-session-import-root'])
+    }
+  )
 
   it('retries when the source generation changes during the copy', async () => {
     await createDatabase(
