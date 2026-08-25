@@ -3,11 +3,23 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { deflateRawSync } from 'node:zlib'
+import { blake2b } from '@noble/hashes/blake2.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { verifyLinuxUpdateMetadata } from './verify-linux-update-metadata.mjs'
 
 const temporaryDirectories = []
 const appImagePayload = Buffer.from('appimage fixture')
+
+function blockMapChecksum(bytes) {
+  return Buffer.from(blake2b(bytes, { dkLen: 18 })).toString('base64')
+}
+
+function blockMapForPayload({ name = 'file', checksum = blockMapChecksum(appImagePayload) } = {}) {
+  return {
+    version: '2',
+    files: [{ name, offset: 0, checksums: [checksum], sizes: [appImagePayload.length] }]
+  }
+}
 
 function appImageWithBlockMap(blockMap) {
   const compressedBlockMap = deflateRawSync(JSON.stringify(blockMap))
@@ -19,10 +31,7 @@ function appImageWithBlockMap(blockMap) {
   }
 }
 
-const validAppImage = appImageWithBlockMap({
-  version: '2',
-  files: [{ name: 'vrx', offset: 0, checksums: ['fixture'], sizes: [appImagePayload.length] }]
-})
+const validAppImage = appImageWithBlockMap(blockMapForPayload())
 const appImageBlockMapSize = validAppImage.blockMapSize
 const appImageBytes = validAppImage.bytes
 const debBytes = Buffer.from('deb fixture')
@@ -201,6 +210,32 @@ describe('verifyLinuxUpdateMetadata', () => {
     ]
   ])('rejects embedded block-map files with %s', async (_description, blockMap) => {
     const appImage = appImageWithBlockMap(blockMap)
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map files must describe the AppImage payload'
+    )
+  })
+
+  it('rejects an embedded block-map file identity electron-builder does not emit', async () => {
+    const appImage = appImageWithBlockMap(blockMapForPayload({ name: 'vrx' }))
+    const fixture = await createFixture({
+      appImage: appImage.bytes,
+      blockMapSize: appImage.blockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map files must describe the AppImage payload'
+    )
+  })
+
+  it('rejects embedded block-map chunk checksums that do not match the AppImage payload', async () => {
+    const appImage = appImageWithBlockMap(
+      blockMapForPayload({ checksum: blockMapChecksum(Buffer.from('different payload')) })
+    )
     const fixture = await createFixture({
       appImage: appImage.bytes,
       blockMapSize: appImage.blockMapSize
