@@ -15,6 +15,12 @@ asarUnpack:
 # can read it at runtime. (It's excluded from `files` above, so include it here.)
 extraResources:
   - CHANGELOG.md
+  - from: src/renderer/src/assets/fonts
+    to: licenses/fonts
+    filter:
+      - LICENSE-*.txt
+      - SOURCES.json
+afterPack: scripts/assert-packaged-fonts.cjs
 win:
   executableName: vrx
   target:
