@@ -84,6 +84,27 @@ describe('CVR session import path authority', () => {
     expect(fileMock.inspectedPaths).toEqual([])
   })
 
+  it('inspects each Windows Steam root once when environment aliases match', async () => {
+    const windowsRoot = ['C:', 'Program Files'].join(windowsSeparator)
+    const libraryFile = join(windowsRoot, 'Steam', 'steamapps', 'libraryfolders.vdf')
+
+    await expect(
+      importCvrSession({
+        appDataPath: ['C:', 'Users', 'test', 'AppData', 'Roaming'].join(windowsSeparator),
+        homePath: ['C:', 'Users', 'test'].join(windowsSeparator),
+        platform: 'win32',
+        environment: {
+          ProgramFiles: windowsRoot,
+          PROGRAMFILES: windowsRoot,
+          'ProgramFiles(x86)': windowsRoot,
+          'PROGRAMFILES(X86)': windowsRoot
+        }
+      })
+    ).resolves.toBeNull()
+
+    expect(fileMock.inspectedPaths.filter((path) => path === libraryFile)).toHaveLength(1)
+  })
+
   it('never inspects UNC or device paths supplied by CVRX or Steam metadata', async () => {
     const appDataPath = '/app-data'
     const homePath = '/home'

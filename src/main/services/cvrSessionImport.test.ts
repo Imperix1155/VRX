@@ -418,4 +418,21 @@ describe('CVR import persistence boundary', () => {
     ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
     expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
   })
+
+  it('treats an unreadable stored session as absent and imports a valid replacement', async () => {
+    let persisted: CVRCredentials | undefined
+
+    await expect(
+      loadStoredOrImportedCvrSession({
+        loadStored: () => {
+          throw new Error('safeStorage ciphertext is unreadable')
+        },
+        importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
+        persistImported: (credentials) => {
+          persisted = credentials
+        }
+      })
+    ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
+    expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
+  })
 })

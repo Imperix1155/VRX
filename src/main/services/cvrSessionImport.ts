@@ -292,7 +292,7 @@ const steamRoots = (paths: CvrSessionImportPaths): string[] => {
         paths.environment['ProgramFiles'],
         paths.environment['PROGRAMFILES']
       ]
-      return candidates
+      const roots = candidates
         .filter(
           (candidate): candidate is string =>
             candidate !== undefined &&
@@ -300,6 +300,7 @@ const steamRoots = (paths: CvrSessionImportPaths): string[] => {
             isLocalAbsolutePath(candidate, paths.platform)
         )
         .map((candidate) => join(candidate, 'Steam'))
+      return [...new Set(roots)]
     }
     default:
       return []
@@ -595,14 +596,19 @@ export async function importCvrSession(
 }
 
 /**
- * Preserve an existing valid VRX session. Invalid stored material is treated
- * as absent so a safe local import can replace it. A newly imported session
- * becomes usable only after the caller has persisted it through safeStorage.
+ * Preserve an existing valid VRX session. Invalid or unreadable stored material
+ * is treated as absent so a safe local import can replace it. A newly imported
+ * session becomes usable only after the caller persists it through safeStorage.
  */
 export async function loadStoredOrImportedCvrSession(
   options: LoadStoredOrImportedOptions
 ): Promise<CVRCredentials | undefined> {
-  const stored = options.loadStored()
+  let stored: CVRCredentials | undefined
+  try {
+    stored = options.loadStored()
+  } catch {
+    stored = undefined
+  }
   if (stored !== undefined && isValidCvrSession(stored.username, stored.accessKey)) return stored
 
   const imported = await options.importSession()
