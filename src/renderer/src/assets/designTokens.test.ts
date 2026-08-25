@@ -8,7 +8,10 @@ import { describe, expect, it } from 'vitest'
 const rendererRoot = join(process.cwd(), 'src/renderer')
 const rendererSource = join(rendererRoot, 'src')
 const tokenDeclaration = join(rendererSource, 'assets/main.css')
+const rendererEntry = join(rendererRoot, 'index.html')
+const fontDirectory = join(rendererSource, 'assets/fonts')
 const css = readFileSync(tokenDeclaration, 'utf8')
+const indexHtml = readFileSync(rendererEntry, 'utf8')
 const sourceExtensions = new Set([
   '.css',
   '.html',
@@ -127,6 +130,42 @@ function componentsLayerSpans(code: string): Array<[number, number]> {
 }
 
 describe('renderer design token contract', () => {
+  it.each([
+    ['Inter', 'inter-latin-wght-normal.woff2', 'LICENSE-Inter.txt'],
+    ['VT323', 'vt323-latin-400-normal.woff2', 'LICENSE-VT323.txt']
+  ])('bundles a valid licensed %s WOFF2 face', (_family, fontFile, licenseFile) => {
+    const font = readFileSync(join(fontDirectory, fontFile))
+    const license = readFileSync(join(fontDirectory, licenseFile), 'utf8')
+
+    expect(font.subarray(0, 4).toString('ascii')).toBe('wOF2')
+    expect(font.byteLength).toBeGreaterThan(1_000)
+    expect(license).toContain('SIL OPEN FONT LICENSE Version 1.1')
+    expect(license).toMatch(/^Copyright /)
+  })
+
+  it.each([
+    ['Inter', '400 800', 'inter-latin-wght-normal.woff2'],
+    ['VT323', '400', 'vt323-latin-400-normal.woff2']
+  ])('loads %s from its local WOFF2 asset', (family, weight, fontFile) => {
+    const face = css.match(
+      new RegExp(`@font-face\\s*{[^}]*font-family:\\s*['"]${family}['"][^}]*}`, 's')
+    )?.[0]
+
+    expect(face, `${family} @font-face`).toBeDefined()
+    expect(face).toMatch(new RegExp(`font-weight:\\s*${weight.replace(' ', '\\s+')};`))
+    expect(face).toContain(`url('./fonts/${fontFile}')`)
+    expect(face).toMatch(/format\('woff2(?:-variations)?'\)/)
+    expect(face).toMatch(/font-display:\s*swap;/)
+  })
+
+  it('restricts renderer fonts to local files', () => {
+    const csp = indexHtml.match(/Content-Security-Policy[\s\S]*?content="([^"]+)"/)?.[1]
+
+    expect(csp).toBeDefined()
+    expect(csp).toMatch(/(?:^|;)\s*font-src\s+'self'\s*(?:;|$)/)
+    expect(indexHtml).not.toMatch(/fonts\.(?:googleapis|gstatic)\.com/)
+  })
+
   it.each([':root', "[data-theme='light']"])(
     '%s defines every shared surface and error token',
     (selector) => {
