@@ -46,9 +46,18 @@ linux:
     - AppImage
     - deb
   maintainer: Imperix1155 <93307534+Imperix1155@users.noreply.github.com>
-  category: Utility
+  category: Network
+  synopsis: Social VR companion for VRChat and ChilloutVR
+  icon: icon.png
+  syncDesktopName: true
+  electronUpdaterCompatibility: '>=2.16'
+  desktop:
+    entry:
+      GenericName: Social VR Companion
+      Keywords: VRChat;ChilloutVR;Social;Friends;
+      StartupNotify: 'true'
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
 npmRebuild: false
 publish:
   provider: github
