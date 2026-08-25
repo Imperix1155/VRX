@@ -1,0 +1,413 @@
+import { app } from 'electron'
+import { constants } from 'node:fs'
+import { chmod, copyFile, lstat, mkdtemp, open, readdir, rm, stat } from 'node:fs/promises'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { TextDecoder } from 'node:util'
+import { CREDENTIAL_KEYS, saveCredential } from './credentials'
+import { isValidVrcSessionCookie } from './adapters/credentialValidation'
+
+const MAX_COOKIE_STORAGE_BYTES = 256 * 1024
+const MAX_COOKIE_STORAGE_ROWS = 64
+const MAX_COOKIE_COUNT = 64
+const MAX_VRCX_DATABASE_BYTES = 512 * 1024 * 1024
+const LOCK_RETRY_DELAY_MS = 25
+const SNAPSHOT_ROOT_PREFIX = 'vrx-vrcx-session-import-'
+const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
+const COOKIE_OCTETS = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/
+const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
+
+class TransientSnapshotError extends Error {}
+
+class RejectedSnapshotError extends Error {}
+
+interface VrcxCookie {
+  Name: string
+  Value: string
+  Domain: string
+}
+
+interface CookieValueRow {
+  value?: unknown
+}
+
+interface CookieMetadataRow {
+  storageRowId?: unknown
+  keyType?: unknown
+  keyBytes?: unknown
+  valueType?: unknown
+  valueBytes?: unknown
+}
+
+interface CookieKeyRow {
+  key?: unknown
+}
+
+interface JournalModeRow {
+  journal_mode?: unknown
+}
+
+interface SchemaObjectRow {
+  type?: unknown
+  rootpage?: unknown
+}
+
+interface TableColumnRow {
+  name?: unknown
+  hidden?: unknown
+}
+
+interface SourceFileVersion {
+  dev: bigint
+  ino: bigint
+  size: bigint
+  mtimeNs: bigint
+  ctimeNs: bigint
+}
+
+function hasStoredCookieColumns(database: DatabaseSync): boolean {
+  const schemaRows = database
+    .prepare(
+      `SELECT type, rootpage
+       FROM sqlite_schema
+       WHERE name = ?
+       LIMIT 2`
+    )
+    .all('cookies') as SchemaObjectRow[]
+  if (
+    schemaRows.length !== 1 ||
+    schemaRows[0]?.type !== 'table' ||
+    typeof schemaRows[0].rootpage !== 'number' ||
+    !Number.isInteger(schemaRows[0].rootpage) ||
+    schemaRows[0].rootpage < 1
+  ) {
+    return false
+  }
+
+  const columns = database.prepare("PRAGMA table_xinfo('cookies')").all() as TableColumnRow[]
+  const shadowsRowId = columns.some(
+    (column) =>
+      typeof column.name === 'string' &&
+      ['rowid', '_rowid_', 'oid'].includes(column.name.toLowerCase())
+  )
+  return (
+    !shadowsRowId &&
+    ['key', 'value'].every(
+      (name) => columns.filter((column) => column.name === name && column.hidden === 0).length === 1
+    )
+  )
+}
+
+function readCookieStorage(databasePath: string): unknown {
+  const database = new DatabaseSync(databasePath, { readOnly: true, timeout: 25 })
+
+  try {
+    const journalMode = database.prepare('PRAGMA journal_mode').get() as JournalModeRow
+    if (journalMode.journal_mode !== 'wal') return null
+    if (!hasStoredCookieColumns(database)) return null
+
+    const metadataRows = database
+      .prepare(
+        `SELECT _rowid_ AS \`storageRowId\`,
+                typeof(\`key\`) AS \`keyType\`,
+                octet_length(\`key\`) AS \`keyBytes\`,
+                typeof(\`value\`) AS \`valueType\`,
+                octet_length(\`value\`) AS \`valueBytes\`
+         FROM \`cookies\`
+         LIMIT ?`
+      )
+      .all(MAX_COOKIE_STORAGE_ROWS + 1) as CookieMetadataRow[]
+    if (metadataRows.length > MAX_COOKIE_STORAGE_ROWS) return null
+
+    const readKey = database.prepare('SELECT `key` FROM `cookies` WHERE _rowid_ = ? LIMIT 1')
+    const defaultRows = metadataRows.filter((metadata) => {
+      if (
+        typeof metadata.storageRowId !== 'number' ||
+        metadata.keyType !== 'text' ||
+        metadata.keyBytes !== 'default'.length
+      ) {
+        return false
+      }
+      const row = readKey.get(metadata.storageRowId) as CookieKeyRow | undefined
+      return row?.key === 'default'
+    })
+    const metadata = defaultRows[0]
+    const storageRowId = metadata?.storageRowId
+    if (
+      defaultRows.length !== 1 ||
+      typeof storageRowId !== 'number' ||
+      metadata?.valueType !== 'text' ||
+      typeof metadata.valueBytes !== 'number' ||
+      metadata.valueBytes < 1 ||
+      metadata.valueBytes > MAX_COOKIE_STORAGE_BYTES
+    ) {
+      return null
+    }
+
+    const row = database
+      .prepare('SELECT `value` FROM `cookies` WHERE _rowid_ = ? LIMIT 1')
+      .get(storageRowId) as CookieValueRow | undefined
+    return row?.value
+  } finally {
+    database.close()
+  }
+}
+
+function isMissing(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false
+  return (error as { code?: unknown }).code === 'ENOENT'
+}
+
+function isRetryableSnapshotError(error: unknown): boolean {
+  if (error instanceof TransientSnapshotError) return true
+  if (error instanceof RejectedSnapshotError) return false
+  if (typeof error !== 'object' || error === null) return false
+
+  if ('errcode' in error) {
+    const errcode = (error as { errcode?: unknown }).errcode
+    if (errcode === 5 || errcode === 6) return true
+  }
+  if ('code' in error) {
+    const code = (error as { code?: unknown }).code
+    return code === 'EACCES' || code === 'EBUSY' || code === 'EPERM'
+  }
+  return false
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function removeSnapshotPath(path: string): Promise<void> {
+  try {
+    await rm(path, { recursive: true, force: true })
+  } catch {
+    throw new RejectedSnapshotError()
+  }
+}
+
+async function isOwnedDirectory(path: string): Promise<boolean> {
+  try {
+    const value = await lstat(path)
+    if (!value.isDirectory() || value.isSymbolicLink()) return false
+    return typeof process.getuid !== 'function' || value.uid === process.getuid()
+  } catch (error) {
+    if (isMissing(error)) return false
+    throw error
+  }
+}
+
+async function scavengeSnapshotRoots(tempPath: string): Promise<void> {
+  const entries = await readdir(tempPath)
+  for (const entry of entries) {
+    if (!entry.startsWith(SNAPSHOT_ROOT_PREFIX)) continue
+    const path = join(tempPath, entry)
+    if (await isOwnedDirectory(path)) await removeSnapshotPath(path)
+  }
+}
+
+async function sourceFileVersion(
+  path: string,
+  optional = false
+): Promise<SourceFileVersion | null> {
+  try {
+    const value = await stat(path, { bigint: true })
+    if (!value.isFile()) throw new RejectedSnapshotError()
+    return {
+      dev: value.dev,
+      ino: value.ino,
+      size: value.size,
+      mtimeNs: value.mtimeNs,
+      ctimeNs: value.ctimeNs
+    }
+  } catch (error) {
+    if (optional && isMissing(error)) return null
+    throw error
+  }
+}
+
+function sameSourceVersion(
+  left: SourceFileVersion | null,
+  right: SourceFileVersion | null
+): boolean {
+  if (left === null || right === null) return left === right
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  )
+}
+
+async function requireWalDatabaseHeader(sourcePath: string): Promise<void> {
+  const handle = await open(sourcePath, 'r')
+  const header = Buffer.alloc(20)
+  try {
+    const { bytesRead } = await handle.read(header, 0, header.length, 0)
+    if (
+      bytesRead !== header.length ||
+      header.toString('binary', 0, 16) !== 'SQLite format 3\0' ||
+      header[18] !== 2 ||
+      header[19] !== 2
+    ) {
+      throw new RejectedSnapshotError()
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
+function assertSourceBounds(main: SourceFileVersion): void {
+  if (main.size > BigInt(MAX_VRCX_DATABASE_BYTES)) throw new RejectedSnapshotError()
+}
+
+async function readCookieStorageFromSnapshot(
+  sourcePath: string,
+  snapshotRoot: string
+): Promise<unknown> {
+  const snapshotDirectory = await mkdtemp(join(snapshotRoot, 'snapshot-'))
+  const snapshotPath = join(snapshotDirectory, 'VRCX.sqlite3')
+
+  try {
+    const beforeMain = await sourceFileVersion(sourcePath)
+    const beforeWal = await sourceFileVersion(`${sourcePath}-wal`, true)
+    const beforeJournal = await sourceFileVersion(`${sourcePath}-journal`, true)
+    if (beforeMain === null) throw new RejectedSnapshotError()
+    if (beforeWal !== null && beforeWal.size > 0n) throw new TransientSnapshotError()
+    if (beforeJournal !== null && beforeJournal.size > 0n) {
+      throw new TransientSnapshotError()
+    }
+    assertSourceBounds(beforeMain)
+    await requireWalDatabaseHeader(sourcePath)
+
+    await copyFile(sourcePath, snapshotPath, constants.COPYFILE_FICLONE)
+
+    const afterMain = await sourceFileVersion(sourcePath)
+    const afterWal = await sourceFileVersion(`${sourcePath}-wal`, true)
+    const afterJournal = await sourceFileVersion(`${sourcePath}-journal`, true)
+    if (
+      afterMain === null ||
+      (afterJournal !== null && afterJournal.size > 0n) ||
+      !sameSourceVersion(beforeMain, afterMain) ||
+      !sameSourceVersion(beforeWal, afterWal) ||
+      !sameSourceVersion(beforeJournal, afterJournal)
+    ) {
+      throw new TransientSnapshotError()
+    }
+    return readCookieStorage(snapshotPath)
+  } finally {
+    await removeSnapshotPath(snapshotDirectory)
+  }
+}
+
+async function readCookieStorageWithRetry(
+  databasePath: string,
+  snapshotRoot: string
+): Promise<unknown> {
+  try {
+    return await readCookieStorageFromSnapshot(databasePath, snapshotRoot)
+  } catch (error) {
+    if (!isRetryableSnapshotError(error)) throw error
+    await delay(LOCK_RETRY_DELAY_MS)
+    return readCookieStorageFromSnapshot(databasePath, snapshotRoot)
+  }
+}
+
+async function readCookieStorageInTemporaryRoot(databasePath: string): Promise<unknown> {
+  const tempPath = app.getPath('temp')
+  await scavengeSnapshotRoots(tempPath)
+  const snapshotRoot = await mkdtemp(join(tempPath, SNAPSHOT_ROOT_PREFIX))
+  await chmod(snapshotRoot, 0o700)
+
+  try {
+    return await readCookieStorageWithRetry(databasePath, snapshotRoot)
+  } finally {
+    await removeSnapshotPath(snapshotRoot)
+  }
+}
+
+function isVrcxCookie(value: unknown): value is VrcxCookie {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const cookie = value as Record<string, unknown>
+  return (
+    typeof cookie.Name === 'string' &&
+    typeof cookie.Value === 'string' &&
+    typeof cookie.Domain === 'string'
+  )
+}
+
+function decodeCookies(value: unknown): VrcxCookie[] | null {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > MAX_COOKIE_STORAGE_BYTES ||
+    !BASE64.test(value)
+  ) {
+    return null
+  }
+
+  const decoded = Buffer.from(value, 'base64')
+  if (decoded.toString('base64') !== value) return null
+
+  try {
+    const parsed: unknown = JSON.parse(UTF8_DECODER.decode(decoded))
+    if (!Array.isArray(parsed) || parsed.length > MAX_COOKIE_COUNT) return null
+    if (!parsed.every(isVrcxCookie)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function isVrcDomain(value: string): boolean {
+  const domain = value.toLowerCase().replace(/^\./, '')
+  return domain === 'vrchat.cloud' || domain === 'api.vrchat.cloud'
+}
+
+function cookieHeader(cookies: VrcxCookie[]): string | null {
+  const vrchatCookies = cookies.filter((cookie) => isVrcDomain(cookie.Domain))
+  const auth = vrchatCookies.filter((cookie) => cookie.Name === 'auth')
+  const twoFactorAuth = vrchatCookies.filter((cookie) => cookie.Name === 'twoFactorAuth')
+  const authCookie = auth[0]
+  const twoFactorAuthCookie = twoFactorAuth[0]
+  if (auth.length !== 1 || twoFactorAuth.length > 1) return null
+  if (authCookie === undefined) return null
+  if (!COOKIE_OCTETS.test(authCookie.Value)) return null
+  if (twoFactorAuthCookie !== undefined && !COOKIE_OCTETS.test(twoFactorAuthCookie.Value)) {
+    return null
+  }
+
+  const parts = [`auth=${authCookie.Value}`]
+  if (twoFactorAuthCookie !== undefined) {
+    parts.push(`twoFactorAuth=${twoFactorAuthCookie.Value}`)
+  }
+  const header = parts.join('; ')
+  return isValidVrcSessionCookie(header) ? header : null
+}
+
+async function importVrcxSessionOnce(): Promise<'imported' | null> {
+  const databasePath = join(app.getPath('appData'), 'VRCX', 'VRCX.sqlite3')
+  try {
+    const cookies = decodeCookies(await readCookieStorageInTemporaryRoot(databasePath))
+    if (cookies === null) return null
+    const header = cookieHeader(cookies)
+    if (header === null) return null
+
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, header)
+    return 'imported'
+  } catch {
+    return null
+  }
+}
+
+let importInFlight: Promise<'imported' | null> | null = null
+
+export function importVrcxSession(): Promise<'imported' | null> {
+  if (importInFlight !== null) return importInFlight
+  const operation = importVrcxSessionOnce().finally(() => {
+    if (importInFlight === operation) importInFlight = null
+  })
+  importInFlight = operation
+  return operation
+}
