@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- VRX now bundles its Inter UI face and VT323 accent face as local WOFF2 files, so typography no longer depends on fonts installed on the computer. The standalone design references now use those same local files instead of Google Fonts. (VRX-32)
+- VRX now bundles Latin and supported-symbol coverage for its Inter UI face and VT323 accent face as local WOFF2 files. Japanese and other unsupported scripts still use the operating system's fallback fonts. The standalone design references now use the bundled files instead of Google Fonts. (VRX-32)
 
 ### Hardening
 
