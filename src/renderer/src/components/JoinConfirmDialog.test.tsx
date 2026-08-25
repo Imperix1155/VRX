@@ -531,6 +531,20 @@ describe('policy-space context', () => {
     expect(joinInstance).not.toHaveBeenCalled()
   })
 
+  it('removes the policy-space pill when live instance data disappears', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+    expect(dialog.querySelector('[data-policy-space-pill]')).toBeTruthy()
+
+    updateFriend({ ...joinableFriend, presence: { state: 'offline' }, instance: null })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    expect(within(dialog).getByText(/is no longer available to join/)).toBeTruthy()
+    expect(dialog.querySelector('[data-policy-space-pill]')).toBeNull()
+  })
+
   it('More info discloses the explainer inline (no new modal)', () => {
     render(
       <>
