@@ -1,0 +1,507 @@
+import { createHash } from 'node:crypto'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  symlink,
+  truncate,
+  writeFile
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  getPath: vi.fn<(name: string) => string>(),
+  saveCredential: vi.fn<(key: string, value: string) => void>(),
+  copyFile: vi.fn<typeof import('node:fs/promises').copyFile>(),
+  realCopyFile: undefined as typeof import('node:fs/promises').copyFile | undefined
+}))
+
+vi.mock('electron', () => ({ app: { getPath: mocks.getPath } }))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  mocks.realCopyFile = actual.copyFile
+  mocks.copyFile.mockImplementation(actual.copyFile)
+  return { ...actual, copyFile: mocks.copyFile }
+})
+vi.mock('./credentials', () => ({
+  CREDENTIAL_KEYS: { VRCHAT_PRIMARY: 'vrchat:primary' },
+  saveCredential: mocks.saveCredential
+}))
+
+import { importVrcxSession } from './vrcxSessionImport'
+
+const COOKIE_PAYLOAD = Buffer.from(
+  JSON.stringify([
+    {
+      Name: 'auth',
+      Value: 'authcookie_primary',
+      Domain: '.vrchat.cloud',
+      Path: '/',
+      Secure: true,
+      HttpOnly: true
+    },
+    {
+      Name: 'twoFactorAuth',
+      Value: 'twofactor_secondary',
+      Domain: '.vrchat.cloud',
+      Path: '/',
+      Secure: true,
+      HttpOnly: true
+    }
+  ])
+).toString('base64')
+
+function encodeCookies(cookies: unknown): string {
+  return Buffer.from(JSON.stringify(cookies)).toString('base64')
+}
+
+function digest(value: Buffer): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+
+describe('VRCX session import', () => {
+  let rootPath: string
+  let appDataPath: string
+  let tempPath: string
+
+  function databasePath(): string {
+    return join(appDataPath, 'VRCX', 'VRCX.sqlite3')
+  }
+
+  async function createDatabase(value: string | Buffer = COOKIE_PAYLOAD): Promise<string> {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const database = new DatabaseSync(path)
+    database.exec(
+      'PRAGMA journal_mode=WAL; CREATE TABLE cookies (`key` TEXT PRIMARY KEY, `value` TEXT)'
+    )
+    database.prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)').run('default', value)
+    database.close()
+    return path
+  }
+
+  beforeEach(async () => {
+    rootPath = await mkdtemp(join(tmpdir(), 'vrx-vrcx-import-'))
+    appDataPath = join(rootPath, 'app-data')
+    tempPath = join(rootPath, 'temp')
+    await mkdir(appDataPath)
+    await mkdir(tempPath)
+    mocks.getPath.mockClear()
+    mocks.getPath.mockImplementation((name) => {
+      if (name === 'appData') return appDataPath
+      if (name === 'temp') return tempPath
+      throw new Error(`Unexpected Electron path: ${name}`)
+    })
+    mocks.saveCredential.mockClear()
+    mocks.copyFile.mockClear()
+    if (mocks.realCopyFile === undefined) throw new Error('fs copyFile mock was not initialized')
+    mocks.copyFile.mockImplementation(mocks.realCopyFile)
+  })
+
+  afterEach(async () => {
+    await rm(rootPath, { recursive: true, force: true })
+  })
+
+  it('imports the active VRChat cookies without modifying the VRCX database', async () => {
+    const path = await createDatabase()
+    const before = digest(await readFile(path))
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(mocks.getPath).toHaveBeenCalledWith('appData')
+    expect(mocks.getPath).toHaveBeenCalledWith('temp')
+    expect(mocks.saveCredential).toHaveBeenCalledWith(
+      'vrchat:primary',
+      'auth=authcookie_primary; twoFactorAuth=twofactor_secondary'
+    )
+    expect(digest(await readFile(path))).toBe(before)
+    expect(await readdir(tempPath)).toEqual([])
+  })
+
+  it('fails gracefully on an active WAL without creating or changing VRCX sidecars', async () => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const originPath = join(rootPath, 'wal-origin.sqlite3')
+    const writer = new DatabaseSync(originPath)
+    writer.exec(
+      'PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE cookies (`key` TEXT PRIMARY KEY, `value` TEXT)'
+    )
+    writer
+      .prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
+      .run('default', COOKIE_PAYLOAD)
+    await copyFile(originPath, path)
+    await copyFile(`${originPath}-wal`, `${path}-wal`)
+    const beforeEntries = (await readdir(dirname(path))).sort()
+    const beforeMain = digest(await readFile(path))
+    const beforeWal = digest(await readFile(`${path}-wal`))
+    mocks.copyFile.mockClear()
+
+    try {
+      await expect(importVrcxSession()).resolves.toBeNull()
+
+      expect((await readdir(dirname(path))).sort()).toEqual(beforeEntries)
+      expect(digest(await readFile(path))).toBe(beforeMain)
+      expect(digest(await readFile(`${path}-wal`))).toBe(beforeWal)
+      expect(await readdir(tempPath)).toEqual([])
+      expect(mocks.copyFile).not.toHaveBeenCalled()
+      expect(mocks.saveCredential).not.toHaveBeenCalled()
+    } finally {
+      writer.close()
+    }
+  })
+
+  it('returns null when VRCX is not installed', async () => {
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('returns null for a malformed SQLite database', async () => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, 'not a SQLite database')
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+    expect(mocks.copyFile).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the cookies table is missing', async () => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const database = new DatabaseSync(path)
+    database.exec(
+      'PRAGMA journal_mode=WAL; CREATE TABLE configs (`key` TEXT PRIMARY KEY, `value` TEXT)'
+    )
+    database.close()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'view',
+      `CREATE VIEW cookies AS SELECT 'default' AS \`key\`, '${COOKIE_PAYLOAD}' AS \`value\``
+    ],
+    [
+      'generated value column',
+      `CREATE TABLE cookies (\`key\` TEXT, source TEXT, \`value\` TEXT GENERATED ALWAYS AS (source) VIRTUAL);
+       INSERT INTO cookies (\`key\`, source) VALUES ('default', '${COOKIE_PAYLOAD}')`
+    ],
+    [
+      'table that shadows its row locator',
+      `CREATE TABLE cookies (rowid TEXT, \`key\` TEXT, \`value\` TEXT);
+       INSERT INTO cookies (rowid, \`key\`, \`value\`) VALUES ('shadow', 'default', '${COOKIE_PAYLOAD}')`
+    ]
+  ])('rejects a cookies %s before evaluating its values', async (_name, schema) => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const database = new DatabaseSync(path)
+    database.exec(`PRAGMA journal_mode=WAL; ${schema}`)
+    database.close()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid UTF-8 anywhere in the cookie collection', async () => {
+    const malformed = Buffer.concat([
+      Buffer.from(
+        '[{"Name":"auth","Value":"authcookie_primary","Domain":".vrchat.cloud"},{"Name":"ignored","Value":"'
+      ),
+      Buffer.from([0x80]),
+      Buffer.from('","Domain":"example.com"}]')
+    ]).toString('base64')
+    await createDatabase(malformed)
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['invalid base64', '%%%'],
+    ['invalid JSON', Buffer.from('{').toString('base64')],
+    ['non-array JSON', encodeCookies({ Name: 'auth', Value: 'authcookie_primary' })],
+    ['non-text SQLite value', Buffer.from([0xff, 0xfe, 0xfd])]
+  ])('returns null for %s cookie storage', async (_name, value) => {
+    await createDatabase(value)
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'authcookie\npoison',
+    'authcookie\u0000poison',
+    'authcookie\u007fpoison',
+    'authcookie_é',
+    'authcookie with-space',
+    'authcookie,forged',
+    'authcookie\\forged'
+  ])('rejects unsafe auth cookie value %j', async (value) => {
+    await createDatabase(
+      encodeCookies([{ Name: 'auth', Value: value, Domain: '.vrchat.cloud', Path: '/' }])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects cookies from a non-VRChat domain', async () => {
+    await createDatabase(
+      encodeCookies([{ Name: 'auth', Value: 'authcookie_primary', Domain: 'example.com' }])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects ambiguous duplicate auth cookies', async () => {
+    await createDatabase(
+      encodeCookies([
+        { Name: 'auth', Value: 'authcookie_first', Domain: '.vrchat.cloud' },
+        { Name: 'auth', Value: 'authcookie_second', Domain: 'api.vrchat.cloud' }
+      ])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects cookie delimiter injection inside a stored value', async () => {
+    await createDatabase(
+      encodeCookies([
+        {
+          Name: 'auth',
+          Value: 'authcookie_primary; twoFactorAuth=forged',
+          Domain: '.vrchat.cloud'
+        }
+      ])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects a cookie collection containing malformed entries', async () => {
+    await createDatabase(
+      encodeCookies([{}, { Name: 'auth', Value: 'authcookie_primary', Domain: '.vrchat.cloud' }])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized SQLite cookie value before import', async () => {
+    await createDatabase(
+      encodeCookies([
+        { Name: 'auth', Value: 'authcookie_primary', Domain: '.vrchat.cloud' },
+        { Name: 'unrelated', Value: 'x'.repeat(300_000), Domain: 'example.com' }
+      ])
+    )
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('does not materialize an oversized non-target key while locating default', async () => {
+    const path = await createDatabase()
+    const database = new DatabaseSync(path)
+    database.exec(
+      "INSERT INTO cookies (`key`, `value`) SELECT replace(hex(zeroblob(4194304)), '00', 'AA'), 'ignored'"
+    )
+    database.close()
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects more than 64 cookies while accepting exactly 64', async () => {
+    const auth = { Name: 'auth', Value: 'authcookie_primary', Domain: '.vrchat.cloud' }
+    const unrelated = Array.from({ length: 64 }, (_, index) => ({
+      Name: `unrelated-${index}`,
+      Value: `value-${index}`,
+      Domain: 'example.com'
+    }))
+
+    await createDatabase(encodeCookies([auth, ...unrelated.slice(0, 63)]))
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    const database = new DatabaseSync(databasePath())
+    database
+      .prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?')
+      .run(encodeCookies([auth, ...unrelated]), 'default')
+    database.close()
+    mocks.saveCredential.mockClear()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate default rows in a malformed database', async () => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const database = new DatabaseSync(path)
+    database.exec('PRAGMA journal_mode=WAL; CREATE TABLE cookies (`key` TEXT, `value` TEXT)')
+    database
+      .prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?), (?, ?)')
+      .run('default', COOKIE_PAYLOAD, 'default', COOKIE_PAYLOAD)
+    database.close()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('accepts at most 64 rows in the external cookies table', async () => {
+    const path = await createDatabase()
+    const database = new DatabaseSync(path)
+    const insert = database.prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
+    for (let index = 0; index < 63; index += 1) insert.run(`unrelated-${index}`, 'ignored')
+    database.close()
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    const oversized = new DatabaseSync(path)
+    oversized
+      .prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
+      .run('unrelated-64', 'ignored')
+    oversized.close()
+    mocks.saveCredential.mockClear()
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('imports while the source database has an exclusive SQLite lock', async () => {
+    const path = await createDatabase()
+    const locker = new DatabaseSync(path)
+    locker.exec('BEGIN EXCLUSIVE')
+
+    try {
+      await expect(importVrcxSession()).resolves.toBe('imported')
+      expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+    } finally {
+      locker.exec('ROLLBACK')
+      locker.close()
+    }
+  })
+
+  it('removes a stale plaintext snapshot before reading VRCX', async () => {
+    await createDatabase()
+    const staleRoot = join(tempPath, 'vrx-vrcx-session-import-stale', 'snapshot-stale')
+    await mkdir(staleRoot, { recursive: true })
+    await writeFile(join(staleRoot, 'VRCX.sqlite3'), COOKIE_PAYLOAD)
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(await readdir(tempPath)).toEqual([])
+  })
+
+  it('does not follow a planted snapshot-root symlink', async () => {
+    await createDatabase()
+    const attackerPath = join(rootPath, 'attacker')
+    const plantedRoot = join(tempPath, 'vrx-vrcx-session-import-planted')
+    await mkdir(attackerPath)
+    await symlink(attackerPath, plantedRoot, process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(await readdir(attackerPath)).toEqual([])
+    expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-planted'])
+  })
+
+  it('retries when the source generation changes during the copy', async () => {
+    await createDatabase(
+      encodeCookies([{ Name: 'auth', Value: 'authcookie_old', Domain: '.vrchat.cloud' }])
+    )
+    const replacement = encodeCookies([
+      { Name: 'auth', Value: 'authcookie_new', Domain: '.vrchat.cloud' }
+    ])
+    mocks.copyFile.mockImplementationOnce(async (source, destination, mode) => {
+      if (mocks.realCopyFile === undefined) throw new Error('fs copyFile mock was not initialized')
+      await mocks.realCopyFile(source, destination, mode)
+      const database = new DatabaseSync(databasePath())
+      database.prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?').run(replacement, 'default')
+      database.close()
+    })
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+
+    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
+    expect(mocks.saveCredential).toHaveBeenCalledWith('vrchat:primary', 'auth=authcookie_new')
+  })
+
+  it('retries once after a transient sharing failure', async () => {
+    await createDatabase()
+    const busy = Object.assign(new Error('busy'), { code: 'EBUSY' })
+    mocks.copyFile.mockRejectedValueOnce(busy)
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
+    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns null after exactly one retry when sharing remains unavailable', async () => {
+    await createDatabase()
+    mocks.copyFile.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.copyFile).toHaveBeenCalledTimes(2)
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('rejects rollback-journal databases instead of importing uncommitted data', async () => {
+    const path = databasePath()
+    await mkdir(dirname(path), { recursive: true })
+    const writer = new DatabaseSync(path)
+    writer.exec(
+      "PRAGMA journal_mode=DELETE; CREATE TABLE cookies (`key` TEXT PRIMARY KEY, `value` TEXT); INSERT INTO cookies VALUES ('default', 'old')"
+    )
+    writer.exec('BEGIN IMMEDIATE')
+    writer.prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?').run(COOKIE_PAYLOAD, 'default')
+
+    try {
+      await expect(importVrcxSession()).resolves.toBeNull()
+      expect(mocks.copyFile).not.toHaveBeenCalled()
+      expect(mocks.saveCredential).not.toHaveBeenCalled()
+    } finally {
+      writer.exec('ROLLBACK')
+      writer.close()
+    }
+  })
+
+  it('accepts a checkpointed database with a stale empty rollback journal', async () => {
+    const path = await createDatabase()
+    await writeFile(`${path}-journal`, Buffer.alloc(0))
+
+    await expect(importVrcxSession()).resolves.toBe('imported')
+    expect(mocks.copyFile).toHaveBeenCalledTimes(1)
+    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects an oversized source database before copying it', async () => {
+    const path = await createDatabase()
+    await truncate(path, 512 * 1024 * 1024 + 1)
+
+    await expect(importVrcxSession()).resolves.toBeNull()
+    expect(mocks.copyFile).not.toHaveBeenCalled()
+    expect(mocks.saveCredential).not.toHaveBeenCalled()
+  })
+
+  it('shares one import operation across concurrent callers', async () => {
+    await createDatabase()
+
+    const first = importVrcxSession()
+    const second = importVrcxSession()
+
+    expect(second).toBe(first)
+    await expect(Promise.all([first, second])).resolves.toEqual(['imported', 'imported'])
+    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+  })
+})

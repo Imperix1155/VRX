@@ -374,6 +374,16 @@ Zod tolerance is field-level, not page-level:
 
 ## Known Volatile Areas (Watch List)
 
+### VRCX local session database
+
+VRX-54 depends on VRCX's local SQLite session shape, verified against upstream VRCX source on 2026-08-24:
+
+- Electron's `appData` directory contains `VRCX/VRCX.sqlite3` on Windows and Linux.
+- The active .NET `CookieContainer` is a base64-encoded JSON array in `cookies.value` where `cookies.key = 'default'`.
+- VRChat entries use `Name`, `Value`, and `Domain`; VRX accepts only `auth` and `twoFactorAuth` for `vrchat.cloud`.
+
+`importVrcxSession()` accepts only this WAL-format main database when no nonempty WAL or rollback journal is active. SQLite does not strongly bind an offline WAL to its main file, so a nonempty WAL is treated as running/locked VRCX: one transient retry, then `null` rather than risking a stale or foreign session. For a checkpointed database, source generation metadata is checked around a capped 512 MiB copy into an atomically random-named, owner-only `app.getPath('temp')` snapshot. The temp root removes prior owned crash residue on the next import and is removed before credential persistence. The snapshot is opened read-only. Before evaluating external values, the importer requires an ordinary rowid `cookies` table with stored `key`/`value` columns and at most 64 rows; metadata-only `octet_length()` bounds candidate keys and `cookies/default` to 256 KiB before materialization. Its one unambiguous row, fatal-valid UTF-8 CookieCollection, exact VRChat domain/name set, and RFC cookie-octet values then reach the shared ASCII validator and `saveCredential`. Any drift returns `null` without logging external values or errors and falls through to direct login once VRX-35 wires the importer into the hybrid-auth flow. VRX-54 queries no VRCX history table and never writes VRCX.
+
 ### VRChat
 
 - **Presence bucket structure:** The `onlineFriends`, `activeFriends`, `offlineFriends` arrays in `/auth/user` are core to the two-axis presence model (VRX-44). If the API removes or renames these, presence parsing breaks and requires a code update.
