@@ -2,12 +2,15 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { deflateRawSync } from 'node:zlib'
 import { afterEach, describe, expect, it } from 'vitest'
 import { verifyLinuxUpdateMetadata } from './verify-linux-update-metadata.mjs'
 
 const temporaryDirectories = []
 const appImagePayload = Buffer.from('appimage fixture')
-const appImageBlockMap = Buffer.from('embedded block map fixture')
+const appImageBlockMap = deflateRawSync(
+  JSON.stringify({ version: '2', files: [{ name: 'vrx', offset: 0, checksums: [], sizes: [] }] })
+)
 const appImageTrailer = Buffer.alloc(4)
 appImageTrailer.writeUInt32BE(appImageBlockMap.length)
 const appImageBytes = Buffer.concat([appImagePayload, appImageBlockMap, appImageTrailer])
@@ -20,7 +23,12 @@ function sha512(bytes) {
   return createHash('sha512').update(bytes).digest('base64')
 }
 
-async function createFixture({ manifestTransform = (value) => value, appUpdate = null } = {}) {
+async function createFixture({
+  manifestTransform = (value) => value,
+  appUpdate = null,
+  appImage = appImageBytes,
+  blockMapSize = appImageBlockMap.length
+} = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'vrx-linux-update-'))
   temporaryDirectories.push(directory)
 
@@ -40,18 +48,18 @@ updaterCacheDirName: vrx-updater
   const validManifest = `version: ${packageMetadata.version}
 files:
   - url: ${appImageName}
-    sha512: ${sha512(appImageBytes)}
-    size: ${appImageBytes.length}
-    blockMapSize: ${appImageBlockMap.length}
+    sha512: ${sha512(appImage)}
+    size: ${appImage.length}
+    blockMapSize: ${blockMapSize}
   - url: ${debName}
     sha512: ${sha512(debBytes)}
     size: ${debBytes.length}
 path: ${appImageName}
-sha512: ${sha512(appImageBytes)}
+sha512: ${sha512(appImage)}
 `
 
   await Promise.all([
-    writeFile(appImagePath, appImageBytes),
+    writeFile(appImagePath, appImage),
     writeFile(debPath, debBytes),
     writeFile(manifestPath, manifestTransform(validManifest)),
     writeFile(appImageUpdatePath, appUpdate ?? validUpdate),
@@ -105,6 +113,36 @@ describe('verifyLinuxUpdateMetadata', () => {
 
     await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
       'blockMapSize must match the AppImage trailer'
+    )
+  })
+
+  it('rejects a matching trailer and manifest size larger than the available AppImage bytes', async () => {
+    const oversizedBlockMapSize = appImagePayload.length + 1
+    const oversizedTrailer = Buffer.alloc(4)
+    oversizedTrailer.writeUInt32BE(oversizedBlockMapSize)
+    const oversizedAppImage = Buffer.concat([appImagePayload, oversizedTrailer])
+    const fixture = await createFixture({
+      appImage: oversizedAppImage,
+      blockMapSize: oversizedBlockMapSize
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'block-map size cannot exceed the bytes before its trailer'
+    )
+  })
+
+  it('rejects embedded block-map bytes that electron-updater cannot inflate and parse', async () => {
+    const invalidBlockMap = Buffer.from('not a compressed block map')
+    const invalidTrailer = Buffer.alloc(4)
+    invalidTrailer.writeUInt32BE(invalidBlockMap.length)
+    const invalidAppImage = Buffer.concat([appImagePayload, invalidBlockMap, invalidTrailer])
+    const fixture = await createFixture({
+      appImage: invalidAppImage,
+      blockMapSize: invalidBlockMap.length
+    })
+
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'embedded block map must be valid deflate-compressed JSON'
     )
   })
 

@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs'
 import { open, readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { inflateRawSync } from 'node:zlib'
 import { load } from 'js-yaml'
 
 const packagePath = fileURLToPath(new URL('../package.json', import.meta.url))
@@ -50,8 +51,38 @@ async function embeddedBlockMapSize(path) {
     const trailer = Buffer.alloc(4)
     const { bytesRead } = await handle.read(trailer, 0, trailer.length, size - trailer.length)
     requireCondition(bytesRead === trailer.length, 'AppImage block-map trailer must be readable')
+    const blockMapSize = trailer.readUInt32BE(0)
+    requireCondition(
+      blockMapSize <= size - trailer.length,
+      'AppImage block-map size cannot exceed the bytes before its trailer'
+    )
 
-    return trailer.readUInt32BE(0)
+    const compressedBlockMap = Buffer.alloc(blockMapSize)
+    const blockMapRead = await handle.read(
+      compressedBlockMap,
+      0,
+      compressedBlockMap.length,
+      size - trailer.length - compressedBlockMap.length
+    )
+    requireCondition(
+      blockMapRead.bytesRead === compressedBlockMap.length,
+      'AppImage embedded block map must be readable'
+    )
+
+    let blockMap
+    try {
+      blockMap = JSON.parse(inflateRawSync(compressedBlockMap).toString())
+    } catch (error) {
+      throw new Error('AppImage embedded block map must be valid deflate-compressed JSON', {
+        cause: error
+      })
+    }
+    requireCondition(
+      isRecord(blockMap) && blockMap.version === '2' && Array.isArray(blockMap.files),
+      'AppImage embedded block map must use the electron-updater v2 files format'
+    )
+
+    return blockMapSize
   } finally {
     await handle.close()
   }
