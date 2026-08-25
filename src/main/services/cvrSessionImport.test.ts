@@ -7,6 +7,7 @@ import {
   loadStoredOrImportedCvrSession,
   type CvrSessionImportPaths
 } from './cvrSessionImport'
+import type { CVRCredentials } from './adapters/CvrApiClient'
 
 const temporaryDirectories: string[] = []
 const windowsSeparator = String.fromCharCode(92)
@@ -401,5 +402,20 @@ describe('CVR import persistence boundary', () => {
       })
     ).toEqual({ username: 'stored-user', accessKey: 'stored-key' })
     expect(imported).toBe(false)
+  })
+
+  it('treats an unsafe stored session as absent and imports a valid replacement', async () => {
+    let persisted: CVRCredentials | undefined
+
+    await expect(
+      loadStoredOrImportedCvrSession({
+        loadStored: () => ({ username: 'stored-user', accessKey: 'unsafe\nkey' }),
+        importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
+        persistImported: (credentials) => {
+          persisted = credentials
+        }
+      })
+    ).resolves.toEqual({ username: 'external-user', accessKey: 'external-key' })
+    expect(persisted).toEqual({ username: 'external-user', accessKey: 'external-key' })
   })
 })
