@@ -306,6 +306,22 @@ const steamRoots = (paths: CvrSessionImportPaths): string[] => {
   }
 }
 
+const decodeSteamPath = (rawPath: string): string | null => {
+  let decoded = ''
+  for (let index = 0; index < rawPath.length; index += 1) {
+    const character = rawPath[index]
+    if (character !== '\\') {
+      decoded += character
+      continue
+    }
+    const escaped = rawPath[index + 1]
+    if (escaped !== '\\' && escaped !== '/') return null
+    decoded += escaped
+    index += 1
+  }
+  return decoded
+}
+
 const parseSteamLibraryPaths = async (
   steamRoot: string,
   paths: CvrSessionImportPaths,
@@ -325,8 +341,14 @@ const parseSteamLibraryPaths = async (
   for (const match of contents.matchAll(pathExpression)) {
     const rawPath = match[1]
     if (rawPath === undefined) continue
-    const decodedPath = rawPath.replace(/\\\\/g, '\\').replace(/\\\//g, '/')
-    if (decodedPath.includes('\0') || !isLocalAbsolutePath(decodedPath, paths.platform)) continue
+    const decodedPath = decodeSteamPath(rawPath)
+    if (
+      decodedPath === null ||
+      decodedPath.includes('\0') ||
+      !isLocalAbsolutePath(decodedPath, paths.platform)
+    ) {
+      continue
+    }
     if (libraries.length >= MAX_GAME_DATA_PATHS) return null
     libraries.push(decodedPath)
   }

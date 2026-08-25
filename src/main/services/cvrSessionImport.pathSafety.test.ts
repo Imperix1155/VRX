@@ -54,6 +54,7 @@ describe('CVR session import path authority', () => {
     )
     const uncLibrary = [`${windowsNetworkPrefix}attacker`, 'share'].join(windowsSeparator)
     const deviceLibrary = [`${windowsNetworkPrefix}?`, 'C:', 'device'].join(windowsSeparator)
+    const malformedEscapeLibrary = ['C:', 'unsafe', 'q'].join(windowsSeparator)
     const escapeVdfPath = (path: string): string =>
       path.replaceAll(windowsSeparator, windowsSeparator.repeat(2))
     fileMock.contents.set(
@@ -65,7 +66,7 @@ describe('CVR session import path authority', () => {
     )
     fileMock.contents.set(
       join(programFiles, 'Steam', 'steamapps', 'libraryfolders.vdf'),
-      `"path" "${escapeVdfPath(uncLibrary)}"\n"path" "${escapeVdfPath(deviceLibrary)}"`
+      `"path" "${escapeVdfPath(uncLibrary)}"\n"path" "${escapeVdfPath(deviceLibrary)}"\n"path" "${malformedEscapeLibrary}"`
     )
 
     await expect(
@@ -79,5 +80,6 @@ describe('CVR session import path authority', () => {
 
     const normalizedPaths = fileMock.inspectedPaths.map((path) => path.replaceAll('/', '\\'))
     expect(normalizedPaths).not.toContainEqual(expect.stringMatching(/^\\\\/))
+    expect(normalizedPaths).not.toContainEqual(expect.stringContaining(malformedEscapeLibrary))
   })
 })
