@@ -91,14 +91,17 @@ For every BrowserWindow or IPC change:
   feature branch, push that branch, open or update a PR, push review fixes, and
   keep Linear current without a separate permission prompt. These are normal,
   reversible delivery steps. Never commit or push directly to protected `main`.
-- Merge only with explicit merge authority, `review-loop` coverage of the last
-  functional head plus any verified nonfunctional-only delta, the applicable
-  local gates green, final-head CI green, and substantive CodeRabbit and
-  Greptile output covering the initial PR head and every later functional head.
-  Resolve or refute every finding. Only a narrow safe-class exception explicitly
-  defined by its owning skill may waive a review leg; it does not generalize.
-  Without merge authority, leave the green PR open for owner approval; with it,
-  merge when all gates are satisfied.
+- Merge only with explicit merge authority, `review-loop` coverage of the review
+  anchor plus any verified nonfunctional-only delta, the applicable local gates
+  green, final-head CI green, and substantive CodeRabbit and Greptile output
+  covering the initial PR head and every later functional head. The initial PR
+  head is the review anchor until a later functional head replaces it; this also
+  defines the anchor for PRs with no functional changes. Resolve or refute every
+  finding. The focused nonfunctional lane under Code Review Rules is the
+  standing exception for later corrections. Any other review-leg exception must
+  be narrowly defined by its owning skill and does not generalize. Without merge
+  authority, leave the green PR open for owner approval; with it, merge when all
+  gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
@@ -177,8 +180,8 @@ These rules apply to local review and Codex GitHub PR review:
   consistency, or `git diff --check` checks. Do not rerun the full
   `review-loop`, and do not manually request or wait for another bot review
   solely to bless that correction. Prior substantive bot coverage remains valid
-  for the last functional head. If a change mixes lanes or its effect remains
-  uncertain after a decisive probe, use the functional lane. Record the
+  for the review anchor. If a change mixes lanes or its effect remains uncertain
+  after a decisive probe, use the functional lane. Record the
   classification and evidence in one concise PR disposition.
 - Review the actual PR head and changed lines. Report only actionable findings
   introduced or exposed by the diff.
