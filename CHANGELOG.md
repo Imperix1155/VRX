@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- ChilloutVR Members Only and Offline Instance rule-context pills now show **Private space**. Every recognized platform-valid instance type now resolves from the instance type alone; group membership settings do not affect the result. **Unknown** remains only for unreadable, impossible, or conflicting data. (VRX-245)
+- ChilloutVR Members Only and Offline Instance rule-context pills now show **Private space**. Every recognized platform-valid instance type with successfully read openness now resolves to Public or Private; group membership settings do not affect the result. The `opennessUnknown` integrity flag overrides the type mapping, so **Unknown** remains only for degraded, impossible, or conflicting data. (VRX-245)
 
 ## [0.19.0] - 2026-08-25
 

@@ -40,8 +40,14 @@ export function policySpaceFor(
 ): PolicySpace {
   if (instance.opennessUnknown === true) return 'unknown'
 
-  const policySpaceByType: Partial<Record<InstanceInfo['type'], KnownPolicySpace>> =
-    platform === 'vrchat' ? VRC_POLICY_SPACE : CVR_POLICY_SPACE
+  let policySpaceByType: Partial<Record<InstanceInfo['type'], KnownPolicySpace>>
+  if (platform === 'vrchat') {
+    policySpaceByType = VRC_POLICY_SPACE
+  } else if (platform === 'chilloutvr') {
+    policySpaceByType = CVR_POLICY_SPACE
+  } else {
+    return 'unknown'
+  }
   const policySpace = Object.hasOwn(policySpaceByType, instance.type)
     ? policySpaceByType[instance.type]
     : undefined

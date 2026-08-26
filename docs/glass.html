@@ -552,7 +552,7 @@
         <span class="policy-pill private">Private space</span>
         <span class="policy-pill unknown">Unknown</span>
       </div>
-      <div class="why" style="margin-top:10px;">Instance type alone determines the policy space. Every recognized type resolves Public or Private; group settings do not alter it. Unknown is only for unreadable, impossible, or conflicting data.</div>
+      <div class="why" style="margin-top:10px;">Platform and instance type determine the policy space when openness was read successfully. Every recognized platform-valid type then resolves Public or Private; <code>opennessUnknown</code> overrides that mapping and yields Unknown even for a recognized fallback type. Group settings do not alter it. Unknown is only for degraded, unexpected or impossible, or conflicting data.</div>
     </main>
   </div>
 </body>

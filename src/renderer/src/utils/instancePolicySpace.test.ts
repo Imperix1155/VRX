@@ -45,6 +45,13 @@ describe('policy-space classification', () => {
     expect(policySpaceFor('chilloutvr', { type: 'invite' })).toBe('unknown')
   })
 
+  it('a runtime-invalid platform cannot borrow a recognized platform mapping', () => {
+    const invalidPlatform = 'invalid-platform' as unknown as Platform
+
+    expect(policySpaceFor(invalidPlatform, { type: 'public' })).toBe('unknown')
+    expect(policySpaceFor(invalidPlatform, { type: 'friends-of-friends' })).toBe('unknown')
+  })
+
   it.each(['constructor', 'toString', '__proto__'])(
     'a runtime-invalid %s type cannot read an inherited object property',
     (type) => {
