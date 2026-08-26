@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-25
+
 ### Added
 
 - VRX can reuse an existing ChilloutVR session from the game's auto-login profile or CVRX's credential store. It reads those files only when VRX has no usable stored CVR session, rejects malformed, unsafe, or ambiguous credentials and unsafe Electron path roots, encrypts the selected username and access key before use, and validates the key through the existing one-shot CVR re-authentication path before the live socket can use it. Missing sources still fall through to direct sign-in. (VRX-56)
