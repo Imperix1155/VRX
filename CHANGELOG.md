@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - ChilloutVR Members Only and Offline Instance rule-context pills now show **Private space**. Every recognized platform-valid instance type with successfully read openness now resolves to Public or Private; group membership and join settings do not affect the result. The `opennessUnknown` integrity flag overrides the type mapping, so **Unknown** remains only for degraded, unexpected, impossible, or conflicting data. (VRX-245)
+- Windows prerelease packaging now recognizes platform-native ASAR paths when verifying bundled fonts, so a valid font-provenance check no longer stops installer creation. (VRX-32)
 
 ## [0.19.0] - 2026-08-25
 
