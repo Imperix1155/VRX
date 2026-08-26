@@ -98,9 +98,13 @@ describe('main single-instance lock (VRX-230)', () => {
 
   it('app chunk foregrounds the surviving window on second-instance', () => {
     expect(source).toContain("app.on('second-instance'")
-    // Reuses focusMainWindow (restore → show → focus), guarded for early boot
-    // where no window exists yet and BrowserWindow creation would throw.
-    expect(source).toContain('if (app.isReady()) focusMainWindow()')
+    // Reuses focusMainWindow (restore → show → focus), but queues a duplicate
+    // that arrives while async bootstrap is still registering IPC handlers.
+    expect(source).toContain('if (!bootstrapReadyForFocus) {')
+    expect(source).toContain('secondInstanceFocusPending = true')
+    expect(source).toMatch(
+      /bootstrapReadyForFocus = true\s+if \(secondInstanceFocusPending\) \{\s+secondInstanceFocusPending = false\s+focusMainWindow\(\)/
+    )
   })
 })
 
@@ -158,6 +162,26 @@ describe('main credential-owner wiring', () => {
         `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
       )
     )
+  })
+
+  it('persists an imported CVR session before giving it to the adapter store', () => {
+    const executableSource = stripComments(source)
+    const importStart = executableSource.indexOf(
+      'initialCvrCredentials = await loadStoredOrImportedCvrSession({'
+    )
+    const adapterStart = executableSource.indexOf(
+      'const cvrAdapter = new CvrAdapter(cvrCredentials'
+    )
+    const importWiring = executableSource.slice(importStart, adapterStart)
+
+    expect(importStart).toBeGreaterThan(-1)
+    expect(adapterStart).toBeGreaterThan(importStart)
+    expect(importWiring).toContain('importSession: () =>')
+    expect(importWiring).toContain('importCvrSession({')
+    expect(importWiring).toContain(
+      'saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))'
+    )
+    expect(importWiring).toContain('load: () => initialCvrCredentials')
   })
 })
 
