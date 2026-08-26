@@ -354,7 +354,7 @@ This pill is a separate semantic channel from the access/type pill above. It use
 | Private space | Ice `#62d3e8`                         | `#228eaa`            | `#17667a`  | The platform's private-space moderation context applies.         |
 | Unknown       | neutral `--text-dim` / `--text` mixes | same semantic tokens | same       | VRX cannot confirm the context; never guess Rose or Ice.         |
 
-Classifier mapping (`policySpaceFor`), based only on platform + platform-true `InstanceInfo.type`. Group membership, group join, and other group-level settings never participate:
+Classifier mapping (`policySpaceFor`), based on platform + platform-true `InstanceInfo.type`. Group membership, group join, and other group-level settings never participate. `opennessUnknown: true` is checked first and overrides the table to **Unknown**, even when the defensive fallback type is recognized:
 
 | Platform   | Public space                                                 | Private space                                                                   | Unknown                                                  |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
