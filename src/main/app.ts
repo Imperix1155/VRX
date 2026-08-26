@@ -45,6 +45,7 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
+import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -62,6 +63,8 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
+let bootstrapReadyForFocus = false
+let secondInstanceFocusPending = false
 const rendererReadyWindows = new WeakSet<BrowserWindow>()
 const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
   if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
@@ -302,7 +305,12 @@ app.on('second-instance', () => {
   // about to show one anyway, so skip. The duplicate's argv/cwd are
   // deliberately ignored — VRX registers no protocol/deep-link handler; route
   // them here if one is ever added.
-  if (app.isReady()) focusMainWindow()
+  if (!app.isReady()) return
+  if (!bootstrapReadyForFocus) {
+    secondInstanceFocusPending = true
+    return
+  }
+  focusMainWindow()
 })
 
 // This method will be called when Electron has finished
@@ -310,7 +318,7 @@ app.on('second-instance', () => {
 // Some APIs can only be used after this event occurs.
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     // Structured logging first, so anything below is captured (VRX-15).
     initLogger()
 
@@ -390,27 +398,47 @@ app
       }
     })
     // CVR session = { username, accessKey } persisted as ONE safeStorage blob
-    // (VRX-37/174). The parse guard means a corrupted blob reads as "no session"
-    // instead of crashing the adapter constructor at boot.
-    const cvrCredentials: CvrCredentialStore = {
-      load: (): CVRCredentials | undefined => {
-        const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
-        if (!raw) return undefined
-        try {
-          const parsed: unknown = JSON.parse(raw)
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            typeof (parsed as CVRCredentials).username === 'string' &&
-            typeof (parsed as CVRCredentials).accessKey === 'string'
-          ) {
-            return parsed as CVRCredentials
-          }
-        } catch {
-          /* fall through — malformed blob */
+    // (VRX-37/174/56). With no valid stored session, the read-only importer checks the
+    // game profile first and CVRX second. Imported material is printable-ASCII
+    // validated and encrypted here before CvrAdapter can adopt or re-auth it.
+    const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
+      const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      if (!raw) return undefined
+      try {
+        const parsed: unknown = JSON.parse(raw)
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          typeof (parsed as CVRCredentials).username === 'string' &&
+          typeof (parsed as CVRCredentials).accessKey === 'string'
+        ) {
+          return parsed as CVRCredentials
         }
-        return undefined
-      },
+      } catch {
+        /* fall through — malformed blob */
+      }
+      return undefined
+    }
+    let initialCvrCredentials: CVRCredentials | undefined
+    try {
+      initialCvrCredentials = await loadStoredOrImportedCvrSession({
+        loadStored: loadStoredCvrCredentials,
+        importSession: () =>
+          importCvrSession({
+            appDataPath: app.getPath('appData'),
+            homePath: app.getPath('home'),
+            platform: process.platform,
+            environment: process.env
+          }),
+        persistImported: (credentials) =>
+          saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
+      })
+    } catch {
+      // A locked keychain or unreadable external source must not block app boot.
+      log.warn('CVR session restore or import unavailable')
+    }
+    const cvrCredentials: CvrCredentialStore = {
+      load: () => initialCvrCredentials,
       save: (credentials, accountId) => {
         saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
         if (accountId !== null) {
@@ -561,6 +589,11 @@ app
     currentWindow = getOrCreateMainWindow()
     trayHandle = createTray(() => currentWindow)
     trayHandle.wireWindow(currentWindow)
+    bootstrapReadyForFocus = true
+    if (secondInstanceFocusPending) {
+      secondInstanceFocusPending = false
+      focusMainWindow()
+    }
     if (process.platform === 'win32') {
       // Windows can activate a toast after its instance object was collected or
       // after a cold start; the central handler complements the instance click.
