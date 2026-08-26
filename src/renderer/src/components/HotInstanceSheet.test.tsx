@@ -296,16 +296,16 @@ describe('HotInstanceSheet', () => {
       ...cvrGroupInstance,
       type: 'friends-of-members'
     }
-    const unknownInstance: InstanceInfo = {
+    const privateInstance: InstanceInfo = {
       ...cvrGroupInstance,
       type: 'members-only'
     }
     const publicMember = makeFriend('chilloutvr', 'Alex', publicInstance)
-    const unknownMember = makeFriend('chilloutvr', 'Blair', unknownInstance)
+    const privateMember = makeFriend('chilloutvr', 'Blair', privateInstance)
 
     for (const members of [
-      [publicMember, unknownMember],
-      [unknownMember, publicMember]
+      [publicMember, privateMember],
+      [privateMember, publicMember]
     ]) {
       const hot = getHotInstances(members, 2)[0]
       expect(hot).toBeTruthy()

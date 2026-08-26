@@ -25,8 +25,8 @@ describe('policy-space classification', () => {
     { platform: 'chilloutvr', type: 'friends', expected: 'private' },
     { platform: 'chilloutvr', type: 'everyone-can-invite', expected: 'private' },
     { platform: 'chilloutvr', type: 'owner-must-invite', expected: 'private' },
-    { platform: 'chilloutvr', type: 'members-only', expected: 'unknown' },
-    { platform: 'chilloutvr', type: 'offline', expected: 'unknown' }
+    { platform: 'chilloutvr', type: 'members-only', expected: 'private' },
+    { platform: 'chilloutvr', type: 'offline', expected: 'private' }
   ])('$platform $type → $expected', ({ platform, type, expected }) => {
     expect(policySpaceFor(platform, { type })).toBe(expected)
   })
@@ -44,4 +44,15 @@ describe('policy-space classification', () => {
   it('an impossible platform/type pairing never becomes a confident policy claim', () => {
     expect(policySpaceFor('chilloutvr', { type: 'invite' })).toBe('unknown')
   })
+
+  it.each(['constructor', 'toString', '__proto__'])(
+    'a runtime-invalid %s type cannot read an inherited object property',
+    (type) => {
+      expect(
+        policySpaceFor('chilloutvr', {
+          type: type as unknown as InstanceInfo['type']
+        })
+      ).toBe('unknown')
+    }
+  )
 })

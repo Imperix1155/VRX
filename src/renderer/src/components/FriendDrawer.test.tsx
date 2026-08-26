@@ -194,6 +194,25 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(pill.style.color).toBe('var(--op-invite-text)')
   })
 
+  it('CVR Offline Instance renders the private policy context', () => {
+    const offlineInstanceFriend: Friend = {
+      ...cvrFriend,
+      instance: {
+        ...publicInstance,
+        type: 'offline',
+        openness: 'offline'
+      }
+    }
+    mockFriends([offlineInstanceFriend])
+    render(<FriendsList />)
+    openDrawerFor('Mika')
+
+    const panel = screen.getByRole('dialog', { name: 'Mika' })
+    expect(within(panel).getByText('Offline Instance')).toBeTruthy()
+    const policyPill = within(panel).getByText('Private space')
+    expect(policyPill.getAttribute('data-policy-space')).toBe('private')
+  })
+
   it('renders the frosted glass variant on the panel (VRX-226)', () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
