@@ -38,14 +38,26 @@ function resourcesDirectory(appOutDir) {
   throw new Error(`assert-packaged-fonts: cannot find Resources under ${appOutDir}`)
 }
 
-module.exports = async function assertPackagedFonts(context) {
+function packagedFontEntries(entries) {
+  return entries
+    .map((entry) => {
+      const archivePath = entry.replace(/^[/\\]+/, '')
+      return {
+        archivePath,
+        normalizedPath: archivePath.replace(/\\/g, '/')
+      }
+    })
+    .filter(
+      ({ normalizedPath }) =>
+        normalizedPath.startsWith('out/renderer/assets/') && normalizedPath.endsWith('.woff2')
+    )
+}
+
+module.exports = async function assertPackagedFonts(context, asarApi = asar) {
   const resources = resourcesDirectory(context.appOutDir)
   const appAsar = join(resources, 'app.asar')
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const entries = asar.listPackage(appAsar).map((entry) => entry.replace(/^\//, ''))
-  const packagedFonts = entries.filter(
-    (entry) => entry.startsWith('out/renderer/assets/') && entry.endsWith('.woff2')
-  )
+  const packagedFonts = packagedFontEntries(asarApi.listPackage(appAsar))
 
   if (packagedFonts.length !== Object.keys(manifest.fonts).length) {
     throw new Error(
@@ -55,11 +67,13 @@ module.exports = async function assertPackagedFonts(context) {
 
   for (const [family, source] of Object.entries(manifest.fonts)) {
     const stem = source.fontFile.replace(/\.woff2$/, '')
-    const asarPath = packagedFonts.find((entry) => entry.includes(`/${stem}-`))
-    if (!asarPath) {
+    const packagedFont = packagedFonts.find(({ normalizedPath }) =>
+      normalizedPath.includes(`/${stem}-`)
+    )
+    if (!packagedFont) {
       throw new Error(`assert-packaged-fonts: app.asar is missing ${family} (${stem}-*.woff2)`)
     }
-    if (sha256(asar.extractFile(appAsar, asarPath)) !== source.fontSha256) {
+    if (sha256(asarApi.extractFile(appAsar, packagedFont.archivePath)) !== source.fontSha256) {
       throw new Error(`assert-packaged-fonts: packaged ${family} bytes do not match SOURCES.json`)
     }
 
@@ -78,3 +92,5 @@ module.exports = async function assertPackagedFonts(context) {
 
   console.log('assert-packaged-fonts: OK — app.asar fonts and packaged OFL provenance verified')
 }
+
+module.exports.packagedFontEntries = packagedFontEntries
