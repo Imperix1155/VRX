@@ -317,7 +317,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 
 ## §6 OPENNESS LADDER (instance-type consistency — cited by Linear)
 
-Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
+VRChat has **8 instance types** and ChilloutVR has **9 instance types**; they map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
 Scale (most open → most closed): `Public → Friends+ → Friends → Invite+ → Invite`. `Group` = chip MODIFIER on top of openness (a group instance is still public / friends-extended / members-only).
 
 **Access and policy are separate axes (VRX-245 follow-up, owner 2026-08-25):** the instance-type pill answers who can join using the platform-true §6 ladder. The separate policy-space pill answers which broad moderation context applies. Never derive access wording from the policy label, describe policy space as an access type, or remove the instance-type pill because the policy pill is present.
