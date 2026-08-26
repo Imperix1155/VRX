@@ -6,31 +6,33 @@
  * policy context applies. Unknown or impossible platform/type combinations are
  * never promoted to a confident claim.
  */
-import type { InstanceInfo, Platform } from '@shared/types'
+import type { CvrInstanceType, InstanceInfo, Platform, VrcInstanceType } from '@shared/types'
 
 export type PolicySpace = 'public' | 'private' | 'unknown'
+type KnownPolicySpace = Exclude<PolicySpace, 'unknown'>
 
-const VRC_PUBLIC_TYPES = new Set<InstanceInfo['type']>(['public', 'group-public'])
-const VRC_PRIVATE_TYPES = new Set<InstanceInfo['type']>([
-  'friends-plus',
-  'friends',
-  'invite-plus',
-  'invite',
-  'group-plus',
-  'group'
-])
+const VRC_POLICY_SPACE = {
+  public: 'public',
+  'friends-plus': 'private',
+  friends: 'private',
+  'invite-plus': 'private',
+  invite: 'private',
+  'group-public': 'public',
+  'group-plus': 'private',
+  group: 'private'
+} satisfies Record<VrcInstanceType, KnownPolicySpace>
 
-const CVR_PUBLIC_TYPES = new Set<InstanceInfo['type']>([
-  'public',
-  'group-public',
-  'friends-of-friends',
-  'friends-of-members'
-])
-const CVR_PRIVATE_TYPES = new Set<InstanceInfo['type']>([
-  'friends',
-  'everyone-can-invite',
-  'owner-must-invite'
-])
+const CVR_POLICY_SPACE = {
+  public: 'public',
+  'friends-of-friends': 'public',
+  friends: 'private',
+  'everyone-can-invite': 'private',
+  'owner-must-invite': 'private',
+  'group-public': 'public',
+  'friends-of-members': 'public',
+  'members-only': 'private',
+  offline: 'private'
+} satisfies Record<CvrInstanceType, KnownPolicySpace>
 
 export function policySpaceFor(
   platform: Platform,
@@ -38,11 +40,16 @@ export function policySpaceFor(
 ): PolicySpace {
   if (instance.opennessUnknown === true) return 'unknown'
 
-  const publicTypes = platform === 'vrchat' ? VRC_PUBLIC_TYPES : CVR_PUBLIC_TYPES
-  if (publicTypes.has(instance.type)) return 'public'
-
-  const privateTypes = platform === 'vrchat' ? VRC_PRIVATE_TYPES : CVR_PRIVATE_TYPES
-  if (privateTypes.has(instance.type)) return 'private'
-
-  return 'unknown'
+  let policySpaceByType: Partial<Record<InstanceInfo['type'], KnownPolicySpace>>
+  if (platform === 'vrchat') {
+    policySpaceByType = VRC_POLICY_SPACE
+  } else if (platform === 'chilloutvr') {
+    policySpaceByType = CVR_POLICY_SPACE
+  } else {
+    return 'unknown'
+  }
+  const policySpace = Object.hasOwn(policySpaceByType, instance.type)
+    ? policySpaceByType[instance.type]
+    : undefined
+  return policySpace ?? 'unknown'
 }

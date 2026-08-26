@@ -1211,7 +1211,7 @@ describe('group instances get policy-space context', () => {
     ).toBeTruthy()
   })
 
-  it('CVR Members Only stays Unknown because its group join privacy is not carried', () => {
+  it('CVR Members Only uses the private policy context from its instance type', () => {
     const friend: Friend = {
       ...cvrFriend,
       instance: {
@@ -1233,10 +1233,10 @@ describe('group instances get policy-space context', () => {
     fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'More info' }))
 
     const policyPill = confirmDialog().querySelector('[data-policy-space-pill]')
-    expect(policyPill?.textContent).toBe('Unknown')
+    expect(policyPill?.textContent).toBe('Private space')
     expect(
       within(confirmDialog()).getByText(
-        "VRX couldn't confirm which moderation context applies. Platform-wide rules still apply."
+        'ChilloutVR uses different moderation rules in private spaces. Some public-space restrictions do not apply, and moderation relies more on local safety and instance-management tools. Platform-wide rules and enforcement still apply.'
       )
     ).toBeTruthy()
   })
