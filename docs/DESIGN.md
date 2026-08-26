@@ -317,7 +317,7 @@ Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never colli
 
 ## §6 OPENNESS LADDER (instance-type consistency — cited by Linear)
 
-Both platforms have **8 instance types** that map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
+VRChat has **8 instance types** and ChilloutVR has **9 instance types**; they map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
 Scale (most open → most closed): `Public → Friends+ → Friends → Invite+ → Invite`. `Group` = chip MODIFIER on top of openness (a group instance is still public / friends-extended / members-only).
 
 **Access and policy are separate axes (VRX-245 follow-up, owner 2026-08-25):** the instance-type pill answers who can join using the platform-true §6 ladder. The separate policy-space pill answers which broad moderation context applies. Never derive access wording from the policy label, describe policy space as an access type, or remove the instance-type pill because the policy pill is present.
@@ -354,12 +354,12 @@ This pill is a separate semantic channel from the access/type pill above. It use
 | Private space | Ice `#62d3e8`                         | `#228eaa`            | `#17667a`  | The platform's private-space moderation context applies.         |
 | Unknown       | neutral `--text-dim` / `--text` mixes | same semantic tokens | same       | VRX cannot confirm the context; never guess Rose or Ice.         |
 
-Classifier mapping (`policySpaceFor`), based on platform + platform-true `InstanceInfo.type`:
+Classifier mapping (`policySpaceFor`), based on platform + platform-true `InstanceInfo.type`. Group membership, group join, and other group-level settings never participate. `opennessUnknown: true` is checked first and overrides the table to **Unknown**, even when the defensive fallback type is recognized:
 
-| Platform   | Public space                                                 | Private space                                     | Unknown                                                                                                    |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| VRChat     | Public, Group Public                                         | Friends+, Friends, Invite+, Invite, Group+, Group | `opennessUnknown`, offline/unexpected, or impossible platform/type pairs                                   |
-| ChilloutVR | Public, Group Public, Friends of Friends, Friends of Members | Friends, Everyone Can Invite, Owner Must Invite   | Members Only (group join privacy is not carried), Offline Instance, `opennessUnknown`, or impossible pairs |
+| Platform   | Public space                                                 | Private space                                                                   | Unknown                                                  |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| VRChat     | Public, Group Public                                         | Friends+, Friends, Invite+, Invite, Group+, Group                               | `opennessUnknown`, unexpected types, or impossible pairs |
+| ChilloutVR | Public, Group Public, Friends of Friends, Friends of Members | Friends, Everyone Can Invite, Owner Must Invite, Members Only, Offline Instance | `opennessUnknown`, unexpected types, or impossible pairs |
 
 The pill is an at-a-glance summary, not conduct advice or a promise about individual enforcement. Do not add behavior examples. Rose and Ice are reserved for this channel; Ice is distinguishable from active-state teal by its fixed location and always-visible label.
 
@@ -381,7 +381,7 @@ Unified mapping — verified vs VRChat wiki + ChilloutVR docs (2026-05):
 | **Group** · members only     | `#o-group`               | Group              | Members Only                                                    |
 | Offline _(not joinable)_     | `#o-offline`             | —                  | Offline Instance                                                |
 
-The group sub-track is near-identical (Group Public↔Group Public; Group+↔Friends of Members; Group↔Members Only). CVR classes Public / Group Public / Friends of Members / Friends of Friends as "public"; the rest private (Members Only is public if the group join privacy = "everyone can join"). CVR additionally surfaces an **Offline Instance** (`#o-offline` — local / non-networked: the friend is in-game but in a private offline world, not joinable; CVRX shows it), with NO VRChat privacy equivalent. CVR has NO trust ranks and NO JoinMe/AskMe/Busy. NEVER invent CVR concepts to force symmetry.
+The group sub-track is near-identical (Group Public↔Group Public; Group+↔Friends of Members; Group↔Members Only). CVR classes Public / Group Public / Friends of Members / Friends of Friends as "public"; every other recognized CVR type is private. Group membership and join settings do not change that instance-type classification. CVR's taxonomy additionally defines an **Offline Instance** (`#o-offline` — local / non-networked: the friend is in-game but in a private offline world, not joinable; CVRX shows it), with NO VRChat privacy equivalent. VRX retains it as a valid shared/cache/UI value, but the current adapter has no verified raw value that emits it; see `api-volatility.md`. Do not invent a wire mapping without a live capture. CVR has NO trust ranks and NO JoinMe/AskMe/Busy. NEVER invent CVR concepts to force symmetry.
 NOTE: names above are verified UI/display names. When building each adapter, confirm the exact API enum STRINGS (VRChat location tags → VRX-45; CVR API field values → CVR adapter); ship NO guessed values.
 
 ## §7 Typography

@@ -350,8 +350,8 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
   // (no live instance data at all) has nothing to resolve, so no pill.
   const pill = instanceForCopy !== null ? instancePillFor(instanceForCopy, labelScheme) : null
   // A degraded CVR privacy flag or missing instance data must not headline a
-  // guessed type. A known type may still have an Unknown policy classification
-  // (for example CVR Members Only), so policy space does not drive the title.
+  // guessed type. Policy Unknown can also mean an impossible platform/type
+  // pairing, so policy space does not drive the access-type title.
   const title =
     typeLabel !== null && instanceForCopy?.opennessUnknown !== true
       ? t('joinConfirm.title', { type: typeLabel })
