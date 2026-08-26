@@ -194,7 +194,12 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(pill.style.color).toBe('var(--op-invite-text)')
   })
 
-  it('CVR Offline Instance renders the private policy context', () => {
+  it('defensively renders a shared-contract CVR Offline Instance as private', () => {
+    // This is renderer-boundary coverage, not a claim about today's CVR wire.
+    // The current adapter clears the instance for IsOnline:false and degrades
+    // an unrecognized Privacy:"Offline" value to opennessUnknown. `offline`
+    // remains a valid shared/cache value, so restored or future-compatible
+    // data must still render a truthful policy context if it reaches the UI.
     const offlineInstanceFriend: Friend = {
       ...cvrFriend,
       instance: {

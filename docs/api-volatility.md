@@ -324,6 +324,8 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 **String values (`GET /1/instances/{id}` + CVRX docs, case/punctuation-insensitive):** `public`, `friendsoffriends`, `friends`, `groupsonly`, `groupplus`, `everyonecaninvite`, `ownermustinvite`.
 
+**Offline representation:** no raw CVR value is verified to normalize to the shared `offline` instance type. In the current implementation, an unrecognized `Privacy: "Offline"` value takes the tagged restrictive fallback (`owner-must-invite` + `opennessUnknown:true`), while `IsOnline:false` removes the friend from the pipeline's online set and renderer reconciliation clears the instance. The shared type, persisted-cache schema, and renderer still accept `offline` defensively for restored or future-compatible data; if that value reaches the policy classifier, it is a private space. Do not add a parser mapping without a live capture.
+
 **Verification:** ✅ `0`/`2`/`7` confirmed live 2026-07-08 against known WS instances (owner ground truth); ✅ `Public`/`Friends`/`GroupPlus` confirmed live 2026-08-12 on `GET /1/instances/{id}`; the rest follow the owner's working prior app and **understate on doubt** (the safe direction — friends narrower than friends-of-friends, private narrower than everyone-can-invite). KNOWN divergence: string `groupplus` maps to friends-of-members/friends-plus (observed semantics) while numeric `6` stays members-only/invite — never live-captured as 6; reconcile only on a live numeric-6 capture (VRX-264).
 
 **Degradation if changed:**
