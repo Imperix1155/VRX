@@ -91,12 +91,17 @@ For every BrowserWindow or IPC change:
   feature branch, push that branch, open or update a PR, push review fixes, and
   keep Linear current without a separate permission prompt. These are normal,
   reversible delivery steps. Never commit or push directly to protected `main`.
-- Merge only with explicit merge authority, `review-loop` coverage of the exact
-  final diff, final-head project and CI gates green, and substantive CodeRabbit
-  output covering that head with every finding resolved or refuted. Only a
-  narrow safe-class exception explicitly defined by its owning skill may waive
-  a review leg; it does not generalize. Without merge authority, leave the green
-  PR open for owner approval; with it, merge when all gates are satisfied.
+- Merge only with explicit merge authority, `review-loop` coverage of the review
+  anchor plus any verified nonfunctional-only delta, the applicable local gates
+  green, final-head CI green, and substantive CodeRabbit and Greptile output
+  covering the initial PR head and every later functional head. The initial PR
+  head is the review anchor until a later functional head replaces it; this also
+  defines the anchor for PRs with no functional changes. Resolve or refute every
+  finding. The focused nonfunctional lane under Code Review Rules is the
+  standing exception for later corrections. Any other review-leg exception must
+  be narrowly defined by its owning skill and does not generalize. Without merge
+  authority, leave the green PR open for owner approval; with it, merge when all
+  gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
@@ -120,8 +125,9 @@ fails without the fix when practical.
 
 Before every PR, invoke the available `review-loop` skill over the actual
 PR diff. Its deterministic pass includes `fallow dead-code` and `fallow dupes`
-for JavaScript/TypeScript. Apply material fixes, rerun the relevant gates, and
-review the final head rather than an earlier snapshot.
+for JavaScript/TypeScript. A functional fix starts a new full review round. A
+verified nonfunctional-only correction follows the focused delta lane under
+Code Review Rules and does not restart the full review loop.
 
 Linux release builds must keep the AppImage and deb launcher identity, desktop
 metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
@@ -134,9 +140,10 @@ project gate; run `fallow dead-code` and `fallow dupes` when Fallow is
 installed. If it is unavailable, record that limitation and use the repository
 TypeScript and ESLint results plus a targeted diff inspection for unused
 exports and duplicated logic. Check security, correctness, tests, and
-documentation sync; reconcile every finding; then re-review the final head
-after material fixes. Record that this fallback is a same-lineage Codex review,
-not independent model confirmation.
+documentation sync; reconcile every finding; then re-review after functional
+fixes. Inspect a later nonfunctional-only delta with the focused checks below.
+Record that this fallback is a same-lineage Codex review, not independent model
+confirmation.
 
 ## Code Review Rules
 
@@ -153,15 +160,29 @@ These rules apply to local review and Codex GitHub PR review:
   and whether the findings escaped the local `review-loop`; keep or change the
   setting from that evidence.
 - Except for a narrow safe-class review exception explicitly defined by its
-  owning skill, every PR handled in an autonomous block must wait for final-head
-  CI and substantive CodeRabbit output, including an inherited PR whose head
-  did not change during the block. A skipped/manual-review/rate-limit message or
-  bare green check is not substantive; request a full review and wait. A valid
-  finding triggers a focused test or probe, a fix, the full gate, a new
-  final-diff `review-loop`, a push, and another CodeRabbit wait. Refute invalid
-  findings with evidence. Repeat until the current head is green and has no
-  valid unresolved finding, then ask for merge permission or merge if an active
-  grant already covers the PR.
+  owning skill, inspect substantive CodeRabbit and Greptile output for the
+  initial PR head and every later functional head. Read the walkthrough or
+  summary, inline findings, unresolved threads, attached evidence, and last
+  reviewed commit. A score, bare green check, or skipped/manual-review/rate-limit
+  message is not substantive; request a full review and wait when that review
+  leg is required.
+- Classify each verified bot finding by effect, not file type. A **functional**
+  finding can change app runtime, tests that could hide an app bug, packaging,
+  workflows, security, permissions, or other operational behavior. Fix it,
+  write the focused test or probe, run the full project gate and a new exact-diff
+  `review-loop`, push, wait for final-head CI, and obtain fresh substantive
+  CodeRabbit and Greptile reviews. Repeat until no valid functional finding
+  remains.
+- A **nonfunctional** correction changes only prose, spelling, formatting,
+  spacing, comments, labels, or test descriptions and cannot affect or conceal
+  app, build, test, release, security, or workflow behavior. Fix it directly;
+  inspect the exact delta and run only the relevant formatting, link,
+  consistency, or `git diff --check` checks. Do not rerun the full
+  `review-loop`, and do not manually request or wait for another bot review
+  solely to bless that correction. Prior substantive bot coverage remains valid
+  for the review anchor. If a change mixes lanes or its effect remains uncertain
+  after a decisive probe, use the functional lane. Record the
+  classification and evidence in one concise PR disposition.
 - Review the actual PR head and changed lines. Report only actionable findings
   introduced or exposed by the diff.
 - Prioritize data loss, credential exposure, authentication mistakes, unsafe
