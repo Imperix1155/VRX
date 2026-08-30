@@ -19,33 +19,21 @@ describe('Linux credential persistence probe contract', () => {
 
     if (!command) throw new Error('missing test:credential-persistence-linux script')
 
-    expect(command.split(backendFlag)).toHaveLength(4)
+    expect(command.split(backendFlag)).toHaveLength(3)
     expect(command).toMatch(
       /electron --password-store=gnome-libsecret out\/credential-probe\/index\.js write/
     )
     expect(command).toMatch(
       /electron --password-store=gnome-libsecret out\/credential-probe\/index\.js read/
     )
-    expect(command).toContain(
-      'electron --no-sandbox --password-store=gnome-libsecret out/credential-probe/index.js write'
-    )
-    expect(command.indexOf('electron --no-sandbox')).toBeGreaterThan(
-      command.indexOf('[ ! -f "$1/.vrx-credential-persistence-probe" ]')
-    )
-    expect(command).toContain(
-      'if [ -f "$1/.vrx-credential-persistence-probe" ]; then printf "%s\\n" ASSERT_ELECTRON_SANDBOX_STARTUP >&2'
-    )
-    expect(command).toContain(
-      'else printf "%s\\n" ASSERT_PROBE_WRITE >&2; fi; exit 1; fi; if ! ./node_modules/.bin/electron --password-store=gnome-libsecret out/credential-probe/index.js read'
-    )
+    expect(command).not.toContain('--no-sandbox')
     // Build output stays fully suppressed. Electron stderr is inherited into
     // CI's private diagnostic file so only an exact allowlisted assertion can
     // be surfaced by the outer workflow.
-    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(2)
+    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(1)
     expect(command.match(/ASSERT_[A-Z_]+/g)).toEqual([
       'ASSERT_ARGUMENTS',
       'ASSERT_PROBE_BUILD',
-      'ASSERT_ELECTRON_SANDBOX_STARTUP',
       'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
@@ -74,6 +62,7 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep).toContain(
       'diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")'
     )
+    expect(credentialProbeStep).toContain('chmod 600 "$diagnostic_file"')
     expect(credentialProbeStep).toContain(
       'keyring_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-keyring-data.XXXXXX")'
     )
@@ -113,7 +102,12 @@ describe('Linux credential persistence probe contract', () => {
       'ASSERT_PLAINTEXT_ABSENT',
       'ASSERT_CREDENTIAL_READ',
       'ASSERT_CREDENTIAL_CLEAR',
-      'ASSERT_ELECTRON_SANDBOX_STARTUP',
+      'ASSERT_ELECTRON_STARTUP_SANDBOX',
+      'ASSERT_ELECTRON_STARTUP_DISPLAY',
+      'ASSERT_ELECTRON_STARTUP_SHARED_LIBRARY',
+      'ASSERT_ELECTRON_STARTUP_LAUNCHER',
+      'ASSERT_ELECTRON_STARTUP_SIGNAL',
+      'ASSERT_ELECTRON_STARTUP_OTHER',
       'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
@@ -126,6 +120,61 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep.indexOf('ASSERT_CREDENTIAL_READ')).toBeLessThan(
       credentialProbeStep.indexOf('ASSERT_PROBE_READ')
     )
+    expect(credentialProbeStep.indexOf('ASSERT_CREDENTIAL_CLEAR')).toBeLessThan(
+      credentialProbeStep.indexOf('ASSERT_ELECTRON_STARTUP_SANDBOX')
+    )
+    expect(credentialProbeStep.indexOf('ASSERT_ELECTRON_STARTUP_SIGNAL')).toBeLessThan(
+      credentialProbeStep.indexOf('grep -Fxq ASSERT_PROBE_EXECUTION')
+    )
+    expect(credentialProbeStep).toMatch(
+      /if \[ "\$failure_label" = ASSERT_LINUX_CREDENTIAL_PROBE \]; then[\s\S]*?failure_label=ASSERT_ELECTRON_STARTUP_OTHER\n\s+fi\n\s+fi\n\s+;;/
+    )
+    expect(credentialProbeStep).not.toMatch(/\bgrep\s+-(?![A-Za-z]*q)/)
+  })
+
+  it('classifies fixed native Electron startup signatures without exposing them', () => {
+    const patterns = {
+      sandbox:
+        'The SUID sandbox helper binary (was found|is missing)|No usable sandbox!|Failed to move to new (PID )?namespace|zygote_host_impl_linux\\.cc\\([^)]*\\).*Check failed',
+      display: 'Missing X server or \\$DISPLAY|Unable to open X display|cannot open display',
+      sharedLibrary:
+        'error while loading shared libraries: .*: cannot open shared object file|symbol lookup error:|version .* not found .*required by',
+      launcher:
+        'node_modules/(\\.bin/electron|electron/dist/electron).*(Permission denied|not found|Exec format error)|Cannot find module .*(out/credential-probe/index\\.js|node_modules/electron/cli\\.js)'
+    }
+
+    for (const pattern of Object.values(patterns)) {
+      expect(ciWorkflow).toContain(`'${pattern}'`)
+    }
+    expect(new RegExp(patterns.sandbox, 'i').test('FATAL: No usable sandbox!')).toBe(true)
+    expect(new RegExp(patterns.display, 'i').test('Missing X server or $DISPLAY')).toBe(true)
+    expect(
+      new RegExp(patterns.sharedLibrary, 'i').test(
+        'error while loading shared libraries: libgtk-3.so.0: cannot open shared object file'
+      )
+    ).toBe(true)
+    expect(new RegExp(patterns.launcher, 'i').test('./node_modules/.bin/electron: not found')).toBe(
+      true
+    )
+    expect(
+      new RegExp(patterns.launcher, 'i').test(
+        "Error: Cannot find module '/runner/work/VRX/VRX/out/credential-probe/index.js'"
+      )
+    ).toBe(true)
+    expect(
+      new RegExp(patterns.launcher, 'i').test(
+        'Failed to connect to socket /run/dbus/system_bus_socket: No such file or directory'
+      )
+    ).toBe(false)
+    expect(
+      new RegExp(patterns.launcher, 'i').test(
+        'libEGL warning: failed to open /dev/dri/card0: Permission denied'
+      )
+    ).toBe(false)
+    expect(
+      new RegExp(patterns.sandbox, 'i').test('InitializeSandbox() called with multiple threads')
+    ).toBe(false)
+    expect(ciWorkflow).toContain("grep -Fqi -- 'exited with signal'")
   })
 
   it('keeps the outer single-quoted keyring script intact through the probe command', () => {
