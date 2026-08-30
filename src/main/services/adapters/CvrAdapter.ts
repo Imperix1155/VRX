@@ -196,14 +196,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     let response: Response
     try {
       response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
-    } catch (error) {
+    } catch {
       if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
-      // Diagnostic (no secrets): distinguishes an open circuit from a real
-      // network/DNS/TLS failure if this ever recurs.
-      this.live?.log?.('warn', 'cvr login: request failed', {
-        name: error instanceof Error ? error.name : 'unknown',
-        message: error instanceof Error ? error.message : String(error)
-      })
+      // Keep authentication diagnostics fixed: raw exception fields can carry
+      // request context and must never reach the log.
+      this.live?.log?.('warn', 'cvr login: request failed')
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()

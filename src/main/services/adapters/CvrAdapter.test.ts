@@ -490,8 +490,9 @@ describe('CvrAdapter', () => {
 
     it('server error → http_<status>; network failure → network_error', async () => {
       const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({}, { status: 503 })))
+      const log = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
-      const adapter = new CvrAdapter(fakeStore(), noopSleep)
+      const adapter = new CvrAdapter(fakeStore(), noopSleep, { log })
       expect(await adapter.login(creds)).toEqual({
         ok: false,
         needs2fa: false,
@@ -500,13 +501,15 @@ describe('CvrAdapter', () => {
 
       vi.stubGlobal(
         'fetch',
-        vi.fn(() => Promise.reject(new Error('offline')))
+        vi.fn(() => Promise.reject(new Error('offline username@example.com access-key')))
       )
       expect(await adapter.login(creds)).toEqual({
         ok: false,
         needs2fa: false,
         error: 'network_error'
       })
+      expect(log.mock.calls).toEqual([['warn', 'cvr login: request failed']])
+      expect(JSON.stringify(log.mock.calls)).not.toContain('username@example.com')
     })
 
     it('malformed envelope → unexpected_response (never a false success)', async () => {

@@ -68,7 +68,10 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 
 **Degradation if changed:**
 
-- **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field name or structure, login will not detect 2FA requirement. VRX treats this as a failed 2FA and prompts again. Safe fallback: user re-tries with the code.
+- **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field
+  name or structure, login cannot safely detect the 2FA requirement. VRX
+  abandons the tentative session and returns a terminal unexpected-response
+  error. Safe fallback: the user restarts the full sign-in flow.
 - **Changed Basic-login cookie behavior:** If VRChat stops returning an `auth`
   cookie for a 2FA challenge or an account-changing successful Basic-login
   response, VRX fails that login instead of creating a dead prompt or an

@@ -85,8 +85,8 @@ jobs:
               write_diagnostic ASSERT_KEYRING_START_ENV
               exit 1
             fi
-            # xvfb-run merges its child's stderr into stdout. Redirect npm's
-            # stderr inside the virtual-display command so the fixed probe
+            # xvfb-run merges child stderr into stdout. Redirect npm stderr
+            # inside the virtual-display command so the fixed probe
             # assertion reaches the private diagnostic file before that merge.
             xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
               bash -euo pipefail -c \

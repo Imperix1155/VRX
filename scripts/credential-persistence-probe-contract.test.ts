@@ -109,6 +109,17 @@ describe('Linux credential persistence probe contract', () => {
     )
   })
 
+  it('keeps the outer single-quoted keyring script intact through the probe command', () => {
+    const keyringScript = ciWorkflow.match(
+      /dbus-run-session -- bash -euo pipefail -c '\r?\n([\s\S]*?)\r?\n {10}' bash/
+    )?.[1]
+
+    if (!keyringScript) throw new Error('missing nested keyring script')
+
+    expect(keyringScript).toContain('xvfb-run --auto-servernum')
+    expect(keyringScript).not.toContain("'")
+  })
+
   it('keeps test-only probe artifacts out of application packages', () => {
     expect(builderFileEntries).toEqual(
       expect.arrayContaining([
