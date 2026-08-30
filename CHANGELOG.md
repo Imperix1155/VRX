@@ -25,7 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Validated restored VRChat and ChilloutVR sessions likewise stay disconnected
   unless their owner binding can be saved. Credential replacement and removal
   now write a non-secret invalidation marker first, preventing an older account
-  from returning after restart even if later cleanup deletion fails.
+  from returning after restart even if later cleanup deletion fails. Starting a
+  replacement VRChat sign-in that reaches 2FA also revokes the prior stored
+  account before showing the code prompt, so quitting mid-switch cannot revive
+  that account; a failed revocation ends the attempt safely. Once a fresh
+  VRChat session is durably saved, ordinary status refreshes validate it without
+  rewriting the same credential, so a later transient secure-store outage does
+  not erase an established sign-in.
   Tentative VRChat cookies also remain unavailable to status, roster,
   self-invite, background metadata, and avatar calls until owner validation and
   encrypted persistence settle. Old roster pages and queued metadata work also

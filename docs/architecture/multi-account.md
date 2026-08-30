@@ -43,6 +43,10 @@ Credential-slot replacement and removal use an exact non-secret invalidation
 marker before any fallible keychain/write/delete step. A stranded prior
 ciphertext therefore cannot become a restore candidate after restart, while
 legacy and newly imported ciphertext can still be validated and owner-bound.
+VRChat also invalidates the prior durable slot before exposing a replacement
+account's first-leg 2FA prompt; a failed invalidation fails closed. A freshly
+persisted session retains its established owner binding across ordinary status
+refreshes, while a restored session must complete one validated owner backfill.
 
 ## 3. Identifiers (finding 12 — resolved)
 

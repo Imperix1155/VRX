@@ -7,12 +7,18 @@ const mocks = vi.hoisted(() => {
   const setErrors = new Map<string, Error>()
   const delayedSetErrors = new Map<string, { successfulWritesRemaining: number; error: Error }>()
   const deleteErrors = new Map<string, Error>()
+  const constructorErrors = new Map<string, Error>()
 
   class StoreMock {
     private readonly name: string
 
     constructor(options: { name: string; accessPropertiesByDotNotation?: boolean }) {
       const { name } = options
+      const error = constructorErrors.get(name)
+      if (error) {
+        constructorErrors.delete(name)
+        throw error
+      }
       this.name = name
       storeOptions.push(options)
       stores.set(name, stores.get(name) ?? {})
@@ -61,6 +67,7 @@ const mocks = vi.hoisted(() => {
     setErrors,
     delayedSetErrors,
     deleteErrors,
+    constructorErrors,
     StoreMock,
     isEncryptionAvailable: vi.fn(() => true),
     getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret'),
@@ -98,6 +105,7 @@ describe('credential storage', () => {
     mocks.setErrors.clear()
     mocks.delayedSetErrors.clear()
     mocks.deleteErrors.clear()
+    mocks.constructorErrors.clear()
     mocks.isEncryptionAvailable.mockReturnValue(true)
     mocks.getSelectedStorageBackend.mockReturnValue('gnome_libsecret')
     mocks.getSelectedStorageBackend.mockClear()
@@ -126,9 +134,25 @@ describe('credential storage', () => {
     expect(JSON.stringify(persisted)).not.toContain('raw-auth-token')
     expect(mocks.encryptString).toHaveBeenCalledWith('raw-auth-token')
     expect(mocks.storeOptions).toEqual([
-      { name: 'credential-owners', accessPropertiesByDotNotation: false },
-      { name: 'credentials', accessPropertiesByDotNotation: false }
+      { name: 'credentials', accessPropertiesByDotNotation: false },
+      { name: 'credential-owners', accessPropertiesByDotNotation: false }
     ])
+  })
+
+  it('invalidates the credential before owner-store initialization can fail', async () => {
+    vi.resetModules()
+    mocks.stores.set('credentials', {
+      'vrchat:primary': Buffer.from('encrypted:account-a-token').toString('base64')
+    })
+    mocks.constructorErrors.set('credential-owners', new Error('owner store unavailable'))
+    const isolated = await import('./credentials')
+
+    expect(() =>
+      isolated.saveCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
+    ).toThrow('owner store unavailable')
+    mocks.decryptString.mockClear()
+    expect(isolated.loadCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.decryptString).not.toHaveBeenCalled()
   })
 
   it('decrypts a stored credential in the main process', () => {

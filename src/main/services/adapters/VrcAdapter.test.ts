@@ -1173,6 +1173,62 @@ describe('VrcAdapter', () => {
       }
     )
 
+    it('cannot revive the prior account after a replacement login reaches 2FA and the app restarts', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+        )
+        // This is what the prior account would return after an unsafe restart.
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=account-a')
+
+      await expect(
+        new VrcAdapter(binding.store, noopSleep).login({
+          username: 'account-b',
+          password: 'pw-b'
+        })
+      ).resolves.toEqual({ ok: false, needs2fa: true, method: 'totp' })
+
+      // The first leg cannot persist account B yet, but it must durably revoke
+      // account A before exposing B's retryable code prompt.
+      expect(binding.getCredential()).toBeUndefined()
+      await expect(new VrcAdapter(binding.store, noopSleep).getAuthStatus()).resolves.toMatchObject(
+        {
+          state: 'unauthenticated'
+        }
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('fails closed when the prior credential cannot be invalidated before a replacement 2FA prompt', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+          )
+      )
+      const store: VrcCredentialStore = {
+        load: () => 'auth=account-a',
+        save: () => {},
+        delete: () => {
+          throw new Error('credential invalidation failed')
+        }
+      }
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+    })
+
     it('binds the owner only after the verified 2FA credential is persisted', async () => {
       const fetchMock = vi
         .fn()
@@ -1275,7 +1331,9 @@ describe('VrcAdapter', () => {
       expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
-      expect(deleteCredential).toHaveBeenCalledOnce()
+      // The first delete revokes any prior account before the 2FA prompt. The
+      // second is terminal rollback after the replacement save fails.
+      expect(deleteCredential).toHaveBeenCalledTimes(2)
       expect(identities).not.toContain('ACCOUNT002')
     })
 
@@ -1906,6 +1964,34 @@ describe('VrcAdapter', () => {
 
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
       expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not re-persist or clear an already durable direct-login session during status refresh', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT001', displayName: 'Account A' },
+            { setCookies: ['auth=account-a'] }
+          )
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore()
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      store.save = vi.fn(() => {
+        throw new Error('secure store temporarily unavailable')
+      })
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+      expect(store.saved).toEqual(['auth=account-a'])
+      expect(store.deleted).toBe(0)
+      expect(adapter.getAuthCookieHeader()).toBe('auth=account-a')
     })
 
     it('restores a persisted cookie and sends it on the status check', async () => {

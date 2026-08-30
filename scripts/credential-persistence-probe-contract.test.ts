@@ -26,7 +26,10 @@ describe('Linux credential persistence probe contract', () => {
     expect(command).toMatch(
       /electron --password-store=gnome-libsecret out\/credential-probe\/index\.js read/
     )
-    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(3)
+    // Build output stays fully suppressed. Electron stderr is inherited into
+    // CI's private diagnostic file so only an exact allowlisted assertion can
+    // be surfaced by the outer workflow.
+    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(1)
     expect(command.match(/ASSERT_[A-Z_]+/g)).toEqual([
       'ASSERT_ARGUMENTS',
       'ASSERT_PROBE_BUILD',
@@ -80,11 +83,27 @@ describe('Linux credential persistence probe contract', () => {
       'ASSERT_KEYRING_START_ENV',
       'ASSERT_ARGUMENTS',
       'ASSERT_PROBE_BUILD',
+      'ASSERT_LINUX_PLATFORM',
+      'ASSERT_USER_DATA_ROOT',
+      'ASSERT_PROBE_MARKER',
+      'ASSERT_ENCRYPTION_AVAILABLE',
+      'ASSERT_SECURE_BACKEND',
+      'ASSERT_CREDENTIAL_SAVE',
+      'ASSERT_PLAINTEXT_ABSENT',
+      'ASSERT_CREDENTIAL_READ',
+      'ASSERT_CREDENTIAL_CLEAR',
+      'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
     ]) {
       expect(credentialProbeStep).toContain(label)
     }
+    expect(credentialProbeStep.indexOf('ASSERT_SECURE_BACKEND')).toBeLessThan(
+      credentialProbeStep.indexOf('ASSERT_PROBE_WRITE')
+    )
+    expect(credentialProbeStep.indexOf('ASSERT_CREDENTIAL_READ')).toBeLessThan(
+      credentialProbeStep.indexOf('ASSERT_PROBE_READ')
+    )
   })
 
   it('keeps test-only probe artifacts out of application packages', () => {

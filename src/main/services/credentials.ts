@@ -78,11 +78,11 @@ function credentialDigest(encrypted: string): string {
 
 export function saveCredential(key: CredentialKey, plaintext: string): void {
   requireCredentialKey(key)
-  const owners = getOwnerStore()
   const credentials = getStore()
   // Revoke the old slot before any keychain or replacement write that can fail.
   // If a later step throws, the non-secret marker remains a durable load fence.
   credentials.set(key, INVALIDATED_CREDENTIAL)
+  const owners = getOwnerStore()
   owners.delete(key)
   requireEncryption()
   const encrypted = safeStorage.encryptString(plaintext).toString('base64')

@@ -176,6 +176,8 @@ export class VrcAdapter extends VrcApiClient {
   private activeAuthOperation: number | null = null
   private authOperationCancellationGeneration = 0
   private authPersistencePending = false
+  /** True only after the current cookie has been saved with its validated owner. */
+  private sessionPersistenceEstablished = false
 
   constructor(
     private readonly credentials: VrcCredentialStore,
@@ -286,6 +288,14 @@ export class VrcAdapter extends VrcApiClient {
       // would submit the new account's code against the previous account; with
       // no cookie it would create a prompt that can never verify.
       if (!authCookie) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+      // This replacement cookie cannot be persisted until 2FA establishes its
+      // owner. Revoke the prior account's disk slot before exposing the prompt,
+      // so quitting mid-flow cannot resurrect that account on restart.
+      try {
+        this.credentials.delete()
+      } catch {
+        return this.persistenceFailure()
+      }
       this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
@@ -304,7 +314,7 @@ export class VrcAdapter extends VrcApiClient {
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
-    if (!this.persist()) return this.persistenceFailure()
+    if (!this.sessionPersistenceEstablished && !this.persist()) return this.persistenceFailure()
     this.authPersistencePending = false
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
@@ -566,10 +576,10 @@ export class VrcAdapter extends VrcApiClient {
 
       this.displayName = parsed.data.displayName
       this.accountId = parsed.data.id
-      // Restore validation also backfills the ciphertext owner binding. If that
-      // secure write fails, the restored cookie is not a durable authenticated
-      // session and must not remain usable for this process.
-      if (!this.persist()) {
+      // The first successful status for a restored cookie backfills its owner.
+      // Fresh login/2FA already established this binding, so later status
+      // refreshes must not destructively re-write the same durable credential.
+      if (!this.sessionPersistenceEstablished && !this.persist()) {
         this.clearSessionAfterTerminalAuthFailure()
         this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
         return this.status('unauthenticated')
@@ -1157,6 +1167,7 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private setCookie(cookie: string): void {
+    this.sessionPersistenceEstablished = false
     this.cookie = cookie
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
@@ -1215,6 +1226,7 @@ export class VrcAdapter extends VrcApiClient {
     const wasPersistencePending = this.authPersistencePending
     if (cancelAuthOperations) this.cancelAuthOperations()
     this.authPersistencePending = false
+    this.sessionPersistenceEstablished = false
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
@@ -1254,6 +1266,7 @@ export class VrcAdapter extends VrcApiClient {
     if (!this.cookie) return false
     try {
       this.credentials.save(this.cookie, this.accountId)
+      this.sessionPersistenceEstablished = true
       return true
     } catch {
       return false

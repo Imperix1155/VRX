@@ -104,6 +104,16 @@ jobs:
                   ASSERT_KEYRING_START_ENV \
                   ASSERT_ARGUMENTS \
                   ASSERT_PROBE_BUILD \
+                  ASSERT_LINUX_PLATFORM \
+                  ASSERT_USER_DATA_ROOT \
+                  ASSERT_PROBE_MARKER \
+                  ASSERT_ENCRYPTION_AVAILABLE \
+                  ASSERT_SECURE_BACKEND \
+                  ASSERT_CREDENTIAL_SAVE \
+                  ASSERT_PLAINTEXT_ABSENT \
+                  ASSERT_CREDENTIAL_READ \
+                  ASSERT_CREDENTIAL_CLEAR \
+                  ASSERT_PROBE_EXECUTION \
                   ASSERT_PROBE_WRITE \
                   ASSERT_PROBE_READ; do
                   if grep -Fxq "$allowed_label" "$diagnostic_file"; then

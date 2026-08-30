@@ -67,6 +67,11 @@ whose main-process path discarded auth state includes `sessionCleared: true`;
 the renderer must synchronously reconcile its auth cache to unauthenticated.
 This marker also covers a malformed VRChat response received after installing
 a replacement cookie, while preserving that response's generic error code.
+Before a replacement VRChat cookie may expose a first-leg 2FA prompt, main
+durably invalidates the prior account's slot; failure is terminal. A freshly
+saved VRChat session keeps its established persistence state during ordinary
+status refreshes, while a restored cookie performs one validated owner-binding
+backfill before authenticated consumers can use it.
 
 VRChat interactive-auth ownership is allocated when `login()` or `verify2fa()`
 is requested, before its serialized body runs. A later requested operation
