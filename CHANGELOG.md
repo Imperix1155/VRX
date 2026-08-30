@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2FA result also now requires a validated
   account owner before it can persist; an unavailable owner removes the
   tentative and prior stored session rather than allowing an unowned restart.
+  Validated restored VRChat and ChilloutVR sessions likewise stay disconnected
+  unless their owner binding can be saved. Credential replacement and removal
+  now write a non-secret invalidation marker first, preventing an older account
+  from returning after restart even if later cleanup deletion fails.
   Tentative VRChat cookies also remain unavailable to status, roster,
   self-invite, background metadata, and avatar calls until owner validation and
   encrypted persistence settle. Old roster pages and queued metadata work also
@@ -32,12 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overwrite a newer same-world cache result. A 2FA prompt is
   rejected if its direct-login
   response did not issue the replacement cookie needed to verify that account.
-  Terminal failures synchronously settle local auth state, including a malformed
-  response after VRChat replaces its session cookie, so remounting a login tab
-  or account card cannot revive a stale code prompt, and the retry explanation
-  remains visible while that state settles. If a restored VRChat session starts
-  requiring 2FA while the ChilloutVR tab is selected, VRX brings the VRChat code
-  prompt forward. (VRX-34)
+  Terminal failures clear submitted passwords and codes and synchronously settle
+  local auth state, including a malformed response after VRChat replaces its
+  session cookie, so remounting a login tab or account card cannot revive a
+  stale code prompt, and the retry explanation remains visible while that state
+  settles. If a restored VRChat session starts requiring 2FA while the
+  ChilloutVR tab is selected, VRX brings the VRChat code prompt forward only
+  after any non-terminal active submit; a terminal ChilloutVR failure keeps its
+  error visible. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 

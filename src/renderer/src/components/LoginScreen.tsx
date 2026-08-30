@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
@@ -59,12 +59,15 @@ const SUBMIT_BASE_CLASS =
 function PlatformLoginForm({
   platform,
   initialTwoFactor = null,
-  onSubmittingChange
+  onSubmittingChange,
+  onSubmissionSettled
 }: {
   platform: Platform
   initialTwoFactor?: TwoFactorMethod | null
   /** Lifts the flow's pending state so the screen can lock the platform tabs. */
   onSubmittingChange: (isSubmitting: boolean) => void
+  /** Records terminal session cleanup before the screen applies a deferred 2FA transition. */
+  onSubmissionSettled: (sessionCleared: boolean) => void
 }): React.JSX.Element {
   const { t } = useTranslation()
   const config = ACCOUNT_CARD_CONFIG[platform]
@@ -72,7 +75,8 @@ function PlatformLoginForm({
     errorKeyForCode: mapLoginError,
     // The needs-2fa reprompt seed is VRChat-only (CVR has no 2FA — a stray
     // needs2fa there falls back to the generic error inside the hook).
-    externalTwoFactor: platform === 'vrchat' ? initialTwoFactor : null
+    externalTwoFactor: platform === 'vrchat' ? initialTwoFactor : null,
+    onSubmissionSettled
   })
   // Lock the tabs while the login/verify IPC is in flight: a tab switch would
   // remount this form and strand the late result in the unmounted hook (and
@@ -134,14 +138,24 @@ export default function LoginScreen({
   const [previousInitialTwoFactor, setPreviousInitialTwoFactor] = useState<TwoFactorMethod | null>(
     initialTwoFactor
   )
+  const [lastSubmissionClearedSession, setLastSubmissionClearedSession] = useState(false)
+  const handleSubmittingChange = useCallback((nextIsSubmitting: boolean) => {
+    if (nextIsSubmitting) setLastSubmissionClearedSession(false)
+    setIsSubmitting(nextIsSubmitting)
+  }, [])
+  const handleSubmissionSettled = useCallback((sessionCleared: boolean) => {
+    setLastSubmissionClearedSession(sessionCleared)
+  }, [])
 
   // A restored VRChat session can request 2FA while the user is looking at the
-  // CVR tab. Bring that new prompt forward once the active submit settles. Do
-  // not switch on the terminal method -> null transition: the mounted VRChat
-  // form owns the recovery error that must remain visible.
-  if (initialTwoFactor !== previousInitialTwoFactor && !isSubmitting) {
+  // CVR tab. Bring that new prompt forward once the active submit settles, but
+  // never remount away a terminal error from that submit. Do not switch on
+  // method -> null either: the mounted form owns that recovery error too.
+  if (!isSubmitting && initialTwoFactor !== previousInitialTwoFactor) {
     setPreviousInitialTwoFactor(initialTwoFactor)
-    if (initialTwoFactor !== null) setPlatform('vrchat')
+    if (initialTwoFactor !== null && !lastSubmissionClearedSession) {
+      setPlatform('vrchat')
+    }
   }
 
   const config = ACCOUNT_CARD_CONFIG[platform]
@@ -186,7 +200,10 @@ export default function LoginScreen({
               labelKeys={PLATFORM_TAB_LABEL_KEYS}
               textColors={PLATFORM_TAB_TEXT_COLORS}
               ariaLabel={t('login.tabs.aria')}
-              onChange={setPlatform}
+              onChange={(nextPlatform) => {
+                setLastSubmissionClearedSession(false)
+                setPlatform(nextPlatform)
+              }}
               disabled={isSubmitting}
             />
           </div>
@@ -197,7 +214,8 @@ export default function LoginScreen({
             key={platform}
             platform={platform}
             initialTwoFactor={initialTwoFactor}
-            onSubmittingChange={setIsSubmitting}
+            onSubmittingChange={handleSubmittingChange}
+            onSubmissionSettled={handleSubmissionSettled}
           />
 
           <p className="mt-[var(--space-6)] text-center text-xs text-[var(--text-faint)]">

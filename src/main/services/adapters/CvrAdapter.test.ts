@@ -605,26 +605,32 @@ describe('CvrAdapter', () => {
       expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
     })
 
-    it('keeps an unchanged restored session when credential writes are unavailable', async () => {
+    it('fails closed when an unchanged restored session cannot persist its owner binding', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       const saveCredential = vi.fn(() => {
         throw new Error('credential write failed')
       })
       const deleteCredential = vi.fn()
+      const identities: Array<string | null> = []
       const store: CvrCredentialStore = {
         load: () => ({ username: 'trinity', accessKey: 'key-1' }),
         save: saveCredential,
         delete: deleteCredential
       }
-      const adapter = new CvrAdapter(store, noopSleep)
-
-      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
-        state: 'authenticated',
-        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
       })
+      const restartPipeline = vi.spyOn(
+        adapter as unknown as { restartPipeline: () => void },
+        'restartPipeline'
+      )
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
 
       expect(saveCredential).toHaveBeenCalledOnce()
-      expect(deleteCredential).not.toHaveBeenCalled()
+      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(identities).not.toContain('a1b2c3d4-0000-0000-0000-000000000001')
+      expect(restartPipeline).not.toHaveBeenCalled()
     })
 
     it('clears a restored session when rotated credentials cannot persist', async () => {

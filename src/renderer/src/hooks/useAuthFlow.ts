@@ -41,6 +41,8 @@ export interface UseAuthFlowOptions {
   dropPasswordAfterSubmit?: boolean
   /** Extra per-surface success work (AccountCard also settles the friends cache). */
   onSuccess?: () => Promise<unknown> | void
+  /** Reports whether main cleared the session so the surface must preserve its terminal error. */
+  onSubmissionSettled?: (sessionCleared: boolean) => void
 }
 
 export interface AuthFlow {
@@ -67,7 +69,8 @@ export function useAuthFlow(
     initialTwoFactor = null,
     externalTwoFactor = null,
     dropPasswordAfterSubmit = false,
-    onSuccess
+    onSuccess,
+    onSubmissionSettled
   }: UseAuthFlowOptions
 ): AuthFlow {
   const queryClient = useQueryClient()
@@ -106,10 +109,12 @@ export function useAuthFlow(
 
     if (!window.vrx) {
       setErrorKey(errorKeyForCode())
+      onSubmissionSettled?.(false)
       return
     }
 
     setIsSubmitting(true)
+    let sessionWasCleared = false
     try {
       const result = pending2fa
         ? await window.vrx.verify2fa({ platform, code: twoFactorCode })
@@ -142,8 +147,10 @@ export function useAuthFlow(
         // mapper. A needs2fa result on CVR has no failure code and stays generic.
         const errorCode = 'error' in result ? result.error : undefined
         if ('sessionCleared' in result && result.sessionCleared === true) {
+          sessionWasCleared = true
           // Main explicitly discarded the session, so neither completed 2FA nor
           // a replacement-login failure can be retried against cached auth.
+          setPassword('')
           setTwoFactorOverride('credentials')
           setTwoFactorCode('')
           // Replace stale needs-2fa data synchronously so a tab/card remount
@@ -164,6 +171,7 @@ export function useAuthFlow(
       setErrorKey(errorKeyForCode())
     } finally {
       if (dropPasswordAfterSubmit) setPassword('')
+      onSubmissionSettled?.(sessionWasCleared)
       setIsSubmitting(false)
     }
   }

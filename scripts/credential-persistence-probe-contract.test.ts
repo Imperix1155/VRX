@@ -38,6 +38,9 @@ describe('Linux credential persistence probe contract', () => {
   it('attests the explicitly selected GNOME libsecret backend', () => {
     expect(probeSource).toMatch(/safeStorage\.getSelectedStorageBackend\(\) === 'gnome_libsecret'/)
     expect(probeSource).not.toMatch(/getSelectedStorageBackend\(\) !== 'basic_text'/)
+    expect(probeSource).toContain(
+      "assertProbe(!containsFixture(userDataRoot), 'ASSERT_PLAINTEXT_ABSENT')"
+    )
   })
 
   it('reports an allowlisted failure stage without printing raw probe output', () => {
@@ -63,6 +66,7 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep).toContain('grep -Fxq "$allowed_label" "$diagnostic_file"')
     expect(credentialProbeStep).toContain('printf \'%s\\n\' "$failure_label" >&2')
     expect(credentialProbeStep).toContain('probe_exit=0')
+    expect(credentialProbeStep).toContain('timeout --kill-after=10s 90s dbus-run-session')
     expect(credentialProbeStep).toContain('124|137)')
     expect(credentialProbeStep).toContain('ASSERT_LINUX_CREDENTIAL_PROBE_TIMEOUT')
     expect(credentialProbeStep).not.toMatch(

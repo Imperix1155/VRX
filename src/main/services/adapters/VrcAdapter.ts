@@ -566,7 +566,14 @@ export class VrcAdapter extends VrcApiClient {
 
       this.displayName = parsed.data.displayName
       this.accountId = parsed.data.id
-      this.persist()
+      // Restore validation also backfills the ciphertext owner binding. If that
+      // secure write fails, the restored cookie is not a durable authenticated
+      // session and must not remain usable for this process.
+      if (!this.persist()) {
+        this.clearSessionAfterTerminalAuthFailure()
+        this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
+        return this.status('unauthenticated')
+      }
       this.live?.onIdentity?.(this.accountId)
       return this.status('authenticated')
     }

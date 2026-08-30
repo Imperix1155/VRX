@@ -1879,6 +1879,35 @@ describe('VrcAdapter', () => {
       expect(binding.getOwner()).toBe('ACCOUNT001')
     })
 
+    it('fails closed when a validated restored session cannot persist its owner binding', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore('auth=restored')
+      store.save = vi.fn(() => {
+        throw new Error('secure store unavailable')
+      })
+      const log = vi.fn()
+      const onIdentity = vi.fn()
+      const adapter = new VrcAdapter(store, noopSleep, { log, onIdentity })
+
+      await expect(adapter.getAuthStatus()).resolves.toEqual({
+        platform: 'vrchat',
+        state: 'unauthenticated',
+        displayName: null,
+        accountId: null
+      })
+
+      expect(store.deleted).toBe(1)
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      expect(onIdentity).not.toHaveBeenCalledWith('ACCOUNT001')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
     it('restores a persisted cookie and sends it on the status check', async () => {
       const fetchMock = vi
         .fn()

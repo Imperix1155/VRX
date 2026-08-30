@@ -430,15 +430,16 @@ body {
 remain unchanged. Direct sign-in and completed VRChat 2FA report success only
 after VRX saves the session securely. The literal
 `credential_persistence_failed` uses dedicated localized secure-store retry
-copy. After this failure, or generic `auth_identity_unavailable`, on completed
-VRChat 2FA, both login surfaces clear the submitted code, synchronously settle
-the local auth state to unauthenticated, and return to the credentials form;
+copy. After this failure, or generic `auth_identity_unavailable`, both login
+surfaces clear any submitted password and 2FA code, synchronously settle the
+local auth state to unauthenticated, and return to the credentials form;
 only the persistence failure retains dedicated copy. Every other 2FA failure
 stays on the retryable code prompt, and every other login failure keeps the
 generic message. If a restored VRChat session newly requires 2FA while the
 ChilloutVR tab is selected, the gate selects VRChat and brings its code prompt
-forward after any active submit settles; returning to credentials after a
-terminal result keeps the outer gate mounted so its error remains visible.
+forward after any non-terminal active submit settles. A terminal result stays on
+the selected platform instead of remounting away its error; returning to
+credentials also keeps the outer gate mounted so that error remains visible.
 
 - Stat card: `.glass`, big VT323 number tinted by meaning (online→`--active`, in-game→`--ingame`, hot→`--bridge`), dim Inter label.
 - Hot-instance card **(↻ REVISED VRX-198, 2026-07-08; polished VRX-199, 2026-07-09 owner hands-on review)**: `.glass`+`.tint-vrc|cvr`; 4px top-edge gradient (platform→transparent). A **2×2 grid** — world name (**25px bold, line-height 1.5**, top-left; shares the line with the pill and lets descenders hang below — "lined paper"; truncates with ellipsis, full name in the `title` tooltip; **any trailing `(#…)` stripped display-only** — numeric instance ids AND custom tags like `(#teehee)`) + the shared **`InstancePill`** (the HERO, pinned top-right); who's-here (first 4 friend names then "+N", `--names-lift` brightness, bottom-left) + **`PlatformPill`** (bottom-right). The two pills share a `minmax(78px, max-content)` grid column → SAME width per card, edges aligned. **Visual-weight order (the card's law): world name → instance pill → who's-here → platform.** The platform pill is the **§5 non-color signifier** for CVD/low-vision users — a dim ghost outline (`--plat-<vrc|cvr>-ghost-text/border`, WCAG-AA in BOTH themes: dark 6.2/5.5, light 5.1/6.3): it recedes, but the LABEL stays readable — quietness lives in the pill, never the word. Whole-card click / Enter / Space opens the **hot-instance detail sheet** (VRX-250; see §9.5). The old `V`/`C` glyph box, icon openness badge, platform subtitle, and "N here" count are fully superseded.
