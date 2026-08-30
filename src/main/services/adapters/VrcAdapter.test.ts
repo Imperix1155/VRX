@@ -523,6 +523,53 @@ describe('VrcAdapter', () => {
       expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
     })
 
+    it('does not publish a tentative direct-login cookie through auth status', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      const fetchMock = vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+        return Promise.reject(new Error('Unexpected non-login request'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      binding.failNextSave()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      const status = adapter.getAuthStatus()
+      let statusSettled = false
+      void status.then(() => {
+        statusSettled = true
+      })
+      await expect(adapter.getFriends()).rejects.toThrow(
+        'Authentication session is still being persisted'
+      )
+      await expect(adapter.selfInvite('wrld_pending:11111~private(usr_self)')).rejects.toThrow(
+        'Authentication session is still being persisted'
+      )
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(statusSettled).toBe(false)
+      expect(fetchMock).toHaveBeenCalledOnce()
+
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      await expect(login).resolves.toMatchObject({
+        ok: false,
+        error: 'credential_persistence_failed'
+      })
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+    })
+
     it('keeps a subscribed pipeline stopped when direct-login persistence fails', async () => {
       let loginCalls = 0
       const sockets: DrivableVrcSocket[] = []
@@ -1144,6 +1191,60 @@ describe('VrcAdapter', () => {
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
       expect(deleteCredential).toHaveBeenCalledOnce()
       expect(identities).not.toContain('ACCOUNT002')
+    })
+
+    it('does not publish a completed 2FA cookie while owner binding is tentative', async () => {
+      let releaseRefreshBody!: (body: unknown) => void
+      let refreshBodyStarted = false
+      const heldRefreshBody = new Promise<unknown>((resolve) => {
+        releaseRefreshBody = resolve
+      })
+      const refreshResponse = jsonResponse(null)
+      vi.spyOn(refreshResponse, 'json').mockImplementation(() => {
+        refreshBodyStarted = true
+        return heldRefreshBody
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(
+              jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-a'] })
+            )
+          }
+          if (href.endsWith('/auth/user')) return Promise.resolve(refreshResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      binding.failNextSave()
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(refreshBodyStarted).toBe(true))
+      const status = adapter.getAuthStatus()
+      let statusSettled = false
+      void status.then(() => {
+        statusSettled = true
+      })
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(statusSettled).toBe(false)
+
+      releaseRefreshBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      await expect(verify).resolves.toMatchObject({
+        ok: false,
+        error: 'credential_persistence_failed'
+      })
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
     })
 
     it('keeps a subscribed pipeline stopped when completed 2FA cannot persist', async () => {
@@ -2708,6 +2809,56 @@ describe('VrcAdapter', () => {
         completeness: 'complete'
       })
       expect(boundary).toHaveBeenCalledTimes(boundariesAfterLogin)
+    })
+
+    it('does not retry an old roster through a tentative replacement cookie', async () => {
+      let releaseAccountA!: (response: Response) => void
+      const heldAccountA = new Promise<Response>((resolve) => {
+        releaseAccountA = resolve
+      })
+      let releaseLoginBody!: (body: unknown) => void
+      const heldLoginBody = new Promise<unknown>((resolve) => {
+        releaseLoginBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-b'] })
+      let loginBodyStarted = false
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        loginBodyStarted = true
+        return heldLoginBody
+      })
+      let accountAStarted = false
+      let tentativeAccountBRequests = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+        if (href.endsWith('/auth/user') && headers.Cookie === 'auth=account-a') {
+          accountAStarted = true
+          return heldAccountA
+        }
+        if (headers.Cookie === 'auth=account-b') {
+          tentativeAccountBRequests += 1
+          return Promise.reject(new Error('tentative account B request escaped'))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(accountAStarted).toBe(true))
+      const login = adapter.login({ username: 'account-b', password: 'pw' })
+      await vi.waitFor(() => expect(loginBodyStarted).toBe(true))
+      releaseAccountA(jsonResponse({ error: 'expired account A' }, { status: 401 }))
+      const rosterError = await roster.then(
+        () => null,
+        (error: unknown) => error
+      )
+      releaseLoginBody({ id: 'ACCOUNTB1', displayName: 'Account B' })
+      await expect(login).resolves.toEqual({ ok: true })
+
+      expect(rosterError).toEqual(new Error('Authentication session is still being persisted'))
+      expect(tentativeAccountBRequests).toBe(0)
     })
 
     it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {

@@ -221,6 +221,10 @@ never rebound to a different response identity.
 Completed VRChat 2FA likewise persists only after its owner refresh supplies a
 non-null account id; a failed refresh removes the tentative session and any
 older persisted credential rather than retaining an unbound restart session.
+While a direct-login or completed-2FA cookie is still awaiting owner validation
+or secure persistence, `getAuthStatus` waits for that operation to settle and
+authenticated VRChat REST entry points reject without making a request. The
+first-leg `needs-2fa` state remains visible so its code prompt stays usable.
 
 `credentialValidation.ts` is the shared, pure main-only guard for direct and issued authentication material (VRX-38). It permits Unicode direct-login text but rejects C0/DEL before either adapter makes a request; platform-issued VRChat Cookie and CVR Username/AccessKey values must be printable ASCII before use or persistence. It adds no renderer, IPC, or adapter-interface surface.
 

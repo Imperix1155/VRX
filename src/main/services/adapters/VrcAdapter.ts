@@ -414,17 +414,35 @@ export class VrcAdapter extends VrcApiClient {
     return { ok: true }
   }
 
-  /** The only safe description while an interactive 2FA result is tentative. */
-  private tentativeAuthStatus(): AuthStatus {
-    return this.pendingTwoFactorMethod === null
-      ? this.status('error')
-      : this.status('needs-2fa', this.pendingTwoFactorMethod)
+  /**
+   * A first-leg 2FA cookie is safe to describe as needing its code. Once an
+   * operation has cleared that method, however, its cookie must stay invisible
+   * until owner validation and secure persistence finish. Returning `error`
+   * would admit the renderer shell, whose authenticated queries could then use
+   * the tentative cookie.
+   */
+  private async awaitTentativeAuthStatus(): Promise<AuthStatus | null> {
+    if (this.pendingTwoFactorMethod !== null) {
+      return this.status('needs-2fa', this.pendingTwoFactorMethod)
+    }
+    await this.authOperationQueue
+    // All intended terminal paths clear the marker or establish a retryable
+    // 2FA method. If an unexpected operation failure leaves it behind, fail
+    // closed instead of spinning or exposing the tentative cookie as `error`.
+    if (this.authPersistencePending) {
+      return this.pendingTwoFactorMethod === null
+        ? this.status('unauthenticated')
+        : this.status('needs-2fa', this.pendingTwoFactorMethod)
+    }
+    return null
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
     for (;;) {
       if (this.authPersistencePending) {
-        return this.tentativeAuthStatus()
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
       }
       if (!this.cookie) return this.status('unauthenticated')
       const generation = this.sessionGeneration
@@ -440,7 +458,11 @@ export class VrcAdapter extends VrcApiClient {
           { priority: 'interactive', recordCircuitFailure: false }
         )
       } catch {
-        if (this.authPersistencePending) return this.tentativeAuthStatus()
+        if (this.authPersistencePending) {
+          const tentative = await this.awaitTentativeAuthStatus()
+          if (tentative !== null) return tentative
+          continue
+        }
         // A replacement session landed while the request was in flight: retry
         // against it. A logout landed instead: report the current logged-out state.
         if (generation !== this.sessionGeneration) {
@@ -451,7 +473,11 @@ export class VrcAdapter extends VrcApiClient {
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.
-      if (this.authPersistencePending) return this.tentativeAuthStatus()
+      if (this.authPersistencePending) {
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
+      }
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -470,7 +496,11 @@ export class VrcAdapter extends VrcApiClient {
       try {
         body = await response.json()
       } catch {
-        if (this.authPersistencePending) return this.tentativeAuthStatus()
+        if (this.authPersistencePending) {
+          const tentative = await this.awaitTentativeAuthStatus()
+          if (tentative !== null) return tentative
+          continue
+        }
         if (generation !== this.sessionGeneration) {
           if (this.cookie) continue
           return this.status('unauthenticated')
@@ -479,7 +509,11 @@ export class VrcAdapter extends VrcApiClient {
       }
       // response.json() is another account-boundary await: fence it before
       // updating displayName or the pending 2FA method.
-      if (this.authPersistencePending) return this.tentativeAuthStatus()
+      if (this.authPersistencePending) {
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
+      }
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -527,6 +561,7 @@ export class VrcAdapter extends VrcApiClient {
 
   async getFriends(): Promise<FriendRoster> {
     for (;;) {
+      this.assertDurableSession()
       const generation = this.sessionGeneration
       try {
         const result = await fetchFriends((path, schema) => this.get(path, schema))
@@ -735,6 +770,7 @@ export class VrcAdapter extends VrcApiClient {
     if (parseInstanceType(instanceId) === 'public') {
       throw new Error('No invite needed for public instances')
     }
+    this.assertDurableSession()
 
     // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw
     // (now validated free of URL-structural characters). The Notification response
@@ -1069,6 +1105,13 @@ export class VrcAdapter extends VrcApiClient {
 
   private cookieHeader(): Record<string, string> {
     return this.cookie ? { Cookie: this.cookie } : {}
+  }
+
+  /** Authenticated REST calls must never use a cookie that may still roll back. */
+  private assertDurableSession(): void {
+    if (this.authPersistencePending) {
+      throw new Error('Authentication session is still being persisted')
+    }
   }
 
   private persist(): boolean {
