@@ -1,6 +1,13 @@
 import { app, safeStorage } from 'electron'
 import { basename, isAbsolute, join, parse, resolve } from 'node:path'
-import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
+import {
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  writeFileSync,
+  writeSync
+} from 'node:fs'
 
 const FIXTURE = 'vrx-ci-fixture-not-a-token'
 const USER_DATA_BASENAME_PREFIX = 'vrx-credential-probe.'
@@ -167,7 +174,7 @@ void run().then(
   (error: unknown) => {
     const label =
       error instanceof ProbeAssertionError ? error.label : ('ASSERT_PROBE_EXECUTION' as const)
-    process.stderr.write(`${label}\n`)
+    writeSync(2, `${label}\n`)
     app.exit(1)
   }
 )

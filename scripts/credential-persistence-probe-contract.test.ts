@@ -33,17 +33,22 @@ describe('Linux credential persistence probe contract', () => {
     expect(command.match(/ASSERT_[A-Z_]+/g)).toEqual([
       'ASSERT_ARGUMENTS',
       'ASSERT_PROBE_BUILD',
+      'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
     ])
+    expect(command).toContain('[ ! -f "$1/.vrx-credential-persistence-probe" ]')
   })
 
   it('attests the explicitly selected GNOME libsecret backend', () => {
+    expect(probeSource).toContain("const MARKER_NAME = '.vrx-credential-persistence-probe'")
     expect(probeSource).toMatch(/safeStorage\.getSelectedStorageBackend\(\) === 'gnome_libsecret'/)
     expect(probeSource).not.toMatch(/getSelectedStorageBackend\(\) !== 'basic_text'/)
     expect(probeSource).toContain(
       "assertProbe(!containsFixture(userDataRoot), 'ASSERT_PLAINTEXT_ABSENT')"
     )
+    expect(probeSource).toContain('writeSync(2, `${label}\\n`)')
+    expect(probeSource).not.toContain('process.stderr.write')
   })
 
   it('reports an allowlisted failure stage without printing raw probe output', () => {
