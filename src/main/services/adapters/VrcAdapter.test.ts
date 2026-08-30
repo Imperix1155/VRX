@@ -632,7 +632,7 @@ describe('VrcAdapter', () => {
       expect(oldSocketClosed).toBe(true)
     })
 
-    it('serializes overlapping direct logins so cookie, owner, and identity stay paired', async () => {
+    it('makes the later overlapping direct login win without persisting the held account', async () => {
       let releaseAccountABody!: (body: unknown) => void
       let accountABodyStarted = false
       const accountABody = new Promise<unknown>((resolve) => {
@@ -676,13 +676,71 @@ describe('VrcAdapter', () => {
       releaseAccountABody({ id: 'ACCOUNT001', displayName: 'Account A' })
 
       await expect(Promise.all([accountALogin, accountBLogin])).resolves.toEqual([
-        { ok: true },
+        {
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response',
+          sessionCleared: true
+        },
         { ok: true }
       ])
       expect(binding.getCredential()).toBe('auth=account-b')
-      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001', 'ACCOUNT002'])
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
       expect(binding.getOwner()).toBe('ACCOUNT002')
       expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('does not persist a held login when the later overlapping login is rejected', async () => {
+      let releaseAccountABody!: (body: unknown) => void
+      let accountABodyStarted = false
+      const accountABody = new Promise<unknown>((resolve) => {
+        releaseAccountABody = resolve
+      })
+      const accountAResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(accountAResponse, 'json').mockImplementation(() => {
+        accountABodyStarted = true
+        return accountABody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization === undefined) {
+            return Promise.reject(new Error('Unexpected non-login request'))
+          }
+          directLoginCalls += 1
+          return Promise.resolve(
+            directLoginCalls === 1
+              ? accountAResponse
+              : jsonResponse({ error: 'invalid credentials' }, { status: 401 })
+          )
+        })
+      )
+      const store = fakeStore()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const accountALogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(accountABodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'wrong' })
+      releaseAccountABody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(Promise.all([accountALogin, accountBLogin])).resolves.toEqual([
+        {
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response',
+          sessionCleared: true
+        },
+        { ok: false, needs2fa: false, error: 'invalid_credentials' }
+      ])
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+      expect(identities).not.toContain('ACCOUNT001')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
     })
 
     it('does not let a held direct login resurrect a session after explicit logout', async () => {
@@ -1351,7 +1409,7 @@ describe('VrcAdapter', () => {
       expect(oldSocketClosed).toBe(true)
     })
 
-    it('serializes a held 2FA verify with a direct login so session ownership cannot cross', async () => {
+    it('makes a later direct login supersede a held 2FA verify without crossing ownership', async () => {
       let releaseVerifyBody!: (body: unknown) => void
       let verifyBodyStarted = false
       const heldVerifyBody = new Promise<unknown>((resolve) => {
@@ -1404,11 +1462,11 @@ describe('VrcAdapter', () => {
       releaseVerifyBody({ verified: true })
 
       await expect(Promise.all([verify, accountBLogin])).resolves.toEqual([
-        { ok: true },
+        { ok: false, needs2fa: false, error: 'unexpected_response' },
         { ok: true }
       ])
       expect(binding.getCredential()).toBe('auth=account-b')
-      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001', 'ACCOUNT002'])
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
       expect(binding.getOwner()).toBe('ACCOUNT002')
       expect(identities.at(-1)).toBe('ACCOUNT002')
     })
@@ -3809,6 +3867,57 @@ describe('VrcAdapter', () => {
       expect(resolver.peek(worldId)).toBeUndefined()
       await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account B World' })
       expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    })
+
+    it('does not let an old world completion erase the replacement generation pending marker', async () => {
+      const worldId = 'wrld_pending_owner'
+      const releases: Array<(response: Response) => void> = []
+      const worldRequestCookies: Array<string | undefined> = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
+          )
+        }
+        if (href.includes(`/worlds/${worldId}`)) {
+          worldRequestCookies.push(headers.Cookie)
+          return new Promise<Response>((resolve) => releases.push(resolve))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      const internal = adapter as unknown as {
+        sessionGeneration: number
+        pendingWorldResolutions: Set<string>
+        kickWorldMetadata(friends: Friend[], generation: number): void
+      }
+      const friend = { instance: { worldId } } as Friend
+
+      internal.kickWorldMetadata([friend], internal.sessionGeneration)
+      await vi.waitFor(() => expect(worldRequestCookies).toEqual(['auth=account-a']))
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      internal.kickWorldMetadata([friend], internal.sessionGeneration)
+      await vi.waitFor(() =>
+        expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+      )
+
+      releases[0]!(jsonResponse({ name: 'Account A World', thumbnailImageUrl: null, capacity: 8 }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const replacementMarkerSurvived = internal.pendingWorldResolutions.has(worldId)
+
+      releases[1]!(jsonResponse({ name: 'Account B World', thumbnailImageUrl: null, capacity: 8 }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(replacementMarkerSurvived).toBe(true)
     })
 
     it('negative-cached world failures are not re-fetched during reconcile inside the 60s window', async () => {

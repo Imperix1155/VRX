@@ -86,6 +86,10 @@ original narrow adapter-save plan in these ways:
 
 - Explicit logout cancels held authentication work so a late completion cannot
   resurrect the logged-out session.
+- Interactive VRChat auth ownership is assigned when a request is made, not
+  when its serialized body starts. A later request therefore prevents a held
+  earlier login or 2FA result from persisting, including when the later request
+  is rejected.
 - Restored VRChat 2FA and terminal failures reconcile renderer auth state with
   the main process through `sessionCleared: true`.
 - VRChat owner validation, replacement-cookie checks, and tentative-cookie
@@ -97,6 +101,8 @@ original narrow adapter-save plan in these ways:
 - World and group metadata caches are account-generation scoped; boundaries
   clear them and late old-account responses cannot write into the replacement
   account's cache.
+- Metadata pending markers are generation-owned, and per-world write epochs
+  prevent late same-generation responses from overwriting a newer cache result.
 
 These additions preserve the approved user-visible outcome and security
 boundary; they do not introduce credential-import behavior, plaintext storage,

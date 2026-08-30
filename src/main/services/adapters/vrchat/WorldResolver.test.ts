@@ -121,6 +121,26 @@ describe('WorldResolver', () => {
     expect(resolver.peek('wrld_abc')).toMatchObject({ name: 'Replacement Account World' })
   })
 
+  it('keeps the newest same-generation response in cache when an older request settles last', async () => {
+    let releaseOlder!: (value: unknown) => void
+    const olderResponse = new Promise<unknown>((resolve) => {
+      releaseOlder = resolve
+    })
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(olderResponse)
+      .mockResolvedValueOnce({ ...VALID_WORLD_RAW, name: 'Newer World' })
+    const resolver = new WorldResolver(fetcher)
+
+    const olderResolve = resolver.resolve('wrld_abc')
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+    await expect(resolver.resolve('wrld_abc')).resolves.toMatchObject({ name: 'Newer World' })
+
+    releaseOlder({ ...VALID_WORLD_RAW, name: 'Older World' })
+    await expect(olderResolve).resolves.toMatchObject({ name: 'Older World' })
+    expect(resolver.peek('wrld_abc')).toMatchObject({ name: 'Newer World' })
+  })
+
   // ── Cache expiry (clock advancing past TTL) ──────────────────────────────────
 
   async function resolveWithAdvancedClock(advance: number): Promise<number> {

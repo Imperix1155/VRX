@@ -73,6 +73,7 @@ export class WorldResolver {
   private readonly clock: () => number
   private readonly negativeTtlMs: number
   private readonly cache = new Map<string, CacheEntry>()
+  private readonly writeEpoch = new Map<string, number>()
   private generation = 0
 
   constructor(
@@ -110,6 +111,7 @@ export class WorldResolver {
   clear(): void {
     this.generation += 1
     this.cache.clear()
+    this.writeEpoch.clear()
   }
 
   /**
@@ -125,7 +127,12 @@ export class WorldResolver {
     const cached = this.peek(worldId)
     if (cached !== undefined) return cached
     const requestGeneration = this.generation
-    const mayWrite = (): boolean => requestGeneration === this.generation
+    // A later same-account request owns the cache write even if an older fetch
+    // settles last. Both callers still receive their own response.
+    const requestEpoch = (this.writeEpoch.get(worldId) ?? 0) + 1
+    this.writeEpoch.set(worldId, requestEpoch)
+    const mayWrite = (): boolean =>
+      requestGeneration === this.generation && this.writeEpoch.get(worldId) === requestEpoch
 
     let raw: unknown
     try {

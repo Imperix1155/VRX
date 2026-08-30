@@ -265,11 +265,15 @@ export class VrcAdapter extends VrcApiClient {
     try {
       body = await response.json()
     } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededDirectLoginResult(operationId, installedTentativeCookie)
+      }
       if (installedTentativeCookie) return this.abandonTentativeSession('bad_response')
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
-    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededDirectLoginResult(operationId, installedTentativeCookie)
+    }
     const parsed = authUserResponseSchema.safeParse(body)
     if (!parsed.success) {
       if (installedTentativeCookie) return this.abandonTentativeSession('unexpected_response')
@@ -361,11 +365,15 @@ export class VrcAdapter extends VrcApiClient {
         { priority: 'interactive' }
       )
     } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+      }
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
-    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+    }
 
     if (!response.ok) {
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
@@ -380,11 +388,15 @@ export class VrcAdapter extends VrcApiClient {
     try {
       verifyBody = await response.json()
     } catch {
-      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+      }
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
-    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+    }
     const verified = twoFactorVerifySchema.safeParse(verifyBody)
     if (!verified.success || !verified.data.verified) {
       this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
@@ -416,7 +428,9 @@ export class VrcAdapter extends VrcApiClient {
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration(false)
     await this.refreshDisplayName('interactive', operationId)
-    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending, true)
+    }
     // A verified second factor is still not a durable authenticated session
     // until the account endpoint establishes its owner. Persisting with a null
     // owner would let an unbound credential reappear after restart.
@@ -721,7 +735,8 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids unconditionally so failed/private groups become
+        if (generation !== this.sessionGeneration) return
+        // Sweep this current-generation batch so failed/private groups become
         // retryable after the negative-cache window or at reconcile (VRX-258).
         for (const id of kicked) this.pendingGroupResolutions.delete(id)
       })
@@ -780,7 +795,8 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids unconditionally — resolved worlds are now cached
+        if (generation !== this.sessionGeneration) return
+        // Sweep this current-generation batch — resolved worlds are now cached
         // (peek excludes them) and failed/private ones become retryable after the
         // 60 s negative-cache window or at reconcile.
         for (const id of kicked) this.pendingWorldResolutions.delete(id)
@@ -956,7 +972,9 @@ export class VrcAdapter extends VrcApiClient {
             })
           })
           .finally(() => {
-            this.pendingWorldResolutions.delete(worldId)
+            if (generation === this.sessionGeneration) {
+              this.pendingWorldResolutions.delete(worldId)
+            }
           })
       }
     }
@@ -998,7 +1016,9 @@ export class VrcAdapter extends VrcApiClient {
               })
             })
             .finally(() => {
-              this.pendingGroupResolutions.delete(groupId)
+              if (generation === this.sessionGeneration) {
+                this.pendingGroupResolutions.delete(groupId)
+              }
             })
         }
       }
@@ -1042,12 +1062,19 @@ export class VrcAdapter extends VrcApiClient {
   private runAuthOperation(
     operation: (operationId: number) => Promise<LoginResult>
   ): Promise<LoginResult> {
+    // Allocate ownership when the caller starts the operation, not when its
+    // queued body eventually runs. A later request immediately supersedes an
+    // older in-flight request at its next await fence while the queue still
+    // prevents concurrent mutation of the shared cookie/session fields.
+    const operationId = ++this.authOperationSequence
     const cancellationGeneration = this.authOperationCancellationGeneration
     const run = async (): Promise<LoginResult> => {
-      if (cancellationGeneration !== this.authOperationCancellationGeneration) {
+      if (
+        cancellationGeneration !== this.authOperationCancellationGeneration ||
+        operationId !== this.authOperationSequence
+      ) {
         return this.supersededAuthResult()
       }
-      const operationId = ++this.authOperationSequence
       this.activeAuthOperation = operationId
       try {
         return await operation(operationId)
@@ -1064,6 +1091,10 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private isAuthOperationCurrent(operationId: number): boolean {
+    return this.activeAuthOperation === operationId && this.authOperationSequence === operationId
+  }
+
+  private isAuthOperationActive(operationId: number): boolean {
     return this.activeAuthOperation === operationId
   }
 
@@ -1079,6 +1110,43 @@ export class VrcAdapter extends VrcApiClient {
 
   private supersededAuthResult(): LoginResult {
     return { ok: false, needs2fa: false, error: 'unexpected_response' }
+  }
+
+  /** Roll back a superseded direct-login cookie before the queued winner runs. */
+  private supersededDirectLoginResult(
+    operationId: number,
+    installedTentativeCookie: boolean
+  ): LoginResult {
+    if (installedTentativeCookie && this.isAuthOperationActive(operationId)) {
+      this.clearSessionAfterTerminalAuthFailure()
+      return {
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }
+    }
+    return this.supersededAuthResult()
+  }
+
+  /** Restore or clear held 2FA state before the queued winning operation runs. */
+  private supersededTwoFactorResult(
+    operationId: number,
+    wasPending: boolean,
+    installedVerifiedSession = false
+  ): LoginResult {
+    if (!this.isAuthOperationActive(operationId)) return this.supersededAuthResult()
+    if (installedVerifiedSession) {
+      this.clearSessionAfterTerminalAuthFailure()
+      return {
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }
+    }
+    this.authPersistencePending = wasPending
+    return this.supersededAuthResult()
   }
 
   private setCookie(cookie: string): void {

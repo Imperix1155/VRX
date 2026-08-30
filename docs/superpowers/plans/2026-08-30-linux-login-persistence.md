@@ -277,5 +277,8 @@ fences concurrent login, restore, and explicit logout; introduces the optional
 tentative cookies from every credential consumer; and generation-binds each
 request in paginated roster and queued metadata work so it cannot continue with
 a newer durable account's cookie. It also clears and write-fences the VRChat
-world/group metadata caches on session boundaries. The approved specification
-records these deliberate deviations.
+world/group metadata caches on session boundaries. Final review further made
+VRChat auth ownership start at request time, so a later queued attempt prevents
+an earlier held response from persisting, and made metadata pending cleanup
+generation-owned with per-world newest-request cache ownership. The approved
+specification records these deliberate deviations.

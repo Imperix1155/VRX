@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   credential store before retrying. A completed VRChat 2FA attempt that cannot
   be saved now clears its one-time code and returns to full sign-in. Concurrent
   session checks and sign-ins can no longer replace, cancel, or misidentify the
-  newer account. A verified VRChat 2FA result also now requires a validated
+  newer account; the latest requested VRChat sign-in owns persistence even if
+  an earlier request was already waiting on its response, and a rejected latest
+  sign-in cannot leave that earlier account stored or active. A verified VRChat
+  2FA result also now requires a validated
   account owner before it can persist; an unavailable owner removes the
   tentative and prior stored session rather than allowing an unowned restart.
   Tentative VRChat cookies also remain unavailable to status, roster,
@@ -24,7 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   encrypted persistence settle. Old roster pages and queued metadata work also
   stop at an account boundary instead of continuing with the newer durable
   account's cookie, and cached world/group metadata is cleared and write-fenced
-  so access-controlled details cannot carry between accounts. A 2FA prompt is
+  so access-controlled details cannot carry between accounts. Late metadata
+  completions also cannot erase a replacement account's in-flight marker or
+  overwrite a newer same-world cache result. A 2FA prompt is
   rejected if its direct-login
   response did not issue the replacement cookie needed to verify that account.
   Terminal failures synchronously settle local auth state, including a malformed

@@ -73,6 +73,11 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   never retain an unowned credential or start a pipeline. A direct-login
   response that installed a replacement cookie and then proves unreadable or
   malformed also clears the tentative/prior session and sets the same marker.
+- Interactive VRChat auth ownership is assigned when `login()` or `verify2fa()`
+  is requested, before its serialized body begins. A later request supersedes a
+  held earlier response at its next await fence, so the earlier account cannot
+  persist or publish even when the later request is rejected. Explicit logout
+  still cancels active and queued operations.
 - A direct-login `needs-2fa` response is usable only when that same response
   issues a valid replacement `auth` cookie; never submit one account's code
   with a retained cookie from another account. While any replacement cookie is
@@ -85,7 +90,9 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   durable account's cookie. Session boundaries also clear both VRChat metadata
   resolver caches, and late world/group responses are write-fenced so one
   account's access-controlled metadata cannot populate the next account's
-  cache. The first-leg 2FA prompt itself remains visible.
+  cache. Pending-resolution cleanup is generation-owned, and the newest
+  same-generation world request owns the cache write. The first-leg 2FA prompt
+  itself remains visible.
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in the root `AGENTS.md`). Trinity applied in VRX-25.
 - NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
 - No hardcoded paths — use `app.getPath()`.
