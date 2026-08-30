@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CONCURRENCY_LIMIT } from '@shared/constants'
 import type { AdapterEvent } from '@shared/types'
 import { VrcAdapter, type VrcCredentialStore } from './VrcAdapter'
 import {
@@ -291,7 +292,10 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
   })
 
   it('does not advance an old group-enrichment batch through a durable replacement cookie', async () => {
-    const groupIds = Array.from({ length: 11 }, (_, index) => `grp_account_a_${index}`)
+    const groupIds = Array.from(
+      { length: CONCURRENCY_LIMIT + 1 },
+      (_, index) => `grp_account_a_${index}`
+    )
     const releases: Array<(response: Response) => void> = []
     let accountAGroupRequests = 0
     let accountBGroupRequests = 0
@@ -352,7 +356,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
     markSessionEstablished(adapter)
     await adapter.getFriends()
-    await vi.waitFor(() => expect(accountAGroupRequests).toBe(10))
+    await vi.waitFor(() => expect(accountAGroupRequests).toBe(CONCURRENCY_LIMIT))
     await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
       ok: true
     })

@@ -120,18 +120,22 @@ jobs:
               write_diagnostic ASSERT_KEYRING_LOGIN
               exit 1
             fi
+            set -a
             if ! eval "$login_environment" >/dev/null 2>&1; then
               write_diagnostic ASSERT_KEYRING_LOGIN_ENV
               exit 1
             fi
+            set +a
             if ! start_environment=$(gnome-keyring-daemon --start --components=secrets 2>/dev/null); then
               write_diagnostic ASSERT_KEYRING_START
               exit 1
             fi
+            set -a
             if ! eval "$start_environment" >/dev/null 2>&1; then
               write_diagnostic ASSERT_KEYRING_START_ENV
               exit 1
             fi
+            set +a
             # xvfb-run merges child stderr into stdout. Redirect npm stderr
             # inside the virtual-display command so the fixed probe
             # assertion reaches the private diagnostic file before that merge.

@@ -328,6 +328,20 @@ describe('Linux credential persistence probe contract', () => {
 
     expect(keyringScript).toContain('xvfb-run --auto-servernum')
     expect(keyringScript).not.toContain("'")
+    expect(keyringScript.match(/^\s*set -a$/gm)).toHaveLength(2)
+    expect(keyringScript.match(/^\s*set \+a$/gm)).toHaveLength(2)
+    for (const environmentName of ['login_environment', 'start_environment']) {
+      const evalIndex = keyringScript.indexOf(`if ! eval "$${environmentName}"`)
+      const exportIndex = keyringScript.lastIndexOf('set -a', evalIndex)
+      const priorStopExportIndex = keyringScript.lastIndexOf('set +a', evalIndex)
+      const stopExportIndex = keyringScript.indexOf('set +a', evalIndex)
+
+      expect(evalIndex).toBeGreaterThan(-1)
+      expect(exportIndex).toBeGreaterThan(-1)
+      expect(exportIndex).toBeGreaterThan(priorStopExportIndex)
+      expect(exportIndex).toBeLessThan(evalIndex)
+      expect(stopExportIndex).toBeGreaterThan(evalIndex)
+    }
   })
 
   it('keeps test-only probe artifacts out of application packages', () => {

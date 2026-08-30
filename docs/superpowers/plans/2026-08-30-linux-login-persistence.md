@@ -54,7 +54,7 @@
 
   Run: `npx vitest run src/main/services/adapters/VrcAdapter.test.ts src/main/services/adapters/CvrAdapter.test.ts`
 
-  Expected: the three persistence-failure cases receive `{ ok: true }` or remain
+  Expected: the four persistence-failure cases receive `{ ok: true }` or remain
   authenticated, proving the regression tests detect the shipped behavior.
 
 - [ ] **Step 3: Add the shared literal and minimal adapter rollback**

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CONCURRENCY_LIMIT } from '@shared/constants'
 import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
@@ -3212,7 +3213,10 @@ describe('VrcAdapter', () => {
     ])(
       'does not advance an old world-enrichment batch $stage',
       async ({ loginBody, expectedLogin }) => {
-        const friendIds = Array.from({ length: 11 }, (_, index) => `usr_friend_${index}`)
+        const friendIds = Array.from(
+          { length: CONCURRENCY_LIMIT + 1 },
+          (_, index) => `usr_friend_${index}`
+        )
         const releases: Array<(response: Response) => void> = []
         let accountAWorldRequests = 0
         let tentativeAccountBWorldRequests = 0
@@ -3268,7 +3272,7 @@ describe('VrcAdapter', () => {
         markSessionEstablished(adapter)
 
         await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
-        await vi.waitFor(() => expect(accountAWorldRequests).toBe(10))
+        await vi.waitFor(() => expect(accountAWorldRequests).toBe(CONCURRENCY_LIMIT))
         await expect(
           adapter.login({ username: 'account-b', password: 'pw-b' })
         ).resolves.toMatchObject(expectedLogin)
