@@ -4,7 +4,7 @@
 
 **Goal:** Make VRChat and ChilloutVR login success contingent on durable encrypted credential persistence, with actionable UI feedback and real Linux restart verification.
 
-**Architecture:** Keep the existing synchronous, fail-closed safeStorage service. Turn adapter persistence into an explicit result, roll back a newly authenticated session on failure, carry one shared literal error code through the existing LoginResult IPC contract, and map only that code to dedicated renderer copy. Add a test-only Electron entry that exercises the production credential service across two Linux processes in a temporary Secret Service session.
+**Architecture:** Keep the existing synchronous, fail-closed safeStorage service. Turn adapter persistence into an explicit result, roll back a newly authenticated session on failure, carry one shared literal error code through the existing LoginResult IPC contract, and map only that code to dedicated renderer copy. Add a test-only Electron entry that explicitly selects and attests GNOME libsecret while exercising the production credential service across two Linux processes in a temporary Secret Service session.
 
 **Tech Stack:** Electron 43.4.1, electron-vite, strict TypeScript, Vitest, React 19, i18next, GitHub Actions.
 
@@ -144,10 +144,10 @@
   root with the probe basename prefix, reject filesystem roots and symlinks, and
   require an existing empty directory in write mode. Write a fixed non-secret
   marker that read mode must verify before calling `app.setPath('userData', root)`.
-  Then assert encryption is available, the selected legacy backend is not
-  `basic_text`, save the fixed synthetic fixture `vrx-ci-fixture-not-a-token`,
-  recursively inspect only the disposable root to assert plaintext absence, and
-  exit. In read mode, load the same key, compare it to the fixture without
+  Then assert encryption is available and Electron reports the explicitly
+  selected `gnome_libsecret` backend, save the fixed synthetic fixture
+  `vrx-ci-fixture-not-a-token`, recursively inspect only the disposable root to
+  assert plaintext absence, and exit. In read mode, load the same key, compare it to the fixture without
   printing it, clear it, and exit. Every failure prints only a fixed assertion
   label and nonzero exit code.
 
@@ -167,7 +167,7 @@
   In the Ubuntu build leg only, install `dbus-x11`, `gnome-keyring`,
   `libsecret-1-0`, and `xvfb`; create a mode-0700 `XDG_RUNTIME_DIR`; start the
   secrets component inside one `dbus-run-session`; and run both Electron probe
-  processes under Xvfb. Capture and check daemon initialization before evaluating
+  processes under Xvfb with `--password-store=gnome-libsecret`. Capture and check daemon initialization before evaluating
   its environment, discard raw daemon/probe diagnostics, and wrap the runtime in
   both a short GitHub step timeout and a `timeout --kill-after` deadman. Keep
   checkout actions SHA-pinned and preserve the final `ci-success` dependency.

@@ -941,7 +941,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
       <section class="panel glass" id="login-persistence">
         <div class="kick">Login feedback</div>
         <div class="stitle">Secure session persistence</div>
-        <div class="why">ErrorBanner layout, tokens, and glyphs stay unchanged. Direct sign-in and completed VRChat 2FA succeed only after VRX saves the session securely. After <code>credential_persistence_failed</code> on completed 2FA, both login surfaces clear the submitted code and return to credentials while keeping the dedicated localized secure-store retry message. Other 2FA failures stay on the retryable code prompt; every other login failure uses the generic message.</div>
+        <div class="why">ErrorBanner layout, tokens, and glyphs stay unchanged. Direct sign-in and completed VRChat 2FA succeed only after VRX saves the session securely and 2FA establishes an account owner. After terminal <code>credential_persistence_failed</code> or <code>auth_identity_unavailable</code>, both login surfaces clear the submitted code, settle local auth to unauthenticated, and return to credentials; only the persistence failure keeps the dedicated localized secure-store retry message. Other 2FA failures stay on the retryable code prompt; every other login failure uses the generic message.</div>
       </section>
 
       <section class="panel glass" id="donot">

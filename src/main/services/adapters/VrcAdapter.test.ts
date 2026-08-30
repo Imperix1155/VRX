@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent, Friend, InstanceInfo } from '@shared/types'
+import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { AuthError } from './errors'
@@ -987,6 +987,31 @@ describe('VrcAdapter', () => {
       const result = await new VrcAdapter(fakeStore(), noopSleep).login(creds)
       expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
     })
+
+    it('deletes the prior stored credential when a replacement cookie has a malformed body', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ unexpected: true }, { setCookies: ['auth=replacement'] })
+          )
+      )
+      const binding = ownerBindingHarness<string>('auth=previous')
+
+      await expect(new VrcAdapter(binding.store, noopSleep).login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response'
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
+
+      // Restart regression: an adapter built against the same store must not
+      // recover the pre-login session after this failed replacement.
+      const relaunched = new VrcAdapter(binding.store, noopSleep)
+      expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+    })
   })
 
   describe('2FA', () => {
@@ -1008,6 +1033,47 @@ describe('VrcAdapter', () => {
       await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
 
       expect(binding.getOwner()).toBe('TRINITY09')
+    })
+
+    it('fails closed when verified 2FA cannot establish an account owner', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+        )
+        // A successful verify followed by an unreadable owner response is not
+        // authenticated: no unbound durable credential may survive it.
+        .mockResolvedValueOnce(jsonResponse({ unexpected: true }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=previous')
+      const identities: Array<string | null> = []
+      const log = vi.fn()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        log
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: AUTH_IDENTITY_UNAVAILABLE
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
+      expect(binding.getAttemptedAccountIds()).toEqual([])
+      expect(identities).not.toContain('TRINITY09')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: authenticated identity unavailable']])
+
+      // The restarted adapter has no credential to re-adopt and never probes.
+      fetchMock.mockClear()
+      expect(await new VrcAdapter(binding.store, noopSleep).getAuthStatus()).toMatchObject({
+        state: 'unauthenticated'
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
     })
 
     it('rolls back completed 2FA when credential persistence fails', async () => {
@@ -1365,7 +1431,11 @@ describe('VrcAdapter', () => {
       expect(events).toEqual([])
       expect(alerts).toEqual([])
 
-      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+      expect(await adapter.verify2fa('123456')).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: AUTH_IDENTITY_UNAVAILABLE
+      })
       expect((adapter as unknown as { displayName: string | null }).displayName).toBeNull()
       expect(identities.slice(-2)).toEqual([null, null])
       unsubscribe()

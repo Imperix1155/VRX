@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
-import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import type {
   AuthStatus,
   Credentials,
@@ -403,6 +403,10 @@ export class VrcAdapter extends VrcApiClient {
     this.bumpSessionGeneration(false)
     await this.refreshDisplayName('interactive', operationId)
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    // A verified second factor is still not a durable authenticated session
+    // until the account endpoint establishes its owner. Persisting with a null
+    // owner would let an unbound credential reappear after restart.
+    if (this.accountId === null) return this.identityUnavailableFailure()
     if (!this.persist()) return this.persistenceFailure()
     this.authPersistencePending = false
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
@@ -1079,18 +1083,33 @@ export class VrcAdapter extends VrcApiClient {
 
   /** A successful login must survive restart; discard an unpersisted session. */
   private persistenceFailure(): LoginResult {
-    this.clearSessionState(false, false)
-    try {
-      this.credentials.delete()
-    } catch {
-      /* best-effort cleanup after a failed save */
-    }
+    this.clearSessionAfterTerminalAuthFailure()
     this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
     return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
   }
 
-  private abandonTentativeSession(): void {
+  /** A verified 2FA response without a validated owner cannot become a session. */
+  private identityUnavailableFailure(): LoginResult {
+    this.clearSessionAfterTerminalAuthFailure()
+    this.live?.log?.('warn', 'vrc adapter: authenticated identity unavailable')
+    return { ok: false, needs2fa: false, error: AUTH_IDENTITY_UNAVAILABLE }
+  }
+
+  /** Clear memory and best-effort remove any pre-existing stored credential. */
+  private clearSessionAfterTerminalAuthFailure(): void {
     this.clearSessionState(false, false)
+    try {
+      this.credentials.delete()
+    } catch {
+      /* best-effort cleanup after a terminal authentication failure */
+    }
+  }
+
+  private abandonTentativeSession(): void {
+    // A replacement auth cookie was already installed. If its body is malformed,
+    // leaving an older persisted credential behind would resurrect that account
+    // after restart despite this login having failed closed in memory.
+    this.clearSessionAfterTerminalAuthFailure()
   }
 
   private async refreshDisplayName(

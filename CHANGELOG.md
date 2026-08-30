@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   credential store before retrying. A completed VRChat 2FA attempt that cannot
   be saved now clears its one-time code and returns to full sign-in. Concurrent
   session checks and sign-ins can no longer replace, cancel, or misidentify the
-  newer account. (VRX-34)
+  newer account. A verified VRChat 2FA result also now requires a validated
+  account owner before it can persist; an unavailable owner removes the
+  tentative and prior stored session rather than allowing an unowned restart.
+  Terminal 2FA failures synchronously settle local auth state, so remounting a
+  login tab or account card cannot revive a stale code prompt. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 

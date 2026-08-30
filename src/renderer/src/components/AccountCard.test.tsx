@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
-import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import { authStatusQueryKey } from '../queries/auth'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 
 import { fullFriend } from '../test-utils/friendFixture'
@@ -334,6 +335,71 @@ describe('AccountCard — VRChat two-factor flow', () => {
       msg('settings.accounts.twoFactor.code')
     )
     expect(freshCode.value).toBe('')
+  })
+
+  it('reconciles terminal identity failure to unauthenticated so a card remount cannot reseed 2FA', async () => {
+    let releaseStaleAuth!: (status: AuthStatus) => void
+    const heldStaleAuth = new Promise<AuthStatus>((resolve) => {
+      releaseStaleAuth = resolve
+    })
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.verify2fa.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: AUTH_IDENTITY_UNAVAILABLE
+    })
+    bridge.getAuthStatus.mockReturnValueOnce(heldStaleAuth)
+    const queryClient = renderCard('vrchat', bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    // The card needs a visible code prompt while a separate old auth request
+    // remains in flight. A late `needs-2fa` answer must be ignored after the
+    // terminal result writes known unauthenticated state.
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('settings.accounts.error.unknown')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    releaseStaleAuth({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    await Promise.resolve()
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
+
+    cleanup()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AccountCard platform="vrchat" />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('settings.accounts.twoFactor.code'))).toBeNull()
   })
 
   it('uses the existing verify-2fa second leg without resending the password', async () => {

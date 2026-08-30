@@ -10,7 +10,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED, type AuthStatus } from '@shared/types'
+import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import i18n from '../i18n'
 import LoginScreen from './LoginScreen'
 
@@ -43,6 +44,15 @@ function renderLogin(initialTwoFactor: 'totp' | 'email' | null = null): {
     </QueryClientProvider>
   )
   return { queryClient }
+}
+
+function QueryDrivenLogin(): React.JSX.Element {
+  const { data } = useAuthStatus('vrchat')
+  return (
+    <LoginScreen
+      initialTwoFactor={data?.state === 'needs-2fa' ? (data.twoFactorMethod ?? 'totp') : null}
+    />
+  )
 }
 
 function fillCredentials(username = 'neo', password = 'redpill'): void {
@@ -227,6 +237,49 @@ describe('LoginScreen (W6)', () => {
     submit()
     const freshCode = await screen.findByLabelText<HTMLInputElement>(msg('login.twoFactor.code'))
     expect(freshCode.value).toBe('')
+  })
+
+  it('keeps persistence copy and cannot reseed 2FA after a terminal failure and tab remount', async () => {
+    setBridge({
+      login: vi.fn(),
+      verify2fa: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED
+      })
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('login.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+    expect(await screen.findByLabelText(msg('login.username'))).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') }))
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
   })
 
   it('surfaces a bridge/IPC failure instead of silently re-enabling', async () => {

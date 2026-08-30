@@ -59,9 +59,11 @@ the correction must diagnose the class without logging secrets.
 - Test both renderer surfaces so the literal code maps to dedicated copy while
   every other failure remains generic and does not trigger success invalidation.
 - Run a real Electron probe on Linux in two separate processes sharing a
-  disposable `userData` directory and a temporary Secret Service session. The
-  first process writes an obviously synthetic fixture, and the second reads it.
-  The probe must also assert that the fixture plaintext is absent on disk.
+  disposable `userData` directory and a temporary Secret Service session. Both
+  test-only processes explicitly select `--password-store=gnome-libsecret`, and
+  each must attest Electron reports `gnome_libsecret`. The first process writes
+  an obviously synthetic fixture, and the second reads it. The probe must also
+  assert that the fixture plaintext is absent on disk.
 - Mutation-check the adapter tests by temporarily restoring the false-success
   behavior and observing the focused tests fail.
 - Run the complete repository gate and the T2 authentication/security review.

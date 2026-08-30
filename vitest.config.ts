@@ -26,7 +26,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.mjs'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.{ts,mjs}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],

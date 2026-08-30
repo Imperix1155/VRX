@@ -119,7 +119,10 @@ async function run(): Promise<void> {
     await import('../src/main/services/credentials')
 
   assertProbe(safeStorage.isEncryptionAvailable(), 'ASSERT_ENCRYPTION_AVAILABLE')
-  assertProbe(safeStorage.getSelectedStorageBackend() !== 'basic_text', 'ASSERT_SECURE_BACKEND')
+  assertProbe(
+    safeStorage.getSelectedStorageBackend() === 'gnome_libsecret',
+    'ASSERT_SECURE_BACKEND'
+  )
 
   if (mode === 'write') {
     try {
