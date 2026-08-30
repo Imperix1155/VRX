@@ -375,7 +375,8 @@ describe('CvrAdapter', () => {
       await expect(adapter.login(creds)).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
@@ -771,7 +772,8 @@ describe('CvrAdapter', () => {
       expect(await adapter.login(creds)).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
       expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
     })

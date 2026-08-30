@@ -257,13 +257,13 @@ export class VrcAdapter extends VrcApiClient {
       body = await response.json()
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      if (installedTentativeCookie) this.abandonTentativeSession()
+      if (installedTentativeCookie) return this.abandonTentativeSession('bad_response')
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     const parsed = authUserResponseSchema.safeParse(body)
     if (!parsed.success) {
-      if (installedTentativeCookie) this.abandonTentativeSession()
+      if (installedTentativeCookie) return this.abandonTentativeSession('unexpected_response')
       return { ok: false, needs2fa: false, error: 'unexpected_response' }
     }
 
@@ -1085,14 +1085,24 @@ export class VrcAdapter extends VrcApiClient {
   private persistenceFailure(): LoginResult {
     this.clearSessionAfterTerminalAuthFailure()
     this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
-    return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
+    return {
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    }
   }
 
   /** A verified 2FA response without a validated owner cannot become a session. */
   private identityUnavailableFailure(): LoginResult {
     this.clearSessionAfterTerminalAuthFailure()
     this.live?.log?.('warn', 'vrc adapter: authenticated identity unavailable')
-    return { ok: false, needs2fa: false, error: AUTH_IDENTITY_UNAVAILABLE }
+    return {
+      ok: false,
+      needs2fa: false,
+      error: AUTH_IDENTITY_UNAVAILABLE,
+      sessionCleared: true
+    }
   }
 
   /** Clear memory and best-effort remove any pre-existing stored credential. */
@@ -1105,11 +1115,12 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  private abandonTentativeSession(): void {
+  private abandonTentativeSession(error: string): LoginResult {
     // A replacement auth cookie was already installed. If its body is malformed,
     // leaving an older persisted credential behind would resurrect that account
     // after restart despite this login having failed closed in memory.
     this.clearSessionAfterTerminalAuthFailure()
+    return { ok: false, needs2fa: false, error, sessionCleared: true }
   }
 
   private async refreshDisplayName(

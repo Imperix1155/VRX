@@ -128,7 +128,8 @@ describe.each([
     bridge.login.mockResolvedValue({
       ok: false,
       needs2fa: false,
-      error: CREDENTIAL_PERSISTENCE_FAILED
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
     })
     const queryClient = renderCard(platform, bridge)
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -306,7 +307,8 @@ describe('AccountCard — VRChat two-factor flow', () => {
     bridge.verify2fa.mockResolvedValue({
       ok: false,
       needs2fa: false,
-      error: CREDENTIAL_PERSISTENCE_FAILED
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
     })
     bridge.login.mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
     const queryClient = renderCard('vrchat', bridge)
@@ -352,7 +354,8 @@ describe('AccountCard — VRChat two-factor flow', () => {
     bridge.verify2fa.mockResolvedValue({
       ok: false,
       needs2fa: false,
-      error: AUTH_IDENTITY_UNAVAILABLE
+      error: AUTH_IDENTITY_UNAVAILABLE,
+      sessionCleared: true
     })
     bridge.getAuthStatus.mockReturnValueOnce(heldStaleAuth)
     const queryClient = renderCard('vrchat', bridge)

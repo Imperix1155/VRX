@@ -758,7 +758,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       /* best-effort cleanup after a failed save */
     }
     this.live?.log?.('warn', 'cvr adapter: credential persistence failed')
-    return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
+    return {
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    }
   }
 
   clearSession(): void {

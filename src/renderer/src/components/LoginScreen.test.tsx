@@ -116,7 +116,8 @@ describe('LoginScreen (W6)', () => {
       login: vi.fn().mockResolvedValue({
         ok: false,
         needs2fa: false,
-        error: CREDENTIAL_PERSISTENCE_FAILED
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
       }),
       verify2fa: vi.fn()
     })
@@ -215,7 +216,8 @@ describe('LoginScreen (W6)', () => {
       verify2fa: vi.fn().mockResolvedValue({
         ok: false,
         needs2fa: false,
-        error: CREDENTIAL_PERSISTENCE_FAILED
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
       })
     })
     const { queryClient } = renderLogin('totp')
@@ -245,7 +247,8 @@ describe('LoginScreen (W6)', () => {
       verify2fa: vi.fn().mockResolvedValue({
         ok: false,
         needs2fa: false,
-        error: CREDENTIAL_PERSISTENCE_FAILED
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
       })
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -275,6 +278,45 @@ describe('LoginScreen (W6)', () => {
       state: 'unauthenticated'
     })
     expect(invalidate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') }))
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+  })
+
+  it('cannot reseed 2FA after a replacement login reports that main cleared the session', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }),
+      verify2fa: vi.fn()
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
+    fillCredentials()
+    submit()
+
+    expect((await screen.findByRole('alert')).textContent).toContain(msg('login.error.unknown'))
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
 
     fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
     fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') }))

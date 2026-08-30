@@ -510,7 +510,8 @@ describe('VrcAdapter', () => {
       await expect(adapter.login(creds)).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
@@ -575,7 +576,8 @@ describe('VrcAdapter', () => {
       expect(result).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
       expect(replacementPipelineCount).toBe(0)
       expect(socketCount).toBe(1)
@@ -722,7 +724,8 @@ describe('VrcAdapter', () => {
       expect(result).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
       expect(pipelineCount).toBe(0)
       expect(socketCount).toBe(0)
@@ -821,7 +824,8 @@ describe('VrcAdapter', () => {
       await expect(firstLogin).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: 'unexpected_response'
+        error: 'unexpected_response',
+        sessionCleared: true
       })
       await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
         ok: true
@@ -883,7 +887,8 @@ describe('VrcAdapter', () => {
       expect(await new VrcAdapter(store, noopSleep).login(creds)).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'unexpected_response'
+        error: 'unexpected_response',
+        sessionCleared: true
       })
       expect(store.saved).toEqual([])
     })
@@ -985,7 +990,12 @@ describe('VrcAdapter', () => {
         vi.fn().mockResolvedValue(jsonResponse({ unexpected: true }, { setCookies: ['auth=t'] }))
       )
       const result = await new VrcAdapter(fakeStore(), noopSleep).login(creds)
-      expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      })
     })
 
     it('deletes the prior stored credential when a replacement cookie has a malformed body', async () => {
@@ -1002,7 +1012,8 @@ describe('VrcAdapter', () => {
       await expect(new VrcAdapter(binding.store, noopSleep).login(creds)).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: 'unexpected_response'
+        error: 'unexpected_response',
+        sessionCleared: true
       })
       expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
@@ -1011,6 +1022,22 @@ describe('VrcAdapter', () => {
       // recover the pre-login session after this failed replacement.
       const relaunched = new VrcAdapter(binding.store, noopSleep)
       expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('marks an unreadable replacement response after clearing the prior session', async () => {
+      const response = jsonResponse(null, { setCookies: ['auth=replacement'] })
+      vi.spyOn(response, 'json').mockRejectedValue(new SyntaxError('invalid json'))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+      const binding = ownerBindingHarness<string>('auth=previous')
+
+      await expect(new VrcAdapter(binding.store, noopSleep).login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'bad_response',
+        sessionCleared: true
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
     })
   })
 
@@ -1060,7 +1087,8 @@ describe('VrcAdapter', () => {
       await expect(adapter.verify2fa('123456')).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: AUTH_IDENTITY_UNAVAILABLE
+        error: AUTH_IDENTITY_UNAVAILABLE,
+        sessionCleared: true
       })
       expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
@@ -1106,7 +1134,8 @@ describe('VrcAdapter', () => {
       await expect(adapter.verify2fa('123456')).resolves.toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
@@ -1185,7 +1214,8 @@ describe('VrcAdapter', () => {
       expect(result).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
       expect(replacementPipelineCount).toBe(0)
       expect(socketCount).toBe(1)
@@ -1313,7 +1343,8 @@ describe('VrcAdapter', () => {
       expect(result).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'credential_persistence_failed'
+        error: 'credential_persistence_failed',
+        sessionCleared: true
       })
       expect(pipelineCount).toBe(0)
       expect(socketCount).toBe(0)
@@ -1434,7 +1465,8 @@ describe('VrcAdapter', () => {
       expect(await adapter.verify2fa('123456')).toEqual({
         ok: false,
         needs2fa: false,
-        error: AUTH_IDENTITY_UNAVAILABLE
+        error: AUTH_IDENTITY_UNAVAILABLE,
+        sessionCleared: true
       })
       expect((adapter as unknown as { displayName: string | null }).displayName).toBeNull()
       expect(identities.slice(-2)).toEqual([null, null])
