@@ -52,30 +52,68 @@ jobs:
         run: |
           runtime_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-runtime.XXXXXX")
           user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
-          chmod 700 "$runtime_dir"
+          keyring_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-keyring-data.XXXXXX")
+          diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")
+          chmod 700 "$runtime_dir" "$keyring_data_dir"
           cleanup() {
-            rm -rf -- "$runtime_dir" "$user_data_dir" >/dev/null 2>&1 || true
+            rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
           export XDG_RUNTIME_DIR="$runtime_dir"
+          export XDG_DATA_HOME="$keyring_data_dir"
 
-          if ! timeout --kill-after=10s 90s dbus-run-session -- bash -euo pipefail -c '
+          probe_exit=0
+          timeout --kill-after=10s 90s dbus-run-session -- bash -euo pipefail -c '
+            probe_stage_file=$2
+            write_diagnostic() {
+              printf "%s\n" "$1" >"$probe_stage_file"
+            }
+
             if ! login_environment=$(printf "%s" "vrx-ci-keyring" | gnome-keyring-daemon --login 2>/dev/null); then
+              write_diagnostic ASSERT_KEYRING_LOGIN
               exit 1
             fi
             if ! eval "$login_environment" >/dev/null 2>&1; then
+              write_diagnostic ASSERT_KEYRING_LOGIN_ENV
               exit 1
             fi
             if ! start_environment=$(gnome-keyring-daemon --start --components=secrets 2>/dev/null); then
+              write_diagnostic ASSERT_KEYRING_START
               exit 1
             fi
             if ! eval "$start_environment" >/dev/null 2>&1; then
+              write_diagnostic ASSERT_KEYRING_START_ENV
               exit 1
             fi
             xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-              npm --silent run test:credential-persistence-linux -- "$1"
-          ' bash "$user_data_dir" >/dev/null 2>&1; then
-            printf '%s\n' ASSERT_LINUX_CREDENTIAL_PROBE >&2
+              npm --silent run test:credential-persistence-linux -- "$1" \
+              >/dev/null 2>"$probe_stage_file"
+          ' bash "$user_data_dir" "$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?
+
+          if [ "$probe_exit" -ne 0 ]; then
+            failure_label=ASSERT_LINUX_CREDENTIAL_PROBE
+            case "$probe_exit" in
+              124|137)
+                failure_label=ASSERT_LINUX_CREDENTIAL_PROBE_TIMEOUT
+                ;;
+              *)
+                for allowed_label in \
+                  ASSERT_KEYRING_LOGIN \
+                  ASSERT_KEYRING_LOGIN_ENV \
+                  ASSERT_KEYRING_START \
+                  ASSERT_KEYRING_START_ENV \
+                  ASSERT_ARGUMENTS \
+                  ASSERT_PROBE_BUILD \
+                  ASSERT_PROBE_WRITE \
+                  ASSERT_PROBE_READ; do
+                  if grep -Fxq "$allowed_label" "$diagnostic_file"; then
+                    failure_label=$allowed_label
+                    break
+                  fi
+                done
+                ;;
+            esac
+            printf '%s\n' "$failure_label" >&2
             exit 1
           fi
 
