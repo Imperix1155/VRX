@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Terminal failures synchronously settle local auth state, including a malformed
   response after VRChat replaces its session cookie, so remounting a login tab
   or account card cannot revive a stale code prompt, and the retry explanation
-  remains visible while that state settles. (VRX-34)
+  remains visible while that state settles. If a restored VRChat session starts
+  requiring 2FA while the ChilloutVR tab is selected, VRX brings the VRChat code
+  prompt forward. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 

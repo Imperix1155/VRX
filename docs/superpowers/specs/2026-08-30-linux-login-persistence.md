@@ -63,7 +63,9 @@ the correction must diagnose the class without logging secrets.
   test-only processes explicitly select `--password-store=gnome-libsecret`, and
   each must attest Electron reports `gnome_libsecret`. The first process writes
   an obviously synthetic fixture, and the second reads it. The probe must also
-  assert that the fixture plaintext is absent on disk.
+  assert that the fixture plaintext is absent on disk. Its generated bundle,
+  source, config, and contract test are test-only and must be explicitly
+  excluded from application packages.
 - Mutation-check the adapter tests by temporarily restoring the false-success
   behavior and observing the focused tests fail.
 - Run the complete repository gate and the T2 authentication/security review.

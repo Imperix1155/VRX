@@ -140,6 +140,9 @@ Secret Service session. Both test-only processes explicitly select
 `--password-store=gnome-libsecret`, then attest Electron reports
 `gnome_libsecret`. The first securely writes a synthetic fixture, the second
 reads and clears it, and the probe rejects any fixture plaintext found on disk.
+Its bundle, source, config, and contract test are test-only and must remain
+explicitly excluded from Electron Builder packages; the probe contract test
+pins that boundary.
 
 If the personal `review-loop` skill is unavailable, use this repository-portable
 fallback: inspect the final PR diff from a fresh context; run the documented

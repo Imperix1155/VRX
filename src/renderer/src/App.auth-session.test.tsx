@@ -169,4 +169,26 @@ describe('App terminal auth reconciliation', () => {
     fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
     expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
   })
+
+  it('returns to VRChat when restored-session 2FA arrives from the ChilloutVR tab', async () => {
+    const { queryClient } = renderAppWithResult(
+      { ok: false, needs2fa: true, method: 'totp' },
+      vrcUnauthenticated
+    )
+
+    const cvrTab = await screen.findByRole('radio', {
+      name: msg('settings.accounts.chilloutvr.label')
+    })
+    fireEvent.click(cvrTab)
+    expect(cvrTab.getAttribute('aria-checked')).toBe('true')
+
+    queryClient.setQueryData(authStatusQueryKey('vrchat'), needsTwoFactor)
+
+    await screen.findByLabelText(msg('login.twoFactor.code'))
+    expect(
+      screen
+        .getByRole('radio', { name: msg('settings.accounts.vrchat.label') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
 })

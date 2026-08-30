@@ -131,6 +131,19 @@ export default function LoginScreen({
   const [platform, setPlatform] = useState<Platform>('vrchat')
   // Lifted from the active form: true while its login/verify IPC is in flight.
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [previousInitialTwoFactor, setPreviousInitialTwoFactor] = useState<TwoFactorMethod | null>(
+    initialTwoFactor
+  )
+
+  // A restored VRChat session can request 2FA while the user is looking at the
+  // CVR tab. Bring that new prompt forward once the active submit settles. Do
+  // not switch on the terminal method -> null transition: the mounted VRChat
+  // form owns the recovery error that must remain visible.
+  if (initialTwoFactor !== previousInitialTwoFactor && !isSubmitting) {
+    setPreviousInitialTwoFactor(initialTwoFactor)
+    if (initialTwoFactor !== null) setPlatform('vrchat')
+  }
+
   const config = ACCOUNT_CARD_CONFIG[platform]
 
   return (

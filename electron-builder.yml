@@ -5,6 +5,10 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!out/credential-probe/**'
+  - '!electron-vite.credential-probe.config.ts'
+  - '!scripts/credential-persistence-probe.ts'
+  - '!scripts/credential-persistence-probe-contract.test.ts'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'

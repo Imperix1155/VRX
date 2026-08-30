@@ -131,6 +131,7 @@
 - Create: `electron-vite.credential-probe.config.ts`
 - Modify: `package.json`
 - Modify: `tsconfig.node.json`
+- Modify: `electron-builder.yml`
 - Modify: `.github/workflows/ci.yml`
 
 **Interfaces:**
@@ -160,7 +161,11 @@
   the probe entry and its electron-vite config to `tsconfig.node.json` so the
   normal TypeScript-aware ESLint and node typecheck gates own both files. Suppress
   npm headers and raw child output; map build/write/read failures to fixed labels
-  so the directory and runtime errors cannot leak into CI logs.
+  so the directory and runtime errors cannot leak into CI logs. Explicitly
+  exclude the generated `out/credential-probe/**` bundle plus the probe source,
+  config, and contract test from Electron Builder packages. Pin that boundary
+  in the contract test so a same-workspace package cannot ship any test-only
+  credential-probe artifact.
 
 - [ ] **Step 3: Add the Ubuntu Secret Service CI environment**
 

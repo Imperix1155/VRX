@@ -334,6 +334,7 @@ Production socket construction lives in
 
 `useAuthFlow.externalTwoFactor` follows a mounted auth-status query into or out
 of a restored-session 2FA reprompt and drops any typed password on entry. A
+new reprompt also selects the VRChat tab after any active submit settles. A
 failed `LoginResult` with `sessionCleared: true` clears the submitted code,
 synchronously writes known unauthenticated state to that platform's auth query
 (no invalidation/network), and forces credentials on both LoginScreen and
