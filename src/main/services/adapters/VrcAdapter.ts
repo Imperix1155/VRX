@@ -347,11 +347,15 @@ export class VrcAdapter extends VrcApiClient {
       )
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      this.clearTwoFactorVerificationPending(operationId)
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
-    if (!response.ok) return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+    if (!response.ok) {
+      this.clearTwoFactorVerificationPending(operationId)
+      return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+    }
 
     // Require VRChat's explicit `verified: true` — a 204, malformed body, or
     // `{ verified: false }` must NOT count as success (it would persist the partial
@@ -362,11 +366,13 @@ export class VrcAdapter extends VrcApiClient {
       verifyBody = await response.json()
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      this.clearTwoFactorVerificationPending(operationId)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     const verified = twoFactorVerifySchema.safeParse(verifyBody)
     if (!verified.success || !verified.data.verified) {
+      this.clearTwoFactorVerificationPending(operationId)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
 
@@ -381,6 +387,7 @@ export class VrcAdapter extends VrcApiClient {
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
     if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
+      this.clearTwoFactorVerificationPending(operationId)
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
     this.authPersistencePending = true
@@ -402,12 +409,17 @@ export class VrcAdapter extends VrcApiClient {
     return { ok: true }
   }
 
+  /** The only safe description while an interactive 2FA result is tentative. */
+  private tentativeAuthStatus(): AuthStatus {
+    return this.pendingTwoFactorMethod === null
+      ? this.status('error')
+      : this.status('needs-2fa', this.pendingTwoFactorMethod)
+  }
+
   async getAuthStatus(): Promise<AuthStatus> {
     for (;;) {
       if (this.authPersistencePending) {
-        return this.pendingTwoFactorMethod === null
-          ? this.status('error')
-          : this.status('needs-2fa', this.pendingTwoFactorMethod)
+        return this.tentativeAuthStatus()
       }
       if (!this.cookie) return this.status('unauthenticated')
       const generation = this.sessionGeneration
@@ -423,6 +435,7 @@ export class VrcAdapter extends VrcApiClient {
           { priority: 'interactive', recordCircuitFailure: false }
         )
       } catch {
+        if (this.authPersistencePending) return this.tentativeAuthStatus()
         // A replacement session landed while the request was in flight: retry
         // against it. A logout landed instead: report the current logged-out state.
         if (generation !== this.sessionGeneration) {
@@ -433,6 +446,7 @@ export class VrcAdapter extends VrcApiClient {
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.
+      if (this.authPersistencePending) return this.tentativeAuthStatus()
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -442,15 +456,6 @@ export class VrcAdapter extends VrcApiClient {
       // (memory, VrcApiClient mirror, persisted blob) so session restore can't
       // re-adopt it on the next launch and 401 forever.
       if (response.status === 401) {
-        // This request may have begun before an interactive 2FA verification
-        // marked the session tentative. It no longer describes a stable session,
-        // so it must not clear the auth component that verify needs to rebuild the
-        // durable cookie when the server only returns `twoFactorAuth`.
-        if (this.authPersistencePending) {
-          return this.pendingTwoFactorMethod === null
-            ? this.status('error')
-            : this.status('needs-2fa', this.pendingTwoFactorMethod)
-        }
         this.invalidateSession()
         return this.status('unauthenticated')
       }
@@ -460,6 +465,7 @@ export class VrcAdapter extends VrcApiClient {
       try {
         body = await response.json()
       } catch {
+        if (this.authPersistencePending) return this.tentativeAuthStatus()
         if (generation !== this.sessionGeneration) {
           if (this.cookie) continue
           return this.status('unauthenticated')
@@ -468,6 +474,7 @@ export class VrcAdapter extends VrcApiClient {
       }
       // response.json() is another account-boundary await: fence it before
       // updating displayName or the pending 2FA method.
+      if (this.authPersistencePending) return this.tentativeAuthStatus()
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -957,6 +964,11 @@ export class VrcAdapter extends VrcApiClient {
 
   private isAuthOperationCurrent(operationId: number): boolean {
     return this.activeAuthOperation === operationId
+  }
+
+  /** Do not unlatch a newer operation or an explicit logout's cleared state. */
+  private clearTwoFactorVerificationPending(operationId: number): void {
+    if (this.isAuthOperationCurrent(operationId)) this.authPersistencePending = false
   }
 
   private cancelAuthOperations(): void {
