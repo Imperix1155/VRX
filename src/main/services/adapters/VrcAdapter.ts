@@ -320,6 +320,7 @@ export class VrcAdapter extends VrcApiClient {
     if (!retainedAuthCookie || !isValidVrcSessionCookie(retainedAuthCookie)) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
+    const wasAuthPersistencePending = this.authPersistencePending
     this.authPersistencePending = true
     // VRChat has THREE verify endpoints (docs/api-volatility.md): totp/verify
     // (authenticator codes), emailotp/verify (emailed codes), otp/verify
@@ -347,13 +348,13 @@ export class VrcAdapter extends VrcApiClient {
       )
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      this.clearTwoFactorVerificationPending(operationId)
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
     if (!response.ok) {
-      this.clearTwoFactorVerificationPending(operationId)
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
 
@@ -366,13 +367,13 @@ export class VrcAdapter extends VrcApiClient {
       verifyBody = await response.json()
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
-      this.clearTwoFactorVerificationPending(operationId)
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
     if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     const verified = twoFactorVerifySchema.safeParse(verifyBody)
     if (!verified.success || !verified.data.verified) {
-      this.clearTwoFactorVerificationPending(operationId)
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
 
@@ -387,7 +388,7 @@ export class VrcAdapter extends VrcApiClient {
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
     if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
-      this.clearTwoFactorVerificationPending(operationId)
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
     this.authPersistencePending = true
@@ -966,9 +967,9 @@ export class VrcAdapter extends VrcApiClient {
     return this.activeAuthOperation === operationId
   }
 
-  /** Do not unlatch a newer operation or an explicit logout's cleared state. */
-  private clearTwoFactorVerificationPending(operationId: number): void {
-    if (this.isAuthOperationCurrent(operationId)) this.authPersistencePending = false
+  /** Do not overwrite a newer operation or an explicit logout's cleared state. */
+  private restoreTwoFactorVerificationPending(operationId: number, wasPending: boolean): void {
+    if (this.isAuthOperationCurrent(operationId)) this.authPersistencePending = wasPending
   }
 
   private cancelAuthOperations(): void {
