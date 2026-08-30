@@ -310,6 +310,17 @@ export class VrcAdapter extends VrcApiClient {
     // status or login result would silently reintroduce the VRX-229 misroute
     // for email users — derive the method from the server first.
     const method = this.pendingTwoFactorMethod ?? 'totp'
+    // Preserve the auth component before the verify request crosses any await.
+    // A restored-session status request can complete with a stale 401 while this
+    // operation is in flight; its invalidation must not turn a server-verified
+    // 2FA response that only reissues `twoFactorAuth` into a durable cookie with
+    // no auth component. The pending marker makes such in-flight status requests
+    // report the existing 2FA state instead of clearing this tentative session.
+    const retainedAuthCookie = cookiePart(this.cookie, 'auth')
+    if (!retainedAuthCookie || !isValidVrcSessionCookie(retainedAuthCookie)) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
+    this.authPersistencePending = true
     // VRChat has THREE verify endpoints (docs/api-volatility.md): totp/verify
     // (authenticator codes), emailotp/verify (emailed codes), otp/verify
     // (RECOVERY codes only). Email codes posted to otp/verify are always
@@ -366,7 +377,7 @@ export class VrcAdapter extends VrcApiClient {
     // falling back to it whole would rebuild a cookie with DUPLICATE twoFactorAuth
     // parts — the stale one winning server-side → an endless reprompt loop.
     const setCookies = response.headers.getSetCookie()
-    const authCookie = extractCookie(setCookies, 'auth') ?? cookiePart(this.cookie, 'auth')
+    const authCookie = extractCookie(setCookies, 'auth') ?? retainedAuthCookie
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
     if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
@@ -431,6 +442,15 @@ export class VrcAdapter extends VrcApiClient {
       // (memory, VrcApiClient mirror, persisted blob) so session restore can't
       // re-adopt it on the next launch and 401 forever.
       if (response.status === 401) {
+        // This request may have begun before an interactive 2FA verification
+        // marked the session tentative. It no longer describes a stable session,
+        // so it must not clear the auth component that verify needs to rebuild the
+        // durable cookie when the server only returns `twoFactorAuth`.
+        if (this.authPersistencePending) {
+          return this.pendingTwoFactorMethod === null
+            ? this.status('error')
+            : this.status('needs-2fa', this.pendingTwoFactorMethod)
+        }
         this.invalidateSession()
         return this.status('unauthenticated')
       }

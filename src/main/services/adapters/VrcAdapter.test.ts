@@ -1696,6 +1696,69 @@ describe('VrcAdapter', () => {
       expect(identities.at(-1)).toBe('ACCOUNT002')
     })
 
+    it('keeps the auth component through a stale restored-session 401 while 2FA verification is in flight', async () => {
+      let releaseStatus!: (response: Response) => void
+      let releaseVerifyBody!: (body: unknown) => void
+      let statusStarted = false
+      let verifyBodyStarted = false
+      const heldStatus = new Promise<Response>((resolve) => {
+        releaseStatus = resolve
+      })
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=fresh'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let statusRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=stale'
+          ) {
+            statusRequests += 1
+            if (statusRequests === 1) {
+              return Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+            }
+            statusStarted = true
+            return heldStatus
+          }
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=fresh'
+          ) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected auth request: ${href}`))
+        })
+      )
+      const store = fakeStore('auth=restored; twoFactorAuth=stale')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      const staleStatus = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusStarted).toBe(true))
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+
+      releaseStatus(jsonResponse({ error: 'stale request rejected' }, { status: 401 }))
+      await expect(staleStatus).resolves.toMatchObject({ state: 'needs-2fa' })
+      releaseVerifyBody({ verified: true })
+      await expect(verify).resolves.toEqual({ ok: true })
+      expect(store.saved.at(-1)).toBe('auth=restored; twoFactorAuth=fresh')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+    })
+
     it('reports unauthenticated WITHOUT a network call when there is no cookie', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)

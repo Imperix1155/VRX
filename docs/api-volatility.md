@@ -57,12 +57,21 @@ Both APIs are subject to **breaking changes without warning**. This document enu
 - 2FA detection: `requiresTwoFactorAuth: string[]` (when 2FA is required, _instead_ of the success response)
 - User ID + display name: `id: string`, `displayName: string` (on successful login)
 - Presence buckets: `onlineFriends: string[]`, `activeFriends: string[]`, `offlineFriends: string[]` (friend IDs grouped by presence state)
+- An account-changing successful HTTP Basic login response must issue a valid replacement
+  `auth` cookie. VRX rejects a success body without one rather than bind the prior
+  account's cookie to the returned identity; it may reuse a retained cookie only when
+  that cookie was already proven to belong to the same account.
 
 **Verification:** ✅ Verified in VRX code and live against production API (VRX-42, VRX-43).
 
 **Degradation if changed:**
 
 - **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field name or structure, login will not detect 2FA requirement. VRX treats this as a failed 2FA and prompts again. Safe fallback: user re-tries with the code.
+- **Changed Basic-login cookie behavior:** If VRChat stops returning an `auth` cookie
+  for an account-changing successful Basic-login response, VRX fails that login instead
+  of persisting an account/session mismatch. A same-account response can retain its
+  already-proven cookie; all other no-cookie responses require a retry after the API
+  contract is confirmed.
 - **Presence-bucket probe unavailable:** A non-auth failure fetching `/auth/user`
   produces an explicit degraded/partial result. `VrcAdapter.getFriends` rejects
   it, so the renderer retains its last known roster/presence instead of
