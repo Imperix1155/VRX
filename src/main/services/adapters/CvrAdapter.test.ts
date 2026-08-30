@@ -505,7 +505,7 @@ describe('CvrAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('backfills the owner for the restored credential after validation', async () => {
+    it('does not rewrite an unchanged restored credential solely to backfill its owner', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       const restored = { username: 'trinity', accessKey: 'key-1' }
       const binding = ownerBindingHarness(restored)
@@ -514,7 +514,30 @@ describe('CvrAdapter', () => {
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
 
       expect(binding.getCredential()).toEqual(restored)
-      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+      expect(binding.getAttemptedAccountIds()).toEqual([])
+      expect(binding.getOwner()).toBeNull()
+    })
+
+    it('keeps an unchanged restored session when credential writes are unavailable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
+      const saveCredential = vi.fn(() => {
+        throw new Error('credential write failed')
+      })
+      const deleteCredential = vi.fn()
+      const store: CvrCredentialStore = {
+        load: () => ({ username: 'trinity', accessKey: 'key-1' }),
+        save: saveCredential,
+        delete: deleteCredential
+      }
+      const adapter = new CvrAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
+      })
+
+      expect(saveCredential).not.toHaveBeenCalled()
+      expect(deleteCredential).not.toHaveBeenCalled()
     })
 
     it('clears a restored session when rotated credentials cannot persist', async () => {

@@ -467,6 +467,66 @@ describe('VrcAdapter', () => {
       expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
     })
 
+    it('keeps a subscribed pipeline stopped when direct-login persistence fails', async () => {
+      let loginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) {
+            return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+          }
+          if (headers.Authorization !== undefined) {
+            loginCalls += 1
+            return Promise.resolve(
+              jsonResponse(
+                {
+                  id: loginCalls === 1 ? 'ACCOUNT001' : 'ACCOUNT002',
+                  displayName: loginCalls === 1 ? 'Account A' : 'Account B'
+                },
+                { setCookies: [`auth=account-${loginCalls === 1 ? 'a' : 'b'}`] }
+              )
+            )
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      binding.failNextSave()
+
+      const result = await adapter.login(creds)
+      const replacementPipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      const oldSocketClosed = sockets[0]!.closed
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
+      expect(replacementPipelineCount).toBe(0)
+      expect(socketCount).toBe(1)
+      expect(oldSocketClosed).toBe(true)
+    })
+
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {
       // A Response body is single-use, and this test fetches twice (login +
       // getAuthStatus) — return a fresh Response per call.
@@ -679,6 +739,81 @@ describe('VrcAdapter', () => {
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
       expect(deleteCredential).toHaveBeenCalledOnce()
       expect(identities).not.toContain('ACCOUNT002')
+    })
+
+    it('keeps a subscribed pipeline stopped when completed 2FA cannot persist', async () => {
+      let directLoginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) {
+            return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+          }
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? jsonResponse(
+                    { id: 'ACCOUNT001', displayName: 'Account A' },
+                    { setCookies: ['auth=account-a'] }
+                  )
+                : jsonResponse(
+                    { requiresTwoFactorAuth: ['totp'] },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: true,
+        method: 'totp'
+      })
+      binding.failNextSave()
+      const result = await adapter.verify2fa('123456')
+      const replacementPipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      const oldSocketClosed = sockets[0]!.closed
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
+      expect(replacementPipelineCount).toBe(0)
+      expect(socketCount).toBe(1)
+      expect(oldSocketClosed).toBe(true)
     })
 
     it('returns needs2fa(totp), then verifies against /totp/verify and combines the cookies', async () => {

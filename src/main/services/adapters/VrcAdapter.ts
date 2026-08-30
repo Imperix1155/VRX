@@ -223,8 +223,8 @@ export class VrcAdapter extends VrcApiClient {
 
     // The `auth` cookie is needed for the 2FA verify call AND the authed session.
     // Installing it replaces the account boundary immediately — including when
-    // the body below says 2FA is still required. Fence and replace the old
-    // account's pipeline before returning control to the renderer's 2FA prompt.
+    // the body below says 2FA is still required. Fence and stop the old account's
+    // pipeline now; a replacement starts only after the full session persists.
     const authCookie = extractCookie(response.headers.getSetCookie(), 'auth')
     if (authCookie && !isValidVrcSessionCookie(authCookie)) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
@@ -235,7 +235,7 @@ export class VrcAdapter extends VrcApiClient {
       this.accountId = null
       this.pendingTwoFactorMethod = null
       this.live?.onIdentity?.(null)
-      this.bumpSessionGeneration()
+      this.bumpSessionGeneration(false)
     }
 
     let body: unknown
@@ -256,12 +256,13 @@ export class VrcAdapter extends VrcApiClient {
     // login, so preserve the established successful-login boundary behavior.
     if (!authCookie) {
       this.live?.onIdentity?.(null)
-      this.bumpSessionGeneration()
+      this.bumpSessionGeneration(false)
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
     if (!this.persist()) return this.persistenceFailure()
     this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
     return { ok: true }
   }
 
@@ -348,10 +349,11 @@ export class VrcAdapter extends VrcApiClient {
     this.displayName = null
     this.accountId = null
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(false)
     await this.refreshDisplayName('interactive')
     if (!this.persist()) return this.persistenceFailure()
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
     return { ok: true }
   }
 
@@ -879,11 +881,11 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   /**
-   * Fence every account boundary before replacing the live pipeline. Any late
-   * callback from the stopped object keeps its captured old generation and is
-   * dropped by createPipeline's event handler.
+   * Fence every account boundary before replacing or stopping the live pipeline.
+   * Any late callback from the stopped object keeps its captured old generation
+   * and is dropped by createPipeline's event handler.
    */
-  private bumpSessionGeneration(): void {
+  private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionGeneration += 1
     this.groupResolver.clear()
     // Stale pending ids from the previous generation would suppress the new
@@ -893,13 +895,22 @@ export class VrcAdapter extends VrcApiClient {
     this.pendingWorldResolutions.clear()
     this.live?.onSessionBoundary?.()
 
+    if (restartPipeline) {
+      this.restartPipeline()
+    } else {
+      this.pipeline?.stop()
+      this.pipeline = null
+    }
+  }
+
+  /** Start a replacement only after a tentative session is durably persisted. */
+  private restartPipeline(): void {
     const wasRunning = this.subscribers.size > 0
     this.pipeline?.stop()
     this.pipeline = null
-    if (wasRunning) {
-      this.pipeline = this.createPipeline()
-      this.pipeline.start()
-    }
+    if (!wasRunning) return
+    this.pipeline = this.createPipeline()
+    this.pipeline.start()
   }
 
   /** Explicit logout is durable-or-fails: do not report a disconnect while the
@@ -910,14 +921,14 @@ export class VrcAdapter extends VrcApiClient {
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
-  private clearSessionState(): void {
+  private clearSessionState(restartPipeline = true): void {
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
     this.accountId = null
     this.pendingTwoFactorMethod = null
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline)
   }
 
   /** Automatic auth invalidation must clear memory even when safeStorage is
@@ -947,7 +958,7 @@ export class VrcAdapter extends VrcApiClient {
 
   /** A successful login must survive restart; discard an unpersisted session. */
   private persistenceFailure(): LoginResult {
-    this.clearSessionState()
+    this.clearSessionState(false)
     try {
       this.credentials.delete()
     } catch {
