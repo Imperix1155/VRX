@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,13 +40,13 @@ jobs:
         run: npm ci
 
       - name: Install Linux credential probe dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-1-0 xvfb
 
       - name: Test Linux credential persistence across restart
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         shell: bash
         timeout-minutes: 3
         run: |
@@ -56,12 +56,50 @@ jobs:
           diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")
           chmod 700 "$runtime_dir" "$keyring_data_dir"
           chmod 600 "$diagnostic_file"
+          profile_name=vrx-electron-ci
+          profile_path="/etc/apparmor.d/$profile_name"
+          profile_created=0
           cleanup() {
-            rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || true
+            cleanup_status=0
+            if [ "$profile_created" -eq 1 ]; then
+              sudo apparmor_parser -R "$profile_path" >/dev/null 2>&1 || cleanup_status=1
+              sudo rm -f -- "$profile_path" >/dev/null 2>&1 || cleanup_status=1
+            fi
+            rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1
+            return "$cleanup_status"
           }
-          trap cleanup EXIT
+          trap 'cleanup || true' EXIT
           export XDG_RUNTIME_DIR="$runtime_dir"
           export XDG_DATA_HOME="$keyring_data_dir"
+
+          # Ubuntu 24.04 restricts user namespaces for unprofiled binaries.
+          # Permit only this exact Electron binary to create Chromium's sandbox.
+          expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"
+          if ! electron_binary=$(realpath -- "$expected_electron_binary" 2>/dev/null); then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_SETUP >&2
+            exit 1
+          fi
+          if [ "$electron_binary" != "$expected_electron_binary" ] || \
+            [ ! -f "$electron_binary" ] || [ -L "$electron_binary" ] || \
+            [ ! -x "$electron_binary" ]; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_SETUP >&2
+            exit 1
+          fi
+          if sudo test -e "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_SETUP >&2
+            exit 1
+          fi
+          profile_created=1
+          if ! printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile %s "%s" flags=(unconfined) {\n  userns,\n}\n' \
+            "$profile_name" "$electron_binary" | \
+            sudo tee "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_SETUP >&2
+            exit 1
+          fi
+          if ! sudo apparmor_parser -r "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_SETUP >&2
+            exit 1
+          fi
 
           probe_exit=0
           timeout --kill-after=10s 90s dbus-run-session -- bash -euo pipefail -c '
@@ -154,6 +192,12 @@ jobs:
             printf '%s\n' "$failure_label" >&2
             exit 1
           fi
+
+          if ! cleanup; then
+            printf '%s\n' ASSERT_LINUX_CREDENTIAL_PROBE_CLEANUP >&2
+            exit 1
+          fi
+          trap - EXIT
 
       - name: Lint
         run: npm run lint

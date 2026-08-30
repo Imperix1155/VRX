@@ -59,6 +59,9 @@ describe('Linux credential persistence probe contract', () => {
 
     if (!credentialProbeStep) throw new Error('missing Linux credential persistence CI step')
 
+    expect(ciWorkflow).toContain('os: [ubuntu-24.04, windows-latest]')
+    expect(ciWorkflow.match(/matrix\.os == 'ubuntu-24\.04'/g)).toHaveLength(2)
+    expect(ciWorkflow).not.toContain("matrix.os == 'ubuntu-latest'")
     expect(credentialProbeStep).toContain(
       'diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")'
     )
@@ -68,6 +71,65 @@ describe('Linux credential persistence probe contract', () => {
     )
     expect(credentialProbeStep).toContain('chmod 700 "$runtime_dir" "$keyring_data_dir"')
     expect(credentialProbeStep).toContain('export XDG_DATA_HOME="$keyring_data_dir"')
+    expect(credentialProbeStep).toContain(
+      'expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"'
+    )
+    expect(credentialProbeStep).toContain(
+      'if ! electron_binary=$(realpath -- "$expected_electron_binary" 2>/dev/null); then'
+    )
+    expect(credentialProbeStep).toMatch(
+      /if \[ "\$electron_binary" != "\$expected_electron_binary" \] \|\| \\\n\s+\[ ! -f "\$electron_binary" \] \|\| \[ -L "\$electron_binary" \] \|\| \\\n\s+\[ ! -x "\$electron_binary" \]; then/
+    )
+    expect(credentialProbeStep).toContain('profile_name=vrx-electron-ci')
+    expect(credentialProbeStep).toContain('profile_path="/etc/apparmor.d/$profile_name"')
+    expect(credentialProbeStep).toContain('cleanup_status=0')
+    expect(credentialProbeStep).toContain("trap 'cleanup || true' EXIT")
+    expect(credentialProbeStep).toContain('if sudo test -e "$profile_path" >/dev/null 2>&1; then')
+    expect(credentialProbeStep).toContain('profile_created=1')
+    expect(credentialProbeStep).toContain('profile %s "%s" flags=(unconfined) {\\n  userns,\\n}\\n')
+    expect(credentialProbeStep).toContain('sudo tee "$profile_path" >/dev/null 2>&1')
+    expect(credentialProbeStep).toContain('sudo apparmor_parser -r "$profile_path" >/dev/null 2>&1')
+    expect(credentialProbeStep).toContain(
+      'sudo apparmor_parser -R "$profile_path" >/dev/null 2>&1 || cleanup_status=1'
+    )
+    expect(credentialProbeStep).toContain(
+      'sudo rm -f -- "$profile_path" >/dev/null 2>&1 || cleanup_status=1'
+    )
+    expect(credentialProbeStep).toContain(
+      'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1'
+    )
+    expect(credentialProbeStep).toContain('return "$cleanup_status"')
+    expect(credentialProbeStep).toContain('ASSERT_ELECTRON_APPARMOR_SETUP')
+    expect(credentialProbeStep).toContain('ASSERT_LINUX_CREDENTIAL_PROBE_CLEANUP')
+    expect(credentialProbeStep).not.toContain('ASSERT_ELECTRON_APPARMOR_CLEANUP')
+    expect(credentialProbeStep).toMatch(
+      /if ! cleanup; then\n\s+printf '%s\\n' ASSERT_LINUX_CREDENTIAL_PROBE_CLEANUP >&2\n\s+exit 1\n\s+fi\n\s+trap - EXIT/
+    )
+    expect(credentialProbeStep.indexOf('if sudo test -e "$profile_path"')).toBeLessThan(
+      credentialProbeStep.indexOf('profile_created=1')
+    )
+    expect(credentialProbeStep.indexOf('cleanup() {')).toBeLessThan(
+      credentialProbeStep.indexOf("trap 'cleanup || true' EXIT")
+    )
+    expect(credentialProbeStep.indexOf("trap 'cleanup || true' EXIT")).toBeLessThan(
+      credentialProbeStep.indexOf('profile_created=1')
+    )
+    expect(credentialProbeStep.indexOf('sudo apparmor_parser -R "$profile_path"')).toBeLessThan(
+      credentialProbeStep.indexOf('sudo rm -f -- "$profile_path"')
+    )
+    expect(credentialProbeStep.indexOf('profile_created=1')).toBeLessThan(
+      credentialProbeStep.indexOf('sudo tee "$profile_path"')
+    )
+    expect(credentialProbeStep.indexOf('sudo apparmor_parser -r "$profile_path"')).toBeLessThan(
+      credentialProbeStep.indexOf('probe_exit=0')
+    )
+    expect(credentialProbeStep.indexOf('probe_exit=0')).toBeLessThan(
+      credentialProbeStep.indexOf('if ! cleanup; then')
+    )
+    expect(credentialProbeStep).not.toContain('--no-sandbox')
+    expect(credentialProbeStep).not.toContain('apparmor_restrict_unprivileged_userns')
+    expect(credentialProbeStep).not.toContain('chmod 4755')
+    expect(credentialProbeStep).not.toContain('chrome-sandbox')
     expect(credentialProbeStep).toContain(
       'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file"'
     )
