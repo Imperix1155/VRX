@@ -276,5 +276,6 @@ fences concurrent login, restore, and explicit logout; introduces the optional
 `auth_identity_unavailable`; validates VRChat credential ownership; quarantines
 tentative cookies from every credential consumer; and generation-binds each
 request in paginated roster and queued metadata work so it cannot continue with
-a newer durable account's cookie. The approved specification records these
-deliberate deviations.
+a newer durable account's cookie. It also clears and write-fences the VRChat
+world/group metadata caches on session boundaries. The approved specification
+records these deliberate deviations.

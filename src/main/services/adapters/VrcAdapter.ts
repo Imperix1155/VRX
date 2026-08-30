@@ -1101,6 +1101,7 @@ export class VrcAdapter extends VrcApiClient {
    */
   private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionGeneration += 1
+    this.worldResolver.clear()
     this.groupResolver.clear()
     // Stale pending ids from the previous generation would suppress the new
     // session's first kick until their in-flight promises settle (both kick

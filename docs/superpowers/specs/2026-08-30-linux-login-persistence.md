@@ -94,6 +94,9 @@ original narrow adapter-save plan in these ways:
 - Paginated roster work and queued metadata workers remain bound to the session
   generation that started them, including after a newer session becomes
   durable, so old-account work cannot borrow the new account's cookie.
+- World and group metadata caches are account-generation scoped; boundaries
+  clear them and late old-account responses cannot write into the replacement
+  account's cache.
 
 These additions preserve the approved user-visible outcome and security
 boundary; they do not introduce credential-import behavior, plaintext storage,

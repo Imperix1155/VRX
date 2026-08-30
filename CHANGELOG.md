@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   self-invite, background metadata, and avatar calls until owner validation and
   encrypted persistence settle. Old roster pages and queued metadata work also
   stop at an account boundary instead of continuing with the newer durable
-  account's cookie. A 2FA prompt is rejected if its direct-login
+  account's cookie, and cached world/group metadata is cleared and write-fenced
+  so access-controlled details cannot carry between accounts. A 2FA prompt is
+  rejected if its direct-login
   response did not issue the replacement cookie needed to verify that account.
   Terminal failures synchronously settle local auth state, including a malformed
   response after VRChat replaces its session cookie, so remounting a login tab

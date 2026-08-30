@@ -3,8 +3,10 @@
  *
  * Fetches `name`, `thumbnailUrl`, and `capacity` from the VRChat
  * `/worlds/:worldId` endpoint. Responses are cached in-memory for
- * WORLD_CACHE_TTL_MS (24 h) — the same worldId within TTL hits the cache, and
- * `peek()` lets latency-sensitive callers read that cache without starting I/O.
+ * WORLD_CACHE_TTL_MS (24 h) within one account generation — the same worldId
+ * within TTL hits the cache, and `peek()` lets latency-sensitive callers read
+ * that cache without starting I/O. `clear()` drops account-scoped entries and
+ * fences late writes when the adapter changes session.
  *
  * Designed to be:
  * - Electron-free and unit-testable (injected fetcher + injected clock)
@@ -71,6 +73,7 @@ export class WorldResolver {
   private readonly clock: () => number
   private readonly negativeTtlMs: number
   private readonly cache = new Map<string, CacheEntry>()
+  private generation = 0
 
   constructor(
     fetcher: (worldId: string) => Promise<unknown>,
@@ -100,6 +103,16 @@ export class WorldResolver {
   }
 
   /**
+   * Drop account-scoped cache entries and fence writes from requests launched
+   * before the boundary. The stale caller may still receive its own result, but
+   * it cannot repopulate or overwrite the replacement account's cache.
+   */
+  clear(): void {
+    this.generation += 1
+    this.cache.clear()
+  }
+
+  /**
    * Resolve a worldId to its metadata.
    *
    * - `null` / private location (no worldId) → returns `null`.
@@ -111,6 +124,8 @@ export class WorldResolver {
 
     const cached = this.peek(worldId)
     if (cached !== undefined) return cached
+    const requestGeneration = this.generation
+    const mayWrite = (): boolean => requestGeneration === this.generation
 
     let raw: unknown
     try {
@@ -121,13 +136,17 @@ export class WorldResolver {
       // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
       if (error instanceof AuthError) throw error
-      this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+      if (mayWrite()) {
+        this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+      }
       return null
     }
 
     const parsed = WorldApiSchema.safeParse(raw)
     if (!parsed.success) {
-      this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+      if (mayWrite()) {
+        this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+      }
       return null
     }
 
@@ -138,7 +157,9 @@ export class WorldResolver {
       shortName: parsed.data.shortName
     }
 
-    this.cache.set(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
+    if (mayWrite()) {
+      this.cache.set(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
+    }
     return meta
   }
 }

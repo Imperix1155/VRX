@@ -3770,6 +3770,47 @@ describe('VrcAdapter', () => {
       unsubscribe()
     })
 
+    it('clears cached world metadata before adopting a durable replacement account', async () => {
+      const worldId = 'wrld_account_scoped'
+      const worldRequestCookies: Array<string | undefined> = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
+          )
+        }
+        if (href.includes(`/worlds/${worldId}`)) {
+          worldRequestCookies.push(headers.Cookie)
+          return Promise.resolve(
+            jsonResponse({
+              name: headers.Cookie === 'auth=account-a' ? 'Account A World' : 'Account B World',
+              thumbnailImageUrl: null,
+              capacity: 8,
+              shortName: null
+            })
+          )
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+
+      await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account A World' })
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+
+      expect(resolver.peek(worldId)).toBeUndefined()
+      await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account B World' })
+      expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    })
+
     it('negative-cached world failures are not re-fetched during reconcile inside the 60s window', async () => {
       const worldId = 'wrld_negcache'
       let now = 0
