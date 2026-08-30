@@ -39,6 +39,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Linux credential probe dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-1-0 xvfb
+
+      - name: Test Linux credential persistence across restart
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          runtime_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-runtime.XXXXXX")
+          user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
+          chmod 700 "$runtime_dir"
+          cleanup() {
+            rm -rf -- "$runtime_dir" "$user_data_dir"
+          }
+          trap cleanup EXIT
+          export XDG_RUNTIME_DIR="$runtime_dir"
+
+          dbus-run-session -- bash -euo pipefail -c '
+            eval "$(printf "%s" "vrx-ci-keyring" | gnome-keyring-daemon --login)"
+            eval "$(gnome-keyring-daemon --start --components=secrets)"
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+              npm run test:credential-persistence-linux -- "$1"
+          ' bash "$user_data_dir"
+
       - name: Lint
         run: npm run lint
 
