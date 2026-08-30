@@ -272,7 +272,11 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(binding.store, noopSleep, {
         onIdentity: (accountId) => identities.push(accountId)
       })
-      const deleteCredential = vi.spyOn(binding.store, 'delete')
+      let deleteCalls = 0
+      binding.store.delete = () => {
+        deleteCalls++
+        throw new Error('credential deletion failed')
+      }
       const restartPipeline = vi.spyOn(
         adapter as unknown as { restartPipeline: () => void },
         'restartPipeline'
@@ -288,10 +292,10 @@ describe('CvrAdapter', () => {
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
-      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getCredential()).toEqual({ username: 'trinity', accessKey: 'key-1' })
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
-      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(deleteCalls).toBe(1)
       expect(identities).not.toContain('a1b2c3d4-0000-0000-0000-000000000002')
       expect(restartPipeline).not.toHaveBeenCalled()
     })
@@ -511,6 +515,37 @@ describe('CvrAdapter', () => {
 
       expect(binding.getCredential()).toEqual(restored)
       expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
+    })
+
+    it('clears a restored session when rotated credentials cannot persist', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload({ accessKey: 'rotated-key' }))))
+      )
+      const identities: Array<string | null> = []
+      const deleteCredential = vi.fn(() => {
+        throw new Error('credential deletion failed')
+      })
+      const store: CvrCredentialStore = {
+        load: () => ({ username: 'trinity', accessKey: 'old-key' }),
+        save: () => {
+          throw new Error('credential write failed')
+        },
+        delete: deleteCredential
+      }
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const restartPipeline = vi.spyOn(
+        adapter as unknown as { restartPipeline: () => void },
+        'restartPipeline'
+      )
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+
+      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(identities).not.toContain('a1b2c3d4-0000-0000-0000-000000000001')
+      expect(restartPipeline).not.toHaveBeenCalled()
     })
 
     it('restores a persisted session and validates it via ACCESS_KEY reauth', async () => {

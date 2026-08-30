@@ -439,10 +439,16 @@ describe('VrcAdapter', () => {
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<string>()
       const identities: Array<string | null> = []
+      const log = vi.fn()
       const adapter = new VrcAdapter(binding.store, noopSleep, {
-        onIdentity: (accountId) => identities.push(accountId)
+        onIdentity: (accountId) => identities.push(accountId),
+        log
       })
-      const deleteCredential = vi.spyOn(binding.store, 'delete')
+      let deleteCalls = 0
+      binding.store.delete = () => {
+        deleteCalls++
+        throw new Error('credential deletion failed')
+      }
 
       await adapter.login(creds)
       binding.failNextSave()
@@ -453,11 +459,12 @@ describe('VrcAdapter', () => {
       })
 
       expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
-      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getCredential()).toBe('auth=account-a')
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
-      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(deleteCalls).toBe(1)
       expect(identities).not.toContain('ACCOUNT002')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
     })
 
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {

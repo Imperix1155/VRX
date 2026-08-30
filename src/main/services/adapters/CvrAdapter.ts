@@ -317,13 +317,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // CVR may ROTATE the accessKey on reauth — persist the rotation, or the next
     // restore would present the stale key and silently log the user out.
     if (accessKey !== validated.accessKey || username !== validated.username) {
-      this.adoptSession({ username, accessKey })
+      this.adoptSession({ username, accessKey }, false)
     }
     // Restored session proven once — trust it for the rest of this launch.
     this.displayName = username
     this.accountId = parsed.data.data.userId
     this.validated = true
-    this.persist()
+    if (!this.persist()) {
+      this.persistenceFailure()
+      return this.status('unauthenticated')
+    }
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return this.status('authenticated')
