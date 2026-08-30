@@ -23,12 +23,14 @@ import type { GroupMeta, GroupResolver } from './GroupResolver'
  * @param resolver   GroupResolver instance to delegate fetches to.
  * @param concurrencyLimit  Max parallel resolves (default: CONCURRENCY_LIMIT).
  * @param onResolved Optional incremental callback; does not wait for the batch.
+ * @param canContinue Optional account-generation guard checked before every resolve.
  */
 export async function fetchGroupMetadata(
   groupIds: ReadonlyArray<string | null | undefined>,
   resolver: GroupResolver,
   concurrencyLimit = CONCURRENCY_LIMIT,
-  onResolved?: (groupId: string, meta: GroupMeta) => void
+  onResolved?: (groupId: string, meta: GroupMeta) => void,
+  canContinue: () => boolean = () => true
 ): Promise<Map<string, GroupMeta>> {
   const ids = [...new Set(groupIds.filter((id): id is string => Boolean(id)))]
 
@@ -39,6 +41,7 @@ export async function fetchGroupMetadata(
 
   async function worker(): Promise<void> {
     while (cursor < ids.length) {
+      if (!canContinue()) break
       const id = ids[cursor++]
       if (id === undefined) break // bounds-narrowing for noUncheckedIndexedAccess (audit W7)
       const meta = await resolver.resolve(id)

@@ -34,7 +34,8 @@
 **Interfaces:**
 
 - Produces: `CREDENTIAL_PERSISTENCE_FAILED = 'credential_persistence_failed'` from `@shared/types`.
-- Produces: adapter `LoginResult` failure `{ ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }`.
+- Produces: adapter `LoginResult` terminal failure
+  `{ ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED, sessionCleared: true }`.
 - Preserves: synchronous injected credential-store `save` and `delete` signatures.
 
 - [ ] **Step 1: Reverse the existing save-throws expectations and add state assertions**
@@ -265,3 +266,15 @@
   unresolved threads, evidence, and reviewed commit SHA. Fix or refute each
   substantive finding under the repository's functional/nonfunctional rules.
   Leave the merge blocked for explicit owner approval.
+
+## Implementation Deviations
+
+Testing expanded the implementation beyond the initial save-failure seam to
+close auth-state races at the same boundary. The final change also operation-
+fences concurrent login, restore, and explicit logout; introduces the optional
+`LoginResult.sessionCleared` reconciliation marker and
+`auth_identity_unavailable`; validates VRChat credential ownership; quarantines
+tentative cookies from every credential consumer; and generation-binds each
+request in paginated roster and queued metadata work so it cannot continue with
+a newer durable account's cookie. The approved specification records these
+deliberate deviations.

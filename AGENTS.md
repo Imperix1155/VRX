@@ -139,7 +139,8 @@ probe processes share a disposable `userData` directory inside a temporary
 Secret Service session. Both test-only processes explicitly select
 `--password-store=gnome-libsecret`, then attest Electron reports
 `gnome_libsecret`. The first securely writes a synthetic fixture, the second
-reads and clears it, and the probe rejects any fixture plaintext found on disk.
+reads and clears it, and the probe rejects any fixture plaintext found in the
+disposable `userData` tree.
 Its bundle, source, config, and contract test are test-only and must remain
 explicitly excluded from Electron Builder packages; the probe contract test
 pins that boundary.

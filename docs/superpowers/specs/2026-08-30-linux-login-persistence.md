@@ -63,9 +63,9 @@ the correction must diagnose the class without logging secrets.
   test-only processes explicitly select `--password-store=gnome-libsecret`, and
   each must attest Electron reports `gnome_libsecret`. The first process writes
   an obviously synthetic fixture, and the second reads it. The probe must also
-  assert that the fixture plaintext is absent on disk. Its generated bundle,
-  source, config, and contract test are test-only and must be explicitly
-  excluded from application packages.
+  assert that the fixture plaintext is absent from the disposable `userData`
+  directory. Its generated bundle, source, config, and contract test are
+  test-only and must be explicitly excluded from application packages.
 - Mutation-check the adapter tests by temporarily restoring the false-success
   behavior and observing the focused tests fail.
 - Run the complete repository gate and the T2 authentication/security review.
@@ -76,5 +76,25 @@ the correction must diagnose the class without logging secrets.
   that machine.
 - Supporting Linux systems that have no usable secure credential service.
 - Migrating existing ciphertext to Electron's asynchronous safeStorage API.
-- Changing credential import, explicit logout, or restored-session behavior
-  beyond the rotated ChilloutVR key persistence boundary named above.
+- Changing credential-import discovery or adding a session-only fallback.
+
+## Approved Implementation Deviations
+
+Verification exposed adjacent auth-state races that could undermine the same
+durable-or-fail boundary, so the final implementation deliberately exceeds the
+original narrow adapter-save plan in these ways:
+
+- Explicit logout cancels held authentication work so a late completion cannot
+  resurrect the logged-out session.
+- Restored VRChat 2FA and terminal failures reconcile renderer auth state with
+  the main process through `sessionCleared: true`.
+- VRChat owner validation, replacement-cookie checks, and tentative-cookie
+  quarantine prevent an unowned or not-yet-persisted session from reaching
+  authenticated REST, metadata, pipeline, identity, or avatar consumers.
+- Paginated roster work and queued metadata workers remain bound to the session
+  generation that started them, including after a newer session becomes
+  durable, so old-account work cannot borrow the new account's cookie.
+
+These additions preserve the approved user-visible outcome and security
+boundary; they do not introduce credential-import behavior, plaintext storage,
+or session-only storage.

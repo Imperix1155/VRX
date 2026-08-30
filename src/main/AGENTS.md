@@ -79,7 +79,10 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   tentative, `getAuthStatus` waits, every typed VRChat GET/POST throws
   `AuthSessionPendingError` before dispatch (including paginator and metadata
   continuation work), and `getAuthCookieHeader()` returns `null` so queued
-  avatar work cannot attach it. The first-leg 2FA prompt itself remains visible.
+  avatar work cannot attach it. Every multi-request roster or metadata operation
+  also captures its starting session generation and checks it before each later
+  page or queued resolve; old-account work stops instead of borrowing a newer
+  durable account's cookie. The first-leg 2FA prompt itself remains visible.
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in the root `AGENTS.md`). Trinity applied in VRX-25.
 - NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
 - No hardcoded paths — use `app.getPath()`.

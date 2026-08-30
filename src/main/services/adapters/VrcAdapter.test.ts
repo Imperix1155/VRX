@@ -2890,81 +2890,148 @@ describe('VrcAdapter', () => {
       expect(tentativeAccountBRequests).toBe(0)
     })
 
-    it('does not advance an old world-enrichment batch through a tentative cookie', async () => {
-      const friendIds = Array.from({ length: 11 }, (_, index) => `usr_friend_${index}`)
-      const releases: Array<(response: Response) => void> = []
-      let accountAWorldRequests = 0
-      let tentativeAccountBWorldRequests = 0
+    it('restarts a roster before its next page can use a durable replacement cookie', async () => {
+      let releaseAccountAPage!: (response: Response) => void
+      const heldAccountAPage = new Promise<Response>((resolve) => {
+        releaseAccountAPage = resolve
+      })
+      let accountAPageStarted = false
+      const accountBPaths: string[] = []
       const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
         const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
         const headers = (options?.headers ?? {}) as Record<string, string>
         if (headers.Authorization !== undefined) {
           return Promise.resolve(
-            jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
           )
         }
-        if (href.endsWith('/auth/user')) {
+        if (headers.Cookie === 'auth=account-a' && href.endsWith('/auth/user')) {
           return Promise.resolve(
             jsonResponse({
-              onlineFriends: friendIds,
+              onlineFriends: [],
               activeFriends: [],
               offlineFriends: []
             })
           )
         }
-        if (href.includes('/auth/user/friends')) {
-          return Promise.resolve(
-            href.includes('offline=true')
-              ? jsonResponse([])
-              : jsonResponse(
-                  friendIds.map((id, index) => ({
-                    id,
-                    displayName: `Friend ${index}`,
-                    status: 'active',
-                    tags: [],
-                    location: `wrld_pending_${index}:instance-${index}`
-                  }))
-                )
-          )
+        if (
+          headers.Cookie === 'auth=account-a' &&
+          href.includes('/auth/user/friends') &&
+          href.includes('offline=false')
+        ) {
+          accountAPageStarted = true
+          return heldAccountAPage
         }
-        if (href.includes('/worlds/')) {
-          if (headers.Cookie === 'auth=account-b') {
-            tentativeAccountBWorldRequests += 1
+        if (headers.Cookie === 'auth=account-b') {
+          const parsedUrl = new URL(href)
+          accountBPaths.push(`${parsedUrl.pathname}${parsedUrl.search}`)
+          if (parsedUrl.pathname.endsWith('/auth/user')) {
             return Promise.resolve(
               jsonResponse({
-                name: 'Tentative world',
-                thumbnailImageUrl: null,
-                capacity: 16,
-                shortName: null
+                onlineFriends: [],
+                activeFriends: [],
+                offlineFriends: []
               })
             )
           }
-          accountAWorldRequests += 1
-          return new Promise<Response>((resolve) => releases.push(resolve))
+          if (parsedUrl.pathname.endsWith('/auth/user/friends')) {
+            return Promise.resolve(jsonResponse([]))
+          }
         }
         return Promise.reject(new Error(`Unexpected URL: ${href}`))
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
 
-      await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
-      await vi.waitFor(() => expect(accountAWorldRequests).toBe(10))
-      await expect(
-        adapter.login({ username: 'account-b', password: 'pw-b' })
-      ).resolves.toMatchObject({ needs2fa: true })
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(accountAPageStarted).toBe(true))
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      releaseAccountAPage(jsonResponse([]))
+      await expect(roster).resolves.toEqual({ friends: [], completeness: 'complete' })
 
-      releases.shift()?.(
-        jsonResponse({
-          name: 'Account A world',
-          thumbnailImageUrl: null,
-          capacity: 16,
-          shortName: null
+      expect(accountBPaths[0]).toBe('/api/1/auth/user')
+    })
+
+    it.each([
+      {
+        stage: 'while the replacement is tentative',
+        loginBody: { requiresTwoFactorAuth: ['totp'] },
+        expectedLogin: { needs2fa: true }
+      },
+      {
+        stage: 'after the replacement is durable',
+        loginBody: { id: 'ACCOUNTB1', displayName: 'Account B' },
+        expectedLogin: { ok: true }
+      }
+    ])(
+      'does not advance an old world-enrichment batch $stage',
+      async ({ loginBody, expectedLogin }) => {
+        const friendIds = Array.from({ length: 11 }, (_, index) => `usr_friend_${index}`)
+        const releases: Array<(response: Response) => void> = []
+        let accountAWorldRequests = 0
+        let tentativeAccountBWorldRequests = 0
+        const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(jsonResponse(loginBody, { setCookies: ['auth=account-b'] }))
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(
+              jsonResponse({
+                onlineFriends: friendIds,
+                activeFriends: [],
+                offlineFriends: []
+              })
+            )
+          }
+          if (href.includes('/auth/user/friends')) {
+            return Promise.resolve(
+              href.includes('offline=true')
+                ? jsonResponse([])
+                : jsonResponse(
+                    friendIds.map((id, index) => ({
+                      id,
+                      displayName: `Friend ${index}`,
+                      status: 'active',
+                      tags: [],
+                      location: `wrld_pending_${index}:instance-${index}`
+                    }))
+                  )
+            )
+          }
+          if (href.includes('/worlds/')) {
+            if (headers.Cookie === 'auth=account-b') {
+              tentativeAccountBWorldRequests += 1
+              return Promise.resolve(
+                jsonResponse({
+                  name: 'Tentative world',
+                  thumbnailImageUrl: null,
+                  capacity: 16,
+                  shortName: null
+                })
+              )
+            }
+            accountAWorldRequests += 1
+            return new Promise<Response>((resolve) => releases.push(resolve))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
         })
-      )
-      await new Promise((resolve) => setImmediate(resolve))
-      const escapedRequests = tentativeAccountBWorldRequests
-      for (const release of releases) {
-        release(
+        vi.stubGlobal('fetch', fetchMock)
+        const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+
+        await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
+        await vi.waitFor(() => expect(accountAWorldRequests).toBe(10))
+        await expect(
+          adapter.login({ username: 'account-b', password: 'pw-b' })
+        ).resolves.toMatchObject(expectedLogin)
+
+        releases.shift()?.(
           jsonResponse({
             name: 'Account A world',
             thumbnailImageUrl: null,
@@ -2972,11 +3039,23 @@ describe('VrcAdapter', () => {
             shortName: null
           })
         )
-      }
-      await new Promise((resolve) => setImmediate(resolve))
+        await new Promise((resolve) => setImmediate(resolve))
+        const escapedRequests = tentativeAccountBWorldRequests
+        for (const release of releases) {
+          release(
+            jsonResponse({
+              name: 'Account A world',
+              thumbnailImageUrl: null,
+              capacity: 16,
+              shortName: null
+            })
+          )
+        }
+        await new Promise((resolve) => setImmediate(resolve))
 
-      expect(escapedRequests).toBe(0)
-    })
+        expect(escapedRequests).toBe(0)
+      }
+    )
 
     it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {
       let releaseRoster!: (response: Response) => void

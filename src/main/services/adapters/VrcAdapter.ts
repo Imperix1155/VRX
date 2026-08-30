@@ -110,6 +110,14 @@ function mapTwoFactorMethod(types: string[]): TwoFactorMethod {
   return types.some((type) => type.toLowerCase() === 'emailotp') ? 'email' : 'totp'
 }
 
+/** Internal control-flow signal that dependency-injected fetchers already propagate. */
+class StaleSessionError extends AuthError {
+  constructor() {
+    super('Session ended')
+    this.name = 'StaleSessionError'
+  }
+}
+
 /**
  * A well-formed VRChat instance location: `wrld_<id>:<instance>[~tags]`. Validated
  * BEFORE the value is interpolated into a request URL path so a crafted instanceId
@@ -596,7 +604,13 @@ export class VrcAdapter extends VrcApiClient {
       this.assertDurableSession()
       const generation = this.sessionGeneration
       try {
-        const result = await fetchFriends((path, schema) => this.get(path, schema))
+        const result = await fetchFriends((path, schema) => {
+          // fetchFriends can issue several pages. Bind every request launch to
+          // the account that started this roster so a later durable login
+          // cannot lend its cookie to the old paginator.
+          if (generation !== this.sessionGeneration) throw new StaleSessionError()
+          return this.get(path, schema)
+        })
         const { friends, failedPages, skippedRecords } = result
         if (result.presence === 'degraded') {
           throw new NetworkError('Failed to fetch friends (presence=degraded)')
@@ -678,16 +692,22 @@ export class VrcAdapter extends VrcApiClient {
     })
     const kicked = groupIds.filter((id): id is string => id !== null)
     for (const id of kicked) this.pendingGroupResolutions.add(id)
-    void fetchGroupMetadata(groupIds, this.groupResolver, undefined, (groupId, meta) => {
-      if (generation !== this.sessionGeneration) return
-      this.emit({
-        type: 'group-metadata',
-        platform: 'vrchat',
-        groupId,
-        groupName: meta.name,
-        groupImageUrl: meta.iconUrl
-      })
-    })
+    void fetchGroupMetadata(
+      groupIds,
+      this.groupResolver,
+      undefined,
+      (groupId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'group-metadata',
+          platform: 'vrchat',
+          groupId,
+          groupName: meta.name,
+          groupImageUrl: meta.iconUrl
+        })
+      },
+      () => generation === this.sessionGeneration
+    )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
         if (error instanceof AuthSessionPendingError) return
@@ -728,16 +748,22 @@ export class VrcAdapter extends VrcApiClient {
     // Residual auth window (documented in api-volatility.md): getFriends returns
     // before these requests settle, so a background 401 invalidates the session
     // asynchronously after the caller may already have seeded LocationAuthority.
-    void fetchWorldMetadata(worldIds, this.worldResolver, undefined, (worldId, meta) => {
-      if (generation !== this.sessionGeneration) return
-      this.emit({
-        type: 'world-metadata',
-        platform: 'vrchat',
-        worldId,
-        worldName: meta.name,
-        thumbnailUrl: meta.thumbnailUrl
-      })
-    })
+    void fetchWorldMetadata(
+      worldIds,
+      this.worldResolver,
+      undefined,
+      (worldId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId,
+          worldName: meta.name,
+          thumbnailUrl: meta.thumbnailUrl
+        })
+      },
+      () => generation === this.sessionGeneration
+    )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
         if (error instanceof AuthSessionPendingError) return

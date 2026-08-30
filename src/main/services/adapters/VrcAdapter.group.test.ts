@@ -283,6 +283,81 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     await vi.waitFor(() => expect(pending.size).toBe(0))
   })
 
+  it('does not advance an old group-enrichment batch through a durable replacement cookie', async () => {
+    const groupIds = Array.from({ length: 11 }, (_, index) => `grp_account_a_${index}`)
+    const releases: Array<(response: Response) => void> = []
+    let accountAGroupRequests = 0
+    let accountBGroupRequests = 0
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.endsWith('/auth/user')) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'ACCOUNTA1',
+            displayName: 'Account A',
+            onlineFriends: groupIds.map((_, index) => `usr_friend_${index}`),
+            activeFriends: [],
+            offlineFriends: []
+          })
+        )
+      }
+      if (href.includes('/auth/user/friends')) {
+        return Promise.resolve(
+          jsonResponse(
+            href.includes('offline=true')
+              ? []
+              : groupIds.map((groupId, index) => ({
+                  id: `usr_friend_${index}`,
+                  displayName: `Friend ${index}`,
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `wrld_shared:${index}~group(${groupId})~groupAccessType(plus)`
+                }))
+          )
+        )
+      }
+      if (href.includes('/worlds/wrld_shared')) {
+        return Promise.resolve(jsonResponse({ name: 'Shared World', thumbnailImageUrl: null }))
+      }
+      if (href.includes('/groups/')) {
+        if (headers.Cookie === 'auth=account-b') {
+          accountBGroupRequests += 1
+          return Promise.resolve(jsonResponse({ name: 'Escaped Group', iconUrl: null }))
+        }
+        accountAGroupRequests += 1
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    await adapter.getFriends()
+    await vi.waitFor(() => expect(accountAGroupRequests).toBe(10))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+
+    releases.shift()?.(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(accountBGroupRequests).toBe(0)
+    for (const release of releases) {
+      release(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    }
+  })
+
   it('clears the group resolver on session boundary so the next account does not inherit cached entries', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
