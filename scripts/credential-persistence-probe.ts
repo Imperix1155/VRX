@@ -1,14 +1,18 @@
 import { app, safeStorage } from 'electron'
-import { isAbsolute, join } from 'node:path'
-import { readFileSync, readdirSync } from 'node:fs'
+import { basename, isAbsolute, join, parse, resolve } from 'node:path'
+import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 
 const FIXTURE = 'vrx-ci-fixture-not-a-token'
+const USER_DATA_BASENAME_PREFIX = 'vrx-credential-probe.'
+const MARKER_NAME = '.vrx-credential-persistence-probe'
+const MARKER_CONTENT = 'vrx-credential-persistence-probe-v1\n'
 
 type ProbeMode = 'write' | 'read'
 type AssertionLabel =
   | 'ASSERT_ARGUMENTS'
   | 'ASSERT_LINUX_PLATFORM'
   | 'ASSERT_USER_DATA_ROOT'
+  | 'ASSERT_PROBE_MARKER'
   | 'ASSERT_ENCRYPTION_AVAILABLE'
   | 'ASSERT_SECURE_BACKEND'
   | 'ASSERT_CREDENTIAL_SAVE'
@@ -38,6 +42,51 @@ function parseArguments(): { mode: ProbeMode; userDataRoot: string } {
   return { mode, userDataRoot }
 }
 
+function requireOrdinaryProbeRoot(userDataRoot: string): string {
+  try {
+    const resolvedRoot = resolve(userDataRoot)
+    const rootStats = lstatSync(resolvedRoot)
+    assertProbe(resolvedRoot !== parse(resolvedRoot).root, 'ASSERT_USER_DATA_ROOT')
+    assertProbe(
+      basename(resolvedRoot).startsWith(USER_DATA_BASENAME_PREFIX),
+      'ASSERT_USER_DATA_ROOT'
+    )
+    assertProbe(rootStats.isDirectory() && !rootStats.isSymbolicLink(), 'ASSERT_USER_DATA_ROOT')
+    assertProbe(realpathSync.native(resolvedRoot) === resolvedRoot, 'ASSERT_USER_DATA_ROOT')
+    return resolvedRoot
+  } catch (error) {
+    if (error instanceof ProbeAssertionError) throw error
+    throw new ProbeAssertionError('ASSERT_USER_DATA_ROOT')
+  }
+}
+
+function prepareProbeRoot(mode: ProbeMode, userDataRoot: string): string {
+  const resolvedRoot = requireOrdinaryProbeRoot(userDataRoot)
+  const markerPath = join(resolvedRoot, MARKER_NAME)
+
+  if (mode === 'write') {
+    try {
+      assertProbe(readdirSync(resolvedRoot).length === 0, 'ASSERT_USER_DATA_ROOT')
+      writeFileSync(markerPath, MARKER_CONTENT, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    } catch (error) {
+      if (error instanceof ProbeAssertionError) throw error
+      throw new ProbeAssertionError('ASSERT_PROBE_MARKER')
+    }
+    return resolvedRoot
+  }
+
+  try {
+    const markerStats = lstatSync(markerPath)
+    assertProbe(markerStats.isFile() && !markerStats.isSymbolicLink(), 'ASSERT_PROBE_MARKER')
+    assertProbe(readFileSync(markerPath, 'utf8') === MARKER_CONTENT, 'ASSERT_PROBE_MARKER')
+  } catch (error) {
+    if (error instanceof ProbeAssertionError) throw error
+    throw new ProbeAssertionError('ASSERT_PROBE_MARKER')
+  }
+
+  return resolvedRoot
+}
+
 function containsFixture(root: string): boolean {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     const entryPath = join(root, entry.name)
@@ -52,7 +101,8 @@ function containsFixture(root: string): boolean {
 }
 
 async function run(): Promise<void> {
-  const { mode, userDataRoot } = parseArguments()
+  const { mode, userDataRoot: suppliedRoot } = parseArguments()
+  const userDataRoot = prepareProbeRoot(mode, suppliedRoot)
   assertProbe(process.platform === 'linux', 'ASSERT_LINUX_PLATFORM')
 
   try {

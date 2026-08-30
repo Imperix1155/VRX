@@ -48,22 +48,36 @@ jobs:
       - name: Test Linux credential persistence across restart
         if: matrix.os == 'ubuntu-latest'
         shell: bash
+        timeout-minutes: 3
         run: |
           runtime_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-runtime.XXXXXX")
           user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
           chmod 700 "$runtime_dir"
           cleanup() {
-            rm -rf -- "$runtime_dir" "$user_data_dir"
+            rm -rf -- "$runtime_dir" "$user_data_dir" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
           export XDG_RUNTIME_DIR="$runtime_dir"
 
-          dbus-run-session -- bash -euo pipefail -c '
-            eval "$(printf "%s" "vrx-ci-keyring" | gnome-keyring-daemon --login)"
-            eval "$(gnome-keyring-daemon --start --components=secrets)"
+          if ! timeout --kill-after=10s 90s dbus-run-session -- bash -euo pipefail -c '
+            if ! login_environment=$(printf "%s" "vrx-ci-keyring" | gnome-keyring-daemon --login 2>/dev/null); then
+              exit 1
+            fi
+            if ! eval "$login_environment" >/dev/null 2>&1; then
+              exit 1
+            fi
+            if ! start_environment=$(gnome-keyring-daemon --start --components=secrets 2>/dev/null); then
+              exit 1
+            fi
+            if ! eval "$start_environment" >/dev/null 2>&1; then
+              exit 1
+            fi
             xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-              npm run test:credential-persistence-linux -- "$1"
-          ' bash "$user_data_dir"
+              npm --silent run test:credential-persistence-linux -- "$1"
+          ' bash "$user_data_dir" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_LINUX_CREDENTIAL_PROBE >&2
+            exit 1
+          fi
 
       - name: Lint
         run: npm run lint
