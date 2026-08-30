@@ -251,7 +251,7 @@ describe('CvrAdapter', () => {
       expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000002')
     })
 
-    it('fails closed when credential writing throws after owner clearing', async () => {
+    it('rolls back direct login when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(jsonResponse(envelope(authPayload())))
@@ -268,15 +268,32 @@ describe('CvrAdapter', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<CVRCredentials>()
-      const adapter = new CvrAdapter(binding.store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const deleteCredential = vi.spyOn(binding.store, 'delete')
+      const restartPipeline = vi.spyOn(
+        adapter as unknown as { restartPipeline: () => void },
+        'restartPipeline'
+      )
 
       await adapter.login(creds)
+      restartPipeline.mockClear()
       binding.failNextSave()
-      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
 
-      expect(binding.getCredential()).toEqual({ username: 'trinity', accessKey: 'key-1' })
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(identities).not.toContain('a1b2c3d4-0000-0000-0000-000000000002')
+      expect(restartPipeline).not.toHaveBeenCalled()
     })
 
     it('authenticates, persists ONLY username+accessKey, reports authenticated status', async () => {
@@ -590,7 +607,7 @@ describe('CvrAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('a throwing store is tolerated at construction and at persist time', async () => {
+    it('a throwing store is tolerated at construction and fails login closed', async () => {
       const throwingStore: CvrCredentialStore = {
         load: () => {
           throw new Error('locked')
@@ -607,9 +624,12 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse(envelope(authPayload()))))
       )
       const adapter = new CvrAdapter(throwingStore, noopSleep)
-      // Login succeeds in-memory even when persistence is unavailable.
-      expect(await adapter.login(creds)).toEqual({ ok: true })
-      expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+      expect(await adapter.login(creds)).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
+      expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
     })
 
     it('keeps automatic 401 deletion best-effort when the credential store is unavailable', async () => {

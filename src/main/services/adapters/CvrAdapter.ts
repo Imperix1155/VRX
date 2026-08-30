@@ -7,6 +7,7 @@ import type {
   JoinMode,
   LoginResult
 } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { z } from 'zod'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
@@ -221,15 +222,18 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     // The accessKey — not the password — is the session from here on. The
     // password is never stored, logged, or persisted (VRX-37 AC).
-    this.adoptSession({
-      username: parsed.data.data.username,
-      accessKey: parsed.data.data.accessKey
-    })
+    this.adoptSession(
+      {
+        username: parsed.data.data.username,
+        accessKey: parsed.data.data.accessKey
+      },
+      false
+    )
     this.accountId = parsed.data.data.userId
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
-    this.persist()
+    if (!this.persist()) return this.persistenceFailure()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -701,23 +705,36 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
-  private adoptSession(credentials: CVRCredentials): void {
+  private adoptSession(credentials: CVRCredentials, restartPipeline = true): void {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
     this.accountId = null
     this.validated = false
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline)
   }
 
-  private persist(): void {
-    if (!this.session) return
+  private persist(): boolean {
+    if (!this.session) return false
     try {
       this.store.save(this.session, this.accountId)
+      return true
     } catch {
-      /* locked/unavailable store — the session stays usable in-memory */
+      return false
     }
+  }
+
+  /** A successful login must survive restart; discard an unpersisted session. */
+  private persistenceFailure(): LoginResult {
+    this.clearSessionState(false)
+    try {
+      this.store.delete()
+    } catch {
+      /* best-effort cleanup after a failed save */
+    }
+    this.live?.log?.('warn', 'cvr adapter: credential persistence failed')
+    return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
   }
 
   clearSession(): void {
@@ -726,14 +743,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
 
-  private clearSessionState(): void {
+  private clearSessionState(restartPipeline = true): void {
     this.session = null
     this.setCredentials(null)
     this.displayName = null
     this.accountId = null
     this.validated = false
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline)
   }
 
   /** Automatic 401 invalidation is best-effort on disk: the dead session must
@@ -772,7 +789,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   /** Reset every account-scoped cache and replace a running socket pipeline. */
-  private bumpSessionGeneration(): void {
+  private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionGeneration += 1
     this.friendNames.clear()
     this.friendNamesRequestSequence = 0
@@ -787,7 +804,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.rosterWarmStarted = false
     this.live?.onSessionBoundary?.()
 
-    this.restartPipeline()
+    if (restartPipeline) {
+      this.restartPipeline()
+    } else {
+      this.pipeline?.stop()
+      this.pipeline = null
+    }
   }
 
   private status(state: AuthStatus['state']): AuthStatus {

@@ -231,7 +231,10 @@ describe('VrcAdapter', () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ id: 'usr_12345678-1234-1234-1234-123456789abc', displayName: 'Neo' })
+          jsonResponse(
+            { id: 'usr_12345678-1234-1234-1234-123456789abc', displayName: 'Neo' },
+            { setCookies: ['auth=unicode-session'] }
+          )
         )
     )
 
@@ -418,7 +421,7 @@ describe('VrcAdapter', () => {
       expect(binding.getOwner()).toBe('ACCOUNT002')
     })
 
-    it('fails closed when direct-login credential writing throws after owner clearing', async () => {
+    it('rolls back direct login when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -435,15 +438,26 @@ describe('VrcAdapter', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<string>()
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const deleteCredential = vi.spyOn(binding.store, 'delete')
 
       await adapter.login(creds)
       binding.failNextSave()
-      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
 
-      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(identities).not.toContain('ACCOUNT002')
     })
 
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {
@@ -619,7 +633,7 @@ describe('VrcAdapter', () => {
       expect(binding.getOwner()).toBe('TRINITY09')
     })
 
-    it('fails closed when the 2FA credential write throws after owner clearing', async () => {
+    it('rolls back completed 2FA when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -637,16 +651,27 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<string>()
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const deleteCredential = vi.spyOn(binding.store, 'delete')
 
       await adapter.login(creds)
       await adapter.login(creds)
       binding.failNextSave()
-      await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
 
-      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+      expect(deleteCredential).toHaveBeenCalledOnce()
+      expect(identities).not.toContain('ACCOUNT002')
     })
 
     it('returns needs2fa(totp), then verifies against /totp/verify and combines the cookies', async () => {

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import type {
   AuthStatus,
   Credentials,
@@ -259,7 +260,7 @@ export class VrcAdapter extends VrcApiClient {
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
-    this.persist()
+    if (!this.persist()) return this.persistenceFailure()
     this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
@@ -349,7 +350,7 @@ export class VrcAdapter extends VrcApiClient {
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
     await this.refreshDisplayName('interactive')
-    this.persist()
+    if (!this.persist()) return this.persistenceFailure()
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
     return { ok: true }
   }
@@ -934,13 +935,26 @@ export class VrcAdapter extends VrcApiClient {
     return this.cookie ? { Cookie: this.cookie } : {}
   }
 
-  private persist(): void {
-    if (!this.cookie) return
+  private persist(): boolean {
+    if (!this.cookie) return false
     try {
       this.credentials.save(this.cookie, this.accountId)
+      return true
     } catch {
-      /* persistence is best-effort; the session still works in-memory this run */
+      return false
     }
+  }
+
+  /** A successful login must survive restart; discard an unpersisted session. */
+  private persistenceFailure(): LoginResult {
+    this.clearSessionState()
+    try {
+      this.credentials.delete()
+    } catch {
+      /* best-effort cleanup after a failed save */
+    }
+    this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
+    return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
   }
 
   private async refreshDisplayName(priority: 'default' | 'interactive' = 'default'): Promise<void> {

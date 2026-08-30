@@ -278,6 +278,9 @@ export interface Credentials {
 
 export type TwoFactorMethod = 'email' | 'totp'
 
+/** Login failed because the authenticated session could not be saved securely. */
+export const CREDENTIAL_PERSISTENCE_FAILED = 'credential_persistence_failed'
+
 /** Result of a login attempt — drives the 2FA flow. */
 export type LoginResult =
   | { ok: true }
