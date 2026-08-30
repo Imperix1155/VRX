@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
+import { mapLoginError } from '../utils/loginError'
 import SegmentedControl from './SegmentedControl'
 import CredentialsForm from './auth/CredentialsForm'
 import TwoFactorForm from './auth/TwoFactorForm'
@@ -68,7 +69,7 @@ function PlatformLoginForm({
   const { t } = useTranslation()
   const config = ACCOUNT_CARD_CONFIG[platform]
   const flow = useAuthFlow(platform, {
-    genericErrorKey: 'login.error.unknown',
+    errorKeyForCode: mapLoginError,
     // The needs-2fa reprompt seed is VRChat-only (CVR has no 2FA — a stray
     // needs2fa there falls back to the generic error inside the hook).
     initialTwoFactor: platform === 'vrchat' ? initialTwoFactor : null

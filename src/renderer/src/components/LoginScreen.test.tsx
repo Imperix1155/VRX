@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import i18n from '../i18n'
 import LoginScreen from './LoginScreen'
 
@@ -98,6 +99,25 @@ describe('LoginScreen (W6)', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(msg('login.error.unknown'))
+  })
+
+  it('surfaces a credential persistence failure without invalidating auth', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED
+      }),
+      verify2fa: vi.fn()
+    })
+    const { queryClient } = renderLogin()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    fillCredentials()
+    submit()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.credentialPersistence'))
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   it('switches to the 2FA prompt AND drops the password from state', async () => {

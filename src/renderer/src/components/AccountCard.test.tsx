@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 
@@ -114,6 +115,34 @@ describe.each([
     // cleared immediately after the login IPC, before refreshPlatformState().
     expect(password.value).toBe('')
     releaseInvalidations()
+  })
+
+  it('surfaces a credential persistence failure without invalidating auth or friends', async () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.login.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED
+    })
+    const queryClient = renderCard(platform, bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.username')), {
+      target: { value: 'user@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.password')), {
+      target: { value: 'secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('settings.accounts.error.credentialPersistence'))
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   it('shows a neutral connected check, connected name, and a working Disconnect', async () => {

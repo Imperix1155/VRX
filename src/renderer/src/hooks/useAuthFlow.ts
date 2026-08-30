@@ -17,12 +17,12 @@ import { authStatusQueryKey } from '../queries/auth'
  *   any platform but VRChat falls back to the generic error, never an
  *   unusable prompt. When CVR grows a second factor (the seam is documented
  *   in CvrAdapter.login), THIS is the single place to extend.
- * - Every failure surfaces ONE generic, surface-provided key (VRX-36) — no
- *   per-cause login errors, no silent no-ops when the bridge is absent or throws.
+ * - Known adapter result codes map through the surface-provided function; bridge
+ *   failures stay generic and neither case silently re-enables the form.
  */
 export interface UseAuthFlowOptions {
-  /** The surface's generic error key (VRX-36: one uniform message per surface). */
-  genericErrorKey: string
+  /** Maps a typed adapter result code (or bridge failure with no code) to this surface's copy. */
+  errorKeyForCode: (code?: string) => string
   /**
    * Seed for the VRChat needs-2fa reprompt (VRX-173: auth cookie alive, second
    * factor expired) — read ONCE at mount so the screen opens on the code prompt.
@@ -63,7 +63,7 @@ export interface AuthFlow {
 export function useAuthFlow(
   platform: Platform,
   {
-    genericErrorKey,
+    errorKeyForCode,
     initialTwoFactor = null,
     externalTwoFactor = null,
     dropPasswordAfterSubmit = false,
@@ -91,7 +91,7 @@ export function useAuthFlow(
     setErrorKey(null)
 
     if (!window.vrx) {
-      setErrorKey(genericErrorKey)
+      setErrorKey(errorKeyForCode())
       return
     }
 
@@ -124,14 +124,14 @@ export function useAuthFlow(
         setPassword('') // drop the secret — the 2FA leg authenticates via the cookie
         setTwoFactorCode('')
       } else {
-        // Plain failure — or a needs2fa that arrived for a platform with no
-        // 2FA (CVR today): fall back to the generic error, never a dead prompt.
-        setErrorKey(genericErrorKey)
+        // Plain adapter failures preserve their typed code for the surface
+        // mapper. A needs2fa result on CVR has no failure code and stays generic.
+        setErrorKey(errorKeyForCode('error' in result ? result.error : undefined))
       }
     } catch {
       // Bridge/IPC failure (e.g. the main handler threw) — surface it instead of
       // silently re-enabling the button with no feedback.
-      setErrorKey(genericErrorKey)
+      setErrorKey(errorKeyForCode())
     } finally {
       if (dropPasswordAfterSubmit) setPassword('')
       setIsSubmitting(false)
