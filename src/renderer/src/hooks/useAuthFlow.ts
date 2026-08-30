@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Platform, TwoFactorMethod } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED, type Platform, type TwoFactorMethod } from '@shared/types'
 import { authStatusQueryKey } from '../queries/auth'
 
 /**
@@ -126,7 +126,15 @@ export function useAuthFlow(
       } else {
         // Plain adapter failures preserve their typed code for the surface
         // mapper. A needs2fa result on CVR has no failure code and stays generic.
-        setErrorKey(errorKeyForCode('error' in result ? result.error : undefined))
+        const errorCode = 'error' in result ? result.error : undefined
+        if (errorCode === CREDENTIAL_PERSISTENCE_FAILED) {
+          // Completed 2FA cannot be retried with only another code: the adapter
+          // discarded the unpersisted session. Return to credentials even when
+          // AccountCard's auth query still reports the old needs-2fa state.
+          setTwoFactorOverride('credentials')
+          setTwoFactorCode('')
+        }
+        setErrorKey(errorKeyForCode(errorCode))
       }
     } catch {
       // Bridge/IPC failure (e.g. the main handler threw) — surface it instead of

@@ -421,6 +421,61 @@ describe('VrcAdapter', () => {
       expect(binding.getOwner()).toBe('ACCOUNT002')
     })
 
+    it('rejects an account-changing login that does not issue a replacement auth cookie', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (href.endsWith('/auth')) {
+          return Promise.resolve(jsonResponse({ token: 'account-a-pipeline' }))
+        }
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
+        }
+        if (headers.Cookie === 'auth=account-a') {
+          return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=account-a')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      createPipeline.mockClear()
+
+      const result = await adapter.login({ username: 'account-b', password: 'pw-b' })
+      const oldSocketClosed = sockets[0]!.closed
+      const replacementCount = createPipeline.mock.calls.length
+      unsubscribe()
+
+      expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
+      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001'])
+      expect(binding.getOwner()).toBe('ACCOUNT001')
+      expect(identities.at(-1)).toBe('ACCOUNT001')
+      expect(replacementCount).toBe(0)
+      expect(sockets).toHaveLength(1)
+      expect(oldSocketClosed).toBe(false)
+    })
+
     it('rolls back direct login when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
@@ -1588,6 +1643,59 @@ describe('VrcAdapter', () => {
       expect(store.deleted).toBe(1)
     })
 
+    it('lets an interactive login finish after automatic invalidation clears the restored session', async () => {
+      let releaseStatus!: (response: Response) => void
+      let releaseLogin!: (response: Response) => void
+      let statusStarted = false
+      let loginStarted = false
+      const heldStatus = new Promise<Response>((resolve) => {
+        releaseStatus = resolve
+      })
+      const heldLogin = new Promise<Response>((resolve) => {
+        releaseLogin = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            loginStarted = true
+            return heldLogin
+          }
+          if (headers.Cookie === 'auth=account-a') {
+            statusStarted = true
+            return heldStatus
+          }
+          return Promise.reject(new Error('Unexpected auth request'))
+        })
+      )
+      const binding = ownerBindingHarness<string>('auth=account-a')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const status = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusStarted).toBe(true))
+      const login = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await vi.waitFor(() => expect(loginStarted).toBe(true))
+
+      releaseStatus(jsonResponse({ error: 'expired account A' }, { status: 401 }))
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+      releaseLogin(
+        jsonResponse(
+          { id: 'ACCOUNT002', displayName: 'Account B' },
+          { setCookies: ['auth=account-b'] }
+        )
+      )
+
+      await expect(login).resolves.toEqual({ ok: true })
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
     it('reports unauthenticated WITHOUT a network call when there is no cookie', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -1623,7 +1731,11 @@ describe('VrcAdapter', () => {
         expect((await adapter.getAuthStatus()).state).toBe('error')
       }
 
-      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      const loginFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ id: 'usr', displayName: 'Neo' }, { setCookies: ['auth=fresh'] })
+        )
       vi.stubGlobal('fetch', loginFetch)
 
       expect(await adapter.login(creds)).toEqual({ ok: true })
@@ -1640,7 +1752,11 @@ describe('VrcAdapter', () => {
         await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
       }
 
-      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      const loginFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ id: 'usr', displayName: 'Neo' }, { setCookies: ['auth=fresh'] })
+        )
       vi.stubGlobal('fetch', loginFetch)
       expect(await adapter.login(creds)).toEqual({ ok: true })
       expect(loginFetch).toHaveBeenCalled()

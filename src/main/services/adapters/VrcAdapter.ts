@@ -272,9 +272,14 @@ export class VrcAdapter extends VrcApiClient {
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
 
-    // A response without a replacement cookie still completed a deliberate
-    // login, so preserve the established successful-login boundary behavior.
+    // A Basic-login response without a replacement cookie may reuse the
+    // current session only when that cookie was already proven to belong to
+    // the same account. Otherwise accepting the body would bind the old
+    // account's cookie to the new account id and persist a false owner.
     if (!authCookie) {
+      if (!this.cookie || this.accountId !== parsed.data.id) {
+        return { ok: false, needs2fa: false, error: 'unexpected_response' }
+      }
       this.authPersistencePending = true
       this.live?.onIdentity?.(null)
       this.bumpSessionGeneration(false)
@@ -1013,7 +1018,11 @@ export class VrcAdapter extends VrcApiClient {
   /** Automatic auth invalidation must clear memory even when safeStorage is
    * unavailable; persisted deletion remains best-effort on this non-interactive path. */
   private invalidateSession(): void {
-    this.clearSessionState()
+    // The invalidated cookie belongs to an automatic/background operation.
+    // Do not cancel a newer interactive login that has not installed its
+    // replacement cookie yet; explicit clearSession remains the cancellation
+    // boundary for active and queued auth operations.
+    this.clearSessionState(true, false)
     try {
       this.credentials.delete()
     } catch {

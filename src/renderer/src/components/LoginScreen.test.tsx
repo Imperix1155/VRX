@@ -198,6 +198,37 @@ describe('LoginScreen (W6)', () => {
     expect(screen.getByLabelText(msg('login.twoFactor.code'))).toBeTruthy()
   })
 
+  it('returns completed 2FA persistence failures to credentials with the code cleared', async () => {
+    const login = vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
+    setBridge({
+      login,
+      verify2fa: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED
+      })
+    })
+    const { queryClient } = renderLogin('totp')
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(screen.getByLabelText(msg('login.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    expect(await screen.findByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fillCredentials()
+    submit()
+    const freshCode = await screen.findByLabelText<HTMLInputElement>(msg('login.twoFactor.code'))
+    expect(freshCode.value).toBe('')
+  })
+
   it('surfaces a bridge/IPC failure instead of silently re-enabling', async () => {
     setBridge({
       login: vi.fn().mockRejectedValue(new Error('ipc handler threw')),

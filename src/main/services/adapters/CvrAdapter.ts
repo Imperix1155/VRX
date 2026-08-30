@@ -84,6 +84,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private validationInFlight: Promise<AuthStatus> | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
+  /** Last-started-wins fence for direct-login responses and body parsing. */
+  private loginOperationGeneration = 0
   // True once the current session has been proven this launch — by a fresh
   // login (AuthType 2 just succeeded) or ONE successful restore validation.
   // Gates the reauth in getAuthStatus so we never re-login on every status
@@ -150,6 +152,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async login(creds: Credentials): Promise<LoginResult> {
+    const operationGeneration = ++this.loginOperationGeneration
     // ── CVR-2FA SEAM (owner directive 2026-07-28, VRX-229 review) ──────────
     // ChilloutVR has NO second factor as of 2026-07 (verified: the auth
     // response carries no 2FA field; docs/api-volatility.md row). If CVR ever
@@ -194,6 +197,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
     } catch (error) {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       // Diagnostic (no secrets): distinguishes an open circuit from a real
       // network/DNS/TLS failure if this ever recurs.
       this.live?.log?.('warn', 'cvr login: request failed', {
@@ -202,6 +206,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       })
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
     if (response.status === 401 || response.status === 403) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
@@ -212,8 +217,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       body = await response.json()
     } catch {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
     const parsed = cvrCurrentUserSchema.safeParse(body)
     if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
     if (!isValidCvrSession(parsed.data.data.username, parsed.data.data.accessKey)) {
@@ -222,6 +229,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     // The accessKey — not the password — is the session from here on. The
     // password is never stored, logged, or persisted (VRX-37 AC).
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
     this.adoptSession(
       {
         username: parsed.data.data.username,
@@ -233,6 +241,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     // A fresh login just proved the credentials — trust the session without
     // re-authing on every subsequent status check (VRX-190).
     this.validated = true
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
     if (!this.persist()) return this.persistenceFailure()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
@@ -732,9 +741,17 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
+  private isLoginOperationCurrent(operationGeneration: number): boolean {
+    return operationGeneration === this.loginOperationGeneration
+  }
+
+  private supersededLoginResult(): LoginResult {
+    return { ok: false, needs2fa: false, error: 'unexpected_response' }
+  }
+
   /** A successful login must survive restart; discard an unpersisted session. */
   private persistenceFailure(): LoginResult {
-    this.clearSessionState(false)
+    this.clearSessionState(false, false)
     try {
       this.store.delete()
     } catch {
@@ -750,7 +767,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
 
-  private clearSessionState(restartPipeline = true): void {
+  private clearSessionState(restartPipeline = true, cancelLoginOperations = true): void {
+    if (cancelLoginOperations) this.loginOperationGeneration += 1
     this.session = null
     this.setCredentials(null)
     this.displayName = null
@@ -763,7 +781,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   /** Automatic 401 invalidation is best-effort on disk: the dead session must
    * still be removed from memory and announced when safeStorage is unavailable. */
   private invalidateSession(emit: boolean): void {
-    this.clearSessionState()
+    // Automatic invalidation clears only the old session. A newer interactive
+    // login may still be awaiting its response and must remain eligible to
+    // install the replacement. Explicit clearSession cancels it.
+    this.clearSessionState(true, false)
     try {
       this.store.delete()
     } catch {

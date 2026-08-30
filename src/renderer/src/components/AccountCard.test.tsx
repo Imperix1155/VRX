@@ -294,6 +294,48 @@ describe.each([
 })
 
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('overrides an external 2FA status after persistence failure and clears the code', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.verify2fa.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED
+    })
+    bridge.login.mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
+    const queryClient = renderCard('vrchat', bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('settings.accounts.twoFactor.code'))).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('settings.accounts.error.credentialPersistence')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.username')), {
+      target: { value: 'neo' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.password')), {
+      target: { value: 'redpill' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
+    const freshCode = await screen.findByLabelText<HTMLInputElement>(
+      msg('settings.accounts.twoFactor.code')
+    )
+    expect(freshCode.value).toBe('')
+  })
+
   it('uses the existing verify-2fa second leg without resending the password', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',

@@ -251,6 +251,93 @@ describe('CvrAdapter', () => {
       expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000002')
     })
 
+    it('keeps the last-started direct login when an older response lands later', async () => {
+      let releaseAccountA!: (response: Response) => void
+      let accountAStarted = false
+      const heldAccountA = new Promise<Response>((resolve) => {
+        releaseAccountA = resolve
+      })
+      let loginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          loginCalls += 1
+          if (loginCalls === 1) {
+            accountAStarted = true
+            return heldAccountA
+          }
+          return Promise.resolve(
+            jsonResponse(
+              envelope(
+                authPayload({
+                  username: 'morpheus',
+                  accessKey: 'key-b',
+                  userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+                })
+              )
+            )
+          )
+        })
+      )
+      const binding = ownerBindingHarness<CVRCredentials>()
+      const identities: Array<string | null> = []
+      const adapter = new CvrAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const accountALogin = adapter.login({ username: 'trinity@example.com', password: 'pw-a' })
+      await vi.waitFor(() => expect(accountAStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'morpheus@example.com', password: 'pw-b' })
+      await expect(accountBLogin).resolves.toEqual({ ok: true })
+      releaseAccountA(jsonResponse(envelope(authPayload())))
+
+      await expect(accountALogin).resolves.toMatchObject({ ok: false, needs2fa: false })
+      expect(binding.getCredential()).toEqual({ username: 'morpheus', accessKey: 'key-b' })
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+      expect(binding.getAttemptedAccountIds()).toEqual(['a1b2c3d4-0000-0000-0000-000000000002'])
+      expect(identities.at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
+    })
+
+    it('does not let a held direct login resurrect the session after explicit logout', async () => {
+      let releaseLogin!: (response: Response) => void
+      let loginStarted = false
+      const heldLogin = new Promise<Response>((resolve) => {
+        releaseLogin = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => {
+          loginStarted = true
+          return heldLogin
+        })
+      )
+      const store = fakeStore()
+      const identities: Array<string | null> = []
+      let socketCalls = 0
+      const adapter = new CvrAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        socketFactory: () => {
+          socketCalls += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsubscribe = adapter.subscribe(() => {})
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(loginStarted).toBe(true))
+      adapter.clearSession()
+      releaseLogin(jsonResponse(envelope(authPayload())))
+
+      await expect(login).resolves.toMatchObject({ ok: false, needs2fa: false })
+      await new Promise((resolve) => setImmediate(resolve))
+      const socketCount = socketCalls
+      unsubscribe()
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+      expect(identities).not.toContain('a1b2c3d4-0000-0000-0000-000000000001')
+      expect(socketCount).toBe(0)
+    })
+
     it('rolls back direct login when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
@@ -2555,5 +2642,59 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
     expect((await validating).state).toBe('authenticated')
     expect(store.deleted).toBe(0) // B survived
     expect(store.saved.at(-1)).toEqual({ username: 'B', accessKey: 'kb' })
+  })
+
+  it('lets a held direct login finish after automatic invalidation clears the restored session', async () => {
+    const store = fakeStore({ username: 'A', accessKey: 'ka' })
+    const identities: Array<string | null> = []
+    const adapter = new CvrAdapter(store, noopSleep, {
+      onIdentity: (accountId) => identities.push(accountId)
+    })
+    let releaseValidation!: (response: Response) => void
+    let releaseLogin!: (response: Response) => void
+    let validationStarted = false
+    let loginStarted = false
+    const heldValidation = new Promise<Response>((resolve) => {
+      releaseValidation = resolve
+    })
+    const heldLogin = new Promise<Response>((resolve) => {
+      releaseLogin = resolve
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, options: RequestInit) => {
+        const body = JSON.parse(options.body as string) as { AuthType: number }
+        if (body.AuthType === 1) {
+          validationStarted = true
+          return heldValidation
+        }
+        loginStarted = true
+        return heldLogin
+      })
+    )
+
+    const status = adapter.getAuthStatus()
+    await vi.waitFor(() => expect(validationStarted).toBe(true))
+    const login = adapter.login({ username: 'B@x', password: 'pw' })
+    await vi.waitFor(() => expect(loginStarted).toBe(true))
+
+    releaseValidation(jsonResponse({ message: 'denied' }, { status: 401 }))
+    await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+    releaseLogin(
+      jsonResponse(
+        envelope(
+          authPayload({
+            username: 'B',
+            accessKey: 'kb',
+            userId: 'a1b2c3d4-0000-0000-0000-000000000002'
+          })
+        )
+      )
+    )
+
+    await expect(login).resolves.toEqual({ ok: true })
+    expect(store.deleted).toBe(1)
+    expect(store.saved.at(-1)).toEqual({ username: 'B', accessKey: 'kb' })
+    expect(identities.at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
   })
 })

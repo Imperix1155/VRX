@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   saved the encrypted session. This fixes Linux sessions that worked until quit
   when the OS credential store was unavailable. If secure storage fails, VRX
   clears the new session and explains how to unlock or configure the OS
-  credential store before retrying. (VRX-34)
+  credential store before retrying. A completed VRChat 2FA attempt that cannot
+  be saved now clears its one-time code and returns to full sign-in. Concurrent
+  session checks and sign-ins can no longer replace, cancel, or misidentify the
+  newer account. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 
