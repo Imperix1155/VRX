@@ -99,7 +99,25 @@ describe('Linux credential persistence probe contract', () => {
       'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1'
     )
     expect(credentialProbeStep).toContain('return "$cleanup_status"')
-    expect(credentialProbeStep).toContain('ASSERT_ELECTRON_APPARMOR_SETUP')
+    for (const label of [
+      'ASSERT_ELECTRON_BINARY_RESOLVE',
+      'ASSERT_ELECTRON_BINARY_VALIDATE',
+      'ASSERT_ELECTRON_APPARMOR_PROFILE_EXISTS',
+      'ASSERT_ELECTRON_APPARMOR_PROFILE_WRITE',
+      'ASSERT_ELECTRON_APPARMOR_PROFILE_LOAD'
+    ]) {
+      expect(credentialProbeStep.match(new RegExp(label, 'g'))).toHaveLength(1)
+    }
+    for (const setupGuard of [
+      /if ! electron_binary=\$\(realpath -- "\$expected_electron_binary" 2>\/dev\/null\); then\n\s+printf '%s\\n' ASSERT_ELECTRON_BINARY_RESOLVE >&2\n\s+exit 1\n\s+fi/,
+      /if \[ "\$electron_binary" != "\$expected_electron_binary" \] \|\| \\\n\s+\[ ! -f "\$electron_binary" \] \|\| \[ -L "\$electron_binary" \] \|\| \\\n\s+\[ ! -x "\$electron_binary" \]; then\n\s+printf '%s\\n' ASSERT_ELECTRON_BINARY_VALIDATE >&2\n\s+exit 1\n\s+fi/,
+      /if sudo test -e "\$profile_path" >\/dev\/null 2>&1; then\n\s+printf '%s\\n' ASSERT_ELECTRON_APPARMOR_PROFILE_EXISTS >&2\n\s+exit 1\n\s+fi/,
+      /sudo tee "\$profile_path" >\/dev\/null 2>&1; then\n\s+printf '%s\\n' ASSERT_ELECTRON_APPARMOR_PROFILE_WRITE >&2\n\s+exit 1\n\s+fi/,
+      /if ! sudo apparmor_parser -r "\$profile_path" >\/dev\/null 2>&1; then\n\s+printf '%s\\n' ASSERT_ELECTRON_APPARMOR_PROFILE_LOAD >&2\n\s+exit 1\n\s+fi/
+    ]) {
+      expect(credentialProbeStep).toMatch(setupGuard)
+    }
+    expect(credentialProbeStep).not.toContain('ASSERT_ELECTRON_APPARMOR_SETUP')
     expect(credentialProbeStep).toContain('ASSERT_LINUX_CREDENTIAL_PROBE_CLEANUP')
     expect(credentialProbeStep).not.toContain('ASSERT_ELECTRON_APPARMOR_CLEANUP')
     expect(credentialProbeStep).toMatch(
