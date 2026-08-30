@@ -1,5 +1,5 @@
 import { app, safeStorage } from 'electron'
-import { basename, isAbsolute, join, parse, resolve } from 'node:path'
+import { basename, join, parse, resolve } from 'node:path'
 import {
   lstatSync,
   readFileSync,
@@ -8,46 +8,17 @@ import {
   writeFileSync,
   writeSync
 } from 'node:fs'
+import {
+  ProbeAssertionError,
+  assertProbe,
+  parseProbeArguments,
+  type ProbeMode
+} from './credential-persistence-probe-arguments'
 
 const FIXTURE = 'vrx-ci-fixture-not-a-token'
 const USER_DATA_BASENAME_PREFIX = 'vrx-credential-probe.'
 const MARKER_NAME = '.vrx-credential-persistence-probe'
 const MARKER_CONTENT = 'vrx-credential-persistence-probe-v1\n'
-
-type ProbeMode = 'write' | 'read'
-type AssertionLabel =
-  | 'ASSERT_ARGUMENTS'
-  | 'ASSERT_LINUX_PLATFORM'
-  | 'ASSERT_USER_DATA_ROOT'
-  | 'ASSERT_PROBE_MARKER'
-  | 'ASSERT_ENCRYPTION_AVAILABLE'
-  | 'ASSERT_SECURE_BACKEND'
-  | 'ASSERT_CREDENTIAL_SAVE'
-  | 'ASSERT_PLAINTEXT_ABSENT'
-  | 'ASSERT_CREDENTIAL_READ'
-  | 'ASSERT_CREDENTIAL_CLEAR'
-  | 'ASSERT_PROBE_EXECUTION'
-
-class ProbeAssertionError extends Error {
-  constructor(readonly label: AssertionLabel) {
-    super(label)
-  }
-}
-
-function assertProbe(condition: boolean, label: AssertionLabel): asserts condition {
-  if (!condition) throw new ProbeAssertionError(label)
-}
-
-function parseArguments(): { mode: ProbeMode; userDataRoot: string } {
-  const args = process.argv.slice(2)
-  assertProbe(args.length === 2, 'ASSERT_ARGUMENTS')
-
-  const [mode, userDataRoot] = args
-  assertProbe(mode === 'write' || mode === 'read', 'ASSERT_ARGUMENTS')
-  assertProbe(typeof userDataRoot === 'string' && isAbsolute(userDataRoot), 'ASSERT_USER_DATA_ROOT')
-
-  return { mode, userDataRoot }
-}
 
 function requireOrdinaryProbeRoot(userDataRoot: string): string {
   try {
@@ -108,7 +79,7 @@ function containsFixture(root: string): boolean {
 }
 
 async function run(): Promise<void> {
-  const { mode, userDataRoot: suppliedRoot } = parseArguments()
+  const { mode, userDataRoot: suppliedRoot } = parseProbeArguments(process.argv)
   const userDataRoot = prepareProbeRoot(mode, suppliedRoot)
   assertProbe(process.platform === 'linux', 'ASSERT_LINUX_PLATFORM')
 

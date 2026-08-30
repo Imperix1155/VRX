@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ProbeAssertionError, parseProbeArguments } from './credential-persistence-probe-arguments'
 
 const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
   scripts: Record<string, string>
@@ -12,7 +13,52 @@ const builderFilesBlock = builderConfig.match(/^files:\r?\n((?: {2}- .*\r?\n)+)/
 if (!builderFilesBlock) throw new Error('missing electron-builder files block')
 const builderFileEntries = builderFilesBlock.split(/\r?\n/).map((line) => line.trim())
 
+function expectArgumentError(argv: string[], label: string): void {
+  try {
+    parseProbeArguments(argv)
+    throw new Error('expected probe argument parsing to fail')
+  } catch (error) {
+    expect(error).toBeInstanceOf(ProbeAssertionError)
+    expect(error).toMatchObject({ label })
+  }
+}
+
 describe('Linux credential persistence probe contract', () => {
+  it('reads the fixed app arguments after Electron and Chromium prefixes', () => {
+    const userDataRoot = resolve('vrx-credential-probe.example')
+
+    expect(
+      parseProbeArguments([
+        '/electron',
+        '--password-store=gnome-libsecret',
+        'out/credential-probe/index.js',
+        'write',
+        userDataRoot
+      ])
+    ).toEqual({ mode: 'write', userDataRoot })
+    expect(
+      parseProbeArguments(['/electron', 'out/credential-probe/index.js', 'read', userDataRoot])
+    ).toEqual({ mode: 'read', userDataRoot })
+  })
+
+  it('rejects malformed trailing app arguments', () => {
+    const userDataRoot = resolve('vrx-credential-probe.example')
+
+    expectArgumentError(['/electron', 'out/credential-probe/index.js', 'write'], 'ASSERT_ARGUMENTS')
+    expectArgumentError(
+      ['/electron', 'out/credential-probe/index.js', 'erase', userDataRoot],
+      'ASSERT_ARGUMENTS'
+    )
+    expectArgumentError(
+      ['/electron', 'out/credential-probe/index.js', 'write', 'relative-root'],
+      'ASSERT_USER_DATA_ROOT'
+    )
+    expectArgumentError(
+      ['/electron', 'out/credential-probe/index.js', 'write', userDataRoot, 'unexpected'],
+      'ASSERT_ARGUMENTS'
+    )
+  })
+
   it('selects GNOME libsecret for both Electron processes', () => {
     const command = packageJson.scripts['test:credential-persistence-linux']
     const backendFlag = '--password-store=gnome-libsecret'
@@ -289,6 +335,7 @@ describe('Linux credential persistence probe contract', () => {
       expect.arrayContaining([
         "- '!out/credential-probe/**'",
         "- '!electron-vite.credential-probe.config.ts'",
+        "- '!scripts/credential-persistence-probe-arguments.ts'",
         "- '!scripts/credential-persistence-probe.ts'",
         "- '!scripts/credential-persistence-probe-contract.test.ts'"
       ])

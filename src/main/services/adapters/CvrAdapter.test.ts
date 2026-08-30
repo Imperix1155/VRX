@@ -3,7 +3,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
-import { CVRAuthError } from './errors'
+import { AuthSessionPendingError, CVRAuthError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
@@ -51,10 +51,11 @@ function envelope(data: Record<string, unknown>): { message: string; data: unkno
 
 const creds = { username: 'trinity@example.com', password: 'whiterabbit' }
 
-/** Pipeline-focused tests below bypass the auth leg deliberately; mark their
- *  synthetic restored sessions as already proven for the behavior under test. */
-function markSessionValidatedForPipelineTest(adapter: CvrAdapter): void {
+/** Tests outside restore validation bypass the auth leg deliberately; mark
+ *  their synthetic sessions as owner-bound and durable for the behavior under test. */
+function markSessionEstablishedForTest(adapter: CvrAdapter): CvrAdapter {
   Object.assign(adapter as unknown as { validated: boolean }, { validated: true })
+  return adapter
 }
 
 describe('CvrAdapter', () => {
@@ -596,6 +597,32 @@ describe('CvrAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('quarantines a restored session from the friends REST consumer', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        noopSleep
+      )
+
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthSessionPendingError)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('quarantines a restored session from the instance REST consumer', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new CvrAdapter(
+        fakeStore({ username: 'trinity', accessKey: 'key-1' }),
+        noopSleep
+      )
+
+      await expect(adapter.getInstanceDetails('i_pending')).rejects.toBeInstanceOf(
+        AuthSessionPendingError
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('backfills the owner for the restored credential after validation', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       const restored = { username: 'trinity', accessKey: 'key-1' }
@@ -842,7 +869,9 @@ describe('CvrAdapter', () => {
 
   describe('getFriends (VRX-57 delegation, VRX-58 stitch)', () => {
     const sessioned = (): CvrAdapter =>
-      new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(
+        new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      )
 
     it('returns the normalized static roster, presence offline until the pipeline updates', async () => {
       const roster = [
@@ -950,6 +979,7 @@ describe('CvrAdapter', () => {
         fakeStore({ username: 'account-a', accessKey: 'key-a' }),
         noopSleep
       )
+      markSessionEstablishedForTest(adapter)
 
       const staleRoster = adapter.getFriends()
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -1001,6 +1031,7 @@ describe('CvrAdapter', () => {
       vi.stubGlobal('fetch', fetchMock)
       const store = fakeStore({ username: 'account-a', accessKey: 'key-a' })
       const adapter = new CvrAdapter(store, noopSleep)
+      markSessionEstablishedForTest(adapter)
 
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
@@ -1031,6 +1062,7 @@ describe('CvrAdapter', () => {
         noopSleep,
         { socketFactory: () => ({ on: () => {}, close: () => {} }) }
       )
+      markSessionEstablishedForTest(adapter)
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
       const unsubscribe = adapter.subscribe((event) => events.push(event))
@@ -1131,6 +1163,7 @@ describe('CvrAdapter', () => {
     it('a 401 on getFriends clears the session — dead-key detection on the data path (VRX-190)', async () => {
       const store = fakeStore({ username: 'u', accessKey: 'k' })
       const adapter = new CvrAdapter(store, noopSleep)
+      markSessionEstablishedForTest(adapter)
       // getAuthStatus trusts the restored session; the DATA path is where a dead
       // key surfaces. A 401 on /friends must clear the session everywhere.
       vi.stubGlobal(
@@ -1145,6 +1178,7 @@ describe('CvrAdapter', () => {
     it('a TRANSIENT getFriends error (5xx) does NOT clear the session — only a 401 does (VRX-190)', async () => {
       const store = fakeStore({ username: 'u', accessKey: 'k' })
       const adapter = new CvrAdapter(store, noopSleep)
+      markSessionEstablishedForTest(adapter)
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue(jsonResponse({ message: 'oops' }, { status: 500 }))
@@ -1158,6 +1192,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablishedForTest(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -1172,6 +1207,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablishedForTest(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -1255,6 +1291,7 @@ describe('CvrAdapter', () => {
         .mockResolvedValueOnce(jsonResponse({ message: 'ok', data: [] }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       const drive = adapter as unknown as {
         handlePipelineEvent: (event: AdapterEvent) => void
       }
@@ -1391,6 +1428,7 @@ describe('CvrAdapter', () => {
       snapshot: Extract<AdapterEvent, { type: 'presence-snapshot' }>
     }> {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       const { snapshots, drive } = directPresenceHarness(adapter)
       const snapshot = groupWireSnapshot()
       drive.handlePipelineEvent(snapshot)
@@ -1433,6 +1471,7 @@ describe('CvrAdapter', () => {
         fakeStore({ username: 'u', accessKey: 'k' }),
         (ms) => new Promise((resolve) => setTimeout(resolve, ms))
       )
+      markSessionEstablishedForTest(adapter)
       const drive = adapter as unknown as {
         handlePipelineEvent: (event: AdapterEvent) => void
       }
@@ -1508,6 +1547,7 @@ describe('CvrAdapter', () => {
         fakeStore({ username: 'u', accessKey: 'k' }),
         (ms) => new Promise((resolve) => setTimeout(resolve, ms))
       )
+      markSessionEstablishedForTest(adapter)
       const drive = adapter as unknown as {
         handlePipelineEvent: (event: AdapterEvent) => void
       }
@@ -1564,7 +1604,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1621,7 +1661,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1805,6 +1845,7 @@ describe('CvrAdapter', () => {
         })
       )
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       const { snapshots, drive } = directPresenceHarness(adapter)
       const snapshot = groupWireSnapshot()
 
@@ -1882,7 +1923,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const snapshots: Array<Extract<AdapterEvent, { type: 'presence-snapshot' }>> = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -1943,7 +1984,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const snapshots: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -2079,7 +2120,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const snapshots: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => {
         if (e.type === 'presence-snapshot') snapshots.push(e)
@@ -2261,7 +2302,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep, {
         socketFactory: () => rig.socket
       })
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const events: AdapterEvent[] = []
       const unsub = adapter.subscribe((e) => events.push(e))
       await new Promise((r) => setImmediate(r))
@@ -2330,7 +2371,7 @@ describe('CvrAdapter', () => {
           onSessionBoundary: () => friendAlerts.resetPlatform('chilloutvr')
         }
       )
-      markSessionValidatedForPipelineTest(adapter)
+      markSessionEstablishedForTest(adapter)
       const unsub = adapter.subscribe((event) => {
         events.push(event)
         friendAlerts.consume(event)
@@ -2401,6 +2442,7 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse(envelope(instanceDetail))))
       )
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       const info = await adapter.getInstanceDetails('i_abc')
       expect(info).toEqual({
         worldId: 'wrld-real',
@@ -2422,6 +2464,7 @@ describe('CvrAdapter', () => {
     it('getInstanceDetails populates group fields from a resolved group object (VRX-263)', async () => {
       stubGroupInstanceSuccess()
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       const info = await adapter.getInstanceDetails('i_group')
       expect(info).toMatchObject({
         type: 'friends-of-members',
@@ -2440,6 +2483,7 @@ describe('CvrAdapter', () => {
         )
       )
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
 
       await expect(adapter.getInstanceDetails('i_future')).resolves.toMatchObject({
         type: 'owner-must-invite',
@@ -2479,6 +2523,7 @@ describe('CvrAdapter', () => {
         fakeStore({ username: 'account-a', accessKey: 'key-a' }),
         noopSleep
       )
+      markSessionEstablishedForTest(adapter)
 
       const details = adapter.getInstanceDetails('i_abc')
       await vi.waitFor(() => expect(instanceCalls).toBe(1))
@@ -2498,6 +2543,7 @@ describe('CvrAdapter', () => {
         vi.fn(() => Promise.resolve(jsonResponse({ message: 'gone' }, { status: 404 })))
       )
       const adapter = new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), noopSleep)
+      markSessionEstablishedForTest(adapter)
       await expect(adapter.getInstanceDetails('i_gone')).rejects.toThrow(
         'private or could not be resolved'
       )
@@ -2512,6 +2558,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(store, noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablishedForTest(adapter)
       const events: AdapterEvent[] = []
       const unsub = adapter.subscribe((event) => events.push(event))
 

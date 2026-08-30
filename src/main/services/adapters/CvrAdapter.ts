@@ -16,7 +16,7 @@ import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
-import { CVRAuthError, CVRNetworkError } from './errors'
+import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
@@ -73,9 +73,10 @@ export interface CvrCredentialStore {
  *
  * `getFriends` returns the static roster (VRX-57) and `subscribe` drives live
  * presence over the shared `CvrPipeline` (VRX-58). Restored credentials remain
- * unavailable to that pipeline until one-shot ACCESS_KEY validation succeeds;
- * validation restarts the waiting loop without another auth request. Instances
- * = VRX-59/60. CVR has NO 2FA leg — `verify2fa` rejects per the interface.
+ * unavailable to authenticated REST and that pipeline until one-shot ACCESS_KEY
+ * validation and durable owner binding succeed; validation restarts the waiting
+ * loop without another auth request. Instances = VRX-59/60. CVR has NO 2FA leg
+ * — `verify2fa` rejects per the interface.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
@@ -235,11 +236,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       false
     )
     this.accountId = parsed.data.data.userId
-    // A fresh login just proved the credentials — trust the session without
-    // re-authing on every subsequent status check (VRX-190).
-    this.validated = true
     if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
     if (!this.persist()) return this.persistenceFailure()
+    // A fresh login is consumer-ready only after its owner-bound credential is
+    // durable; subsequent status checks may then trust it without re-authing.
+    this.validated = true
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -326,10 +327,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     if (credentialsRotated) {
       this.adoptSession({ username, accessKey }, false)
     }
-    // Restored session proven once — trust it for the rest of this launch.
     this.displayName = username
     this.accountId = parsed.data.data.userId
-    this.validated = true
     // Every validated restore must durably bind the credential to its owner.
     // Otherwise this process would report authenticated even though the next
     // launch cannot safely establish which account owns the stored session.
@@ -337,6 +336,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       this.persistenceFailure()
       return this.status('unauthenticated')
     }
+    // Restored sessions become consumer-ready only after validation and the
+    // owner binding have both committed successfully.
+    this.validated = true
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return this.status('authenticated')
@@ -353,8 +355,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return this.status(this.session ? 'authenticated' : 'unauthenticated')
   }
 
+  /** Authenticated consumers must not use a restored session before validation
+   *  and durable owner binding have both completed. */
+  private assertDurableSession(): void {
+    if (!this.session) throw new CVRAuthError()
+    if (!this.validated) throw new AuthSessionPendingError()
+  }
+
   async getFriends(): Promise<FriendRoster> {
     for (;;) {
+      this.assertDurableSession()
       // Static roster only (VRX-57); live presence arrives via the pipeline below.
       const generation = this.sessionGeneration
       const requestSequence = ++this.friendNamesRequestSequence
@@ -428,6 +438,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    */
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
     for (;;) {
+      this.assertDurableSession()
       const generation = this.sessionGeneration
       const requestSequence = ++this.instanceResolutionRequestSequence
       let resolved: ResolvedCvrInstance | null

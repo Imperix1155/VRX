@@ -7,6 +7,7 @@ files:
   - '!src/*'
   - '!out/credential-probe/**'
   - '!electron-vite.credential-probe.config.ts'
+  - '!scripts/credential-persistence-probe-arguments.ts'
   - '!scripts/credential-persistence-probe.ts'
   - '!scripts/credential-persistence-probe-contract.test.ts'
   - '!electron.vite.config.{js,ts,mjs,cjs}'

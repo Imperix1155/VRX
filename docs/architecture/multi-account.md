@@ -46,9 +46,10 @@ legacy and newly imported ciphertext can still be validated and owner-bound.
 VRChat also invalidates the prior durable slot before exposing a replacement
 account's first-leg 2FA prompt; a failed invalidation fails closed. A freshly
 persisted session retains its established owner binding across ordinary status
-refreshes, while a restored session must complete one validated owner backfill
-before Avatar, authenticated REST, or pipeline consumers can use it. A waiting
-pipeline subscription starts only after that backfill succeeds.
+refreshes, while a restored VRChat or ChilloutVR session must complete one
+validated owner backfill before authenticated REST or pipeline consumers can
+use it; Avatar follows the same gate for VRChat. A waiting pipeline subscription
+starts only after that backfill succeeds.
 
 ## 3. Identifiers (finding 12 — resolved)
 

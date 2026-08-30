@@ -34,7 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not erase an established sign-in.
   Restored VRChat cookies stay quarantined from avatar, authenticated REST, and
   live pipeline consumers until their validated owner backfill is durably
-  saved; waiting live subscriptions start only after that succeeds. Tentative
+  saved; waiting live subscriptions start only after that succeeds. Restored
+  ChilloutVR sessions likewise cannot reach friends, instance details, or the
+  live pipeline until ACCESS_KEY validation and durable owner binding succeed.
+  Tentative
   VRChat cookies also remain unavailable to status, roster,
   self-invite, background metadata, and avatar calls until owner validation and
   encrypted persistence settle. Old roster pages and queued metadata work also
