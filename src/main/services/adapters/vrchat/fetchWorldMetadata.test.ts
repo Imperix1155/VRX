@@ -194,6 +194,41 @@ describe('fetchWorldMetadata', () => {
     expect(peakConcurrent()).toBe(5)
   })
 
+  it('stops before the next resolve when its continuation guard expires', async () => {
+    let releaseFirst!: () => void
+    let markFirstStarted!: () => void
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve
+    })
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const calls: string[] = []
+    const resolver = new WorldResolver(async (worldId) => {
+      calls.push(worldId)
+      if (worldId === 'wrld_first') {
+        markFirstStarted()
+        await firstHeld
+      }
+      return { name: worldId, capacity: 10 }
+    })
+    let canContinue = true
+
+    const batch = fetchWorldMetadata(
+      ['wrld_first', 'wrld_second'],
+      resolver,
+      1,
+      undefined,
+      () => canContinue
+    )
+    await firstStarted
+    canContinue = false
+    releaseFirst()
+
+    await expect(batch).resolves.toHaveProperty('size', 1)
+    expect(calls).toEqual(['wrld_first'])
+  })
+
   it('reports each world as it resolves without waiting for the whole batch', async () => {
     let releaseSlow!: (value: unknown) => void
     const slow = new Promise<unknown>((resolve) => {

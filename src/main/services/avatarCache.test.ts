@@ -377,6 +377,41 @@ describe('AvatarCache', () => {
     expect(dispatches).toEqual([10_000, 11_500, 12_500])
   })
 
+  it('reads the cookie provider after a queued API fetch reaches its dispatch slot', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    let cookie: string | null = 'auth=account-a'
+    let releaseFirst: ((response: Response) => void) | undefined
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(() => {
+      if (fetchFn.mock.calls.length === 1) {
+        return new Promise<Response>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      return Promise.resolve(imageResponse())
+    })
+    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => cookie })
+
+    const first = cache.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
+    const queued = cache.get('https://api.vrchat.cloud/api/1/image/file_b/1/256')
+    await vi.advanceTimersByTimeAsync(0)
+    expect((fetchFn.mock.calls[0]?.[1]?.headers as Record<string, string>)['Cookie']).toBe(
+      'auth=account-a'
+    )
+
+    cookie = null
+    releaseFirst?.(imageResponse())
+    await vi.advanceTimersByTimeAsync(1_000)
+    await expect(Promise.all([first, queued])).resolves.toEqual([
+      expect.stringMatching(/^data:image\/png;base64,/),
+      expect.stringMatching(/^data:image\/png;base64,/)
+    ])
+    expect(
+      (fetchFn.mock.calls[1]?.[1]?.headers as Record<string, string>)['Cookie']
+    ).toBeUndefined()
+  })
+
   it('runs the paced API lane independently from all four CDN slots', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)

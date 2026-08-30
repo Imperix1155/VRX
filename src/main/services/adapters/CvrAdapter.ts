@@ -7,6 +7,7 @@ import type {
   JoinMode,
   LoginResult
 } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { z } from 'zod'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
@@ -15,7 +16,7 @@ import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
 import { parseCvrPrivacy } from './cvr/parseCvrPrivacy'
 import { createCvrInstanceResolver, type ResolvedCvrInstance } from './cvr/resolveCvrInstance'
-import { CVRAuthError, CVRNetworkError } from './errors'
+import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors'
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
@@ -72,9 +73,10 @@ export interface CvrCredentialStore {
  *
  * `getFriends` returns the static roster (VRX-57) and `subscribe` drives live
  * presence over the shared `CvrPipeline` (VRX-58). Restored credentials remain
- * unavailable to that pipeline until one-shot ACCESS_KEY validation succeeds;
- * validation restarts the waiting loop without another auth request. Instances
- * = VRX-59/60. CVR has NO 2FA leg — `verify2fa` rejects per the interface.
+ * unavailable to authenticated REST and that pipeline until one-shot ACCESS_KEY
+ * validation and durable owner binding succeed; validation restarts the waiting
+ * loop without another auth request. Instances = VRX-59/60. CVR has NO 2FA leg
+ * — `verify2fa` rejects per the interface.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private session: CVRCredentials | null = null
@@ -83,6 +85,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private validationInFlight: Promise<AuthStatus> | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
+  /** Last-started-wins fence for direct-login responses and body parsing. */
+  private loginOperationGeneration = 0
   // True once the current session has been proven this launch — by a fresh
   // login (AuthType 2 just succeeded) or ONE successful restore validation.
   // Gates the reauth in getAuthStatus so we never re-login on every status
@@ -149,6 +153,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   async login(creds: Credentials): Promise<LoginResult> {
+    const operationGeneration = ++this.loginOperationGeneration
     // ── CVR-2FA SEAM (owner directive 2026-07-28, VRX-229 review) ──────────
     // ChilloutVR has NO second factor as of 2026-07 (verified: the auth
     // response carries no 2FA field; docs/api-volatility.md row). If CVR ever
@@ -192,15 +197,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     let response: Response
     try {
       response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
-    } catch (error) {
-      // Diagnostic (no secrets): distinguishes an open circuit from a real
-      // network/DNS/TLS failure if this ever recurs.
-      this.live?.log?.('warn', 'cvr login: request failed', {
-        name: error instanceof Error ? error.name : 'unknown',
-        message: error instanceof Error ? error.message : String(error)
-      })
+    } catch {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+      // Keep authentication diagnostics fixed: raw exception fields can carry
+      // request context and must never reach the log.
+      this.live?.log?.('warn', 'cvr login: request failed')
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
 
     if (response.status === 401 || response.status === 403) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
@@ -211,8 +215,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       body = await response.json()
     } catch {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
     const parsed = cvrCurrentUserSchema.safeParse(body)
     if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
     if (!isValidCvrSession(parsed.data.data.username, parsed.data.data.accessKey)) {
@@ -221,15 +227,20 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     // The accessKey — not the password — is the session from here on. The
     // password is never stored, logged, or persisted (VRX-37 AC).
-    this.adoptSession({
-      username: parsed.data.data.username,
-      accessKey: parsed.data.data.accessKey
-    })
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+    this.adoptSession(
+      {
+        username: parsed.data.data.username,
+        accessKey: parsed.data.data.accessKey
+      },
+      false
+    )
     this.accountId = parsed.data.data.userId
-    // A fresh login just proved the credentials — trust the session without
-    // re-authing on every subsequent status check (VRX-190).
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+    if (!this.persist()) return this.persistenceFailure()
+    // A fresh login is consumer-ready only after its owner-bound credential is
+    // durable; subsequent status checks may then trust it without re-authing.
     this.validated = true
-    this.persist()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -312,14 +323,22 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
     // CVR may ROTATE the accessKey on reauth — persist the rotation, or the next
     // restore would present the stale key and silently log the user out.
-    if (accessKey !== validated.accessKey || username !== validated.username) {
-      this.adoptSession({ username, accessKey })
+    const credentialsRotated = accessKey !== validated.accessKey || username !== validated.username
+    if (credentialsRotated) {
+      this.adoptSession({ username, accessKey }, false)
     }
-    // Restored session proven once — trust it for the rest of this launch.
     this.displayName = username
     this.accountId = parsed.data.data.userId
+    // Every validated restore must durably bind the credential to its owner.
+    // Otherwise this process would report authenticated even though the next
+    // launch cannot safely establish which account owns the stored session.
+    if (!this.persist()) {
+      this.persistenceFailure()
+      return this.status('unauthenticated')
+    }
+    // Restored sessions become consumer-ready only after validation and the
+    // owner binding have both committed successfully.
     this.validated = true
-    this.persist()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return this.status('authenticated')
@@ -336,8 +355,16 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     return this.status(this.session ? 'authenticated' : 'unauthenticated')
   }
 
+  /** Authenticated consumers must not use a restored session before validation
+   *  and durable owner binding have both completed. */
+  private assertDurableSession(): void {
+    if (!this.session) throw new CVRAuthError()
+    if (!this.validated) throw new AuthSessionPendingError()
+  }
+
   async getFriends(): Promise<FriendRoster> {
     for (;;) {
+      this.assertDurableSession()
       // Static roster only (VRX-57); live presence arrives via the pipeline below.
       const generation = this.sessionGeneration
       const requestSequence = ++this.friendNamesRequestSequence
@@ -411,6 +438,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    */
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {
     for (;;) {
+      this.assertDurableSession()
       const generation = this.sessionGeneration
       const requestSequence = ++this.instanceResolutionRequestSequence
       let resolved: ResolvedCvrInstance | null
@@ -701,22 +729,48 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     }
   }
 
-  private adoptSession(credentials: CVRCredentials): void {
+  private adoptSession(credentials: CVRCredentials, restartPipeline = true): void {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
     this.accountId = null
     this.validated = false
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline)
   }
 
-  private persist(): void {
-    if (!this.session) return
+  private persist(): boolean {
+    if (!this.session) return false
     try {
       this.store.save(this.session, this.accountId)
+      return true
     } catch {
-      /* locked/unavailable store — the session stays usable in-memory */
+      return false
+    }
+  }
+
+  private isLoginOperationCurrent(operationGeneration: number): boolean {
+    return operationGeneration === this.loginOperationGeneration
+  }
+
+  private supersededLoginResult(): LoginResult {
+    return { ok: false, needs2fa: false, error: 'unexpected_response' }
+  }
+
+  /** A successful login must survive restart; discard an unpersisted session. */
+  private persistenceFailure(): LoginResult {
+    this.clearSessionState(false, false)
+    try {
+      this.store.delete()
+    } catch {
+      /* best-effort cleanup after a failed save */
+    }
+    this.live?.log?.('warn', 'cvr adapter: credential persistence failed')
+    return {
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
     }
   }
 
@@ -726,20 +780,24 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }
 
-  private clearSessionState(): void {
+  private clearSessionState(restartPipeline = true, cancelLoginOperations = true): void {
+    if (cancelLoginOperations) this.loginOperationGeneration += 1
     this.session = null
     this.setCredentials(null)
     this.displayName = null
     this.accountId = null
     this.validated = false
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline)
   }
 
   /** Automatic 401 invalidation is best-effort on disk: the dead session must
    * still be removed from memory and announced when safeStorage is unavailable. */
   private invalidateSession(emit: boolean): void {
-    this.clearSessionState()
+    // Automatic invalidation clears only the old session. A newer interactive
+    // login may still be awaiting its response and must remain eligible to
+    // install the replacement. Explicit clearSession cancels it.
+    this.clearSessionState(true, false)
     try {
       this.store.delete()
     } catch {
@@ -772,7 +830,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   /** Reset every account-scoped cache and replace a running socket pipeline. */
-  private bumpSessionGeneration(): void {
+  private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionGeneration += 1
     this.friendNames.clear()
     this.friendNamesRequestSequence = 0
@@ -787,7 +845,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.rosterWarmStarted = false
     this.live?.onSessionBoundary?.()
 
-    this.restartPipeline()
+    if (restartPipeline) {
+      this.restartPipeline()
+    } else {
+      this.pipeline?.stop()
+      this.pipeline = null
+    }
   }
 
   private status(state: AuthStatus['state']): AuthStatus {

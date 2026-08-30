@@ -16,6 +16,15 @@ The common data model and constants shared across the main, preload, and rendere
 
 ## Local Contracts
 
+- `CREDENTIAL_PERSISTENCE_FAILED` is the literal `LoginResult.error` when a
+  direct login or completed VRChat 2FA cannot save its new session securely.
+  It is the sole login failure with dedicated renderer copy.
+- `AUTH_IDENTITY_UNAVAILABLE` is the literal `LoginResult.error` when completed
+  VRChat 2FA cannot validate a non-null account owner. It is terminal like a
+  persistence failure, but deliberately maps to generic renderer copy.
+- A failed `LoginResult` sets `sessionCleared: true` only when main discarded
+  local auth state; renderer consumers must then replace cached auth status
+  with known unauthenticated state. The error string still owns user-facing copy.
 - MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only. **Lint-enforced** since the 2026-07 audit W7: `no-restricted-imports` in `eslint.config.mjs` errors on `electron` and node builtins for `src/shared/**`.
 - String-literal unions, not `const enum` (esbuild-safe, Zod-friendly).
 - Imported via the `@shared` alias (wired in all three electron-vite builds + both tsconfigs).

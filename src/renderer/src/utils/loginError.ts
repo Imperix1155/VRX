@@ -10,9 +10,11 @@
  *   bad_response         – JSON parse failure             → generic
  *   unexpected_response  – schema mismatch                → generic
  */
-export function mapLoginError(_code?: string): string {
-  // Security AC (VRX-36): all login failures surface one uniform generic message;
-  // the code is deliberately unused (kept for signature stability at call sites).
-  void _code
+export function mapLoginError(code?: string): string {
+  if (code === CREDENTIAL_PERSISTENCE_FAILED) {
+    return 'login.error.credentialPersistence'
+  }
+
   return 'login.error.unknown'
 }
+import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'

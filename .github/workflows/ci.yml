@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,6 +38,178 @@ jobs:
       # rebuilt against Electron's ABI automatically (audit W7).
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Linux credential probe dependencies
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-1-0 xvfb
+
+      - name: Test Linux credential persistence across restart
+        if: matrix.os == 'ubuntu-24.04'
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          runtime_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-runtime.XXXXXX")
+          user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
+          keyring_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-keyring-data.XXXXXX")
+          diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")
+          chmod 700 "$runtime_dir" "$keyring_data_dir"
+          chmod 600 "$diagnostic_file"
+          profile_name=vrx-electron-ci
+          profile_path="/etc/apparmor.d/$profile_name"
+          profile_created=0
+          cleanup() {
+            cleanup_status=0
+            if [ "$profile_created" -eq 1 ]; then
+              sudo apparmor_parser -R "$profile_path" >/dev/null 2>&1 || cleanup_status=1
+              sudo rm -f -- "$profile_path" >/dev/null 2>&1 || cleanup_status=1
+            fi
+            rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1
+            return "$cleanup_status"
+          }
+          trap 'cleanup || true' EXIT
+          export XDG_RUNTIME_DIR="$runtime_dir"
+          export XDG_DATA_HOME="$keyring_data_dir"
+
+          # Ubuntu 24.04 restricts user namespaces for unprofiled binaries.
+          # Permit only this exact Electron binary to create Chromium's sandbox.
+          expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"
+          # Electron 43 resolves its checksum-verified binary lazily through
+          # the package getter used by its CLI, so run that getter before the
+          # AppArmor profile needs the executable to exist.
+          if ! node -e 'if (require("electron") !== process.argv[1]) process.exit(1)' \
+            "$expected_electron_binary" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_PACKAGE_READY >&2
+            exit 1
+          fi
+          if ! electron_binary=$(realpath -- "$expected_electron_binary" 2>/dev/null); then
+            printf '%s\n' ASSERT_ELECTRON_BINARY_RESOLVE >&2
+            exit 1
+          fi
+          if [ "$electron_binary" != "$expected_electron_binary" ] || \
+            [ ! -f "$electron_binary" ] || [ -L "$electron_binary" ] || \
+            [ ! -x "$electron_binary" ]; then
+            printf '%s\n' ASSERT_ELECTRON_BINARY_VALIDATE >&2
+            exit 1
+          fi
+          if sudo test -e "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_PROFILE_EXISTS >&2
+            exit 1
+          fi
+          profile_created=1
+          if ! printf 'abi <abi/4.0>,\ninclude <tunables/global>\nprofile %s "%s" flags=(unconfined) {\n  userns,\n}\n' \
+            "$profile_name" "$electron_binary" | \
+            sudo tee "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_PROFILE_WRITE >&2
+            exit 1
+          fi
+          if ! sudo apparmor_parser -r "$profile_path" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_APPARMOR_PROFILE_LOAD >&2
+            exit 1
+          fi
+
+          probe_exit=0
+          timeout --kill-after=10s 90s dbus-run-session -- bash -euo pipefail -c '
+            probe_stage_file=$2
+            write_diagnostic() {
+              printf "%s\n" "$1" >"$probe_stage_file"
+            }
+
+            if ! login_environment=$(printf "%s" "vrx-ci-keyring" | gnome-keyring-daemon --login 2>/dev/null); then
+              write_diagnostic ASSERT_KEYRING_LOGIN
+              exit 1
+            fi
+            set -a
+            if ! eval "$login_environment" >/dev/null 2>&1; then
+              write_diagnostic ASSERT_KEYRING_LOGIN_ENV
+              exit 1
+            fi
+            set +a
+            if ! start_environment=$(gnome-keyring-daemon --start --components=secrets 2>/dev/null); then
+              write_diagnostic ASSERT_KEYRING_START
+              exit 1
+            fi
+            set -a
+            if ! eval "$start_environment" >/dev/null 2>&1; then
+              write_diagnostic ASSERT_KEYRING_START_ENV
+              exit 1
+            fi
+            set +a
+            # xvfb-run merges child stderr into stdout. Redirect npm stderr
+            # inside the virtual-display command so the fixed probe
+            # assertion reaches the private diagnostic file before that merge.
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+              bash -euo pipefail -c \
+                "npm --silent run test:credential-persistence-linux -- \"\$1\" >/dev/null 2>\"\$2\"" \
+                bash "$1" "$probe_stage_file" \
+              >/dev/null 2>&1
+          ' bash "$user_data_dir" "$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?
+
+          if [ "$probe_exit" -ne 0 ]; then
+            failure_label=ASSERT_LINUX_CREDENTIAL_PROBE
+            case "$probe_exit" in
+              124|137)
+                failure_label=ASSERT_LINUX_CREDENTIAL_PROBE_TIMEOUT
+                ;;
+              *)
+                for allowed_label in \
+                  ASSERT_KEYRING_LOGIN \
+                  ASSERT_KEYRING_LOGIN_ENV \
+                  ASSERT_KEYRING_START \
+                  ASSERT_KEYRING_START_ENV \
+                  ASSERT_ARGUMENTS \
+                  ASSERT_PROBE_BUILD \
+                  ASSERT_LINUX_PLATFORM \
+                  ASSERT_USER_DATA_ROOT \
+                  ASSERT_PROBE_MARKER \
+                  ASSERT_ENCRYPTION_AVAILABLE \
+                  ASSERT_SECURE_BACKEND \
+                  ASSERT_CREDENTIAL_SAVE \
+                  ASSERT_PLAINTEXT_ABSENT \
+                  ASSERT_CREDENTIAL_READ \
+                  ASSERT_CREDENTIAL_CLEAR; do
+                  if grep -Fxq "$allowed_label" "$diagnostic_file"; then
+                    failure_label=$allowed_label
+                    break
+                  fi
+                done
+                if [ "$failure_label" = ASSERT_LINUX_CREDENTIAL_PROBE ]; then
+                  if LC_ALL=C grep -Eiq -- \
+                    'The SUID sandbox helper binary (was found|is missing)|No usable sandbox!|Failed to move to new (PID )?namespace|zygote_host_impl_linux\.cc\([^)]*\).*Check failed' \
+                    "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_SANDBOX
+                  elif LC_ALL=C grep -Eiq -- \
+                    'Missing X server or \$DISPLAY|Unable to open X display|cannot open display' \
+                    "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_DISPLAY
+                  elif LC_ALL=C grep -Eiq -- \
+                    'error while loading shared libraries: .*: cannot open shared object file|symbol lookup error:|version .* not found .*required by' \
+                    "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_SHARED_LIBRARY
+                  elif LC_ALL=C grep -Eiq -- \
+                    'node_modules/(\.bin/electron|electron/dist/electron).*(Permission denied|not found|Exec format error)|Cannot find module .*(out/credential-probe/index\.js|node_modules/electron/cli\.js)' \
+                    "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_LAUNCHER
+                  elif LC_ALL=C grep -Fqi -- 'exited with signal' "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_SIGNAL
+                  elif grep -Fxq ASSERT_PROBE_EXECUTION "$diagnostic_file" || \
+                    grep -Fxq ASSERT_PROBE_WRITE "$diagnostic_file" || \
+                    grep -Fxq ASSERT_PROBE_READ "$diagnostic_file"; then
+                    failure_label=ASSERT_ELECTRON_STARTUP_OTHER
+                  fi
+                fi
+                ;;
+            esac
+            printf '%s\n' "$failure_label" >&2
+            exit 1
+          fi
+
+          if ! cleanup; then
+            printf '%s\n' ASSERT_LINUX_CREDENTIAL_PROBE_CLEANUP >&2
+            exit 1
+          fi
+          trap - EXIT
 
       - name: Lint
         run: npm run lint

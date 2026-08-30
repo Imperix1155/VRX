@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Platform, TwoFactorMethod } from '@shared/types'
+import { type AuthStatus, type Platform, type TwoFactorMethod } from '@shared/types'
 import { authStatusQueryKey } from '../queries/auth'
 
 /**
@@ -17,15 +17,15 @@ import { authStatusQueryKey } from '../queries/auth'
  *   any platform but VRChat falls back to the generic error, never an
  *   unusable prompt. When CVR grows a second factor (the seam is documented
  *   in CvrAdapter.login), THIS is the single place to extend.
- * - Every failure surfaces ONE generic, surface-provided key (VRX-36) — no
- *   per-cause login errors, no silent no-ops when the bridge is absent or throws.
+ * - Known adapter result codes map through the surface-provided function; bridge
+ *   failures stay generic and neither case silently re-enables the form.
  */
 export interface UseAuthFlowOptions {
-  /** The surface's generic error key (VRX-36: one uniform message per surface). */
-  genericErrorKey: string
+  /** Maps a typed adapter result code (or bridge failure with no code) to this surface's copy. */
+  errorKeyForCode: (code?: string) => string
   /**
-   * Seed for the VRChat needs-2fa reprompt (VRX-173: auth cookie alive, second
-   * factor expired) — read ONCE at mount so the screen opens on the code prompt.
+   * One-time seed for a VRChat needs-2fa reprompt. Prefer externalTwoFactor
+   * when the owning auth-status query can change while the surface is mounted.
    */
   initialTwoFactor?: TwoFactorMethod | null
   /**
@@ -41,6 +41,8 @@ export interface UseAuthFlowOptions {
   dropPasswordAfterSubmit?: boolean
   /** Extra per-surface success work (AccountCard also settles the friends cache). */
   onSuccess?: () => Promise<unknown> | void
+  /** Reports whether main cleared the session so the surface must preserve its terminal error. */
+  onSubmissionSettled?: (sessionCleared: boolean) => void
 }
 
 export interface AuthFlow {
@@ -63,11 +65,12 @@ export interface AuthFlow {
 export function useAuthFlow(
   platform: Platform,
   {
-    genericErrorKey,
+    errorKeyForCode,
     initialTwoFactor = null,
     externalTwoFactor = null,
     dropPasswordAfterSubmit = false,
-    onSuccess
+    onSuccess,
+    onSubmissionSettled
   }: UseAuthFlowOptions
 ): AuthFlow {
   const queryClient = useQueryClient()
@@ -82,6 +85,20 @@ export function useAuthFlow(
   >(initialTwoFactor)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [previousExternalTwoFactor, setPreviousExternalTwoFactor] =
+    useState<TwoFactorMethod | null>(externalTwoFactor)
+
+  // A restored session can become needs-2fa while a credentials form is
+  // mounted. Adjust the dependent state before rendering that transition so
+  // no typed secret survives behind the code prompt. Back may then deliberately
+  // reopen a fresh credentials attempt.
+  if (externalTwoFactor !== previousExternalTwoFactor) {
+    setPreviousExternalTwoFactor(externalTwoFactor)
+    if (externalTwoFactor !== null) {
+      setPassword('')
+      setTwoFactorCode('')
+    }
+  }
 
   const pending2fa =
     twoFactorOverride === 'credentials' ? null : (twoFactorOverride ?? externalTwoFactor)
@@ -91,11 +108,13 @@ export function useAuthFlow(
     setErrorKey(null)
 
     if (!window.vrx) {
-      setErrorKey(genericErrorKey)
+      setErrorKey(errorKeyForCode())
+      onSubmissionSettled?.(false)
       return
     }
 
     setIsSubmitting(true)
+    let sessionWasCleared = false
     try {
       const result = pending2fa
         ? await window.vrx.verify2fa({ platform, code: twoFactorCode })
@@ -124,16 +143,35 @@ export function useAuthFlow(
         setPassword('') // drop the secret — the 2FA leg authenticates via the cookie
         setTwoFactorCode('')
       } else {
-        // Plain failure — or a needs2fa that arrived for a platform with no
-        // 2FA (CVR today): fall back to the generic error, never a dead prompt.
-        setErrorKey(genericErrorKey)
+        // Plain adapter failures preserve their typed code for the surface
+        // mapper. A needs2fa result on CVR has no failure code and stays generic.
+        const errorCode = 'error' in result ? result.error : undefined
+        if ('sessionCleared' in result && result.sessionCleared === true) {
+          sessionWasCleared = true
+          // Main explicitly discarded the session, so neither completed 2FA nor
+          // a replacement-login failure can be retried against cached auth.
+          setPassword('')
+          setTwoFactorOverride('credentials')
+          setTwoFactorCode('')
+          // Replace stale needs-2fa data synchronously so a tab/card remount
+          // cannot seed another code prompt before any background refetch.
+          await queryClient.cancelQueries({ queryKey: authStatusQueryKey(platform) })
+          queryClient.setQueryData<AuthStatus>(authStatusQueryKey(platform), {
+            platform,
+            state: 'unauthenticated',
+            accountId: null,
+            displayName: null
+          })
+        }
+        setErrorKey(errorKeyForCode(errorCode))
       }
     } catch {
       // Bridge/IPC failure (e.g. the main handler threw) — surface it instead of
       // silently re-enabling the button with no feedback.
-      setErrorKey(genericErrorKey)
+      setErrorKey(errorKeyForCode())
     } finally {
       if (dropPasswordAfterSubmit) setPassword('')
+      onSubmissionSettled?.(sessionWasCleared)
       setIsSubmitting(false)
     }
   }

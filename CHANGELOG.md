@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- VRX no longer reports a successful VRChat or ChilloutVR sign-in until it has
+  saved the encrypted session. This fixes Linux sessions that worked until quit
+  when the OS credential store was unavailable. If secure storage fails, VRX
+  clears the new session and explains how to unlock or configure the OS
+  credential store before retrying. A completed VRChat 2FA attempt that cannot
+  be saved now clears its one-time code and returns to full sign-in. Concurrent
+  session checks and sign-ins can no longer replace, cancel, or misidentify the
+  newer account; the latest requested VRChat sign-in owns persistence even if
+  an earlier request was already waiting on its response, and a rejected latest
+  sign-in cannot leave that earlier account stored or active. A verified VRChat
+  2FA result also now requires a validated
+  account owner before it can persist; an unavailable owner removes the
+  tentative and prior stored session rather than allowing an unowned restart.
+  Validated restored VRChat and ChilloutVR sessions likewise stay disconnected
+  unless their owner binding can be saved. Credential replacement and removal
+  now write a non-secret invalidation marker first, preventing an older account
+  from returning after restart even if later cleanup deletion fails. Starting a
+  replacement VRChat sign-in that reaches 2FA also revokes the prior stored
+  account before showing the code prompt, so quitting mid-switch cannot revive
+  that account; a failed revocation ends the attempt safely. Once a fresh
+  VRChat session is durably saved, ordinary status refreshes validate it without
+  rewriting the same credential, so a later transient secure-store outage does
+  not erase an established sign-in.
+  Restored VRChat cookies stay quarantined from avatar, authenticated REST, and
+  live pipeline consumers until their validated owner backfill is durably
+  saved; waiting live subscriptions start only after that succeeds. Restored
+  ChilloutVR sessions likewise cannot reach friends, instance details, or the
+  live pipeline until ACCESS_KEY validation and durable owner binding succeed.
+  Tentative
+  VRChat cookies also remain unavailable to status, roster,
+  self-invite, background metadata, and avatar calls until owner validation and
+  encrypted persistence settle. Old roster pages and queued metadata work also
+  stop at an account boundary instead of continuing with the newer durable
+  account's cookie, and cached world/group metadata is cleared and write-fenced
+  so access-controlled details cannot carry between accounts. Late metadata
+  completions also cannot erase a replacement account's in-flight marker or
+  overwrite a newer same-world cache result. A 2FA prompt is
+  rejected if its direct-login
+  response did not issue the replacement cookie needed to verify that account.
+  Terminal failures clear submitted passwords and codes and synchronously settle
+  local auth state, including a malformed response after VRChat replaces its
+  session cookie, so remounting a login tab or account card cannot revive a
+  stale code prompt, and the retry explanation remains visible while that state
+  settles. If a restored VRChat session starts requiring 2FA while the
+  ChilloutVR tab is selected, VRX brings the VRChat code prompt forward only
+  after any non-terminal active submit; a terminal ChilloutVR failure keeps its
+  error visible and leaves the prompt pending until a later non-terminal retry
+  settles. Re-selecting ChilloutVR cannot dismiss that error or release the
+  pending prompt. (VRX-34)
+
 ## [0.19.1] - 2026-08-27
 
 ### Fixed

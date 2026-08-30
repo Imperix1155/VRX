@@ -6,9 +6,23 @@
  */
 import { vi } from 'vitest'
 import type { IPlatformAdapter } from '../IPlatformAdapter'
+import type { VrcAdapter } from '../VrcAdapter'
 
 /** Instant sleep — skips the rate-limiter's real timers in unit tests. */
 export const noopSleep = (): Promise<void> => Promise.resolve()
+
+/**
+ * Build a non-restore-focused VRChat fixture from a cookie whose owner binding
+ * was already validated by the behavior under test. Restore tests must use the
+ * real validation/backfill path instead.
+ */
+export function markVrcSessionEstablished(adapter: VrcAdapter): void {
+  ;(
+    adapter as unknown as {
+      sessionPersistenceEstablished: boolean
+    }
+  ).sessionPersistenceEstablished = true
+}
 
 /**
  * In-memory credential store that binds an owner only to a successfully saved

@@ -70,11 +70,11 @@ function App(): React.JSX.Element {
 
   // Neither platform is connected. needs-2fa keeps the existing direct VRChat
   // code-prompt route; otherwise LoginScreen starts on credentials as before.
+  // Keep this component mounted while auth settles: useAuthFlow consumes the
+  // method reactively, and terminal errors must survive the cache transition
+  // from needs-2fa to unauthenticated.
   return (
     <LoginScreen
-      // key: a needs-2fa ↔ unauthenticated transition while mounted must
-      // remount (re-seed) the screen — the seed is read once at first render.
-      key={vrcAuthStatus?.state ?? 'pending'}
       initialTwoFactor={
         vrcAuthStatus?.state === 'needs-2fa' ? (vrcAuthStatus.twoFactorMethod ?? 'totp') : null
       }

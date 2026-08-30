@@ -938,6 +938,12 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
         </div>
       </section>
 
+      <section class="panel glass" id="login-persistence">
+        <div class="kick">Login feedback</div>
+        <div class="stitle">Secure session persistence</div>
+        <div class="why">ErrorBanner layout, tokens, and glyphs stay unchanged. Direct sign-in and completed VRChat 2FA succeed only after VRX saves the session securely and 2FA establishes an account owner. After terminal <code>credential_persistence_failed</code> or <code>auth_identity_unavailable</code>, both login surfaces clear any submitted password and 2FA code, settle local auth to unauthenticated, and return to credentials; only the persistence failure keeps the dedicated localized secure-store retry message. A restored-session 2FA transition selects the VRChat tab after any non-terminal active submit settles; a terminal result stays on the selected platform and leaves that reprompt pending until a later non-terminal retry settles. Re-selecting the already-active platform is a no-op and cannot release that reprompt. The outer gate remains mounted so the error stays visible. Other 2FA failures stay on the retryable code prompt; every other login failure uses the generic message.</div>
+      </section>
+
       <section class="panel glass" id="donot">
         <div class="kick">12 · Guardrails</div>
         <div class="stitle">Do &amp; Don't</div>

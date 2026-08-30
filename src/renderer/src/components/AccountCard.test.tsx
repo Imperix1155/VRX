@@ -3,7 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
+import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import { authStatusQueryKey } from '../queries/auth'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
 
 import { fullFriend } from '../test-utils/friendFixture'
@@ -114,6 +116,35 @@ describe.each([
     // cleared immediately after the login IPC, before refreshPlatformState().
     expect(password.value).toBe('')
     releaseInvalidations()
+  })
+
+  it('surfaces a credential persistence failure without invalidating auth or friends', async () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.login.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    })
+    const queryClient = renderCard(platform, bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.username')), {
+      target: { value: 'user@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.password')), {
+      target: { value: 'secret' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('settings.accounts.error.credentialPersistence'))
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   it('shows a neutral connected check, connected name, and a working Disconnect', async () => {
@@ -265,6 +296,115 @@ describe.each([
 })
 
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('overrides an external 2FA status after persistence failure and clears the code', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.verify2fa.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    })
+    bridge.login.mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
+    const queryClient = renderCard('vrchat', bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('settings.accounts.twoFactor.code'))).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('settings.accounts.error.credentialPersistence')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.username')), {
+      target: { value: 'neo' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('settings.accounts.password')), {
+      target: { value: 'redpill' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.connect') }))
+    const freshCode = await screen.findByLabelText<HTMLInputElement>(
+      msg('settings.accounts.twoFactor.code')
+    )
+    expect(freshCode.value).toBe('')
+  })
+
+  it('reconciles terminal identity failure to unauthenticated so a card remount cannot reseed 2FA', async () => {
+    let releaseStaleAuth!: (status: AuthStatus) => void
+    const heldStaleAuth = new Promise<AuthStatus>((resolve) => {
+      releaseStaleAuth = resolve
+    })
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.verify2fa.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: AUTH_IDENTITY_UNAVAILABLE,
+      sessionCleared: true
+    })
+    bridge.getAuthStatus.mockReturnValueOnce(heldStaleAuth)
+    const queryClient = renderCard('vrchat', bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    // The card needs a visible code prompt while a separate old auth request
+    // remains in flight. A late `needs-2fa` answer must be ignored after the
+    // terminal result writes known unauthenticated state.
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
+
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('settings.accounts.error.unknown')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    releaseStaleAuth({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    await Promise.resolve()
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
+
+    cleanup()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AccountCard platform="vrchat" />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('settings.accounts.twoFactor.code'))).toBeNull()
+  })
+
   it('uses the existing verify-2fa second leg without resending the password', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',

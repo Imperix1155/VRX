@@ -5,7 +5,7 @@ import type { Platform } from '@shared/types'
 import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import { friendsQueryKey } from '../queries/friends'
 import { persistQueryCacheNow } from '../queries/cache'
-import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
+import { ACCOUNT_CARD_CONFIG, accountLoginErrorKey } from '../utils/accountCard'
 import { useAuthFlow } from '../hooks/useAuthFlow'
 import CredentialsForm from './auth/CredentialsForm'
 import TwoFactorForm from './auth/TwoFactorForm'
@@ -29,7 +29,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
       : null
 
   const flow = useAuthFlow(platform, {
-    genericErrorKey: 'settings.accounts.error.unknown',
+    errorKeyForCode: (code) => accountLoginErrorKey(platform, code),
     externalTwoFactor: authStatusTwoFactor,
     dropPasswordAfterSubmit: true,
     // A fresh login changes who the friends data belongs to — settle it too.

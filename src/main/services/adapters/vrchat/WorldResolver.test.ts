@@ -83,6 +83,64 @@ describe('WorldResolver', () => {
     expect(fetcher).toHaveBeenCalledOnce()
   })
 
+  it('clear drops an account-scoped negative cache entry', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ totally: 'wrong' })
+      .mockResolvedValueOnce(VALID_WORLD_RAW)
+    const resolver = new WorldResolver(fetcher)
+
+    expect(await resolver.resolve('wrld_abc')).toBeNull()
+    resolver.clear()
+
+    await expect(resolver.resolve('wrld_abc')).resolves.toEqual(VALID_WORLD_META)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let a pre-clear response overwrite the replacement generation cache', async () => {
+    let releaseOld!: (value: unknown) => void
+    const oldResponse = new Promise<unknown>((resolve) => {
+      releaseOld = resolve
+    })
+    const replacementRaw = {
+      ...VALID_WORLD_RAW,
+      name: 'Replacement Account World'
+    }
+    const fetcher = vi.fn().mockReturnValueOnce(oldResponse).mockResolvedValueOnce(replacementRaw)
+    const resolver = new WorldResolver(fetcher)
+
+    const oldResolve = resolver.resolve('wrld_abc')
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+    resolver.clear()
+    await expect(resolver.resolve('wrld_abc')).resolves.toMatchObject({
+      name: 'Replacement Account World'
+    })
+
+    releaseOld({ ...VALID_WORLD_RAW, name: 'Old Account World' })
+    await expect(oldResolve).resolves.toMatchObject({ name: 'Old Account World' })
+    expect(resolver.peek('wrld_abc')).toMatchObject({ name: 'Replacement Account World' })
+  })
+
+  it('keeps the newest same-generation response in cache when an older request settles last', async () => {
+    let releaseOlder!: (value: unknown) => void
+    const olderResponse = new Promise<unknown>((resolve) => {
+      releaseOlder = resolve
+    })
+    const fetcher = vi
+      .fn()
+      .mockReturnValueOnce(olderResponse)
+      .mockResolvedValueOnce({ ...VALID_WORLD_RAW, name: 'Newer World' })
+    const resolver = new WorldResolver(fetcher)
+
+    const olderResolve = resolver.resolve('wrld_abc')
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+    await expect(resolver.resolve('wrld_abc')).resolves.toMatchObject({ name: 'Newer World' })
+
+    releaseOlder({ ...VALID_WORLD_RAW, name: 'Older World' })
+    await expect(olderResolve).resolves.toMatchObject({ name: 'Older World' })
+    expect(resolver.peek('wrld_abc')).toMatchObject({ name: 'Newer World' })
+  })
+
   // ── Cache expiry (clock advancing past TTL) ──────────────────────────────────
 
   async function resolveWithAdvancedClock(advance: number): Promise<number> {
