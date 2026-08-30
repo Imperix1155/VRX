@@ -24,8 +24,8 @@ export interface UseAuthFlowOptions {
   /** Maps a typed adapter result code (or bridge failure with no code) to this surface's copy. */
   errorKeyForCode: (code?: string) => string
   /**
-   * Seed for the VRChat needs-2fa reprompt (VRX-173: auth cookie alive, second
-   * factor expired) — read ONCE at mount so the screen opens on the code prompt.
+   * One-time seed for a VRChat needs-2fa reprompt. Prefer externalTwoFactor
+   * when the owning auth-status query can change while the surface is mounted.
    */
   initialTwoFactor?: TwoFactorMethod | null
   /**
@@ -82,6 +82,20 @@ export function useAuthFlow(
   >(initialTwoFactor)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [previousExternalTwoFactor, setPreviousExternalTwoFactor] =
+    useState<TwoFactorMethod | null>(externalTwoFactor)
+
+  // A restored session can become needs-2fa while a credentials form is
+  // mounted. Adjust the dependent state before rendering that transition so
+  // no typed secret survives behind the code prompt. Back may then deliberately
+  // reopen a fresh credentials attempt.
+  if (externalTwoFactor !== previousExternalTwoFactor) {
+    setPreviousExternalTwoFactor(externalTwoFactor)
+    if (externalTwoFactor !== null) {
+      setPassword('')
+      setTwoFactorCode('')
+    }
+  }
 
   const pending2fa =
     twoFactorOverride === 'credentials' ? null : (twoFactorOverride ?? externalTwoFactor)

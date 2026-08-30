@@ -20,10 +20,10 @@ import { loginCopy } from './auth/copy'
  * color block. VRChat is preselected; the §8 center-neutral rule is silent for
  * a pure two-platform enum (no "both" option exists).
  *
- * `initialTwoFactor` (VRX-173) is a VRChat-only reprompt: the auth gate passes
- * the method when the VRChat session only needs a fresh second factor — the
- * VRChat tab then opens DIRECTLY on the method-aware code prompt (no password
- * re-entry; Back remains the escape hatch to a full credentials login).
+ * The legacy-named `initialTwoFactor` prop (VRX-173) is the reactive
+ * VRChat-only reprompt state from the auth gate. When the session needs a fresh
+ * second factor, the VRChat tab opens DIRECTLY on the method-aware code prompt
+ * (no password re-entry; Back remains the escape hatch to a full login).
  *
  * Switching tabs REMOUNTS the form (key={platform}): a fresh form for that
  * platform — no typed username/password/code/error ever carries across account
@@ -72,7 +72,7 @@ function PlatformLoginForm({
     errorKeyForCode: mapLoginError,
     // The needs-2fa reprompt seed is VRChat-only (CVR has no 2FA — a stray
     // needs2fa there falls back to the generic error inside the hook).
-    initialTwoFactor: platform === 'vrchat' ? initialTwoFactor : null
+    externalTwoFactor: platform === 'vrchat' ? initialTwoFactor : null
   })
   // Lock the tabs while the login/verify IPC is in flight: a tab switch would
   // remount this form and strand the late result in the unmounted hook (and

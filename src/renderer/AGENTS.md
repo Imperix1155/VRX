@@ -50,6 +50,12 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   invalidation or network) before returning to credentials, so keyed tab/card
   remounts cannot reseed stale 2FA. This includes completed-2FA persistence or
   owner failures and malformed responses after a replacement cookie was installed.
+- App-level `LoginScreen` stays mounted while VRChat auth moves between
+  `needs-2fa` and unauthenticated; its legacy-named `initialTwoFactor` prop feeds
+  `useAuthFlow.externalTwoFactor` reactively. This preserves a terminal error
+  banner while the cache settles, and the hook drops any typed password when a
+  restored session newly enters 2FA. Platform tab switches still remount the
+  inner form and clear all cross-platform input.
 - Design tokens are the single source of truth (DESIGN.md §2/§2A, defined in `assets/main.css`). NEVER hardcode color/spacing outside tokens.
 - Themed colors are raw CSS vars consumed via arbitrary utilities (`bg-[var(--vrc)]`) so they flip under `[data-theme="light"]`; only the static scale (radius/fonts) lives in `@theme`.
 - Tailwind v4 drops opacity modifiers on arbitrary vars (`bg-[var(--x)]/N` → solid) — use `color-mix()` or theme colors for tints.

@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tentative and prior stored session rather than allowing an unowned restart.
   Terminal failures synchronously settle local auth state, including a malformed
   response after VRChat replaces its session cookie, so remounting a login tab
-  or account card cannot revive a stale code prompt. (VRX-34)
+  or account card cannot revive a stale code prompt, and the retry explanation
+  remains visible while that state settles. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 
