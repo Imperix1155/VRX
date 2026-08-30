@@ -5,12 +5,20 @@ const mocks = vi.hoisted(() => {
   const stores = new Map<string, Record<string, unknown>>()
   const storeOptions: Array<{ name: string; accessPropertiesByDotNotation?: boolean }> = []
   const setErrors = new Map<string, Error>()
+  const delayedSetErrors = new Map<string, { successfulWritesRemaining: number; error: Error }>()
+  const deleteErrors = new Map<string, Error>()
+  const constructorErrors = new Map<string, Error>()
 
   class StoreMock {
     private readonly name: string
 
     constructor(options: { name: string; accessPropertiesByDotNotation?: boolean }) {
       const { name } = options
+      const error = constructorErrors.get(name)
+      if (error) {
+        constructorErrors.delete(name)
+        throw error
+      }
       this.name = name
       storeOptions.push(options)
       stores.set(name, stores.get(name) ?? {})
@@ -32,10 +40,23 @@ const mocks = vi.hoisted(() => {
         setErrors.delete(this.name)
         throw error
       }
+      const delayedError = delayedSetErrors.get(this.name)
+      if (delayedError) {
+        if (delayedError.successfulWritesRemaining === 0) {
+          delayedSetErrors.delete(this.name)
+          throw delayedError.error
+        }
+        delayedError.successfulWritesRemaining -= 1
+      }
       this.values[key] = value
     }
 
     delete(key: string): void {
+      const error = deleteErrors.get(this.name)
+      if (error) {
+        deleteErrors.delete(this.name)
+        throw error
+      }
       delete this.values[key]
     }
   }
@@ -44,6 +65,9 @@ const mocks = vi.hoisted(() => {
     stores,
     storeOptions,
     setErrors,
+    delayedSetErrors,
+    deleteErrors,
+    constructorErrors,
     StoreMock,
     isEncryptionAvailable: vi.fn(() => true),
     getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret'),
@@ -79,6 +103,9 @@ describe('credential storage', () => {
     mocks.stores.clear()
     mocks.storeOptions.length = 0
     mocks.setErrors.clear()
+    mocks.delayedSetErrors.clear()
+    mocks.deleteErrors.clear()
+    mocks.constructorErrors.clear()
     mocks.isEncryptionAvailable.mockReturnValue(true)
     mocks.getSelectedStorageBackend.mockReturnValue('gnome_libsecret')
     mocks.getSelectedStorageBackend.mockClear()
@@ -107,9 +134,25 @@ describe('credential storage', () => {
     expect(JSON.stringify(persisted)).not.toContain('raw-auth-token')
     expect(mocks.encryptString).toHaveBeenCalledWith('raw-auth-token')
     expect(mocks.storeOptions).toEqual([
-      { name: 'credential-owners', accessPropertiesByDotNotation: false },
-      { name: 'credentials', accessPropertiesByDotNotation: false }
+      { name: 'credentials', accessPropertiesByDotNotation: false },
+      { name: 'credential-owners', accessPropertiesByDotNotation: false }
     ])
+  })
+
+  it('invalidates the credential before owner-store initialization can fail', async () => {
+    vi.resetModules()
+    mocks.stores.set('credentials', {
+      'vrchat:primary': Buffer.from('encrypted:account-a-token').toString('base64')
+    })
+    mocks.constructorErrors.set('credential-owners', new Error('owner store unavailable'))
+    const isolated = await import('./credentials')
+
+    expect(() =>
+      isolated.saveCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
+    ).toThrow('owner store unavailable')
+    mocks.decryptString.mockClear()
+    expect(isolated.loadCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.decryptString).not.toHaveBeenCalled()
   })
 
   it('decrypts a stored credential in the main process', () => {
@@ -169,18 +212,46 @@ describe('credential storage', () => {
     expect(mocks.stores.get('credential-owners')).toEqual({})
   })
 
-  it('leaves the old ciphertext unowned when its replacement write throws', () => {
+  it('leaves a non-restorable slot when its replacement ciphertext write throws', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
-    mocks.setErrors.set('credentials', new Error('credential write failed'))
+    mocks.delayedSetErrors.set('credentials', {
+      successfulWritesRemaining: 1,
+      error: new Error('credential write failed')
+    })
 
     expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')).toThrow(
       'credential write failed'
     )
 
-    expect(mocks.stores.get('credentials')?.['vrchat:primary']).toBe(oldCiphertext)
+    expect(mocks.stores.get('credentials')?.['vrchat:primary']).not.toBe(oldCiphertext)
     expect(mocks.stores.get('credential-owners')).toEqual({})
+    mocks.decryptString.mockClear()
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.decryptString).not.toHaveBeenCalled()
+  })
+
+  it('cannot restore an old credential when replacement encryption and cleanup deletion fail', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
+    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
+    const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
+    mocks.encryptString.mockImplementationOnce(() => {
+      throw new Error('encryption failed')
+    })
+
+    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')).toThrow(
+      'encryption failed'
+    )
+
+    mocks.deleteErrors.set('credentials', new Error('credential deletion failed'))
+    expect(() => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).not.toThrow()
+
+    mocks.decryptString.mockClear()
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.decryptString).not.toHaveBeenCalled()
+    expect(mocks.stores.get('credentials')?.['vrchat:primary']).not.toBe(oldCiphertext)
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('account-a-token')
   })
 
   it('clears the credential owner sidecar with the stored credential', () => {
@@ -231,7 +302,8 @@ describe('credential storage', () => {
     expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')).toThrow(
       CredentialEncryptionUnavailableError
     )
-    expect(mocks.stores.get('credentials')).toBeUndefined()
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
     expect(mocks.encryptString).not.toHaveBeenCalled()
   })
 
@@ -264,7 +336,8 @@ describe('credential storage', () => {
       CredentialEncryptionUnavailableError
     )
     expect(mocks.encryptString).not.toHaveBeenCalled()
-    expect(mocks.stores.get('credentials')).toBeUndefined()
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
   })
 
   it('allows supported Linux storage backends', () => {
@@ -282,7 +355,7 @@ describe('credential storage', () => {
     expect(mocks.getSelectedStorageBackend).not.toHaveBeenCalled()
   })
 
-  it('does not persist when encryption throws', () => {
+  it('leaves a non-restorable slot when encryption throws', () => {
     mocks.encryptString.mockImplementationOnce(() => {
       throw new Error('encryption failed')
     })
@@ -290,7 +363,8 @@ describe('credential storage', () => {
     expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')).toThrow(
       'encryption failed'
     )
-    expect(mocks.stores.get('credentials')).toBeUndefined()
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
   })
 
   it.each(['vrchat.primary', 'unsupported'])('rejects unsupported key %s', (key) => {

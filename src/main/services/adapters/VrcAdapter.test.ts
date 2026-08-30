@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AdapterEvent, Friend, InstanceInfo } from '@shared/types'
+import { CONCURRENCY_LIMIT } from '@shared/constants'
+import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-import { AuthError } from './errors'
-import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
+import { AuthError, AuthSessionPendingError } from './errors'
+import {
+  jsonResponse,
+  markVrcSessionEstablished as markSessionEstablished,
+  noopSleep,
+  ownerBindingHarness
+} from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 import { AppStatusService } from '../appStatus'
@@ -141,6 +147,7 @@ async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'
       return socket
     }
   })
+  markSessionEstablished(adapter)
   const unsubscribe = adapter.subscribe((event) => {
     events.push(event)
     cache = applyFriendEvent(cache, event)
@@ -231,7 +238,10 @@ describe('VrcAdapter', () => {
       vi
         .fn()
         .mockResolvedValue(
-          jsonResponse({ id: 'usr_12345678-1234-1234-1234-123456789abc', displayName: 'Neo' })
+          jsonResponse(
+            { id: 'usr_12345678-1234-1234-1234-123456789abc', displayName: 'Neo' },
+            { setCookies: ['auth=unicode-session'] }
+          )
         )
     )
 
@@ -418,7 +428,62 @@ describe('VrcAdapter', () => {
       expect(binding.getOwner()).toBe('ACCOUNT002')
     })
 
-    it('fails closed when direct-login credential writing throws after owner clearing', async () => {
+    it('rejects an account-changing login that does not issue a replacement auth cookie', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (href.endsWith('/auth')) {
+          return Promise.resolve(jsonResponse({ token: 'account-a-pipeline' }))
+        }
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
+        }
+        if (headers.Cookie === 'auth=account-a') {
+          return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=account-a')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      createPipeline.mockClear()
+
+      const result = await adapter.login({ username: 'account-b', password: 'pw-b' })
+      const oldSocketClosed = sockets[0]!.closed
+      const replacementCount = createPipeline.mock.calls.length
+      unsubscribe()
+
+      expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
+      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001'])
+      expect(binding.getOwner()).toBe('ACCOUNT001')
+      expect(identities.at(-1)).toBe('ACCOUNT001')
+      expect(replacementCount).toBe(0)
+      expect(sockets).toHaveLength(1)
+      expect(oldSocketClosed).toBe(false)
+    })
+
+    it('rolls back direct login when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -435,15 +500,458 @@ describe('VrcAdapter', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<string>()
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      const identities: Array<string | null> = []
+      const log = vi.fn()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        log
+      })
+      let deleteCalls = 0
+      binding.store.delete = () => {
+        deleteCalls++
+        throw new Error('credential deletion failed')
+      }
 
       await adapter.login(creds)
       binding.failNextSave()
-      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
 
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
       expect(binding.getCredential()).toBe('auth=account-a')
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+      expect(deleteCalls).toBe(1)
+      expect(identities).not.toContain('ACCOUNT002')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
+    })
+
+    it('does not publish a tentative direct-login cookie through auth status', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      const fetchMock = vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+        return Promise.reject(new Error('Unexpected non-login request'))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>()
+      binding.failNextSave()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      const status = adapter.getAuthStatus()
+      let statusSettled = false
+      void status.then(() => {
+        statusSettled = true
+      })
+      await expect(adapter.getFriends()).rejects.toThrow(
+        'Authentication session is still being persisted'
+      )
+      await expect(adapter.selfInvite('wrld_pending:11111~private(usr_self)')).rejects.toThrow(
+        'Authentication session is still being persisted'
+      )
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(statusSettled).toBe(false)
+      expect(fetchMock).toHaveBeenCalledOnce()
+
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      await expect(login).resolves.toMatchObject({
+        ok: false,
+        error: 'credential_persistence_failed'
+      })
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('keeps a subscribed pipeline stopped when direct-login persistence fails', async () => {
+      let loginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) {
+            return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+          }
+          if (headers.Authorization !== undefined) {
+            loginCalls += 1
+            return Promise.resolve(
+              jsonResponse(
+                {
+                  id: loginCalls === 1 ? 'ACCOUNT001' : 'ACCOUNT002',
+                  displayName: loginCalls === 1 ? 'Account A' : 'Account B'
+                },
+                { setCookies: [`auth=account-${loginCalls === 1 ? 'a' : 'b'}`] }
+              )
+            )
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      binding.failNextSave()
+
+      const result = await adapter.login(creds)
+      const replacementPipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      const oldSocketClosed = sockets[0]!.closed
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(replacementPipelineCount).toBe(0)
+      expect(socketCount).toBe(1)
+      expect(oldSocketClosed).toBe(true)
+    })
+
+    it('makes the later overlapping direct login win without persisting the held account', async () => {
+      let releaseAccountABody!: (body: unknown) => void
+      let accountABodyStarted = false
+      const accountABody = new Promise<unknown>((resolve) => {
+        releaseAccountABody = resolve
+      })
+      const accountAResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(accountAResponse, 'json').mockImplementation(() => {
+        accountABodyStarted = true
+        return accountABody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization === undefined) {
+            return Promise.reject(new Error('Unexpected non-login request'))
+          }
+          directLoginCalls += 1
+          return Promise.resolve(
+            directLoginCalls === 1
+              ? accountAResponse
+              : jsonResponse(
+                  { id: 'ACCOUNT002', displayName: 'Account B' },
+                  { setCookies: ['auth=account-b'] }
+                )
+          )
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const accountALogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(accountABodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await new Promise((resolve) => setImmediate(resolve))
+      await new Promise((resolve) => setImmediate(resolve))
+      releaseAccountABody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(Promise.all([accountALogin, accountBLogin])).resolves.toEqual([
+        {
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response',
+          sessionCleared: true
+        },
+        { ok: true }
+      ])
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('does not persist a held login when the later overlapping login is rejected', async () => {
+      let releaseAccountABody!: (body: unknown) => void
+      let accountABodyStarted = false
+      const accountABody = new Promise<unknown>((resolve) => {
+        releaseAccountABody = resolve
+      })
+      const accountAResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(accountAResponse, 'json').mockImplementation(() => {
+        accountABodyStarted = true
+        return accountABody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization === undefined) {
+            return Promise.reject(new Error('Unexpected non-login request'))
+          }
+          directLoginCalls += 1
+          return Promise.resolve(
+            directLoginCalls === 1
+              ? accountAResponse
+              : jsonResponse({ error: 'invalid credentials' }, { status: 401 })
+          )
+        })
+      )
+      const store = fakeStore()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const accountALogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(accountABodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'wrong' })
+      releaseAccountABody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(Promise.all([accountALogin, accountBLogin])).resolves.toEqual([
+        {
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response',
+          sessionCleared: true
+        },
+        { ok: false, needs2fa: false, error: 'invalid_credentials' }
+      ])
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+      expect(identities).not.toContain('ACCOUNT001')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('does not let a held direct login resurrect a session after explicit logout', async () => {
+      let releaseLogin!: (response: Response) => void
+      let loginStarted = false
+      const heldLogin = new Promise<Response>((resolve) => {
+        releaseLogin = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            loginStarted = true
+            return heldLogin
+          }
+          return Promise.reject(new Error('Unexpected non-login request'))
+        })
+      )
+      const store = fakeStore()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(loginStarted).toBe(true))
+      adapter.clearSession()
+      releaseLogin(
+        jsonResponse(
+          { id: 'ACCOUNT001', displayName: 'Account A' },
+          { setCookies: ['auth=account-a'] }
+        )
+      )
+
+      await expect(login).resolves.toMatchObject({ ok: false, needs2fa: false })
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+      expect(identities).not.toContain('ACCOUNT001')
+    })
+
+    it('defers a new subscriber while a direct-login body is tentative and save fails', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tentative' }))
+          if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      binding.failNextSave()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      const result = await login
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(pipelineCount).toBe(0)
+      expect(socketCount).toBe(0)
+    })
+
+    it('keeps a waiting subscriber stopped when tentative direct login is explicitly cleared', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+          return Promise.reject(new Error('Unexpected non-login request'))
+        })
+      )
+      const store = fakeStore('auth=previous')
+      const adapter = new VrcAdapter(store, noopSleep)
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      adapter.clearSession()
+      const pipelineCount = createPipeline.mock.calls.length
+      unsubscribe()
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(login).resolves.toMatchObject({ ok: false, needs2fa: false })
+      expect(pipelineCount).toBe(0)
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+    })
+
+    it('recovers a waiting subscriber after a tentative body is rejected and retry persists', async () => {
+      let releaseFirstBody!: (body: unknown) => void
+      let firstBodyStarted = false
+      const heldFirstBody = new Promise<unknown>((resolve) => {
+        releaseFirstBody = resolve
+      })
+      const firstResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(firstResponse, 'json').mockImplementation(() => {
+        firstBodyStarted = true
+        return heldFirstBody
+      })
+      let directLoginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'account-b' }))
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? firstResponse
+                : jsonResponse(
+                    { id: 'ACCOUNT002', displayName: 'Account B' },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const firstLogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(firstBodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseFirstBody({ unexpected: true })
+      await expect(firstLogin).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      })
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0))
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(pipelineCount).toBe(1)
+      expect(socketCount).toBe(1)
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getOwner()).toBe('ACCOUNT002')
     })
 
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {
@@ -492,7 +1000,8 @@ describe('VrcAdapter', () => {
       expect(await new VrcAdapter(store, noopSleep).login(creds)).toEqual({
         ok: false,
         needs2fa: false,
-        error: 'unexpected_response'
+        error: 'unexpected_response',
+        sessionCleared: true
       })
       expect(store.saved).toEqual([])
     })
@@ -594,11 +1103,139 @@ describe('VrcAdapter', () => {
         vi.fn().mockResolvedValue(jsonResponse({ unexpected: true }, { setCookies: ['auth=t'] }))
       )
       const result = await new VrcAdapter(fakeStore(), noopSleep).login(creds)
-      expect(result).toEqual({ ok: false, needs2fa: false, error: 'unexpected_response' })
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      })
+    })
+
+    it('deletes the prior stored credential when a replacement cookie has a malformed body', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ unexpected: true }, { setCookies: ['auth=replacement'] })
+          )
+      )
+      const binding = ownerBindingHarness<string>('auth=previous')
+
+      await expect(new VrcAdapter(binding.store, noopSleep).login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
+
+      // Restart regression: an adapter built against the same store must not
+      // recover the pre-login session after this failed replacement.
+      const relaunched = new VrcAdapter(binding.store, noopSleep)
+      expect(await relaunched.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('marks an unreadable replacement response after clearing the prior session', async () => {
+      const response = jsonResponse(null, { setCookies: ['auth=replacement'] })
+      vi.spyOn(response, 'json').mockRejectedValue(new SyntaxError('invalid json'))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+      const binding = ownerBindingHarness<string>('auth=previous')
+
+      await expect(new VrcAdapter(binding.store, noopSleep).login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'bad_response',
+        sessionCleared: true
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
     })
   })
 
   describe('2FA', () => {
+    it.each([
+      ['fresh session', undefined],
+      ['existing account', 'auth=account-a']
+    ])(
+      'rejects a 2FA prompt without a replacement auth cookie for a %s',
+      async (_label, stored) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn().mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+        )
+        const store = fakeStore(stored)
+        const adapter = new VrcAdapter(store, noopSleep)
+
+        await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response'
+        })
+
+        expect(store.saved).toEqual([])
+        expect(store.deleted).toBe(0)
+        expect(adapter.getAuthCookieHeader()).toBeNull()
+      }
+    )
+
+    it('cannot revive the prior account after a replacement login reaches 2FA and the app restarts', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+        )
+        // This is what the prior account would return after an unsafe restart.
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=account-a')
+
+      await expect(
+        new VrcAdapter(binding.store, noopSleep).login({
+          username: 'account-b',
+          password: 'pw-b'
+        })
+      ).resolves.toEqual({ ok: false, needs2fa: true, method: 'totp' })
+
+      // The first leg cannot persist account B yet, but it must durably revoke
+      // account A before exposing B's retryable code prompt.
+      expect(binding.getCredential()).toBeUndefined()
+      await expect(new VrcAdapter(binding.store, noopSleep).getAuthStatus()).resolves.toMatchObject(
+        {
+          state: 'unauthenticated'
+        }
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('fails closed when the prior credential cannot be invalidated before a replacement 2FA prompt', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+          )
+      )
+      const store: VrcCredentialStore = {
+        load: () => 'auth=account-a',
+        save: () => {},
+        delete: () => {
+          throw new Error('credential invalidation failed')
+        }
+      }
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+    })
+
     it('binds the owner only after the verified 2FA credential is persisted', async () => {
       const fetchMock = vi
         .fn()
@@ -613,13 +1250,57 @@ describe('VrcAdapter', () => {
       const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
-      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      expect(adapter.getAuthCookieHeader()).toBeNull()
       await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
 
       expect(binding.getOwner()).toBe('TRINITY09')
+      expect(adapter.getAuthCookieHeader()).toBe('auth=tok1; twoFactorAuth=tf2')
     })
 
-    it('fails closed when the 2FA credential write throws after owner clearing', async () => {
+    it('fails closed when verified 2FA cannot establish an account owner', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=tok1'] })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=tf2'] })
+        )
+        // A successful verify followed by an unreadable owner response is not
+        // authenticated: no unbound durable credential may survive it.
+        .mockResolvedValueOnce(jsonResponse({ unexpected: true }))
+      vi.stubGlobal('fetch', fetchMock)
+      const binding = ownerBindingHarness<string>('auth=previous')
+      const identities: Array<string | null> = []
+      const log = vi.fn()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId),
+        log
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: AUTH_IDENTITY_UNAVAILABLE,
+        sessionCleared: true
+      })
+      expect(binding.getCredential()).toBeUndefined()
+      expect(binding.getOwner()).toBeNull()
+      expect(binding.getAttemptedAccountIds()).toEqual([])
+      expect(identities).not.toContain('TRINITY09')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: authenticated identity unavailable']])
+
+      // The restarted adapter has no credential to re-adopt and never probes.
+      fetchMock.mockClear()
+      expect(await new VrcAdapter(binding.store, noopSleep).getAuthStatus()).toMatchObject({
+        state: 'unauthenticated'
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rolls back completed 2FA when credential persistence fails', async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -637,16 +1318,288 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
       vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness<string>()
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const deleteCredential = vi.spyOn(binding.store, 'delete')
 
       await adapter.login(creds)
       await adapter.login(creds)
       binding.failNextSave()
-      await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
 
-      expect(binding.getCredential()).toBe('auth=account-a')
+      expect(await adapter.getAuthStatus()).toMatchObject({ state: 'unauthenticated' })
+      expect(binding.getCredential()).toBeUndefined()
       expect(binding.getOwner()).toBeNull()
       expect(binding.getAttemptedAccountIds().at(-1)).toBe('ACCOUNT002')
+      // The first delete revokes any prior account before the 2FA prompt. The
+      // second is terminal rollback after the replacement save fails.
+      expect(deleteCredential).toHaveBeenCalledTimes(2)
+      expect(identities).not.toContain('ACCOUNT002')
+    })
+
+    it('does not publish a completed 2FA cookie while owner binding is tentative', async () => {
+      let releaseRefreshBody!: (body: unknown) => void
+      let refreshBodyStarted = false
+      const heldRefreshBody = new Promise<unknown>((resolve) => {
+        releaseRefreshBody = resolve
+      })
+      const refreshResponse = jsonResponse(null)
+      vi.spyOn(refreshResponse, 'json').mockImplementation(() => {
+        refreshBodyStarted = true
+        return heldRefreshBody
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(
+              jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-a'] })
+            )
+          }
+          if (href.endsWith('/auth/user')) return Promise.resolve(refreshResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      binding.failNextSave()
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(refreshBodyStarted).toBe(true))
+      const status = adapter.getAuthStatus()
+      let statusSettled = false
+      void status.then(() => {
+        statusSettled = true
+      })
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(statusSettled).toBe(false)
+
+      releaseRefreshBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      await expect(verify).resolves.toMatchObject({
+        ok: false,
+        error: 'credential_persistence_failed'
+      })
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+    })
+
+    it('keeps a subscribed pipeline stopped when completed 2FA cannot persist', async () => {
+      let directLoginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) {
+            return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+          }
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? jsonResponse(
+                    { id: 'ACCOUNT001', displayName: 'Account A' },
+                    { setCookies: ['auth=account-a'] }
+                  )
+                : jsonResponse(
+                    { requiresTwoFactorAuth: ['totp'] },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT002', displayName: 'Account B' }))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      const unsubscribe = adapter.subscribe(() => {})
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      await expect(adapter.login(creds)).resolves.toEqual({
+        ok: false,
+        needs2fa: true,
+        method: 'totp'
+      })
+      binding.failNextSave()
+      const result = await adapter.verify2fa('123456')
+      const replacementPipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      const oldSocketClosed = sockets[0]!.closed
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(replacementPipelineCount).toBe(0)
+      expect(socketCount).toBe(1)
+      expect(oldSocketClosed).toBe(true)
+    })
+
+    it('makes a later direct login supersede a held 2FA verify without crossing ownership', async () => {
+      let releaseVerifyBody!: (body: unknown) => void
+      let verifyBodyStarted = false
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=account-a-2fa'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? jsonResponse(
+                    { requiresTwoFactorAuth: ['totp'] },
+                    { setCookies: ['auth=account-a'] }
+                  )
+                : jsonResponse(
+                    { id: 'ACCOUNT002', displayName: 'Account B' },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await new Promise((resolve) => setImmediate(resolve))
+      await new Promise((resolve) => setImmediate(resolve))
+      releaseVerifyBody({ verified: true })
+
+      await expect(Promise.all([verify, accountBLogin])).resolves.toEqual([
+        { ok: false, needs2fa: false, error: 'unexpected_response' },
+        { ok: true }
+      ])
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('defers a new subscriber during completed-2FA refresh when persistence fails', async () => {
+      let releaseRefreshBody!: (body: unknown) => void
+      let refreshBodyStarted = false
+      const heldRefreshBody = new Promise<unknown>((resolve) => {
+        releaseRefreshBody = resolve
+      })
+      const refreshResponse = jsonResponse(null)
+      vi.spyOn(refreshResponse, 'json').mockImplementation(() => {
+        refreshBodyStarted = true
+        return heldRefreshBody
+      })
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tentative' }))
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(
+              jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-a'] })
+            )
+          }
+          if (href.endsWith('/auth/user')) return Promise.resolve(refreshResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      binding.failNextSave()
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(refreshBodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseRefreshBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      const result = await verify
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed',
+        sessionCleared: true
+      })
+      expect(pipelineCount).toBe(0)
+      expect(socketCount).toBe(0)
     })
 
     it('returns needs2fa(totp), then verifies against /totp/verify and combines the cookies', async () => {
@@ -761,7 +1714,12 @@ describe('VrcAdapter', () => {
       expect(events).toEqual([])
       expect(alerts).toEqual([])
 
-      expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
+      expect(await adapter.verify2fa('123456')).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: AUTH_IDENTITY_UNAVAILABLE,
+        sessionCleared: true
+      })
       expect((adapter as unknown as { displayName: string | null }).displayName).toBeNull()
       expect(identities.slice(-2)).toEqual([null, null])
       unsubscribe()
@@ -831,6 +1789,34 @@ describe('VrcAdapter', () => {
         needs2fa: false,
         error: 'invalid_2fa_code'
       })
+    })
+
+    it('keeps a failed direct-login 2FA session tentative so a subscriber cannot start its pipeline', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=partial'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ error: 'bad code' }, { status: 401 }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore(), noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      await expect(adapter.verify2fa('wrong')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'invalid_2fa_code'
+      })
+
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      const unsubscribe = adapter.subscribe(() => {})
+      expect(createPipeline).not.toHaveBeenCalled()
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      unsubscribe()
     })
 
     it.each([
@@ -944,18 +1930,127 @@ describe('VrcAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('quarantines an unowned restored cookie from authenticated consumers', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      let dials = 0
+      const adapter = new VrcAdapter(fakeStore('auth=restored'), noopSleep, {
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthSessionPendingError)
+      await expect(
+        adapter.selfInvite('wrld_pending:11111~private(usr_self)')
+      ).rejects.toBeInstanceOf(AuthSessionPendingError)
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(dials).toBe(0)
+      unsubscribe()
+    })
+
     it('backfills the owner for the restored ciphertext after validation', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
-      )
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness('auth=restored')
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      let dials = 0
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(dials).toBe(0)
+      expect(adapter.getAuthCookieHeader()).toBeNull()
 
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
 
       expect(binding.getCredential()).toBe('auth=restored')
       expect(binding.getOwner()).toBe('ACCOUNT001')
+      expect(adapter.getAuthCookieHeader()).toBe('auth=restored')
+      await vi.waitFor(() => expect(dials).toBe(1))
+      unsubscribe()
+    })
+
+    it('fails closed when a validated restored session cannot persist its owner binding', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore('auth=restored')
+      store.save = vi.fn(() => {
+        throw new Error('secure store unavailable')
+      })
+      const log = vi.fn()
+      const onIdentity = vi.fn()
+      let dials = 0
+      const adapter = new VrcAdapter(store, noopSleep, {
+        log,
+        onIdentity,
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(dials).toBe(0)
+
+      await expect(adapter.getAuthStatus()).resolves.toEqual({
+        platform: 'vrchat',
+        state: 'unauthenticated',
+        displayName: null,
+        accountId: null
+      })
+
+      expect(store.deleted).toBe(1)
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      expect(onIdentity).not.toHaveBeenCalledWith('ACCOUNT001')
+      expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
+      expect(dials).toBe(0)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(dials).toBe(0)
+      unsubscribe()
+    })
+
+    it('does not re-persist or clear an already durable direct-login session during status refresh', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { id: 'ACCOUNT001', displayName: 'Account A' },
+            { setCookies: ['auth=account-a'] }
+          )
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const store = fakeStore()
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.login(creds)).resolves.toEqual({ ok: true })
+      store.save = vi.fn(() => {
+        throw new Error('secure store temporarily unavailable')
+      })
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+      expect(store.saved).toEqual(['auth=account-a'])
+      expect(store.deleted).toBe(0)
+      expect(adapter.getAuthCookieHeader()).toBe('auth=account-a')
     })
 
     it('restores a persisted cookie and sends it on the status check', async () => {
@@ -1039,6 +2134,286 @@ describe('VrcAdapter', () => {
       expect(store.deleted).toBe(1)
     })
 
+    it('lets an interactive login finish after automatic invalidation clears the restored session', async () => {
+      let releaseStatus!: (response: Response) => void
+      let releaseLogin!: (response: Response) => void
+      let statusStarted = false
+      let loginStarted = false
+      const heldStatus = new Promise<Response>((resolve) => {
+        releaseStatus = resolve
+      })
+      const heldLogin = new Promise<Response>((resolve) => {
+        releaseLogin = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            loginStarted = true
+            return heldLogin
+          }
+          if (headers.Cookie === 'auth=account-a') {
+            statusStarted = true
+            return heldStatus
+          }
+          return Promise.reject(new Error('Unexpected auth request'))
+        })
+      )
+      const binding = ownerBindingHarness<string>('auth=account-a')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const status = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusStarted).toBe(true))
+      const login = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await vi.waitFor(() => expect(loginStarted).toBe(true))
+
+      releaseStatus(jsonResponse({ error: 'expired account A' }, { status: 401 }))
+      await expect(status).resolves.toMatchObject({ state: 'unauthenticated' })
+      releaseLogin(
+        jsonResponse(
+          { id: 'ACCOUNT002', displayName: 'Account B' },
+          { setCookies: ['auth=account-b'] }
+        )
+      )
+
+      await expect(login).resolves.toEqual({ ok: true })
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT002'])
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('keeps the auth component through a stale restored-session 401 while 2FA verification is in flight', async () => {
+      let releaseStatus!: (response: Response) => void
+      let releaseVerifyBody!: (body: unknown) => void
+      let statusStarted = false
+      let verifyBodyStarted = false
+      const heldStatus = new Promise<Response>((resolve) => {
+        releaseStatus = resolve
+      })
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=fresh'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let statusRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=stale'
+          ) {
+            statusRequests += 1
+            if (statusRequests === 1) {
+              return Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+            }
+            statusStarted = true
+            return heldStatus
+          }
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=fresh'
+          ) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected auth request: ${href}`))
+        })
+      )
+      const store = fakeStore('auth=restored; twoFactorAuth=stale')
+      const adapter = new VrcAdapter(store, noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      const staleStatus = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusStarted).toBe(true))
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+
+      releaseStatus(jsonResponse({ error: 'stale request rejected' }, { status: 401 }))
+      await expect(staleStatus).resolves.toMatchObject({ state: 'needs-2fa' })
+      releaseVerifyBody({ verified: true })
+      await expect(verify).resolves.toEqual({ ok: true })
+      expect(store.saved.at(-1)).toBe('auth=restored; twoFactorAuth=fresh')
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'authenticated',
+        accountId: 'ACCOUNT001'
+      })
+    })
+
+    it('clears the tentative marker after a rejected 2FA code so the restored session remains retryable', async () => {
+      let statusRequests = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.includes('/twofactorauth/')) {
+          return Promise.resolve(jsonResponse({ error: 'invalid code' }, { status: 401 }))
+        }
+        if (href.endsWith('/auth/user')) {
+          statusRequests += 1
+          return Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+        }
+        return Promise.reject(new Error(`Unexpected auth request: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=restored; twoFactorAuth=stale'), noopSleep)
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      await expect(adapter.verify2fa('wrong-code')).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'invalid_2fa_code'
+      })
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      expect(statusRequests).toBe(2)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('does not let a pre-verify 200 status response publish identity during 2FA persistence', async () => {
+      let releaseStatus!: (response: Response) => void
+      let releaseVerifyBody!: (body: unknown) => void
+      let statusStarted = false
+      let verifyBodyStarted = false
+      const heldStatus = new Promise<Response>((resolve) => {
+        releaseStatus = resolve
+      })
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=fresh'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let statusRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=stale'
+          ) {
+            statusRequests += 1
+            if (statusRequests === 1) {
+              return Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+            }
+            statusStarted = true
+            return heldStatus
+          }
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=fresh'
+          ) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected auth request: ${href}`))
+        })
+      )
+      const store = fakeStore('auth=restored; twoFactorAuth=stale')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const identitiesBeforeStatus = [...identities]
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      const staleStatus = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusStarted).toBe(true))
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+
+      releaseStatus(jsonResponse({ id: 'STALE001', displayName: 'Stale Account' }))
+      await expect(staleStatus).resolves.toMatchObject({ state: 'needs-2fa' })
+      expect(store.saved).toEqual([])
+      expect(identities).toEqual(identitiesBeforeStatus)
+
+      releaseVerifyBody({ verified: true })
+      await expect(verify).resolves.toEqual({ ok: true })
+      expect(store.saved.at(-1)).toBe('auth=restored; twoFactorAuth=fresh')
+      expect(identities.at(-1)).toBe('ACCOUNT001')
+    })
+
+    it('does not let a pre-verify 200 status body publish identity during 2FA persistence', async () => {
+      let releaseStatusBody!: (body: unknown) => void
+      let releaseVerifyBody!: (body: unknown) => void
+      let statusBodyStarted = false
+      let verifyBodyStarted = false
+      const heldStatusBody = new Promise<unknown>((resolve) => {
+        releaseStatusBody = resolve
+      })
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const staleStatusResponse = jsonResponse(null)
+      vi.spyOn(staleStatusResponse, 'json').mockImplementation(() => {
+        statusBodyStarted = true
+        return heldStatusBody
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=fresh'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let statusRequests = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=stale'
+          ) {
+            statusRequests += 1
+            return statusRequests === 1
+              ? Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+              : Promise.resolve(staleStatusResponse)
+          }
+          if (
+            href.endsWith('/auth/user') &&
+            headers.Cookie === 'auth=restored; twoFactorAuth=fresh'
+          ) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected auth request: ${href}`))
+        })
+      )
+      const store = fakeStore('auth=restored; twoFactorAuth=stale')
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+      const identitiesBeforeStatus = [...identities]
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      const staleStatus = adapter.getAuthStatus()
+      await vi.waitFor(() => expect(statusBodyStarted).toBe(true))
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+
+      releaseStatusBody({ id: 'STALE001', displayName: 'Stale Account' })
+      await expect(staleStatus).resolves.toMatchObject({ state: 'needs-2fa' })
+      expect(store.saved).toEqual([])
+      expect(identities).toEqual(identitiesBeforeStatus)
+
+      releaseVerifyBody({ verified: true })
+      await expect(verify).resolves.toEqual({ ok: true })
+      expect(store.saved.at(-1)).toBe('auth=restored; twoFactorAuth=fresh')
+      expect(identities.at(-1)).toBe('ACCOUNT001')
+    })
+
     it('reports unauthenticated WITHOUT a network call when there is no cookie', async () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
@@ -1074,7 +2449,11 @@ describe('VrcAdapter', () => {
         expect((await adapter.getAuthStatus()).state).toBe('error')
       }
 
-      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      const loginFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ id: 'usr', displayName: 'Neo' }, { setCookies: ['auth=fresh'] })
+        )
       vi.stubGlobal('fetch', loginFetch)
 
       expect(await adapter.login(creds)).toEqual({ ok: true })
@@ -1091,7 +2470,11 @@ describe('VrcAdapter', () => {
         await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
       }
 
-      const loginFetch = vi.fn().mockResolvedValue(jsonResponse({ id: 'usr', displayName: 'Neo' }))
+      const loginFetch = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ id: 'usr', displayName: 'Neo' }, { setCookies: ['auth=fresh'] })
+        )
       vi.stubGlobal('fetch', loginFetch)
       expect(await adapter.login(creds)).toEqual({ ok: true })
       expect(loginFetch).toHaveBeenCalled()
@@ -1291,6 +2674,7 @@ describe('VrcAdapter', () => {
           return fakeSocket()
         }
       })
+      markSessionEstablished(adapter)
       // Token exchange responds OK so the pipeline dials immediately.
       vi.stubGlobal(
         'fetch',
@@ -1321,6 +2705,7 @@ describe('VrcAdapter', () => {
           }
         }
       )
+      markSessionEstablished(adapter)
 
       // Exchange succeeds → the EXCHANGED token dials the socket.
       vi.stubGlobal(
@@ -1349,6 +2734,7 @@ describe('VrcAdapter', () => {
           }
         }
       )
+      markSessionEstablished(adapter2)
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
       const unsub2 = adapter2.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
@@ -1364,6 +2750,7 @@ describe('VrcAdapter', () => {
           return { on: () => {}, close: () => {} }
         }
       })
+      markSessionEstablished(adapter3)
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
       const unsub3 = adapter3.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
@@ -1388,6 +2775,7 @@ describe('VrcAdapter', () => {
           return s
         }
       })
+      markSessionEstablished(adapter)
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
@@ -1437,6 +2825,7 @@ describe('VrcAdapter', () => {
         },
         onSessionBoundary: () => engine.resetPlatform('vrchat')
       })
+      markSessionEstablished(adapter)
       vi.stubGlobal(
         'fetch',
         vi.fn((url: RequestInfo | URL) => {
@@ -1480,7 +2869,7 @@ describe('VrcAdapter', () => {
       unsub()
     })
 
-    it('successful 2FA bumps the session generation, resets alerts, and drops old-pipeline events', async () => {
+    it('successful 2FA bumps the generation and starts a retained subscriber after persistence', async () => {
       const sockets: DrivableVrcSocket[] = []
       let authUserCalls = 0
       vi.stubGlobal(
@@ -1529,18 +2918,9 @@ describe('VrcAdapter', () => {
         }
         engine.consume(event)
       })
-      await vi.waitFor(() => expect(sockets).toHaveLength(1))
-      expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
-      const oldSocket = sockets[0]!
-      oldSocket.fire('open')
-      expect(appStatus.snapshot().ws.vrchat).toBe('live')
-      oldSocket.fire(
-        'message',
-        pipelineFrame('friend-active', { userId: pipelineUser.id, user: pipelineUser })
-      )
+      expect(sockets).toEqual([])
+      expect(appStatus.snapshot().ws.vrchat).toBe('down')
       const state = engine as unknown as { presence: Map<string, Map<string, unknown>> }
-      expect(state.presence.get('vrchat')?.size).toBe(1)
-      events.length = 0
 
       expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
       expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
@@ -1548,23 +2928,14 @@ describe('VrcAdapter', () => {
       )
       expect(reset).toHaveBeenCalledWith('vrchat')
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
-      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
       expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
       expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
 
-      oldSocket.fire(
-        'message',
-        pipelineFrame('friend-online', {
-          userId: pipelineUser.id,
-          user: pipelineUser,
-          location: 'wrld_old:2'
-        })
-      )
-      expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
       expect(alerts).toEqual([])
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
 
-      sockets[1]!.fire('open')
+      sockets[0]!.fire('open')
       expect(events).toEqual([
         { type: 'connection', platform: 'vrchat', health: 'reconnecting' },
         { type: 'connection', platform: 'vrchat', health: 'live' }
@@ -1591,6 +2962,7 @@ describe('VrcAdapter', () => {
       )
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       // /auth/user for buckets: return empty buckets + no friends in any bucket
       fetchMock.mockResolvedValueOnce(
@@ -1687,6 +3059,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
         onSessionBoundary: boundary
       })
+      markSessionEstablished(adapter)
 
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(accountAStarted).toBe(true))
@@ -1705,6 +3078,230 @@ describe('VrcAdapter', () => {
       })
       expect(boundary).toHaveBeenCalledTimes(boundariesAfterLogin)
     })
+
+    it('does not retry an old roster through a tentative replacement cookie', async () => {
+      let releaseAccountA!: (response: Response) => void
+      const heldAccountA = new Promise<Response>((resolve) => {
+        releaseAccountA = resolve
+      })
+      let releaseLoginBody!: (body: unknown) => void
+      const heldLoginBody = new Promise<unknown>((resolve) => {
+        releaseLoginBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-b'] })
+      let loginBodyStarted = false
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        loginBodyStarted = true
+        return heldLoginBody
+      })
+      let accountAStarted = false
+      let tentativeAccountBRequests = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+        if (href.endsWith('/auth/user') && headers.Cookie === 'auth=account-a') {
+          accountAStarted = true
+          return heldAccountA
+        }
+        if (headers.Cookie === 'auth=account-b') {
+          tentativeAccountBRequests += 1
+          return Promise.reject(new Error('tentative account B request escaped'))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
+
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(accountAStarted).toBe(true))
+      const login = adapter.login({ username: 'account-b', password: 'pw' })
+      await vi.waitFor(() => expect(loginBodyStarted).toBe(true))
+      releaseAccountA(jsonResponse({ error: 'expired account A' }, { status: 401 }))
+      const rosterError = await roster.then(
+        () => null,
+        (error: unknown) => error
+      )
+      releaseLoginBody({ id: 'ACCOUNTB1', displayName: 'Account B' })
+      await expect(login).resolves.toEqual({ ok: true })
+
+      expect(rosterError).toBeInstanceOf(AuthSessionPendingError)
+      expect((rosterError as Error).message).toBe('Authentication session is still being persisted')
+      expect(tentativeAccountBRequests).toBe(0)
+    })
+
+    it('restarts a roster before its next page can use a durable replacement cookie', async () => {
+      let releaseAccountAPage!: (response: Response) => void
+      const heldAccountAPage = new Promise<Response>((resolve) => {
+        releaseAccountAPage = resolve
+      })
+      let accountAPageStarted = false
+      const accountBPaths: string[] = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
+          )
+        }
+        if (headers.Cookie === 'auth=account-a' && href.endsWith('/auth/user')) {
+          return Promise.resolve(
+            jsonResponse({
+              onlineFriends: [],
+              activeFriends: [],
+              offlineFriends: []
+            })
+          )
+        }
+        if (
+          headers.Cookie === 'auth=account-a' &&
+          href.includes('/auth/user/friends') &&
+          href.includes('offline=false')
+        ) {
+          accountAPageStarted = true
+          return heldAccountAPage
+        }
+        if (headers.Cookie === 'auth=account-b') {
+          const parsedUrl = new URL(href)
+          accountBPaths.push(`${parsedUrl.pathname}${parsedUrl.search}`)
+          if (parsedUrl.pathname.endsWith('/auth/user')) {
+            return Promise.resolve(
+              jsonResponse({
+                onlineFriends: [],
+                activeFriends: [],
+                offlineFriends: []
+              })
+            )
+          }
+          if (parsedUrl.pathname.endsWith('/auth/user/friends')) {
+            return Promise.resolve(jsonResponse([]))
+          }
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
+
+      const roster = adapter.getFriends()
+      await vi.waitFor(() => expect(accountAPageStarted).toBe(true))
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      releaseAccountAPage(jsonResponse([]))
+      await expect(roster).resolves.toEqual({ friends: [], completeness: 'complete' })
+
+      expect(accountBPaths[0]).toBe('/api/1/auth/user')
+    })
+
+    it.each([
+      {
+        stage: 'while the replacement is tentative',
+        loginBody: { requiresTwoFactorAuth: ['totp'] },
+        expectedLogin: { needs2fa: true }
+      },
+      {
+        stage: 'after the replacement is durable',
+        loginBody: { id: 'ACCOUNTB1', displayName: 'Account B' },
+        expectedLogin: { ok: true }
+      }
+    ])(
+      'does not advance an old world-enrichment batch $stage',
+      async ({ loginBody, expectedLogin }) => {
+        const friendIds = Array.from(
+          { length: CONCURRENCY_LIMIT + 1 },
+          (_, index) => `usr_friend_${index}`
+        )
+        const releases: Array<(response: Response) => void> = []
+        let accountAWorldRequests = 0
+        let tentativeAccountBWorldRequests = 0
+        const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(jsonResponse(loginBody, { setCookies: ['auth=account-b'] }))
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(
+              jsonResponse({
+                onlineFriends: friendIds,
+                activeFriends: [],
+                offlineFriends: []
+              })
+            )
+          }
+          if (href.includes('/auth/user/friends')) {
+            return Promise.resolve(
+              href.includes('offline=true')
+                ? jsonResponse([])
+                : jsonResponse(
+                    friendIds.map((id, index) => ({
+                      id,
+                      displayName: `Friend ${index}`,
+                      status: 'active',
+                      tags: [],
+                      location: `wrld_pending_${index}:instance-${index}`
+                    }))
+                  )
+            )
+          }
+          if (href.includes('/worlds/')) {
+            if (headers.Cookie === 'auth=account-b') {
+              tentativeAccountBWorldRequests += 1
+              return Promise.resolve(
+                jsonResponse({
+                  name: 'Tentative world',
+                  thumbnailImageUrl: null,
+                  capacity: 16,
+                  shortName: null
+                })
+              )
+            }
+            accountAWorldRequests += 1
+            return new Promise<Response>((resolve) => releases.push(resolve))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+        vi.stubGlobal('fetch', fetchMock)
+        const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+        markSessionEstablished(adapter)
+
+        await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
+        await vi.waitFor(() => expect(accountAWorldRequests).toBe(CONCURRENCY_LIMIT))
+        await expect(
+          adapter.login({ username: 'account-b', password: 'pw-b' })
+        ).resolves.toMatchObject(expectedLogin)
+
+        releases.shift()?.(
+          jsonResponse({
+            name: 'Account A world',
+            thumbnailImageUrl: null,
+            capacity: 16,
+            shortName: null
+          })
+        )
+        await new Promise((resolve) => setImmediate(resolve))
+        const escapedRequests = tentativeAccountBWorldRequests
+        for (const release of releases) {
+          release(
+            jsonResponse({
+              name: 'Account A world',
+              thumbnailImageUrl: null,
+              capacity: 16,
+              shortName: null
+            })
+          )
+        }
+        await new Promise((resolve) => setImmediate(resolve))
+
+        expect(escapedRequests).toBe(0)
+      }
+    )
 
     it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {
       let releaseRoster!: (response: Response) => void
@@ -1728,6 +3325,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(rosterCalls).toBe(1))
       const unsubscribe = adapter.subscribe((event) => events.push(event))
@@ -1747,6 +3345,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
       // A missing presence probe is an explicit degraded result. Do not fetch
       // pages and manufacture an all-offline roster from empty buckets.
@@ -1761,6 +3360,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -1778,6 +3378,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -1793,6 +3394,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -1852,6 +3454,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const result = await adapter.getFriends()
       const { friends } = result
@@ -1880,6 +3483,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
       expect(fetchMock).toHaveBeenCalledTimes(4)
@@ -1895,6 +3499,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
@@ -2036,6 +3641,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
       let friends: Friend[] | undefined
       const roster = adapter.getFriends().then((result) => {
@@ -2133,6 +3739,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       const first = adapter.getFriends()
@@ -2203,6 +3810,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
 
       await expect(adapter.getFriends()).resolves.toEqual({
@@ -2264,6 +3872,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const { friends } = await adapter.getFriends()
 
@@ -2321,6 +3930,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const { friends } = await adapter.getFriends()
 
@@ -2398,6 +4008,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       await adapter.getFriends()
@@ -2417,6 +4028,100 @@ describe('VrcAdapter', () => {
       expect(worldFetchCount.n).toBe(1)
       expect(cachedFriends[0]!.instance?.worldName).toBe('Cached World')
       unsubscribe()
+    })
+
+    it('clears cached world metadata before adopting a durable replacement account', async () => {
+      const worldId = 'wrld_account_scoped'
+      const worldRequestCookies: Array<string | undefined> = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
+          )
+        }
+        if (href.includes(`/worlds/${worldId}`)) {
+          worldRequestCookies.push(headers.Cookie)
+          return Promise.resolve(
+            jsonResponse({
+              name: headers.Cookie === 'auth=account-a' ? 'Account A World' : 'Account B World',
+              thumbnailImageUrl: null,
+              capacity: 8,
+              shortName: null
+            })
+          )
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
+      const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+
+      await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account A World' })
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+
+      expect(resolver.peek(worldId)).toBeUndefined()
+      await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account B World' })
+      expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    })
+
+    it('does not let an old world completion erase the replacement generation pending marker', async () => {
+      const worldId = 'wrld_pending_owner'
+      const releases: Array<(response: Response) => void> = []
+      const worldRequestCookies: Array<string | undefined> = []
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse(
+              { id: 'ACCOUNTB1', displayName: 'Account B' },
+              { setCookies: ['auth=account-b'] }
+            )
+          )
+        }
+        if (href.includes(`/worlds/${worldId}`)) {
+          worldRequestCookies.push(headers.Cookie)
+          return new Promise<Response>((resolve) => releases.push(resolve))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
+      const internal = adapter as unknown as {
+        sessionGeneration: number
+        pendingWorldResolutions: Set<string>
+        kickWorldMetadata(friends: Friend[], generation: number): void
+      }
+      const friend = { instance: { worldId } } as Friend
+
+      internal.kickWorldMetadata([friend], internal.sessionGeneration)
+      await vi.waitFor(() => expect(worldRequestCookies).toEqual(['auth=account-a']))
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      internal.kickWorldMetadata([friend], internal.sessionGeneration)
+      await vi.waitFor(() =>
+        expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+      )
+
+      releases[0]!(jsonResponse({ name: 'Account A World', thumbnailImageUrl: null, capacity: 8 }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const replacementMarkerSurvived = internal.pendingWorldResolutions.has(worldId)
+
+      releases[1]!(jsonResponse({ name: 'Account B World', thumbnailImageUrl: null, capacity: 8 }))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(replacementMarkerSurvived).toBe(true)
     })
 
     it('negative-cached world failures are not re-fetched during reconcile inside the 60s window', async () => {
@@ -2466,6 +4171,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       // Inject a clock so we can advance the negative TTL deterministically.
       const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
@@ -2510,6 +4216,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValue(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await adapter.selfInvite(inviteLocation)
 
@@ -2523,6 +4230,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(publicLocation)).rejects.toThrow(
         /no invite needed for public instances/i
@@ -2536,6 +4244,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValue(new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(inviteLocation)).rejects.toThrow()
       // The thrown error must not leak the instanceId / internal path
@@ -2557,6 +4266,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(bad)).rejects.toThrow(/invalid instance location/i)
       expect(fetchMock).not.toHaveBeenCalled()
@@ -2576,6 +4286,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(store, noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const generationBefore = (adapter as unknown as { sessionGeneration: number })
         .sessionGeneration
       adapter.subscribe((event) => {
@@ -2603,6 +4314,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const generationBefore = (adapter as unknown as { sessionGeneration: number })
         .sessionGeneration
       adapter.subscribe((event) => {
@@ -2633,6 +4345,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
 
       const invitePromise = adapter.selfInvite(inviteLocation)
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -2690,6 +4403,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -2743,6 +4457,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -2800,6 +4515,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     // Inject a clock so we can advance the negative TTL deterministically.
     const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
     const originalClock = (resolver as unknown as { clock: () => number }).clock
@@ -2858,6 +4574,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -2877,6 +4594,62 @@ describe('live pipeline world enrichment (VRX-254)', () => {
 
     expect(events.filter((e) => e.type === 'world-metadata')).toHaveLength(0)
     unsubscribe()
+  })
+
+  it('does not let an old live world completion erase the replacement generation pending marker', async () => {
+    const worldId = 'wrld_live_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const worldRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        worldRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingWorldResolutions: Set<string>
+      enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent
+    }
+    const event = {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: { instance: { worldId } }
+    } as AdapterEvent
+
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() => expect(worldRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A World', thumbnailImageUrl: null, capacity: 8 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingWorldResolutions.has(worldId)
+
+    releases[1]!(jsonResponse({ name: 'Account B World', thumbnailImageUrl: null, capacity: 8 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
   })
 
   it('unconditionally sweeps pendingWorldResolutions after a live-event 401 so the world refetches after re-login', async () => {
@@ -2911,6 +4684,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -2987,6 +4761,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -3034,6 +4809,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -3073,6 +4849,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe(() => {})
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')

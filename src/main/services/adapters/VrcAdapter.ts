@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
+import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import type {
   AuthStatus,
   Credentials,
@@ -11,7 +12,8 @@ import type {
 } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
-import { AuthError, NetworkError } from './errors'
+import type { AdapterRequestOptions } from './BaseAdapter'
+import { AuthError, AuthSessionPendingError, NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
@@ -108,6 +110,14 @@ function mapTwoFactorMethod(types: string[]): TwoFactorMethod {
   return types.some((type) => type.toLowerCase() === 'emailotp') ? 'email' : 'totp'
 }
 
+/** Internal control-flow signal that dependency-injected fetchers already propagate. */
+class StaleSessionError extends AuthError {
+  constructor() {
+    super('Session ended')
+    this.name = 'StaleSessionError'
+  }
+}
+
 /**
  * A well-formed VRChat instance location: `wrld_<id>:<instance>[~tags]`. Validated
  * BEFORE the value is interpolated into a request URL path so a crafted instanceId
@@ -161,6 +171,13 @@ export class VrcAdapter extends VrcApiClient {
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+  private authOperationQueue: Promise<void> = Promise.resolve()
+  private authOperationSequence = 0
+  private activeAuthOperation: number | null = null
+  private authOperationCancellationGeneration = 0
+  private authPersistencePending = false
+  /** True only after the current cookie has been saved with its validated owner. */
+  private sessionPersistenceEstablished = false
 
   constructor(
     private readonly credentials: VrcCredentialStore,
@@ -182,9 +199,13 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  async login(creds: Credentials): Promise<LoginResult> {
+  login(creds: Credentials): Promise<LoginResult> {
+    return this.runAuthOperation((operationId) => this.performLogin(creds, operationId))
+  }
+
+  private async performLogin(creds: Credentials, operationId: number): Promise<LoginResult> {
     // Second leg of a 2FA flow: the renderer re-calls login with the code.
-    if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode)
+    if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode, operationId)
     if (
       !creds.username ||
       !creds.password ||
@@ -214,53 +235,89 @@ export class VrcAdapter extends VrcApiClient {
         { priority: 'interactive' }
       )
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
     if (response.status === 401) return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
 
     // The `auth` cookie is needed for the 2FA verify call AND the authed session.
     // Installing it replaces the account boundary immediately — including when
-    // the body below says 2FA is still required. Fence and replace the old
-    // account's pipeline before returning control to the renderer's 2FA prompt.
+    // the body below says 2FA is still required. Fence and stop the old account's
+    // pipeline now; a replacement starts only after the full session persists.
     const authCookie = extractCookie(response.headers.getSetCookie(), 'auth')
     if (authCookie && !isValidVrcSessionCookie(authCookie)) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
+    let installedTentativeCookie = false
     if (authCookie) {
+      this.authPersistencePending = true
+      installedTentativeCookie = true
       this.setCookie(authCookie)
       this.displayName = null
       this.accountId = null
       this.pendingTwoFactorMethod = null
       this.live?.onIdentity?.(null)
-      this.bumpSessionGeneration()
+      this.bumpSessionGeneration(false)
     }
 
     let body: unknown
     try {
       body = await response.json()
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededDirectLoginResult(operationId, installedTentativeCookie)
+      }
+      if (installedTentativeCookie) return this.abandonTentativeSession('bad_response')
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededDirectLoginResult(operationId, installedTentativeCookie)
+    }
     const parsed = authUserResponseSchema.safeParse(body)
-    if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    if (!parsed.success) {
+      if (installedTentativeCookie) return this.abandonTentativeSession('unexpected_response')
+      return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    }
 
     if ('requiresTwoFactorAuth' in parsed.data) {
+      // A Basic-login 2FA challenge belongs to the attempted account only when
+      // that response also issued its auth component. Reusing an older cookie
+      // would submit the new account's code against the previous account; with
+      // no cookie it would create a prompt that can never verify.
+      if (!authCookie) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+      // This replacement cookie cannot be persisted until 2FA establishes its
+      // owner. Revoke the prior account's disk slot before exposing the prompt,
+      // so quitting mid-flow cannot resurrect that account on restart.
+      try {
+        this.credentials.delete()
+      } catch {
+        return this.persistenceFailure()
+      }
       this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
 
-    // A response without a replacement cookie still completed a deliberate
-    // login, so preserve the established successful-login boundary behavior.
+    // A Basic-login response without a replacement cookie may reuse the
+    // current session only when that cookie was already proven to belong to
+    // the same account. Otherwise accepting the body would bind the old
+    // account's cookie to the new account id and persist a false owner.
     if (!authCookie) {
+      if (!this.cookie || this.accountId !== parsed.data.id) {
+        return { ok: false, needs2fa: false, error: 'unexpected_response' }
+      }
+      this.authPersistencePending = true
       this.live?.onIdentity?.(null)
-      this.bumpSessionGeneration()
+      this.bumpSessionGeneration(false)
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
-    this.persist()
+    if (!this.sessionPersistenceEstablished && !this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
     this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
     return { ok: true }
   }
 
@@ -270,10 +327,10 @@ export class VrcAdapter extends VrcApiClient {
    * renderer can drop the password from memory after the first leg.
    */
   verify2fa(code: string): Promise<LoginResult> {
-    return this.verifyTwoFactor(code)
+    return this.runAuthOperation((operationId) => this.verifyTwoFactor(code, operationId))
   }
 
-  private async verifyTwoFactor(code: string): Promise<LoginResult> {
+  private async verifyTwoFactor(code: string, operationId: number): Promise<LoginResult> {
     // INVARIANT (renderer-enforced, not guarded here): every reachable prompt
     // is preceded on this adapter by login() or getAuthStatus() setting
     // pendingTwoFactorMethod, so the totp default below is dead in practice.
@@ -281,6 +338,18 @@ export class VrcAdapter extends VrcApiClient {
     // status or login result would silently reintroduce the VRX-229 misroute
     // for email users — derive the method from the server first.
     const method = this.pendingTwoFactorMethod ?? 'totp'
+    // Preserve the auth component before the verify request crosses any await.
+    // A restored-session status request can complete with a stale 401 while this
+    // operation is in flight; its invalidation must not turn a server-verified
+    // 2FA response that only reissues `twoFactorAuth` into a durable cookie with
+    // no auth component. The pending marker makes such in-flight status requests
+    // report the existing 2FA state instead of clearing this tentative session.
+    const retainedAuthCookie = cookiePart(this.cookie, 'auth')
+    if (!retainedAuthCookie || !isValidVrcSessionCookie(retainedAuthCookie)) {
+      return { ok: false, needs2fa: false, error: 'invalid_credentials' }
+    }
+    const wasAuthPersistencePending = this.authPersistencePending
+    this.authPersistencePending = true
     // VRChat has THREE verify endpoints (docs/api-volatility.md): totp/verify
     // (authenticator codes), emailotp/verify (emailed codes), otp/verify
     // (RECOVERY codes only). Email codes posted to otp/verify are always
@@ -306,10 +375,20 @@ export class VrcAdapter extends VrcApiClient {
         { priority: 'interactive' }
       )
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+      }
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+    }
 
-    if (!response.ok) return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+    if (!response.ok) {
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
+      return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+    }
 
     // Require VRChat's explicit `verified: true` — a 204, malformed body, or
     // `{ verified: false }` must NOT count as success (it would persist the partial
@@ -319,10 +398,18 @@ export class VrcAdapter extends VrcApiClient {
     try {
       verifyBody = await response.json()
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) {
+        return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
+      }
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
+    }
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending)
     }
     const verified = twoFactorVerifySchema.safeParse(verifyBody)
     if (!verified.success || !verified.data.verified) {
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
 
@@ -333,12 +420,14 @@ export class VrcAdapter extends VrcApiClient {
     // falling back to it whole would rebuild a cookie with DUPLICATE twoFactorAuth
     // parts — the stale one winning server-side → an endless reprompt loop.
     const setCookies = response.headers.getSetCookie()
-    const authCookie = extractCookie(setCookies, 'auth') ?? cookiePart(this.cookie, 'auth')
+    const authCookie = extractCookie(setCookies, 'auth') ?? retainedAuthCookie
     const twoFactorCookie = extractCookie(setCookies, 'twoFactorAuth')
     const combined = [authCookie, twoFactorCookie].filter((part): part is string => Boolean(part))
     if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
+      this.restoreTwoFactorVerificationPending(operationId, wasAuthPersistencePending)
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
+    this.authPersistencePending = true
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 
@@ -347,15 +436,52 @@ export class VrcAdapter extends VrcApiClient {
     this.displayName = null
     this.accountId = null
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
-    await this.refreshDisplayName('interactive')
-    this.persist()
+    this.bumpSessionGeneration(false)
+    await this.refreshDisplayName('interactive', operationId)
+    if (!this.isAuthOperationCurrent(operationId)) {
+      return this.supersededTwoFactorResult(operationId, wasAuthPersistencePending, true)
+    }
+    // A verified second factor is still not a durable authenticated session
+    // until the account endpoint establishes its owner. Persisting with a null
+    // owner would let an unbound credential reappear after restart.
+    if (this.accountId === null) return this.identityUnavailableFailure()
+    if (!this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
     return { ok: true }
+  }
+
+  /**
+   * A first-leg 2FA cookie is safe to describe as needing its code. Once an
+   * operation has cleared that method, however, its cookie must stay invisible
+   * until owner validation and secure persistence finish. Returning `error`
+   * would admit the renderer shell, whose authenticated queries could then use
+   * the tentative cookie.
+   */
+  private async awaitTentativeAuthStatus(): Promise<AuthStatus | null> {
+    if (this.pendingTwoFactorMethod !== null) {
+      return this.status('needs-2fa', this.pendingTwoFactorMethod)
+    }
+    await this.authOperationQueue
+    // All intended terminal paths clear the marker or establish a retryable
+    // 2FA method. If an unexpected operation failure leaves it behind, fail
+    // closed instead of spinning or exposing the tentative cookie as `error`.
+    if (this.authPersistencePending) {
+      return this.pendingTwoFactorMethod === null
+        ? this.status('unauthenticated')
+        : this.status('needs-2fa', this.pendingTwoFactorMethod)
+    }
+    return null
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
     for (;;) {
+      if (this.authPersistencePending) {
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
+      }
       if (!this.cookie) return this.status('unauthenticated')
       const generation = this.sessionGeneration
 
@@ -370,6 +496,11 @@ export class VrcAdapter extends VrcApiClient {
           { priority: 'interactive', recordCircuitFailure: false }
         )
       } catch {
+        if (this.authPersistencePending) {
+          const tentative = await this.awaitTentativeAuthStatus()
+          if (tentative !== null) return tentative
+          continue
+        }
         // A replacement session landed while the request was in flight: retry
         // against it. A logout landed instead: report the current logged-out state.
         if (generation !== this.sessionGeneration) {
@@ -380,6 +511,11 @@ export class VrcAdapter extends VrcApiClient {
       }
       // Fence every response outcome before it can describe or mutate the current
       // session. In particular, an old 401 must never clear a newly logged-in user.
+      if (this.authPersistencePending) {
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
+      }
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -398,6 +534,11 @@ export class VrcAdapter extends VrcApiClient {
       try {
         body = await response.json()
       } catch {
+        if (this.authPersistencePending) {
+          const tentative = await this.awaitTentativeAuthStatus()
+          if (tentative !== null) return tentative
+          continue
+        }
         if (generation !== this.sessionGeneration) {
           if (this.cookie) continue
           return this.status('unauthenticated')
@@ -406,6 +547,11 @@ export class VrcAdapter extends VrcApiClient {
       }
       // response.json() is another account-boundary await: fence it before
       // updating displayName or the pending 2FA method.
+      if (this.authPersistencePending) {
+        const tentative = await this.awaitTentativeAuthStatus()
+        if (tentative !== null) return tentative
+        continue
+      }
       if (generation !== this.sessionGeneration) {
         if (this.cookie) continue
         return this.status('unauthenticated')
@@ -430,10 +576,45 @@ export class VrcAdapter extends VrcApiClient {
 
       this.displayName = parsed.data.displayName
       this.accountId = parsed.data.id
-      this.persist()
+      // The first successful status for a restored cookie backfills its owner.
+      // Fresh login/2FA already established this binding, so later status
+      // refreshes must not destructively re-write the same durable credential.
+      const establishedByThisStatus = !this.sessionPersistenceEstablished
+      if (establishedByThisStatus && !this.persist()) {
+        this.clearSessionAfterTerminalAuthFailure()
+        this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
+        return this.status('unauthenticated')
+      }
       this.live?.onIdentity?.(this.accountId)
+      if (establishedByThisStatus) this.restartPipeline()
       return this.status('authenticated')
     }
+  }
+
+  /** Avatar requests may observe only a cookie whose secure save has settled. */
+  override getAuthCookieHeader(): string | null {
+    return this.isSessionConsumerReady() ? super.getAuthCookieHeader() : null
+  }
+
+  /** Fence every typed authenticated GET, including paginators and old metadata workers. */
+  protected override get<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    this.assertDurableSession()
+    return super.get(path, schema, options)
+  }
+
+  /** Fence every typed authenticated POST at the same main-process boundary. */
+  protected override post<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    this.assertDurableSession()
+    return super.post(path, body, schema, options)
   }
 
   /** Fan an event out to all live subscribers — one throwing handler must not
@@ -453,9 +634,16 @@ export class VrcAdapter extends VrcApiClient {
 
   async getFriends(): Promise<FriendRoster> {
     for (;;) {
+      this.assertDurableSession()
       const generation = this.sessionGeneration
       try {
-        const result = await fetchFriends((path, schema) => this.get(path, schema))
+        const result = await fetchFriends((path, schema) => {
+          // fetchFriends can issue several pages. Bind every request launch to
+          // the account that started this roster so a later durable login
+          // cannot lend its cookie to the old paginator.
+          if (generation !== this.sessionGeneration) throw new StaleSessionError()
+          return this.get(path, schema)
+        })
         const { friends, failedPages, skippedRecords } = result
         if (result.presence === 'degraded') {
           throw new NetworkError('Failed to fetch friends (presence=degraded)')
@@ -537,18 +725,25 @@ export class VrcAdapter extends VrcApiClient {
     })
     const kicked = groupIds.filter((id): id is string => id !== null)
     for (const id of kicked) this.pendingGroupResolutions.add(id)
-    void fetchGroupMetadata(groupIds, this.groupResolver, undefined, (groupId, meta) => {
-      if (generation !== this.sessionGeneration) return
-      this.emit({
-        type: 'group-metadata',
-        platform: 'vrchat',
-        groupId,
-        groupName: meta.name,
-        groupImageUrl: meta.iconUrl
-      })
-    })
+    void fetchGroupMetadata(
+      groupIds,
+      this.groupResolver,
+      undefined,
+      (groupId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'group-metadata',
+          platform: 'vrchat',
+          groupId,
+          groupName: meta.name,
+          groupImageUrl: meta.iconUrl
+        })
+      },
+      () => generation === this.sessionGeneration
+    )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthSessionPendingError) return
         if (error instanceof AuthError && error.status === 401) {
           this.bumpSessionGeneration()
           this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
@@ -559,7 +754,8 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids unconditionally so failed/private groups become
+        if (generation !== this.sessionGeneration) return
+        // Sweep this current-generation batch so failed/private groups become
         // retryable after the negative-cache window or at reconcile (VRX-258).
         for (const id of kicked) this.pendingGroupResolutions.delete(id)
       })
@@ -586,18 +782,25 @@ export class VrcAdapter extends VrcApiClient {
     // Residual auth window (documented in api-volatility.md): getFriends returns
     // before these requests settle, so a background 401 invalidates the session
     // asynchronously after the caller may already have seeded LocationAuthority.
-    void fetchWorldMetadata(worldIds, this.worldResolver, undefined, (worldId, meta) => {
-      if (generation !== this.sessionGeneration) return
-      this.emit({
-        type: 'world-metadata',
-        platform: 'vrchat',
-        worldId,
-        worldName: meta.name,
-        thumbnailUrl: meta.thumbnailUrl
-      })
-    })
+    void fetchWorldMetadata(
+      worldIds,
+      this.worldResolver,
+      undefined,
+      (worldId, meta) => {
+        if (generation !== this.sessionGeneration) return
+        this.emit({
+          type: 'world-metadata',
+          platform: 'vrchat',
+          worldId,
+          worldName: meta.name,
+          thumbnailUrl: meta.thumbnailUrl
+        })
+      },
+      () => generation === this.sessionGeneration
+    )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthSessionPendingError) return
         if (error instanceof AuthError && error.status === 401) {
           // A background 401 has the same meaning as the former awaited path:
           // preserve the cookie for the 2FA-aware status check, quarantine the
@@ -611,7 +814,8 @@ export class VrcAdapter extends VrcApiClient {
         })
       })
       .finally(() => {
-        // Sweep THIS batch's ids unconditionally — resolved worlds are now cached
+        if (generation !== this.sessionGeneration) return
+        // Sweep this current-generation batch — resolved worlds are now cached
         // (peek excludes them) and failed/private ones become retryable after the
         // 60 s negative-cache window or at reconcile.
         for (const id of kicked) this.pendingWorldResolutions.delete(id)
@@ -661,6 +865,7 @@ export class VrcAdapter extends VrcApiClient {
     if (parseInstanceType(instanceId) === 'public') {
       throw new Error('No invite needed for public instances')
     }
+    this.assertDurableSession()
 
     // VRChat's location string is the full `worldId:nonce[~tags]` — send it raw
     // (now validated free of URL-structural characters). The Notification response
@@ -701,8 +906,12 @@ export class VrcAdapter extends VrcApiClient {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
-    this.pipeline ??= this.createPipeline()
-    this.pipeline.start()
+    // A handler joining during tentative auth or restored-owner validation
+    // waits for persistence to settle.
+    if (this.isSessionConsumerReady()) {
+      this.pipeline ??= this.createPipeline()
+      this.pipeline.start()
+    }
 
     let active = true
     return () => {
@@ -783,7 +992,9 @@ export class VrcAdapter extends VrcApiClient {
             })
           })
           .finally(() => {
-            this.pendingWorldResolutions.delete(worldId)
+            if (generation === this.sessionGeneration) {
+              this.pendingWorldResolutions.delete(worldId)
+            }
           })
       }
     }
@@ -825,7 +1036,9 @@ export class VrcAdapter extends VrcApiClient {
               })
             })
             .finally(() => {
-              this.pendingGroupResolutions.delete(groupId)
+              if (generation === this.sessionGeneration) {
+                this.pendingGroupResolutions.delete(groupId)
+              }
             })
         }
       }
@@ -841,7 +1054,7 @@ export class VrcAdapter extends VrcApiClient {
    * (the pipeline waits and retries; a fresh login is picked up automatically).
    */
   private async pipelineToken(): Promise<string | null> {
-    if (!this.cookie) return null
+    if (!this.isSessionConsumerReady() || !this.cookie) return null
     try {
       const response = await this.rawRequest(`${VRC_API_BASE}/auth`, {
         method: 'GET',
@@ -866,24 +1079,118 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   // ── internals ──────────────────────────────────────────────────────────────
+  private runAuthOperation(
+    operation: (operationId: number) => Promise<LoginResult>
+  ): Promise<LoginResult> {
+    // Allocate ownership when the caller starts the operation, not when its
+    // queued body eventually runs. A later request immediately supersedes an
+    // older in-flight request at its next await fence while the queue still
+    // prevents concurrent mutation of the shared cookie/session fields.
+    const operationId = ++this.authOperationSequence
+    const cancellationGeneration = this.authOperationCancellationGeneration
+    const run = async (): Promise<LoginResult> => {
+      if (
+        cancellationGeneration !== this.authOperationCancellationGeneration ||
+        operationId !== this.authOperationSequence
+      ) {
+        return this.supersededAuthResult()
+      }
+      this.activeAuthOperation = operationId
+      try {
+        return await operation(operationId)
+      } finally {
+        if (this.activeAuthOperation === operationId) this.activeAuthOperation = null
+      }
+    }
+    const result = this.authOperationQueue.then(run)
+    this.authOperationQueue = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private isAuthOperationCurrent(operationId: number): boolean {
+    return this.activeAuthOperation === operationId && this.authOperationSequence === operationId
+  }
+
+  private isAuthOperationActive(operationId: number): boolean {
+    return this.activeAuthOperation === operationId
+  }
+
+  /** Do not overwrite a newer operation or an explicit logout's cleared state. */
+  private restoreTwoFactorVerificationPending(operationId: number, wasPending: boolean): void {
+    if (this.isAuthOperationCurrent(operationId)) this.authPersistencePending = wasPending
+  }
+
+  private cancelAuthOperations(): void {
+    this.authOperationCancellationGeneration += 1
+    this.activeAuthOperation = null
+  }
+
+  private supersededAuthResult(): LoginResult {
+    return { ok: false, needs2fa: false, error: 'unexpected_response' }
+  }
+
+  /** Roll back a superseded direct-login cookie before the queued winner runs. */
+  private supersededDirectLoginResult(
+    operationId: number,
+    installedTentativeCookie: boolean
+  ): LoginResult {
+    if (installedTentativeCookie && this.isAuthOperationActive(operationId)) {
+      this.clearSessionAfterTerminalAuthFailure()
+      return {
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }
+    }
+    return this.supersededAuthResult()
+  }
+
+  /** Restore or clear held 2FA state before the queued winning operation runs. */
+  private supersededTwoFactorResult(
+    operationId: number,
+    wasPending: boolean,
+    installedVerifiedSession = false
+  ): LoginResult {
+    if (!this.isAuthOperationActive(operationId)) return this.supersededAuthResult()
+    if (installedVerifiedSession) {
+      this.clearSessionAfterTerminalAuthFailure()
+      return {
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }
+    }
+    this.authPersistencePending = wasPending
+    return this.supersededAuthResult()
+  }
+
   private setCookie(cookie: string): void {
+    this.sessionPersistenceEstablished = false
     this.cookie = cookie
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
 
   private adoptSession(cookie: string): void {
+    this.cancelAuthOperations()
+    this.authPersistencePending = false
     this.setCookie(cookie)
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
   }
 
   /**
-   * Fence every account boundary before replacing the live pipeline. Any late
-   * callback from the stopped object keeps its captured old generation and is
-   * dropped by createPipeline's event handler.
+   * Fence every account boundary before replacing or stopping the live pipeline.
+   * Any late callback from the stopped object keeps its captured old generation
+   * and is dropped by createPipeline's event handler.
    */
-  private bumpSessionGeneration(): void {
+  private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionGeneration += 1
+    this.worldResolver.clear()
     this.groupResolver.clear()
     // Stale pending ids from the previous generation would suppress the new
     // session's first kick until their in-flight promises settle (both kick
@@ -892,13 +1199,22 @@ export class VrcAdapter extends VrcApiClient {
     this.pendingWorldResolutions.clear()
     this.live?.onSessionBoundary?.()
 
+    if (restartPipeline) {
+      this.restartPipeline()
+    } else {
+      this.pipeline?.stop()
+      this.pipeline = null
+    }
+  }
+
+  /** Start a replacement only after a tentative session is durably persisted. */
+  private restartPipeline(): void {
     const wasRunning = this.subscribers.size > 0
     this.pipeline?.stop()
     this.pipeline = null
-    if (wasRunning) {
-      this.pipeline = this.createPipeline()
-      this.pipeline.start()
-    }
+    if (!wasRunning || !this.isSessionConsumerReady()) return
+    this.pipeline = this.createPipeline()
+    this.pipeline.start()
   }
 
   /** Explicit logout is durable-or-fails: do not report a disconnect while the
@@ -909,20 +1225,28 @@ export class VrcAdapter extends VrcApiClient {
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
-  private clearSessionState(): void {
+  private clearSessionState(restartPipeline = true, cancelAuthOperations = true): void {
+    const wasPersistencePending = this.authPersistencePending
+    if (cancelAuthOperations) this.cancelAuthOperations()
+    this.authPersistencePending = false
+    this.sessionPersistenceEstablished = false
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
     this.accountId = null
     this.pendingTwoFactorMethod = null
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration()
+    this.bumpSessionGeneration(restartPipeline && !wasPersistencePending)
   }
 
   /** Automatic auth invalidation must clear memory even when safeStorage is
    * unavailable; persisted deletion remains best-effort on this non-interactive path. */
   private invalidateSession(): void {
-    this.clearSessionState()
+    // The invalidated cookie belongs to an automatic/background operation.
+    // Do not cancel a newer interactive login that has not installed its
+    // replacement cookie yet; explicit clearSession remains the cancellation
+    // boundary for active and queued auth operations.
+    this.clearSessionState(true, false)
     try {
       this.credentials.delete()
     } catch {
@@ -934,16 +1258,75 @@ export class VrcAdapter extends VrcApiClient {
     return this.cookie ? { Cookie: this.cookie } : {}
   }
 
-  private persist(): void {
-    if (!this.cookie) return
-    try {
-      this.credentials.save(this.cookie, this.accountId)
-    } catch {
-      /* persistence is best-effort; the session still works in-memory this run */
+  /** Authenticated consumers require both owner validation and settled persistence. */
+  private isSessionConsumerReady(): boolean {
+    return this.sessionPersistenceEstablished && !this.authPersistencePending
+  }
+
+  /** Authenticated REST calls must never use an unowned or tentative cookie. */
+  private assertDurableSession(): void {
+    if (!this.isSessionConsumerReady()) {
+      throw new AuthSessionPendingError()
     }
   }
 
-  private async refreshDisplayName(priority: 'default' | 'interactive' = 'default'): Promise<void> {
+  private persist(): boolean {
+    if (!this.cookie) return false
+    try {
+      this.credentials.save(this.cookie, this.accountId)
+      this.sessionPersistenceEstablished = true
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /** A successful login must survive restart; discard an unpersisted session. */
+  private persistenceFailure(): LoginResult {
+    this.clearSessionAfterTerminalAuthFailure()
+    this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
+    return {
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    }
+  }
+
+  /** A verified 2FA response without a validated owner cannot become a session. */
+  private identityUnavailableFailure(): LoginResult {
+    this.clearSessionAfterTerminalAuthFailure()
+    this.live?.log?.('warn', 'vrc adapter: authenticated identity unavailable')
+    return {
+      ok: false,
+      needs2fa: false,
+      error: AUTH_IDENTITY_UNAVAILABLE,
+      sessionCleared: true
+    }
+  }
+
+  /** Clear memory and best-effort remove any pre-existing stored credential. */
+  private clearSessionAfterTerminalAuthFailure(): void {
+    this.clearSessionState(false, false)
+    try {
+      this.credentials.delete()
+    } catch {
+      /* best-effort cleanup after a terminal authentication failure */
+    }
+  }
+
+  private abandonTentativeSession(error: string): LoginResult {
+    // A replacement auth cookie was already installed. If its body is malformed,
+    // leaving an older persisted credential behind would resurrect that account
+    // after restart despite this login having failed closed in memory.
+    this.clearSessionAfterTerminalAuthFailure()
+    return { ok: false, needs2fa: false, error, sessionCleared: true }
+  }
+
+  private async refreshDisplayName(
+    priority: 'default' | 'interactive' = 'default',
+    operationId?: number
+  ): Promise<void> {
     const generation = this.sessionGeneration
     try {
       const response = await this.rawRequest(
@@ -954,8 +1337,11 @@ export class VrcAdapter extends VrcApiClient {
         },
         { priority }
       )
+      if (operationId !== undefined && !this.isAuthOperationCurrent(operationId)) return
       if (!response.ok) return
-      const parsed = currentUserSchema.safeParse(await response.json())
+      const body: unknown = await response.json()
+      if (operationId !== undefined && !this.isAuthOperationCurrent(operationId)) return
+      const parsed = currentUserSchema.safeParse(body)
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
         this.accountId = parsed.data.id

@@ -1,4 +1,4 @@
-import type { Platform } from '@shared/types'
+import { CREDENTIAL_PERSISTENCE_FAILED, type Platform } from '@shared/types'
 
 export interface AccountCardConfig {
   platform: Platform
@@ -27,10 +27,13 @@ export const ACCOUNT_CARD_CONFIG: Record<Platform, AccountCardConfig> = {
   }
 }
 
-export function accountLoginErrorKey(_platform?: Platform, _code?: string): string {
-  // VRX-36: account connect failures share the same uniform generic message;
-  // params deliberately unused (signature stability for both platforms' cards).
+export function accountLoginErrorKey(_platform?: Platform, code?: string): string {
+  // The account card keeps its own locale namespace, even though both platforms
+  // share this persistence-failure explanation.
   void _platform
-  void _code
+  if (code === CREDENTIAL_PERSISTENCE_FAILED) {
+    return 'settings.accounts.error.credentialPersistence'
+  }
+
   return 'settings.accounts.error.unknown'
 }

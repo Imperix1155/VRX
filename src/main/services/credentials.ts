@@ -6,6 +6,10 @@ import { isPlatformAccountId } from './accountSession'
 const ENCRYPTION_UNAVAILABLE_MESSAGE = 'Credential encryption is unavailable'
 const MALFORMED_CREDENTIAL_MESSAGE = 'Stored credential is malformed'
 const UNSUPPORTED_CREDENTIAL_KEY_MESSAGE = 'Unsupported credential key'
+// Deliberately not valid base64, so it cannot collide with safeStorage output.
+// A failed replacement/delete may leave this marker behind; load treats it as
+// an empty slot and never tries to decrypt an older credential after restart.
+const INVALIDATED_CREDENTIAL = '!vrx-credential-invalidated-v1!'
 
 export const CREDENTIAL_KEYS = {
   VRCHAT_PRIMARY: 'vrchat:primary',
@@ -74,11 +78,15 @@ function credentialDigest(encrypted: string): string {
 
 export function saveCredential(key: CredentialKey, plaintext: string): void {
   requireCredentialKey(key)
+  const credentials = getStore()
+  // Revoke the old slot before any keychain or replacement write that can fail.
+  // If a later step throws, the non-secret marker remains a durable load fence.
+  credentials.set(key, INVALIDATED_CREDENTIAL)
+  const owners = getOwnerStore()
+  owners.delete(key)
   requireEncryption()
   const encrypted = safeStorage.encryptString(plaintext).toString('base64')
-  // Fail closed: if ciphertext writing throws, the owner stays cleared rather than becoming stale.
-  getOwnerStore().delete(key)
-  getStore().set(key, encrypted)
+  credentials.set(key, encrypted)
 }
 
 export function loadCredential(key: CredentialKey): string | undefined {
@@ -86,6 +94,7 @@ export function loadCredential(key: CredentialKey): string | undefined {
   const encrypted = getStore().get(key)
   if (encrypted === undefined) return undefined
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
+  if (encrypted === INVALIDATED_CREDENTIAL) return undefined
 
   requireEncryption()
   return safeStorage.decryptString(decodeCredential(encrypted))
@@ -98,6 +107,7 @@ export function recordCredentialOwner(key: CredentialKey, platformAccountId: str
   const encrypted = getStore().get(key)
   if (encrypted === undefined) return
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
+  if (encrypted === INVALIDATED_CREDENTIAL) return
 
   getOwnerStore().set(key, {
     platformAccountId,
@@ -107,6 +117,18 @@ export function recordCredentialOwner(key: CredentialKey, platformAccountId: str
 
 export function clearCredential(key: CredentialKey): void {
   requireCredentialKey(key)
-  getStore().delete(key)
-  getOwnerStore().delete(key)
+  const credentials = getStore()
+  // Persist revocation first. If either physical delete throws, this exact
+  // marker still prevents the prior credential from being restored.
+  credentials.set(key, INVALIDATED_CREDENTIAL)
+  try {
+    getOwnerStore().delete(key)
+  } catch {
+    /* marker is the durable revocation; sidecar cleanup is best-effort */
+  }
+  try {
+    credentials.delete(key)
+  } catch {
+    /* marker remains intentionally when physical removal is unavailable */
+  }
 }

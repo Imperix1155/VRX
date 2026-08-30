@@ -278,11 +278,23 @@ export interface Credentials {
 
 export type TwoFactorMethod = 'email' | 'totp'
 
+/** Login failed because the authenticated session could not be saved securely. */
+export const CREDENTIAL_PERSISTENCE_FAILED = 'credential_persistence_failed'
+
+/** Login completed 2FA but VRChat could not establish the session owner. */
+export const AUTH_IDENTITY_UNAVAILABLE = 'auth_identity_unavailable'
+
 /** Result of a login attempt — drives the 2FA flow. */
 export type LoginResult =
   | { ok: true }
   | { ok: false; needs2fa: true; method: TwoFactorMethod }
-  | { ok: false; needs2fa: false; error: string }
+  | {
+      ok: false
+      needs2fa: false
+      error: string
+      /** Main discarded local auth state; renderer caches must become unauthenticated. */
+      sessionCleared?: true
+    }
 
 // ─── Instance join (VRX-16) ──────────────────────────────────────────────────
 /** Wire launch mode consumed by buildJoinUrl; unlike the preference, it never includes `ask`. */

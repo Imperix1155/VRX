@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CONCURRENCY_LIMIT } from '@shared/constants'
 import type { AdapterEvent } from '@shared/types'
 import { VrcAdapter, type VrcCredentialStore } from './VrcAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import {
+  jsonResponse,
+  markVrcSessionEstablished as markSessionEstablished,
+  noopSleep
+} from './__testutils__/adapterTestKit'
 import { createGroupResolver, type GroupResolver } from './vrchat/GroupResolver'
 
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -121,6 +126,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
 
     const events: AdapterEvent[] = []
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
 
     try {
@@ -204,6 +210,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const events: AdapterEvent[] = []
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     try {
@@ -277,10 +284,142 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     await adapter.getFriends()
     const pending = (adapter as unknown as { pendingGroupResolutions: Set<string> })
       .pendingGroupResolutions
     await vi.waitFor(() => expect(pending.size).toBe(0))
+  })
+
+  it('does not advance an old group-enrichment batch through a durable replacement cookie', async () => {
+    const groupIds = Array.from(
+      { length: CONCURRENCY_LIMIT + 1 },
+      (_, index) => `grp_account_a_${index}`
+    )
+    const releases: Array<(response: Response) => void> = []
+    let accountAGroupRequests = 0
+    let accountBGroupRequests = 0
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.endsWith('/auth/user')) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'ACCOUNTA1',
+            displayName: 'Account A',
+            onlineFriends: groupIds.map((_, index) => `usr_friend_${index}`),
+            activeFriends: [],
+            offlineFriends: []
+          })
+        )
+      }
+      if (href.includes('/auth/user/friends')) {
+        return Promise.resolve(
+          jsonResponse(
+            href.includes('offline=true')
+              ? []
+              : groupIds.map((groupId, index) => ({
+                  id: `usr_friend_${index}`,
+                  displayName: `Friend ${index}`,
+                  currentAvatarThumbnailImageUrl: null,
+                  status: 'active',
+                  statusDescription: null,
+                  tags: [],
+                  location: `wrld_shared:${index}~group(${groupId})~groupAccessType(plus)`
+                }))
+          )
+        )
+      }
+      if (href.includes('/worlds/wrld_shared')) {
+        return Promise.resolve(jsonResponse({ name: 'Shared World', thumbnailImageUrl: null }))
+      }
+      if (href.includes('/groups/')) {
+        if (headers.Cookie === 'auth=account-b') {
+          accountBGroupRequests += 1
+          return Promise.resolve(jsonResponse({ name: 'Escaped Group', iconUrl: null }))
+        }
+        accountAGroupRequests += 1
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
+    await adapter.getFriends()
+    await vi.waitFor(() => expect(accountAGroupRequests).toBe(CONCURRENCY_LIMIT))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+
+    releases.shift()?.(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(accountBGroupRequests).toBe(0)
+    for (const release of releases) {
+      release(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    }
+  })
+
+  it('does not let an old roster group completion erase the replacement generation pending marker', async () => {
+    const groupId = 'grp_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const groupRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        groupRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingGroupResolutions: Set<string>
+      kickGroupMetadata(friends: Array<{ instance: { groupId: string } }>, generation: number): void
+    }
+    const friend = { instance: { groupId } }
+
+    internal.kickGroupMetadata([friend], internal.sessionGeneration)
+    await vi.waitFor(() => expect(groupRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.kickGroupMetadata([friend], internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(groupRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingGroupResolutions.has(groupId)
+
+    releases[1]!(jsonResponse({ name: 'Account B Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
   })
 
   it('clears the group resolver on session boundary so the next account does not inherit cached entries', async () => {
@@ -310,6 +449,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const resolver = (adapter as unknown as { groupResolver: GroupResolver }).groupResolver
 
     const inFlight = resolver.resolve(groupId)
@@ -355,6 +495,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -409,6 +550,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -460,6 +602,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
 
     // Inject a clocked resolver so we can advance the negative TTL deterministically.
     const resolverFetch = vi.fn(async (id: string) => {
@@ -523,6 +666,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -539,6 +683,66 @@ describe('live pipeline group enrichment (VRX-260)', () => {
 
     expect(events.filter((e) => e.type === 'group-metadata')).toHaveLength(0)
     unsubscribe()
+  })
+
+  it('does not let an old live group completion erase the replacement generation pending marker', async () => {
+    const groupId = 'grp_live_pending_owner'
+    const worldId = 'wrld_live_group_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const groupRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        return Promise.resolve(jsonResponse({ name: 'Shared World', thumbnailImageUrl: null }))
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        groupRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingGroupResolutions: Set<string>
+      enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent
+    }
+    const event = {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: { instance: { worldId, groupId } }
+    } as AdapterEvent
+
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() => expect(groupRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(groupRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingGroupResolutions.has(groupId)
+
+    releases[1]!(jsonResponse({ name: 'Account B Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
   })
 
   it('unconditionally sweeps pendingGroupResolutions after a live-event 401 so the group refetches after re-login', async () => {
@@ -574,6 +778,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -638,6 +843,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -687,6 +893,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -726,6 +933,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe(() => {})
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')

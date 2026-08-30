@@ -79,4 +79,41 @@ describe('fetchGroupMetadata', () => {
     await expect(batch).resolves.toHaveProperty('size', 2)
     expect(resolved.map(({ groupId }) => groupId)).toEqual(['grp_fast', 'grp_slow'])
   })
+
+  it('stops before the next resolve when its continuation guard expires', async () => {
+    let releaseFirst!: () => void
+    let markFirstStarted!: () => void
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve
+    })
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const calls: string[] = []
+    const resolver = createGroupResolver({
+      fetcher: async (groupId) => {
+        calls.push(groupId)
+        if (groupId === 'grp_first') {
+          markFirstStarted()
+          await firstHeld
+        }
+        return { name: groupId, iconUrl: null }
+      }
+    })
+    let canContinue = true
+
+    const batch = fetchGroupMetadata(
+      ['grp_first', 'grp_second'],
+      resolver,
+      1,
+      undefined,
+      () => canContinue
+    )
+    await firstStarted
+    canContinue = false
+    releaseFirst()
+
+    await expect(batch).resolves.toHaveProperty('size', 1)
+    expect(calls).toEqual(['grp_first'])
+  })
 })

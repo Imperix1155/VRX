@@ -25,12 +25,14 @@ import type { WorldMeta, WorldResolver } from './WorldResolver'
  * @param resolver   WorldResolver instance to delegate fetches to.
  * @param concurrencyLimit  Max parallel resolves (default: CONCURRENCY_LIMIT).
  * @param onResolved Optional incremental callback; does not wait for the batch.
+ * @param canContinue Optional account-generation guard checked before every resolve.
  */
 export async function fetchWorldMetadata(
   worldIds: ReadonlyArray<string | null | undefined>,
   resolver: WorldResolver,
   concurrencyLimit = CONCURRENCY_LIMIT,
-  onResolved?: (worldId: string, meta: WorldMeta) => void
+  onResolved?: (worldId: string, meta: WorldMeta) => void,
+  canContinue: () => boolean = () => true
 ): Promise<Map<string, WorldMeta>> {
   const ids = [...new Set(worldIds.filter((id): id is string => Boolean(id)))]
 
@@ -41,6 +43,7 @@ export async function fetchWorldMetadata(
 
   async function worker(): Promise<void> {
     while (cursor < ids.length) {
+      if (!canContinue()) break
       const id = ids[cursor++]
       if (id === undefined) break // bounds-narrowing for noUncheckedIndexedAccess (audit W7)
       const meta = await resolver.resolve(id)

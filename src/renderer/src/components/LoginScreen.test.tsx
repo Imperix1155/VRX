@@ -10,6 +10,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { CREDENTIAL_PERSISTENCE_FAILED, type AuthStatus } from '@shared/types'
+import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import i18n from '../i18n'
 import LoginScreen from './LoginScreen'
 
@@ -42,6 +44,15 @@ function renderLogin(initialTwoFactor: 'totp' | 'email' | null = null): {
     </QueryClientProvider>
   )
   return { queryClient }
+}
+
+function QueryDrivenLogin(): React.JSX.Element {
+  const { data } = useAuthStatus('vrchat')
+  return (
+    <LoginScreen
+      initialTwoFactor={data?.state === 'needs-2fa' ? (data.twoFactorMethod ?? 'totp') : null}
+    />
+  )
 }
 
 function fillCredentials(username = 'neo', password = 'redpill'): void {
@@ -98,6 +109,27 @@ describe('LoginScreen (W6)', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(msg('login.error.unknown'))
+  })
+
+  it('surfaces a credential persistence failure without invalidating auth', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
+      }),
+      verify2fa: vi.fn()
+    })
+    const { queryClient } = renderLogin()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    fillCredentials()
+    submit()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.credentialPersistence'))
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+    expect(invalidate).not.toHaveBeenCalled()
   })
 
   it('switches to the 2FA prompt AND drops the password from state', async () => {
@@ -176,6 +208,121 @@ describe('LoginScreen (W6)', () => {
     expect(alert.textContent).toContain(msg('login.error.unknown'))
     // Still on the 2FA form — retryable.
     expect(screen.getByLabelText(msg('login.twoFactor.code'))).toBeTruthy()
+  })
+
+  it('returns completed 2FA persistence failures to credentials with the code cleared', async () => {
+    const login = vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
+    setBridge({
+      login,
+      verify2fa: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
+      })
+    })
+    const { queryClient } = renderLogin('totp')
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(screen.getByLabelText(msg('login.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+
+    expect(await screen.findByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fillCredentials()
+    submit()
+    const freshCode = await screen.findByLabelText<HTMLInputElement>(msg('login.twoFactor.code'))
+    expect(freshCode.value).toBe('')
+  })
+
+  it('keeps persistence copy and cannot reseed 2FA after a terminal failure and tab remount', async () => {
+    setBridge({
+      login: vi.fn(),
+      verify2fa: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: CREDENTIAL_PERSISTENCE_FAILED,
+        sessionCleared: true
+      })
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.change(await screen.findByLabelText(msg('login.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.verify') }))
+    expect(await screen.findByLabelText(msg('login.username'))).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
+    expect(invalidate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') }))
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+  })
+
+  it('cannot reseed 2FA after a replacement login reports that main cleared the session', async () => {
+    setBridge({
+      login: vi.fn().mockResolvedValue({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response',
+        sessionCleared: true
+      }),
+      verify2fa: vi.fn()
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: msg('login.twoFactor.back') }))
+    fillCredentials()
+    submit()
+
+    expect((await screen.findByRole('alert')).textContent).toContain(msg('login.error.unknown'))
+    expect(queryClient.getQueryData<AuthStatus>(authStatusQueryKey('vrchat'))).toMatchObject({
+      state: 'unauthenticated'
+    })
+
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') }))
+    expect(screen.getByLabelText(msg('login.username'))).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
   })
 
   it('surfaces a bridge/IPC failure instead of silently re-enabling', async () => {
@@ -335,6 +482,205 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     await waitFor(() => expect(cvrTab().getAttribute('aria-disabled')).toBeNull())
     fireEvent.click(cvrTab())
     expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('keeps a CVR terminal failure visible when restored VRChat 2FA arrives during submit', async () => {
+    let release!: (result: {
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }) => void
+    const held = new Promise<{
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }>((resolve) => {
+      release = resolve
+    })
+    setBridge({ login: vi.fn().mockReturnValue(held), verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+
+    release({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.credentialPersistence'))
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+    expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+
+    // Re-selecting the active tab is a no-op: it must not release the deferred
+    // VRChat prompt or hide the terminal recovery error.
+    fireEvent.click(cvrTab())
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+  })
+
+  it('applies a deferred VRChat 2FA prompt after a later non-terminal CVR retry', async () => {
+    let releaseTerminal!: (result: {
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }) => void
+    let releaseRetry!: (result: {
+      ok: false
+      needs2fa: false
+      error: 'invalid_credentials'
+    }) => void
+    const terminal = new Promise<{
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }>((resolve) => {
+      releaseTerminal = resolve
+    })
+    const retry = new Promise<{
+      ok: false
+      needs2fa: false
+      error: 'invalid_credentials'
+    }>((resolve) => {
+      releaseRetry = resolve
+    })
+    const login = vi.fn().mockReturnValueOnce(terminal).mockReturnValueOnce(retry)
+    setBridge({ login, verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    releaseTerminal({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.credentialPersistence'))
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'new-zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+    releaseRetry({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+
+    await screen.findByLabelText(msg('login.twoFactor.code'))
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+    expect(login).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies a restored VRChat 2FA prompt after a non-terminal CVR failure settles', async () => {
+    let release!: (result: { ok: false; needs2fa: false; error: 'invalid_credentials' }) => void
+    const held = new Promise<{
+      ok: false
+      needs2fa: false
+      error: 'invalid_credentials'
+    }>((resolve) => {
+      release = resolve
+    })
+    setBridge({ login: vi.fn().mockReturnValue(held), verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    release({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+
+    await screen.findByLabelText(msg('login.twoFactor.code'))
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
   })
 
   it('submits CVR credentials with platform chilloutvr', async () => {

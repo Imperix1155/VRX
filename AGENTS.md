@@ -134,6 +134,17 @@ metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
 and release asset allowlist in sync. The tag workflow extracts both packages
 and checks those contents before it may make the draft release public.
 
+Ubuntu CI also proves credential persistence across a real Electron restart: two
+probe processes share a disposable `userData` directory inside a temporary
+Secret Service session. Both test-only processes explicitly select
+`--password-store=gnome-libsecret`, then attest Electron reports
+`gnome_libsecret`. The first securely writes a synthetic fixture, the second
+reads and clears it, and the probe rejects any fixture plaintext found in the
+disposable `userData` tree.
+Its bundle, source, config, and contract test are test-only and must remain
+explicitly excluded from Electron Builder packages; the probe contract test
+pins that boundary.
+
 If the personal `review-loop` skill is unavailable, use this repository-portable
 fallback: inspect the final PR diff from a fresh context; run the documented
 project gate; run `fallow dead-code` and `fallow dupes` when Fallow is
