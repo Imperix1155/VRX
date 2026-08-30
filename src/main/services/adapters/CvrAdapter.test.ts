@@ -505,7 +505,7 @@ describe('CvrAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('does not rewrite an unchanged restored credential solely to backfill its owner', async () => {
+    it('backfills the owner for the restored credential after validation', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(authPayload()))))
       const restored = { username: 'trinity', accessKey: 'key-1' }
       const binding = ownerBindingHarness(restored)
@@ -514,8 +514,7 @@ describe('CvrAdapter', () => {
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
 
       expect(binding.getCredential()).toEqual(restored)
-      expect(binding.getAttemptedAccountIds()).toEqual([])
-      expect(binding.getOwner()).toBeNull()
+      expect(binding.getOwner()).toBe('a1b2c3d4-0000-0000-0000-000000000001')
     })
 
     it('keeps an unchanged restored session when credential writes are unavailable', async () => {
@@ -536,7 +535,7 @@ describe('CvrAdapter', () => {
         accountId: 'a1b2c3d4-0000-0000-0000-000000000001'
       })
 
-      expect(saveCredential).not.toHaveBeenCalled()
+      expect(saveCredential).toHaveBeenCalledOnce()
       expect(deleteCredential).not.toHaveBeenCalled()
     })
 

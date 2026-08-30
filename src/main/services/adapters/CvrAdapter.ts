@@ -324,7 +324,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     this.displayName = username
     this.accountId = parsed.data.data.userId
     this.validated = true
-    if (credentialsRotated && !this.persist()) {
+    // An unchanged restore still backfills credential ownership. Failure is
+    // destructive only for a rotated credential that cannot survive restart.
+    const persisted = this.persist()
+    if (credentialsRotated && !persisted) {
       this.persistenceFailure()
       return this.status('unauthenticated')
     }
