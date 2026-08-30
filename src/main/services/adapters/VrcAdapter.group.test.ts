@@ -358,6 +358,57 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     }
   })
 
+  it('does not let an old roster group completion erase the replacement generation pending marker', async () => {
+    const groupId = 'grp_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const groupRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        groupRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingGroupResolutions: Set<string>
+      kickGroupMetadata(friends: Array<{ instance: { groupId: string } }>, generation: number): void
+    }
+    const friend = { instance: { groupId } }
+
+    internal.kickGroupMetadata([friend], internal.sessionGeneration)
+    await vi.waitFor(() => expect(groupRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.kickGroupMetadata([friend], internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(groupRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingGroupResolutions.has(groupId)
+
+    releases[1]!(jsonResponse({ name: 'Account B Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
+  })
+
   it('clears the group resolver on session boundary so the next account does not inherit cached entries', async () => {
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
@@ -614,6 +665,65 @@ describe('live pipeline group enrichment (VRX-260)', () => {
 
     expect(events.filter((e) => e.type === 'group-metadata')).toHaveLength(0)
     unsubscribe()
+  })
+
+  it('does not let an old live group completion erase the replacement generation pending marker', async () => {
+    const groupId = 'grp_live_pending_owner'
+    const worldId = 'wrld_live_group_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const groupRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        return Promise.resolve(jsonResponse({ name: 'Shared World', thumbnailImageUrl: null }))
+      }
+      if (href.includes(`/groups/${groupId}`)) {
+        groupRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingGroupResolutions: Set<string>
+      enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent
+    }
+    const event = {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: { instance: { worldId, groupId } }
+    } as AdapterEvent
+
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() => expect(groupRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(groupRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingGroupResolutions.has(groupId)
+
+    releases[1]!(jsonResponse({ name: 'Account B Group', iconUrl: null }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
   })
 
   it('unconditionally sweeps pendingGroupResolutions after a live-event 401 so the group refetches after re-login', async () => {

@@ -4380,6 +4380,61 @@ describe('live pipeline world enrichment (VRX-254)', () => {
     unsubscribe()
   })
 
+  it('does not let an old live world completion erase the replacement generation pending marker', async () => {
+    const worldId = 'wrld_live_pending_owner'
+    const releases: Array<(response: Response) => void> = []
+    const worldRequestCookies: Array<string | undefined> = []
+    const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+      const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+      const headers = (options?.headers ?? {}) as Record<string, string>
+      if (headers.Authorization !== undefined) {
+        return Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      }
+      if (href.includes(`/worlds/${worldId}`)) {
+        worldRequestCookies.push(headers.Cookie)
+        return new Promise<Response>((resolve) => releases.push(resolve))
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${href}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const internal = adapter as unknown as {
+      sessionGeneration: number
+      pendingWorldResolutions: Set<string>
+      enrichPipelineEvent(event: AdapterEvent, generation: number): AdapterEvent
+    }
+    const event = {
+      type: 'friend-presence',
+      platform: 'vrchat',
+      friend: { instance: { worldId } }
+    } as AdapterEvent
+
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() => expect(worldRequestCookies).toEqual(['auth=account-a']))
+    await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+      ok: true
+    })
+    internal.enrichPipelineEvent(event, internal.sessionGeneration)
+    await vi.waitFor(() =>
+      expect(worldRequestCookies).toEqual(['auth=account-a', 'auth=account-b'])
+    )
+
+    releases[0]!(jsonResponse({ name: 'Account A World', thumbnailImageUrl: null, capacity: 8 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const replacementMarkerSurvived = internal.pendingWorldResolutions.has(worldId)
+
+    releases[1]!(jsonResponse({ name: 'Account B World', thumbnailImageUrl: null, capacity: 8 }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(replacementMarkerSurvived).toBe(true)
+  })
+
   it('unconditionally sweeps pendingWorldResolutions after a live-event 401 so the world refetches after re-login', async () => {
     const worldId = 'wrld_unconditional'
     let worldFetches = 0
