@@ -32,7 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   VRChat session is durably saved, ordinary status refreshes validate it without
   rewriting the same credential, so a later transient secure-store outage does
   not erase an established sign-in.
-  Tentative VRChat cookies also remain unavailable to status, roster,
+  Restored VRChat cookies stay quarantined from avatar, authenticated REST, and
+  live pipeline consumers until their validated owner backfill is durably
+  saved; waiting live subscriptions start only after that succeeds. Tentative
+  VRChat cookies also remain unavailable to status, roster,
   self-invite, background metadata, and avatar calls until owner validation and
   encrypted persistence settle. Old roster pages and queued metadata work also
   stop at an account boundary instead of continuing with the newer durable

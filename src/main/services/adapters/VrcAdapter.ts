@@ -579,19 +579,21 @@ export class VrcAdapter extends VrcApiClient {
       // The first successful status for a restored cookie backfills its owner.
       // Fresh login/2FA already established this binding, so later status
       // refreshes must not destructively re-write the same durable credential.
-      if (!this.sessionPersistenceEstablished && !this.persist()) {
+      const establishedByThisStatus = !this.sessionPersistenceEstablished
+      if (establishedByThisStatus && !this.persist()) {
         this.clearSessionAfterTerminalAuthFailure()
         this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
         return this.status('unauthenticated')
       }
       this.live?.onIdentity?.(this.accountId)
+      if (establishedByThisStatus) this.restartPipeline()
       return this.status('authenticated')
     }
   }
 
   /** Avatar requests may observe only a cookie whose secure save has settled. */
   override getAuthCookieHeader(): string | null {
-    return this.authPersistencePending ? null : super.getAuthCookieHeader()
+    return this.isSessionConsumerReady() ? super.getAuthCookieHeader() : null
   }
 
   /** Fence every typed authenticated GET, including paginators and old metadata workers. */
@@ -904,8 +906,9 @@ export class VrcAdapter extends VrcApiClient {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
-    // A handler joining during tentative auth waits for persistence to settle.
-    if (!this.authPersistencePending) {
+    // A handler joining during tentative auth or restored-owner validation
+    // waits for persistence to settle.
+    if (this.isSessionConsumerReady()) {
       this.pipeline ??= this.createPipeline()
       this.pipeline.start()
     }
@@ -1051,7 +1054,7 @@ export class VrcAdapter extends VrcApiClient {
    * (the pipeline waits and retries; a fresh login is picked up automatically).
    */
   private async pipelineToken(): Promise<string | null> {
-    if (!this.cookie) return null
+    if (!this.isSessionConsumerReady() || !this.cookie) return null
     try {
       const response = await this.rawRequest(`${VRC_API_BASE}/auth`, {
         method: 'GET',
@@ -1209,7 +1212,7 @@ export class VrcAdapter extends VrcApiClient {
     const wasRunning = this.subscribers.size > 0
     this.pipeline?.stop()
     this.pipeline = null
-    if (!wasRunning || this.authPersistencePending) return
+    if (!wasRunning || !this.isSessionConsumerReady()) return
     this.pipeline = this.createPipeline()
     this.pipeline.start()
   }
@@ -1255,9 +1258,14 @@ export class VrcAdapter extends VrcApiClient {
     return this.cookie ? { Cookie: this.cookie } : {}
   }
 
-  /** Authenticated REST calls must never use a cookie that may still roll back. */
+  /** Authenticated consumers require both owner validation and settled persistence. */
+  private isSessionConsumerReady(): boolean {
+    return this.sessionPersistenceEstablished && !this.authPersistencePending
+  }
+
+  /** Authenticated REST calls must never use an unowned or tentative cookie. */
   private assertDurableSession(): void {
-    if (this.authPersistencePending) {
+    if (!this.isSessionConsumerReady()) {
       throw new AuthSessionPendingError()
     }
   }

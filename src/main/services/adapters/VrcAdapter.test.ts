@@ -3,7 +3,12 @@ import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } fr
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { AuthError, AuthSessionPendingError } from './errors'
-import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
+import {
+  jsonResponse,
+  markVrcSessionEstablished as markSessionEstablished,
+  noopSleep,
+  ownerBindingHarness
+} from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
 import { AppStatusService } from '../appStatus'
@@ -141,6 +146,7 @@ async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'
       return socket
     }
   })
+  markSessionEstablished(adapter)
   const unsubscribe = adapter.subscribe((event) => {
     events.push(event)
     cache = applyFriendEvent(cache, event)
@@ -1169,7 +1175,7 @@ describe('VrcAdapter', () => {
 
         expect(store.saved).toEqual([])
         expect(store.deleted).toBe(0)
-        expect(adapter.getAuthCookieHeader()).toBe(stored ?? null)
+        expect(adapter.getAuthCookieHeader()).toBeNull()
       }
     )
 
@@ -1923,18 +1929,56 @@ describe('VrcAdapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('quarantines an unowned restored cookie from authenticated consumers', async () => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      let dials = 0
+      const adapter = new VrcAdapter(fakeStore('auth=restored'), noopSleep, {
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthSessionPendingError)
+      await expect(
+        adapter.selfInvite('wrld_pending:11111~private(usr_self)')
+      ).rejects.toBeInstanceOf(AuthSessionPendingError)
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(dials).toBe(0)
+      unsubscribe()
+    })
+
     it('backfills the owner for the restored ciphertext after validation', async () => {
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
-      )
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
       const binding = ownerBindingHarness('auth=restored')
-      const adapter = new VrcAdapter(binding.store, noopSleep)
+      let dials = 0
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(dials).toBe(0)
+      expect(adapter.getAuthCookieHeader()).toBeNull()
 
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
 
       expect(binding.getCredential()).toBe('auth=restored')
       expect(binding.getOwner()).toBe('ACCOUNT001')
+      expect(adapter.getAuthCookieHeader()).toBe('auth=restored')
+      await vi.waitFor(() => expect(dials).toBe(1))
+      unsubscribe()
     })
 
     it('fails closed when a validated restored session cannot persist its owner binding', async () => {
@@ -1948,7 +1992,18 @@ describe('VrcAdapter', () => {
       })
       const log = vi.fn()
       const onIdentity = vi.fn()
-      const adapter = new VrcAdapter(store, noopSleep, { log, onIdentity })
+      let dials = 0
+      const adapter = new VrcAdapter(store, noopSleep, {
+        log,
+        onIdentity,
+        socketFactory: () => {
+          dials += 1
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      const unsubscribe = adapter.subscribe(() => {})
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(dials).toBe(0)
 
       await expect(adapter.getAuthStatus()).resolves.toEqual({
         platform: 'vrchat',
@@ -1961,9 +2016,12 @@ describe('VrcAdapter', () => {
       expect(adapter.getAuthCookieHeader()).toBeNull()
       expect(onIdentity).not.toHaveBeenCalledWith('ACCOUNT001')
       expect(log.mock.calls).toEqual([['warn', 'vrc adapter: credential persistence failed']])
+      expect(dials).toBe(0)
 
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
       expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(dials).toBe(0)
+      unsubscribe()
     })
 
     it('does not re-persist or clear an already durable direct-login session during status refresh', async () => {
@@ -2615,6 +2673,7 @@ describe('VrcAdapter', () => {
           return fakeSocket()
         }
       })
+      markSessionEstablished(adapter)
       // Token exchange responds OK so the pipeline dials immediately.
       vi.stubGlobal(
         'fetch',
@@ -2645,6 +2704,7 @@ describe('VrcAdapter', () => {
           }
         }
       )
+      markSessionEstablished(adapter)
 
       // Exchange succeeds → the EXCHANGED token dials the socket.
       vi.stubGlobal(
@@ -2673,6 +2733,7 @@ describe('VrcAdapter', () => {
           }
         }
       )
+      markSessionEstablished(adapter2)
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
       const unsub2 = adapter2.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
@@ -2688,6 +2749,7 @@ describe('VrcAdapter', () => {
           return { on: () => {}, close: () => {} }
         }
       })
+      markSessionEstablished(adapter3)
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('exchange down')))
       const unsub3 = adapter3.subscribe(() => {})
       await new Promise((r) => setImmediate(r))
@@ -2712,6 +2774,7 @@ describe('VrcAdapter', () => {
           return s
         }
       })
+      markSessionEstablished(adapter)
       vi.stubGlobal(
         'fetch',
         vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
@@ -2761,6 +2824,7 @@ describe('VrcAdapter', () => {
         },
         onSessionBoundary: () => engine.resetPlatform('vrchat')
       })
+      markSessionEstablished(adapter)
       vi.stubGlobal(
         'fetch',
         vi.fn((url: RequestInfo | URL) => {
@@ -2897,6 +2961,7 @@ describe('VrcAdapter', () => {
       )
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       // /auth/user for buckets: return empty buckets + no friends in any bucket
       fetchMock.mockResolvedValueOnce(
@@ -2993,6 +3058,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
         onSessionBoundary: boundary
       })
+      markSessionEstablished(adapter)
 
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(accountAStarted).toBe(true))
@@ -3045,6 +3111,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
 
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(accountAStarted).toBe(true))
@@ -3118,6 +3185,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
 
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(accountAPageStarted).toBe(true))
@@ -3197,6 +3265,7 @@ describe('VrcAdapter', () => {
         })
         vi.stubGlobal('fetch', fetchMock)
         const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+        markSessionEstablished(adapter)
 
         await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
         await vi.waitFor(() => expect(accountAWorldRequests).toBe(10))
@@ -3252,6 +3321,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const roster = adapter.getFriends()
       await vi.waitFor(() => expect(rosterCalls).toBe(1))
       const unsubscribe = adapter.subscribe((event) => events.push(event))
@@ -3271,6 +3341,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
       // A missing presence probe is an explicit degraded result. Do not fetch
       // pages and manufacture an all-offline roster from empty buckets.
@@ -3285,6 +3356,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -3302,6 +3374,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -3317,6 +3390,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
       vi.stubGlobal(
         'fetch',
@@ -3376,6 +3450,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const result = await adapter.getFriends()
       const { friends } = result
@@ -3404,6 +3479,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
       expect(fetchMock).toHaveBeenCalledTimes(4)
@@ -3419,6 +3495,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValueOnce(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.getFriends()).rejects.toThrow(/Failed to fetch friends/)
     })
@@ -3560,6 +3637,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
       let friends: Friend[] | undefined
       const roster = adapter.getFriends().then((result) => {
@@ -3657,6 +3735,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       const first = adapter.getFriends()
@@ -3727,6 +3806,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       adapter.subscribe((e) => events.push(e))
 
       await expect(adapter.getFriends()).resolves.toEqual({
@@ -3788,6 +3868,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const { friends } = await adapter.getFriends()
 
@@ -3845,6 +3926,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       const { friends } = await adapter.getFriends()
 
@@ -3922,6 +4004,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const unsubscribe = adapter.subscribe((event) => events.push(event))
 
       await adapter.getFriends()
@@ -3972,6 +4055,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
       const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
 
       await expect(resolver.resolve(worldId)).resolves.toMatchObject({ name: 'Account A World' })
@@ -4007,6 +4091,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+      markSessionEstablished(adapter)
       const internal = adapter as unknown as {
         sessionGeneration: number
         pendingWorldResolutions: Set<string>
@@ -4082,6 +4167,7 @@ describe('VrcAdapter', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+      markSessionEstablished(adapter)
 
       // Inject a clock so we can advance the negative TTL deterministically.
       const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
@@ -4126,6 +4212,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValue(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await adapter.selfInvite(inviteLocation)
 
@@ -4139,6 +4226,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(publicLocation)).rejects.toThrow(
         /no invite needed for public instances/i
@@ -4152,6 +4240,7 @@ describe('VrcAdapter', () => {
         .mockResolvedValue(new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(inviteLocation)).rejects.toThrow()
       // The thrown error must not leak the instanceId / internal path
@@ -4173,6 +4262,7 @@ describe('VrcAdapter', () => {
       const fetchMock = vi.fn()
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep)
+      markSessionEstablished(adapter)
 
       await expect(adapter.selfInvite(bad)).rejects.toThrow(/invalid instance location/i)
       expect(fetchMock).not.toHaveBeenCalled()
@@ -4192,6 +4282,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(store, noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const generationBefore = (adapter as unknown as { sessionGeneration: number })
         .sessionGeneration
       adapter.subscribe((event) => {
@@ -4219,6 +4310,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
       const generationBefore = (adapter as unknown as { sessionGeneration: number })
         .sessionGeneration
       adapter.subscribe((event) => {
@@ -4249,6 +4341,7 @@ describe('VrcAdapter', () => {
       const adapter = new VrcAdapter(fakeStore('auth=tok'), noopSleep, {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablished(adapter)
 
       const invitePromise = adapter.selfInvite(inviteLocation)
       await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -4306,6 +4399,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4359,6 +4453,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4416,6 +4511,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     // Inject a clock so we can advance the negative TTL deterministically.
     const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
     const originalClock = (resolver as unknown as { clock: () => number }).clock
@@ -4474,6 +4570,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4518,6 +4615,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
     const internal = adapter as unknown as {
       sessionGeneration: number
       pendingWorldResolutions: Set<string>
@@ -4582,6 +4680,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4658,6 +4757,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4705,6 +4805,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -4744,6 +4845,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe(() => {})
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')

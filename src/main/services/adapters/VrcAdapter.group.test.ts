@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent } from '@shared/types'
 import { VrcAdapter, type VrcCredentialStore } from './VrcAdapter'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import {
+  jsonResponse,
+  markVrcSessionEstablished as markSessionEstablished,
+  noopSleep
+} from './__testutils__/adapterTestKit'
 import { createGroupResolver, type GroupResolver } from './vrchat/GroupResolver'
 
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
@@ -121,6 +125,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
 
     const events: AdapterEvent[] = []
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
 
     try {
@@ -204,6 +209,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const events: AdapterEvent[] = []
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     try {
@@ -277,6 +283,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     await adapter.getFriends()
     const pending = (adapter as unknown as { pendingGroupResolutions: Set<string> })
       .pendingGroupResolutions
@@ -343,6 +350,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
     await adapter.getFriends()
     await vi.waitFor(() => expect(accountAGroupRequests).toBe(10))
     await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
@@ -381,6 +389,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
     const internal = adapter as unknown as {
       sessionGeneration: number
       pendingGroupResolutions: Set<string>
@@ -436,6 +445,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    markSessionEstablished(adapter)
     const resolver = (adapter as unknown as { groupResolver: GroupResolver }).groupResolver
 
     const inFlight = resolver.resolve(groupId)
@@ -481,6 +491,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -535,6 +546,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -586,6 +598,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
 
     // Inject a clocked resolver so we can advance the negative TTL deterministically.
     const resolverFetch = vi.fn(async (id: string) => {
@@ -649,6 +662,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -694,6 +708,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    markSessionEstablished(adapter)
     const internal = adapter as unknown as {
       sessionGeneration: number
       pendingGroupResolutions: Set<string>
@@ -759,6 +774,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -823,6 +839,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -872,6 +889,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')
@@ -911,6 +929,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
         return socket
       }
     })
+    markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe(() => {})
     await vi.waitFor(() => expect(sockets).toHaveLength(1))
     sockets[0]!.fire('open')

@@ -191,6 +191,10 @@ While a direct-login or completed-2FA cookie is still awaiting owner validation
 or secure persistence, `getAuthStatus` waits for that operation to settle and
 authenticated VRChat REST entry points reject without making a request. The
 first-leg `needs-2fa` state remains visible so its code prompt stays usable.
+An adopted restored cookie is quarantined across Avatar, authenticated REST,
+and pipeline consumers until its validated owner backfill is durably saved. A
+pipeline subscriber that arrived during validation starts after that save; a
+failed save clears the session without ever starting it.
 The tentative fence lives on every typed adapter GET/POST.
 `AuthSessionPendingError` is an `AuthError` subtype that propagates through the
 friend and metadata helpers without dead-session invalidation or negative
