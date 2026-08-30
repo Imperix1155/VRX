@@ -65,7 +65,10 @@ describe('Linux credential persistence probe contract', () => {
       'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file"'
     )
     expect(credentialProbeStep).toContain('"$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?')
-    expect(credentialProbeStep).toContain('2>"$probe_stage_file"')
+    expect(credentialProbeStep).toContain('bash -euo pipefail -c')
+    expect(credentialProbeStep).toContain('2>\\"\\$2\\"')
+    expect(credentialProbeStep).toContain('bash "$1" "$probe_stage_file"')
+    expect(credentialProbeStep).not.toContain('2>"$probe_stage_file"')
     expect(credentialProbeStep).toContain('grep -Fxq "$allowed_label" "$diagnostic_file"')
     expect(credentialProbeStep).toContain('printf \'%s\\n\' "$failure_label" >&2')
     expect(credentialProbeStep).toContain('probe_exit=0')

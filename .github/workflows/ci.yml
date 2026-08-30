@@ -85,9 +85,14 @@ jobs:
               write_diagnostic ASSERT_KEYRING_START_ENV
               exit 1
             fi
+            # xvfb-run merges its child's stderr into stdout. Redirect npm's
+            # stderr inside the virtual-display command so the fixed probe
+            # assertion reaches the private diagnostic file before that merge.
             xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-              npm --silent run test:credential-persistence-linux -- "$1" \
-              >/dev/null 2>"$probe_stage_file"
+              bash -euo pipefail -c \
+                "npm --silent run test:credential-persistence-linux -- \"\$1\" >/dev/null 2>\"\$2\"" \
+                bash "$1" "$probe_stage_file" \
+              >/dev/null 2>&1
           ' bash "$user_data_dir" "$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?
 
           if [ "$probe_exit" -ne 0 ]; then
