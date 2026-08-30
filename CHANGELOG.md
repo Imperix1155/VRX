@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- VRX no longer reports a successful VRChat or ChilloutVR sign-in until it has
+  saved the encrypted session. This fixes Linux sessions that worked until quit
+  when the OS credential store was unavailable. If secure storage fails, VRX
+  clears the new session and explains how to unlock or configure the OS
+  credential store before retrying. (VRX-34)
+
 ## [0.19.1] - 2026-08-27
 
 ### Fixed

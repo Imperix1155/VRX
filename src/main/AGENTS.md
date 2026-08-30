@@ -59,6 +59,12 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Local Contracts
 
+- A direct VRChat or ChilloutVR login, and completed VRChat 2FA, cannot report
+  success until the injected credential store saves the new session. On a save
+  failure, clear the in-memory session, attempt best-effort deletion, log only
+  a fixed platform/stage warning, and return `credential_persistence_failed`
+  before identity publication or pipeline startup. A server-rotated restored
+  ChilloutVR key follows the same persistence gate but returns unauthenticated.
 - Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `safeStorage` for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in the root `AGENTS.md`). Trinity applied in VRX-25.
 - NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
 - No hardcoded paths — use `app.getPath()`.
