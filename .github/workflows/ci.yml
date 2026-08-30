@@ -118,6 +118,7 @@ jobs:
                   ASSERT_PLAINTEXT_ABSENT \
                   ASSERT_CREDENTIAL_READ \
                   ASSERT_CREDENTIAL_CLEAR \
+                  ASSERT_ELECTRON_SANDBOX_STARTUP \
                   ASSERT_PROBE_EXECUTION \
                   ASSERT_PROBE_WRITE \
                   ASSERT_PROBE_READ; do

@@ -19,20 +19,33 @@ describe('Linux credential persistence probe contract', () => {
 
     if (!command) throw new Error('missing test:credential-persistence-linux script')
 
-    expect(command.split(backendFlag)).toHaveLength(3)
+    expect(command.split(backendFlag)).toHaveLength(4)
     expect(command).toMatch(
       /electron --password-store=gnome-libsecret out\/credential-probe\/index\.js write/
     )
     expect(command).toMatch(
       /electron --password-store=gnome-libsecret out\/credential-probe\/index\.js read/
     )
+    expect(command).toContain(
+      'electron --no-sandbox --password-store=gnome-libsecret out/credential-probe/index.js write'
+    )
+    expect(command.indexOf('electron --no-sandbox')).toBeGreaterThan(
+      command.indexOf('[ ! -f "$1/.vrx-credential-persistence-probe" ]')
+    )
+    expect(command).toContain(
+      'if [ -f "$1/.vrx-credential-persistence-probe" ]; then printf "%s\\n" ASSERT_ELECTRON_SANDBOX_STARTUP >&2'
+    )
+    expect(command).toContain(
+      'else printf "%s\\n" ASSERT_PROBE_WRITE >&2; fi; exit 1; fi; if ! ./node_modules/.bin/electron --password-store=gnome-libsecret out/credential-probe/index.js read'
+    )
     // Build output stays fully suppressed. Electron stderr is inherited into
     // CI's private diagnostic file so only an exact allowlisted assertion can
     // be surfaced by the outer workflow.
-    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(1)
+    expect(command.match(/>\/dev\/null 2>&1/g)).toHaveLength(2)
     expect(command.match(/ASSERT_[A-Z_]+/g)).toEqual([
       'ASSERT_ARGUMENTS',
       'ASSERT_PROBE_BUILD',
+      'ASSERT_ELECTRON_SANDBOX_STARTUP',
       'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
@@ -100,6 +113,7 @@ describe('Linux credential persistence probe contract', () => {
       'ASSERT_PLAINTEXT_ABSENT',
       'ASSERT_CREDENTIAL_READ',
       'ASSERT_CREDENTIAL_CLEAR',
+      'ASSERT_ELECTRON_SANDBOX_STARTUP',
       'ASSERT_PROBE_EXECUTION',
       'ASSERT_PROBE_WRITE',
       'ASSERT_PROBE_READ'
