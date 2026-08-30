@@ -205,6 +205,11 @@
   completes, and that `LoginResult.error === 'credential_persistence_failed'`
   is the only failure intentionally mapped to dedicated copy. Update all
   duplicated login/verify rows in the generated-style API catalog consistently.
+  Replace the removed `useAuthFlow.genericErrorKey` catalog entry with
+  `errorKeyForCode(code?)`, document generic handling for bridge/thrown failures,
+  and catalog both `mapLoginError(code)` and
+  `accountLoginErrorKey(platform, code)`. Recast the spec's Problem section as
+  explicitly pre-fix behavior rather than a current-state claim.
   Record the real two-process Ubuntu credential persistence gate in the root
   contract and format the approved spec/implementation-plan artifacts.
 

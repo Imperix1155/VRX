@@ -4,16 +4,17 @@
 
 ## Problem
 
-VRX can report a successful VRChat or ChilloutVR login after the platform has
-accepted the credential but the local encrypted credential write has failed.
-The adapter keeps the authenticated session in memory, so the app works until a
-full quit and then starts signed out.
+Before this VRX-34 correction, VRX could report a successful VRChat or
+ChilloutVR login after the platform accepted the credential but the local
+encrypted credential write had failed. The adapter kept the authenticated
+session in memory, so the app worked until a full quit and then started signed
+out.
 
-On Linux, one expected trigger is Electron selecting its insecure `basic_text`
-backend. VRX correctly rejects that backend, but the adapters currently suppress
-the resulting exception. Other credential-store write failures have the same
+On Linux, one expected trigger was Electron selecting its insecure `basic_text`
+backend. VRX correctly rejected that backend, but the adapters suppressed the
+resulting exception. Other credential-store write failures had the same
 false-success outcome. The affected tester's selected backend is not known yet;
-the implementation must diagnose the class without logging secrets.
+the correction must diagnose the class without logging secrets.
 
 ## Approved Behavior
 
