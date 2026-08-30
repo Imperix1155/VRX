@@ -527,6 +527,261 @@ describe('VrcAdapter', () => {
       expect(oldSocketClosed).toBe(true)
     })
 
+    it('serializes overlapping direct logins so cookie, owner, and identity stay paired', async () => {
+      let releaseAccountABody!: (body: unknown) => void
+      let accountABodyStarted = false
+      const accountABody = new Promise<unknown>((resolve) => {
+        releaseAccountABody = resolve
+      })
+      const accountAResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(accountAResponse, 'json').mockImplementation(() => {
+        accountABodyStarted = true
+        return accountABody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization === undefined) {
+            return Promise.reject(new Error('Unexpected non-login request'))
+          }
+          directLoginCalls += 1
+          return Promise.resolve(
+            directLoginCalls === 1
+              ? accountAResponse
+              : jsonResponse(
+                  { id: 'ACCOUNT002', displayName: 'Account B' },
+                  { setCookies: ['auth=account-b'] }
+                )
+          )
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const accountALogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(accountABodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await new Promise((resolve) => setImmediate(resolve))
+      await new Promise((resolve) => setImmediate(resolve))
+      releaseAccountABody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(Promise.all([accountALogin, accountBLogin])).resolves.toEqual([
+        { ok: true },
+        { ok: true }
+      ])
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001', 'ACCOUNT002'])
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('does not let a held direct login resurrect a session after explicit logout', async () => {
+      let releaseLogin!: (response: Response) => void
+      let loginStarted = false
+      const heldLogin = new Promise<Response>((resolve) => {
+        releaseLogin = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) {
+            loginStarted = true
+            return heldLogin
+          }
+          return Promise.reject(new Error('Unexpected non-login request'))
+        })
+      )
+      const store = fakeStore()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(loginStarted).toBe(true))
+      adapter.clearSession()
+      releaseLogin(
+        jsonResponse(
+          { id: 'ACCOUNT001', displayName: 'Account A' },
+          { setCookies: ['auth=account-a'] }
+        )
+      )
+
+      await expect(login).resolves.toMatchObject({ ok: false, needs2fa: false })
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+      expect(identities).not.toContain('ACCOUNT001')
+    })
+
+    it('defers a new subscriber while a direct-login body is tentative and save fails', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tentative' }))
+          if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      binding.failNextSave()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      const result = await login
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
+      expect(pipelineCount).toBe(0)
+      expect(socketCount).toBe(0)
+    })
+
+    it('keeps a waiting subscriber stopped when tentative direct login is explicitly cleared', async () => {
+      let releaseBody!: (body: unknown) => void
+      let bodyStarted = false
+      const heldBody = new Promise<unknown>((resolve) => {
+        releaseBody = resolve
+      })
+      const loginResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(loginResponse, 'json').mockImplementation(() => {
+        bodyStarted = true
+        return heldBody
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: RequestInfo | URL, options?: RequestInit) => {
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (headers.Authorization !== undefined) return Promise.resolve(loginResponse)
+          return Promise.reject(new Error('Unexpected non-login request'))
+        })
+      )
+      const store = fakeStore('auth=previous')
+      const adapter = new VrcAdapter(store, noopSleep)
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const login = adapter.login(creds)
+      await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      adapter.clearSession()
+      const pipelineCount = createPipeline.mock.calls.length
+      unsubscribe()
+      releaseBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+
+      await expect(login).resolves.toMatchObject({ ok: false, needs2fa: false })
+      expect(pipelineCount).toBe(0)
+      expect(store.saved).toEqual([])
+      expect(store.deleted).toBe(1)
+    })
+
+    it('recovers a waiting subscriber after a tentative body is rejected and retry persists', async () => {
+      let releaseFirstBody!: (body: unknown) => void
+      let firstBodyStarted = false
+      const heldFirstBody = new Promise<unknown>((resolve) => {
+        releaseFirstBody = resolve
+      })
+      const firstResponse = jsonResponse(null, { setCookies: ['auth=account-a'] })
+      vi.spyOn(firstResponse, 'json').mockImplementation(() => {
+        firstBodyStarted = true
+        return heldFirstBody
+      })
+      let directLoginCalls = 0
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'account-b' }))
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? firstResponse
+                : jsonResponse(
+                    { id: 'ACCOUNT002', displayName: 'Account B' },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+
+      const firstLogin = adapter.login({ username: 'account-a', password: 'pw-a' })
+      await vi.waitFor(() => expect(firstBodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseFirstBody({ unexpected: true })
+      await expect(firstLogin).resolves.toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'unexpected_response'
+      })
+      await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+        ok: true
+      })
+      await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0))
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(pipelineCount).toBe(1)
+      expect(socketCount).toBe(1)
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+    })
+
     it('authenticates, persists ONLY the auth cookie (attributes stripped), reports the display name', async () => {
       // A Response body is single-use, and this test fetches twice (login +
       // getAuthStatus) — return a fresh Response per call.
@@ -814,6 +1069,133 @@ describe('VrcAdapter', () => {
       expect(replacementPipelineCount).toBe(0)
       expect(socketCount).toBe(1)
       expect(oldSocketClosed).toBe(true)
+    })
+
+    it('serializes a held 2FA verify with a direct login so session ownership cannot cross', async () => {
+      let releaseVerifyBody!: (body: unknown) => void
+      let verifyBodyStarted = false
+      const heldVerifyBody = new Promise<unknown>((resolve) => {
+        releaseVerifyBody = resolve
+      })
+      const verifyResponse = jsonResponse(null, { setCookies: ['twoFactorAuth=account-a-2fa'] })
+      vi.spyOn(verifyResponse, 'json').mockImplementation(() => {
+        verifyBodyStarted = true
+        return heldVerifyBody
+      })
+      let directLoginCalls = 0
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.includes('/twofactorauth/')) return Promise.resolve(verifyResponse)
+          if (headers.Authorization !== undefined) {
+            directLoginCalls += 1
+            return Promise.resolve(
+              directLoginCalls === 1
+                ? jsonResponse(
+                    { requiresTwoFactorAuth: ['totp'] },
+                    { setCookies: ['auth=account-a'] }
+                  )
+                : jsonResponse(
+                    { id: 'ACCOUNT002', displayName: 'Account B' },
+                    { setCookies: ['auth=account-b'] }
+                  )
+            )
+          }
+          if (href.endsWith('/auth/user')) {
+            return Promise.resolve(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+          }
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const identities: Array<string | null> = []
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        onIdentity: (accountId) => identities.push(accountId)
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(verifyBodyStarted).toBe(true))
+      const accountBLogin = adapter.login({ username: 'account-b', password: 'pw-b' })
+      await new Promise((resolve) => setImmediate(resolve))
+      await new Promise((resolve) => setImmediate(resolve))
+      releaseVerifyBody({ verified: true })
+
+      await expect(Promise.all([verify, accountBLogin])).resolves.toEqual([
+        { ok: true },
+        { ok: true }
+      ])
+      expect(binding.getCredential()).toBe('auth=account-b')
+      expect(binding.getAttemptedAccountIds()).toEqual(['ACCOUNT001', 'ACCOUNT002'])
+      expect(binding.getOwner()).toBe('ACCOUNT002')
+      expect(identities.at(-1)).toBe('ACCOUNT002')
+    })
+
+    it('defers a new subscriber during completed-2FA refresh when persistence fails', async () => {
+      let releaseRefreshBody!: (body: unknown) => void
+      let refreshBodyStarted = false
+      const heldRefreshBody = new Promise<unknown>((resolve) => {
+        releaseRefreshBody = resolve
+      })
+      const refreshResponse = jsonResponse(null)
+      vi.spyOn(refreshResponse, 'json').mockImplementation(() => {
+        refreshBodyStarted = true
+        return heldRefreshBody
+      })
+      const sockets: DrivableVrcSocket[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          const headers = (options?.headers ?? {}) as Record<string, string>
+          if (href.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tentative' }))
+          if (href.includes('/twofactorauth/')) {
+            return Promise.resolve(
+              jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+            )
+          }
+          if (headers.Authorization !== undefined) {
+            return Promise.resolve(
+              jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-a'] })
+            )
+          }
+          if (href.endsWith('/auth/user')) return Promise.resolve(refreshResponse)
+          return Promise.reject(new Error(`Unexpected URL: ${href}`))
+        })
+      )
+      const binding = ownerBindingHarness<string>()
+      const adapter = new VrcAdapter(binding.store, noopSleep, {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      binding.failNextSave()
+      const createPipeline = vi.spyOn(
+        adapter as unknown as { createPipeline: () => object },
+        'createPipeline'
+      )
+      const verify = adapter.verify2fa('123456')
+      await vi.waitFor(() => expect(refreshBodyStarted).toBe(true))
+      const unsubscribe = adapter.subscribe(() => {})
+      releaseRefreshBody({ id: 'ACCOUNT001', displayName: 'Account A' })
+      const result = await verify
+      const pipelineCount = createPipeline.mock.calls.length
+      const socketCount = sockets.length
+      unsubscribe()
+
+      expect(result).toEqual({
+        ok: false,
+        needs2fa: false,
+        error: 'credential_persistence_failed'
+      })
+      expect(pipelineCount).toBe(0)
+      expect(socketCount).toBe(0)
     })
 
     it('returns needs2fa(totp), then verifies against /totp/verify and combines the cookies', async () => {
@@ -1647,7 +2029,7 @@ describe('VrcAdapter', () => {
       unsub()
     })
 
-    it('successful 2FA bumps the session generation, resets alerts, and drops old-pipeline events', async () => {
+    it('successful 2FA bumps the generation and starts a retained subscriber after persistence', async () => {
       const sockets: DrivableVrcSocket[] = []
       let authUserCalls = 0
       vi.stubGlobal(
@@ -1696,18 +2078,9 @@ describe('VrcAdapter', () => {
         }
         engine.consume(event)
       })
-      await vi.waitFor(() => expect(sockets).toHaveLength(1))
-      expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
-      const oldSocket = sockets[0]!
-      oldSocket.fire('open')
-      expect(appStatus.snapshot().ws.vrchat).toBe('live')
-      oldSocket.fire(
-        'message',
-        pipelineFrame('friend-active', { userId: pipelineUser.id, user: pipelineUser })
-      )
+      expect(sockets).toEqual([])
+      expect(appStatus.snapshot().ws.vrchat).toBe('down')
       const state = engine as unknown as { presence: Map<string, Map<string, unknown>> }
-      expect(state.presence.get('vrchat')?.size).toBe(1)
-      events.length = 0
 
       expect(await adapter.verify2fa('123456')).toEqual({ ok: true })
       expect((adapter as unknown as { sessionGeneration: number }).sessionGeneration).toBe(
@@ -1715,23 +2088,14 @@ describe('VrcAdapter', () => {
       )
       expect(reset).toHaveBeenCalledWith('vrchat')
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
-      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
       expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
       expect(appStatus.snapshot().ws.vrchat).toBe('reconnecting')
 
-      oldSocket.fire(
-        'message',
-        pipelineFrame('friend-online', {
-          userId: pipelineUser.id,
-          user: pipelineUser,
-          location: 'wrld_old:2'
-        })
-      )
-      expect(events).toEqual([{ type: 'connection', platform: 'vrchat', health: 'reconnecting' }])
       expect(alerts).toEqual([])
       expect(state.presence.get('vrchat')?.size ?? 0).toBe(0)
 
-      sockets[1]!.fire('open')
+      sockets[0]!.fire('open')
       expect(events).toEqual([
         { type: 'connection', platform: 'vrchat', health: 'reconnecting' },
         { type: 'connection', platform: 'vrchat', health: 'live' }

@@ -162,6 +162,11 @@ export class VrcAdapter extends VrcApiClient {
   // ── Live pipeline state (VRX-146) ──────────────────────────────────────────
   private pipeline: VrcPipeline | null = null
   private readonly subscribers = new Set<(event: AdapterEvent) => void>()
+  private authOperationQueue: Promise<void> = Promise.resolve()
+  private authOperationSequence = 0
+  private activeAuthOperation: number | null = null
+  private authOperationCancellationGeneration = 0
+  private authPersistencePending = false
 
   constructor(
     private readonly credentials: VrcCredentialStore,
@@ -183,9 +188,13 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  async login(creds: Credentials): Promise<LoginResult> {
+  login(creds: Credentials): Promise<LoginResult> {
+    return this.runAuthOperation((operationId) => this.performLogin(creds, operationId))
+  }
+
+  private async performLogin(creds: Credentials, operationId: number): Promise<LoginResult> {
     // Second leg of a 2FA flow: the renderer re-calls login with the code.
-    if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode)
+    if (creds.twoFactorCode) return this.verifyTwoFactor(creds.twoFactorCode, operationId)
     if (
       !creds.username ||
       !creds.password ||
@@ -215,8 +224,10 @@ export class VrcAdapter extends VrcApiClient {
         { priority: 'interactive' }
       )
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
     if (response.status === 401) return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
@@ -229,7 +240,10 @@ export class VrcAdapter extends VrcApiClient {
     if (authCookie && !isValidVrcSessionCookie(authCookie)) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
+    let installedTentativeCookie = false
     if (authCookie) {
+      this.authPersistencePending = true
+      installedTentativeCookie = true
       this.setCookie(authCookie)
       this.displayName = null
       this.accountId = null
@@ -242,10 +256,16 @@ export class VrcAdapter extends VrcApiClient {
     try {
       body = await response.json()
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      if (installedTentativeCookie) this.abandonTentativeSession()
       return { ok: false, needs2fa: false, error: 'bad_response' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     const parsed = authUserResponseSchema.safeParse(body)
-    if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    if (!parsed.success) {
+      if (installedTentativeCookie) this.abandonTentativeSession()
+      return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    }
 
     if ('requiresTwoFactorAuth' in parsed.data) {
       this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
@@ -255,12 +275,14 @@ export class VrcAdapter extends VrcApiClient {
     // A response without a replacement cookie still completed a deliberate
     // login, so preserve the established successful-login boundary behavior.
     if (!authCookie) {
+      this.authPersistencePending = true
       this.live?.onIdentity?.(null)
       this.bumpSessionGeneration(false)
     }
     this.displayName = parsed.data.displayName
     this.accountId = parsed.data.id
     if (!this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -272,10 +294,10 @@ export class VrcAdapter extends VrcApiClient {
    * renderer can drop the password from memory after the first leg.
    */
   verify2fa(code: string): Promise<LoginResult> {
-    return this.verifyTwoFactor(code)
+    return this.runAuthOperation((operationId) => this.verifyTwoFactor(code, operationId))
   }
 
-  private async verifyTwoFactor(code: string): Promise<LoginResult> {
+  private async verifyTwoFactor(code: string, operationId: number): Promise<LoginResult> {
     // INVARIANT (renderer-enforced, not guarded here): every reachable prompt
     // is preceded on this adapter by login() or getAuthStatus() setting
     // pendingTwoFactorMethod, so the totp default below is dead in practice.
@@ -308,8 +330,10 @@ export class VrcAdapter extends VrcApiClient {
         { priority: 'interactive' }
       )
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
       return { ok: false, needs2fa: false, error: 'network_error' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
 
     if (!response.ok) return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
 
@@ -321,8 +345,10 @@ export class VrcAdapter extends VrcApiClient {
     try {
       verifyBody = await response.json()
     } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
     }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     const verified = twoFactorVerifySchema.safeParse(verifyBody)
     if (!verified.success || !verified.data.verified) {
       return { ok: false, needs2fa: false, error: 'invalid_2fa_code' }
@@ -341,6 +367,7 @@ export class VrcAdapter extends VrcApiClient {
     if (combined.length && !isValidVrcSessionCookie(combined.join('; '))) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
+    this.authPersistencePending = true
     if (combined.length) this.setCookie(combined.join('; '))
     this.pendingTwoFactorMethod = null
 
@@ -350,8 +377,10 @@ export class VrcAdapter extends VrcApiClient {
     this.accountId = null
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration(false)
-    await this.refreshDisplayName('interactive')
+    await this.refreshDisplayName('interactive', operationId)
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
     if (!this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -359,6 +388,11 @@ export class VrcAdapter extends VrcApiClient {
 
   async getAuthStatus(): Promise<AuthStatus> {
     for (;;) {
+      if (this.authPersistencePending) {
+        return this.pendingTwoFactorMethod === null
+          ? this.status('error')
+          : this.status('needs-2fa', this.pendingTwoFactorMethod)
+      }
       if (!this.cookie) return this.status('unauthenticated')
       const generation = this.sessionGeneration
 
@@ -704,8 +738,11 @@ export class VrcAdapter extends VrcApiClient {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped
     // when the last leaves (the socket is a per-ACCOUNT resource, not per-view).
-    this.pipeline ??= this.createPipeline()
-    this.pipeline.start()
+    // A handler joining during tentative auth waits for persistence to settle.
+    if (!this.authPersistencePending) {
+      this.pipeline ??= this.createPipeline()
+      this.pipeline.start()
+    }
 
     let active = true
     return () => {
@@ -869,12 +906,51 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   // ── internals ──────────────────────────────────────────────────────────────
+  private runAuthOperation(
+    operation: (operationId: number) => Promise<LoginResult>
+  ): Promise<LoginResult> {
+    const cancellationGeneration = this.authOperationCancellationGeneration
+    const run = async (): Promise<LoginResult> => {
+      if (cancellationGeneration !== this.authOperationCancellationGeneration) {
+        return this.supersededAuthResult()
+      }
+      const operationId = ++this.authOperationSequence
+      this.activeAuthOperation = operationId
+      try {
+        return await operation(operationId)
+      } finally {
+        if (this.activeAuthOperation === operationId) this.activeAuthOperation = null
+      }
+    }
+    const result = this.authOperationQueue.then(run)
+    this.authOperationQueue = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private isAuthOperationCurrent(operationId: number): boolean {
+    return this.activeAuthOperation === operationId
+  }
+
+  private cancelAuthOperations(): void {
+    this.authOperationCancellationGeneration += 1
+    this.activeAuthOperation = null
+  }
+
+  private supersededAuthResult(): LoginResult {
+    return { ok: false, needs2fa: false, error: 'unexpected_response' }
+  }
+
   private setCookie(cookie: string): void {
     this.cookie = cookie
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
 
   private adoptSession(cookie: string): void {
+    this.cancelAuthOperations()
+    this.authPersistencePending = false
     this.setCookie(cookie)
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration()
@@ -908,7 +984,7 @@ export class VrcAdapter extends VrcApiClient {
     const wasRunning = this.subscribers.size > 0
     this.pipeline?.stop()
     this.pipeline = null
-    if (!wasRunning) return
+    if (!wasRunning || this.authPersistencePending) return
     this.pipeline = this.createPipeline()
     this.pipeline.start()
   }
@@ -921,14 +997,17 @@ export class VrcAdapter extends VrcApiClient {
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
-  private clearSessionState(restartPipeline = true): void {
+  private clearSessionState(restartPipeline = true, cancelAuthOperations = true): void {
+    const wasPersistencePending = this.authPersistencePending
+    if (cancelAuthOperations) this.cancelAuthOperations()
+    this.authPersistencePending = false
     this.cookie = null
     this.setAuthCookie(null)
     this.displayName = null
     this.accountId = null
     this.pendingTwoFactorMethod = null
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration(restartPipeline)
+    this.bumpSessionGeneration(restartPipeline && !wasPersistencePending)
   }
 
   /** Automatic auth invalidation must clear memory even when safeStorage is
@@ -958,7 +1037,7 @@ export class VrcAdapter extends VrcApiClient {
 
   /** A successful login must survive restart; discard an unpersisted session. */
   private persistenceFailure(): LoginResult {
-    this.clearSessionState(false)
+    this.clearSessionState(false, false)
     try {
       this.credentials.delete()
     } catch {
@@ -968,7 +1047,14 @@ export class VrcAdapter extends VrcApiClient {
     return { ok: false, needs2fa: false, error: CREDENTIAL_PERSISTENCE_FAILED }
   }
 
-  private async refreshDisplayName(priority: 'default' | 'interactive' = 'default'): Promise<void> {
+  private abandonTentativeSession(): void {
+    this.clearSessionState(false, false)
+  }
+
+  private async refreshDisplayName(
+    priority: 'default' | 'interactive' = 'default',
+    operationId?: number
+  ): Promise<void> {
     const generation = this.sessionGeneration
     try {
       const response = await this.rawRequest(
@@ -979,8 +1065,11 @@ export class VrcAdapter extends VrcApiClient {
         },
         { priority }
       )
+      if (operationId !== undefined && !this.isAuthOperationCurrent(operationId)) return
       if (!response.ok) return
-      const parsed = currentUserSchema.safeParse(await response.json())
+      const body: unknown = await response.json()
+      if (operationId !== undefined && !this.isAuthOperationCurrent(operationId)) return
+      const parsed = currentUserSchema.safeParse(body)
       if (parsed.success && generation === this.sessionGeneration) {
         this.displayName = parsed.data.displayName
         this.accountId = parsed.data.id
