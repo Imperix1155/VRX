@@ -218,6 +218,8 @@ invalidation of an older restored session does not cancel a newer interactive
 login. VRChat additionally requires a replacement `auth` cookie before an
 account-changing Basic-login response can be adopted; an existing cookie is
 never rebound to a different response identity.
+Every direct-login `needs-2fa` response likewise requires its own replacement
+`auth` cookie, so a code can never be submitted with an older account's cookie.
 Completed VRChat 2FA likewise persists only after its owner refresh supplies a
 non-null account id; a failed refresh removes the tentative session and any
 older persisted credential rather than retaining an unbound restart session.
@@ -225,6 +227,12 @@ While a direct-login or completed-2FA cookie is still awaiting owner validation
 or secure persistence, `getAuthStatus` waits for that operation to settle and
 authenticated VRChat REST entry points reject without making a request. The
 first-leg `needs-2fa` state remains visible so its code prompt stays usable.
+The fence lives on every typed adapter GET/POST, so continuation work inside a
+paginator or metadata batch cannot bypass the public entry checks.
+`AuthSessionPendingError` is an `AuthError` subtype that propagates through the
+friend and metadata helpers without dead-session invalidation or negative
+caching. `VrcAdapter.getAuthCookieHeader()` returns `null` across the same
+window, so AvatarCache's late-read provider cannot attach a tentative cookie.
 
 `credentialValidation.ts` is the shared, pure main-only guard for direct and issued authentication material (VRX-38). It permits Unicode direct-login text but rejects C0/DEL before either adapter makes a request; platform-issued VRChat Cookie and CVR Username/AccessKey values must be printable ASCII before use or persistence. It adds no renderer, IPC, or adapter-interface surface.
 

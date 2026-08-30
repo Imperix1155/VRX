@@ -19,8 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   newer account. A verified VRChat 2FA result also now requires a validated
   account owner before it can persist; an unavailable owner removes the
   tentative and prior stored session rather than allowing an unowned restart.
-  Tentative VRChat cookies also remain unavailable to status, roster, and
-  self-invite calls until owner validation and encrypted persistence settle.
+  Tentative VRChat cookies also remain unavailable to status, roster,
+  self-invite, background metadata, and avatar calls until owner validation and
+  encrypted persistence settle. A 2FA prompt is rejected if its direct-login
+  response did not issue the replacement cookie needed to verify that account.
   Terminal failures synchronously settle local auth state, including a malformed
   response after VRChat replaces its session cookie, so remounting a login tab
   or account card cannot revive a stale code prompt, and the retry explanation

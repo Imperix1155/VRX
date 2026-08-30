@@ -28,6 +28,9 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 - Pure parsers/builders: no electron/node imports, no side effects, no I/O. Importable + testable in isolation.
 - Fetchers (`fetchFriends`/`WorldResolver`/`fetchWorldMetadata`): never import HTTP/electron directly — take an injected fetcher/resolver; stay electron-free + unit-testable (mock the fetcher).
+- Resolver/fetcher catches must propagate `AuthError` subclasses, including
+  `AuthSessionPendingError`; tentative-session quarantine is control flow, not
+  a negative-cacheable metadata miss.
 - Defensive parsing — unknown enum/tag/suffix/shape values degrade gracefully, never throw (root `AGENTS.md` API etiquette).
 - Read shared types from `@shared/types`; do not redefine the canonical model here.
 

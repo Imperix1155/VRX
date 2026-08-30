@@ -12,7 +12,8 @@ import type {
 } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
-import { AuthError, NetworkError } from './errors'
+import type { AdapterRequestOptions } from './BaseAdapter'
+import { AuthError, AuthSessionPendingError, NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
@@ -268,6 +269,11 @@ export class VrcAdapter extends VrcApiClient {
     }
 
     if ('requiresTwoFactorAuth' in parsed.data) {
+      // A Basic-login 2FA challenge belongs to the attempted account only when
+      // that response also issued its auth component. Reusing an older cookie
+      // would submit the new account's code against the previous account; with
+      // no cookie it would create a prompt that can never verify.
+      if (!authCookie) return { ok: false, needs2fa: false, error: 'unexpected_response' }
       this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
       return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
     }
@@ -544,6 +550,32 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
+  /** Avatar requests may observe only a cookie whose secure save has settled. */
+  override getAuthCookieHeader(): string | null {
+    return this.authPersistencePending ? null : super.getAuthCookieHeader()
+  }
+
+  /** Fence every typed authenticated GET, including paginators and old metadata workers. */
+  protected override get<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    this.assertDurableSession()
+    return super.get(path, schema, options)
+  }
+
+  /** Fence every typed authenticated POST at the same main-process boundary. */
+  protected override post<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: Pick<AdapterRequestOptions, 'priority'>
+  ): Promise<T> {
+    this.assertDurableSession()
+    return super.post(path, body, schema, options)
+  }
+
   /** Fan an event out to all live subscribers — one throwing handler must not
    *  starve the others. Used by the pipeline AND for out-of-band signals like
    *  `auth-invalidated` (VRX-195). */
@@ -658,6 +690,7 @@ export class VrcAdapter extends VrcApiClient {
     })
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthSessionPendingError) return
         if (error instanceof AuthError && error.status === 401) {
           this.bumpSessionGeneration()
           this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
@@ -707,6 +740,7 @@ export class VrcAdapter extends VrcApiClient {
     })
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
+        if (error instanceof AuthSessionPendingError) return
         if (error instanceof AuthError && error.status === 401) {
           // A background 401 has the same meaning as the former awaited path:
           // preserve the cookie for the 2FA-aware status check, quarantine the
@@ -1110,7 +1144,7 @@ export class VrcAdapter extends VrcApiClient {
   /** Authenticated REST calls must never use a cookie that may still roll back. */
   private assertDurableSession(): void {
     if (this.authPersistencePending) {
-      throw new Error('Authentication session is still being persisted')
+      throw new AuthSessionPendingError()
     }
   }
 

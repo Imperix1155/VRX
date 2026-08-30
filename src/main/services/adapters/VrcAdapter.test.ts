@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
-import { AuthError } from './errors'
+import { AuthError, AuthSessionPendingError } from './errors'
 import { jsonResponse, noopSleep, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
@@ -546,6 +546,7 @@ describe('VrcAdapter', () => {
 
       const login = adapter.login(creds)
       await vi.waitFor(() => expect(bodyStarted).toBe(true))
+      expect(adapter.getAuthCookieHeader()).toBeNull()
       const status = adapter.getAuthStatus()
       let statusSettled = false
       void status.then(() => {
@@ -1089,6 +1090,31 @@ describe('VrcAdapter', () => {
   })
 
   describe('2FA', () => {
+    it.each([
+      ['fresh session', undefined],
+      ['existing account', 'auth=account-a']
+    ])(
+      'rejects a 2FA prompt without a replacement auth cookie for a %s',
+      async (_label, stored) => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn().mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+        )
+        const store = fakeStore(stored)
+        const adapter = new VrcAdapter(store, noopSleep)
+
+        await expect(adapter.login({ username: 'account-b', password: 'pw-b' })).resolves.toEqual({
+          ok: false,
+          needs2fa: false,
+          error: 'unexpected_response'
+        })
+
+        expect(store.saved).toEqual([])
+        expect(store.deleted).toBe(0)
+        expect(adapter.getAuthCookieHeader()).toBe(stored ?? null)
+      }
+    )
+
     it('binds the owner only after the verified 2FA credential is persisted', async () => {
       const fetchMock = vi
         .fn()
@@ -1103,10 +1129,12 @@ describe('VrcAdapter', () => {
       const binding = ownerBindingHarness<string>()
       const adapter = new VrcAdapter(binding.store, noopSleep)
 
-      await adapter.login(creds)
+      await expect(adapter.login(creds)).resolves.toMatchObject({ needs2fa: true })
+      expect(adapter.getAuthCookieHeader()).toBeNull()
       await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
 
       expect(binding.getOwner()).toBe('TRINITY09')
+      expect(adapter.getAuthCookieHeader()).toBe('auth=tok1; twoFactorAuth=tf2')
     })
 
     it('fails closed when verified 2FA cannot establish an account owner', async () => {
@@ -2857,8 +2885,97 @@ describe('VrcAdapter', () => {
       releaseLoginBody({ id: 'ACCOUNTB1', displayName: 'Account B' })
       await expect(login).resolves.toEqual({ ok: true })
 
-      expect(rosterError).toEqual(new Error('Authentication session is still being persisted'))
+      expect(rosterError).toBeInstanceOf(AuthSessionPendingError)
+      expect((rosterError as Error).message).toBe('Authentication session is still being persisted')
       expect(tentativeAccountBRequests).toBe(0)
+    })
+
+    it('does not advance an old world-enrichment batch through a tentative cookie', async () => {
+      const friendIds = Array.from({ length: 11 }, (_, index) => `usr_friend_${index}`)
+      const releases: Array<(response: Response) => void> = []
+      let accountAWorldRequests = 0
+      let tentativeAccountBWorldRequests = 0
+      const fetchMock = vi.fn((url: RequestInfo | URL, options?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        const headers = (options?.headers ?? {}) as Record<string, string>
+        if (headers.Authorization !== undefined) {
+          return Promise.resolve(
+            jsonResponse({ requiresTwoFactorAuth: ['totp'] }, { setCookies: ['auth=account-b'] })
+          )
+        }
+        if (href.endsWith('/auth/user')) {
+          return Promise.resolve(
+            jsonResponse({
+              onlineFriends: friendIds,
+              activeFriends: [],
+              offlineFriends: []
+            })
+          )
+        }
+        if (href.includes('/auth/user/friends')) {
+          return Promise.resolve(
+            href.includes('offline=true')
+              ? jsonResponse([])
+              : jsonResponse(
+                  friendIds.map((id, index) => ({
+                    id,
+                    displayName: `Friend ${index}`,
+                    status: 'active',
+                    tags: [],
+                    location: `wrld_pending_${index}:instance-${index}`
+                  }))
+                )
+          )
+        }
+        if (href.includes('/worlds/')) {
+          if (headers.Cookie === 'auth=account-b') {
+            tentativeAccountBWorldRequests += 1
+            return Promise.resolve(
+              jsonResponse({
+                name: 'Tentative world',
+                thumbnailImageUrl: null,
+                capacity: 16,
+                shortName: null
+              })
+            )
+          }
+          accountAWorldRequests += 1
+          return new Promise<Response>((resolve) => releases.push(resolve))
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${href}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+
+      await expect(adapter.getFriends()).resolves.toMatchObject({ completeness: 'complete' })
+      await vi.waitFor(() => expect(accountAWorldRequests).toBe(10))
+      await expect(
+        adapter.login({ username: 'account-b', password: 'pw-b' })
+      ).resolves.toMatchObject({ needs2fa: true })
+
+      releases.shift()?.(
+        jsonResponse({
+          name: 'Account A world',
+          thumbnailImageUrl: null,
+          capacity: 16,
+          shortName: null
+        })
+      )
+      await new Promise((resolve) => setImmediate(resolve))
+      const escapedRequests = tentativeAccountBWorldRequests
+      for (const release of releases) {
+        release(
+          jsonResponse({
+            name: 'Account A world',
+            thumbnailImageUrl: null,
+            capacity: 16,
+            shortName: null
+          })
+        )
+      }
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(escapedRequests).toBe(0)
     })
 
     it('aborts an in-flight roster after logout without retrying or double-invalidating', async () => {
