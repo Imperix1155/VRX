@@ -74,6 +74,9 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep).toContain(
       'expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"'
     )
+    expect(credentialProbeStep).toMatch(
+      /if ! node -e 'if \(require\("electron"\) !== process\.argv\[1\]\) process\.exit\(1\)' \\\n\s+"\$expected_electron_binary" >\/dev\/null 2>&1; then\n\s+printf '%s\\n' ASSERT_ELECTRON_PACKAGE_READY >&2\n\s+exit 1\n\s+fi/
+    )
     expect(credentialProbeStep).toContain(
       'if ! electron_binary=$(realpath -- "$expected_electron_binary" 2>/dev/null); then'
     )
@@ -100,6 +103,7 @@ describe('Linux credential persistence probe contract', () => {
     )
     expect(credentialProbeStep).toContain('return "$cleanup_status"')
     for (const label of [
+      'ASSERT_ELECTRON_PACKAGE_READY',
       'ASSERT_ELECTRON_BINARY_RESOLVE',
       'ASSERT_ELECTRON_BINARY_VALIDATE',
       'ASSERT_ELECTRON_APPARMOR_PROFILE_EXISTS',
@@ -132,11 +136,23 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep.indexOf("trap 'cleanup || true' EXIT")).toBeLessThan(
       credentialProbeStep.indexOf('profile_created=1')
     )
+    expect(credentialProbeStep.indexOf('ASSERT_ELECTRON_PACKAGE_READY')).toBeLessThan(
+      credentialProbeStep.indexOf('electron_binary=$(realpath')
+    )
+    expect(credentialProbeStep.indexOf('electron_binary=$(realpath')).toBeLessThan(
+      credentialProbeStep.indexOf('ASSERT_ELECTRON_BINARY_VALIDATE')
+    )
+    expect(credentialProbeStep.indexOf('ASSERT_ELECTRON_BINARY_VALIDATE')).toBeLessThan(
+      credentialProbeStep.indexOf('profile_created=1')
+    )
     expect(credentialProbeStep.indexOf('sudo apparmor_parser -R "$profile_path"')).toBeLessThan(
       credentialProbeStep.indexOf('sudo rm -f -- "$profile_path"')
     )
     expect(credentialProbeStep.indexOf('profile_created=1')).toBeLessThan(
       credentialProbeStep.indexOf('sudo tee "$profile_path"')
+    )
+    expect(credentialProbeStep.indexOf('sudo tee "$profile_path"')).toBeLessThan(
+      credentialProbeStep.indexOf('sudo apparmor_parser -r "$profile_path"')
     )
     expect(credentialProbeStep.indexOf('sudo apparmor_parser -r "$profile_path"')).toBeLessThan(
       credentialProbeStep.indexOf('probe_exit=0')

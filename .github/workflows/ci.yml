@@ -75,6 +75,14 @@ jobs:
           # Ubuntu 24.04 restricts user namespaces for unprofiled binaries.
           # Permit only this exact Electron binary to create Chromium's sandbox.
           expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"
+          # Electron 43 resolves its checksum-verified binary lazily through
+          # the package getter used by its CLI, so run that getter before the
+          # AppArmor profile needs the executable to exist.
+          if ! node -e 'if (require("electron") !== process.argv[1]) process.exit(1)' \
+            "$expected_electron_binary" >/dev/null 2>&1; then
+            printf '%s\n' ASSERT_ELECTRON_PACKAGE_READY >&2
+            exit 1
+          fi
           if ! electron_binary=$(realpath -- "$expected_electron_binary" 2>/dev/null); then
             printf '%s\n' ASSERT_ELECTRON_BINARY_RESOLVE >&2
             exit 1
