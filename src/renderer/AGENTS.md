@@ -57,10 +57,13 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   banner while the cache settles, and the hook drops any typed password when a
   restored session newly enters 2FA. That new reprompt selects the VRChat tab
   after any non-terminal active submit settles; it never remounts away a terminal
-  error from the selected platform. The terminal transition back to credentials
-  likewise does not switch tabs or remount the outer screen. User-driven
-  platform tab switches still remount the inner form and clear all
-  cross-platform input.
+  error from the selected platform. A reprompt suppressed by a terminal result
+  stays pending and is reconsidered after a later non-terminal retry settles.
+  Re-selecting the already-active platform tab is a no-op and cannot release
+  that pending reprompt or hide the terminal error.
+  The terminal transition back to credentials likewise does not switch tabs or
+  remount the outer screen. User-driven platform tab switches still remount the
+  inner form and clear all cross-platform input.
 - Design tokens are the single source of truth (DESIGN.md §2/§2A, defined in `assets/main.css`). NEVER hardcode color/spacing outside tokens.
 - Themed colors are raw CSS vars consumed via arbitrary utilities (`bg-[var(--vrc)]`) so they flip under `[data-theme="light"]`; only the static scale (radius/fonts) lives in `@theme`.
 - Tailwind v4 drops opacity modifiers on arbitrary vars (`bg-[var(--x)]/N` → solid) — use `color-mix()` or theme colors for tints.

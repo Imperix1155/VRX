@@ -544,6 +544,97 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     expect(cvrTab().getAttribute('aria-checked')).toBe('true')
     expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
     expect(screen.getByLabelText<HTMLInputElement>(msg('login.password')).value).toBe('')
+
+    // Re-selecting the active tab is a no-op: it must not release the deferred
+    // VRChat prompt or hide the terminal recovery error.
+    fireEvent.click(cvrTab())
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toContain(
+      msg('login.error.credentialPersistence')
+    )
+    expect(screen.queryByLabelText(msg('login.twoFactor.code'))).toBeNull()
+  })
+
+  it('applies a deferred VRChat 2FA prompt after a later non-terminal CVR retry', async () => {
+    let releaseTerminal!: (result: {
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }) => void
+    let releaseRetry!: (result: {
+      ok: false
+      needs2fa: false
+      error: 'invalid_credentials'
+    }) => void
+    const terminal = new Promise<{
+      ok: false
+      needs2fa: false
+      error: typeof CREDENTIAL_PERSISTENCE_FAILED
+      sessionCleared: true
+    }>((resolve) => {
+      releaseTerminal = resolve
+    })
+    const retry = new Promise<{
+      ok: false
+      needs2fa: false
+      error: 'invalid_credentials'
+    }>((resolve) => {
+      releaseRetry = resolve
+    })
+    const login = vi.fn().mockReturnValueOnce(terminal).mockReturnValueOnce(retry)
+    setBridge({ login, verify2fa: vi.fn() })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <QueryDrivenLogin />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), {
+      target: { value: 'trinity@example.com' }
+    })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+
+    queryClient.setQueryData<AuthStatus>(authStatusQueryKey('vrchat'), {
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    releaseTerminal({
+      ok: false,
+      needs2fa: false,
+      error: CREDENTIAL_PERSISTENCE_FAILED,
+      sessionCleared: true
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('login.error.credentialPersistence'))
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.change(screen.getByLabelText(msg('login.password')), {
+      target: { value: 'new-zion' }
+    })
+    submit()
+    await waitFor(() => expect(vrcTab().getAttribute('aria-disabled')).toBe('true'))
+    releaseRetry({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+
+    await screen.findByLabelText(msg('login.twoFactor.code'))
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+    expect(login).toHaveBeenCalledTimes(2)
   })
 
   it('applies a restored VRChat 2FA prompt after a non-terminal CVR failure settles', async () => {

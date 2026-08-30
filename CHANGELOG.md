@@ -55,7 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   settles. If a restored VRChat session starts requiring 2FA while the
   ChilloutVR tab is selected, VRX brings the VRChat code prompt forward only
   after any non-terminal active submit; a terminal ChilloutVR failure keeps its
-  error visible. (VRX-34)
+  error visible and leaves the prompt pending until a later non-terminal retry
+  settles. Re-selecting ChilloutVR cannot dismiss that error or release the
+  pending prompt. (VRX-34)
 
 ## [0.19.1] - 2026-08-27
 

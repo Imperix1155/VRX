@@ -152,8 +152,10 @@ export default function LoginScreen({
   // never remount away a terminal error from that submit. Do not switch on
   // method -> null either: the mounted form owns that recovery error too.
   if (!isSubmitting && initialTwoFactor !== previousInitialTwoFactor) {
-    setPreviousInitialTwoFactor(initialTwoFactor)
-    if (initialTwoFactor !== null && !lastSubmissionClearedSession) {
+    if (initialTwoFactor === null) {
+      setPreviousInitialTwoFactor(null)
+    } else if (!lastSubmissionClearedSession) {
+      setPreviousInitialTwoFactor(initialTwoFactor)
       setPlatform('vrchat')
     }
   }
@@ -201,6 +203,7 @@ export default function LoginScreen({
               textColors={PLATFORM_TAB_TEXT_COLORS}
               ariaLabel={t('login.tabs.aria')}
               onChange={(nextPlatform) => {
+                if (nextPlatform === platform) return
                 setLastSubmissionClearedSession(false)
                 setPlatform(nextPlatform)
               }}
