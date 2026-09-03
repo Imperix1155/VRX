@@ -208,11 +208,20 @@ export default function FriendDrawer({
   const {
     value: noteValue,
     setValue: setNoteValue,
-    onBlur: onNoteBlur
+    onBlur: onNoteBlur,
+    saveFailed: noteSaveFailed,
+    retry: retryNoteSave
   } = useFriendNote({
     platform: shown?.platform ?? 'vrchat',
     friendId: shown?.platformUserId ?? ''
   })
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const retryNote = (): void => {
+    // The Retry button is conditionally removed after success; retain a useful
+    // keyboard target before starting the mutation.
+    notesTextareaRef.current?.focus()
+    retryNoteSave()
+  }
 
   return (
     <div inert={!open} aria-hidden={!open}>
@@ -388,6 +397,7 @@ export default function FriendDrawer({
                   <label htmlFor="friend-notes">{t('drawer.notes.heading')}</label>
                 </h3>
                 <textarea
+                  ref={notesTextareaRef}
                   id="friend-notes"
                   value={noteValue}
                   onChange={(event) => setNoteValue(event.target.value)}
@@ -399,6 +409,28 @@ export default function FriendDrawer({
                   className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50"
                   style={{ borderColor: 'var(--border)' }}
                 />
+                {noteSaveFailed && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+                      background: 'color-mix(in srgb, var(--error) 10%, transparent)'
+                    }}
+                  >
+                    <span aria-hidden="true" className="font-bold text-[var(--error)]">
+                      !
+                    </span>
+                    <p className="min-w-0 flex-1">{t('drawer.notes.saveFailed')}</p>
+                    <button
+                      type="button"
+                      onClick={retryNote}
+                      className="shrink-0 rounded-pill px-[var(--space-1)] font-semibold text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
+                    >
+                      {t('drawer.notes.retry')}
+                    </button>
+                  </div>
+                )}
                 <span
                   aria-live="polite"
                   className="text-right text-[11px] text-[var(--text-faint)]"

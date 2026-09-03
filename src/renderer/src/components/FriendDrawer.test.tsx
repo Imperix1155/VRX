@@ -640,6 +640,36 @@ describe('FriendDrawer (VRX-69)', () => {
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
   })
 
+  it('keeps a rejected note visible with an explicit retry warning', async () => {
+    getFriendNote.mockResolvedValue({
+      note: 'Original',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
+    setFriendNote
+      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: true })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() => scoped.getByDisplayValue('Original'))
+    fireEvent.change(textarea, { target: { value: 'Newest local draft' } })
+    fireEvent.blur(textarea)
+
+    const warning = await scoped.findByRole('alert')
+    expect(warning.textContent).toContain(
+      "Couldn't save this note. Your newest draft remains local and will not survive closing VRX."
+    )
+    expect((textarea as HTMLTextAreaElement).value).toBe('Newest local draft')
+
+    const retry = scoped.getByRole('button', { name: 'Retry' })
+    ;(retry as HTMLButtonElement).focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(scoped.queryByRole('alert')).toBeNull())
+    expect(document.activeElement).toBe(textarea)
+  })
+
   it('shows a live N/500 counter and caps input at 500 chars', async () => {
     render(<FriendsList />)
     openDrawerFor('Alex')

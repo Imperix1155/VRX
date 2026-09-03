@@ -264,7 +264,9 @@
     "notes": {
       "heading": "Notes (yours, private)",
       "placeholder": "Add a private note…",
-      "counter": "{{current}}/500"
+      "counter": "{{current}}/500",
+      "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
+      "retry": "Retry"
     }
   },
   "policySpace": {
