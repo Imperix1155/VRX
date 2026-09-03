@@ -671,6 +671,30 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(textarea)
   })
 
+  it('explains an initial note-load failure and retries it before enabling edits', async () => {
+    getFriendNote.mockRejectedValueOnce(new Error('note unavailable')).mockResolvedValueOnce({
+      note: 'Recovered note',
+      revision: { platformAccountId: 'self', epoch: 2 }
+    })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    const warning = await scoped.findByRole('alert')
+    expect(warning.textContent).toContain(
+      "Couldn't load this note. Retry before editing so VRX can save changes safely."
+    )
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(true)
+
+    const retry = scoped.getByRole('button', { name: 'Retry' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(scoped.getByDisplayValue('Recovered note')).toBe(textarea))
+    expect(scoped.queryByRole('alert')).toBeNull()
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(false)
+    expect(document.activeElement).toBe(textarea)
+  })
+
   it('shows a live N/500 counter and caps input at 500 chars', async () => {
     render(<FriendsList />)
     openDrawerFor('Alex')

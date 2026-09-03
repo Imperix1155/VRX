@@ -994,11 +994,13 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
   })
 
-  it('stays read-only when the initial note load fails', async () => {
+  it('stays read-only when the initial note load fails and recovers on explicit Retry', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     })
-    getFriendNote.mockRejectedValue(new Error('note unavailable'))
+    getFriendNote
+      .mockRejectedValueOnce(new Error('note unavailable'))
+      .mockResolvedValueOnce({ note: 'Recovered note', revision: makeRevision('self', 2) })
     const noteKey = ['friend-note', 'vrchat', 'usr_a', 0] as const
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
@@ -1010,6 +1012,13 @@ describe('useFriendNote', () => {
     act(() => result.current.onBlur())
     expect(result.current.value).toBe('')
     expect(setFriendNote).not.toHaveBeenCalled()
+    expect(result.current.loadFailed).toBe(true)
+
+    act(() => result.current.retryLoad())
+    await waitFor(() => expect(result.current.value).toBe('Recovered note'))
+    expect(result.current.loadFailed).toBe(false)
+    expect(result.current.isWritable).toBe(true)
+    expect(getFriendNote).toHaveBeenCalledTimes(2)
   })
 
   it('queues a blur during an in-flight save and sends both drafts in order', async () => {

@@ -25,7 +25,7 @@
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
  *   5. Notes: account-scoped private text with save-on-blur and explicit Retry
- *      after a rejected save (VRX-72/269).
+ *      after a rejected load or save (VRX-72/269).
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -210,6 +210,8 @@ export default function FriendDrawer({
   const {
     value: noteValue,
     isWritable: noteWritable,
+    loadFailed: noteLoadFailed,
+    retryLoad: retryNoteLoad,
     setValue: setNoteValue,
     onBlur: onNoteBlur,
     saveFailed: noteSaveFailed,
@@ -223,7 +225,8 @@ export default function FriendDrawer({
     // The Retry button is conditionally removed after success; retain a useful
     // keyboard target before starting the mutation.
     notesTextareaRef.current?.focus()
-    retryNoteSave()
+    if (noteLoadFailed) retryNoteLoad()
+    else retryNoteSave()
   }
 
   return (
@@ -404,17 +407,21 @@ export default function FriendDrawer({
                   id="friend-notes"
                   value={noteValue}
                   readOnly={!noteWritable}
+                  aria-describedby={
+                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : undefined
+                  }
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
                   maxLength={500}
                   rows={4}
                   placeholder={t('drawer.notes.placeholder')}
                   aria-labelledby="friend-notes-label"
-                  className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50"
+                  className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] read-only:cursor-default read-only:opacity-50 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
                   style={{ borderColor: 'var(--border)' }}
                 />
-                {noteSaveFailed && (
+                {(noteLoadFailed || noteSaveFailed) && (
                   <div
+                    id="friend-notes-error"
                     role="alert"
                     className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
                     style={{
@@ -425,7 +432,9 @@ export default function FriendDrawer({
                     <span aria-hidden="true" className="font-bold text-[var(--error)]">
                       !
                     </span>
-                    <p className="min-w-0 flex-1">{t('drawer.notes.saveFailed')}</p>
+                    <p className="min-w-0 flex-1">
+                      {t(noteLoadFailed ? 'drawer.notes.loadFailed' : 'drawer.notes.saveFailed')}
+                    </p>
                     <button
                       type="button"
                       onClick={retryNote}

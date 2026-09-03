@@ -169,6 +169,8 @@ export interface UseFriendNoteOptions {
 export interface UseFriendNoteResult {
   value: string
   isWritable: boolean
+  loadFailed: boolean
+  retryLoad: () => void
   setValue: (value: string) => void
   onBlur: () => void
   saveFailed: boolean
@@ -251,6 +253,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     setFriendNote !== null &&
     friendId !== '' &&
     query.data?.revision !== undefined
+  const loadFailed = query.isError && query.data?.revision === undefined
 
   if (draft.key !== key) {
     // Ordinary in-place edits are discarded when selection changes, but a
@@ -524,6 +527,9 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
 
   const onBlur = useCallback(() => saveDraft(false), [saveDraft])
   const retry = useCallback(() => saveDraft(true), [saveDraft])
+  const retryLoad = useCallback(() => {
+    void query.refetch()
+  }, [query])
 
   const setValue = useCallback(
     (value: string) => {
@@ -574,6 +580,8 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   return {
     value: draft.value,
     isWritable,
+    loadFailed,
+    retryLoad,
     setValue,
     onBlur,
     saveFailed: (() => {
