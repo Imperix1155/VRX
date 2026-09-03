@@ -106,7 +106,10 @@ per-account namespace — they're the installation-global graph (§D7).
 - **Per-account credential slots** (D2) → VRX-89. Seam: the owner-map + `accountKey`.
 - **Account switch UI** (D6) → VRX-90. Seam: the epoch primitive (§7) + the identity-boundary cache reset (this milestone).
 - **Favorites vertical** (D8) → VRX-70/203, next block. Seam: the overlay contract + the small-namespace store.
-- **Linking engine** (D7) → VRX-143. Seam: the `LinkedPerson` graph.
+- **Link graph integration** (D7) → VRX-143. The main-only, installation-global
+  `LinkGraphStore` now persists fully-qualified `LinkedPerson` references with
+  runtime invariants and fail-closed version handling; IPC, UI, roster overlays,
+  suggestions, and account-wipe cascade integration remain deferred.
 - **Wipe cascade** (D3) → VRX-89. Seam: registry tombstone + `accountKey` deletion; the cascade list (social data, link-graph refs, registry, credentials, in-memory snapshots, renderer caches) is enumerated on that issue.
 
 ## 7. AccountSession epoch primitive (built this milestone)

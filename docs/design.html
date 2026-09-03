@@ -847,7 +847,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           </div>
           <div class="grid2">
             <div><div class="box-label why">Why user-driven</div><div class="why">There is no reliable signal that two accounts are the same person. A <b>wrong auto-merge is worse than no link</b>, so the user always confirms. VRX may <i>suggest</i> matches (e.g. identical display names), never apply them silently.</div></div>
-            <div><div class="box-label how">How it renders</div><div class="why">One person card, blue→orange avatar (the bridge), each platform's presence shown <b>independently</b> — Rin can be in-world on VRChat and offline on CVR at once. Link data is private, stored in the app's own <code style="font-family:var(--code)">userData</code> — never written into VRCX/CVRX folders.</div></div>
+            <div><div class="box-label how">How it renders</div><div class="why">One person card, blue→orange avatar (the bridge), each platform's presence shown <b>independently</b> — Rin can be in-world on VRChat and offline on CVR at once. Each private stored member is qualified by platform, platform account, and friend ID, so matching upstream IDs under different accounts never collide. Link data is stored in the app's own <code style="font-family:var(--code)">userData</code> — never written into VRCX/CVRX folders.</div></div>
           </div>
         </div>
       </section>
