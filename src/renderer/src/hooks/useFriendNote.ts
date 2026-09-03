@@ -342,21 +342,25 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
                 currentDraft.generation === generation &&
                 currentDraft.intentVersion === intentVersion
               ) {
+                const activeDraft =
+                  draftRef.current.key === save.key ? draftRef.current : currentDraft
                 const nextDraft = {
                   ...currentDraft,
                   baseline: note,
                   dirty:
-                    draftRef.current.intentVersion === intentVersion
+                    activeDraft.intentVersion === intentVersion
                       ? false
-                      : !sameNote(draftRef.current.value, note),
+                      : !sameNote(activeDraft.value, note),
                   hasLocalIntent:
-                    draftRef.current.intentVersion === intentVersion
+                    activeDraft.intentVersion === intentVersion
                       ? false
-                      : !sameNote(draftRef.current.value, note)
+                      : !sameNote(activeDraft.value, note)
                 }
-                draftRef.current = nextDraft
                 rememberDraft(save.key, nextDraft)
-                setDraft(nextDraft)
+                if (draftRef.current.key === save.key) {
+                  draftRef.current = nextDraft
+                  setDraft(nextDraft)
+                }
                 if (!nextDraft.dirty) latestDrafts.delete(save.key)
               } else if (currentDraft !== undefined && currentDraft.key === save.key) {
                 // The request landed, but input changed while it was in
@@ -369,8 +373,10 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
                   hasLocalIntent: !sameNote(currentDraft.value, note)
                 }
                 rememberDraft(save.key, nextDraft)
-                draftRef.current = nextDraft
-                setDraft(nextDraft)
+                if (draftRef.current.key === save.key) {
+                  draftRef.current = nextDraft
+                  setDraft(nextDraft)
+                }
                 if (!nextDraft.dirty) latestDrafts.delete(save.key)
               }
             } else if (result?.reason === 'stale') {

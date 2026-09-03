@@ -1200,6 +1200,51 @@ describe('useFriendNote', () => {
     expect(result.current.value).toBe('')
   })
 
+  it('keeps the current friend draft when a previous friend save resolves', async () => {
+    let resolveSave: (value: { ok: true }) => void = () => {}
+    getFriendNote.mockImplementation(({ friendId }: { friendId: string }) =>
+      Promise.resolve({
+        note: friendId === 'usr_a' ? 'A note' : 'B note',
+        revision: makeRevision('self', 1)
+      })
+    )
+    setFriendNote.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        })
+    )
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    const { result, rerender } = renderHook(
+      ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
+      { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper(false, queryClient) }
+    )
+
+    await waitFor(() => expect(result.current.value).toBe('A note'))
+    act(() => result.current.setValue('Saved for A'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+
+    rerender({ friendId: 'usr_b' })
+    await waitFor(() => expect(result.current.value).toBe('B note'))
+    act(() => result.current.setValue('Unsaved for B'))
+
+    await act(async () => {
+      resolveSave({ ok: true })
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(['friend-note', 'vrchat', 'usr_a', 0])).toEqual({
+        note: 'Saved for A',
+        revision: makeRevision('self', 1)
+      })
+    )
+    expect(result.current.value).toBe('Unsaved for B')
+  })
+
   it('serializes a retry across drawer remounts and fences the old completion', async () => {
     const resolves: Array<(value: { ok: true }) => void> = []
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('same-account', 1) })
