@@ -253,7 +253,11 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     setFriendNote !== null &&
     friendId !== '' &&
     query.data?.revision !== undefined
-  const loadFailed = query.isError && query.data?.revision === undefined
+  // Main returns a successful `{ note: null }` without a lease when the
+  // account is temporarily unresolved. Treat that terminal response like a
+  // rejected load so the indefinitely-stale query cannot strand the editor
+  // read-only without an explicit recovery path.
+  const loadFailed = query.data?.revision === undefined && (query.isError || query.isSuccess)
 
   if (draft.key !== key) {
     // Ordinary in-place edits are discarded when selection changes, but a

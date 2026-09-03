@@ -1021,6 +1021,24 @@ describe('useFriendNote', () => {
     expect(getFriendNote).toHaveBeenCalledTimes(2)
   })
 
+  it('offers Retry when an initial note load succeeds without an account revision', async () => {
+    getFriendNote
+      .mockResolvedValueOnce({ note: null })
+      .mockResolvedValueOnce({ note: 'Recovered note', revision: makeRevision('self', 2) })
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper()
+    })
+
+    await waitFor(() => expect(result.current.loadFailed).toBe(true))
+    expect(result.current.isWritable).toBe(false)
+
+    act(() => result.current.retryLoad())
+    await waitFor(() => expect(result.current.value).toBe('Recovered note'))
+    expect(result.current.loadFailed).toBe(false)
+    expect(result.current.isWritable).toBe(true)
+    expect(getFriendNote).toHaveBeenCalledTimes(2)
+  })
+
   it('queues a blur during an in-flight save and sends both drafts in order', async () => {
     const saveResolvers: Array<(value: { ok: boolean }) => void> = []
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('self', 1) })
