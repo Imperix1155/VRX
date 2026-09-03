@@ -63,6 +63,7 @@ export class UpdaterService {
   private checkOrigin: UpdaterState | null = null
   private eventHandledError: unknown = undefined
   private hasEventHandledError = false
+  private installErrorEventQuarantine = false
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = {
@@ -104,6 +105,7 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-not-available', () => {
+      this.installErrorEventQuarantine = false
       this.setState({ state: 'idle', availableVersion: null, failure: null })
       this.checkOrigin = null
     })
@@ -113,6 +115,7 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+      this.installErrorEventQuarantine = false
       this.setState({
         state: 'downloaded',
         availableVersion: info.version,
@@ -122,6 +125,10 @@ export class UpdaterService {
     })
 
     autoUpdater.on('error', (err: Error) => {
+      // Native install failures can be redispatched later under distinct Error
+      // objects. Current check/download operations still reject their promises,
+      // so their catch paths own classification while this quarantine is active.
+      if (this.installErrorEventQuarantine) return
       if (this.isPreviouslyHandledObject(err) || this.wasHandledByCurrentEvent(err)) return
       this.rememberCurrentEvent(err)
       this.handleError()
@@ -139,6 +146,7 @@ export class UpdaterService {
 
   private handleError(): void {
     if (this.state.state === 'downloaded') {
+      this.installErrorEventQuarantine = true
       // Staged install failed: return to update-available so the user can retry.
       this.setState({
         state: 'update-available',

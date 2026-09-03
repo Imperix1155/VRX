@@ -119,6 +119,8 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
     if (isError(value)) {
       const descriptors = safeDescriptors(value)
       if (!descriptors) return UNREPRESENTABLE
+      const entries = Object.entries(descriptors)
+      if (entries.length > MAX_KEYS) return UNREPRESENTABLE
       const message = descriptors.message
       const stack = descriptors.stack
       const output: Record<string, unknown> = {
@@ -134,7 +136,7 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
               ? '[unreadable accessor]'
               : undefined
       }
-      for (const [key, descriptor] of Object.entries(descriptors)) {
+      for (const [key, descriptor] of entries) {
         if (!descriptor.enumerable || ['name', 'message', 'stack', 'cause', 'errors'].includes(key))
           continue
         output[key] = isSensitiveKey(key)

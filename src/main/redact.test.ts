@@ -188,6 +188,15 @@ describe('redact', () => {
     expect(result.accessToken).toBe('***REDACTED***')
   })
 
+  it('fails closed when Error diagnostics exceed the key bound', () => {
+    const error = new Error('wide diagnostic')
+    for (let index = 0; index <= 20; index += 1) {
+      Object.defineProperty(error, `detail${index}`, { enumerable: true, value: index })
+    }
+
+    expect(redact(error)).toBe('[unrepresentable diagnostic]')
+  })
+
   it('walks an Error cause chain', () => {
     const inner = new Error('inner: auth=xyz')
     const outer = new Error('outer', { cause: inner })

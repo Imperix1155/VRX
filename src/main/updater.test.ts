@@ -486,6 +486,102 @@ describe('UpdaterService', () => {
     expect(log.warn.mock.calls[0]).toHaveLength(1)
   })
 
+  it('handles an install error event followed by the same synchronous throw only once', () => {
+    const { service, autoUpdater, quitAndInstall, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    const failure = new Error('native install failed')
+    quitAndInstall.mockImplementation(() => {
+      autoUpdater.emit('error', failure)
+      throw failure
+    })
+
+    expect(() => service.install()).not.toThrow()
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
+  })
+
+  it('ignores a late install error event for the object already handled by a throw', () => {
+    const { service, autoUpdater, quitAndInstall, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    const failure = new Error('native install failed')
+    quitAndInstall.mockImplementation(() => {
+      throw failure
+    })
+
+    service.install()
+    autoUpdater.emit('error', failure)
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
+  })
+
+  it('ignores a distinct late install error after the retryable failure is recorded', () => {
+    const { service, autoUpdater, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+
+    autoUpdater.emit('error', new Error('native install failed first'))
+    autoUpdater.emit('error', new Error('native install failed later'))
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
+  })
+
+  it('ignores a distinct late install error while a retry download is in flight', async () => {
+    const { service, autoUpdater, downloadUpdate, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    autoUpdater.emit('error', new Error('native install failed first'))
+
+    let resolveDownload: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
+    const retry = service.download()
+    autoUpdater.emit('error', new Error('native install failed later'))
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    resolveDownload?.()
+    await retry
+    expect(service.snapshot()).toMatchObject({ state: 'update-available', failure: null })
+  })
+
+  it('still classifies a retry download rejection while late install events are quarantined', async () => {
+    const { service, autoUpdater, downloadUpdate, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    autoUpdater.emit('error', new Error('native install failed'))
+    const downloadFailure = new Error('retry download failed')
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('error', downloadFailure)
+      return Promise.reject(downloadFailure)
+    })
+
+    await service.download()
+
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(log.warn).toHaveBeenCalledTimes(2)
+    expect(log.warn).toHaveBeenLastCalledWith('autoUpdater: download failed')
+  })
+
   it('clears a staged-install failure before a retry download and keeps fallback state clean', async () => {
     const { service, autoUpdater, downloadUpdate } = createService()
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
