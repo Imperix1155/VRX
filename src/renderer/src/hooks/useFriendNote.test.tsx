@@ -1472,10 +1472,10 @@ describe('useFriendNote', () => {
 
     for (let index = 0; index <= 129; index += 1) {
       if (index > 0) rerender({ friendId: `usr_${index}` })
-      await waitFor(() => expect(result.current.value).toBe('Original'))
+      await waitFor(() => expect(result.current.value).toBe('Original'), { interval: 1 })
       act(() => result.current.setValue(`failed ${index}`))
       act(() => result.current.onBlur())
-      await waitFor(() => expect(result.current.saveFailed).toBe(true))
+      await waitFor(() => expect(result.current.saveFailed).toBe(true), { interval: 1 })
     }
 
     rerender({ friendId: 'usr_0' })
