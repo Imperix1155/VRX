@@ -65,7 +65,7 @@ function epochFor(platform: Platform): number {
 }
 function rememberDraft(key: string, draft: DraftState): void {
   latestDrafts.delete(key)
-  latestDrafts.set(key, draft)
+  if (draft.dirty || saveStates.get(key)?.saving) latestDrafts.set(key, draft)
 }
 function subscribeBoundary(listener: () => void): () => void {
   boundaryListeners.add(listener)
@@ -237,10 +237,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   )
 
   if (draft.key !== key) {
-    // A same-hook A→B→A selection intentionally starts A from its cached
-    // baseline. Actual route remounts seed from the coordinator in useState
-    // above, without resurrecting a discarded in-place selection edit.
-    const next = emptyDraft(key, draft.generation + 1)
+    // Ordinary in-place edits are discarded when selection changes, but a
+    // submitted draft still owns an active writer and must remain recoverable
+    // if that write later rejects. Actual route remounts use the same
+    // coordinator-backed behavior through the useState initializer above.
+    const pending = saveStates.get(key)?.saving ? latestDrafts.get(key) : undefined
+    const next = pending ?? emptyDraft(key, draft.generation + 1)
     rememberDraft(key, next)
     setDraft(next)
   } else if (query.data?.revision !== undefined) {

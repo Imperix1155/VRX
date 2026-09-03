@@ -698,7 +698,7 @@ describe('useFriendNote', () => {
     )
   })
 
-  it('does not resurrect a discarded friend failure after an A→B→A switch', async () => {
+  it('restores a submitted friend draft and Retry after an A→B→A switch', async () => {
     let resolveASave: (value: { ok: false; reason: string }) => void = () => {}
     getFriendNote.mockImplementation((request: { friendId: string }) =>
       Promise.resolve({
@@ -706,37 +706,43 @@ describe('useFriendNote', () => {
         revision: makeRevision('self', 1)
       })
     )
-    setFriendNote.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveASave = resolve
-        })
-    )
+    setFriendNote
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveASave = resolve
+          })
+      )
+      .mockResolvedValueOnce({ ok: true })
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
       { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper() }
     )
 
     await waitFor(() => expect(result.current.value).toBe('A saved'))
-    act(() => result.current.setValue('Discarded A draft'))
+    act(() => result.current.setValue('Submitted A draft'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
 
     rerender({ friendId: 'usr_b' })
     await waitFor(() => expect(result.current.value).toBe('B saved'))
     rerender({ friendId: 'usr_a' })
-    await waitFor(() => expect(result.current.value).toBe('A saved'))
+    await waitFor(() => expect(result.current.value).toBe('Submitted A draft'))
 
     await act(async () => {
       resolveASave({ ok: false, reason: 'invalid' })
       await Promise.resolve()
     })
-    expect(result.current.saveFailed).toBe(false)
+    await waitFor(() => expect(result.current.saveFailed).toBe(true))
     act(() => result.current.retry())
-    expect(setFriendNote).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(result.current.saveFailed).toBe(false))
+    expect(setFriendNote).toHaveBeenCalledTimes(2)
+    expect(setFriendNote).toHaveBeenLastCalledWith(
+      expect.objectContaining({ friendId: 'usr_a', note: 'Submitted A draft' })
+    )
   })
 
-  it('does not let an old A save block feedback for a new A generation', async () => {
+  it('does not let an older A save block feedback for a newer A edit after return', async () => {
     let rejectOldA: (value: { ok: false; reason: string }) => void = () => {}
     getFriendNote.mockImplementation((request: { friendId: string }) =>
       Promise.resolve({
@@ -765,7 +771,7 @@ describe('useFriendNote', () => {
     rerender({ friendId: 'usr_b' })
     await waitFor(() => expect(result.current.value).toBe('B saved'))
     rerender({ friendId: 'usr_a' })
-    await waitFor(() => expect(result.current.value).toBe('A saved'))
+    await waitFor(() => expect(result.current.value).toBe('Old A draft'))
     act(() => result.current.setValue('New A draft'))
     act(() => result.current.onBlur())
     expect(setFriendNote).toHaveBeenCalledTimes(1)
@@ -775,7 +781,7 @@ describe('useFriendNote', () => {
     expect(result.current.value).toBe('New A draft')
   })
 
-  it('drains only the latest A intent after an A→B→A generation switch', async () => {
+  it('drains only the latest A intent after an A→B→A switch', async () => {
     const resolves: Array<(value: { ok: true }) => void> = []
     getFriendNote.mockImplementation((request: { friendId: string }) =>
       Promise.resolve({
@@ -801,7 +807,7 @@ describe('useFriendNote', () => {
     rerender({ friendId: 'usr_b' })
     await waitFor(() => expect(result.current.value).toBe('B'))
     rerender({ friendId: 'usr_a' })
-    await waitFor(() => expect(result.current.value).toBe('A0'))
+    await waitFor(() => expect(result.current.value).toBe('A1'))
     act(() => result.current.setValue('A2'))
     act(() => result.current.onBlur())
     act(() => result.current.setValue('A0'))
@@ -1368,6 +1374,23 @@ describe('useFriendNote', () => {
     expect(replacement.result.current.saveFailed).toBe(false)
   })
 
+  it('does not retain clean loaded notes in the renderer coordinator', async () => {
+    getFriendNote.mockImplementation(({ friendId }: { friendId: string }) =>
+      Promise.resolve({ note: `Saved ${friendId}`, revision: makeRevision('same-account', 1) })
+    )
+    const { result, rerender } = renderHook(
+      ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
+      { initialProps: { friendId: 'usr_0' }, wrapper: createWrapper() }
+    )
+
+    for (let index = 0; index < 20; index += 1) {
+      if (index > 0) rerender({ friendId: `usr_${index}` })
+      await waitFor(() => expect(result.current.value).toBe(`Saved usr_${index}`))
+    }
+
+    expect(friendNoteCoordinatorCountsForTests().drafts).toBe(0)
+  })
+
   it('retains every unsaved renderer-lifetime draft for the session', async () => {
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('same-account', 1) })
     const { result, rerender } = renderHook(
@@ -1481,7 +1504,7 @@ describe('useFriendNote', () => {
     expect(second.result.current.value).toBe('Newer retry value')
     expect(queryClient.getQueryData(noteKey)).toEqual({ note: 'Newer retry value', revision })
     await waitFor(() =>
-      expect(friendNoteCoordinatorCountsForTests()).toEqual({ writers: 0, drafts: 1, failed: 0 })
+      expect(friendNoteCoordinatorCountsForTests()).toEqual({ writers: 0, drafts: 0, failed: 0 })
     )
   })
 
