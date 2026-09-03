@@ -291,17 +291,19 @@ drawer, so a stale
 completion cannot cross a route remount or account boundary. Failed snapshots
 survive drawer and route remounts, update on every post-failure edit, and are
 wiped by any identity boundary or renderer process exit; they are never
-persisted to disk. Vite hot replacement transfers that coordinator state after
-disposing its old identity-boundary listener, and replacement-module evaluation
-immediately reinstalls the one listener even when no drawer is mounted, so
-development reloads keep one writer and one listener rather than duplicating
-either. Cache reconciliation applies only when no newer intent exists. Feedback clears
+persisted to disk. Vite hot replacement transfers that coordinator state while
+leaving its old identity-boundary listener live across the async dispose/import
+gap. Successful replacement-module evaluation subscribes the new callback and
+then retires the old one synchronously, even when no drawer is mounted; a failed
+replacement import therefore cannot miss an account boundary. Development
+reloads keep one writer and one listener rather than duplicating either. Cache
+reconciliation applies only when no newer intent exists. Feedback clears
 when the active draft equals the authoritative cached note, or when a landed
 write matches its current visible value within the same draft generation.
 `isWritable` remains false until both guarded bridge methods and the current
-revision lease are available. A terminal note-load failure exposes
-`loadFailed` plus an explicit `retryLoad` rather than leaving a normal-looking,
-permanently inert editor.
+revision lease are available. A rejected note load or a settled response with
+no revision lease exposes `loadFailed` plus an explicit `retryLoad` rather than
+leaving a normal-looking, permanently inert editor.
 
 ### Zustand stores (VIEW state only — never server data; stores never import each other)
 

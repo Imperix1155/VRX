@@ -71,11 +71,11 @@ function subscribeBoundary(listener: () => void): () => void {
   boundaryListeners.add(listener)
   return () => boundaryListeners.delete(listener)
 }
-function ensureFriendNoteCoordinator(): void {
-  if (coordinator.removeBoundaryListener !== null || typeof window === 'undefined') return
+function subscribeFriendNoteBoundary(): (() => void) | null {
+  if (typeof window === 'undefined') return null
   const subscribe = window.vrx?.onIdentityBoundary
-  if (typeof subscribe !== 'function') return
-  coordinator.removeBoundaryListener = subscribe(({ platform }) => {
+  if (typeof subscribe !== 'function') return null
+  return subscribe(({ platform }) => {
     boundaryEpochs.set(platform, epochFor(platform) + 1)
     // Fence and discard every old-account draft/operation. An already-issued
     // IPC call can settle, but its old key can no longer affect current state.
@@ -91,10 +91,28 @@ function ensureFriendNoteCoordinator(): void {
   })
 }
 
+function ensureFriendNoteCoordinator(): void {
+  if (coordinator.removeBoundaryListener !== null) return
+  coordinator.removeBoundaryListener = subscribeFriendNoteBoundary()
+}
+
+function replaceFriendNoteCoordinator(): void {
+  const previous = coordinator.removeBoundaryListener
+  const replacement = subscribeFriendNoteBoundary()
+  if (replacement === null) return
+  // Subscribe first, then retire the transferred module's callback. The swap
+  // is synchronous, and a failed replacement import leaves the old callback
+  // installed because Vite's async dispose no longer removes it.
+  coordinator.removeBoundaryListener = replacement
+  previous?.()
+}
+
 // Preload is available before the production renderer evaluates this module.
-// Installing here also closes the HMR gap when no drawer is mounted; the hook
-// call below remains the late-bridge fallback for tests, preview, and SSR.
-ensureFriendNoteCoordinator()
+// A hot replacement inherits the live old callback, then swaps it during
+// synchronous module evaluation. The hook call below remains the late-bridge
+// fallback for tests, preview, and SSR.
+if (hmrData?.coordinator === undefined) ensureFriendNoteCoordinator()
+else replaceFriendNoteCoordinator()
 
 // Renderer-lifetime only: deliberately no disk persistence.  The listener is
 // installed once and outlives individual drawers/routes so an off-screen
@@ -140,15 +158,14 @@ export function friendNoteCoordinatorCountsForTests(): {
   }
 }
 
-/** Test seam for the Vite dispose lifecycle; does not clear renderer-lifetime state. */
-export function disposeFriendNoteCoordinatorForHmrTests(): void {
-  coordinator.removeBoundaryListener?.()
-  coordinator.removeBoundaryListener = null
+/** Test seam for Vite's async dispose/import gap; the old listener stays live. */
+export function retainFriendNoteCoordinatorForHmrTests(): void {
+  ensureFriendNoteCoordinator()
 }
 
 /** Test seam for replacement-module evaluation while no hook is mounted. */
-export function installFriendNoteCoordinatorForHmrTests(): void {
-  ensureFriendNoteCoordinator()
+export function replaceFriendNoteCoordinatorForHmrTests(): void {
+  replaceFriendNoteCoordinator()
 }
 
 interface SaveVariables {
@@ -596,13 +613,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
   }
 }
 
-// Vite replaces this module in development without remounting every drawer.
-// Transfer the one coordinator and unsubscribe its old bridge callback first,
-// so the replacement owns exactly one boundary subscription and the same
-// writer maps rather than creating a competing in-memory coordinator.
+// Vite awaits the replacement import after running dispose. Transfer the one
+// coordinator without detaching its callback, so an account boundary remains
+// observable during that async gap or after a failed import. Successful module
+// evaluation synchronously swaps to the replacement callback above.
 if (import.meta.hot) {
   import.meta.hot.dispose((data: FriendNoteCoordinatorHmrData) => {
-    disposeFriendNoteCoordinatorForHmrTests()
     data.coordinator = coordinator
   })
 }

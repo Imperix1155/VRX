@@ -4,10 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  disposeFriendNoteCoordinatorForHmrTests,
   friendNoteCoordinatorCountsForTests,
-  installFriendNoteCoordinatorForHmrTests,
+  replaceFriendNoteCoordinatorForHmrTests,
   resetFriendNoteFailureStoreForTests,
+  retainFriendNoteCoordinatorForHmrTests,
   useFriendNote
 } from './useFriendNote'
 import { useLiveFriendEvents } from './useLiveFriendEvents'
@@ -1412,11 +1412,13 @@ describe('useFriendNote', () => {
     expect(friendNoteCoordinatorCountsForTests().writers).toBe(1)
     expect(identityBoundaryCallbacks).toHaveLength(1)
 
-    // This mirrors Vite dispose: state survives, but the old bridge callback
-    // is removed before the replacement module installs its one callback.
-    disposeFriendNoteCoordinatorForHmrTests()
-    expect(identityBoundaryCallbacks).toHaveLength(0)
+    // Vite awaits the replacement import after dispose, so the old callback
+    // must stay live until replacement evaluation swaps it synchronously.
+    retainFriendNoteCoordinatorForHmrTests()
+    expect(identityBoundaryCallbacks).toHaveLength(1)
     first.unmount()
+    replaceFriendNoteCoordinatorForHmrTests()
+    expect(identityBoundaryCallbacks).toHaveLength(1)
     const replacement = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
     })
@@ -1453,14 +1455,15 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(first.result.current.saveFailed).toBe(true))
     first.unmount()
 
-    // Vite disposes the old module, transfers its coordinator, then evaluates
-    // the replacement while no drawer or Friends route is mounted.
-    disposeFriendNoteCoordinatorForHmrTests()
-    expect(identityBoundaryCallbacks).toHaveLength(0)
-    installFriendNoteCoordinatorForHmrTests()
+    // A boundary can land after Vite's async dispose and before replacement
+    // evaluation. The retained listener must fence the old account even if
+    // importing the replacement is delayed or fails.
+    retainFriendNoteCoordinatorForHmrTests()
     expect(identityBoundaryCallbacks).toHaveLength(1)
     act(() => fireIdentityBoundary('vrchat'))
     expect(friendNoteCoordinatorCountsForTests()).toEqual({ writers: 0, drafts: 0, failed: 0 })
+    replaceFriendNoteCoordinatorForHmrTests()
+    expect(identityBoundaryCallbacks).toHaveLength(1)
 
     const replacement = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
@@ -1533,9 +1536,9 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
     first.unmount()
 
-    // The old retry now settles after the HMR disposer has detached its bridge
+    // The old retry now settles after replacement evaluation swaps the bridge
     // callback; the replacement must still see its retained failure state.
-    disposeFriendNoteCoordinatorForHmrTests()
+    replaceFriendNoteCoordinatorForHmrTests()
 
     const second = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
