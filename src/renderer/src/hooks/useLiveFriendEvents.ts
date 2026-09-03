@@ -149,8 +149,8 @@ export function useLiveFriendEvents(): void {
       // boundary. Drop every old-account note so a later remount cannot reuse
       // epoch 0 from the previous identity.
       void queryClient.cancelQueries({ queryKey: noteQueryKey })
-      // App mounts this listener before the drawer's boundary listener; keep that
-      // order so eviction removes the old lease before any queued save can drain.
+      // Query eviction and the note coordinator's state fence run as separate
+      // synchronous listeners; correctness does not depend on registration order.
       queryClient.removeQueries({ queryKey: noteQueryKey })
       // removeQueries does not reset a mounted observer in query-core 5.101.2.
       // Set [] so every mounted consumer clears immediately and B live events
