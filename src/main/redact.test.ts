@@ -177,16 +177,16 @@ describe('redact', () => {
     expect(redact(new URL('https://vrchat.com/?auth=x'))).toBe('[unrepresentable diagnostic]')
   })
 
-  it('retains safe enumerable custom-instance fields under an explicit marker', () => {
+  it('keeps custom instances opaque instead of trusting generic diagnostic fields', () => {
     class UpdaterMetadata {
+      message = 'login failed for an account owner'
       code = 'EACCES'
+      path = '/private/account/update.zip'
+      value = 'unlabelled credential material'
       client_secret = 'secret'
     }
 
-    expect(redact(new UpdaterMetadata())).toEqual({
-      code: 'EACCES',
-      client_secret: '***REDACTED***'
-    })
+    expect(redact(new UpdaterMetadata())).toBe('[unrepresentable diagnostic]')
   })
 
   it('marks binary views without enumerating their byte contents', () => {
@@ -250,7 +250,7 @@ describe('redact', () => {
     expect(redact(error)).toMatchObject({ name: 'DiagnosticError' })
     expect(redact(hostile)).toBe('[unrepresentable diagnostic]')
     expect(redact(coercion)).toBe('[unrepresentable diagnostic]')
-    expect(redact(new Diagnostic())).toMatchObject({ code: 'ENOSPC' })
+    expect(redact(new Diagnostic())).toBe('[unrepresentable diagnostic]')
   })
 
   it('does not invoke hostile Error accessors while retaining safe partial diagnostics', () => {

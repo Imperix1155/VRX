@@ -79,7 +79,16 @@ function isError(value: object): boolean {
   }
 }
 
-/** Projects only bounded own data descriptors; accessors and opaque values never run. */
+function isPlainRecord(value: object): boolean {
+  try {
+    const prototype: unknown = Object.getPrototypeOf(value)
+    return prototype === Object.prototype || prototype === null
+  } catch {
+    return false
+  }
+}
+
+/** Projects only bounded plain-record data; accessors and opaque instances never run. */
 export function redact(value: unknown, path = new WeakSet<object>(), depth = 0): unknown {
   if (typeof value === 'string') return boundedString(value)
   if (typeof value === 'symbol' || typeof value === 'function' || typeof value === 'bigint')
@@ -121,12 +130,12 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
       return output
     }
     if (ArrayBuffer.isView(value)) return '[binary diagnostic]'
-    const descriptors = safeDescriptors(value)
-    if (!descriptors) return UNREPRESENTABLE
     // Do not create sparse output or inspect unbounded array descriptors. A
     // normal array is represented only when its bounded own keys are data keys.
     try {
       if (Array.isArray(value)) {
+        const descriptors = safeDescriptors(value)
+        if (!descriptors) return UNREPRESENTABLE
         const entries = Object.entries(descriptors).filter(([key]) => key !== 'length')
         if (entries.length > MAX_KEYS || entries.some(([key]) => !/^\d+$/.test(key)))
           return '[array diagnostic]'
@@ -135,6 +144,9 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
     } catch {
       return UNREPRESENTABLE
     }
+    if (!isPlainRecord(value)) return UNREPRESENTABLE
+    const descriptors = safeDescriptors(value)
+    if (!descriptors) return UNREPRESENTABLE
     const entries = Object.entries(descriptors)
     if (
       entries.length > MAX_KEYS ||
