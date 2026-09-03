@@ -154,11 +154,18 @@ export interface CvrFriend extends FriendBase {
 export type Friend = VrcFriend | CvrFriend
 
 // ─── Cross-platform linked person (DESIGN.md §10 / VRX-143) ───────────────────
+/** A friend identity qualified by its platform account, never just an upstream friend id. */
+export interface LinkedPersonMember {
+  platform: Platform
+  platformAccountId: string
+  friendId: string
+}
+
 /** A user-created link uniting one VRChat + one CVR friend as a single logical person. */
 export interface LinkedPerson {
   id: string
-  /** platformUserIds of the linked friends (one per platform). One-to-one. */
-  memberIds: string[]
+  /** Exactly one VRChat + one ChilloutVR friend; each reference remains account-qualified. */
+  members: [LinkedPersonMember, LinkedPersonMember]
   /** Optional user-set display name for the merged person. */
   displayName: string | null
 }

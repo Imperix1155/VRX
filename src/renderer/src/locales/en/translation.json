@@ -264,7 +264,10 @@
     "notes": {
       "heading": "Notes (yours, private)",
       "placeholder": "Add a private note…",
-      "counter": "{{current}}/500"
+      "counter": "{{current}}/500",
+      "loadFailed": "Couldn't load this note. Retry before editing so VRX can save changes safely.",
+      "saveFailed": "Couldn't save this note. Your newest draft remains local and will not survive closing VRX.",
+      "retry": "Retry"
     }
   },
   "policySpace": {

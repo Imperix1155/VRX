@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Update failures now show fixed, localized retry guidance instead of raw updater exceptions. The renderer receives only check/network, download/write, or staged-install categories, while third-party updater payloads are discarded. (VRX-268)
+- Private-note saves no longer fail silently. If a save is rejected, the friend drawer keeps the newest draft visible, explains that it remains only on this device and will be lost if VRX closes, and offers an explicit Retry. Until the note bridge supplies a current save revision, the editor stays read-only instead of accepting text it cannot save; a failed initial load explains the problem and offers its own Retry. (VRX-269)
+
 - VRX no longer reports a successful VRChat or ChilloutVR sign-in until it has
   saved the encrypted session. This fixes Linux sessions that worked until quit
   when the OS credential store was unavailable. If secure storage fails, VRX

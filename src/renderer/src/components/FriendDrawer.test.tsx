@@ -311,6 +311,7 @@ describe('FriendDrawer (VRX-69)', () => {
     openDrawerFor('Alex')
     const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
     await waitFor(() => expect(getFriendNote).toHaveBeenCalled())
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
 
     fireEvent.change(textarea, { target: { value: 'met at the pug' } })
     textarea.focus()
@@ -640,6 +641,83 @@ describe('FriendDrawer (VRX-69)', () => {
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
   })
 
+  it('keeps a rejected note visible with an explicit retry warning', async () => {
+    getFriendNote.mockResolvedValue({
+      note: 'Original',
+      revision: { platformAccountId: 'self', epoch: 1 }
+    })
+    setFriendNote
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
+      .mockResolvedValueOnce({ ok: true })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = await waitFor(() => scoped.getByDisplayValue('Original'))
+    fireEvent.change(textarea, { target: { value: 'Newest local draft' } })
+    fireEvent.blur(textarea)
+
+    const warning = await scoped.findByRole('alert')
+    expect(warning.textContent).toContain(
+      "Couldn't save this note. Your newest draft remains local and will not survive closing VRX."
+    )
+    expect((textarea as HTMLTextAreaElement).value).toBe('Newest local draft')
+
+    const retry = scoped.getByRole('button', { name: 'Retry' })
+    ;(retry as HTMLButtonElement).focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(scoped.queryByRole('alert')).toBeNull())
+    expect(document.activeElement).toBe(textarea)
+  })
+
+  it('explains an initial note-load failure and retries it before enabling edits', async () => {
+    getFriendNote.mockRejectedValueOnce(new Error('note unavailable')).mockResolvedValueOnce({
+      note: 'Recovered note',
+      revision: { platformAccountId: 'self', epoch: 2 }
+    })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    const warning = await scoped.findByRole('alert')
+    expect(warning.textContent).toContain(
+      "Couldn't load this note. Retry before editing so VRX can save changes safely."
+    )
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(true)
+
+    const retry = scoped.getByRole('button', { name: 'Retry' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(scoped.getByDisplayValue('Recovered note')).toBe(textarea))
+    expect(scoped.queryByRole('alert')).toBeNull()
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(false)
+    expect(document.activeElement).toBe(textarea)
+  })
+
+  it('explains a missing account revision and retries it before enabling edits', async () => {
+    getFriendNote.mockResolvedValueOnce({ note: null }).mockResolvedValueOnce({
+      note: 'Recovered note',
+      revision: { platformAccountId: 'self', epoch: 2 }
+    })
+    render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    const textarea = scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
+    const warning = await scoped.findByRole('alert')
+    expect(warning.textContent).toContain(
+      "Couldn't load this note. Retry before editing so VRX can save changes safely."
+    )
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(true)
+
+    fireEvent.click(scoped.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(scoped.getByDisplayValue('Recovered note')).toBe(textarea))
+    expect(scoped.queryByRole('alert')).toBeNull()
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(false)
+    expect(document.activeElement).toBe(textarea)
+  })
+
   it('shows a live N/500 counter and caps input at 500 chars', async () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
@@ -648,6 +726,7 @@ describe('FriendDrawer (VRX-69)', () => {
     const textarea = await waitFor(() =>
       scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
     )
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
 
     fireEvent.change(textarea, { target: { value: 'abc' } })
     expect(scoped.getByText('3/500')).toBeTruthy()
@@ -681,6 +760,9 @@ describe('FriendDrawer (VRX-69)', () => {
     const textarea = await waitFor(() =>
       scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
     )
+    expect((textarea as HTMLTextAreaElement).value).toBe('')
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(true)
+    fireEvent.change(textarea, { target: { value: 'Cannot save' } })
     expect((textarea as HTMLTextAreaElement).value).toBe('')
   })
 

@@ -22,8 +22,10 @@
  *      row); Ask Me/DND show "Hidden"; VRChat trust line when known.
  *   4. Actions: ONE primary Join button, only when `isFriendJoinable` — same
  *      bridge flow + in-flight guard + 2.5s failure blip as the row (VRX-166).
- *      Copy link / self-invite / favorite / notes are SEPARATE issues; no
+ *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
+ *   5. Notes: account-scoped private text with save-on-blur and explicit Retry
+ *      after a rejected load or save (VRX-72/269).
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -207,12 +209,25 @@ export default function FriendDrawer({
 
   const {
     value: noteValue,
+    isWritable: noteWritable,
+    loadFailed: noteLoadFailed,
+    retryLoad: retryNoteLoad,
     setValue: setNoteValue,
-    onBlur: onNoteBlur
+    onBlur: onNoteBlur,
+    saveFailed: noteSaveFailed,
+    retry: retryNoteSave
   } = useFriendNote({
     platform: shown?.platform ?? 'vrchat',
     friendId: shown?.platformUserId ?? ''
   })
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const retryNote = (): void => {
+    // The Retry button is conditionally removed after success; retain a useful
+    // keyboard target before starting the mutation.
+    notesTextareaRef.current?.focus()
+    if (noteLoadFailed) retryNoteLoad()
+    else retryNoteSave()
+  }
 
   return (
     <div inert={!open} aria-hidden={!open}>
@@ -388,17 +403,47 @@ export default function FriendDrawer({
                   <label htmlFor="friend-notes">{t('drawer.notes.heading')}</label>
                 </h3>
                 <textarea
+                  ref={notesTextareaRef}
                   id="friend-notes"
                   value={noteValue}
+                  readOnly={!noteWritable}
+                  aria-describedby={
+                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : undefined
+                  }
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
                   maxLength={500}
                   rows={4}
                   placeholder={t('drawer.notes.placeholder')}
                   aria-labelledby="friend-notes-label"
-                  className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50"
+                  className="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] read-only:cursor-default read-only:opacity-50 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
                   style={{ borderColor: 'var(--border)' }}
                 />
+                {(noteLoadFailed || noteSaveFailed) && (
+                  <div
+                    id="friend-notes-error"
+                    role="alert"
+                    className="flex items-start gap-[var(--space-2)] rounded-control border px-[var(--space-2)] py-[var(--space-2)] text-[12px] text-[var(--text-dim)]"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--error) 45%, transparent)',
+                      background: 'color-mix(in srgb, var(--error) 10%, transparent)'
+                    }}
+                  >
+                    <span aria-hidden="true" className="font-bold text-[var(--error)]">
+                      !
+                    </span>
+                    <p className="min-w-0 flex-1">
+                      {t(noteLoadFailed ? 'drawer.notes.loadFailed' : 'drawer.notes.saveFailed')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={retryNote}
+                      className="shrink-0 rounded-pill px-[var(--space-1)] font-semibold text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
+                    >
+                      {t('drawer.notes.retry')}
+                    </button>
+                  </div>
+                )}
                 <span
                   aria-live="polite"
                   className="text-right text-[11px] text-[var(--text-faint)]"
