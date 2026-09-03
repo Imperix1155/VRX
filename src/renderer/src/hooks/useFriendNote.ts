@@ -224,7 +224,6 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     typeof window !== 'undefined' && typeof window.vrx?.setFriendNote === 'function'
       ? window.vrx.setFriendNote
       : null
-  const isWritable = getFriendNote !== null && setFriendNote !== null && friendId !== ''
   const query = useQuery(
     {
       queryKey,
@@ -237,6 +236,11 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     },
     queryClient
   )
+  const isWritable =
+    getFriendNote !== null &&
+    setFriendNote !== null &&
+    friendId !== '' &&
+    query.data?.revision !== undefined
 
   if (draft.key !== key) {
     // Ordinary in-place edits are discarded when selection changes, but a
@@ -513,7 +517,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
 
   const setValue = useCallback(
     (value: string) => {
-      if (!isWritable) return
+      if (!isWritable || epochFor(platform) !== boundaryEpoch) return
       const next = value.slice(0, MAX_NOTE_LENGTH)
       // Completion handlers can run in the same React batch as input. Keep
       // their guard in step with the visible draft rather than waiting for the

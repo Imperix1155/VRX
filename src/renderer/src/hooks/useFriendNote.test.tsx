@@ -214,11 +214,13 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(setFriendNote).not.toHaveBeenCalled())
   })
 
-  it('caps the draft at 500 characters', () => {
+  it('caps the draft at 500 characters', async () => {
+    getFriendNote.mockResolvedValue({ note: null, revision: makeRevision('self', 1) })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
     })
 
+    await waitFor(() => expect(result.current.isWritable).toBe(true))
     act(() => result.current.setValue('a'.repeat(501)))
     expect(result.current.value).toHaveLength(500)
   })
@@ -926,11 +928,7 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(result.current.value).toBe('Account A'))
     expect(getFriendNote).toHaveBeenCalledTimes(1)
 
-    act(() => {
-      fireIdentityBoundary('vrchat')
-      result.current.setValue('Account A')
-    })
-    expect(result.current.value).toBe('Account A')
+    act(() => fireIdentityBoundary('vrchat'))
 
     await waitFor(() => expect(getFriendNote).toHaveBeenCalledTimes(2))
     await waitFor(() =>
@@ -939,8 +937,10 @@ describe('useFriendNote', () => {
         revision: makeRevision('b', 1)
       })
     )
-    expect(result.current.value).toBe('Account A')
+    expect(result.current.value).toBe('Account B')
+    expect(result.current.isWritable).toBe(true)
 
+    act(() => result.current.setValue('Account A'))
     act(() => result.current.onBlur())
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
     expect(setFriendNote).toHaveBeenCalledWith({
@@ -966,7 +966,7 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(setFriendNote).not.toHaveBeenCalled())
   })
 
-  it('does not clobber a dirty draft with a late load', async () => {
+  it('stays read-only until the initial revision loads', async () => {
     let resolveLoad: (value: { note: string | null; revision: unknown }) => void = () => {}
     getFriendNote.mockImplementation(
       () =>
@@ -978,11 +978,36 @@ describe('useFriendNote', () => {
       wrapper: createWrapper()
     })
 
-    // Initial load is still in flight.
+    expect(result.current.isWritable).toBe(false)
     act(() => result.current.setValue('User draft'))
+    act(() => result.current.onBlur())
+    expect(result.current.value).toBe('')
+    expect(setFriendNote).not.toHaveBeenCalled()
+
     resolveLoad({ note: 'Server note', revision: makeRevision('self', 1) })
 
-    await waitFor(() => expect(result.current.value).toBe('User draft'))
+    await waitFor(() => expect(result.current.value).toBe('Server note'))
+    expect(result.current.isWritable).toBe(true)
+    act(() => result.current.setValue('User draft'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledOnce())
+  })
+
+  it('stays read-only when the initial note load fails', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    getFriendNote.mockRejectedValue(new Error('note unavailable'))
+    const noteKey = ['friend-note', 'vrchat', 'usr_a', 0] as const
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+
+    await waitFor(() => expect(queryClient.getQueryState(noteKey)?.status).toBe('error'))
+    expect(result.current.isWritable).toBe(false)
+    act(() => result.current.setValue('Cannot save'))
+    act(() => result.current.onBlur())
+    expect(result.current.value).toBe('')
     expect(setFriendNote).not.toHaveBeenCalled()
   })
 

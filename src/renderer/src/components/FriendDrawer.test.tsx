@@ -311,6 +311,7 @@ describe('FriendDrawer (VRX-69)', () => {
     openDrawerFor('Alex')
     const textarea = within(dialog()).getByRole('textbox', { name: 'Notes (yours, private)' })
     await waitFor(() => expect(getFriendNote).toHaveBeenCalled())
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
 
     fireEvent.change(textarea, { target: { value: 'met at the pug' } })
     textarea.focus()
@@ -678,6 +679,7 @@ describe('FriendDrawer (VRX-69)', () => {
     const textarea = await waitFor(() =>
       scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
     )
+    await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
 
     fireEvent.change(textarea, { target: { value: 'abc' } })
     expect(scoped.getByText('3/500')).toBeTruthy()
