@@ -370,7 +370,7 @@
       "downloadingAria": "更新をダウンロード中 {{percent}} パーセント",
       "restartTitle": "インストールするため再起動",
       "restartAria": "インストールするため再起動",
-      "errorSuffix": "— 前回の試行は失敗しました"
+      "retrySuffix": "— もう一度試す"
     },
     "settings": {
       "label": "自動更新",
@@ -383,7 +383,12 @@
       "restart": "更新するため再起動",
       "releases": "リリースページを開く",
       "unsupportedNote": "このポータブル版は自動更新に対応していません。",
-      "currentVersion": "VRX v{{version}}"
+      "currentVersion": "VRX v{{version}}",
+      "failure": {
+        "checkNetwork": "更新を確認できませんでした。接続を確認してから、もう一度お試しください。",
+        "downloadWrite": "更新をダウンロードできませんでした。接続と空き容量を確認してから、もう一度お試しください。解決しない場合は、最新リリースを手動でインストールしてください。",
+        "stagedInstall": "準備した更新をインストールできませんでした。もう一度ダウンロードしてから、再試行してください。"
+      }
     }
   }
 }

@@ -42,7 +42,7 @@ const updaterState: {
     currentVersion: '0.14.0',
     availableVersion: null,
     progressPercent: 0,
-    errorMessage: null
+    failure: null
   },
   check: vi.fn(),
   download: vi.fn(),
@@ -79,7 +79,7 @@ beforeEach(() => {
     currentVersion: '0.14.0',
     availableVersion: null,
     progressPercent: 0,
-    errorMessage: null
+    failure: null
   }
   updaterState.check.mockReset()
   updaterState.download.mockReset()
@@ -245,6 +245,50 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
   })
 })
 
+describe('SettingsView updater failures (VRX-268)', () => {
+  it.each([
+    ['check-network', 'updater.settings.failure.checkNetwork'],
+    ['download-write', 'updater.settings.failure.downloadWrite'],
+    ['staged-install', 'updater.settings.failure.stagedInstall']
+  ] as const)(
+    'renders localized actionable copy for %s without raw diagnostics',
+    (failure, key) => {
+      updaterState.state = {
+        state: failure === 'staged-install' ? 'update-available' : 'error',
+        currentVersion: '0.14.0',
+        availableVersion: failure === 'staged-install' ? '0.15.0' : null,
+        progressPercent: 0,
+        failure
+      }
+
+      useUiStore.setState({ settingsCategory: 'behavior' })
+      renderSettings()
+
+      expect(screen.getByText(msg(key))).toBeTruthy()
+      expect(screen.queryByText(/EACCES|\/Users\/alice|ENOTFOUND/)).toBeNull()
+    }
+  )
+
+  it('uses the same broad safe guidance for a network-like download rejection', () => {
+    updaterState.state = {
+      state: 'error',
+      currentVersion: '0.14.0',
+      availableVersion: null,
+      progressPercent: 0,
+      failure: 'download-write'
+    }
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    expect(
+      screen.getByText(
+        "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText(/ENOTFOUND|ECONNRESET|https:\/\//)).toBeNull()
+  })
+})
+
 describe('SettingsView — Behavior section (VRX-78/231)', () => {
   it('renders the hot-threshold row with the store value', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 7 } })
@@ -404,7 +448,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: null,
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
@@ -419,7 +463,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
@@ -437,7 +481,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 37,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
@@ -454,7 +498,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
@@ -465,18 +509,18 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     ).toBeTruthy()
   })
 
-  it('error state renders the error message as quiet helper text', () => {
+  it('error state renders the localized check retry guidance', () => {
     updaterState.state = {
       state: 'error',
       currentVersion: '0.14.0',
       availableVersion: null,
       progressPercent: 0,
-      errorMessage: 'network down'
+      failure: 'check-network'
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
 
-    expect(screen.getByText('network down')).toBeTruthy()
+    expect(screen.getByText(msg('updater.settings.failure.checkNetwork'))).toBeTruthy()
   })
 
   it('downloaded state shows "Restart to update" and triggers install', () => {
@@ -485,7 +529,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 100,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
@@ -509,7 +553,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: null,
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()

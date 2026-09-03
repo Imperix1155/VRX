@@ -6,7 +6,7 @@ const DEFAULT_STATE: UpdaterSnapshot = {
   currentVersion: __APP_VERSION__,
   availableVersion: null,
   progressPercent: 0,
-  errorMessage: null
+  failure: null
 }
 
 /**

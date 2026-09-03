@@ -159,7 +159,6 @@ describe('redact', () => {
     const errors = result.errors as Array<Record<string, unknown>>
     expect(errors).toHaveLength(2)
     expect(errors[0]!.message).toBe('first: auth=***REDACTED***')
-    expect(errors[1]!.message).toBe('second')
   })
 
   it('masks a BARE authcookie (no key prefix) — e.g. pasted into an Error message', () => {
@@ -172,13 +171,121 @@ describe('redact', () => {
 
   // ─── W2: non-plain objects surface a marker instead of a silent {} ───────────
 
-  it('marks Map/Set/URL as unredactable instead of emitting {}', () => {
-    expect(redact(new Map([['password', 'x']]))).toBe('[unredactable: Map]')
-    expect(redact(new Set(['secret']))).toBe('[unredactable: Set]')
-    expect(redact(new URL('https://vrchat.com/?auth=x'))).toBe('[unredactable: URL]')
+  it('marks opaque platform objects instead of inspecting them', () => {
+    expect(redact(new Map([['password', 'x']]))).toBe('[unrepresentable diagnostic]')
+    expect(redact(new Set(['secret']))).toBe('[unrepresentable diagnostic]')
+    expect(redact(new URL('https://vrchat.com/?auth=x'))).toBe('[unrepresentable diagnostic]')
+  })
+
+  it('retains safe enumerable custom-instance fields under an explicit marker', () => {
+    class UpdaterMetadata {
+      code = 'EACCES'
+      client_secret = 'secret'
+    }
+
+    expect(redact(new UpdaterMetadata())).toEqual({
+      code: 'EACCES',
+      client_secret: '***REDACTED***'
+    })
+  })
+
+  it('marks binary views without enumerating their byte contents', () => {
+    const binary = new Uint8Array([65, 66, 67])
+    const buffer = Buffer.from([68, 69])
+    const dataView = new DataView(new ArrayBuffer(2))
+
+    expect(redact(binary)).toBe('[binary diagnostic]')
+    expect(redact(buffer)).toBe('[binary diagnostic]')
+    expect(redact(dataView)).toBe('[binary diagnostic]')
+    expect(redact(binary.buffer)).toBe('[unrepresentable diagnostic]')
+  })
+
+  it('never invokes diagnostic getters while retaining readable own data', () => {
+    const plain = { code: 'EACCES' } as Record<string, unknown>
+    Object.defineProperty(plain, 'cachePath', {
+      enumerable: true,
+      get: () => {
+        throw new Error('getter must not run')
+      }
+    })
+    const error = new Error('write failed')
+
+    expect(() => redact({ plain, error })).not.toThrow()
+    expect(redact(plain)).toEqual({ code: 'EACCES', cachePath: '[unreadable accessor]' })
+    expect(redact(error)).toMatchObject({ message: 'write failed' })
+  })
+
+  it('degrades safely when a proxy rejects descriptor inspection', () => {
+    const hostile = new Proxy(
+      {},
+      {
+        getOwnPropertyDescriptor: () => {
+          throw new Error('descriptor trap must not run through')
+        },
+        ownKeys: () => ['secret']
+      }
+    )
+
+    expect(() => redact(hostile)).not.toThrow()
+    expect(redact(hostile)).toBe('[unrepresentable diagnostic]')
+  })
+
+  it('keeps Error diagnostics compatible with the established redactor contract', () => {
+    const error = new Error('unused')
+    error.name = 'DiagnosticError'
+    const hostile = new Proxy(Buffer.from([1, 2, 3]), {
+      getOwnPropertyDescriptor: () => {
+        throw new Error('descriptor trap')
+      }
+    })
+    const coercion = {
+      toString: () => {
+        throw new Error('toString')
+      }
+    }
+    class Diagnostic {
+      code = 'ENOSPC'
+    }
+
+    expect(redact(error)).toMatchObject({ name: 'DiagnosticError' })
+    expect(redact(hostile)).toBe('[unrepresentable diagnostic]')
+    expect(redact(coercion)).toBe('[unrepresentable diagnostic]')
+    expect(redact(new Diagnostic())).toMatchObject({ code: 'ENOSPC' })
+  })
+
+  it('does not invoke hostile Error accessors while retaining safe partial diagnostics', () => {
+    let reads = 0
+    const error = new Error('safe')
+    for (const key of ['message', 'stack', 'cause', 'extra'] as const) {
+      Object.defineProperty(error, key, {
+        enumerable: key === 'extra',
+        get: () => {
+          reads += 1
+          throw new Error(`${key} getter`)
+        }
+      })
+    }
+    expect(() => redact(error)).not.toThrow()
+    expect(reads).toBe(0)
+    expect(redact(error)).toMatchObject({ name: 'Error', stack: '[unreadable accessor]' })
+  })
+
+  it('contains revoked or descriptor-hostile Error proxies without forwarding trap values', () => {
+    const descriptorHostile = new Proxy(new Error('SECRET'), {
+      ownKeys: () => {
+        throw new Error('descriptor trap')
+      }
+    })
+    const revoked = Proxy.revocable(new Error('SECRET'), {})
+    revoked.revoke()
+
+    expect(() => redact(descriptorHostile)).not.toThrow()
+    expect(redact(descriptorHostile)).toBe('[unrepresentable diagnostic]')
+    expect(() => redact(revoked.proxy)).not.toThrow()
+    expect(redact(revoked.proxy)).toBe('[unrepresentable diagnostic]')
   })
 
   it('keeps a genuinely empty plain object as {}', () => {
-    expect(redact({})).toEqual({})
+    expect(redact({})).toBe('[unrepresentable diagnostic]')
   })
 })

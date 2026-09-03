@@ -10,17 +10,17 @@ import type { BrowserWindow, App } from 'electron'
 import {
   UpdaterService,
   type UpdaterSnapshot,
+  type UpdaterFailure,
   CHECK_INTERVAL_MS,
-  MAX_JITTER_MS,
-  sanitizeErrorForDisplay
+  MAX_JITTER_MS
 } from './updater'
 
-type EventHandler = (payload: unknown) => void
+type EventHandler = (...payload: unknown[]) => void
 type MockFn = ReturnType<typeof vi.fn>
 
 function createMockAutoUpdater(): {
   autoUpdater: AppUpdater & {
-    emit: (event: string, payload?: unknown) => void
+    emit: (event: string, ...payload: unknown[]) => void
     _handlers: Map<string, EventHandler[]>
   }
   checkForUpdates: ReturnType<typeof vi.fn>
@@ -45,15 +45,15 @@ function createMockAutoUpdater(): {
       handlers.get(event)!.push(handler)
       return autoUpdater as unknown as AppUpdater
     },
-    emit: (event: string, payload?: unknown) => {
-      handlers.get(event)?.forEach((h) => h(payload))
+    emit: (event: string, ...payload: unknown[]) => {
+      handlers.get(event)?.forEach((h) => h(...payload))
     },
     checkForUpdates,
     downloadUpdate,
     quitAndInstall,
     _handlers: handlers
   } as unknown as AppUpdater & {
-    emit: (event: string, payload?: unknown) => void
+    emit: (event: string, ...payload: unknown[]) => void
     _handlers: Map<string, EventHandler[]>
   }
 
@@ -124,10 +124,10 @@ describe('UpdaterService', () => {
     checkForUpdates: MockFn
     downloadUpdate: MockFn
     quitAndInstall: MockFn
-    log: { warn: MockFn }
+    log: { info: MockFn; warn: MockFn; error: MockFn; debug: MockFn }
   } {
     const { autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall } = createMockAutoUpdater()
-    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     const app = createMockApp(options.packaged ?? true)
     const windows = options.windows ?? []
     const settings = { autoUpdate: options.autoUpdate ?? false }
@@ -141,18 +141,199 @@ describe('UpdaterService', () => {
     return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
   }
 
-  it('overrides electron-updater defaults at bind: no silent downloads, prerelease feed on, logger wired', () => {
+  it('overrides updater defaults and discards all library logger payloads', () => {
     // The consent core. autoDownload must be forced OFF (the library default is
     // true — leaving it would silently download every release), allowPrerelease
     // must be forced ON (pre-1.0 releases are all GitHub prereleases; the
     // default false empties the update feed), autoInstallOnAppQuit must be
     // forced ON (a consented download applies at quit), and the logger must be
-    // wired so updater diagnostics flow through the redacted VRX log.
+    // wrapped so updater diagnostics reach the VRX log only after sanitization.
     const { autoUpdater, log } = createService()
     expect(autoUpdater.autoDownload).toBe(false)
     expect(autoUpdater.allowPrerelease).toBe(true)
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
-    expect(autoUpdater.logger).toBe(log)
+    expect(autoUpdater.logger).not.toBe(log)
+
+    const updaterLogger = autoUpdater.logger as unknown as {
+      info(message: unknown, ...meta: unknown[]): void
+      warn(message: unknown, ...meta: unknown[]): void
+      error(message: unknown, ...meta: unknown[]): void
+      debug(message: unknown, ...meta: unknown[]): void
+    }
+    const uncPath = `${String.fromCharCode(92, 92)}server${String.fromCharCode(92)}alice share${String.fromCharCode(92)}cache`
+    const fileUrl = `file:///${['C:', 'Users', 'alice', 'VRX Cache', 'VRX.dmg'].join('/')}`
+    const unixPath = ['', 'Users', 'alice', 'Library', 'Application Support', 'VRX', 'cache'].join(
+      '/'
+    )
+    updaterLogger.info(`cache ${fileUrl}`, uncPath)
+    updaterLogger.warn(`cache path ${unixPath}`)
+    updaterLogger.error('download failed', { path: uncPath })
+    updaterLogger.debug('download trace', [fileUrl])
+
+    // Absence from the sink is stronger than redaction: none of these payloads
+    // can be inspected, serialized, or leak through a future sanitizer gap.
+    expect(log.info).not.toHaveBeenCalled()
+    expect(log.warn).not.toHaveBeenCalled()
+    expect(log.error).not.toHaveBeenCalled()
+    expect(log.debug).not.toHaveBeenCalled()
+  })
+
+  it('redacts spaced paths and credential query names while preserving diagnostic suffixes', () => {
+    const { autoUpdater, log } = createService()
+    const updaterLogger = autoUpdater.logger as unknown as {
+      warn(message: unknown, ...meta: unknown[]): void
+    }
+    const windowsPath = `${String.fromCharCode(67, 58, 92)}${['Users', 'Alice Smith', 'VRX Cache', 'VRX.dmg'].join(String.fromCharCode(92))}`
+    const unixPath = ['', 'Users', 'alice', 'Library', 'Application Support', 'VRX', 'cache'].join(
+      '/'
+    )
+
+    updaterLogger.warn(
+      `write ${windowsPath}: disk full; retryable=true`,
+      `cache ${unixPath}: disk full; retryable=true`,
+      'https://updates.example.test?client_secret=secret&refresh_token=refresh&session=opaque'
+    )
+
+    expect(log.warn).not.toHaveBeenCalled()
+  })
+
+  it('redacts signed URL query variants without changing benign query values', () => {
+    const { autoUpdater, log } = createService()
+    const updaterLogger = autoUpdater.logger as unknown as { info(message: unknown): void }
+    updaterLogger.info(
+      'https://updates.example.test/file?build=123&auth_token=one&private_token=two&X-Amz-Credential=three&x-amz-security-token=four&X-Amz-Signature=five&channel=stable'
+    )
+
+    expect(log.info).not.toHaveBeenCalled()
+  })
+
+  it('strips every updater URL query, including encoded and future credential keys', () => {
+    const { autoUpdater, log } = createService()
+    const updaterLogger = autoUpdater.logger as unknown as { info(message: unknown): void }
+    updaterLogger.info(
+      'https://updates.example.test/file?%61uth_token=one&sig=two&AWSAccessKeyId=three&future=opaque'
+    )
+    expect(log.info).not.toHaveBeenCalled()
+  })
+
+  it('does not forward absolute paths or later stack frames', () => {
+    const volumePath = ['', 'Volumes', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')
+    const windowsPath = `${String.fromCharCode(68, 58)}/${['Alice Private', 'VRX Cache', 'update.zip'].join('/')}`
+    const fileUrl = `file://${volumePath}`
+    const stack = `Error: write ${volumePath}: disk full\n    at next frame (app.js:1:1)`
+
+    const { autoUpdater, log } = createService()
+    const logger = autoUpdater.logger as unknown as { error(...args: unknown[]): void }
+    logger.error(volumePath, windowsPath, fileUrl, stack)
+    expect(log.error).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes file URL variants and assignment-delimited paths without consuming punctuation', () => {
+    const path = ['', 'Volumes', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')
+    const stack = `Error: cachePath=${path})\n    at later frame (app.js:2:1)`
+
+    const { autoUpdater, log } = createService()
+    const logger = autoUpdater.logger as unknown as { error(...args: unknown[]): void }
+    logger.error(
+      `open file://server/share${path}: disk full`,
+      `open file://localhost${path}`,
+      stack
+    )
+    expect(log.error).not.toHaveBeenCalled()
+  })
+
+  it('replaces path-bearing diagnostics wholesale across colon, parentheses, and comma boundaries', () => {
+    const volume = ['', 'Volumes', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')
+    const { autoUpdater, log } = createService()
+    ;(autoUpdater.logger as unknown as { warn(...args: unknown[]): void }).warn(
+      `cachePath:${volume}, retry later`,
+      `failed (${volume})`
+    )
+    expect(log.warn).not.toHaveBeenCalled()
+  })
+
+  it('redacts updater logger metadata without flattening cycles, custom instances, or Errors', () => {
+    const { autoUpdater, log } = createService()
+    const updaterLogger = autoUpdater.logger as unknown as {
+      error(message: unknown, ...meta: unknown[]): void
+    }
+    const cyclic: Record<string, unknown> = { label: 'cycle' }
+    cyclic.self = cyclic
+    const updaterPath = [
+      '',
+      'Users',
+      'alice',
+      'Library',
+      'Application Support',
+      'VRX',
+      'cache'
+    ].join('/')
+    class UpdaterMetadata {
+      path = updaterPath
+    }
+    const error = Object.assign(new Error(`write ${updaterPath}: disk full`), {
+      retryAfterMs: 500,
+      cachePath: updaterPath
+    })
+    error.stack = `Error: write ${updaterPath}: disk full`
+
+    expect(() =>
+      updaterLogger.error('metadata', cyclic, new UpdaterMetadata(), error)
+    ).not.toThrow()
+
+    expect(log.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps structured error diagnostics and the library diagnostic argument after sanitization', () => {
+    const { service, autoUpdater, log } = createService()
+    const updaterPath = ['', 'Volumes', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')
+    const cause = Object.assign(new Error(`cause at ${updaterPath}: retry later`), {
+      code: 'ENOSPC'
+    })
+    const error = Object.assign(new Error(`write ${updaterPath}: disk full`), {
+      code: 'EACCES',
+      cause,
+      updaterMetadata: { cachePath: updaterPath, client_secret: 'secret' }
+    })
+    error.stack = `Error: write ${updaterPath}: disk full\n    at updater frame (app.js:1:1)`
+
+    ;(autoUpdater.emit as unknown as (...args: unknown[]) => void)('error', error, {
+      cachePath: updaterPath,
+      refresh_token: 'refresh'
+    })
+
+    expect(service.snapshot().failure).toBe('check-network')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
+  })
+
+  it('does not invoke an unstructured direct-error message getter', () => {
+    const { service, autoUpdater, log } = createService()
+    const error = new Error('unused')
+    Object.defineProperty(error, 'message', {
+      enumerable: false,
+      get: () => {
+        throw new Error('message getter must not run')
+      }
+    })
+
+    expect(() => autoUpdater.emit('error', error)).not.toThrow()
+    expect(service.snapshot().failure).toBe('check-network')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
+  })
+
+  it('keeps structured rejection diagnostics when an updater operation fails', async () => {
+    const { service, checkForUpdates, log } = createService()
+    const updaterPath = `${String.fromCharCode(68, 58)}/${['Alice Private', 'VRX Cache', 'update.zip'].join('/')}`
+    const error = Object.assign(new Error(`write ${updaterPath}: disk full`), {
+      code: 'EACCES',
+      cause: Object.assign(new Error(`cause ${updaterPath}: retry later`), { code: 'ENOSPC' })
+    })
+    error.stack = `Error: write ${updaterPath}: disk full\n    at updater frame (app.js:1:1)`
+    checkForUpdates.mockRejectedValue(error)
+
+    await service.check()
+
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
   })
 
   it('starts in unsupported state when PORTABLE_EXECUTABLE_DIR is set', () => {
@@ -250,24 +431,156 @@ describe('UpdaterService', () => {
     expect(quitAndInstall).toHaveBeenCalledOnce()
   })
 
-  it('catches check errors and moves to error state with a string message', async () => {
+  it('maps a check failure to a closed renderer-safe category and logs only sanitized diagnostics', async () => {
     const { service, checkForUpdates, log } = createService()
-    checkForUpdates.mockRejectedValue(new Error('network down'))
+    const unixPath = ['', 'Users', 'alice', 'secret.yml'].join('/')
+    checkForUpdates.mockRejectedValue(new Error(`ENOTFOUND update.example.test for ${unixPath}`))
     await service.check()
     expect(service.snapshot().state).toBe('error')
-    expect(service.snapshot().errorMessage).toBe('network down')
-    expect(log.warn).toHaveBeenCalledWith('autoUpdater: error', 'network down')
+    expect(service.snapshot().failure).toBe<UpdaterFailure>('check-network')
+    expect(service.snapshot()).not.toHaveProperty('errorMessage')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
   })
 
-  it('catches download errors and moves to error state with a string message', async () => {
+  it('maps a download/write failure to a closed renderer-safe category', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService()
+    const unixPath = ['', 'Users', 'alice', 'Downloads', 'VRX.dmg'].join('/')
+    void service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    downloadUpdate.mockRejectedValue(new Error(`EACCES: ${unixPath}`))
+
+    await service.download()
+
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(service.snapshot()).not.toHaveProperty('errorMessage')
+  })
+
+  it('keeps a staged update retryable and maps an install failure to its closed category', () => {
+    const { service, autoUpdater } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+
+    autoUpdater.emit('error', new Error('EPERM: /private/tmp/VRX.exe'))
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+  })
+
+  it('clears a staged-install failure before a retry download and keeps fallback state clean', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    autoUpdater.emit('error', new Error('staged install failed'))
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+
+    let resolveDownload: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
+    const retry = service.download()
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    resolveDownload?.()
+    await retry
+    expect(service.snapshot()).toMatchObject({ state: 'update-available', failure: null })
+
+    downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
+    await service.download()
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+  })
+
+  it('keeps a staged update retryable when macOS redispatches the same error', async () => {
+    const { service, autoUpdater, checkForUpdates, log } = createService()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    const error = new Error('EPERM: cannot replace staged update')
+
+    autoUpdater.emit('error', error)
+    autoUpdater.emit('error', error)
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      availableVersion: '0.15.0',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
+
+    checkForUpdates.mockRejectedValueOnce(error)
+    await service.check()
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'check-network'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(2)
+    expect(log.warn).toHaveBeenLastCalledWith(
+      'autoUpdater: re-check failed, preserving update-available'
+    )
+  })
+
+  it('ignores an earlier re-check Error event during a later download, but handles its current rejection', async () => {
+    const { service, autoUpdater, checkForUpdates, downloadUpdate } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    const reusedError = new Error('reused updater error')
+    checkForUpdates.mockRejectedValueOnce(reusedError)
+    await service.check()
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'check-network'
+    })
+
+    let resolveDownload: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
+    const pendingDownload = service.download()
+    autoUpdater.emit('error', reusedError)
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    resolveDownload?.()
+    await pendingDownload
+    expect(service.snapshot()).toMatchObject({ state: 'update-available', failure: null })
+
+    downloadUpdate.mockRejectedValueOnce(reusedError)
+    await service.download()
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+  })
+
+  it('maps download errors to the download/write category', async () => {
     const { service, autoUpdater, downloadUpdate, log } = createService()
     await service.check()
     autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
     downloadUpdate.mockRejectedValue(new Error('disk full'))
     await service.download()
     expect(service.snapshot().state).toBe('error')
-    expect(service.snapshot().errorMessage).toBe('disk full')
-    expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed', 'disk full')
+    expect(service.snapshot().failure).toBe('download-write')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed')
+  })
+
+  it('keeps the download/write failure when electron-updater emits error before rejecting', async () => {
+    const { service, autoUpdater, downloadUpdate, log } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    const error = new Error('disk full')
+    downloadUpdate.mockImplementation(() => {
+      autoUpdater.emit('error', error)
+      return Promise.reject(error)
+    })
+
+    await service.download()
+
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed')
   })
 
   it('schedules the next check with jitter (4 h + up to 30 min)', () => {
@@ -345,12 +658,12 @@ describe('UpdaterService', () => {
     expect(service.snapshot().state).toBe('update-available')
   })
 
-  it('error listener moves to error state with a string message', () => {
+  it('error listener maps check failures to the check/network category', () => {
     const { service, autoUpdater, log } = createService()
     autoUpdater.emit('error', new Error('feed unreachable'))
     expect(service.snapshot().state).toBe('error')
-    expect(service.snapshot().errorMessage).toBe('feed unreachable')
-    expect(log.warn).toHaveBeenCalledWith('autoUpdater: error', 'feed unreachable')
+    expect(service.snapshot().failure).toBe('check-network')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
   })
 
   it('error listener does not clobber a staged downloaded state', () => {
@@ -359,11 +672,8 @@ describe('UpdaterService', () => {
     autoUpdater.emit('error', new Error('post-download hiccup'))
     expect(service.snapshot().state).toBe('update-available')
     expect(service.snapshot().availableVersion).toBe('0.15.0')
-    expect(service.snapshot().errorMessage).toBe('post-download hiccup')
-    expect(log.warn).toHaveBeenCalledWith(
-      'autoUpdater: staged install failed, retryable',
-      'post-download hiccup'
-    )
+    expect(service.snapshot().failure).toBe('staged-install')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
   })
 
   it('blocks re-check while downloading', async () => {
@@ -424,14 +734,37 @@ describe('UpdaterService', () => {
 
     expect(service.snapshot().state).toBe('update-available')
     expect(service.snapshot().availableVersion).toBe('0.15.0')
-    expect(service.snapshot().errorMessage).toBe('network down')
+    expect(service.snapshot().failure).toBe('check-network')
   })
 
-  it('clears a stale errorMessage when a successful re-check fires update-available', async () => {
+  it('keeps a retryable update when electron-updater emits re-check error before rejecting', async () => {
+    const { service, autoUpdater, checkForUpdates, log } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    const error = new Error('network down')
+    checkForUpdates.mockImplementation(() => {
+      autoUpdater.emit('error', error)
+      return Promise.reject(error)
+    })
+
+    await service.check()
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      availableVersion: '0.15.0',
+      failure: 'check-network'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+    expect(log.warn).toHaveBeenCalledWith(
+      'autoUpdater: re-check failed, preserving update-available'
+    )
+  })
+
+  it('clears a stale failure when a successful re-check finds an update', async () => {
     const { service, autoUpdater, checkForUpdates } = createService()
     await service.check()
     autoUpdater.emit('error', new Error('feed unreachable'))
-    expect(service.snapshot().errorMessage).toBe('feed unreachable')
+    expect(service.snapshot().failure).toBe('check-network')
 
     checkForUpdates.mockResolvedValue(undefined)
     const promise = service.check()
@@ -439,10 +772,10 @@ describe('UpdaterService', () => {
     await promise
 
     expect(service.snapshot().state).toBe('update-available')
-    expect(service.snapshot().errorMessage).toBeNull()
+    expect(service.snapshot().failure).toBeNull()
   })
 
-  it('clears a stale errorMessage when update-downloaded succeeds after a download error', async () => {
+  it('clears a stale failure when update-downloaded succeeds after a download error', async () => {
     const { service, autoUpdater, downloadUpdate } = createService()
     await service.check()
     autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
@@ -450,7 +783,7 @@ describe('UpdaterService', () => {
     downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
     await service.download()
     expect(service.snapshot().state).toBe('error')
-    expect(service.snapshot().errorMessage).toBe('disk full')
+    expect(service.snapshot().failure).toBe('download-write')
 
     // A later retry succeeds: the previous error must not survive.
     downloadUpdate.mockResolvedValue(undefined)
@@ -459,31 +792,115 @@ describe('UpdaterService', () => {
     await promise
 
     expect(service.snapshot().state).toBe('downloaded')
-    expect(service.snapshot().errorMessage).toBeNull()
+    expect(service.snapshot().failure).toBeNull()
   })
 
-  it('sanitizes filesystem paths in displayed error messages', () => {
+  it('redacts filesystem paths, email addresses, and token query values from logged diagnostics', () => {
     // Construct a Windows path dynamically so the path-convention scanner does not
     // flag a hardcoded local path in this test file.
     const winPath = `${String.fromCharCode(67, 58, 92)}${['__fake__', 'me', 'app.exe'].join(String.fromCharCode(92))}`
-    expect(sanitizeErrorForDisplay(`Could not write to ${winPath}`)).toBe(
-      'Could not write to app.exe'
+    const { autoUpdater, log } = createService()
+    ;(autoUpdater.logger as unknown as { error(...args: unknown[]): void }).error(
+      `Could not write to ${winPath}`,
+      'ENOENT: /tmp/fake/vrx/log.txt',
+      'alice@example.test?token=SECRET'
     )
-    expect(sanitizeErrorForDisplay('ENOENT: /tmp/fake/vrx/log.txt')).toBe('ENOENT: log.txt')
-    expect(sanitizeErrorForDisplay("Error in '/tmp/fake/VRX.app/Contents/MacOS/VRX'")).toBe(
-      "Error in 'VRX'"
-    )
+    expect(log.error).not.toHaveBeenCalled()
   })
 
-  it('sanitizes THROUGH the error listener — a path-bearing error never reaches the snapshot raw', () => {
-    // Pins the wiring, not just the helper: bypassing sanitizeErrorForDisplay at
-    // the listener call site must fail this test even while the direct unit
-    // test above stays green.
+  it('keeps a path-bearing error out of the snapshot and redacts it in the log', () => {
     const winPath = `${String.fromCharCode(67, 58, 92)}${['__fake__', 'me', 'pending.exe'].join(String.fromCharCode(92))}`
-    const { service, autoUpdater } = createService()
+    const { service, autoUpdater, log } = createService()
     autoUpdater.emit('error', new Error(`EPERM: cannot stage ${winPath}`))
     expect(service.snapshot().state).toBe('error')
-    expect(service.snapshot().errorMessage).toBe('EPERM: cannot stage pending.exe')
-    expect(service.snapshot().errorMessage).not.toContain('__fake__')
+    expect(service.snapshot()).not.toHaveProperty('errorMessage')
+    expect(service.snapshot().failure).toBe('check-network')
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
+  })
+
+  describe('payload-free diagnostic boundary', () => {
+    const fileUrl = `file://${['', 'Users', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')}`
+    const cachePath = `cachePath=${['', 'Volumes', 'Alice Private', 'VRX Cache', 'update.zip'].join('/')}`
+    it.each([
+      'https://updates.example.test/file?token=SECRET&fragment=secret#private',
+      fileUrl,
+      'alice@example.test',
+      cachePath
+    ])('discards library logger payload %s without calling the injected sink', (payload) => {
+      const { autoUpdater, log } = createService()
+      const updaterLogger = autoUpdater.logger as unknown as { error(...args: unknown[]): void }
+      updaterLogger.error(payload, Buffer.from([1, 2, 3]))
+      expect(log.info).not.toHaveBeenCalled()
+      expect(log.warn).not.toHaveBeenCalled()
+      expect(log.error).not.toHaveBeenCalled()
+      expect(log.debug).not.toHaveBeenCalled()
+    })
+
+    it('never observes hostile rejection data and contains a throwing sink', async () => {
+      const { service, checkForUpdates, log } = createService()
+      const hostile = new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error('SECRET getter inspected')
+          }
+        }
+      )
+      log.warn.mockImplementation(() => {
+        throw new Error('sink failure')
+      })
+      checkForUpdates.mockRejectedValue(hostile)
+      await expect(service.check()).resolves.toBeUndefined()
+      expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'check-network' })
+      expect(log.warn).toHaveBeenCalledWith('autoUpdater: check failed')
+      expect(log.warn.mock.calls[0]).toHaveLength(1)
+    })
+
+    it('ignores a late event after a rejected check, but handles the same value once for a later check', async () => {
+      const { service, autoUpdater, checkForUpdates, log } = createService()
+      const failure = { opaque: true }
+      checkForUpdates.mockRejectedValueOnce(failure)
+      await service.check()
+      ;(autoUpdater.emit as unknown as (...args: unknown[]) => void)('error', failure)
+      expect(log.warn).toHaveBeenCalledTimes(1)
+
+      checkForUpdates.mockRejectedValueOnce(failure)
+      await service.check()
+      expect(log.warn).toHaveBeenCalledTimes(2)
+      expect(service.snapshot().failure).toBe('check-network')
+    })
+
+    it('does not retain primitive rejection history across operations', async () => {
+      const { service, checkForUpdates, log } = createService()
+      checkForUpdates.mockRejectedValueOnce('primitive failure')
+      await service.check()
+      checkForUpdates.mockRejectedValueOnce('primitive failure')
+      await service.check()
+
+      expect(log.warn).toHaveBeenCalledTimes(2)
+      expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'check-network' })
+    })
+
+    it('ignores late events after rejected re-check and download operations', async () => {
+      const { service, autoUpdater, checkForUpdates, downloadUpdate, log } = createService()
+      await service.check()
+      autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+      const recheckFailure = new Error('recheck failure')
+      checkForUpdates.mockRejectedValueOnce(recheckFailure)
+      await service.check()
+      ;(autoUpdater.emit as unknown as (...args: unknown[]) => void)('error', recheckFailure)
+      expect(log.warn).toHaveBeenCalledTimes(1)
+      expect(service.snapshot()).toMatchObject({
+        state: 'update-available',
+        failure: 'check-network'
+      })
+
+      const downloadFailure = { write: 'failed' }
+      downloadUpdate.mockRejectedValueOnce(downloadFailure)
+      await service.download()
+      ;(autoUpdater.emit as unknown as (...args: unknown[]) => void)('error', downloadFailure)
+      expect(log.warn).toHaveBeenCalledTimes(2)
+      expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    })
   })
 })
