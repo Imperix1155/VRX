@@ -525,10 +525,10 @@ export class LinkGraphStore {
     return this.runOperation(() => {
       const parsedPersonId = parsePersonId(personId)
       this.refresh()
+      this.assertWritable()
       if (!Object.hasOwn(this.file.people, parsedPersonId)) return null
       const person = this.file.people[parsedPersonId]
       if (person === undefined) return null
-      this.assertWritable()
 
       const next = emptyLinkGraphFile()
       next.people = copyPeople(this.file.people, parsedPersonId)

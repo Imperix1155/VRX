@@ -132,6 +132,25 @@ describe('LinkGraphStore', () => {
     expect(storage.writes).toHaveLength(0)
   })
 
+  it.each([
+    [
+      'corrupt',
+      { storeFormatVersion: LINK_GRAPH_FORMAT_VERSION, people: [] },
+      'storage could not be loaded'
+    ],
+    ['future', { storeFormatVersion: 999, people: {} }, 'written by a newer version']
+  ] as const)(
+    'fails closed instead of reporting a missing unlink when storage is %s',
+    (_kind, value, expectedError) => {
+      const storage = new MemoryLinkGraphStorage()
+      storage.value = value
+      const store = new LinkGraphStore(storage)
+
+      expect(() => store.unlink('person_maybe_present')).toThrow(expectedError)
+      expect(storage.writes).toHaveLength(0)
+    }
+  )
+
   it('refuses to overwrite a graph written by a newer build', () => {
     const storage = new MemoryLinkGraphStorage()
     storage.value = { storeFormatVersion: 999, people: {}, futureField: 'preserve' }
