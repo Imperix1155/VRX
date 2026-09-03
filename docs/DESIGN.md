@@ -559,7 +559,7 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 
 - No shared identity exists across platforms → linking is USER-DRIVEN. NEVER auto-merge.
-- Data model: link relation tying two `platformUserId`s (1 VRChat + 1 CVR) into one logical person; per-platform presence aggregated INDEPENDENTLY.
+- Data model: link relation tying two fully-qualified `{platform, platformAccountId, friendId}` members (1 VRChat + 1 CVR) into one logical person; per-platform presence aggregated INDEPENDENTLY. Bare upstream IDs are never enough because the same ID can occur under different platform accounts.
 - VRX MAY surface optional suggestions (e.g. matching display names); user MUST confirm each. Unlink MUST be trivial + lossless.
 - Storage: user-authored private data in app `userData` ONLY. NEVER write into VRCX/CVRX folders.
 - Render: one dual-presence person card, blue→orange bridge avatar, each platform's presence side-by-side. Link/suggest/unlink in the friend drawer.
