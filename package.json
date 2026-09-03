@@ -32,9 +32,9 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
-    "@tanstack/query-sync-storage-persister": "^5.102.2",
-    "@tanstack/react-query": "^5.102.2",
-    "@tanstack/react-query-persist-client": "^5.102.2",
+    "@tanstack/query-sync-storage-persister": "^5.102.8",
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-query-persist-client": "^5.102.8",
     "@tanstack/react-virtual": "^3.14.10",
     "electron-log": "^5.4.4",
     "electron-store": "^11.0.2",
@@ -44,7 +44,7 @@
     "react-i18next": "^17.0.12",
     "saxes": "6.0.0",
     "ws": "^8.21.3",
-    "zod": "^4.4.3",
+    "zod": "^4.5.4",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -52,10 +52,10 @@
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/asar": "^4.3.0",
-    "@noble/hashes": "2.3.0",
+    "@noble/hashes": "2.4.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@testing-library/react": "^16.3.2",
-    "@types/node": "^26.2.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/ws": "^8.18.1",
@@ -69,7 +69,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.5.4",
+    "eslint-plugin-react-refresh": "^0.5.5",
     "js-yaml": "^4.3.1",
     "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
@@ -78,7 +78,7 @@
     "semver": "^7.8.5",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0",
+    "typescript-eslint": "^8.68.0",
     "vite": "^7.2.6",
     "vitest": "^4.1.8"
   }
