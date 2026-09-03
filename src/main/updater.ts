@@ -115,7 +115,6 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      this.installErrorEventQuarantine = false
       this.setState({
         state: 'downloaded',
         availableVersion: info.version,
@@ -289,6 +288,10 @@ export class UpdaterService {
     this.beginOperationErrorTracking()
     try {
       await this.deps.autoUpdater.downloadUpdate()
+      // On macOS the wrapper emits update-downloaded before native Squirrel
+      // finishes staging. Release old-install quarantine only after the library
+      // promise also resolves and no current staging failure changed state.
+      if (this.snapshot().state === 'downloaded') this.installErrorEventQuarantine = false
       // 'update-downloaded' event drives the final state. If it resolved without
       // firing the event (some test doubles), fall back so the machine doesn't stall.
       if (this.snapshot().state === 'downloading') {

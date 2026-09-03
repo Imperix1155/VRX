@@ -188,13 +188,19 @@ describe('redact', () => {
     expect(result.accessToken).toBe('***REDACTED***')
   })
 
-  it('fails closed when Error diagnostics exceed the key bound', () => {
-    const error = new Error('wide diagnostic')
-    for (let index = 0; index <= 20; index += 1) {
-      Object.defineProperty(error, `detail${index}`, { enumerable: true, value: index })
+  it('accepts exactly 20 Error descriptors and rejects 21', () => {
+    const withDescriptorCount = (count: number): Error => {
+      const error = new Error('bounded diagnostic')
+      const baseCount = Object.keys(Object.getOwnPropertyDescriptors(error)).length
+      for (let index = baseCount; index < count; index += 1) {
+        Object.defineProperty(error, `detail${index}`, { enumerable: true, value: index })
+      }
+      expect(Object.keys(Object.getOwnPropertyDescriptors(error))).toHaveLength(count)
+      return error
     }
 
-    expect(redact(error)).toBe('[unrepresentable diagnostic]')
+    expect(redact(withDescriptorCount(20))).toMatchObject({ message: 'bounded diagnostic' })
+    expect(redact(withDescriptorCount(21))).toBe('[unrepresentable diagnostic]')
   })
 
   it('walks an Error cause chain', () => {

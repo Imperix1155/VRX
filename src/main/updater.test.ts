@@ -564,6 +564,72 @@ describe('UpdaterService', () => {
     expect(service.snapshot()).toMatchObject({ state: 'update-available', failure: null })
   })
 
+  it('keeps late install errors quarantined through macOS wrapper download completion', async () => {
+    const { service, autoUpdater, downloadUpdate, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    autoUpdater.emit('error', new Error('native install failed first'))
+
+    let resolveDownload: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
+    const retry = service.download()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    autoUpdater.emit('error', new Error('late error from the previous native stage'))
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
+    expect(log.warn).toHaveBeenCalledTimes(1)
+
+    resolveDownload?.()
+    await retry
+    autoUpdater.emit('error', new Error('current staged update failed'))
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(2)
+  })
+
+  it('classifies a current macOS native-stage rejection while old events are quarantined', async () => {
+    const { service, autoUpdater, downloadUpdate, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    autoUpdater.emit('error', new Error('native install failed first'))
+    const currentFailure = new Error('current native stage failed')
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      autoUpdater.emit('error', currentFailure)
+      return Promise.reject(currentFailure)
+    })
+
+    await service.download()
+
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledTimes(2)
+    expect(log.warn).toHaveBeenLastCalledWith('autoUpdater: staged install failed, retryable')
+  })
+
+  it('releases late-install quarantine after a successful no-update check result', () => {
+    const { service, autoUpdater, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    autoUpdater.emit('error', new Error('native install failed'))
+
+    autoUpdater.emit('update-not-available')
+    autoUpdater.emit('error', new Error('later check failed'))
+
+    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'check-network' })
+    expect(log.warn).toHaveBeenCalledTimes(2)
+    expect(log.warn).toHaveBeenLastCalledWith('autoUpdater: check failed')
+  })
+
   it('still classifies a retry download rejection while late install events are quarantined', async () => {
     const { service, autoUpdater, downloadUpdate, log } = createService()
     // @ts-expect-error accessing private state for test setup
