@@ -207,6 +207,7 @@ export default function FriendDrawer({
 
   const {
     value: noteValue,
+    isWritable: noteWritable,
     setValue: setNoteValue,
     onBlur: onNoteBlur,
     saveFailed: noteSaveFailed,
@@ -400,6 +401,7 @@ export default function FriendDrawer({
                   ref={notesTextareaRef}
                   id="friend-notes"
                   value={noteValue}
+                  readOnly={!noteWritable}
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
                   maxLength={500}

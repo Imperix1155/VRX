@@ -712,6 +712,9 @@ describe('FriendDrawer (VRX-69)', () => {
       scoped.getByRole('textbox', { name: 'Notes (yours, private)' })
     )
     expect((textarea as HTMLTextAreaElement).value).toBe('')
+    expect((textarea as HTMLTextAreaElement).readOnly).toBe(true)
+    fireEvent.change(textarea, { target: { value: 'Cannot save' } })
+    expect((textarea as HTMLTextAreaElement).value).toBe('')
   })
 
   describe('VRX-251 drawer enrichment (world image, instance ID, openness)', () => {

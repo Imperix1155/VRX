@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Private-note saves no longer fail silently. If a save is rejected, the friend drawer keeps the newest draft visible, explains that it remains only on this device and will be lost if VRX closes, and offers an explicit Retry. (VRX-269)
+- Private-note saves no longer fail silently. If a save is rejected, the friend drawer keeps the newest draft visible, explains that it remains only on this device and will be lost if VRX closes, and offers an explicit Retry. If the note bridge is unavailable, the editor is read-only instead of accepting text it cannot save. (VRX-269)
 
 - VRX no longer reports a successful VRChat or ChilloutVR sign-in until it has
   saved the encrypted session. This fixes Linux sessions that worked until quit

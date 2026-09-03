@@ -74,6 +74,7 @@ describe('useFriendNote', () => {
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }))
 
     await waitFor(() => expect(result.current.value).toBe('Saved note'))
+    expect(result.current.isWritable).toBe(true)
     expect(getFriendNote).toHaveBeenCalledOnce()
     expect(getFriendNote).toHaveBeenCalledWith({ platform: 'vrchat', friendId: 'usr_a' })
   })
@@ -229,9 +230,10 @@ describe('useFriendNote', () => {
     })
 
     expect(result.current.value).toBe('')
+    expect(result.current.isWritable).toBe(false)
     act(() => result.current.setValue('Local only'))
     act(() => result.current.onBlur())
-    expect(result.current.value).toBe('Local only')
+    expect(result.current.value).toBe('')
     expect(getFriendNote).not.toHaveBeenCalled()
   })
 
@@ -244,10 +246,11 @@ describe('useFriendNote', () => {
       onIdentityBoundary: vi.fn(() => () => {})
     } as unknown as Window['vrx']
 
-    renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+    const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
     })
 
+    expect(result.current.isWritable).toBe(false)
     await waitFor(() => {
       expect(queryClient.getQueryState(['friend-note', 'vrchat', 'usr_a', 0])).toMatchObject({
         fetchStatus: 'idle',
@@ -1391,18 +1394,23 @@ describe('useFriendNote', () => {
     expect(friendNoteCoordinatorCountsForTests().drafts).toBe(0)
   })
 
-  it('retains every unsaved renderer-lifetime draft for the session', async () => {
+  it('discards an unsubmitted draft across a same-friend route remount', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('same-account', 1) })
-    const { result, rerender } = renderHook(
-      ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
-      { initialProps: { friendId: 'usr_0' }, wrapper: createWrapper() }
-    )
-    await waitFor(() => expect(result.current.value).toBe('Original'))
-    for (let index = 0; index < 129; index += 1) {
-      rerender({ friendId: `usr_${index}` })
-      act(() => result.current.setValue(`draft ${index}`))
-    }
-    expect(friendNoteCoordinatorCountsForTests().drafts).toBe(129)
+    const first = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+    await waitFor(() => expect(first.result.current.value).toBe('Original'))
+    act(() => first.result.current.setValue('Never submitted'))
+    first.unmount()
+
+    const second = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+    await waitFor(() => expect(second.result.current.value).toBe('Original'))
+    expect(friendNoteCoordinatorCountsForTests()).toEqual({ writers: 0, drafts: 0, failed: 0 })
   })
 
   it('keeps the newer remounted draft when the old retry rejects first', async () => {

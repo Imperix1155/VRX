@@ -65,7 +65,7 @@ function epochFor(platform: Platform): number {
 }
 function rememberDraft(key: string, draft: DraftState): void {
   latestDrafts.delete(key)
-  if (draft.dirty || saveStates.get(key)?.saving) latestDrafts.set(key, draft)
+  if (saveStates.get(key)?.saving) latestDrafts.set(key, draft)
 }
 function subscribeBoundary(listener: () => void): () => void {
   boundaryListeners.add(listener)
@@ -158,6 +158,7 @@ export interface UseFriendNoteOptions {
 
 export interface UseFriendNoteResult {
   value: string
+  isWritable: boolean
   setValue: (value: string) => void
   onBlur: () => void
   saveFailed: boolean
@@ -223,6 +224,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
     typeof window !== 'undefined' && typeof window.vrx?.setFriendNote === 'function'
       ? window.vrx.setFriendNote
       : null
+  const isWritable = getFriendNote !== null && setFriendNote !== null && friendId !== ''
   const query = useQuery(
     {
       queryKey,
@@ -440,11 +442,8 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
           saveState.saving = false
           if (saveStates.get(stateKey) === saveState) {
             saveStates.delete(stateKey)
+            latestDrafts.delete(stateKey)
           }
-          // Successful settled drafts have their authoritative cache baseline;
-          // retain only dirty/failed work so the coordinator cannot grow with
-          // every friend opened during a long renderer session.
-          if (!latestDrafts.get(stateKey)?.dirty) latestDrafts.delete(stateKey)
         }
       }
     },
@@ -485,6 +484,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         saving: true,
         queued: null
       })
+      rememberDraft(stateKey, draft)
       mutate({
         key,
         generation: draft.generation,
@@ -513,6 +513,7 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
 
   const setValue = useCallback(
     (value: string) => {
+      if (!isWritable) return
       const next = value.slice(0, MAX_NOTE_LENGTH)
       // Completion handlers can run in the same React batch as input. Keep
       // their guard in step with the visible draft rather than waiting for the
@@ -553,11 +554,12 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         })
       }
     },
-    [boundaryEpoch, friendId, platform]
+    [boundaryEpoch, friendId, isWritable, platform]
   )
 
   return {
     value: draft.value,
+    isWritable,
     setValue,
     onBlur,
     saveFailed: (() => {
