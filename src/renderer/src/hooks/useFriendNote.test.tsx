@@ -322,7 +322,7 @@ describe('useFriendNote', () => {
   it('keeps a rejected draft local and exposes an explicit retry', async () => {
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockResolvedValueOnce({ ok: true })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
@@ -352,8 +352,8 @@ describe('useFriendNote', () => {
       })
     )
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true })
     const { result, rerender } = renderHook(
@@ -393,7 +393,7 @@ describe('useFriendNote', () => {
       note: 'Account A saved',
       revision: makeRevision('account-a', 1)
     })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' })
     const { result, rerender } = renderHook(
       () => useFriendNote({ platform: 'vrchat', friendId: 'usr_same' }),
       { wrapper: createWrapper(false, queryClient) }
@@ -426,7 +426,7 @@ describe('useFriendNote', () => {
 
   it('wipes retained failures at an identity boundary', async () => {
     getFriendNote.mockResolvedValue({ note: 'Saved', revision: makeRevision('self', 1) })
-    setFriendNote.mockResolvedValue({ ok: false, reason: 'unavailable' })
+    setFriendNote.mockResolvedValue({ ok: false, reason: 'invalid' })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
     })
@@ -444,7 +444,7 @@ describe('useFriendNote', () => {
     })
     getFriendNote.mockResolvedValue({ note: 'Saved', revision: makeRevision('self', 1) })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockResolvedValueOnce({ ok: true })
     const first = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
@@ -473,7 +473,7 @@ describe('useFriendNote', () => {
     })
     getFriendNote.mockResolvedValue({ note: 'Saved', revision: makeRevision('self', 1) })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
@@ -493,7 +493,7 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(2))
     first.unmount()
     await act(async () => {
-      rejectRetry({ ok: false, reason: 'unavailable' })
+      rejectRetry({ ok: false, reason: 'invalid' })
       await Promise.resolve()
     })
 
@@ -507,7 +507,7 @@ describe('useFriendNote', () => {
   })
 
   it.each([
-    ['ordinary rejection', { ok: false, reason: 'unavailable' }],
+    ['ordinary rejection', { ok: false, reason: 'invalid' }],
     ['stale rejection', { ok: false, reason: 'stale' }]
   ] as const)('keeps an initial in-flight draft after remount and %s', async (_name, outcome) => {
     let settle: (value: typeof outcome) => void = () => {}
@@ -545,7 +545,7 @@ describe('useFriendNote', () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     })
     getFriendNote.mockResolvedValue({ note: 'Saved', revision: makeRevision('same-account', 1) })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' })
     const first = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper(false, queryClient)
     })
@@ -566,7 +566,7 @@ describe('useFriendNote', () => {
     let resolveRetry: (value: { ok: true }) => void = () => {}
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
@@ -597,14 +597,12 @@ describe('useFriendNote', () => {
   it('does not queue an ordinary blur while an explicit Retry is pending', async () => {
     let resolveRetry: (value: { ok: true }) => void = () => {}
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
-    setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveRetry = resolve
-          })
-      )
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = resolve
+        })
+    )
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
     })
@@ -632,14 +630,12 @@ describe('useFriendNote', () => {
   it('clears a failure when a pending Retry lands on the current same-value draft', async () => {
     let resolveRetry: (value: { ok: true }) => void = () => {}
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('self', 1) })
-    setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveRetry = resolve
-          })
-      )
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' }).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = resolve
+        })
+    )
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
     })
@@ -687,7 +683,7 @@ describe('useFriendNote', () => {
     act(() => result.current.setValue('Newest local draft'))
     act(() => result.current.onBlur())
 
-    act(() => resolveFirstSave({ ok: false, reason: 'unavailable' }))
+    act(() => resolveFirstSave({ ok: false, reason: 'invalid' }))
     await waitFor(() => expect(result.current.saveFailed).toBe(true))
     expect(result.current.value).toBe('Newest local draft')
     expect(setFriendNote).toHaveBeenCalledTimes(1)
@@ -732,7 +728,7 @@ describe('useFriendNote', () => {
     await waitFor(() => expect(result.current.value).toBe('A saved'))
 
     await act(async () => {
-      resolveASave({ ok: false, reason: 'unavailable' })
+      resolveASave({ ok: false, reason: 'invalid' })
       await Promise.resolve()
     })
     expect(result.current.saveFailed).toBe(false)
@@ -755,7 +751,7 @@ describe('useFriendNote', () => {
             rejectOldA = resolve
           })
       )
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),
       { initialProps: { friendId: 'usr_a' }, wrapper: createWrapper() }
@@ -774,7 +770,7 @@ describe('useFriendNote', () => {
     act(() => result.current.onBlur())
     expect(setFriendNote).toHaveBeenCalledTimes(1)
 
-    act(() => rejectOldA({ ok: false, reason: 'unavailable' }))
+    act(() => rejectOldA({ ok: false, reason: 'invalid' }))
     await waitFor(() => expect(result.current.saveFailed).toBe(true))
     expect(result.current.value).toBe('New A draft')
   })
@@ -819,7 +815,7 @@ describe('useFriendNote', () => {
 
   it('clears a save failure when editing the draft back to its persisted value', async () => {
     getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
       wrapper: createWrapper()
     })
@@ -907,12 +903,15 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(1)
   })
 
-  it('preserves input made after an identity boundary in the same React batch', async () => {
+  it('preserves and saves input matching the old baseline after an identity boundary', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
     getFriendNote
       .mockResolvedValueOnce({ note: 'Account A', revision: makeRevision('a', 1) })
       .mockResolvedValueOnce({ note: 'Account B', revision: makeRevision('b', 1) })
     const { result } = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_x' }), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(false, queryClient)
     })
 
     await waitFor(() => expect(result.current.value).toBe('Account A'))
@@ -920,12 +919,27 @@ describe('useFriendNote', () => {
 
     act(() => {
       fireIdentityBoundary('vrchat')
-      result.current.setValue('Post-boundary draft')
+      result.current.setValue('Account A')
     })
-    expect(result.current.value).toBe('Post-boundary draft')
+    expect(result.current.value).toBe('Account A')
 
     await waitFor(() => expect(getFriendNote).toHaveBeenCalledTimes(2))
-    expect(result.current.value).toBe('Post-boundary draft')
+    await waitFor(() =>
+      expect(queryClient.getQueryData(['friend-note', 'vrchat', 'usr_x', 1])).toEqual({
+        note: 'Account B',
+        revision: makeRevision('b', 1)
+      })
+    )
+    expect(result.current.value).toBe('Account A')
+
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+    expect(setFriendNote).toHaveBeenCalledWith({
+      platform: 'vrchat',
+      friendId: 'usr_x',
+      note: 'Account A',
+      revision: makeRevision('b', 1)
+    })
   })
 
   it('skips save without a fresh revision after an identity-boundary', async () => {
@@ -1189,7 +1203,7 @@ describe('useFriendNote', () => {
   it('serializes a retry across drawer remounts and fences the old completion', async () => {
     const resolves: Array<(value: { ok: true }) => void> = []
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('same-account', 1) })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' }).mockImplementation(
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' }).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolves.push(resolve)
@@ -1324,10 +1338,10 @@ describe('useFriendNote', () => {
   })
 
   it('keeps the newer remounted draft when the old retry rejects first', async () => {
-    let rejectOldRetry: (value: { ok: false; reason: 'unavailable' }) => void = () => {}
+    let rejectOldRetry: (value: { ok: false; reason: 'invalid' }) => void = () => {}
     getFriendNote.mockResolvedValue({ note: 'Original', revision: makeRevision('same-account', 1) })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
@@ -1362,7 +1376,7 @@ describe('useFriendNote', () => {
     expect(setFriendNote).toHaveBeenCalledTimes(2)
 
     await act(async () => {
-      rejectOldRetry({ ok: false, reason: 'unavailable' })
+      rejectOldRetry({ ok: false, reason: 'invalid' })
       await Promise.resolve()
     })
     await waitFor(() => expect(second.result.current.value).toBe('Newer retained draft'))
@@ -1378,7 +1392,7 @@ describe('useFriendNote', () => {
     const resolves: Array<(value: { ok: true }) => void> = []
     const revision = makeRevision('same-account', 1)
     getFriendNote.mockResolvedValue({ note: 'Original', revision })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' }).mockImplementation(
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' }).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolves.push(resolve)
@@ -1431,7 +1445,7 @@ describe('useFriendNote', () => {
       .mockResolvedValueOnce({ note: 'Account A', revision: makeRevision('reused-id', 1) })
       .mockResolvedValueOnce({ note: 'Account B', revision: makeRevision('reused-id', 1) })
       .mockResolvedValueOnce({ note: 'Account B', revision: makeRevision('reused-id', 1) })
-    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' })
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
     })
@@ -1460,10 +1474,10 @@ describe('useFriendNote', () => {
       if (friendId === 'usr_0') {
         friendZeroAttempts += 1
         return Promise.resolve(
-          friendZeroAttempts === 1 ? { ok: false, reason: 'unavailable' } : { ok: true }
+          friendZeroAttempts === 1 ? { ok: false, reason: 'invalid' } : { ok: true }
         )
       }
-      return Promise.resolve({ ok: false, reason: 'unavailable' })
+      return Promise.resolve({ ok: false, reason: 'invalid' })
     })
     const { result, rerender } = renderHook(
       ({ friendId }: { friendId: string }) => useFriendNote({ platform: 'vrchat', friendId }),

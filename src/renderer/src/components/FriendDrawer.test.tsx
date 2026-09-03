@@ -646,7 +646,7 @@ describe('FriendDrawer (VRX-69)', () => {
       revision: { platformAccountId: 'self', epoch: 1 }
     })
     setFriendNote
-      .mockResolvedValueOnce({ ok: false, reason: 'unavailable' })
+      .mockResolvedValueOnce({ ok: false, reason: 'invalid' })
       .mockResolvedValueOnce({ ok: true })
     render(<FriendsList />)
     openDrawerFor('Alex')
