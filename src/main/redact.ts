@@ -1,4 +1,10 @@
-/** Pure, bounded credential scrubber for log arguments. */
+/**
+ * Pure, bounded credential scrubber for log arguments.
+ *
+ * This is defense in depth, not semantic PII detection. Callers must not pass
+ * arbitrary private data under generic keys; Error extras remain available for
+ * intentional diagnostics while known credential keys and shapes are masked.
+ */
 const REDACTED = '***REDACTED***'
 const MAX_DEPTH = 4
 const MAX_KEYS = 20
@@ -32,7 +38,7 @@ const SENSITIVE_INLINE: readonly RegExp[] = [
   /\b(authToken|accessKey|password|apiKey)("?\s*[:=]\s*"?)[^",}\s]+/gi,
   /\b(Bearer)(\s+)[^\s,;"]+/gi
 ]
-const BARE_AUTHCOOKIE = /\bauthcookie_[A-Za-z0-9-]+/g
+const BARE_AUTHCOOKIE = /(?<![A-Za-z0-9])authcookie_[A-Za-z0-9-]+/g
 const BARE_JWT = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
 function redactString(value: string): string {
   const masked = SENSITIVE_INLINE.reduce(
@@ -56,9 +62,19 @@ function boundedString(value: string): string {
   const redacted = redactString(value)
   return redacted.length > MAX_STRING_LENGTH ? `${redacted.slice(0, MAX_STRING_LENGTH)}…` : redacted
 }
+function safeOwnString(value: object, key: string): string | null {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    return descriptor && 'value' in descriptor && typeof descriptor.value === 'string'
+      ? boundedString(descriptor.value)
+      : null
+  } catch {
+    return null
+  }
+}
 function safeErrorName(value: object, descriptors: Record<string, PropertyDescriptor>): string {
   const name = descriptors.name
-  if (name && 'value' in name && typeof name.value === 'string') return name.value
+  if (name && 'value' in name && typeof name.value === 'string') return boundedString(name.value)
   try {
     const prototype = Object.getPrototypeOf(value) as object | null
     const descriptor: PropertyDescriptor | undefined = prototype
@@ -66,7 +82,9 @@ function safeErrorName(value: object, descriptors: Record<string, PropertyDescri
       : undefined
     const constructor: unknown =
       descriptor && 'value' in descriptor ? (descriptor.value as unknown) : undefined
-    return typeof constructor === 'function' ? constructor.name || 'Error' : 'Error'
+    return typeof constructor === 'function'
+      ? (safeOwnString(constructor, 'name') ?? 'Error')
+      : 'Error'
   } catch {
     return 'Error'
   }

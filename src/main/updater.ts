@@ -297,7 +297,15 @@ export class UpdaterService {
   install(): void {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'downloaded') return
-    this.deps.autoUpdater.quitAndInstall()
+    this.beginOperationErrorTracking()
+    try {
+      this.deps.autoUpdater.quitAndInstall()
+    } catch (error) {
+      // A synchronous native failure must not cross IPC. If electron-updater
+      // already emitted its error event, that handler has moved state for us.
+      if (this.snapshot().state === 'downloaded') this.handleError()
+      this.rememberHandledObject(error)
+    }
   }
 
   dispose(): void {

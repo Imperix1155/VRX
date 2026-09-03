@@ -133,6 +133,49 @@ describe('redact', () => {
     expect(typeof result.stack).toBe('string')
   })
 
+  it('masks credential shapes in explicit and constructor-derived Error names', () => {
+    const credentialShape = `authcookie_${'a'.repeat(24)}`
+    const explicitlyNamed = new Error('safe')
+    explicitlyNamed.name = `Remote ${credentialShape}`
+    const oversizedName = new Error('safe')
+    oversizedName.name = 'x'.repeat(3000)
+    let constructorNameReads = 0
+
+    class RemoteError extends Error {}
+    Object.defineProperty(RemoteError, 'name', { value: `Remote_${credentialShape}` })
+    const proxiedConstructor = new Proxy(
+      function RemoteProxyError() {
+        return undefined
+      },
+      {
+        get: (target, key, receiver) => {
+          if (key === 'name') {
+            constructorNameReads += 1
+            return credentialShape
+          }
+          return Reflect.get(target, key, receiver)
+        },
+        getOwnPropertyDescriptor: (target, key) =>
+          key === 'name'
+            ? { configurable: true, value: `Remote_${credentialShape}` }
+            : Reflect.getOwnPropertyDescriptor(target, key)
+      }
+    )
+    const proxyNamed = new Error('safe')
+    Object.setPrototypeOf(
+      proxyNamed,
+      Object.create(Error.prototype, {
+        constructor: { configurable: true, value: proxiedConstructor }
+      })
+    )
+
+    expect(redact(explicitlyNamed)).toMatchObject({ name: 'Remote ***REDACTED***' })
+    expect(redact(new RemoteError('safe'))).toMatchObject({ name: 'Remote_***REDACTED***' })
+    expect(redact(oversizedName)).toMatchObject({ name: `${'x'.repeat(2048)}…` })
+    expect(redact(proxyNamed)).toMatchObject({ name: 'Remote_***REDACTED***' })
+    expect(constructorNameReads).toBe(0)
+  })
+
   it('preserves enumerable extras on custom Errors and redacts sensitive ones', () => {
     class RateLimitError extends Error {
       retryAfterMs = 8000

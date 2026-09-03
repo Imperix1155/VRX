@@ -468,6 +468,24 @@ describe('UpdaterService', () => {
     })
   })
 
+  it('contains a synchronous native install failure behind the closed retryable state', () => {
+    const { service, quitAndInstall, log } = createService()
+    // @ts-expect-error accessing private state for test setup
+    service.state = { ...service.state, state: 'downloaded' }
+    const privatePath = ['', 'Users', 'account-owner', 'VRX Cache', 'pending.zip'].join('/')
+    quitAndInstall.mockImplementation(() => {
+      throw new Error(`EPERM ${privatePath}?token=SECRET`)
+    })
+
+    expect(() => service.install()).not.toThrow()
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(log.warn).toHaveBeenCalledWith('autoUpdater: staged install failed, retryable')
+    expect(log.warn.mock.calls[0]).toHaveLength(1)
+  })
+
   it('clears a staged-install failure before a retry download and keeps fallback state clean', async () => {
     const { service, autoUpdater, downloadUpdate } = createService()
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
