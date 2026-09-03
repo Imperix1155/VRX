@@ -291,9 +291,11 @@ drawer, so a stale
 completion cannot cross a route remount or account boundary. Failed snapshots
 survive drawer and route remounts, update on every post-failure edit, and are
 wiped by any identity boundary or renderer process exit; they are never
-persisted to disk. Vite hot replacement transfers that coordinator state only
-after disposing its old identity-boundary listener, so development reloads keep
-one writer and one listener rather than duplicating either. Cache reconciliation
+persisted to disk. Vite hot replacement transfers that coordinator state after
+disposing its old identity-boundary listener, and replacement-module evaluation
+immediately reinstalls the one listener even when no drawer is mounted, so
+development reloads keep one writer and one listener rather than duplicating
+either. Cache reconciliation
 applies only when no newer intent exists. Feedback clears
 when the active draft equals the authoritative cached note, or when a landed
 write matches its current visible value within the same draft generation.

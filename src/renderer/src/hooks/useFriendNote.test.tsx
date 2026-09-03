@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   disposeFriendNoteCoordinatorForHmrTests,
   friendNoteCoordinatorCountsForTests,
+  installFriendNoteCoordinatorForHmrTests,
   resetFriendNoteFailureStoreForTests,
   useFriendNote
 } from './useFriendNote'
@@ -1400,6 +1401,47 @@ describe('useFriendNote', () => {
     act(() => resolveSave({ ok: true }))
     await waitFor(() => expect(friendNoteCoordinatorCountsForTests().writers).toBe(0))
     expect(replacement.result.current.saveFailed).toBe(false)
+  })
+
+  it('wipes a failed draft when an identity boundary lands after hot replacement while unmounted', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    })
+    getFriendNote
+      .mockResolvedValueOnce({
+        note: 'Account A saved',
+        revision: makeRevision('reused-account-id', 1)
+      })
+      .mockResolvedValueOnce({
+        note: 'Account B saved',
+        revision: makeRevision('reused-account-id', 2)
+      })
+    setFriendNote.mockResolvedValueOnce({ ok: false, reason: 'invalid' })
+    const first = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+    await waitFor(() => expect(first.result.current.value).toBe('Account A saved'))
+    act(() => first.result.current.setValue('Old account failed draft'))
+    act(() => first.result.current.onBlur())
+    await waitFor(() => expect(first.result.current.saveFailed).toBe(true))
+    first.unmount()
+
+    // Vite disposes the old module, transfers its coordinator, then evaluates
+    // the replacement while no drawer or Friends route is mounted.
+    disposeFriendNoteCoordinatorForHmrTests()
+    expect(identityBoundaryCallbacks).toHaveLength(0)
+    installFriendNoteCoordinatorForHmrTests()
+    expect(identityBoundaryCallbacks).toHaveLength(1)
+    act(() => fireIdentityBoundary('vrchat'))
+    expect(friendNoteCoordinatorCountsForTests()).toEqual({ writers: 0, drafts: 0, failed: 0 })
+
+    const replacement = renderHook(() => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }), {
+      wrapper: createWrapper(false, queryClient)
+    })
+    await waitFor(() => expect(replacement.result.current.value).toBe('Account B saved'))
+    expect(replacement.result.current.saveFailed).toBe(false)
+    act(() => replacement.result.current.retry())
+    expect(setFriendNote).toHaveBeenCalledOnce()
   })
 
   it('does not retain clean loaded notes in the renderer coordinator', async () => {

@@ -22,8 +22,10 @@
  *      row); Ask Me/DND show "Hidden"; VRChat trust line when known.
  *   4. Actions: ONE primary Join button, only when `isFriendJoinable` — same
  *      bridge flow + in-flight guard + 2.5s failure blip as the row (VRX-166).
- *      Copy link / self-invite / favorite / notes are SEPARATE issues; no
+ *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
+ *   5. Notes: account-scoped private text with save-on-blur and explicit Retry
+ *      after a rejected save (VRX-72/269).
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is

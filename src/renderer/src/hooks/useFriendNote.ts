@@ -91,6 +91,11 @@ function ensureFriendNoteCoordinator(): void {
   })
 }
 
+// Preload is available before the production renderer evaluates this module.
+// Installing here also closes the HMR gap when no drawer is mounted; the hook
+// call below remains the late-bridge fallback for tests, preview, and SSR.
+ensureFriendNoteCoordinator()
+
 // Renderer-lifetime only: deliberately no disk persistence.  The listener is
 // installed once and outlives individual drawers/routes so an off-screen
 // identity boundary cannot leave another account's failed draft recoverable.
@@ -139,6 +144,11 @@ export function friendNoteCoordinatorCountsForTests(): {
 export function disposeFriendNoteCoordinatorForHmrTests(): void {
   coordinator.removeBoundaryListener?.()
   coordinator.removeBoundaryListener = null
+}
+
+/** Test seam for replacement-module evaluation while no hook is mounted. */
+export function installFriendNoteCoordinatorForHmrTests(): void {
+  ensureFriendNoteCoordinator()
 }
 
 interface SaveVariables {
