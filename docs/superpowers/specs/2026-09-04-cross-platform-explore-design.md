@@ -10,8 +10,10 @@ discovery surface for active public destinations across VRChat and ChilloutVR.
 Explore must bridge the platforms without pretending their APIs or population
 sizes are identical.
 
-The Dashboard remains the answer to “Where are my friends?” through Hot
-Instances. Explore answers “Where are people gathering publicly right now?”
+The Dashboard remains an at-a-glance summary. Hot Instances answers “Where are
+my friends gathering?” and a two-card Explore preview answers “Where are people
+gathering publicly right now?” The full Explore page carries the detailed
+discovery flow.
 
 Cross-platform friend linking remains the next implementation target. This
 document locks the Explore product direction so it can follow without
@@ -36,6 +38,28 @@ reopening settled decisions.
   obtain for that world.
 - Never reserve a permanent first-class position for one platform or assume
   that VRChat has more results than ChilloutVR.
+
+## Dashboard preview
+
+The Dashboard remains an at-a-glance summary. Its vertical order is:
+
+1. the existing Friends online, In game right now, and Hot instances stat
+   cards;
+2. a **Popular now** preview containing exactly two Explore world cards; and
+3. the existing **Hot instances** section, which keeps its current six-card
+   maximum and friend-based meaning.
+
+The preview reads from the same ranked and cached Explore result set. It does
+not make its own platform requests or define a second ranking system. In
+**All** mode it renders the first two results produced by Explore's symmetric
+merge. That normally means one leading world from each platform; if one source
+has no candidate, the existing backfill rule can fill the second slot. In
+**VRC** or **CVR** mode both slots belong to the selected platform.
+
+The Dashboard preview has no Worlds shown control. It is always two cards and
+uses the same card fields, platform treatment, loading truth, and world-sheet
+interaction as Explore. It must not reuse friend locations or change the
+meaning of Hot Instances.
 
 ## Platform Sources Without False Parity
 
@@ -219,7 +243,8 @@ Implementation is not complete until it proves:
 - request pacing, cache reuse, concurrent-request deduplication, drill-in lazy
   loading, stale fallback, and independent platform failures;
 - renderer interaction coverage for filters, the stepper, card disclosure,
-  sheet dismissal, keyboard use, and guarded Join actions;
+  sheet dismissal, keyboard use, guarded Join actions, and the Dashboard order
+  of stats → two-card Popular now preview → Hot Instances;
 - dark, light, grayscale, narrow-window, and uneven-data runtime renders in the
   real Electron app through the `verify-electron` workflow; and
 - the full repository typecheck, lint, format, build, review, CI, and external
