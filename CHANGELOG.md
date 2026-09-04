@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-09-04
+
 ### Fixed
 
 - Update failures now show fixed, localized retry guidance instead of raw updater exceptions. The renderer receives only check/network, download/write, or staged-install categories, while third-party updater payloads are discarded. On macOS, Restart stays disabled until the current native Squirrel stage is proven ready; stale signals cannot mark a retry ready, and an unconfirmed stage returns to retry after five minutes. (VRX-268)
