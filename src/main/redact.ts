@@ -1,43 +1,18 @@
 /**
- * Log redaction (VRX-15; hardened in the 2026-07 baseline audit, wave W2)
+ * Pure credential scrubber with capped regex scans, reflective reads, and output.
  *
- * Pure, dependency-free credential scrubbing for log arguments. Kept separate
- * from `logger.ts` (which imports electron) so this security-critical logic stays
- * unit-testable in isolation — see VRX-13.
- *
- * Coverage boundary (know what this can and cannot see):
- * - Strings: inline token shapes + bare JWTs are masked.
- * - Plain objects/arrays: walked recursively; values under sensitive keys are
- *   replaced wholesale. Only OWN ENUMERABLE STRING-KEYED properties are visible.
- * - Errors: handled explicitly (message/stack are non-enumerable and would
- *   otherwise vanish) — name/message/stack are kept and string-masked, and any
- *   enumerable extras (e.g. retryAfterMs) plus `cause` and AggregateError's
- *   `errors` are walked.
- * - Other non-plain objects (Map/Set/URL/class instances backed by getters or
- *   Symbols) collapse to a visible '[unredactable: Ctor]' marker instead of a
- *   silent, misleading `{}`.
- *
- * RESIDUAL RISK (know before logging): string masking is SHAPE-based (key=value,
- * key: value, Bearer, JWT, authcookie_*). An arbitrary bare secret embedded in
- * prose — including inside an Error message — cannot be recognized and WILL pass
- * through. Never interpolate raw credentials into error/log strings. Likewise the
- * 2FA IPC field is literally named `code` — too generic to key-match safely — so
- * ipc/auth.ts must continue to never log its request payloads.
+ * This is defense in depth, not semantic PII detection. Callers must not pass
+ * arbitrary private data under generic keys; Error extras remain available for
+ * intentional diagnostics while known credential keys and shapes are masked.
  */
-
 const REDACTED = '***REDACTED***'
+const MAX_DEPTH = 4
+const MAX_KEYS = 20
+const MAX_KEY_LENGTH = 128
+const MAX_STRING_LENGTH = 2048
+const STRING_REDACTION_LOOKAHEAD = 64
+const UNREPRESENTABLE = '[unrepresentable diagnostic]'
 
-/**
- * Sensitive-key detection. Keys are normalized (lowercased, separators stripped)
- * and matched on UNAMBIGUOUS substrings, so `accessToken`, `access_token`,
- * `refresh-token`, `sessionId`, `client_secret`, `XSRF-TOKEN`, … all hit without
- * enumerating every casing.
- *
- * `auth` needs care: as a bare substring it would also match `author`/`authorName`
- * (real VRChat world metadata we WANT in logs). Rule: the normalized key is
- * sensitive if it IS `auth`, contains `authorization`, or starts with `auth` but
- * not `author` (`authtoken`, `authcookie`, `authheader`, …).
- */
 const SENSITIVE_SUBSTRINGS = [
   'token',
   'secret',
@@ -54,104 +29,264 @@ const SENSITIVE_SUBSTRINGS = [
   'bearer',
   'jwt'
 ] as const
-
 function isSensitiveKey(key: string): boolean {
-  const norm = key.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (SENSITIVE_SUBSTRINGS.some((s) => norm.includes(s))) return true
-  if (norm === 'auth' || norm.includes('authorization')) return true
-  return norm.startsWith('auth') && !norm.startsWith('author')
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (SENSITIVE_SUBSTRINGS.some((item) => normalized.includes(item))) return true
+  if (normalized === 'auth' || normalized.includes('authorization')) return true
+  return normalized.startsWith('auth') && !normalized.startsWith('author')
 }
-
-/**
- * Inline token shapes (VRChat `auth=`/`twoFactorAuth=` cookies, `authToken: ...`,
- * `Authorization: Bearer ...`). Each pattern captures the key as group 1 and the
- * separator (incl. any quote/whitespace) as group 2, so the replacement can keep
- * the original delimiter and replace only the secret value.
- */
 const SENSITIVE_INLINE: readonly RegExp[] = [
   /\b(auth|twoFactorAuth|authcookie)(=)[^;,\s]+/gi,
   /\b(authToken|accessKey|password|apiKey)("?\s*[:=]\s*"?)[^",}\s]+/gi,
   /\b(Bearer)(\s+)[^\s,;"]+/gi
 ]
-
-/**
- * VRChat session cookies have a known literal shape (`authcookie_<id>`), so a BARE
- * one — pasted into prose or an Error message with no `auth=` prefix — is still
- * recognizable. Masked wholesale, independent of key context.
- */
-const BARE_AUTHCOOKIE = /\bauthcookie_[A-Za-z0-9-]+/g
-
-/**
- * Bare JWT floor: three base64url segments of realistic length. Catches a raw
- * token logged under an unrecognized key or on its own, independent of any
- * key/prefix context. Segment minimums keep semver/paths/prose from matching.
- */
+const BARE_AUTHCOOKIE = /(?<![A-Za-z0-9])authcookie_[A-Za-z0-9-]+/g
 const BARE_JWT = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
-
-function redactString(s: string): string {
+function redactString(value: string): string {
   const masked = SENSITIVE_INLINE.reduce(
-    (acc, re) => acc.replace(re, (_m, key, sep) => `${key}${sep}${REDACTED}`),
-    s
+    (current, expression) =>
+      current.replace(expression, (_match, key, separator) => `${key}${separator}${REDACTED}`),
+    value
   )
   return masked.replace(BARE_AUTHCOOKIE, REDACTED).replace(BARE_JWT, REDACTED)
 }
 
-/** True for objects the entries-walk can faithfully represent. */
-function isPlainObject(value: object): boolean {
-  const proto: unknown = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
+function isJwtCharacter(value: string): boolean {
+  const code = value.charCodeAt(0)
+  return (
+    (code >= 48 && code <= 57) ||
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122) ||
+    code === 45 ||
+    code === 95
+  )
 }
 
 /**
- * Recursively strip credentials from a log argument. Guards against circular refs.
- * Strings have inline token shapes masked; plain objects/arrays are walked and any
- * value under a sensitive key is replaced wholesale; Errors keep (masked)
- * name/message/stack; other non-plain objects become a visible marker.
+ * A bounded scan can end inside any of a JWT's three unbounded base64url
+ * segments. When the source continues, replace the trailing candidate (up to
+ * two preceding dotted segments) instead of emitting an unverified raw prefix.
  */
-export function redact(value: unknown, path = new WeakSet<object>()): unknown {
-  if (typeof value === 'string') return redactString(value)
-  if (value && typeof value === 'object') {
-    if (path.has(value)) return '[Circular]'
-    path.add(value)
-    try {
-      if (Array.isArray(value)) return value.map((v) => redact(v, path))
-      if (value instanceof Error) {
-        // message/stack are non-enumerable — an entries-walk would silently drop
-        // them (the {} trap this hardening exists to close). Keep them, masked.
-        // Subclasses don't auto-set .name — prefer the constructor name when .name
-        // is still the default (the app's own error classes set both; this covers
-        // third-party ones that don't).
-        const ctorName = value.constructor?.name
-        const out: Record<string, unknown> = {
-          name: value.name === 'Error' && ctorName && ctorName !== 'Error' ? ctorName : value.name,
-          message: redactString(value.message),
-          stack: typeof value.stack === 'string' ? redactString(value.stack) : undefined
-        }
-        for (const [k, v] of Object.entries(value)) {
-          out[k] = isSensitiveKey(k) ? REDACTED : redact(v, path)
-        }
-        if (value.cause !== undefined) out.cause = redact(value.cause, path)
-        // AggregateError.errors is ALSO non-enumerable — walk it explicitly or the
-        // inner errors vanish silently (the same trap as message/stack).
-        if (value instanceof AggregateError) {
-          out.errors = value.errors.map((e) => redact(e, path))
-        }
-        return out
-      }
-      if (!isPlainObject(value)) {
-        // Map/Set/URL/getter-backed class instances: entries-walk sees nothing, so
-        // emit a visible marker instead of a silent (and misleading) `{}`.
-        const ctor = value.constructor?.name ?? 'object'
-        return `[unredactable: ${ctor}]`
-      }
-      const out: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(value)) {
-        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, path)
-      }
-      return out
-    } finally {
-      path.delete(value)
-    }
+function redactTruncatedJwtCandidate(value: string): string {
+  let cursor = value.length
+  let includedDots = 0
+  if (cursor === 0) return value
+  if (value[cursor - 1] === '.') {
+    cursor -= 1
+    includedDots = 1
+  } else if (!isJwtCharacter(value[cursor - 1]!)) {
+    return value
   }
-  return value
+
+  const trailingSegmentEnd = cursor
+  while (cursor > 0 && isJwtCharacter(value[cursor - 1]!)) cursor -= 1
+  if (cursor === trailingSegmentEnd) return value
+
+  let candidateStart = cursor
+  while (includedDots < 2 && candidateStart > 0 && value[candidateStart - 1] === '.') {
+    const previousSegmentEnd = candidateStart - 1
+    let previousSegmentStart = previousSegmentEnd
+    while (previousSegmentStart > 0 && isJwtCharacter(value[previousSegmentStart - 1]!)) {
+      previousSegmentStart -= 1
+    }
+    if (previousSegmentStart === previousSegmentEnd) break
+    candidateStart = previousSegmentStart
+    includedDots += 1
+  }
+
+  return `${value.slice(0, candidateStart)}${REDACTED}`
+}
+
+type DescriptorWalk = { entries: Array<[string, PropertyDescriptor]>; overflow: boolean }
+
+function safeEnumerableOwnDescriptors(value: object): DescriptorWalk | null {
+  try {
+    const entries: Array<[string, PropertyDescriptor]> = []
+    let traversalAttempts = 0
+    for (const key in value) {
+      traversalAttempts += 1
+      if (traversalAttempts > MAX_KEYS || key.length > MAX_KEY_LENGTH) {
+        return { entries, overflow: true }
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)
+      if (!descriptor?.enumerable) continue
+      entries.push([key, descriptor])
+    }
+    return { entries, overflow: false }
+  } catch {
+    return null
+  }
+}
+
+function safeFixedDescriptors(
+  value: object,
+  keys: readonly string[]
+): Record<string, PropertyDescriptor | undefined> | null {
+  try {
+    const descriptors: Record<string, PropertyDescriptor | undefined> = {}
+    for (const key of keys) descriptors[key] = Object.getOwnPropertyDescriptor(value, key)
+    return descriptors
+  } catch {
+    return null
+  }
+}
+function descriptorValue(descriptor: PropertyDescriptor | undefined): unknown {
+  return descriptor && 'value' in descriptor ? descriptor.value : '[unreadable accessor]'
+}
+function boundedString(value: string): string {
+  const scanLength = MAX_STRING_LENGTH + STRING_REDACTION_LOOKAHEAD
+  const scannedSource = value.slice(0, scanLength)
+  const scanned =
+    value.length > scanLength ? redactTruncatedJwtCandidate(scannedSource) : scannedSource
+  const redacted = redactString(scanned)
+  return value.length > MAX_STRING_LENGTH || redacted.length > MAX_STRING_LENGTH
+    ? `${redacted.slice(0, MAX_STRING_LENGTH)}…`
+    : redacted
+}
+function safeOwnString(value: object, key: string): string | null {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)
+    return descriptor && 'value' in descriptor && typeof descriptor.value === 'string'
+      ? boundedString(descriptor.value)
+      : null
+  } catch {
+    return null
+  }
+}
+function safeErrorName(
+  value: object,
+  descriptors: Record<string, PropertyDescriptor | undefined>
+): string {
+  const name = descriptors.name
+  if (name && 'value' in name && typeof name.value === 'string') return boundedString(name.value)
+  try {
+    const prototype = Object.getPrototypeOf(value) as object | null
+    const descriptor: PropertyDescriptor | undefined = prototype
+      ? Object.getOwnPropertyDescriptor(prototype, 'constructor')
+      : undefined
+    const constructor: unknown =
+      descriptor && 'value' in descriptor ? (descriptor.value as unknown) : undefined
+    return typeof constructor === 'function'
+      ? (safeOwnString(constructor, 'name') ?? 'Error')
+      : 'Error'
+  } catch {
+    return 'Error'
+  }
+}
+function isError(value: object): boolean {
+  try {
+    return value instanceof Error
+  } catch {
+    return false
+  }
+}
+
+function isPlainRecord(value: object): boolean {
+  try {
+    const prototype: unknown = Object.getPrototypeOf(value)
+    return prototype === Object.prototype || prototype === null
+  } catch {
+    return false
+  }
+}
+
+/** Projects capped plain-record diagnostics; accessors and opaque instances never run. */
+export function redact(value: unknown, path = new WeakSet<object>(), depth = 0): unknown {
+  if (typeof value === 'string') return boundedString(value)
+  if (typeof value === 'symbol' || typeof value === 'function' || typeof value === 'bigint')
+    return UNREPRESENTABLE
+  if (!value || typeof value !== 'object') return value
+  if (path.has(value)) return '[Circular]'
+  if (depth >= MAX_DEPTH) return '[max diagnostic depth]'
+  path.add(value)
+  try {
+    if (isError(value)) {
+      const descriptors = safeFixedDescriptors(value, [
+        'name',
+        'message',
+        'stack',
+        'cause',
+        'errors'
+      ])
+      if (!descriptors) return UNREPRESENTABLE
+      const walked = safeEnumerableOwnDescriptors(value)
+      if (!walked || walked.overflow) return UNREPRESENTABLE
+      const specialNonEnumerableCount = Object.values(descriptors).filter(
+        (descriptor) => descriptor && !descriptor.enumerable
+      ).length
+      if (walked.entries.length + specialNonEnumerableCount > MAX_KEYS) return UNREPRESENTABLE
+      const message = descriptors.message
+      const stack = descriptors.stack
+      const output: Record<string, unknown> = {
+        name: safeErrorName(value, descriptors),
+        message:
+          message && 'value' in message && typeof message.value === 'string'
+            ? boundedString(message.value)
+            : undefined,
+        stack:
+          stack && 'value' in stack && typeof stack.value === 'string'
+            ? boundedString(stack.value)
+            : stack
+              ? '[unreadable accessor]'
+              : undefined
+      }
+      for (const [key, descriptor] of walked.entries) {
+        if (!descriptor.enumerable || ['name', 'message', 'stack', 'cause', 'errors'].includes(key))
+          continue
+        output[key] = isSensitiveKey(key)
+          ? REDACTED
+          : redact(descriptorValue(descriptor), path, depth + 1)
+      }
+      const cause = descriptors.cause
+      if (cause && 'value' in cause) output.cause = redact(cause.value, path, depth + 1)
+      const errors = descriptors.errors
+      if (errors && 'value' in errors) output.errors = redact(errors.value, path, depth + 1)
+      return output
+    }
+    if (ArrayBuffer.isView(value)) return '[binary diagnostic]'
+    // Do not create sparse output or inspect unbounded array descriptors. A
+    // normal array is represented only when its bounded own keys are data keys.
+    try {
+      if (Array.isArray(value)) {
+        const walked = safeEnumerableOwnDescriptors(value)
+        if (!walked) return UNREPRESENTABLE
+        if (walked.overflow || walked.entries.some(([key]) => !/^\d+$/.test(key)))
+          return '[array diagnostic]'
+        return walked.entries.map(([, descriptor]) =>
+          redact(descriptorValue(descriptor), path, depth + 1)
+        )
+      }
+    } catch {
+      return UNREPRESENTABLE
+    }
+    if (!isPlainRecord(value)) return UNREPRESENTABLE
+    const descriptors = safeFixedDescriptors(value, ['name', 'message', 'code', 'cause'])
+    if (!descriptors) return UNREPRESENTABLE
+    const walked = safeEnumerableOwnDescriptors(value)
+    if (!walked) return UNREPRESENTABLE
+    const specialNonEnumerableCount = Object.values(descriptors).filter(
+      (descriptor) => descriptor && !descriptor.enumerable
+    ).length
+    if (
+      walked.overflow ||
+      walked.entries.length + specialNonEnumerableCount > MAX_KEYS ||
+      walked.entries.some(([key]) => /^\d+$/.test(key))
+    )
+      return '[binary-like diagnostic]'
+    const output: Record<string, unknown> = {}
+    for (const key of ['name', 'message', 'code', 'cause']) {
+      const descriptor = descriptors[key]
+      if (descriptor && 'value' in descriptor)
+        output[key] = isSensitiveKey(key) ? REDACTED : redact(descriptor.value, path, depth + 1)
+    }
+    for (const [key, descriptor] of walked.entries) {
+      if (!descriptor.enumerable || key in output) continue
+      output[key] = isSensitiveKey(key)
+        ? REDACTED
+        : redact(descriptorValue(descriptor), path, depth + 1)
+    }
+    return Object.keys(output).length > 0 ? output : UNREPRESENTABLE
+  } finally {
+    path.delete(value)
+  }
 }

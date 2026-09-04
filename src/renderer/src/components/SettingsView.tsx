@@ -24,6 +24,7 @@ import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
+import type { UpdaterFailure } from '@shared/ipc'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -72,6 +73,12 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
   ask: 'settings.joinMode.ask',
   vr: 'settings.joinMode.vr',
   desktop: 'settings.joinMode.desktop'
+}
+
+const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
+  'check-network': 'updater.settings.failure.checkNetwork',
+  'download-write': 'updater.settings.failure.downloadWrite',
+  'staged-install': 'updater.settings.failure.stagedInstall'
 }
 
 function UpdaterSettingsRow(): React.JSX.Element {
@@ -140,9 +147,9 @@ function UpdaterSettingsRow(): React.JSX.Element {
             {t('updater.settings.unsupportedNote')}
           </p>
         )}
-        {state.errorMessage != null && (
+        {state.failure != null && (
           <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
-            {state.errorMessage}
+            {t(UPDATER_FAILURE_KEYS[state.failure])}
           </p>
         )}
         <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">

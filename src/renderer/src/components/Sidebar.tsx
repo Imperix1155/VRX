@@ -128,7 +128,7 @@ function SidebarUpdateButton(): React.JSX.Element | null {
       ? t('updater.sidebar.restart')
       : t('updater.sidebar.update')
 
-  const suffix = state.errorMessage ? ` ${t('updater.sidebar.errorSuffix')}` : ''
+  const suffix = state.failure ? ` ${t('updater.sidebar.retrySuffix')}` : ''
 
   const ariaLabel = isDownloading
     ? t('updater.sidebar.downloadingAria', { percent: state.progressPercent })

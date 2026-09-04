@@ -375,7 +375,7 @@
       "downloadingAria": "Update downloading, {{percent}} percent",
       "restartTitle": "Restart to install update",
       "restartAria": "Restart to install update",
-      "errorSuffix": "— last attempt failed"
+      "retrySuffix": "— try again"
     },
     "settings": {
       "label": "Automatic updates",
@@ -388,7 +388,12 @@
       "restart": "Restart to update",
       "releases": "Open releases page",
       "unsupportedNote": "This portable build cannot update itself automatically.",
-      "currentVersion": "VRX v{{version}}"
+      "currentVersion": "VRX v{{version}}",
+      "failure": {
+        "checkNetwork": "Couldn't check for updates. Check your connection and try again.",
+        "downloadWrite": "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually.",
+        "stagedInstall": "Couldn't install the staged update. Download it again and try once more."
+      }
     }
   }
 }

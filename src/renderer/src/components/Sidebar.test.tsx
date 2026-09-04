@@ -23,7 +23,7 @@ const updaterState: {
     currentVersion: '0.14.0',
     availableVersion: null,
     progressPercent: 0,
-    errorMessage: null
+    failure: null
   },
   check: vi.fn(),
   download: vi.fn(),
@@ -42,7 +42,7 @@ afterEach(() => {
     currentVersion: '0.14.0',
     availableVersion: null,
     progressPercent: 0,
-    errorMessage: null
+    failure: null
   }
   updaterState.check.mockReset()
   updaterState.download.mockReset()
@@ -97,7 +97,7 @@ describe('Sidebar update button (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     render(<Sidebar />)
 
@@ -116,18 +116,18 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(updaterState.download).toHaveBeenCalledOnce()
   })
 
-  it('appends the error suffix to update-available title/aria-label when a previous attempt failed', () => {
+  it('appends localized retry guidance to update-available title/aria-label after a download/write failure', () => {
     updaterState.state = {
       state: 'update-available',
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: 'network down'
+      failure: 'download-write'
     }
     render(<Sidebar />)
 
-    const expectedAria = `${i18n.t('updater.sidebar.downloadAria')} ${i18n.t('updater.sidebar.errorSuffix')}`
-    const expectedTitle = `${i18n.t('updater.sidebar.downloadTitle')} ${i18n.t('updater.sidebar.errorSuffix')}`
+    const expectedAria = `${i18n.t('updater.sidebar.downloadAria')} ${i18n.t('updater.sidebar.retrySuffix')}`
+    const expectedTitle = `${i18n.t('updater.sidebar.downloadTitle')} ${i18n.t('updater.sidebar.retrySuffix')}`
     const button = screen.getByRole('button', { name: expectedAria })
     expect(button.getAttribute('title')).toBe(expectedTitle)
   })
@@ -138,7 +138,7 @@ describe('Sidebar update button (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     render(<Sidebar />)
 
@@ -152,7 +152,7 @@ describe('Sidebar update button (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 42,
-      errorMessage: null
+      failure: null
     }
     render(<Sidebar />)
 
@@ -172,7 +172,7 @@ describe('Sidebar update button (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 0,
-      errorMessage: null
+      failure: null
     }
     render(<Sidebar />)
 
@@ -190,7 +190,7 @@ describe('Sidebar update button (VRX-113)', () => {
       currentVersion: '0.14.0',
       availableVersion: '0.15.0',
       progressPercent: 100,
-      errorMessage: null
+      failure: null
     }
     render(<Sidebar />)
 

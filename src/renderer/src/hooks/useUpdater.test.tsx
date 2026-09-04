@@ -9,7 +9,7 @@ const DEFAULT_SNAPSHOT: UpdaterSnapshot = {
   currentVersion: '0.14.0',
   availableVersion: null,
   progressPercent: 0,
-  errorMessage: null
+  failure: null
 }
 
 afterEach(() => {
