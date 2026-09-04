@@ -61,6 +61,11 @@ uses the same card fields, platform treatment, loading truth, and world-sheet
 interaction as Explore. It must not reuse friend locations or change the
 meaning of Hot Instances.
 
+The existing Hot Instances section moves down intact. Its one-to-ten friend
+threshold selector stays beside the section heading with the same persisted
+value and immediate update behavior. Its exact-instance grouping, ranking,
+six-card cap, Join affordance, empty state, and detail sheet do not change.
+
 ## Platform Sources Without False Parity
 
 | Platform   | World candidate meaning                                             | Room drill-in meaning                                                        |
