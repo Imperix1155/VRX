@@ -1,5 +1,5 @@
 /**
- * Pure, bounded credential scrubber for log arguments.
+ * Pure credential scrubber with capped regex scans, reflective reads, and output.
  *
  * This is defense in depth, not semantic PII detection. Callers must not pass
  * arbitrary private data under generic keys; Error extras remain available for
@@ -8,7 +8,9 @@
 const REDACTED = '***REDACTED***'
 const MAX_DEPTH = 4
 const MAX_KEYS = 20
+const MAX_KEY_LENGTH = 128
 const MAX_STRING_LENGTH = 2048
+const STRING_REDACTION_LOOKAHEAD = 64
 const UNREPRESENTABLE = '[unrepresentable diagnostic]'
 
 const SENSITIVE_SUBSTRINGS = [
@@ -48,9 +50,82 @@ function redactString(value: string): string {
   )
   return masked.replace(BARE_AUTHCOOKIE, REDACTED).replace(BARE_JWT, REDACTED)
 }
-function safeDescriptors(value: object): Record<string, PropertyDescriptor> | null {
+
+function isJwtCharacter(value: string): boolean {
+  const code = value.charCodeAt(0)
+  return (
+    (code >= 48 && code <= 57) ||
+    (code >= 65 && code <= 90) ||
+    (code >= 97 && code <= 122) ||
+    code === 45 ||
+    code === 95
+  )
+}
+
+/**
+ * A bounded scan can end inside any of a JWT's three unbounded base64url
+ * segments. When the source continues, replace the trailing candidate (up to
+ * two preceding dotted segments) instead of emitting an unverified raw prefix.
+ */
+function redactTruncatedJwtCandidate(value: string): string {
+  let cursor = value.length
+  let includedDots = 0
+  if (cursor === 0) return value
+  if (value[cursor - 1] === '.') {
+    cursor -= 1
+    includedDots = 1
+  } else if (!isJwtCharacter(value[cursor - 1]!)) {
+    return value
+  }
+
+  const trailingSegmentEnd = cursor
+  while (cursor > 0 && isJwtCharacter(value[cursor - 1]!)) cursor -= 1
+  if (cursor === trailingSegmentEnd) return value
+
+  let candidateStart = cursor
+  while (includedDots < 2 && candidateStart > 0 && value[candidateStart - 1] === '.') {
+    const previousSegmentEnd = candidateStart - 1
+    let previousSegmentStart = previousSegmentEnd
+    while (previousSegmentStart > 0 && isJwtCharacter(value[previousSegmentStart - 1]!)) {
+      previousSegmentStart -= 1
+    }
+    if (previousSegmentStart === previousSegmentEnd) break
+    candidateStart = previousSegmentStart
+    includedDots += 1
+  }
+
+  return `${value.slice(0, candidateStart)}${REDACTED}`
+}
+
+type DescriptorWalk = { entries: Array<[string, PropertyDescriptor]>; overflow: boolean }
+
+function safeEnumerableOwnDescriptors(value: object): DescriptorWalk | null {
   try {
-    return Object.getOwnPropertyDescriptors(value)
+    const entries: Array<[string, PropertyDescriptor]> = []
+    let traversalAttempts = 0
+    for (const key in value) {
+      traversalAttempts += 1
+      if (traversalAttempts > MAX_KEYS || key.length > MAX_KEY_LENGTH) {
+        return { entries, overflow: true }
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)
+      if (!descriptor?.enumerable) continue
+      entries.push([key, descriptor])
+    }
+    return { entries, overflow: false }
+  } catch {
+    return null
+  }
+}
+
+function safeFixedDescriptors(
+  value: object,
+  keys: readonly string[]
+): Record<string, PropertyDescriptor | undefined> | null {
+  try {
+    const descriptors: Record<string, PropertyDescriptor | undefined> = {}
+    for (const key of keys) descriptors[key] = Object.getOwnPropertyDescriptor(value, key)
+    return descriptors
   } catch {
     return null
   }
@@ -59,8 +134,14 @@ function descriptorValue(descriptor: PropertyDescriptor | undefined): unknown {
   return descriptor && 'value' in descriptor ? descriptor.value : '[unreadable accessor]'
 }
 function boundedString(value: string): string {
-  const redacted = redactString(value)
-  return redacted.length > MAX_STRING_LENGTH ? `${redacted.slice(0, MAX_STRING_LENGTH)}…` : redacted
+  const scanLength = MAX_STRING_LENGTH + STRING_REDACTION_LOOKAHEAD
+  const scannedSource = value.slice(0, scanLength)
+  const scanned =
+    value.length > scanLength ? redactTruncatedJwtCandidate(scannedSource) : scannedSource
+  const redacted = redactString(scanned)
+  return value.length > MAX_STRING_LENGTH || redacted.length > MAX_STRING_LENGTH
+    ? `${redacted.slice(0, MAX_STRING_LENGTH)}…`
+    : redacted
 }
 function safeOwnString(value: object, key: string): string | null {
   try {
@@ -72,7 +153,10 @@ function safeOwnString(value: object, key: string): string | null {
     return null
   }
 }
-function safeErrorName(value: object, descriptors: Record<string, PropertyDescriptor>): string {
+function safeErrorName(
+  value: object,
+  descriptors: Record<string, PropertyDescriptor | undefined>
+): string {
   const name = descriptors.name
   if (name && 'value' in name && typeof name.value === 'string') return boundedString(name.value)
   try {
@@ -106,7 +190,7 @@ function isPlainRecord(value: object): boolean {
   }
 }
 
-/** Projects only bounded plain-record data; accessors and opaque instances never run. */
+/** Projects capped plain-record diagnostics; accessors and opaque instances never run. */
 export function redact(value: unknown, path = new WeakSet<object>(), depth = 0): unknown {
   if (typeof value === 'string') return boundedString(value)
   if (typeof value === 'symbol' || typeof value === 'function' || typeof value === 'bigint')
@@ -117,10 +201,20 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
   path.add(value)
   try {
     if (isError(value)) {
-      const descriptors = safeDescriptors(value)
+      const descriptors = safeFixedDescriptors(value, [
+        'name',
+        'message',
+        'stack',
+        'cause',
+        'errors'
+      ])
       if (!descriptors) return UNREPRESENTABLE
-      const entries = Object.entries(descriptors)
-      if (entries.length > MAX_KEYS) return UNREPRESENTABLE
+      const walked = safeEnumerableOwnDescriptors(value)
+      if (!walked || walked.overflow) return UNREPRESENTABLE
+      const specialNonEnumerableCount = Object.values(descriptors).filter(
+        (descriptor) => descriptor && !descriptor.enumerable
+      ).length
+      if (walked.entries.length + specialNonEnumerableCount > MAX_KEYS) return UNREPRESENTABLE
       const message = descriptors.message
       const stack = descriptors.stack
       const output: Record<string, unknown> = {
@@ -136,7 +230,7 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
               ? '[unreadable accessor]'
               : undefined
       }
-      for (const [key, descriptor] of entries) {
+      for (const [key, descriptor] of walked.entries) {
         if (!descriptor.enumerable || ['name', 'message', 'stack', 'cause', 'errors'].includes(key))
           continue
         output[key] = isSensitiveKey(key)
@@ -154,23 +248,29 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
     // normal array is represented only when its bounded own keys are data keys.
     try {
       if (Array.isArray(value)) {
-        const descriptors = safeDescriptors(value)
-        if (!descriptors) return UNREPRESENTABLE
-        const entries = Object.entries(descriptors).filter(([key]) => key !== 'length')
-        if (entries.length > MAX_KEYS || entries.some(([key]) => !/^\d+$/.test(key)))
+        const walked = safeEnumerableOwnDescriptors(value)
+        if (!walked) return UNREPRESENTABLE
+        if (walked.overflow || walked.entries.some(([key]) => !/^\d+$/.test(key)))
           return '[array diagnostic]'
-        return entries.map(([, descriptor]) => redact(descriptorValue(descriptor), path, depth + 1))
+        return walked.entries.map(([, descriptor]) =>
+          redact(descriptorValue(descriptor), path, depth + 1)
+        )
       }
     } catch {
       return UNREPRESENTABLE
     }
     if (!isPlainRecord(value)) return UNREPRESENTABLE
-    const descriptors = safeDescriptors(value)
+    const descriptors = safeFixedDescriptors(value, ['name', 'message', 'code', 'cause'])
     if (!descriptors) return UNREPRESENTABLE
-    const entries = Object.entries(descriptors)
+    const walked = safeEnumerableOwnDescriptors(value)
+    if (!walked) return UNREPRESENTABLE
+    const specialNonEnumerableCount = Object.values(descriptors).filter(
+      (descriptor) => descriptor && !descriptor.enumerable
+    ).length
     if (
-      entries.length > MAX_KEYS ||
-      entries.some(([key, descriptor]) => descriptor.enumerable && /^\d+$/.test(key))
+      walked.overflow ||
+      walked.entries.length + specialNonEnumerableCount > MAX_KEYS ||
+      walked.entries.some(([key]) => /^\d+$/.test(key))
     )
       return '[binary-like diagnostic]'
     const output: Record<string, unknown> = {}
@@ -179,7 +279,7 @@ export function redact(value: unknown, path = new WeakSet<object>(), depth = 0):
       if (descriptor && 'value' in descriptor)
         output[key] = isSensitiveKey(key) ? REDACTED : redact(descriptor.value, path, depth + 1)
     }
-    for (const [key, descriptor] of entries) {
+    for (const [key, descriptor] of walked.entries) {
       if (!descriptor.enumerable || key in output) continue
       output[key] = isSensitiveKey(key)
         ? REDACTED

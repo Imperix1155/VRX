@@ -117,6 +117,31 @@ describe('redact', () => {
     expect(redact(`unexpected: ${jwt} in log line`)).toBe('unexpected: ***REDACTED*** in log line')
   })
 
+  it('masks a credential that crosses the bounded string scan boundary', () => {
+    const prefix = `${'x'.repeat(2035)} `
+    const credential = `authcookie_${'a'.repeat(24)}`
+    const result = redact(`${prefix}${credential}`) as string
+
+    expect(result).toBe(`${prefix}${'***REDACTED***'.slice(0, 12)}…`)
+    expect(result).not.toContain(credential)
+    expect(result).toHaveLength(2049)
+  })
+
+  it('masks a long JWT candidate whose first segment crosses the scan boundary', () => {
+    const prefix = `${'x'.repeat(1999)} `
+    const jwt = `${'h'.repeat(120)}.${'p'.repeat(10)}.${'s'.repeat(10)}`
+    const result = redact(`${prefix}${jwt}`) as string
+
+    expect(result).toBe(`${prefix}***REDACTED***…`)
+    expect(result).not.toContain(jwt.slice(0, 40))
+  })
+
+  it('bounds an 8 MiB credential before applying redaction expressions', () => {
+    const result = redact(`authcookie_${'a'.repeat(8 * 1024 * 1024)}`)
+
+    expect(result).toBe('***REDACTED***…')
+  })
+
   it('leaves short dotted strings (semver, hostnames) untouched', () => {
     expect(redact('vrx 1.2.3 at api.vrchat.cloud')).toBe('vrx 1.2.3 at api.vrchat.cloud')
   })
@@ -171,7 +196,7 @@ describe('redact', () => {
 
     expect(redact(explicitlyNamed)).toMatchObject({ name: 'Remote ***REDACTED***' })
     expect(redact(new RemoteError('safe'))).toMatchObject({ name: 'Remote_***REDACTED***' })
-    expect(redact(oversizedName)).toMatchObject({ name: `${'x'.repeat(2048)}…` })
+    expect(redact(oversizedName)).toMatchObject({ name: '***REDACTED***…' })
     expect(redact(proxyNamed)).toMatchObject({ name: 'Remote_***REDACTED***' })
     expect(constructorNameReads).toBe(0)
   })
@@ -201,6 +226,34 @@ describe('redact', () => {
 
     expect(redact(withDescriptorCount(20))).toMatchObject({ message: 'bounded diagnostic' })
     expect(redact(withDescriptorCount(21))).toBe('[unrepresentable diagnostic]')
+  })
+
+  it('bounds Error descriptor reads instead of materializing every descriptor', () => {
+    let descriptorReads = 0
+    const error = new Error('bounded')
+    const extras = Array.from({ length: 100 }, (_, index) => `detail${index}`)
+    const hostile = new Proxy(error, {
+      ownKeys: (target) => [...Reflect.ownKeys(target), ...extras],
+      getOwnPropertyDescriptor: (target, key) => {
+        descriptorReads += 1
+        if (typeof key === 'string' && extras.includes(key)) {
+          return { configurable: true, enumerable: true, value: key }
+        }
+        return Reflect.getOwnPropertyDescriptor(target, key)
+      }
+    })
+
+    expect(redact(hostile)).toBe('[unrepresentable diagnostic]')
+    expect(descriptorReads).toBeLessThanOrEqual(50)
+  })
+
+  it('counts inherited enumerable Error fields against the traversal bound', () => {
+    const prototype = Object.create(Error.prototype) as Record<string, unknown>
+    for (let index = 0; index < 100; index += 1) prototype[`inherited${index}`] = index
+    const error = new Error('bounded')
+    Object.setPrototypeOf(error, prototype)
+
+    expect(redact(error)).toBe('[unrepresentable diagnostic]')
   })
 
   it('walks an Error cause chain', () => {
@@ -286,6 +339,51 @@ describe('redact', () => {
 
     expect(() => redact(hostile)).not.toThrow()
     expect(redact(hostile)).toBe('[unrepresentable diagnostic]')
+  })
+
+  it('bounds plain-record descriptor reads instead of materializing every descriptor', () => {
+    let descriptorReads = 0
+    const extras = Array.from({ length: 100 }, (_, index) => `detail${index}`)
+    const hostile = new Proxy(
+      {},
+      {
+        ownKeys: () => extras,
+        getOwnPropertyDescriptor: (_target, key) => {
+          descriptorReads += 1
+          return typeof key === 'string' && extras.includes(key)
+            ? { configurable: true, enumerable: true, value: key }
+            : undefined
+        }
+      }
+    )
+
+    expect(redact(hostile)).toBe('[binary-like diagnostic]')
+    expect(descriptorReads).toBeLessThanOrEqual(50)
+  })
+
+  it('fails closed before normalizing or copying an oversized property name', () => {
+    const oversizedKey = 'x'.repeat(8 * 1024 * 1024)
+
+    expect(redact({ [oversizedKey]: 'value' })).toBe('[binary-like diagnostic]')
+  })
+
+  it('accepts exactly 20 plain-record fields and rejects 21', () => {
+    const withDescriptorCount = (count: number): Record<string, unknown> => {
+      const record: Record<string, unknown> = {}
+      for (const key of ['name', 'message', 'code', 'cause']) {
+        Object.defineProperty(record, key, { value: key })
+      }
+      for (let index = 4; index < count; index += 1) record[`detail${index}`] = index
+      return record
+    }
+
+    expect(Object.keys(redact(withDescriptorCount(20)) as object)).toHaveLength(20)
+    expect(redact(withDescriptorCount(21))).toBe('[binary-like diagnostic]')
+  })
+
+  it('accepts exactly 20 dense array entries and rejects 21', () => {
+    expect(redact(Array.from({ length: 20 }, (_, index) => index))).toHaveLength(20)
+    expect(redact(Array.from({ length: 21 }, (_, index) => index))).toBe('[array diagnostic]')
   })
 
   it('keeps Error diagnostics compatible with the established redactor contract', () => {

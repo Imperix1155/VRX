@@ -13,7 +13,8 @@ import {
   type UpdaterFailure,
   type UpdaterServiceDeps,
   CHECK_INTERVAL_MS,
-  MAX_JITTER_MS
+  MAX_JITTER_MS,
+  NATIVE_STAGE_TIMEOUT_MS
 } from './updater'
 
 type EventHandler = (...payload: unknown[]) => void
@@ -93,11 +94,14 @@ function createMockBrowserWindowCtor(windows: BrowserWindow[]): typeof BrowserWi
 
 function createMockNativeStageUpdater(): {
   updater: NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
-  emit: (event: 'error' | 'update-downloaded', ...payload: unknown[]) => void
+  emitError: (error: Error) => void
+  emitDownloaded: (updateURL?: string) => void
+  setFeedURL: (url: string) => void
   listenerCount: (event: 'error' | 'update-downloaded') => number
   removeListener: MockFn
 } {
   const handlers = new Map<string, EventHandler[]>()
+  let feedURL = 'http://127.0.0.1:41000'
   const removeListener = vi.fn((event: string, handler: EventHandler) => {
     handlers.set(
       event,
@@ -106,20 +110,27 @@ function createMockNativeStageUpdater(): {
     return updater
   })
   const updater = {
-    once: (event: string, handler: EventHandler) => {
+    on: (event: string, handler: EventHandler) => {
       if (!handlers.has(event)) handlers.set(event, [])
       handlers.get(event)!.push(handler)
       return updater
     },
-    removeListener
+    removeListener,
+    getFeedURL: () => feedURL
   } as unknown as NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
+
+  const emit = (event: string, ...payload: unknown[]): void => {
+    const listeners = [...(handlers.get(event) ?? [])]
+    listeners.forEach((listener) => listener(...payload))
+  }
 
   return {
     updater,
-    emit: (event, ...payload) => {
-      const listeners = [...(handlers.get(event) ?? [])]
-      handlers.delete(event)
-      listeners.forEach((listener) => listener(...payload))
+    emitError: (error) => emit('error', error),
+    emitDownloaded: (updateURL = `${feedURL}/current.zip`) =>
+      emit('update-downloaded', {}, '', '', new Date(0), updateURL),
+    setFeedURL: (url) => {
+      feedURL = url
     },
     listenerCount: (event) => handlers.get(event)?.length ?? 0,
     removeListener
@@ -640,20 +651,28 @@ describe('UpdaterService', () => {
     service.state = { ...service.state, state: 'downloaded' }
     autoUpdater.emit('error', new Error('native install failed first'))
 
-    let resolveDownload: (() => void) | undefined
+    let rejectDownload: ((error: Error) => void) | undefined
     downloadUpdate.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveDownload = resolve
+        new Promise<void>((_resolve, reject) => {
+          rejectDownload = reject
         })
     )
     const retry = service.download()
     expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
     expect(nativeStage.listenerCount('update-downloaded')).toBe(1)
+    expect(nativeStage.listenerCount('error')).toBe(0)
     service.install()
     expect(quitAndInstall).not.toHaveBeenCalled()
-    autoUpdater.emit('error', new Error('late error from the previous native stage'))
+    const latePreviousFailure = new Error('late error from the previous native stage')
+    // electron-updater forwards the native error through its wrapper first;
+    // the same native emission rejects MacUpdater's current global listener and
+    // then reaches VRX's native-stage listener.
+    autoUpdater.emit('error', latePreviousFailure)
+    rejectDownload?.(latePreviousFailure)
+    nativeStage.emitError(latePreviousFailure)
+    await Promise.resolve()
 
     expect(service.snapshot()).toMatchObject({
       state: 'downloading',
@@ -662,13 +681,7 @@ describe('UpdaterService', () => {
     })
     expect(log.warn).toHaveBeenCalledTimes(1)
 
-    resolveDownload?.()
-    await Promise.resolve()
-    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
-    service.install()
-    expect(quitAndInstall).not.toHaveBeenCalled()
-
-    nativeStage.emit('update-downloaded')
+    nativeStage.emitDownloaded()
     await retry
     expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
     expect(quitAndInstall).not.toHaveBeenCalled()
@@ -691,23 +704,23 @@ describe('UpdaterService', () => {
     service.state = { ...service.state, state: 'downloaded' }
     autoUpdater.emit('error', new Error('native install failed first'))
     const currentFailure = new Error('current native stage failed')
-    let resolveDownload: (() => void) | undefined
+    let rejectDownload: ((error: Error) => void) | undefined
     downloadUpdate.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveDownload = resolve
+        new Promise<void>((_resolve, reject) => {
+          rejectDownload = reject
         })
     )
 
     const retry = service.download()
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
-    resolveDownload?.()
+    autoUpdater.emit('error', currentFailure)
+    rejectDownload?.(currentFailure)
+    nativeStage.emitError(currentFailure)
     await Promise.resolve()
     expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
-    service.install()
-    expect(quitAndInstall).not.toHaveBeenCalled()
-    autoUpdater.emit('error', currentFailure)
-    nativeStage.emit('error', currentFailure)
+
+    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
     await retry
 
     expect(service.snapshot()).toMatchObject({
@@ -719,8 +732,110 @@ describe('UpdaterService', () => {
     expect(nativeStage.listenerCount('error')).toBe(0)
     expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
 
-    nativeStage.emit('update-downloaded')
+    nativeStage.emitDownloaded()
     expect(quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('accepts only the current macOS retry feed after a prior native stage fails', async () => {
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+
+    let resolveFirst: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirst = resolve
+        })
+    )
+    const firstAttempt = service.download()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    expect(nativeStage.listenerCount('error')).toBe(1)
+    resolveFirst?.()
+    await Promise.resolve()
+    const firstFailure = new Error('first native stage failed')
+    autoUpdater.emit('error', firstFailure)
+    nativeStage.emitError(firstFailure)
+    await firstAttempt
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+
+    nativeStage.setFeedURL('http://127.0.0.1:41001')
+    let resolveRetry: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRetry = resolve
+        })
+    )
+    const retry = service.download()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    resolveRetry?.()
+    await Promise.resolve()
+
+    nativeStage.emitDownloaded('http://127.0.0.1:41000/old-stage.zip')
+    await Promise.resolve()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+
+    nativeStage.emitDownloaded('http://127.0.0.1:41001/current-stage.zip')
+    await retry
+    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+  })
+
+  it('fails closed when macOS reuses a previously claimed native feed scope', async () => {
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+    const firstAttempt = service.download()
+    const firstFailure = new Error('first native stage failed')
+    autoUpdater.emit('error', firstFailure)
+    nativeStage.emitError(firstFailure)
+    await firstAttempt
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+
+    // Reusing the first attempt's loopback origin would make old and current
+    // completions indistinguishable, so the retry must never accept it.
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+
+    const attempt = service.download()
+    await Promise.resolve()
+    nativeStage.emitDownloaded('http://127.0.0.1:41000/reused-stage.zip')
+    await Promise.resolve()
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
+    await attempt
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
   })
 
   it('releases late-install quarantine after a successful no-update check result', () => {

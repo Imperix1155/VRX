@@ -7,7 +7,12 @@
  * - Jittered periodic re-check (~4 h + up to 30 min) via a setTimeout chain.
  * - State transitions broadcast to every renderer window on `updater:state-changed`.
  */
-import { app, autoUpdater as nativeAutoUpdater, BrowserWindow } from 'electron'
+import {
+  app,
+  autoUpdater as nativeAutoUpdater,
+  BrowserWindow,
+  type Event as ElectronEvent
+} from 'electron'
 import electronUpdater from 'electron-updater'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
@@ -27,16 +32,26 @@ interface AutoUpdateSettings {
   autoUpdate: boolean
 }
 
+type NativeDownloadedListener = (
+  event: ElectronEvent,
+  releaseNotes: string,
+  releaseName: string,
+  releaseDate: Date,
+  updateURL: string
+) => void
+
 interface NativeStageUpdater {
-  once(event: 'update-downloaded', listener: () => void): unknown
-  once(event: 'error', listener: (error: Error) => void): unknown
-  removeListener(event: 'update-downloaded', listener: () => void): unknown
+  on(event: 'update-downloaded', listener: NativeDownloadedListener): unknown
+  on(event: 'error', listener: (error: Error) => void): unknown
+  removeListener(event: 'update-downloaded', listener: NativeDownloadedListener): unknown
   removeListener(event: 'error', listener: (error: Error) => void): unknown
+  getFeedURL(): string
 }
 
 interface NativeStageGate {
   promise: Promise<void>
   arm(): void
+  shouldDeferLibraryFailure(): boolean
   releaseIfUnarmed(): void
   cancel(): void
 }
@@ -53,6 +68,7 @@ export interface UpdaterServiceDeps {
 
 export const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
 export const MAX_JITTER_MS = 30 * 60 * 1000 // 0–30 minutes
+export const NATIVE_STAGE_TIMEOUT_MS = 5 * 60 * 1000
 
 function isPortable(): boolean {
   return !!process.env.PORTABLE_EXECUTABLE_DIR
@@ -71,10 +87,35 @@ const DISCARDED_UPDATER_LOGGER: UpdaterLogger = {
 // primitives deliberately have no cross-operation history: updater events are
 // Error objects, while catches can reject with any JavaScript value.
 const HANDLED_UPDATER_ERROR_OBJECTS = new WeakSet<object>()
+const NATIVE_STAGE_TIMEOUT = Symbol('native-stage-timeout')
 
-function createNativeStageGate(updater: NativeStageUpdater): NativeStageGate {
+function nativeStageScope(value: string): string | null {
+  try {
+    const parsed = new URL(value)
+    if (
+      parsed.protocol !== 'http:' ||
+      parsed.hostname !== '127.0.0.1' ||
+      parsed.port === '' ||
+      parsed.username !== '' ||
+      parsed.password !== ''
+    ) {
+      return null
+    }
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
+function createNativeStageGate(
+  updater: NativeStageUpdater,
+  claimedScopes: Set<string>,
+  ignoreNativeErrors: boolean
+): NativeStageGate {
   let armed = false
   let settled = false
+  let expectedScope: string | null = null
+  let timeout: ReturnType<typeof setTimeout> | undefined
   let resolveGate!: () => void
   let rejectGate!: (reason?: unknown) => void
   const promise = new Promise<void>((resolve, reject) => {
@@ -85,6 +126,8 @@ function createNativeStageGate(updater: NativeStageUpdater): NativeStageGate {
   function cleanup(): void {
     updater.removeListener('update-downloaded', onDownloaded)
     updater.removeListener('error', onError)
+    if (timeout) clearTimeout(timeout)
+    timeout = undefined
   }
 
   function settle(completion: () => void): void {
@@ -94,7 +137,14 @@ function createNativeStageGate(updater: NativeStageUpdater): NativeStageGate {
     completion()
   }
 
-  function onDownloaded(): void {
+  function onDownloaded(
+    _event: ElectronEvent,
+    _releaseNotes: string,
+    _releaseName: string,
+    _releaseDate: Date,
+    updateURL: string
+  ): void {
+    if (expectedScope === null || nativeStageScope(updateURL) !== expectedScope) return
     settle(resolveGate)
   }
 
@@ -108,10 +158,29 @@ function createNativeStageGate(updater: NativeStageUpdater): NativeStageGate {
       if (armed || settled) return
       armed = true
       // electron-updater emits its wrapper event immediately before asking
-      // Electron's native Squirrel updater to stage the downloaded archive.
-      updater.once('update-downloaded', onDownloaded)
-      updater.once('error', onError)
+      // Electron's native Squirrel updater to stage the downloaded archive. Its
+      // loopback feed uses a fresh non-default port per attempt; claim it once
+      // so a late completion from an earlier attempt cannot satisfy this gate.
+      // If the pinned dependency contract changes or a port is ever reused,
+      // fail closed.
+      let scope: string | null = null
+      try {
+        scope = nativeStageScope(updater.getFeedURL())
+      } catch {
+        scope = null
+      }
+      if (scope !== null && !claimedScopes.has(scope)) {
+        expectedScope = scope
+        claimedScopes.add(scope)
+      }
+      updater.on('update-downloaded', onDownloaded)
+      if (!ignoreNativeErrors) updater.on('error', onError)
+      timeout = setTimeout(
+        () => settle(() => rejectGate(NATIVE_STAGE_TIMEOUT)),
+        NATIVE_STAGE_TIMEOUT_MS
+      )
     },
+    shouldDeferLibraryFailure: () => armed && ignoreNativeErrors,
     releaseIfUnarmed: () => {
       // Test doubles and nonstandard updater implementations can resolve without
       // a wrapper event. Preserve the existing retryable fallback instead of hanging.
@@ -132,6 +201,8 @@ export class UpdaterService {
   private downloadInFlight = false
   private pendingDownloadedInfo: UpdateInfo | null = null
   private nativeStageGate: NativeStageGate | null = null
+  private readonly claimedNativeStageScopes = new Set<string>()
+  private hasUnscopedNativeFailureHistory = false
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = {
@@ -220,6 +291,7 @@ export class UpdaterService {
   private handleError(): void {
     if (this.pendingDownloadedInfo !== null || this.state.state === 'downloaded') {
       this.installErrorEventQuarantine = true
+      this.hasUnscopedNativeFailureHistory = true
       // Staged install failed: return to update-available so the user can retry.
       this.setState({
         state: 'update-available',
@@ -374,16 +446,31 @@ export class UpdaterService {
     this.downloadInFlight = true
     this.pendingDownloadedInfo = null
     const nativeStageGate = this.deps.nativeStageUpdater
-      ? createNativeStageGate(this.deps.nativeStageUpdater)
+      ? createNativeStageGate(
+          this.deps.nativeStageUpdater,
+          this.claimedNativeStageScopes,
+          this.hasUnscopedNativeFailureHistory
+        )
       : null
     this.nativeStageGate = nativeStageGate
     try {
       const downloadPromise = this.deps.autoUpdater.downloadUpdate()
       if (nativeStageGate) {
-        const libraryCompletion = Promise.resolve(downloadPromise).then((result) => {
-          nativeStageGate.releaseIfUnarmed()
-          return result
-        })
+        const libraryCompletion = Promise.resolve(downloadPromise).then(
+          (result) => {
+            nativeStageGate.releaseIfUnarmed()
+            return result
+          },
+          (error: unknown) => {
+            // MacUpdater attaches every in-flight download to Electron's global,
+            // unscoped native `error` event. After one staged failure, a late
+            // error from that attempt can therefore reject a retry's library
+            // promise. Once this retry has armed its uniquely scoped native gate,
+            // only matching native success or the local deadline may settle it.
+            if (nativeStageGate.shouldDeferLibraryFailure()) return undefined
+            throw error
+          }
+        )
         await Promise.all([libraryCompletion, nativeStageGate.promise])
       } else {
         await downloadPromise
