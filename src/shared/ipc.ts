@@ -24,12 +24,15 @@ import type { Settings } from '@shared/settings'
 export type UpdaterState =
   'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
 
+/** Renderer-safe updater failure categories. Third-party updater payloads are discarded. */
+export type UpdaterFailure = 'check-network' | 'download-write' | 'staged-install'
+
 export interface UpdaterSnapshot {
   state: UpdaterState
   currentVersion: string
   availableVersion: string | null
   progressPercent: number
-  errorMessage: string | null
+  failure: UpdaterFailure | null
 }
 
 export type InstanceActionResult =

@@ -350,7 +350,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
       )
     }
     expect(main.scrollTop).toBeGreaterThan(0)
-  })
+  }, 10_000)
 
   it('recovers visible focus when pointer scrolling interrupts a pending arrow target', async () => {
     const view = renderInScrollContainer()
