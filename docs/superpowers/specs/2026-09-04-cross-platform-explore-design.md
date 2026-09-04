@@ -1,7 +1,9 @@
 # Cross-Platform Explore Design
 
 **Status:** Approved by the owner on 2026-09-04 under the Explore portion of
-VRX-270.
+VRX-270. The Dashboard preview order was visually ratified against a faithful
+Current versus Proposed mock after restoring the existing Hot Instances
+threshold control.
 
 ## Purpose
 
