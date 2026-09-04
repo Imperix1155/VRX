@@ -190,6 +190,49 @@ describe('UpdaterService', () => {
     return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
   }
 
+  function startResolvedNativeDownload(feedURL?: string): ReturnType<typeof createService> & {
+    nativeStage: ReturnType<typeof createMockNativeStageUpdater>
+    attempt: Promise<void>
+  } {
+    const nativeStage = createMockNativeStageUpdater()
+    if (feedURL !== undefined) nativeStage.setFeedURL(feedURL)
+    const context = createService({ nativeStageUpdater: nativeStage.updater })
+    context.autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    context.downloadUpdate.mockImplementationOnce(() => {
+      context.autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+    return { ...context, nativeStage, attempt: context.service.download() }
+  }
+
+  async function expectNativeStageTimeout(
+    attempt: Promise<void>,
+    service: UpdaterService,
+    nativeStage: ReturnType<typeof createMockNativeStageUpdater>
+  ): Promise<void> {
+    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
+    await attempt
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+  }
+
+  async function expectNativeCompletionIgnored(
+    updateURL: string,
+    service: UpdaterService,
+    quitAndInstall: MockFn,
+    nativeStage: ReturnType<typeof createMockNativeStageUpdater>
+  ): Promise<void> {
+    nativeStage.emitDownloaded(updateURL)
+    await Promise.resolve()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+  }
+
   it('overrides updater defaults and discards all library logger payloads', () => {
     // The consent core. autoDownload must be forced OFF (the library default is
     // true — leaving it would silently download every release), allowPrerelease
@@ -792,17 +835,7 @@ describe('UpdaterService', () => {
   })
 
   it('publishes a clean first macOS attempt only after scoped native staging', async () => {
-    const nativeStage = createMockNativeStageUpdater()
-    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
-      nativeStageUpdater: nativeStage.updater
-    })
-    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
-    downloadUpdate.mockImplementationOnce(() => {
-      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
-      return Promise.resolve(undefined)
-    })
-
-    const attempt = service.download()
+    const { nativeStage, service, quitAndInstall, attempt } = startResolvedNativeDownload()
     expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
     expect(nativeStage.listenerCount('error')).toBe(1)
     expect(nativeStage.listenerCount('update-downloaded')).toBe(1)
@@ -826,33 +859,14 @@ describe('UpdaterService', () => {
     ['default-port loopback', 'http://127.0.0.1'],
     ['malformed', 'not a URL']
   ])('fails closed for a %s macOS native feed', async (_label, feedURL) => {
-    const nativeStage = createMockNativeStageUpdater()
-    nativeStage.setFeedURL(feedURL)
-    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
-      nativeStageUpdater: nativeStage.updater
-    })
-    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
-    downloadUpdate.mockImplementationOnce(() => {
-      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
-      return Promise.resolve(undefined)
-    })
-
-    const attempt = service.download()
-    nativeStage.emitDownloaded(`${feedURL}/current.zip`)
-    await Promise.resolve()
-
-    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
-    service.install()
-    expect(quitAndInstall).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
-    await attempt
-    expect(service.snapshot()).toMatchObject({
-      state: 'update-available',
-      failure: 'staged-install'
-    })
-    expect(nativeStage.listenerCount('error')).toBe(0)
-    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+    const { nativeStage, service, quitAndInstall, attempt } = startResolvedNativeDownload(feedURL)
+    await expectNativeCompletionIgnored(
+      `${feedURL}/current.zip`,
+      service,
+      quitAndInstall,
+      nativeStage
+    )
+    await expectNativeStageTimeout(attempt, service, nativeStage)
   })
 
   it('fails closed when macOS reuses a previously claimed native feed scope', async () => {
@@ -885,21 +899,13 @@ describe('UpdaterService', () => {
 
     const attempt = service.download()
     await Promise.resolve()
-    nativeStage.emitDownloaded('http://127.0.0.1:41000/reused-stage.zip')
-    await Promise.resolve()
-
-    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
-    service.install()
-    expect(quitAndInstall).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
-    await attempt
-    expect(service.snapshot()).toMatchObject({
-      state: 'update-available',
-      failure: 'staged-install'
-    })
-    expect(nativeStage.listenerCount('error')).toBe(0)
-    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+    await expectNativeCompletionIgnored(
+      'http://127.0.0.1:41000/reused-stage.zip',
+      service,
+      quitAndInstall,
+      nativeStage
+    )
+    await expectNativeStageTimeout(attempt, service, nativeStage)
   })
 
   it('releases late-install quarantine after a successful no-update check result', () => {
