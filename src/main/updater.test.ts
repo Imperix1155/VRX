@@ -11,6 +11,7 @@ import {
   UpdaterService,
   type UpdaterSnapshot,
   type UpdaterFailure,
+  type UpdaterServiceDeps,
   CHECK_INTERVAL_MS,
   MAX_JITTER_MS
 } from './updater'
@@ -90,6 +91,41 @@ function createMockBrowserWindowCtor(windows: BrowserWindow[]): typeof BrowserWi
   } as unknown as typeof BrowserWindow
 }
 
+function createMockNativeStageUpdater(): {
+  updater: NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
+  emit: (event: 'error' | 'update-downloaded', ...payload: unknown[]) => void
+  listenerCount: (event: 'error' | 'update-downloaded') => number
+  removeListener: MockFn
+} {
+  const handlers = new Map<string, EventHandler[]>()
+  const removeListener = vi.fn((event: string, handler: EventHandler) => {
+    handlers.set(
+      event,
+      (handlers.get(event) ?? []).filter((candidate) => candidate !== handler)
+    )
+    return updater
+  })
+  const updater = {
+    once: (event: string, handler: EventHandler) => {
+      if (!handlers.has(event)) handlers.set(event, [])
+      handlers.get(event)!.push(handler)
+      return updater
+    },
+    removeListener
+  } as unknown as NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
+
+  return {
+    updater,
+    emit: (event, ...payload) => {
+      const listeners = [...(handlers.get(event) ?? [])]
+      handlers.delete(event)
+      listeners.forEach((listener) => listener(...payload))
+    },
+    listenerCount: (event) => handlers.get(event)?.length ?? 0,
+    removeListener
+  }
+}
+
 describe('UpdaterService', () => {
   let portableFlag: string | undefined
 
@@ -114,6 +150,7 @@ describe('UpdaterService', () => {
       packaged?: boolean
       autoUpdate?: boolean
       windows?: BrowserWindow[]
+      nativeStageUpdater?: NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
     } = {}
   ): {
     service: UpdaterService
@@ -136,7 +173,8 @@ describe('UpdaterService', () => {
       autoUpdater,
       getSettings: () => settings,
       log,
-      browserWindow: createMockBrowserWindowCtor(windows)
+      browserWindow: createMockBrowserWindowCtor(windows),
+      nativeStageUpdater: options.nativeStageUpdater
     })
     return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
   }
@@ -419,6 +457,35 @@ describe('UpdaterService', () => {
     expect(service.snapshot().progressPercent).toBe(100)
   })
 
+  it('keeps a macOS wrapper event outside a service-owned download from enabling Restart', () => {
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, quitAndInstall } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    service.install()
+
+    expect(service.snapshot()).toMatchObject({ state: 'idle', availableVersion: null })
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+  })
+
+  it('releases an unarmed macOS gate when a test updater resolves without a wrapper event', async () => {
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    downloadUpdate.mockResolvedValue(undefined)
+
+    await service.download()
+
+    expect(service.snapshot()).toMatchObject({ state: 'update-available', failure: null })
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+  })
+
   it('install only quits when state is downloaded', () => {
     const { service, quitAndInstall } = createService()
     service.install()
@@ -565,7 +632,10 @@ describe('UpdaterService', () => {
   })
 
   it('keeps late install errors quarantined through macOS wrapper download completion', async () => {
-    const { service, autoUpdater, downloadUpdate, log } = createService()
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate, quitAndInstall, log } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
     // @ts-expect-error accessing private state for test setup
     service.state = { ...service.state, state: 'downloaded' }
     autoUpdater.emit('error', new Error('native install failed first'))
@@ -578,14 +648,32 @@ describe('UpdaterService', () => {
         })
     )
     const retry = service.download()
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
     autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(1)
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
     autoUpdater.emit('error', new Error('late error from the previous native stage'))
 
-    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
+    expect(service.snapshot()).toMatchObject({
+      state: 'downloading',
+      progressPercent: 100,
+      failure: null
+    })
     expect(log.warn).toHaveBeenCalledTimes(1)
 
     resolveDownload?.()
+    await Promise.resolve()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+
+    nativeStage.emit('update-downloaded')
     await retry
+    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
     autoUpdater.emit('error', new Error('current staged update failed'))
     expect(service.snapshot()).toMatchObject({
       state: 'update-available',
@@ -595,18 +683,32 @@ describe('UpdaterService', () => {
   })
 
   it('classifies a current macOS native-stage rejection while old events are quarantined', async () => {
-    const { service, autoUpdater, downloadUpdate, log } = createService()
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate, quitAndInstall, log } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
     // @ts-expect-error accessing private state for test setup
     service.state = { ...service.state, state: 'downloaded' }
     autoUpdater.emit('error', new Error('native install failed first'))
     const currentFailure = new Error('current native stage failed')
-    downloadUpdate.mockImplementationOnce(() => {
-      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
-      autoUpdater.emit('error', currentFailure)
-      return Promise.reject(currentFailure)
-    })
+    let resolveDownload: (() => void) | undefined
+    downloadUpdate.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDownload = resolve
+        })
+    )
 
-    await service.download()
+    const retry = service.download()
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    resolveDownload?.()
+    await Promise.resolve()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    autoUpdater.emit('error', currentFailure)
+    nativeStage.emit('error', currentFailure)
+    await retry
 
     expect(service.snapshot()).toMatchObject({
       state: 'update-available',
@@ -614,6 +716,11 @@ describe('UpdaterService', () => {
     })
     expect(log.warn).toHaveBeenCalledTimes(2)
     expect(log.warn).toHaveBeenLastCalledWith('autoUpdater: staged install failed, retryable')
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+
+    nativeStage.emit('update-downloaded')
+    expect(quitAndInstall).not.toHaveBeenCalled()
   })
 
   it('releases late-install quarantine after a successful no-update check result', () => {

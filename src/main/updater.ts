@@ -7,7 +7,7 @@
  * - Jittered periodic re-check (~4 h + up to 30 min) via a setTimeout chain.
  * - State transitions broadcast to every renderer window on `updater:state-changed`.
  */
-import { app, BrowserWindow } from 'electron'
+import { app, autoUpdater as nativeAutoUpdater, BrowserWindow } from 'electron'
 import electronUpdater from 'electron-updater'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
@@ -27,12 +27,28 @@ interface AutoUpdateSettings {
   autoUpdate: boolean
 }
 
+interface NativeStageUpdater {
+  once(event: 'update-downloaded', listener: () => void): unknown
+  once(event: 'error', listener: (error: Error) => void): unknown
+  removeListener(event: 'update-downloaded', listener: () => void): unknown
+  removeListener(event: 'error', listener: (error: Error) => void): unknown
+}
+
+interface NativeStageGate {
+  promise: Promise<void>
+  arm(): void
+  releaseIfUnarmed(): void
+  cancel(): void
+}
+
 export interface UpdaterServiceDeps {
   app: typeof app
   autoUpdater: AppUpdater
   getSettings: () => AutoUpdateSettings
   log: UpdaterLogger
   browserWindow: typeof BrowserWindow
+  /** Electron's native macOS updater, used only to prove Squirrel finished staging. */
+  nativeStageUpdater?: NativeStageUpdater
 }
 
 export const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
@@ -56,6 +72,55 @@ const DISCARDED_UPDATER_LOGGER: UpdaterLogger = {
 // Error objects, while catches can reject with any JavaScript value.
 const HANDLED_UPDATER_ERROR_OBJECTS = new WeakSet<object>()
 
+function createNativeStageGate(updater: NativeStageUpdater): NativeStageGate {
+  let armed = false
+  let settled = false
+  let resolveGate!: () => void
+  let rejectGate!: (reason?: unknown) => void
+  const promise = new Promise<void>((resolve, reject) => {
+    resolveGate = resolve
+    rejectGate = reject
+  })
+
+  function cleanup(): void {
+    updater.removeListener('update-downloaded', onDownloaded)
+    updater.removeListener('error', onError)
+  }
+
+  function settle(completion: () => void): void {
+    if (settled) return
+    settled = true
+    cleanup()
+    completion()
+  }
+
+  function onDownloaded(): void {
+    settle(resolveGate)
+  }
+
+  function onError(error: Error): void {
+    settle(() => rejectGate(error))
+  }
+
+  return {
+    promise,
+    arm: () => {
+      if (armed || settled) return
+      armed = true
+      // electron-updater emits its wrapper event immediately before asking
+      // Electron's native Squirrel updater to stage the downloaded archive.
+      updater.once('update-downloaded', onDownloaded)
+      updater.once('error', onError)
+    },
+    releaseIfUnarmed: () => {
+      // Test doubles and nonstandard updater implementations can resolve without
+      // a wrapper event. Preserve the existing retryable fallback instead of hanging.
+      if (!armed) settle(resolveGate)
+    },
+    cancel: () => settle(resolveGate)
+  }
+}
+
 export class UpdaterService {
   private state: UpdaterSnapshot
   private checkTimer?: ReturnType<typeof setTimeout>
@@ -64,6 +129,9 @@ export class UpdaterService {
   private eventHandledError: unknown = undefined
   private hasEventHandledError = false
   private installErrorEventQuarantine = false
+  private downloadInFlight = false
+  private pendingDownloadedInfo: UpdateInfo | null = null
+  private nativeStageGate: NativeStageGate | null = null
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = {
@@ -115,12 +183,18 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      this.setState({
-        state: 'downloaded',
-        availableVersion: info.version,
-        progressPercent: 100,
-        failure: null
-      })
+      if (this.downloadInFlight) {
+        // MacUpdater emits this wrapper event before native Squirrel staging
+        // settles. Arm a native-only gate before MacUpdater starts that stage.
+        this.pendingDownloadedInfo = info
+        this.nativeStageGate?.arm()
+        this.setState({ progressPercent: 100, failure: null })
+        return
+      }
+      // A macOS wrapper event outside a service-owned download cannot prove the
+      // native updater is ready, so it must never enable Restart on its own.
+      if (this.deps.nativeStageUpdater) return
+      this.publishDownloaded(info)
     })
 
     autoUpdater.on('error', (err: Error) => {
@@ -144,11 +218,12 @@ export class UpdaterService {
   }
 
   private handleError(): void {
-    if (this.state.state === 'downloaded') {
+    if (this.pendingDownloadedInfo !== null || this.state.state === 'downloaded') {
       this.installErrorEventQuarantine = true
       // Staged install failed: return to update-available so the user can retry.
       this.setState({
         state: 'update-available',
+        availableVersion: this.pendingDownloadedInfo?.version ?? this.state.availableVersion,
         failure: 'staged-install'
       })
       this.logUpdaterWarning('autoUpdater: staged install failed, retryable')
@@ -176,6 +251,16 @@ export class UpdaterService {
   private handleDownloadError(): void {
     this.setState({ state: 'error', failure: 'download-write' })
     this.logUpdaterWarning('autoUpdater: download failed')
+  }
+
+  private publishDownloaded(info: UpdateInfo): void {
+    this.installErrorEventQuarantine = false
+    this.setState({
+      state: 'downloaded',
+      availableVersion: info.version,
+      progressPercent: 100,
+      failure: null
+    })
   }
 
   private setState(next: Partial<UpdaterSnapshot>): void {
@@ -286,12 +371,27 @@ export class UpdaterService {
 
     this.setState({ state: 'downloading', progressPercent: 0, failure: null })
     this.beginOperationErrorTracking()
+    this.downloadInFlight = true
+    this.pendingDownloadedInfo = null
+    const nativeStageGate = this.deps.nativeStageUpdater
+      ? createNativeStageGate(this.deps.nativeStageUpdater)
+      : null
+    this.nativeStageGate = nativeStageGate
     try {
-      await this.deps.autoUpdater.downloadUpdate()
-      // On macOS the wrapper emits update-downloaded before native Squirrel
-      // finishes staging. Release old-install quarantine only after the library
-      // promise also resolves and no current staging failure changed state.
-      if (this.snapshot().state === 'downloaded') this.installErrorEventQuarantine = false
+      const downloadPromise = this.deps.autoUpdater.downloadUpdate()
+      if (nativeStageGate) {
+        const libraryCompletion = Promise.resolve(downloadPromise).then((result) => {
+          nativeStageGate.releaseIfUnarmed()
+          return result
+        })
+        await Promise.all([libraryCompletion, nativeStageGate.promise])
+      } else {
+        await downloadPromise
+      }
+      const downloadedInfo = this.pendingDownloadedInfo
+      if (this.snapshot().state === 'downloading' && downloadedInfo !== null) {
+        this.publishDownloaded(downloadedInfo)
+      }
       // 'update-downloaded' event drives the final state. If it resolved without
       // firing the event (some test doubles), fall back so the machine doesn't stall.
       if (this.snapshot().state === 'downloading') {
@@ -302,6 +402,11 @@ export class UpdaterService {
         this.handleError()
         this.rememberHandledObject(err)
       }
+    } finally {
+      nativeStageGate?.cancel()
+      if (this.nativeStageGate === nativeStageGate) this.nativeStageGate = null
+      this.downloadInFlight = false
+      this.pendingDownloadedInfo = null
     }
   }
 
@@ -335,7 +440,8 @@ export function initAutoUpdater(): UpdaterService {
       autoUpdater: electronUpdater.autoUpdater,
       getSettings: getSettingsSnapshot,
       log,
-      browserWindow: BrowserWindow
+      browserWindow: BrowserWindow,
+      nativeStageUpdater: process.platform === 'darwin' ? nativeAutoUpdater : undefined
     })
   }
   return updaterService
