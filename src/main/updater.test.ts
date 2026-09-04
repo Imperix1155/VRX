@@ -667,8 +667,8 @@ describe('UpdaterService', () => {
     expect(quitAndInstall).not.toHaveBeenCalled()
     const latePreviousFailure = new Error('late error from the previous native stage')
     // electron-updater forwards the native error through its wrapper first;
-    // the same native emission rejects MacUpdater's current global listener and
-    // then reaches VRX's native-stage listener.
+    // the same native emission rejects MacUpdater's current global listener.
+    // VRX deliberately has no unscoped native-error listener on this retry.
     autoUpdater.emit('error', latePreviousFailure)
     rejectDownload?.(latePreviousFailure)
     nativeStage.emitError(latePreviousFailure)
@@ -787,6 +787,70 @@ describe('UpdaterService', () => {
     await retry
     expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
     expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+  })
+
+  it('publishes a clean first macOS attempt only after scoped native staging', async () => {
+    const nativeStage = createMockNativeStageUpdater()
+    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+
+    const attempt = service.download()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    expect(nativeStage.listenerCount('error')).toBe(1)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(1)
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+
+    nativeStage.emitDownloaded()
+    await attempt
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
+    expect(nativeStage.listenerCount('error')).toBe(0)
+    expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
+    service.install()
+    expect(quitAndInstall).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['non-loopback', 'http://updates.example.test:41000'],
+    ['TLS loopback', 'https://127.0.0.1:41000'],
+    ['credentialed loopback', 'http://fixture@127.0.0.1:41000'],
+    ['default-port loopback', 'http://127.0.0.1'],
+    ['malformed', 'not a URL']
+  ])('fails closed for a %s macOS native feed', async (_label, feedURL) => {
+    const nativeStage = createMockNativeStageUpdater()
+    nativeStage.setFeedURL(feedURL)
+    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
+      nativeStageUpdater: nativeStage.updater
+    })
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    downloadUpdate.mockImplementationOnce(() => {
+      autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+
+    const attempt = service.download()
+    nativeStage.emitDownloaded(`${feedURL}/current.zip`)
+    await Promise.resolve()
+
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(NATIVE_STAGE_TIMEOUT_MS)
+    await attempt
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'staged-install'
+    })
     expect(nativeStage.listenerCount('error')).toBe(0)
     expect(nativeStage.listenerCount('update-downloaded')).toBe(0)
   })
