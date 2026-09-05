@@ -23,7 +23,6 @@ import {
   type ProfileTarget
 } from '../utils/projectLinkedFriends'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
-import { useAuthStatus } from '../queries/auth'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
 import LinkedWorlds from './LinkedWorlds'
@@ -673,15 +672,7 @@ export default function FriendsList(): React.JSX.Element {
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
   const links = useLinkedProfiles()
-  const vrcAuth = useAuthStatus('vrchat').data
-  const cvrAuth = useAuthStatus('chilloutvr').data
-  const accountIds = useMemo(
-    () => ({
-      vrchat: vrcAuth?.state === 'authenticated' ? (vrcAuth.accountId ?? undefined) : undefined,
-      chilloutvr: cvrAuth?.state === 'authenticated' ? (cvrAuth.accountId ?? undefined) : undefined
-    }),
-    [vrcAuth, cvrAuth]
-  )
+  const accountIds = useMemo(() => links.data?.accountIds ?? {}, [links.data])
   const allFriends = useMemo(
     () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
     [vrcFriends.data, cvrFriends.data]

@@ -15,7 +15,8 @@ import i18n from '../i18n'
 const mocks = vi.hoisted(() => ({
   friends: vi.fn(),
   links: vi.fn(),
-  accounts: { vrchat: 'vrchat-owner', chilloutvr: 'chilloutvr-owner' }
+  accounts: { vrchat: 'vrchat-owner', chilloutvr: 'chilloutvr-owner' },
+  authError: false
 }))
 vi.mock('../queries/friends', async (original) => ({
   ...(await original<typeof import('../queries/friends')>()),
@@ -29,8 +30,8 @@ vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
     data: {
       platform,
-      state: 'authenticated',
-      accountId: mocks.accounts[platform as keyof typeof mocks.accounts]
+      state: mocks.authError ? 'error' : 'authenticated',
+      accountId: mocks.authError ? null : mocks.accounts[platform as keyof typeof mocks.accounts]
     }
   })
 }))
@@ -90,6 +91,7 @@ function roster(friends: Friend[]): void {
   }))
 }
 beforeEach(() => {
+  mocks.authError = false
   mocks.accounts = { vrchat: 'vrchat-owner', chilloutvr: 'chilloutvr-owner' }
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
@@ -100,7 +102,10 @@ beforeEach(() => {
   useFriendsStore.setState({ search: '', platformFilter: 'all' })
   useProfileSelection.getState().select(null)
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, collapsedFriendSections: [] } })
-  mocks.links.mockReturnValue({ data: { profiles: [profile], lease: 'lease' }, isError: false })
+  mocks.links.mockImplementation(() => ({
+    data: { profiles: [profile], lease: 'lease', accountIds: mocks.accounts },
+    isError: false
+  }))
   roster([vrc, cvr])
 })
 afterEach(() => {
@@ -109,6 +114,22 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it('keeps the linked row and open shared profile through transient auth errors', () => {
+    roster([inWorldVrc, inWorldCvr])
+    mocks.links.mockReturnValue({
+      data: { profiles: [profile], lease: 'lease', accountIds: mocks.accounts },
+      isError: false
+    })
+    const view = render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    fireEvent.click(within(list).getByRole('button', { name: /^Combined/ }))
+    const drawer = screen.getByRole('dialog', { name: 'Combined' })
+    mocks.authError = true
+    view.rerender(<FriendsList />)
+    expect(within(list).getAllByRole('button', { name: /^Combined/ })).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Combined' })).toBe(drawer)
+    expect(within(list).queryByRole('button', { name: /^CVR alias/ })).toBeNull()
+  })
   it('discards a pending chooser join when that platforms identity changes', async () => {
     roster([inWorldVrc, inWorldCvr])
     useSettingsStore.setState({

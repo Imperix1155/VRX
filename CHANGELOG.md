@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remains in the Join flow and trust information sits quietly below Notes.
   Destination labels and failed-join feedback follow the selected account.
   Account changes discard stale join feedback, including one-click joins.
+  Temporary connection errors preserve linked rows, open profiles and people counts
+  while the account session remains valid.
   (VRX-143)
 
 ## [0.19.2] - 2026-09-04

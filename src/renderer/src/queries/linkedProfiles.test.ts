@@ -12,6 +12,45 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 describe('linked profile snapshots', () => {
+  it('clears ownership at a boundary and cannot restore it from a late read', async () => {
+    let boundary = (): void => {}
+    let finish!: (value: unknown) => void
+    const old = {
+      profiles: [],
+      lease: 'old',
+      storeRevision: 1,
+      accountIds: { vrchat: 'old-owner' }
+    }
+    vi.stubGlobal('window', {
+      vrx: {
+        onIdentityBoundary: (fn: () => void) => {
+          boundary = fn
+          return () => {}
+        },
+        getLinkedProfiles: () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(linkedProfilesKey, old)
+    const dispose = subscribeLinkedProfiles(client)
+    const read = client
+      .fetchQuery({
+        queryKey: linkedProfilesKey,
+        queryFn: ({ signal }) => fetchLinkedProfiles(signal)
+      })
+      .catch(() => undefined)
+    boundary()
+    const cleared = { profiles: [], lease: '', storeRevision: 0, accountIds: {} }
+    expect(client.getQueryData(linkedProfilesKey)).toEqual(cleared)
+    finish({ ok: true, value: old })
+    await read
+    expect(client.getQueryData(linkedProfilesKey)).toEqual(cleared)
+    dispose()
+    client.clear()
+  })
   it('refreshes fallback names after friend-name changes but not presence-only updates', () => {
     vi.stubGlobal('window', {})
     const client = new QueryClient()
@@ -113,7 +152,11 @@ describe('linked profile snapshots', () => {
       }
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    client.setQueryData(linkedProfilesKey, { profiles: [], lease: 'old' })
+    client.setQueryData(linkedProfilesKey, {
+      profiles: [],
+      lease: 'old',
+      accountIds: { vrchat: 'old-owner' }
+    })
     const dispose = subscribeLinkedProfiles(client)
     const pending = changeLinkedProfile(client, 'old', {
       kind: 'unlink',
@@ -121,12 +164,20 @@ describe('linked profile snapshots', () => {
       expectedRevision: 1
     })
     boundary()
-    finish({ ok: true, value: { profiles: [{ id: 'private-old-person' }], lease: 'old' } })
+    finish({
+      ok: true,
+      value: {
+        profiles: [{ id: 'private-old-person' }],
+        lease: 'old',
+        accountIds: { vrchat: 'old-owner' }
+      }
+    })
     expect(await pending).toEqual({ ok: false, reason: 'stale' })
     expect(client.getQueryData(linkedProfilesKey)).toEqual({
       profiles: [],
       lease: '',
-      storeRevision: 0
+      storeRevision: 0,
+      accountIds: {}
     })
     dispose()
   })

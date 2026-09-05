@@ -147,7 +147,7 @@ export default function TopBar(): React.JSX.Element {
   const cvrAuth = useAuthStatus('chilloutvr').data
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
-  const linkedProfiles = useLinkedProfiles().data?.profiles ?? []
+  const linkedSnapshot = useLinkedProfiles().data
   const [connectionHealth, setConnectionHealth] = useState(defaultConnectionHealth)
 
   useEffect(() => {
@@ -227,13 +227,8 @@ export default function TopBar(): React.JSX.Element {
     activeTab === 'friends'
       ? projectLinkedFriends({
           friends: [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
-          profiles: linkedProfiles,
-          accountIds: {
-            vrchat:
-              vrcAuth?.state === 'authenticated' ? (vrcAuth.accountId ?? undefined) : undefined,
-            chilloutvr:
-              cvrAuth?.state === 'authenticated' ? (cvrAuth.accountId ?? undefined) : undefined
-          },
+          profiles: linkedSnapshot?.profiles ?? [],
+          accountIds: linkedSnapshot?.accountIds ?? {},
           filter: platform,
           search: ''
         }).onlinePeople

@@ -60,7 +60,12 @@ beforeEach(() => {
       displayName: 'Owner'
     }
   }))
-  profiles.mockReturnValue({ data: { profiles: [profile()] } })
+  profiles.mockReturnValue({
+    data: {
+      profiles: [profile()],
+      accountIds: { vrchat: 'vrchat-account', chilloutvr: 'chilloutvr-account' }
+    }
+  })
   useUiStore.setState({ activeTab: 'friends' })
   useFriendsStore.setState({ platformFilter: 'all', search: '' })
 })
@@ -71,6 +76,26 @@ afterEach(() => {
   profiles.mockReset()
 })
 describe('TopBar linked people count', () => {
+  it.each(['vrchat', 'chilloutvr', 'both'])(
+    'keeps a single linked person through %s auth errors using main-owned scopes',
+    (failed) => {
+      profiles.mockReturnValue({
+        data: {
+          profiles: [profile()],
+          accountIds: { vrchat: 'vrchat-account', chilloutvr: 'chilloutvr-account' }
+        }
+      })
+      const view = render(<TopBar />)
+      auth.mockImplementation((platform: Platform) => ({
+        data:
+          failed === 'both' || failed === platform
+            ? { platform, state: 'error', accountId: null }
+            : { platform, state: 'authenticated', accountId: `${platform}-account` }
+      }))
+      view.rerender(<TopBar />)
+      expect(screen.getByText(i18n.t('shell.onlineCount', { count: 1 }))).toBeTruthy()
+    }
+  )
   it('counts a linked active pair as one person in Friends across every platform filter', () => {
     useFriendsStore.setState({ search: 'no matching account name' })
     const view = render(<TopBar />)
@@ -98,7 +123,12 @@ describe('TopBar linked people count', () => {
       ...wrongOwner.members[0],
       platformAccountId: 'different-vrchat-account'
     }
-    profiles.mockReturnValue({ data: { profiles: [wrongOwner] } })
+    profiles.mockReturnValue({
+      data: {
+        profiles: [wrongOwner],
+        accountIds: { vrchat: 'vrchat-account', chilloutvr: 'chilloutvr-account' }
+      }
+    })
     render(<TopBar />)
     expect(screen.getByText(i18n.t('shell.onlineCount', { count: 2 }))).toBeTruthy()
   })

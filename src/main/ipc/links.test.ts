@@ -67,6 +67,24 @@ function create(): ReturnType<typeof invoke> {
   })
 }
 describe('scoped linked profile IPC', () => {
+  it('publishes only current main-owned account scopes with every leased snapshot', () => {
+    const { session } = setup()
+    const initial = create().value
+    expect(initial).toHaveProperty('accountIds', {
+      vrchat: 'owner_vrc',
+      chilloutvr: 'owner_cvr'
+    })
+    expect(invoke('get-linked-profiles').value).toEqual(initial)
+    session.setIdentity('vrchat', null)
+    const signedOut = invoke('get-linked-profiles').value
+    expect(signedOut).toHaveProperty('accountIds', { chilloutvr: 'owner_cvr' })
+    expect(signedOut.lease).not.toBe(initial.lease)
+    session.setIdentity('vrchat', 'replacement_owner')
+    expect(invoke('get-linked-profiles').value).toHaveProperty('accountIds', {
+      vrchat: 'replacement_owner',
+      chilloutvr: 'owner_cvr'
+    })
+  })
   it('persists only fresh preferred names from the matching main-owned account scope', () => {
     const authority = new LocationAuthority()
     const { session, graph } = setup(authority)

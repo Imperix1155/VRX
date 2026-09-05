@@ -276,3 +276,36 @@ README intentionally unchanged. Fallow findings remain previously classified.
 Correction gate: 2,421 tests / 159 files, typecheck, uncached ESLint, format,
 production build and diff check passed `LINKED_FRIENDS_GATE_GREEN`. Both HTML
 references parse. Next: checkpoint and repeat full T2 review before publication.
+
+## Local review round 5 and correction
+
+Review head `8fd33e732a4b58287f565f6032e776b287c3bcde`, base `60ce0a0`.
+Artifact SHA-256 `f5bbef5a79edabcf7bebea85ec87f552b914e605dc6eb393255d0c16ea3a129a`,
+812,650 bytes / 13,622 lines / 77 files. All three continuing nonbuilder lenses
+accounted for the full head. Lifecycle and security were clear; tests/contracts
+found one P2: transient auth-status errors publish null auth IDs without revoking
+the main session, which split linked rows and inflated unique-person counts.
+Verdict: FIX-FIRST. The prior head was pushed, but no PR was opened.
+
+Both linked read and committed-write snapshots now carry main-owned ready
+`accountIds`, captured synchronously with their lease and used to filter profiles.
+FriendsList and TopBar project using that map, not nullable status-reply IDs.
+The existing identity boundary clears the map, profiles and lease synchronously;
+cancelled reads and stale writes cannot restore the previous owner's scope.
+No persisted ownership inference, new subscription, external API request, auth
+permission or session lifecycle change was introduced.
+
+Three initial main/renderer regressions failed before implementation and passed
+afterward. Expanded coverage checks either/both platforms' temporary errors,
+the retained combined drawer, main scope removal/replacement and late read/write
+rejection. The full gate passed 2,427 tests / 159 files, typecheck, uncached ESLint,
+format, production build and `LINKED_FRIENDS_GATE_GREEN`. The isolated native
+fixture passed `LINKED_RUNTIME_GREEN`, including temporary auth errors with the
+combined row/shared profile retained and all previous boundary/join checks.
+No real accounts, network launches or captures were used. Fallow findings remain
+the previously classified unused type and four clone groups.
+
+DOX/shared/IPC/renderer/API/changelog are updated. Design references intentionally
+unchanged: this restores their existing temporary-interruption behavior without
+changing appearance or interaction. README and API policy/volatility remain
+accurate. Next: checkpoint, push and repeat full T2 review before opening the PR.

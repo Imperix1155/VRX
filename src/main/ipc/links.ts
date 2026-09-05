@@ -4,7 +4,6 @@ import { z } from 'zod'
 import type {
   LinkChange,
   LinkProfileSnapshot,
-  LinkedProfile,
   LinkRequest,
   LinkResult,
   LinkSnapshot
@@ -89,14 +88,24 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
     }
     return lease
   }
-  const isAnchored = (person: LinkedProfile): boolean =>
-    person.members.some((member) => {
-      const state = accountSession.resolve(member.platform)
-      return (
-        !('status' in state) &&
-        accountSession.getAccountId(member.platform) === member.platformAccountId
-      )
-    })
+  const scopedSnapshot = (current: LinkProfileSnapshot): LinkSnapshot => {
+    const accountIds: LinkSnapshot['accountIds'] = {}
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      const state = accountSession.resolve(platform)
+      const accountId = accountSession.getAccountId(platform)
+      if (!('status' in state) && accountId) accountIds[platform] = accountId
+    }
+    // Capture scope and lease synchronously, after storage hooks have completed.
+    const lease = currentLease()
+    return {
+      ...current,
+      profiles: current.profiles.filter((person) =>
+        person.members.some((member) => accountIds[member.platform] === member.platformAccountId)
+      ),
+      lease,
+      accountIds
+    }
+  }
   const snapshot = (): LinkResult<LinkSnapshot> => {
     try {
       let current = linkGraph.snapshot()
@@ -134,7 +143,7 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
       }
       return {
         ok: true,
-        value: { ...current, profiles: current.profiles.filter(isAnchored), lease: currentLease() }
+        value: scopedSnapshot(current)
       }
     } catch {
       return { ok: false, reason: 'storage' }
@@ -189,11 +198,7 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
     // the caller to replay a destructive command that already succeeded.
     const result: LinkResult<LinkSnapshot> = {
       ok: true,
-      value: {
-        ...committed,
-        profiles: committed.profiles.filter(isAnchored),
-        lease: currentLease()
-      }
+      value: scopedSnapshot(committed)
     }
     try {
       options.onChanged?.()

@@ -105,6 +105,10 @@ Renderer `queries/linkedProfiles.ts` exports `linkedProfilesKey`,
 `changeLinkedProfile`, `subscribeLinkedProfiles`, `useLinkedProfileEvents`, and
 `retainNewestLinkSnapshot`. Every snapshot carries the atomically read document
 `storeRevision`; read/write publication retains the newer revision within one lease.
+The same snapshot includes `accountIds` for main-owned ready scopes, captured with
+its lease and used to filter profiles. Friends projection and people counts use
+this map, not nullable auth-status IDs: temporary status errors preserve a live
+session's ownership. Boundary snapshots clear the map along with profiles and lease.
 App mounts the event hook once. Identity boundaries cancel reads, clear mounted
 snapshots and invalidate for the current account. Stale write replies cannot
 restore the previous lease; destructive commands are never automatically retried.

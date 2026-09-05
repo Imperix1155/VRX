@@ -51,7 +51,7 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = function (): void {
     this.removeAttribute('open')
   }
-  snapshot = { lease: 'lease', storeRevision: 1, profiles: [] }
+  snapshot = { lease: 'lease', storeRevision: 1, profiles: [], accountIds: {} }
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(linkedProfilesKey, snapshot)
   mutate = vi.fn().mockResolvedValue({ ok: false, reason: 'storage' })

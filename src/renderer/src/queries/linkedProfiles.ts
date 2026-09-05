@@ -10,7 +10,12 @@ import type { LinkRequest, LinkResult, LinkSnapshot } from '@shared/linkedProfil
 import type { Friend } from '@shared/types'
 
 export const linkedProfilesKey = ['linked-profiles'] as const
-const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '', storeRevision: 0 }
+const emptyLinkSnapshot: LinkSnapshot = {
+  profiles: [],
+  lease: '',
+  storeRevision: 0,
+  accountIds: {}
+}
 
 /** Used at publication time by every read and write, not at request start. */
 export function retainNewestLinkSnapshot(previous: unknown, incoming: unknown): LinkSnapshot {

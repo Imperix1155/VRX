@@ -21,6 +21,7 @@ function snapshot(
 ): LinkSnapshot {
   return {
     lease,
+    accountIds: {},
     storeRevision: revision,
     profiles: [
       {
@@ -326,7 +327,8 @@ describe('usePersonNote', () => {
     expect(client.getQueryData(linkedProfilesKey)).toEqual({
       profiles: [],
       lease: '',
-      storeRevision: 0
+      storeRevision: 0,
+      accountIds: {}
     })
   })
 

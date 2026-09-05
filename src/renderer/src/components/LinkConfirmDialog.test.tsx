@@ -147,7 +147,7 @@ const replaceReview: LinkReview = {
 }
 
 function success(): { ok: true; value: LinkSnapshot } {
-  return { ok: true, value: { lease: 'next', storeRevision: 2, profiles: [] } }
+  return { ok: true, value: { lease: 'next', storeRevision: 2, profiles: [], accountIds: {} } }
 }
 
 function renderReview(
@@ -177,7 +177,12 @@ describe('LinkConfirmDialog content', () => {
   it('checks new local text synchronously and releases the guard only after the writer settles', async () => {
     resetPersonNoteCoordinatorForTests()
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const saved: LinkSnapshot = { lease: 'scope', storeRevision: 10, profiles: [alice, bob] }
+    const saved: LinkSnapshot = {
+      lease: 'scope',
+      storeRevision: 10,
+      profiles: [alice, bob],
+      accountIds: {}
+    }
     client.setQueryData(linkedProfilesKey, saved)
     let finish!: (result: LinkResult<LinkSnapshot>) => void
     window.vrx = {
@@ -285,7 +290,12 @@ describe('LinkConfirmDialog content', () => {
     async (kind) => {
       resetPersonNoteCoordinatorForTests()
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      const saved: LinkSnapshot = { lease: 'scope', storeRevision: 10, profiles: [alice, bob] }
+      const saved: LinkSnapshot = {
+        lease: 'scope',
+        storeRevision: 10,
+        profiles: [alice, bob],
+        accountIds: {}
+      }
       client.setQueryData(linkedProfilesKey, saved)
       window.vrx = {
         getLinkedProfiles: vi.fn().mockResolvedValue({ ok: true, value: saved }),

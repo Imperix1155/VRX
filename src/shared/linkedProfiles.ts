@@ -51,4 +51,8 @@ export type LinkRequest =
     }
   | Extract<LinkChange, { kind: 'unlink' | 'update' }>
 export type LinkProfileSnapshot = { profiles: LinkedProfile[]; storeRevision: number }
-export type LinkSnapshot = LinkProfileSnapshot & { lease: string }
+export type LinkSnapshot = LinkProfileSnapshot & {
+  lease: string
+  /** Main-owned ready scopes; transient auth-status errors do not erase ownership. */
+  accountIds: Partial<Record<Platform, string>>
+}
