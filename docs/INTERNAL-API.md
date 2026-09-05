@@ -95,7 +95,7 @@ requires both selected platforms ready. Local budgets are 90 reads and 60 writes
 per minute. No network requests or account notes are changed.
 
 Renderer `queries/linkedProfiles.ts` exports `linkedProfilesKey`,
-`emptyLinkSnapshot`, `fetchLinkedProfiles`, `useLinkedProfiles`,
+`fetchLinkedProfiles`, `useLinkedProfiles`,
 `changeLinkedProfile`, `subscribeLinkedProfiles`, `useLinkedProfileEvents`, and
 `retainNewestLinkSnapshot`. Every snapshot carries the atomically read document
 `storeRevision`; read/write publication retains the newer revision within one lease.
@@ -123,6 +123,25 @@ the mutation request. `LinkedDialog` supplies native modal focus/background
 inertness, safe initial Close, and opener restoration; in-flight writes cannot
 be dismissed. Account boundaries close the review and fence old replies.
 
+Linked rendering helpers added for VRX-143:
+
+- `useStableLinkedRows(rows, heldKey)` in `hooks/useStableLinkedRows.ts` returns
+  placement-stable rows with current account payloads. One five-second deadline
+  bounds a hold. The caller clears interaction on search/filter/account changes;
+  the hook immediately releases members reassigned to another person identity.
+- `LinkedWorlds({ accounts, variant })` renders attributed compact world text or
+  single/split drawer images. Hidden or unavailable locations supply no image or
+  instance pill. Images use the existing `useAvatar` bridge only in drawer mode.
+- `LinkedDestinationChooser({ accounts, onClose })` clones eligible destinations
+  on open, validates exact world/instance identity and account-boundary liveness
+  on activation, closes its native modal, then calls `useJoinInstance.join`.
+- `Avatar({ friend, mergedWith?, variant, ariaLabel? })` optionally merges the
+  two platform pictures. Only `friend` controls status ring, badge and default
+  accessible status; `mergedWith` never changes presence semantics.
+- `LinkedDialog` restores focus through stable person identity or drawer Close
+  when its original opener disappears, with Search as the final fallback.
+  An account boundary closes it and always returns focus to Search.
+
 Single source: [`src/shared/ipc.ts`](../src/shared/ipc.ts) (`IpcInvoke` /
 `IpcEvents`). Handlers live in [`src/main/ipc/`](../src/main/ipc/) — one file
 per domain, every handler behind `isTrustedIpcSender` first.
@@ -131,7 +150,7 @@ Central registration removes electron-store's constructor-installed
 `electron-store-get-data` renderer bootstrap listener (VRX never calls its
 renderer initializer). electron-log uses its Node-only entry and therefore
 registers neither `__ELECTRON_LOG__` channel. The registration audit enumerates
-the only remaining renderer→main surface: 19 invokes and `renderer-hydrated`.
+the only remaining renderer→main surface: 21 invokes and `renderer-hydrated`.
 
 ### Invoke (renderer asks, main answers)
 

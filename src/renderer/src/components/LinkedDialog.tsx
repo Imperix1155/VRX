@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useId, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 /** Native modality owns keyboard trapping and background inertness. */
@@ -17,14 +17,47 @@ export default function LinkedDialog({
   const headingId = useId()
   const dialog = useRef<HTMLDialogElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
+  const closeRequest = useRef(onClose)
+  useLayoutEffect(() => {
+    closeRequest.current = onClose
+  })
   useEffect(() => {
     const opener = document.activeElement
+    const personKey =
+      opener instanceof Element
+        ? opener.closest('[data-person-key]')?.getAttribute('data-person-key')
+        : null
+    const drawer = opener instanceof Element ? opener.closest('[data-friend-drawer]') : null
+    let boundary = false
+    const unsubscribe = window.vrx?.onIdentityBoundary?.(() => {
+      boundary = true
+      closeRequest.current()
+    })
     const panel = dialog.current
     panel?.showModal()
     closeButton.current?.focus()
     return () => {
+      unsubscribe?.()
       panel?.close()
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true })
+      const search = document.querySelector<HTMLInputElement>('#friends-search')
+      if (boundary) {
+        search?.focus({ preventScroll: true })
+        return
+      }
+      if (opener instanceof HTMLElement && opener.isConnected && !opener.closest('[inert]')) {
+        opener.focus({ preventScroll: true })
+        return
+      }
+      const replacement =
+        personKey == null
+          ? null
+          : [...document.querySelectorAll<HTMLElement>('[data-person-key]')]
+              .find((row) => row.dataset.personKey === personKey)
+              ?.querySelector<HTMLElement>('[data-drawer-opener]')
+      if (replacement?.isConnected) replacement.focus({ preventScroll: true })
+      else if (drawer?.isConnected && !drawer.closest('[inert]'))
+        drawer.querySelector<HTMLElement>('[data-drawer-close]')?.focus({ preventScroll: true })
+      else search?.focus({ preventScroll: true })
     }
   }, [])
   return (

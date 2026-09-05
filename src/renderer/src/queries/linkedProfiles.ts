@@ -9,7 +9,7 @@ import {
 import type { LinkRequest, LinkResult, LinkSnapshot } from '@shared/linkedProfiles'
 
 export const linkedProfilesKey = ['linked-profiles'] as const
-export const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '', storeRevision: 0 }
+const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '', storeRevision: 0 }
 
 /** Used at publication time by every read and write, not at request start. */
 export function retainNewestLinkSnapshot(previous: unknown, incoming: unknown): LinkSnapshot {

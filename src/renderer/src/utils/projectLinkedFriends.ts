@@ -203,31 +203,17 @@ export function projectLinkedFriends(input: ProjectionInput): Projection {
     const name = nameFor(profile, accounts)
     const personKey = `person:${profile.id}`
 
-    if (input.filter !== 'all' || !isMixedInGameAndOnline(accounts)) {
-      if (input.filter !== 'all') {
-        const account = displayed.at(0)
-        if (account === undefined) continue
-        rows.push({
-          key: `${personKey}:${account.friend.platform}:${account.friend.platformUserId}`,
-          personKey,
-          target: { kind: 'account', account: account.ref, personId: profile.id },
-          accounts: [account.friend],
-          name: account.friend.displayName,
-          section: sectionFor(account.friend),
-          platformMark: account.friend.platform
-        })
-      } else {
-        const anchor = anchorFor(accounts, profile.preferredPlatform)
-        rows.push({
-          key: personKey,
-          personKey,
-          target: { kind: 'person', personId: profile.id, anchor: anchor.ref },
-          accounts: displayed.map((account) => account.friend),
-          name,
-          section: sectionFor(anchor.friend),
-          platformMark: combinedPlatformMark(accounts)
-        })
-      }
+    if (input.filter === 'all' && !isMixedInGameAndOnline(accounts)) {
+      const anchor = anchorFor(accounts, profile.preferredPlatform)
+      rows.push({
+        key: personKey,
+        personKey,
+        target: { kind: 'person', personId: profile.id, anchor: anchor.ref },
+        accounts: displayed.map((account) => account.friend),
+        name,
+        section: sectionFor(anchor.friend),
+        platformMark: combinedPlatformMark(accounts)
+      })
       continue
     }
 

@@ -81,14 +81,40 @@ Initial standard Codex weekly usage: 0% used; no standard five-hour window.
   Checkpoint gate: typecheck, lint, format check, production bundle and all
   2,351 tests in 155 files passed. Native dialog behavior still requires the
   disposable Electron probe; jsdom tests emulate showModal/close only.
-- Tasks 6–7: pending. Chooser and placement hooks exist only in scratch and need
-  driver inspection/integration. The first world-composite artifact failed code
-  inspection (separate grid cards instead of split image, leaked hidden instance
-  pill, sticky image-error state); a bounded correction is underway.
+- Tasks 6–7: production rendering, chooser and placement protection integrated.
+  Corrected the rejected world artifact, then verified diagonal geometry, hidden
+  placeholders, image recovery, merged-avatar picture-only semantics and both
+  chooser entry points. One five-second hold retains placement but not unsafe
+  payloads. Unlink/replacement and deliberate filters release it immediately.
+  Boundary gestures use an invalidated marker, not null, because null permits
+  keyboard clicks. Dialog close restores stable identity or Search.
+  The lifecycle audit reproduced unlink duplication and lost/stale focus; focused
+  tests failed before the corrections and 82 integration tests then passed.
+- Latest full gate: 2,392 tests / 158 files, typecheck, uncached ESLint, format
+  check and production build passed with `LINKED_FRIENDS_GATE_GREEN`.
+  This includes the final unused-export and duplicate-predicate cleanup.
+- Native Electron fixture at `/private/tmp/vrx-linked-runtime.XmIfTV` passed
+  `LINKED_RUNTIME_GREEN` with blocked network and disposable userData. Measured
+  520×60 compact rows in both themes, 14px world corners, 372px fixed drawer,
+  equal shrinking world groups, 14px badges and 12px image radius. Verified
+  single VRC/CVR, both, offline and hidden variants, grayscale identity labels,
+  platform filtering, shared editor/caret continuity, twenty native Tab steps,
+  background focus inertness, Escape isolation, chooser-to-Join confirmation,
+  and identity-boundary close to Search. This is fixture/native DOM evidence,
+  not real authentication/API or screenshot evidence. Probe processes exited.
+- Static checks ran. Fallow found one new unnecessary export, removed without
+  changing runtime; scoped dead code now flags only pre-existing IpcEventChannel.
+  Four production clone groups remain: existing descriptor-first store parsing,
+  selection-drag guards, drawer/sheet listeners, and new confirmation buttons.
+  The latter intentionally retain separate explicit acknowledgement conditions.
+  Duplicate picker filtering and account-row projection were consolidated.
+  Final SHA-pinned review and external reviews,
+  publication, final-head CI and merge remain pending.
 - Task 1 local commit: `c3dce48`; Task 2: `f0096ad`; roster/navigation checkpoint:
-  `843b0f4`. PR, pushes, merge: none. Runtime and required reviews remain pending.
+  `843b0f4`; identity-management checkpoint: `0aa4cc8`.
+  PR, pushes, merge: none. Required reviews remain pending.
 
-Next: finish identity dialogs, approved rendering and stable placement. A bounded
+Next: finish documentation sync and final review/delivery. A bounded
 read-only audit found same-lease read/write publication rollback and an HMR
 boundary listener ordering race. Both were reproduced/addressed: snapshots now
 carry atomic document revisions and one app listener owns query reset/reload.
@@ -97,7 +123,12 @@ The checkpoint also passed typecheck, lint, format check, production bundle and
 all 2,328 tests in 152 files. Nine initial SSR roster failures exposed a stale
 test fixture that returned the same mixed array from both platform queries;
 the fixture now mirrors platform-scoped caches without weakening its assertions.
-Runtime visual checks and final feature acceptance remain pending.
-DOX pass: API/renderer ownership updates follow the completed callable surfaces;
-all three design references and changelog remain pending the final implementation
-sync, not intentionally omitted from the PR.
+DOX pass: API/renderer ownership, all three design references, changelog and README
+are synchronized. API volatility/policy docs intentionally remain unchanged:
+no adapter assumption, network behavior or platform request cadence changed.
+No new documentation tree or private sample artwork was added.
+
+Final implementation checkpoint: native Electron fixture rerun passed after the
+last functional cleanup. Standard Codex weekly usage is 6% used; no standard
+five-hour window was returned. No reset credit was redeemed. All implementation
+workers have completed; fresh nonbuilder review lenses are next.

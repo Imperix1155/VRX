@@ -1,6 +1,7 @@
 {
   "appName": "VRX",
   "linking": {
+    "chooser": { "none": "No joinable locations are currently available." },
     "confirm": {
       "replace": {
         "question": "Do these accounts belong to the same person?",

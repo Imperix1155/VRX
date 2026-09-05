@@ -1,6 +1,7 @@
 {
   "appName": "VRX",
   "linking": {
+    "chooser": { "none": "現在参加できる場所はありません。" },
     "confirm": {
       "replace": {
         "question": "この2つのアカウントは同じ人のものですか？",

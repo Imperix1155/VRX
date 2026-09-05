@@ -54,3 +54,22 @@ it('does not dismiss an operation in flight', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Close' }))
   expect(close).not.toHaveBeenCalled()
 })
+it('restores the same person opener after its original row has been replaced', () => {
+  const row = document.createElement('div')
+  row.dataset.personKey = 'person:pair'
+  row.innerHTML = '<button data-drawer-opener>Original</button>'
+  document.body.append(row)
+  row.querySelector('button')!.focus()
+  const view = render(
+    <LinkedDialog title="Choose" onClose={vi.fn()}>
+      Content
+    </LinkedDialog>
+  )
+  const replacement = document.createElement('div')
+  replacement.dataset.personKey = 'person:pair'
+  replacement.innerHTML = '<button data-drawer-opener>Replacement</button>'
+  row.replaceWith(replacement)
+  view.unmount()
+  expect(document.activeElement).toBe(replacement.querySelector('button'))
+  replacement.remove()
+})

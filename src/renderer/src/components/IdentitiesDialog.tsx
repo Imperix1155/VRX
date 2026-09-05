@@ -209,6 +209,15 @@ export default function IdentitiesDialog({
     onClose()
   }
   const displayedMembers = profile?.members ?? [origin]
+  const pickerCandidates =
+    flow.kind === 'picker'
+      ? friends.filter(
+          (friend) =>
+            friend.platform !== flow.source.platform &&
+            (!search.trim() ||
+              splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
+        )
+      : []
   const platformName = (platform: Platform): string =>
     t(platform === 'vrchat' ? 'friends.platform.vrchat' : 'friends.platform.chilloutvr')
   const title =
@@ -276,50 +285,36 @@ export default function IdentitiesDialog({
                 aria-label={t('friends.title')}
                 className="flex max-h-[45vh] flex-col gap-[var(--space-2)] overflow-y-auto"
               >
-                {friends
-                  .filter(
-                    (friend) =>
-                      friend.platform !== flow.source.platform &&
-                      (!search.trim() ||
-                        splitByMatch(friend.displayName, search.trim()).some(
-                          (part) => part.isMatch
-                        ))
-                  )
-                  .map((friend) => (
-                    <li key={`${friend.platform}:${friend.platformUserId}`}>
-                      <button
-                        type="button"
-                        className={`${buttonClass} flex w-full items-center gap-[var(--space-2)] text-left`}
-                        disabled={!bothReady || !canWrite}
-                        onClick={() => choose(flow.source, friend)}
-                      >
-                        <Avatar friend={friend} variant="row" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate">{friend.displayName}</span>
-                          {snapshot?.profiles.some((person) =>
-                            person.members.some(
-                              (member) =>
-                                member.platform === friend.platform &&
-                                member.friendId === friend.platformUserId &&
-                                member.platformAccountId === accountIds[member.platform]
-                            )
-                          ) && (
-                            <span className="block text-[11px] text-[var(--text-dim)]">
-                              {t('linking.manage.linkedCandidate')}
-                            </span>
-                          )}
-                        </span>
-                        <PlatformPill platform={friend.platform} />
-                      </button>
-                    </li>
-                  ))}
+                {pickerCandidates.map((friend) => (
+                  <li key={`${friend.platform}:${friend.platformUserId}`}>
+                    <button
+                      type="button"
+                      className={`${buttonClass} flex w-full items-center gap-[var(--space-2)] text-left`}
+                      disabled={!bothReady || !canWrite}
+                      onClick={() => choose(flow.source, friend)}
+                    >
+                      <Avatar friend={friend} variant="row" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{friend.displayName}</span>
+                        {snapshot?.profiles.some((person) =>
+                          person.members.some(
+                            (member) =>
+                              member.platform === friend.platform &&
+                              member.friendId === friend.platformUserId &&
+                              member.platformAccountId === accountIds[member.platform]
+                          )
+                        ) && (
+                          <span className="block text-[11px] text-[var(--text-dim)]">
+                            {t('linking.manage.linkedCandidate')}
+                          </span>
+                        )}
+                      </span>
+                      <PlatformPill platform={friend.platform} />
+                    </button>
+                  </li>
+                ))}
               </ul>
-              {!friends.some(
-                (friend) =>
-                  friend.platform !== flow.source.platform &&
-                  (!search.trim() ||
-                    splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
-              ) && (
+              {pickerCandidates.length === 0 && (
                 <p className="text-[13px] text-[var(--text-dim)]">
                   {t('linking.manage.noMatches')}
                 </p>

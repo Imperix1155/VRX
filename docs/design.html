@@ -240,11 +240,14 @@
   .frow { display: grid; grid-template-columns: 14px 42px 1fr auto; align-items: center; gap: 12px; padding: 8px 12px 8px 10px; border-radius: 13px; border: 1px solid color-mix(in srgb, var(--text) 7%, transparent); background: color-mix(in srgb, var(--text) 4%, transparent); }
   .frow:hover { background: var(--surface-hover, rgba(255,255,255,0.05)); }
   /* Platform tab (VRX-206): stacked onto the card's left end — even 3px inset, radius 9 = 13 − 1 − 3 (§3 stack model). */
-  .frow .ftab { align-self: stretch; width: 21px; margin: -5px 0 -5px -7px; display: grid; place-items: center;
+  .frow .ftab { position:relative; align-self: stretch; width: 21px; margin: -5px 0 -5px -7px; display: grid; place-items: center;
     border-radius: 9px; border: 1px solid; font-size: 10.5px; font-weight: 600; letter-spacing: .09em;
     writing-mode: vertical-rl; transform: rotate(180deg); }
   .frow.vrc .ftab { background: color-mix(in srgb, var(--vrc) 13%, transparent); border-color: color-mix(in srgb, var(--vrc) 36%, transparent); color: var(--plat-vrc-ghost-text); }
   .frow.cvr .ftab { background: color-mix(in srgb, var(--cvr) 13%, transparent); border-color: color-mix(in srgb, var(--cvr) 36%, transparent); color: var(--plat-cvr-ghost-text); }
+  .frow.vrx .ftab { background: linear-gradient(to top,color-mix(in srgb,var(--cvr) 13%,transparent),color-mix(in srgb,var(--vrc) 13%,transparent)); border-color:transparent; }
+  .frow.vrx .ftab::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px; background:linear-gradient(to top,color-mix(in srgb,var(--cvr) 36%,transparent),color-mix(in srgb,var(--vrc) 36%,transparent)); mask:linear-gradient(white 0 0) content-box,linear-gradient(white 0 0); mask-composite:exclude; pointer-events:none; }
+  .frow.vrx .ftab b { color: transparent; background: linear-gradient(to top,var(--plat-cvr-ghost-text),var(--plat-vrc-ghost-text)); background-clip: text; -webkit-background-clip: text; }
   /* 5.1 demo rows only: the tab's -7/-5 meld is tuned to the BUILT row's box (14px col · 10px pad-left · 8px pad-y). */
   .frow.ftabrow { grid-template-columns: 14px 42px 1fr auto; padding: 8px 12px 8px 10px; gap: 12px; }
   .av2 { width: 40px; height: 40px; border-radius: 50%; position: relative; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #0e0f14; background: linear-gradient(135deg,#bfc0cb,#6b6480); }
@@ -253,10 +256,17 @@
      written status band is the non-color signifier now — DESIGN.md §9.2). */
   .rav { position: relative; width: 42px; height: 42px; }
   .rav .disc { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 600; color: var(--text-dim); background: color-mix(in srgb, var(--text) 10%, transparent); box-shadow: 0 0 0 2.5px var(--ring); }
+  .rav.merged .disc { background: linear-gradient(45deg,color-mix(in srgb,var(--cvr) 18%,var(--bg-base)) 0 50%,color-mix(in srgb,var(--vrc) 18%,var(--bg-base)) 50%); }
   .rav .rb { position: absolute; right: -1px; bottom: -1px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--bg-base); background: var(--ring); }
   .fname { font-size: 14px; font-weight: 600; color: var(--text); }
   .fcs { font-size: 12px; color: var(--text-dim); margin-left: 8px; font-weight: 400; }
   .fworld { font-size: 12.5px; color: var(--text-dim); height: 16px; line-height: 16px; margin-top: 1px; }
+  .worldpair { display:flex; align-items:center; gap:8px; max-width:370px; height:16px; line-height:16px; margin-top:1px; min-width:0; }
+  .worldpair .wg { display:flex; flex:1; align-items:center; gap:4px; min-width:0; }
+  .worldpair .wb { display:inline-grid; place-items:center; flex:none; height:14px; padding:0 3px; border:1px solid; border-radius:6px; font-size:10px; font-weight:600; line-height:1; }
+  .worldpair .wb.v { color:var(--plat-vrc-ghost-text); border-color:var(--plat-vrc-ghost-border); background:color-mix(in srgb,var(--vrc) 13%,transparent); }
+  .worldpair .wb.c { color:var(--plat-cvr-ghost-text); border-color:var(--plat-cvr-ghost-border); background:color-mix(in srgb,var(--cvr) 13%,transparent); }
+  .worldpair .wn { flex:1; min-width:0; max-width:145px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; color:var(--text-dim); }
   .fglyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); }
   .fsub { font-size: 12.5px; color: var(--text-dim); margin-top: 1px; }
   .aff { font-size: 11px; font-weight: 700; padding: 5px 13px; border-radius: 9px; white-space: nowrap; }
@@ -284,6 +294,8 @@
   /* §6.1 tier-colored instance pill (mirrors the app's friend-row pill) */
   .opill { display: inline-flex; align-items: center; justify-content: center; min-width: 78px; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--opc, var(--op)); background: color-mix(in srgb, var(--op) 13%, transparent); border: 1px solid color-mix(in srgb, var(--op) 36%, transparent); }
   .opill.neutral { color: var(--text-dim); background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid color-mix(in srgb, var(--text) 16%, transparent); }
+  .opill.dual { position:relative; color:var(--text); border:1px solid transparent; background:linear-gradient(45deg,color-mix(in srgb,var(--cop) 13%,transparent) 0 50%,color-mix(in srgb,var(--vop) 13%,transparent) 50%); }
+  .opill.dual::before { content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px; background:linear-gradient(45deg,color-mix(in srgb,var(--cop) 36%,transparent) 0 50%,color-mix(in srgb,var(--vop) 36%,transparent) 50%); mask:linear-gradient(white 0 0) content-box,linear-gradient(white 0 0); mask-composite:exclude; pointer-events:none; }
   .policy-pill { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 12px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--policy-text); background: color-mix(in srgb, var(--policy-base) 13%, transparent); border: 1px solid color-mix(in srgb, var(--policy-base) 36%, transparent); }
   .policy-pill.public { --policy-base: var(--policy-public); --policy-text: var(--policy-public-text); }
   .policy-pill.private { --policy-base: var(--policy-private); --policy-text: var(--policy-private-text); }
@@ -304,7 +316,7 @@
   /* person / linking card */
   .person { width: 340px; max-width: 100%; padding: 16px; }
   .person .ptop { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
-  .person .pav { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, var(--vrc), var(--cvr)); display: grid; place-items: center; font-weight: 800; color: #0c0a1c; }
+  .person .pav { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(45deg, var(--cvr) 0 50%, var(--vrc) 50%); display: grid; place-items: center; font-weight: 800; color: var(--text); }
   .person .pname { font-weight: 700; font-size: 15px; } .person .plink { font-size: 11px; color: var(--bridge); display: flex; align-items: center; gap: 5px; }
   .person .prow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.08); }
   .person .pg { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--font-mono); flex: none; }
@@ -497,13 +509,13 @@ body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
         <div class="el" style="border:0;padding-top:6px;">
           <table class="chan">
             <tr><th>Channel</th><th>Lives in</th><th>Encoding</th><th>Never</th></tr>
-            <tr><td><b>Platform</b></td><td>glass tint + left tab + VRC/CVR text</td><td>blue VRChat · orange CVR</td><td class="no">a bare dot</td></tr>
+            <tr><td><b>Platform</b></td><td>glass tint + left tab + VRC/CVR/VRX text</td><td>blue VRChat · orange CVR · blue-to-orange linked rail</td><td class="no">a bare dot or color alone</td></tr>
             <tr><td><b>State</b></td><td>the avatar <b>dot</b></td><td>green in-game · teal active · gray offline</td><td class="no">a text/panel color</td></tr>
             <tr><td><b>Status</b> <span style="color:var(--text-faint)">(VRChat)</span></td><td>a labeled <b>pill</b></td><td>Join Me · Online · Ask Me · DND · custom msg</td><td class="no">a bare dot; a CVR equivalent</td></tr>
             <tr><td><b>Openness</b></td><td>the instance <b>pill</b> (friend row) / icon badge</td><td>§6.1 tier color + VRChat-scheme label (VRX-182); hidden = neutral</td><td class="no">colored by platform; a hue for Private</td></tr>
-            <tr><td><b>Policy space</b></td><td>below location context in confirmation/detail surfaces</td><td>Rose Public space · Ice Private space · neutral Unknown</td><td class="no">calling it an access type</td></tr>
+            <tr><td><b>Policy space</b></td><td>join confirmation and hot-instance detail sheet</td><td>Rose Public space · Ice Private space · neutral Unknown</td><td class="no">putting policy context in the first friend drawer</td></tr>
             <tr><td><b>Joinability</b></td><td>right-side <b>affordance</b></td><td>Join / Ask / ⊘ (derived)</td><td class="no">reusing a platform hue</td></tr>
-            <tr><td><b>Trust</b></td><td>opt-in muted pill</td><td><b>off by default; names neutral</b></td><td class="no">a name color, or on by default</td></tr>
+            <tr><td><b>Trust</b></td><td>row: opt-in muted pill · drawer: quiet text below Notes</td><td><b>row pill off by default; drawer value shown when known; names neutral</b></td><td class="no">a name color, or a default-on row trust pill</td></tr>
           </table>
         </div>
 
@@ -768,9 +780,10 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 
         <div class="el">
           <div class="el-name"><span class="ix">9.4</span> Friend row</div>
-          <div class="el-sum">Virtualized list window (VRX-63) · sticky presence headers with visible-only sequential focus · one roving avatar-opener Tab stop with ↑/↓ navigation · logical list size/position exposed to assistive technology. Row grid: <code style="font-family:var(--code)">platform tab | avatar status ring + badge | name + custom status / world subline | instance pill = join target</code>.</div>
+          <div class="el-sum">Virtualized list window · one roving avatar-opener Tab stop · unique-person counts. The saved link projects as a combined, mixed-section, or account-only row according to presence and the VRC / All / CVR filter.</div>
           <div class="demo col">
             <div class="flist glass">
+              <div class="frow vrx"><span class="ftab"><b>VRX</b></span><span class="rav merged" role="img" aria-label="Online" style="--ring: var(--st-online)"><span class="disc">R</span><span class="rb"></span></span><span><span class="fname">Rin</span><span class="worldpair"><span class="wg"><b class="wb v">VRC</b><span class="wn">The Great Pug</span></span><span class="wg"><b class="wb c">CVR</b><span class="wn">Long ChilloutVR world</span></span></span></span><span class="opill dual" style="--vop:var(--op-public);--cop:var(--op-group-plus)">2 locations</span></div>
               <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Join Me" style="--ring: var(--st-joinme)"><span class="disc">A</span><span class="rb"></span></span><span><span class="fname">AlexVR<span class="fcs">come thru</span></span><span class="fworld" style="display:block">The Great Pug</span></span><span class="opill" style="--op: var(--op-public)">Public</span></div>
               <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Ask Me" style="--ring: var(--st-askme)"><span class="disc">S</span><span class="rb"></span></span><span><span class="fname">Sage<span class="fcs">taking commissions</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
               <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Active" style="--ring: var(--active)"><span class="disc">P</span><span class="rb"></span></span><span><span class="fname">Pixel<span class="fcs">on the web — not in a world, no pill</span></span><span class="fworld" style="display:block"></span></span><span></span></div>
@@ -781,9 +794,9 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
 .ftab { <span class="c">/* platform channel: VRC/CVR text */</span> }
 .rav .disc { box-shadow: <span class="v">0 0 0 2.5px var(--ring)</span>; } <span class="c">/* privacy tier ring */</span>
 .opill { <span class="c">/* openness label; the join target */</span> }</div></div>
-            <div><div class="box-label why">Why</div><div class="why">The list keeps only the visible row window mounted, so large rosters remain responsive without adding a nested scroller. The active presence header stays sticky, offscreen overscan section toggles leave the sequential Tab order, and focus moves to the newly sticky header if scrolling carries a focused section away. Stable friend keys retain the scroll window across live rerenders, and one intersecting avatar opener owns the roving Tab stop; ↑/↓ moves it across virtual-window boundaries. Mounted rows publish their logical position and full virtual list size to assistive technology. The tab says which platform in color and text. The avatar ring (and its empty badge dot) says the friend’s privacy tier without a separate status pill — the glyph was retired with VRX-69; the friend drawer spells the status out in words. The right-side pill says the instance’s openness and, when joinable, is the single join target; only fully visible Join pills enter sequential Tab order, while overscan controls remain programmatically available with <code style="font-family:var(--code)">tabIndex=-1</code>. Private stays neutral, and an active friend with no instance has no pill. A rate-limited Join announces “Too many attempts — try again shortly” in its polite status blip, never the generic failure.</div></div>
+            <div><div class="box-label why">Why</div><div class="why">The VRX rail says the row is one saved person. Each world remains attributed by a 14px platform badge, and both 145px name slots ellipsize independently inside a 370px pair. The merged picture changes only the picture; one selected account still owns the ring, badge, and accessible status. “2 locations” uses the real instance colors and opens a chooser before the existing join confirmation. Hover or focus holds placement for at most five seconds, but eligibility updates and main validation do not wait.</div></div>
           </div>
-          <div class="why" style="margin-top:12px;font-size:12px;color:var(--text-faint)"><i>Friend drawer preview is representative only — the live drawer adds the world image block, instance ID line, separate policy-space pill, and a local-draft warning with Retry when a private-note save fails; it keeps the editor visibly read-only until the guarded note bridge supplies a current save revision and offers Retry after a terminal load failure, as described in DESIGN.md §9.2.</i></div>
+          <div class="why" style="margin-top:12px;font-size:12px;color:var(--text-faint)"><i>The first drawer shows instance information only, never policy context or a raw instance ID. The world card has a 12px radius and 14px corner anchors. One world anchors its pill at the top right even on CVR; two worlds split diagonally with VRChat upper-right and ChilloutVR lower-left. Hidden locations use neutral art. Shared, VRChat, and ChilloutVR notes remain separate, with one owner-keyed editor visible at a time. Quiet trust and the Identities action sit at the bottom.</i></div>
         </div>
 
         <div class="el">
@@ -836,7 +849,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
       <section class="panel glass" id="linking">
         <div class="kick">10 · The biggest problem</div>
         <div class="stitle">Cross-platform friend linking</div>
-        <p class="slead">A friend can exist on both platforms under different names, with <b>no shared identity</b> between them. So linking is <b>user-driven</b> — the user says "this VRChat friend is that CVR friend," and VRX stores the relation. We never auto-merge.</p>
+        <p class="slead">A friend can exist on both platforms under different names, with no shared platform identity. Linking is explicit and local: the user chooses one account-qualified VRChat friend and one account-qualified ChilloutVR friend. VRX never auto-merges.</p>
         <div class="el" style="border:0;padding-top:8px;">
           <div class="demo">
             <div class="person glass">
@@ -846,8 +859,12 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
             </div>
           </div>
           <div class="grid2">
-            <div><div class="box-label why">Why user-driven</div><div class="why">There is no reliable signal that two accounts are the same person. A <b>wrong auto-merge is worse than no link</b>, so the user always confirms. VRX may <i>suggest</i> matches (e.g. identical display names), never apply them silently.</div></div>
-            <div><div class="box-label how">How it renders</div><div class="why">One person card, blue→orange avatar (the bridge), each platform's presence shown <b>independently</b> — Rin can be in-world on VRChat and offline on CVR at once. Each private stored member is qualified by platform, platform account, and friend ID, so matching upstream IDs under different accounts never collide. Link data is stored in the app's own <code style="font-family:var(--code)">userData</code> — never written into VRCX/CVRX folders.</div></div>
+            <div><div class="box-label why">Projection</div><div class="why">All combines a person when that tells the truth, but an in-game account and an online-only account remain separate rows in their own sections. VRC and CVR project only that account. Every filter counts the linked person once, even when All needs two rows.</div></div>
+            <div><div class="box-label how">Header and drawer</div><div class="why">In-game outranks online-only, then offline; preferred platform breaks ties. A diagonal picture override changes only the picture. The first drawer shows instance details without policy or raw IDs. Its Identities control opens account views and the native linking modal.</div></div>
+          </div>
+          <div class="grid2" style="margin-top:10px;">
+            <div><div class="box-label why">Three notes</div><div class="why">The combined person owns one shared note. The VRChat and ChilloutVR account views keep their original notes. Navigation selects the matching note owner; presence changes do not change the owner of an editor already open.</div></div>
+            <div><div class="box-label how">Reviewed mutation</div><div class="why">Replace and unlink enumerate the exact pairs and shared notes they remove, require acknowledgement, and commit with revision checks. Stale data returns to review. Failure preserves every link and note.</div></div>
           </div>
         </div>
       </section>
