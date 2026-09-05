@@ -114,6 +114,15 @@ drafts/failures through remount/HMR. It clears draft state at identity boundarie
 only the app query subscription resets/reloads the shared cache. Drawer owner changes
 flush the last committed owner's callback; same-person presence changes do not save.
 
+`components/IdentitiesDialog.tsx` owns the local picker, preferences and scoped
+review flow. `LinkConfirmDialog` consumes captured `LinkReview` plus qualified
+old-identity labels and unqualified selected labels; every affected revision is
+submitted together, with explicit shared-note-loss acknowledgement. New links
+have no deletion acknowledgement. The review-only `accountIds` map never enters
+the mutation request. `LinkedDialog` supplies native modal focus/background
+inertness, safe initial Close, and opener restoration; in-flight writes cannot
+be dismissed. Account boundaries close the review and fence old replies.
+
 Single source: [`src/shared/ipc.ts`](../src/shared/ipc.ts) (`IpcInvoke` /
 `IpcEvents`). Handlers live in [`src/main/ipc/`](../src/main/ipc/) — one file
 per domain, every handler behind `isTrustedIpcSender` first.

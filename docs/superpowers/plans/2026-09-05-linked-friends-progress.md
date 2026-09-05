@@ -72,8 +72,21 @@ Initial standard Codex weekly usage: 0% used; no standard five-hour window.
   navigation flushes the old owner even without a browser blur. The latter test
   failed with zero writes before the layout-cleanup fix; 59 drawer tests then
   passed, followed by full typecheck. Identities entry remains with Task 5.
-- Tasks 5–7: pending. Required full gates, runtime probes and reviews have not run.
-- Task 1 local commit: `c3dce48`; Task 2: `f0096ad`. PR, pushes, merge: none.
+- Task 5: identity management and native dialog wrapper integrated. Captured
+  confirmation content was inspected and corrected before import: no false
+  deletion warning for new links, account-qualified old labels and leftover
+  accounts, no raw-ID name fallback, and a Back path for stale unlink. Focused
+  tests cover duplicate names, offline candidates, preference/custom-name
+  separation, healthy-side unlink and session-lease invalidation.
+  Checkpoint gate: typecheck, lint, format check, production bundle and all
+  2,351 tests in 155 files passed. Native dialog behavior still requires the
+  disposable Electron probe; jsdom tests emulate showModal/close only.
+- Tasks 6–7: pending. Chooser and placement hooks exist only in scratch and need
+  driver inspection/integration. The first world-composite artifact failed code
+  inspection (separate grid cards instead of split image, leaked hidden instance
+  pill, sticky image-error state); a bounded correction is underway.
+- Task 1 local commit: `c3dce48`; Task 2: `f0096ad`; roster/navigation checkpoint:
+  `843b0f4`. PR, pushes, merge: none. Runtime and required reviews remain pending.
 
 Next: finish identity dialogs, approved rendering and stable placement. A bounded
 read-only audit found same-lease read/write publication rollback and an HMR

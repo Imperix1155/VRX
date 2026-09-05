@@ -1,6 +1,85 @@
 {
   "appName": "VRX",
   "linking": {
+    "confirm": {
+      "replace": {
+        "question": "Do these accounts belong to the same person?",
+        "warningTitle": "Existing links will be replaced",
+        "oldPair": "{{first}} + {{second}}",
+        "oldPairEffect": "Remove this link and permanently delete its shared note.",
+        "newPairLabel": "New linked pair",
+        "unlinkedLabel": "Accounts left unlinked",
+        "unlinkedEffect": "{{name}} will become unlinked, not deleted.",
+        "accountNotes": "All individual account notes stay unchanged.",
+        "blankNote": "The new shared note starts blank.",
+        "saveWarning": "Save any shared-note text you want to keep before continuing.",
+        "acknowledge": "I understand that the listed shared notes will be permanently deleted.",
+        "submit": "Replace and link",
+        "linkSubmit": "Link accounts"
+      },
+      "preferred": {
+        "label": "Preferred platform",
+        "help": "We selected the account you started from. You can change it now or later in Identities."
+      },
+      "combinedName": "Combined name",
+      "combinedHelp": "You can set a custom VRX name later.",
+      "sharedNote": {
+        "summary": "Shared note for {{name}}",
+        "empty": "No shared note"
+      },
+      "unlink": {
+        "warning": "The shared note will be permanently deleted. Save any text you want to keep before unlinking.",
+        "accountNotes": "Both original account notes stay unchanged.",
+        "acknowledge": "I understand the shared note will be deleted.",
+        "submit": "Unlink and delete shared note"
+      },
+      "error": {
+        "stale": "The existing link changed. Go back and review it again.",
+        "storage": "Save failed. Existing links and notes are unchanged. Try again or cancel.",
+        "invalid": "The reviewed link is no longer valid. Go back and review it again.",
+        "unavailable": "Linking is unavailable. Try again or cancel.",
+        "rateLimited": "Too many attempts. Wait a moment, then try again.",
+        "unknown": "Save failed. Existing links and notes are unchanged. Try again or cancel."
+      },
+      "platform": {
+        "vrchat": "VRChat",
+        "chilloutvr": "ChilloutVR"
+      },
+      "identityUnavailable": "Data unavailable",
+      "back": "Back",
+      "cancel": "Cancel",
+      "pending": "Saving…"
+    },
+    "manage": {
+      "linkedCandidate": "Already linked · Review before replacing",
+      "intro": "Link this account to a friend on the other platform.",
+      "link": "Link an account",
+      "already": "Already linked",
+      "alreadyDescription": "These accounts already share a combined profile.",
+      "viewCombined": "View combined profile",
+      "unlinkTitle": "Unlink accounts?",
+      "linkTitle": "Link these accounts?",
+      "choose": "Choose the {{platform}} account belonging to this same person. Offline friends are included.",
+      "noMatches": "No matching friends.",
+      "back": "Back to Identities",
+      "stillLinked": "This account is still linked.",
+      "view": "View {{platform}} profile",
+      "replace": "Replace account",
+      "name": "VRX name",
+      "saveName": "Save name",
+      "platformName": "Use platform name",
+      "localName": "Only changes the name in VRX.",
+      "preferred": "Preferred platform",
+      "tie": "Used when both accounts have the same presence level.",
+      "merged": "Use merged profile picture",
+      "unlink": "Unlink accounts",
+      "done": "Done",
+      "invalid": "This change could not be accepted. Review the profile and try again.",
+      "stale": "The profile changed. Review it again before saving.",
+      "unavailable": "Both platforms must be available to create or replace a link. Existing links can still be removed through an available account.",
+      "failed": "The change could not be saved. Try again or cancel.",
+      "rateLimited": "Too many local changes. Wait a moment, then try again."
+    },
     "people_one": "{{count}} person",
     "people_other": "{{count}} people",
     "unknownName": "Unknown friend",

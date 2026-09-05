@@ -1194,6 +1194,12 @@ export default function FriendsList(): React.JSX.Element {
       <FriendDrawer
         friend={selectedFriend}
         selection={selectedProfile}
+        friends={allFriends}
+        accountIds={accountIds}
+        available={{
+          vrchat: !vrcFriends.isError && vrcFriends.data !== undefined,
+          chilloutvr: !cvrFriends.isError && cvrFriends.data !== undefined
+        }}
         onNavigate={selectProfile}
         onClose={closeDrawer}
       />

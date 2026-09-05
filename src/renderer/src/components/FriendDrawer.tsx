@@ -42,7 +42,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, TrustRank } from '@shared/types'
+import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { isHotInstanceMember } from '@shared/hotInstanceKey'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
@@ -57,6 +57,7 @@ import InstancePill from './InstancePill'
 import { Avatar } from './Avatar'
 import PolicySpacePill from './PolicySpacePill'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
+import IdentitiesDialog from './IdentitiesDialog'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -83,7 +84,10 @@ export default function FriendDrawer({
   friend,
   onClose,
   selection,
-  onNavigate
+  onNavigate,
+  friends,
+  accountIds,
+  available
 }: {
   /** The selected friend, or null = closed. */
   friend: Friend | null
@@ -91,6 +95,9 @@ export default function FriendDrawer({
   onClose: () => void
   selection?: ResolvedProfile | null
   onNavigate?: (target: ProfileTarget) => void
+  friends?: Friend[]
+  accountIds?: Partial<Record<Platform, string>>
+  available?: Partial<Record<Platform, boolean>>
 }): React.JSX.Element {
   const { t } = useTranslation()
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
@@ -102,6 +109,15 @@ export default function FriendDrawer({
   const shown = friend ?? retained
   const combined = selection?.target.kind === 'person'
   const profileName = selection?.name ?? shown?.displayName
+  const identityOwner =
+    selection?.target.kind === 'person'
+      ? `person:${selection.target.personId}`
+      : selection?.target.kind === 'account'
+        ? `${selection.target.account.platform}:${selection.target.account.friendId}`
+        : null
+  const [identityDialogOwner, setIdentityDialogOwner] = useState<string | null>(null)
+  if (identityDialogOwner !== null && (!open || identityDialogOwner !== identityOwner))
+    setIdentityDialogOwner(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -538,9 +554,46 @@ export default function FriendDrawer({
                 </span>
               </div>
             )}
+            {selection && onNavigate && (
+              <div className="mt-auto pt-[var(--space-2)]">
+                <button
+                  type="button"
+                  className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
+                  style={{
+                    background:
+                      'linear-gradient(var(--bg-base), var(--bg-base)) padding-box, linear-gradient(90deg, var(--vrc), var(--cvr)) border-box'
+                  }}
+                  onClick={() => {
+                    onNoteBlur()
+                    setIdentityDialogOwner(identityOwner)
+                  }}
+                >
+                  <span
+                    style={{
+                      background:
+                        'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
+                      backgroundClip: 'text',
+                      color: 'transparent'
+                    }}
+                  >
+                    {t('linking.identities')}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
+      {open && identityDialogOwner !== null && selection && onNavigate && (
+        <IdentitiesDialog
+          selection={selection}
+          friends={friends ?? selection.accounts}
+          accountIds={accountIds ?? {}}
+          available={available}
+          onNavigate={onNavigate}
+          onClose={() => setIdentityDialogOwner(null)}
+        />
+      )}
     </div>
   )
 }
