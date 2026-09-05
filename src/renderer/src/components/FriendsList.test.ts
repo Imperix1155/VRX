@@ -228,6 +228,8 @@ describe('FriendsList', () => {
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
     // "Private" replaces BOTH the world AND the openness type label.
+    expect(markup).not.toContain(publicInstance.worldId)
+    expect(markup).not.toContain(publicInstance.instanceId)
     expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
     // Custom status still shown (beside the name), exactly once.
@@ -246,6 +248,8 @@ describe('FriendsList', () => {
     ])
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
+    expect(markup).not.toContain(publicInstance.worldId)
+    expect(markup).not.toContain(publicInstance.instanceId)
     expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
   })

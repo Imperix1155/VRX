@@ -206,3 +206,34 @@ no reset redeemed. Correction gate: 2,411 tests / 159 files, typecheck, uncached
 ESLint, formatting, production build and diff check passed
 `LINKED_FRIENDS_GATE_GREEN`. Both HTML design references parse successfully.
 Next: pin this checkpoint and repeat full T2 review before publication.
+
+## Local review round 3 and corrections
+
+Review head `c9dfc787c2618f746575e35eaaf64b3269dd3985`, base `60ce0a0`.
+Artifact SHA-256 `fbbde82fe1720519a514c55256da3a04c79b3f2eada35e17c81ce3f8bf03f03e`,
+710,938 bytes / 13,029 lines / 74 files. All three continuing nonbuilder lenses
+verified the artifact and accounted for the full head; prior unchanged sections
+were reconciled against the exact delta where appropriate. Tests/contracts was
+clear; lifecycle and security each found one confirmed P2. Verdict: FIX-FIRST.
+
+- Gesture metadata included hidden Ask Me/DND world and instance IDs even when
+  visible copy said Private. The signature now masks both IDs while retaining
+  state/status to invalidate visibility changes. Strengthened actual SSR markup
+  tests failed for both statuses before the correction and pass afterward.
+- If a selected account left the roster during pending join IPC, a remaining
+  combined person lost its counterpart's denial message. Combined row/drawer
+  now query the existing failure by saved member reference, not only current
+  roster objects. `joinFailureFor` accepts the two identity fields it reads;
+  launch semantics and the 2.5-second lifetime are unchanged. The pending-CVR,
+  removal, denial regression failed before correction; independently removing
+  the drawer fix also failed it. Explicit VRC view does not inherit the CVR error.
+
+Correction gate: 2,412 tests / 159 files, typecheck, uncached ESLint, formatting,
+production build and diff check passed `LINKED_FRIENDS_GATE_GREEN`.
+Native fixture passed `LINKED_RUNTIME_GREEN`, including hidden-ID omission and
+the actual delayed synthetic denial after roster removal. Fallow still reports
+only the previously classified unused type and four clone groups. Both design
+HTML files parse. DOX/design/API updated; the touched join hook's two pre-existing
+catalog entries were consolidated into one complete entry (verified count: one).
+Changelog/README remain current; API policy/volatility intentionally unchanged.
+Next: pin the corrected head and repeat full T2 review; no PR or push yet.

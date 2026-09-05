@@ -99,6 +99,45 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it('keeps a pending counterpart denial attributed after that account leaves the roster', async () => {
+    roster([inWorldVrc, inWorldCvr])
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false, collapsedFriendSections: [] }
+    })
+    let finish!: (result: { ok: false; reason: 'cooldown' }) => void
+    const joinInstance = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    window.vrx = { joinInstance } as unknown as Window['vrx']
+    const view = render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
+    fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
+    expect(joinInstance).toHaveBeenCalledOnce()
+    roster([inWorldVrc])
+    view.rerender(<FriendsList />)
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    await act(async () => {
+      finish({ ok: false, reason: 'cooldown' })
+    })
+    expect(within(list).getByRole('status').textContent).toContain(
+      i18n.t('friends.joinFailure.cooldown')
+    )
+    fireEvent.click(within(list).getByRole('button', { name: /^Combined/ }))
+    expect(
+      within(screen.getByRole('dialog', { name: 'Combined' })).getByRole('status').textContent
+    ).toContain(i18n.t('friends.joinFailure.cooldown'))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    act(() => {
+      useFriendsStore.setState({ platformFilter: 'vrchat' })
+    })
+    view.rerender(<FriendsList />)
+    expect(within(list).getByRole('status').textContent).toBe('')
+  })
+
   it('labels the one eligible counterpart rather than the hidden header account', () => {
     roster([{ ...inWorldVrc, status: 'ask-me' }, inWorldCvr])
     render(<FriendsList />)

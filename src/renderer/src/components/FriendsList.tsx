@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { FRIEND_SECTIONS, type Friend, type FriendSection } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
+import type { LinkedProfile } from '@shared/linkedProfiles'
 import { useFriends, useCombineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
@@ -136,7 +137,7 @@ function PlatformTab({
 const FriendRow = memo(function FriendRow({
   friend,
   projection,
-  mergedPicture,
+  linkedProfile,
   onChoose,
   onRowHover,
   searchQuery,
@@ -156,7 +157,7 @@ const FriendRow = memo(function FriendRow({
 }: {
   friend: Friend
   projection: LinkedRow
-  mergedPicture: boolean
+  linkedProfile: LinkedProfile | undefined
   onChoose: (target: ProfileTarget) => void
   onRowHover: (key: string | null) => void
   searchQuery: string
@@ -230,9 +231,14 @@ const FriendRow = memo(function FriendRow({
     instancePill = t('friends.instance.private')
   }
   const joinable = combined ? destinations.length > 0 : isFriendJoinable(friend)
-  const joinFailure = combined
-    ? projection.accounts.map(joinFailureFor).find((reason) => reason !== null)
-    : joinFailureFor(friend)
+  const joinFailure =
+    combined && linkedProfile
+      ? linkedProfile.members
+          .map((member) =>
+            joinFailureFor({ platform: member.platform, platformUserId: member.friendId })
+          )
+          .find((reason) => reason !== null)
+      : joinFailureFor(friend)
   const failureStatus = (
     <span
       role="status"
@@ -312,8 +318,8 @@ const FriendRow = memo(function FriendRow({
           account.platformUserId,
           account.presence.state,
           account.status,
-          account.instance?.worldId,
-          account.instance?.instanceId
+          isWorldHidden(account) ? null : account.instance?.worldId,
+          isWorldHidden(account) ? null : account.instance?.instanceId
         ])
       ])}
       onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
@@ -378,7 +384,7 @@ const FriendRow = memo(function FriendRow({
         <Avatar
           friend={friend}
           mergedWith={
-            combined && mergedPicture
+            combined && linkedProfile?.pictureMode === 'merged'
               ? projection.accounts.find((account) => account.platform !== friend.platform)
               : undefined
           }
@@ -1348,11 +1354,9 @@ export default function FriendsList(): React.JSX.Element {
                     key={virtualItem.key}
                     friend={row.friend}
                     projection={row.projection}
-                    mergedPicture={
-                      links.data?.profiles.find(
-                        (profile) => profile.id === row.projection.target.personId
-                      )?.pictureMode === 'merged'
-                    }
+                    linkedProfile={links.data?.profiles.find(
+                      (profile) => profile.id === row.projection.target.personId
+                    )}
                     onChoose={setChooserTarget}
                     onRowHover={setHoveredRowKey}
                     searchQuery={appliedSearch}

@@ -419,7 +419,7 @@ export function useJoinInstance(): {
   isJoining: boolean
   pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
-  joinFailureFor: (friend: Friend) => JoinFailureReason | null
+  joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean

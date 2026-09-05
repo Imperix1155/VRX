@@ -59,7 +59,10 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 - Combined linked rows derive a single destination's openness from that account,
   never the priority-selected header. Row and drawer failure feedback includes
-  either linked account and retains the existing join flow's lifetime.
+  either linked account by saved member reference, including a member removed
+  from the roster during an in-flight join. Explicit account views remain
+  account-attributed. Hidden locations stay out of DOM gesture metadata as well
+  as visible labels; state/status changes still invalidate the gesture.
 
 - Destructive link confirmations show saved notes expanded and use
   `usePersonNoteGuard` for every affected person. Dirty, failed or in-flight

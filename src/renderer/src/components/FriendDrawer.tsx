@@ -119,7 +119,14 @@ export default function FriendDrawer({
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
-  const joinFailure = shownAccounts.map(joinFailureFor).find((reason) => reason !== null)
+  const failureAccounts =
+    combined && selection.profile
+      ? selection.profile.members.map((member) => ({
+          platform: member.platform,
+          platformUserId: member.friendId
+        }))
+      : shownAccounts
+  const joinFailure = failureAccounts.map(joinFailureFor).find((reason) => reason !== null)
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY. Never fold
   // this into the listener effect below: `pendingConfirm` changes (the join
