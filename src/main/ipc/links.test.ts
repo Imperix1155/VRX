@@ -67,6 +67,28 @@ function create(): ReturnType<typeof invoke> {
   })
 }
 describe('scoped linked profile IPC', () => {
+  it.each(['read-only disk', 'full disk'])(
+    'keeps saved profiles readable when a background name refresh fails on %s',
+    (failure) => {
+      const authority = new LocationAuthority()
+      const { storage, changed } = setup(authority)
+      const saved = create().value
+      const before = structuredClone(storage.read())
+      changed.mockClear()
+      storage.write = () => {
+        throw new Error(failure)
+      }
+      authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+      authority.seed(
+        'vrchat',
+        [{ ...fullFriend('Fresh name', 'vrchat'), platformUserId: vrc.friendId }],
+        authority.captureSeedRevision('vrchat')
+      )
+      expect(invoke('get-linked-profiles')).toEqual({ ok: true, value: saved })
+      expect(storage.read()).toEqual(before)
+      expect(changed).not.toHaveBeenCalled()
+    }
+  )
   it('publishes only current main-owned account scopes with every leased snapshot', () => {
     const { session } = setup()
     const initial = create().value

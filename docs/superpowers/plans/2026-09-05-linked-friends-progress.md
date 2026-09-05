@@ -309,3 +309,56 @@ DOX/shared/IPC/renderer/API/changelog are updated. Design references intentional
 unchanged: this restores their existing temporary-interruption behavior without
 changing appearance or interaction. README and API policy/volatility remain
 accurate. Next: checkpoint, push and repeat full T2 review before opening the PR.
+
+## Local review round 6 and PR review corrections
+
+Head `201d27274ccca29fb101ec1e542b76f7158d0be5` passed all three full T2
+continuing nonbuilder lenses. Artifact SHA-256
+`9d3242977de27075428f6820d67e7f3b29d944f425ebfa331fa1a8732b58e490`,
+820,183 bytes / 13,793 lines / 77 files, base `60ce0a0`. These are same-lineage
+reviews, not fresh independent model confirmation. PR #302 opened; final-head
+CI passed and VRX-143 moved to In Review.
+
+CodeRabbit submitted substantive review `5121520807` on this exact head. Of its
+13 inline findings and one outside-diff finding, three functional corrections
+and two copy/documentation corrections were verified:
+
+- A failed opportunistic default-name write incorrectly failed a readable link
+  snapshot. Keep the saved snapshot if refresh cannot commit, and the committed
+  snapshot if only notification fails. Both simulated storage-failure cases
+  failed before the fix and passed afterward; persistence and broadcasts are
+  asserted unchanged on write failure.
+- Empty account names now use the visible heading fallback as the drawer's
+  accessible name. Replace disables when the account it would retain is missing
+  from the roster, while replacing the missing member stays available through
+  the healthy account. Both regression tests failed before their fixes.
+- Japanese help now names its actual localized Identities control. Removed the
+  stale pending split-by-platform proposal superseded by linked projection.
+
+The alleged cross-platform join cancellation is refuted: the public join latch
+serializes attempts and each start clears all prior blips before its first await.
+Public-hook direct and confirmed sequences preserve another platform's active
+join across an unrelated boundary; the matching boundary correctly fences late
+replies. No private-state injection was used. Remaining suggestions are optional
+refactors, naming, callback/performance tuning, fixture clarity, an invariant
+brand label, or conflict with the approved Hidden world-caption contract.
+
+The correction gate passed 2,431 tests / 159 files, typecheck, uncached ESLint,
+formatting, production build and `LINKED_FRIENDS_GATE_GREEN`. Fallow reports the
+same pre-existing unused type and four previously classified clone groups.
+The isolated native fixture passed `LINKED_RUNTIME_GREEN`, including both
+replacement availability states, the real picker transition, and matching empty
+drawer heading/accessibility fallback, plus all previous dark/light, note,
+focus, projection and join-boundary checks. Its first rerun used the wrong Back
+label; correcting the fixture to the actual localized control fixed that probe.
+No real accounts, external launches or captures were used.
+DOX, all three design references and changelog are synchronized. INTERNAL-API,
+README and API policy/volatility intentionally unchanged: no callable surface,
+external request, permission or product scope changed.
+
+Greptile has not acknowledged either documented request, and its installation
+metadata cannot be inspected with the available token. No review/configuration
+exception is granted. The bounded follow-up must park after independently
+actionable CodeRabbit triage if this remains unchanged after 14:30 UTC. Next:
+pin the corrective head, run the full T2 review, push, disposition review threads,
+then leave the PR unmerged pending both bots' substantive final-head coverage.

@@ -34,6 +34,8 @@ handler. One file per domain. All handlers call `isTrustedIpcSender` first.
 - Linked snapshot reads refresh preferred-name fallbacks only from the injected
   main `LocationAuthority` and the member's healthy matching account. Changed
   names commit together and publish invalidation; this adds no platform request.
+  Refresh is best-effort: a failed write preserves the readable saved snapshot,
+  and a notification failure does not turn a committed refresh into a read error.
 
 - `isTrustedIpcSender` must be the FIRST call in every `ipcMain.handle` callback.
 - Every renderer→main channel is registered through `index.ts`'s trust-first shell and per-channel limiter, in that order. Keep domain handler callbacks intact so their sender guard remains first inside the handler; limiter state/log suppression is per channel, timer-free, and contains no request payloads or PII.

@@ -85,6 +85,20 @@ afterEach(() => {
   client.clear()
 })
 describe('linked drawer ownership', () => {
+  it('names an empty-name account drawer with the visible fallback', () => {
+    render(
+      drawer(
+        {
+          kind: 'account',
+          personId: 'pair',
+          account: { platform: 'vrchat', friendId: vrc.platformUserId }
+        },
+        [{ ...vrc, displayName: '' }, cvr]
+      )
+    )
+    expect(screen.getByRole('dialog', { name: 'Unknown friend' })).toBeTruthy()
+  })
+
   it('shows only the shared note in a combined profile, preserving its editor across presence changes', async () => {
     const view = render(drawer(person))
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Shared notes' })

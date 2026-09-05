@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   notes before requiring acknowledgement. Links stay local and account-scoped.
   Unsaved shared-note drafts block destructive changes until resolved; automatic
   names retain the latest verified preferred-account name for unavailable states.
+  Saved links remain readable if that automatic name refresh cannot be written.
+  Replacement disables when its retained account is unavailable, and unnamed
+  account drawers keep a localized accessible name.
   (VRX-143)
 - Linked roster rows show both visible worlds and offer a destination chooser
   before the existing Join flow. Live presence changes keep an interacted row

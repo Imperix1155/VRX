@@ -129,6 +129,10 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Work Guidance
 
+Linked identity replacement requires the retained account to be present in the
+current roster; its missing counterpart can still be replaced through that healthy
+account. Empty drawer names use the heading's localized accessible-name fallback.
+
 ## Verification
 
 `npm run typecheck && npm run lint && npm test`

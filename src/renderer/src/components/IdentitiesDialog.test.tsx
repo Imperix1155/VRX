@@ -70,6 +70,35 @@ afterEach(() => {
   client.clear()
 })
 describe('identity management', () => {
+  it('disables replacement only when the account to keep is absent from the roster', () => {
+    snapshot.profiles = [
+      {
+        id: 'pair',
+        members: [
+          { platform: 'vrchat', platformAccountId: 'v', friendId: source.platformUserId },
+          { platform: 'chilloutvr', platformAccountId: 'c', friendId: candidate.platformUserId }
+        ],
+        customName: null,
+        defaultName: 'Origin',
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '',
+        revision: 1
+      }
+    ]
+    client.setQueryData(linkedProfilesKey, snapshot)
+    render(dialog([source]))
+    const replacements = screen.getAllByRole<HTMLButtonElement>('button', {
+      name: 'Replace account'
+    })
+    expect(replacements).toHaveLength(2)
+    expect(replacements[0]!.disabled).toBe(true)
+    expect(replacements[1]!.disabled).toBe(false)
+    fireEvent.click(replacements[1]!)
+    expect(screen.getByRole('searchbox')).toBeTruthy()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it('waits for the first lease without closing and still closes on a later lease change', async () => {
     client.removeQueries({ queryKey: linkedProfilesKey })
     let finish!: (result: { ok: true; value: LinkSnapshot }) => void

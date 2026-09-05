@@ -134,11 +134,12 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
         ]
       })
       if (updates.length > 0) {
-        current = linkGraph.refreshDefaultNames(updates)
         try {
+          current = linkGraph.refreshDefaultNames(updates)
           options.onChanged?.()
         } catch {
-          /* The refreshed document is already committed. */
+          // Name refresh is best-effort. Keep the readable snapshot on write
+          // failure, or the committed snapshot if only notification failed.
         }
       }
       return {

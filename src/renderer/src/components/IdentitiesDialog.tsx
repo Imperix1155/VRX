@@ -370,6 +370,7 @@ export default function IdentitiesDialog({
                   !('platformAccountId' in member) ||
                   member.platformAccountId === accountIds[member.platform]
                 const friend = scoped ? findFriend(member) : undefined
+                const keep = profile?.members.find((other) => other.platform !== member.platform)
                 return (
                   <div
                     key={member.platform}
@@ -400,11 +401,8 @@ export default function IdentitiesDialog({
                         <button
                           type="button"
                           className={buttonClass}
-                          disabled={!bothReady || !canWrite || busy}
+                          disabled={!bothReady || !canWrite || busy || !keep || !findFriend(keep)}
                           onClick={() => {
-                            const keep = profile.members.find(
-                              (other) => other.platform !== member.platform
-                            )
                             if (keep) startPicker(keep)
                           }}
                         >

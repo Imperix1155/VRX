@@ -257,7 +257,7 @@ export default function FriendDrawer({
         ref={panelRef}
         data-friend-drawer
         role="dialog"
-        aria-label={profileName}
+        aria-label={profileName || t('linking.unknownName')}
         className={`glass glass-frosted fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
         }`}
