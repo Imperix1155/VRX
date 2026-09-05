@@ -1,8 +1,9 @@
-import Store from 'electron-store'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { LinkedPerson, LinkedPersonMember, Platform } from '@shared/types'
+import type { LinkChange, LinkedProfile, LinkProfileFile } from '@shared/linkedProfiles'
 import { isPlatformAccountId } from './accountSession'
+import { LinkProfileStorage } from './linkProfileStorage'
 
 export const LINK_GRAPH_FORMAT_VERSION = 1
 export const LINK_GRAPH_MAX_PEOPLE = 5_000
@@ -39,27 +40,8 @@ export interface LinkGraphFile {
 
 export interface LinkGraphStorage {
   read(): unknown
-  write(value: LinkGraphFile): void
-}
-
-class ElectronLinkGraphStorage implements LinkGraphStorage {
-  private store: Store<Record<string, unknown>> | null = null
-
-  read(): unknown {
-    return this.getStore().store
-  }
-
-  write(value: LinkGraphFile): void {
-    this.getStore().store = { ...value }
-  }
-
-  private getStore(): Store<Record<string, unknown>> {
-    this.store ??= new Store<Record<string, unknown>>({
-      name: 'link-graph',
-      accessPropertiesByDotNotation: false
-    })
-    return this.store
-  }
+  write(value: LinkGraphFile | LinkProfileFile): void
+  backup?(): void
 }
 
 interface LinkGraphLoadResult {
@@ -394,31 +376,6 @@ function snapshotValue(snapshot: Record<string, unknown>, key: string): unknown 
   return snapshot[key]
 }
 
-function createPerson(
-  id: string,
-  firstMember: LinkedPersonMember,
-  secondMember: LinkedPersonMember,
-  displayName: string | null
-): LinkedPerson {
-  const person = Object.create(null) as LinkedPerson
-  person.id = id
-  person.members = [firstMember, secondMember]
-  person.displayName = displayName
-  return person
-}
-
-function copyPeople(
-  people: Record<string, LinkedPerson>,
-  omitPersonId?: string
-): Record<string, LinkedPerson> {
-  const copied = Object.create(null) as Record<string, LinkedPerson>
-  for (const personId of Object.keys(people)) {
-    if (!Object.hasOwn(people, personId) || personId === omitPersonId) continue
-    copied[personId] = people[personId]!
-  }
-  return copied
-}
-
 function parseMember(member: LinkedPersonMember): LinkedPersonMember {
   const canonical = canonicalizeMember(member)
   if (canonical === null || !memberSchema.safeParse(canonical).success) {
@@ -432,120 +389,300 @@ function parsePersonId(personId: string): string {
   return personId
 }
 
-function parseDisplayName(displayName: string | null): string | null {
-  if (!displayNameSchema.safeParse(displayName).success) {
-    throw new Error('link graph: invalid display name')
+const PROFILE_VERSION = 2
+const revisionSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(Number.MAX_SAFE_INTEGER - 1)
+const profileFields = {
+  customName: z.string().trim().min(1).max(256).nullable(),
+  defaultName: z.string().max(256),
+  preferredPlatform: platformSchema,
+  pictureMode: z.enum(['preferred', 'merged']),
+  sharedNote: z.string().max(500),
+  revision: revisionSchema
+}
+const profileKeys = ['id', 'members', ...Object.keys(profileFields)]
+const changeSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('replace'),
+      members: z.tuple([memberSchema, memberSchema]),
+      preferredPlatform: platformSchema,
+      defaultName: z.string().max(256),
+      expectedPeople: z
+        .array(z.object({ id: personIdSchema, revision: revisionSchema }).strict())
+        .max(2)
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('unlink'),
+      personId: personIdSchema,
+      expectedRevision: revisionSchema
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('update'),
+      personId: personIdSchema,
+      expectedRevision: revisionSchema,
+      patch: z
+        .object({ ...profileFields, revision: z.never().optional() })
+        .omit({ revision: true })
+        .partial()
+        .strict()
+    })
+    .strict()
+])
+
+function toProfile(person: LinkedPerson): LinkedProfile {
+  return {
+    id: person.id,
+    members: person.members,
+    customName: person.displayName?.trim() || null,
+    defaultName: person.displayName ?? '',
+    preferredPlatform: person.members[0].platform,
+    pictureMode: 'preferred',
+    sharedNote: '',
+    revision: 1
   }
-  return displayName
 }
 
-/** Installation-global, account-qualified cross-platform identity references. */
-export class LinkGraphStore {
-  private readonly storage: LinkGraphStorage
-  private file: LinkGraphFile
-  private loadValid: boolean
-  constructor(
-    storage?: LinkGraphStorage,
-    private readonly createPersonId: () => string = () => randomUUID()
-  ) {
-    this.storage = storage ?? new ElectronLinkGraphStorage()
-    this.file = emptyLinkGraphFile()
-    this.loadValid = false
-    this.refresh()
+function emptyProfiles(): LinkProfileFile {
+  return {
+    storeFormatVersion: 2,
+    revision: 1,
+    people: Object.create(null) as Record<string, LinkedProfile>
   }
+}
 
-  list(): LinkedPerson[] {
+/** Capture plain data without evaluating accessors, including command patches. */
+function plainSnapshot(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) {
+    if (
+      Object.getPrototypeOf(value) !== Array.prototype ||
+      Object.getOwnPropertySymbols(value).length
+    )
+      throw new Error('link graph: invalid array')
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (Object.keys(descriptors).length !== value.length + 1)
+      throw new Error('link graph: invalid array')
+    const result = Array.from({ length: value.length }, (_, i) => {
+      const entry = ownPropertyDescriptor(descriptors, String(i))
+      if (!isEnumerableDataDescriptor(entry)) throw new Error('link graph: invalid array')
+      return plainSnapshot(entry.value)
+    })
+    if (!isStructuredCloneSafe(value)) throw new Error('link graph: invalid array')
+    return result
+  }
+  const descriptors = dataDescriptors(value)
+  if (!descriptors) throw new Error('link graph: invalid object')
+  const result = Object.create(null) as Record<string, unknown>
+  for (const key of Object.keys(descriptors)) {
+    if (DANGEROUS_OBJECT_KEYS.has(key)) throw new Error('link graph: invalid key')
+    result[key] = plainSnapshot(descriptors[key]!.value)
+  }
+  if (!isStructuredCloneSafe(value)) throw new Error('link graph: invalid object')
+  return result
+}
+
+function parseProfiles(raw: unknown): { file: LinkProfileFile; legacy: boolean } {
+  const value: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw
+  const descriptors = dataDescriptors(value)
+  if (!descriptors) throw new Error('link graph: storage could not be loaded')
+  const version = ownDataDescriptor(descriptors, 'storeFormatVersion')?.value
+  if (typeof version === 'number' && version > PROFILE_VERSION)
+    throw new Error('link graph: refusing to overwrite data written by a newer version')
+  if (version !== PROFILE_VERSION) {
+    const legacy = parseFile(value)
+    if (!legacy.loadValid || (version !== undefined && version !== 1))
+      throw new Error('link graph: storage could not be loaded')
+    const file = emptyProfiles()
+    for (const person of Object.values(legacy.file.people))
+      file.people[person.id] = toProfile(person)
+    return { file, legacy: version === 1 }
+  }
+  if (!hasExactlyKeys(descriptors, ['storeFormatVersion', 'revision', 'people']))
+    throw new Error('link graph: invalid file')
+  // Descriptor validation happens before cloning, which otherwise evaluates getters.
+  const peopleDescriptors = dataDescriptors(ownDataDescriptor(descriptors, 'people')?.value)
+  if (!peopleDescriptors || Object.keys(peopleDescriptors).length > LINK_GRAPH_MAX_PEOPLE)
+    throw new Error('link graph: invalid people')
+  const file = emptyProfiles()
+  file.revision = revisionSchema.parse(ownDataDescriptor(descriptors, 'revision')?.value)
+  const owners = new Set<string>()
+  for (const id of Object.keys(peopleDescriptors)) {
+    parsePersonId(id)
+    const pd = dataDescriptors(peopleDescriptors[id]!.value)
+    if (!pd || !hasExactlyKeys(pd, profileKeys)) throw new Error('link graph: invalid profile')
+    const members = canonicalizeMembers(pd.members?.value)
+    if (!members || !members.every((m) => memberSchema.safeParse(m).success))
+      throw new Error('link graph: invalid members')
+    const person = Object.create(null) as LinkedProfile
+    person.id = parsePersonId(pd.id!.value as string)
+    person.members = members.map(materializeMember) as LinkedProfile['members']
+    if (person.id !== id || person.members[0].platform === person.members[1].platform)
+      throw new Error('link graph: invalid profile')
+    const fields = Object.create(null) as Record<string, unknown>
+    for (const key of Object.keys(profileFields)) fields[key] = pd[key]!.value
+    Object.assign(person, z.object(profileFields).strict().parse(fields))
+    for (const member of person.members) {
+      const key = memberKey(member)
+      if (owners.has(key)) throw new Error('link graph: conflicting members')
+      owners.add(key)
+    }
+    file.people[id] = person
+  }
+  if (!isStructuredCloneSafe(value)) throw new Error('link graph: invalid data')
+  return { file, legacy: false }
+}
+
+/** Installation-global profiles. All mutations require reviewed revisions. */
+export class LinkGraphStore {
+  constructor(
+    private readonly storage: LinkGraphStorage = new LinkProfileStorage(),
+    private readonly createPersonId: () => string = () => randomUUID()
+  ) {}
+
+  list(strict = false): LinkedProfile[] {
     return this.runOperation(() => {
-      this.refresh()
-      return Object.values(this.file.people)
-        .sort((left, right) => left.id.localeCompare(right.id))
-        .map((person) => structuredClone(person))
+      try {
+        const loaded = parseProfiles(this.storage.read())
+        if (loaded.legacy) {
+          try {
+            this.commit(loaded.file, true)
+          } catch {
+            /* Keep valid v1 readable. */
+          }
+        }
+        return Object.values(loaded.file.people)
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((p) => structuredClone(p))
+      } catch (error) {
+        if (strict) throw error
+        return []
+      }
     })
   }
 
-  getByMember(member: LinkedPersonMember): LinkedPerson | null {
+  getByMember(member: LinkedPersonMember): LinkedProfile | null {
     return this.runOperation(() => {
       const parsedMember = parseMember(member)
-      this.refresh()
-      const owner = this.findByMember(parsedMember)
-      return owner === undefined ? null : structuredClone(owner)
+      try {
+        const { file, legacy } = parseProfiles(this.storage.read())
+        if (legacy) {
+          try {
+            this.commit(file, true)
+          } catch {
+            /* A failed migration must not hide valid v1 records. */
+          }
+        }
+        const person = Object.values(file.people).find((p) =>
+          p.members.some((m) => memberKey(m) === memberKey(parsedMember))
+        )
+        return person ? structuredClone(person) : null
+      } catch {
+        return null
+      }
     })
   }
 
-  link(
-    firstMember: LinkedPersonMember,
-    secondMember: LinkedPersonMember,
-    displayName: string | null = null
-  ): LinkedPerson {
+  apply(change: LinkChange): LinkedProfile | null
+  apply(change: LinkChange, snapshot: true): LinkedProfile[]
+  apply(change: LinkChange, snapshot = false): LinkedProfile | LinkedProfile[] | null {
     return this.runOperation(() => {
-      const parsedFirstMember = parseMember(firstMember)
-      const parsedSecondMember = parseMember(secondMember)
-      const personId = this.createPersonId()
-      if (!personIdSchema.safeParse(personId).success) {
-        throw new Error('link graph: generated an invalid person id')
+      const result = (
+        person: LinkedProfile,
+        file: LinkProfileFile
+      ): LinkedProfile | LinkedProfile[] =>
+        structuredClone(
+          snapshot ? Object.values(file.people).sort((a, b) => a.id.localeCompare(b.id)) : person
+        )
+      const captured = plainSnapshot(change)
+      changeSchema.parse(captured)
+      // Zod validates, but its ordinary-object output may lose inherited
+      // non-writable field names. Retain the detached descriptor snapshot.
+      const command = captured as LinkChange
+      if (command.kind === 'update' && typeof command.patch.customName === 'string')
+        command.patch.customName = command.patch.customName.trim()
+      let loaded = parseProfiles(this.storage.read())
+      if (command.kind === 'replace') {
+        const [a, b] = command.members
+        if (a.platform === b.platform)
+          throw new Error('link graph: one member per platform required')
+        const matches = (file: LinkProfileFile): LinkedProfile[] =>
+          Object.values(file.people).filter((p) =>
+            p.members.some((m) => memberKey(m) === memberKey(a) || memberKey(m) === memberKey(b))
+          )
+        const matching = matches(loaded.file)
+        // An identical pair is a non-destructive no-op, even for an old confirmation.
+        if (
+          matching.length === 1 &&
+          matching[0]!.members.every(
+            (m) => memberKey(m) === memberKey(a) || memberKey(m) === memberKey(b)
+          )
+        )
+          return result(matching[0]!, loaded.file)
+        const verify = (affected: LinkedProfile[]): void => {
+          if (
+            new Set(command.expectedPeople.map((p) => p.id)).size !==
+              command.expectedPeople.length ||
+            affected.length !== command.expectedPeople.length ||
+            affected.some(
+              (p) => !command.expectedPeople.some((e) => e.id === p.id && e.revision === p.revision)
+            )
+          )
+            throw new Error('link graph: stale confirmation')
+        }
+        verify(matching)
+        // Caller-supplied ID factories can run arbitrary callbacks. Reload after them.
+        const id = parsePersonId(this.createPersonId())
+        loaded = parseProfiles(this.storage.read())
+        const affected = matches(loaded.file)
+        verify(affected)
+        if (Object.hasOwn(loaded.file.people, id))
+          throw new Error('link graph: generated a duplicate person id')
+        if (Object.keys(loaded.file.people).length - affected.length >= LINK_GRAPH_MAX_PEOPLE)
+          throw new Error('link graph: maximum linked people reached')
+        const person: LinkedProfile = {
+          id,
+          members: command.members,
+          customName: null,
+          defaultName: command.defaultName,
+          preferredPlatform: command.preferredPlatform,
+          pictureMode: 'preferred',
+          sharedNote: '',
+          revision: 1
+        }
+        const next = copyProfileFile(loaded.file)
+        for (const old of affected) delete next.people[old.id]
+        next.people[id] = person
+        const response = result(person, next)
+        this.commit(next, loaded.legacy)
+        return response
       }
-      const parsedDisplayName = parseDisplayName(displayName)
-
-      this.refresh()
-      if (parsedFirstMember.platform === parsedSecondMember.platform) {
-        throw new Error('link graph: a person must have one member per platform')
-      }
-      if (memberKey(parsedFirstMember) === memberKey(parsedSecondMember)) {
-        throw new Error('link graph: a member cannot appear twice in one person')
-      }
-      this.assertWritable()
-      if (
-        this.findByMember(parsedFirstMember) !== undefined ||
-        this.findByMember(parsedSecondMember) !== undefined
-      ) {
-        throw new Error('link graph: member is already linked')
-      }
-      if (Object.keys(this.file.people).length >= LINK_GRAPH_MAX_PEOPLE) {
-        throw new Error('link graph: maximum linked people reached')
-      }
-      if (Object.hasOwn(this.file.people, personId)) {
-        throw new Error('link graph: generated a duplicate person id')
-      }
-
-      const person = createPerson(
-        personId,
-        parsedFirstMember,
-        parsedSecondMember,
-        parsedDisplayName
-      )
-      const next = emptyLinkGraphFile()
-      next.people = copyPeople(this.file.people)
-      next.people[person.id] = person
-      this.persist(next)
-      return structuredClone(person)
+      const person = Object.hasOwn(loaded.file.people, command.personId)
+        ? loaded.file.people[command.personId]
+        : undefined
+      if (!person || person.revision !== command.expectedRevision)
+        throw new Error('link graph: stale confirmation')
+      const next = copyProfileFile(loaded.file)
+      if (command.kind === 'unlink') delete next.people[person.id]
+      else next.people[person.id] = { ...person, ...command.patch, revision: person.revision + 1 }
+      const response = result(command.kind === 'unlink' ? person : next.people[person.id]!, next)
+      this.commit(next, loaded.legacy)
+      return response
     })
   }
 
-  unlink(personId: string): LinkedPerson | null {
-    return this.runOperation(() => {
-      const parsedPersonId = parsePersonId(personId)
-      this.refresh()
-      this.assertWritable()
-      if (!Object.hasOwn(this.file.people, parsedPersonId)) return null
-      const person = this.file.people[parsedPersonId]
-      if (person === undefined) return null
-
-      const next = emptyLinkGraphFile()
-      next.people = copyPeople(this.file.people, parsedPersonId)
-      this.persist(next)
-      return structuredClone(person)
-    })
-  }
-
-  private refresh(): void {
-    try {
-      const loaded = parseFile(this.storage.read())
-      this.file = loaded.file
-      this.loadValid = loaded.loadValid
-    } catch {
-      this.file = emptyLinkGraphFile()
-      this.loadValid = false
-    }
+  private commit(next: LinkProfileFile, migrating: boolean): void {
+    // Validate the exact outgoing document, including safe-integer revision bounds.
+    parseProfiles(next)
+    if (migrating) this.storage.backup?.()
+    this.storage.write(next)
   }
 
   private runOperation<T>(operation: () => T): T {
@@ -557,31 +694,11 @@ export class LinkGraphStore {
       linkGraphOperationActive = false
     }
   }
+}
 
-  private assertWritable(): void {
-    if (this.file.storeFormatVersion > LINK_GRAPH_FORMAT_VERSION) {
-      throw new Error('link graph: refusing to overwrite data written by a newer version')
-    }
-    if (!this.loadValid) {
-      throw new Error('link graph: storage could not be loaded; explicit recovery/reset required')
-    }
-  }
-
-  private persist(next: LinkGraphFile): void {
-    try {
-      this.storage.write(structuredClone(next))
-    } catch (error) {
-      this.refresh()
-      throw error
-    }
-    this.file = next
-    this.loadValid = true
-  }
-
-  private findByMember(member: LinkedPersonMember): LinkedPerson | undefined {
-    const key = memberKey(member)
-    return Object.values(this.file.people).find((person) =>
-      person.members.some((candidate) => memberKey(candidate) === key)
-    )
-  }
+function copyProfileFile(file: LinkProfileFile): LinkProfileFile {
+  const next = emptyProfiles()
+  next.revision = file.revision + 1
+  for (const person of Object.values(file.people)) next.people[person.id] = person
+  return next
 }
