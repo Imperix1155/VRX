@@ -204,39 +204,26 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
     if (isJoining && pendingConfirm !== null) launchInitiatedRef.current = true
   }, [isJoining, pendingConfirm])
 
-  // Defensive latch clear: if the dialog is ever unmounted (error boundary,
-  // route gate) while a confirmation is parked, or if the platform's identity
-  // or auth boundary fires, the global pendingConfirm must not outlive its UI.
-  // The callbacks read a ref so the subscription stays stable across renders.
-  const pendingConfirmRef = useRef(pendingConfirm)
+  // Scope all join state to its live platform session. Direct joins need the
+  // same boundary/unmount cleanup as parked confirmations.
+  // The shared store scopes invalidation to pending, direct, or failed joins
+  // on the affected platform. Its callbacks stay stable across renders.
   useEffect(() => {
-    pendingConfirmRef.current = pendingConfirm
-  })
-  useEffect(() => {
-    if (
-      typeof window === 'undefined' ||
-      !window.vrx?.onIdentityBoundary ||
-      !window.vrx?.onFriendEvent
-    ) {
-      return
-    }
-    const unsubscribeIdentity = window.vrx.onIdentityBoundary(({ platform }) => {
-      if (pendingConfirmRef.current?.platform === platform) invalidatePending()
+    if (typeof window === 'undefined' || !window.vrx) return
+    const unsubscribeIdentity = window.vrx.onIdentityBoundary?.(({ platform }) => {
+      invalidatePending(platform)
     })
-    const unsubscribeFriend = window.vrx.onFriendEvent((event) => {
-      if (
-        event.type === 'auth-invalidated' &&
-        event.platform === pendingConfirmRef.current?.platform
-      ) {
-        invalidatePending()
+    const unsubscribeFriend = window.vrx.onFriendEvent?.((event) => {
+      if (event.type === 'auth-invalidated') {
+        invalidatePending(event.platform)
       }
     })
     return () => {
-      unsubscribeIdentity()
-      unsubscribeFriend()
+      unsubscribeIdentity?.()
+      unsubscribeFriend?.()
       // Use invalidatePending on unmount: a launch may still be settling and
       // cancelPending would leave the latch alive.
-      if (pendingConfirmRef.current !== null) invalidatePending()
+      invalidatePending()
     }
   }, [invalidatePending])
 

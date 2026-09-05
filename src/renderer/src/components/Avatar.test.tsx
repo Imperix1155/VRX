@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
 import '../i18n'
 
-const avatarData = vi.hoisted(() => ({ current: null as string | null }))
-vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
+const avatarData = vi.hoisted(() => ({ byUrl: new Map<string, string>() }))
+vi.mock('../hooks/useAvatar', () => ({
+  useAvatar: (url: string | null) => (url ? (avatarData.byUrl.get(url) ?? null) : null)
+}))
 
 import { Avatar } from './Avatar'
 
@@ -24,9 +26,21 @@ const friend: Friend = {
   linkedPersonId: null
 }
 
+const mergedFriend: Friend = {
+  ...friend,
+  platformUserId: 'usr_merged',
+  platform: 'chilloutvr',
+  displayName: 'Bob',
+  avatarUrl: 'https://files.abinteractive.net/avatar/bob.png',
+  status: null,
+  statusDescription: null,
+  trustRank: null,
+  presence: { state: 'in-game' }
+}
+
 afterEach(() => {
   cleanup()
-  avatarData.current = null
+  avatarData.byUrl.clear()
 })
 
 describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
@@ -136,15 +150,92 @@ describe('Avatar', () => {
     expect(screen.getByText('A')).toBeTruthy()
     expect(screen.queryByRole('img', { hidden: true })?.tagName).toBe('SPAN')
 
-    avatarData.current = 'data:image/png;base64,YXZhdGFy'
+    avatarData.byUrl.set(friend.avatarUrl!, 'data:image/png;base64,YXZhdGFy')
     view.rerender(<Avatar friend={friend} />)
     const image = view.container.querySelector('img')
-    expect(image?.getAttribute('src')).toBe(avatarData.current)
+    expect(image?.getAttribute('src')).toBe('data:image/png;base64,YXZhdGFy')
     expect(image?.className).toContain('object-cover')
     expect(screen.queryByText('A')).toBeNull()
 
     if (image) fireEvent.error(image)
     expect(screen.getByText('A')).toBeTruthy()
     expect(view.container.querySelector('img')).toBeNull()
+  })
+
+  it('clips opposite-platform pictures into fixed VRChat and ChilloutVR triangles', () => {
+    avatarData.byUrl.set(friend.avatarUrl!, 'data:image/png;base64,VlJD')
+    avatarData.byUrl.set(mergedFriend.avatarUrl!, 'data:image/png;base64,Q1ZS')
+
+    const { container } = render(<Avatar friend={mergedFriend} mergedWith={friend} />)
+    const vrchatHalf = container.querySelector<HTMLElement>('[data-avatar-platform="vrchat"]')
+    const chilloutvrHalf = container.querySelector<HTMLElement>(
+      '[data-avatar-platform="chilloutvr"]'
+    )
+
+    expect(vrchatHalf?.style.clipPath).toBe('polygon(0 0, 100% 0, 100% 100%)')
+    expect(chilloutvrHalf?.style.clipPath).toBe('polygon(0 0, 0 100%, 100% 100%)')
+    expect(vrchatHalf?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,VlJD')
+    expect(chilloutvrHalf?.querySelector('img')?.getAttribute('src')).toBe(
+      'data:image/png;base64,Q1ZS'
+    )
+    expect(container.querySelectorAll('[style*="box-shadow"]')).toHaveLength(1)
+  })
+
+  it('keeps the other half visible after an error and recovers for new data or source', () => {
+    avatarData.byUrl.set(friend.avatarUrl!, 'data:image/png;base64,VlJD')
+    avatarData.byUrl.set(mergedFriend.avatarUrl!, 'data:image/png;base64,Q1ZS')
+    const view = render(<Avatar friend={friend} mergedWith={mergedFriend} />)
+    const vrchatImage = view.container.querySelector<HTMLImageElement>(
+      '[data-avatar-platform="vrchat"] img'
+    )
+    if (vrchatImage) fireEvent.error(vrchatImage)
+
+    expect(view.container.querySelector('[data-avatar-platform="vrchat"] img')).toBeNull()
+    expect(view.container.querySelector('[data-avatar-platform="chilloutvr"] img')).not.toBeNull()
+    expect(screen.getByText('A')).toBeTruthy()
+
+    avatarData.byUrl.set(friend.avatarUrl!, 'data:image/png;base64,UkVGUkVTSA==')
+    view.rerender(<Avatar friend={{ ...friend }} mergedWith={mergedFriend} />)
+    const refreshedImage = view.container.querySelector<HTMLImageElement>(
+      '[data-avatar-platform="vrchat"] img'
+    )
+    expect(refreshedImage?.getAttribute('src')).toBe('data:image/png;base64,UkVGUkVTSA==')
+    if (refreshedImage) fireEvent.error(refreshedImage)
+
+    const updatedFriend = {
+      ...friend,
+      avatarUrl: 'https://files.vrchat.cloud/avatar/alice-new.png'
+    }
+    avatarData.byUrl.set(updatedFriend.avatarUrl, 'data:image/png;base64,TkVX')
+    view.rerender(<Avatar friend={updatedFriend} mergedWith={mergedFriend} />)
+
+    expect(
+      view.container.querySelector('[data-avatar-platform="vrchat"] img')?.getAttribute('src')
+    ).toBe('data:image/png;base64,TkVX')
+  })
+
+  it('renders an initial fallback independently in a missing merged half', () => {
+    avatarData.byUrl.set(friend.avatarUrl!, 'data:image/png;base64,VlJD')
+
+    const { container } = render(<Avatar friend={friend} mergedWith={mergedFriend} />)
+
+    expect(container.querySelector('[data-avatar-platform="vrchat"] img')).not.toBeNull()
+    expect(container.querySelector('[data-avatar-platform="chilloutvr"] img')).toBeNull()
+    expect(screen.getByText('B')).toBeTruthy()
+  })
+
+  it('takes the ring, badge, and accessible status only from friend', () => {
+    const offline = {
+      ...friend,
+      presence: { state: 'offline' as const },
+      status: 'join-me' as const
+    }
+    const { container } = render(<Avatar friend={offline} mergedWith={mergedFriend} />)
+
+    expect(screen.getByRole('img', { name: 'Offline' })).toBeTruthy()
+    expect(container.querySelector('[style*="var(--offline)"]')).not.toBeNull()
+    expect(container.innerHTML).not.toContain('var(--st-online)')
+    expect(container.querySelectorAll('[style*="box-shadow"]')).toHaveLength(1)
+    expect(container.querySelectorAll('span.border-2')).toHaveLength(0)
   })
 })

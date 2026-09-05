@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import FriendsList from '../components/FriendsList'
 import { useLiveFriendEvents } from '../hooks/useLiveFriendEvents'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import {
@@ -95,7 +96,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
 })
 

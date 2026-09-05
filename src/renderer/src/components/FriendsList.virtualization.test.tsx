@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
@@ -148,7 +149,8 @@ beforeEach(() => {
     isFetching: false,
     refetch: vi.fn()
   }))
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
 
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)

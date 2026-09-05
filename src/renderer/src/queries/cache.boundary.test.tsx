@@ -17,6 +17,7 @@ import type { Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { useLiveFriendEvents } from '../hooks/useLiveFriendEvents'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import FriendsList from '../components/FriendsList'
 import '../i18n'
@@ -179,7 +180,8 @@ beforeEach(() => {
     dirty: false
   })
   window.localStorage.clear()
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
 })
 
 afterEach(() => {

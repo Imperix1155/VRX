@@ -43,11 +43,9 @@ vi.mock('../stores/settings', () => ({
     })
 }))
 
-// Pin the platform filter so the render tests exercise ONE scoped query (the
-// `useFriends` mock returns the same value for both platforms; the default 'all'
-// would merge them and render every fixture twice). The merge/scope logic itself
-// is unit-tested against `combineFriendQueries` below (VRX-66).
-const platformFilter = vi.hoisted(() => ({ current: 'vrchat' }))
+// Each mocked query contains only its platform, matching the production cache.
+// All exercises both platform renderers; filter folding is also tested below.
+const platformFilter = vi.hoisted(() => ({ current: 'all' }))
 vi.mock('../stores/friends', () => ({
   useFriendsStore: <T>(selector: (state: unknown) => T): T =>
     selector({ platformFilter: platformFilter.current, search: '', setSearch: () => {} })
@@ -87,13 +85,13 @@ const publicInstance: InstanceInfo = {
 }
 
 function mock(data: Friend[]): void {
-  useFriends.mockReturnValue({
-    data,
+  useFriends.mockImplementation((platform: Friend['platform']) => ({
+    data: data.filter((friend) => friend.platform === platform),
     isPending: false,
     isError: false,
     isFetching: false,
     refetch: vi.fn()
-  })
+  }))
 }
 
 const render = (): string => renderToStaticMarkup(createElement(FriendsList))
@@ -230,6 +228,8 @@ describe('FriendsList', () => {
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
     // "Private" replaces BOTH the world AND the openness type label.
+    expect(markup).not.toContain(publicInstance.worldId)
+    expect(markup).not.toContain(publicInstance.instanceId)
     expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
     // Custom status still shown (beside the name), exactly once.
@@ -248,6 +248,8 @@ describe('FriendsList', () => {
     ])
     const markup = render()
     expect(markup).not.toContain('The Great Pug')
+    expect(markup).not.toContain(publicInstance.worldId)
+    expect(markup).not.toContain(publicInstance.instanceId)
     expect(markup).not.toContain('Public')
     expect(markup).toContain('Private')
   })

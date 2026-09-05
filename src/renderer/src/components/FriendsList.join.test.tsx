@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
@@ -69,7 +70,8 @@ let joinInstance: ReturnType<typeof vi.fn>
 beforeEach(() => {
   joinInstance = vi.fn().mockResolvedValue({ ok: true })
   window.vrx = { joinInstance } as unknown as Window['vrx']
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   // The one-click join flow these tests pin is the `confirmJoin: false` path
   // (VRX-210); the confirmation dialog is covered by JoinConfirmDialog.test.tsx.
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })

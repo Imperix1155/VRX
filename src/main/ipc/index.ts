@@ -11,6 +11,7 @@ import { registerFriendsHandlers } from './friends'
 import { registerInstanceHandlers } from './instance'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
+import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
 import { registerUpdaterHandlers } from './updater'
 import { isTrustedIpcSender } from './security'
@@ -38,6 +39,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   instance: InstanceHandlerOptions
   onRendererHydrated: (event: IpcMainEvent) => void
@@ -94,6 +96,11 @@ export function registerIpcHandlers(
     registerNotesHandlers({
       accountSession: options.accountSession,
       socialStore: options.socialStore
+    })
+    registerLinksHandlers({
+      ...options.links,
+      accountSession: options.accountSession,
+      locationAuthority: options.locationAuthority
     })
     registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
     registerAppStatusHandlers(options.appStatus)

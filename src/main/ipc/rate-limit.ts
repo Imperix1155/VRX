@@ -50,6 +50,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  'get-linked-profiles': { max: 90, windowMs: 60_000 },
+  'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
   'renderer-hydrated': { max: 3, windowMs: 60_000 },
   // Updater state is queried on mount and after every push; cheap and infrequent.
@@ -69,6 +71,8 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-instance':
     case 'self-invite':
     case 'set-friend-note':
+    case 'get-linked-profiles':
+    case 'change-linked-profile':
       return { ok: false, reason: 'rate-limited' }
     default:
       throw new Error('rate_limited')

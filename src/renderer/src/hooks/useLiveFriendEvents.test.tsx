@@ -16,6 +16,7 @@ import type { Friend } from '@shared/types'
 import { friendsQueryKey, useFriends } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
 import { QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import FriendsList from '../components/FriendsList'
 import i18n from '../i18n'
@@ -122,7 +123,8 @@ afterEach(() => {
   unsubscribeIdentityBoundary.mockClear()
   window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
 })
 
 describe('useLiveFriendEvents — CVR presence-snapshot race', () => {
@@ -533,7 +535,8 @@ describe('useLiveFriendEvents — auth-status quarantine guard (VRX-155)', () =>
       getFriends: vi.fn(() => new Promise<Friend[]>(() => {}))
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    useFriendsStore.setState({ platformFilter: 'all', search: '', selectedFriendId: null })
+    useFriendsStore.setState({ platformFilter: 'all', search: '' })
+    useProfileSelection.getState().select(null)
 
     render(
       <QueryClientProvider client={client}>

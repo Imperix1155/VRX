@@ -39,6 +39,7 @@ import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
+import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
@@ -372,6 +373,7 @@ app
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
+    const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
@@ -518,6 +520,14 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      links: {
+        linkGraph,
+        onChanged: () => {
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) window.webContents.send('linked-profiles-changed')
+          }
+        }
+      },
       appStatus,
       onAuthStatus: (status) => {
         if (
