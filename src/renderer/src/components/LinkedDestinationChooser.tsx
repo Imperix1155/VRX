@@ -60,6 +60,12 @@ export default function LinkedDestinationChooser({
   const hadAccounts = useRef(accounts.length > 0)
   const invalidatedRef = useRef(false)
   const [invalidated, setInvalidated] = useState<string | null>(null)
+  const [expiredChoices, setExpiredChoices] = useState<string[]>([])
+  const newlyExpired = reviewed
+    .filter((destination) => currentDestination(accounts, destination) === null)
+    .map((destination) => destination.friend.platform)
+    .filter((platform) => !expiredChoices.includes(platform))
+  if (newlyExpired.length > 0) setExpiredChoices([...expiredChoices, ...newlyExpired])
   const { join, isJoining, pendingConfirm } = useJoinInstance()
   const { allowJoinInstances, labelScheme } = useSettingsStore((state) => state.settings)
   const busy = isJoining || pendingConfirm !== null
@@ -85,7 +91,8 @@ export default function LinkedDestinationChooser({
         ) : null}
         {reviewed.map((destination) => {
           const current = currentDestination(accounts, destination)
-          const unavailable = current === null
+          const unavailable =
+            current === null || expiredChoices.includes(destination.friend.platform)
           const pill = instancePillFor(destination.friend.instance!, labelScheme)
           return (
             <article
@@ -117,9 +124,10 @@ export default function LinkedDestinationChooser({
                 className="mt-[var(--space-3)] rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-sm disabled:opacity-50"
                 disabled={disabled || unavailable}
                 onClick={() => {
-                  const live = invalidatedRef.current
-                    ? null
-                    : currentDestination(accounts, destination)
+                  const live =
+                    invalidatedRef.current || expiredChoices.includes(destination.friend.platform)
+                      ? null
+                      : currentDestination(accounts, destination)
                   if (live === null) {
                     setInvalidated(destination.friend.platform + destination.friend.platformUserId)
                     return

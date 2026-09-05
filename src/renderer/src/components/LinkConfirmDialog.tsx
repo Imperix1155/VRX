@@ -9,6 +9,7 @@ import type {
   LinkedProfile
 } from '@shared/linkedProfiles'
 import type { Platform } from '@shared/types'
+import { usePersonNoteGuard } from '../hooks/usePersonNote'
 
 export type LinkReview =
   | {
@@ -27,6 +28,7 @@ export interface LinkConfirmDialogProps {
   onClose: () => void
   onBack: () => void
   onSuccess: (snapshot: LinkSnapshot) => void
+  onReviewNote?: (profile: LinkedProfile) => void
 }
 
 const PLATFORM_LABEL_KEYS: Record<Platform, string> = {
@@ -89,7 +91,8 @@ export default function LinkConfirmDialog({
   onSubmit,
   onClose,
   onBack,
-  onSuccess
+  onSuccess,
+  onReviewNote
 }: LinkConfirmDialogProps): React.JSX.Element {
   const { t } = useTranslation()
   const [captured] = useState(() => ({
@@ -106,6 +109,10 @@ export default function LinkConfirmDialog({
   const [failure, setFailure] = useState<LinkFailure | 'unknown' | null>(null)
   const [reviewExpired, setReviewExpired] = useState(false)
   const pendingRef = useRef(false)
+  const affected =
+    captured.review.kind === 'unlink' ? [captured.review.profile] : captured.review.affected
+  const noteGuard = usePersonNoteGuard(affected.map((profile) => profile.id))
+  const notesBlocked = noteGuard.blockedIds.length > 0
 
   const nameFor = (ref: IdentityRef): string =>
     captured.identities.find((identity) => sameIdentityRef(identity.ref, ref))?.name ??
@@ -137,7 +144,13 @@ export default function LinkConfirmDialog({
   }
 
   const submit = async (): Promise<void> => {
-    if ((requiresAcknowledgement && !acknowledged) || pendingRef.current || reviewExpired) return
+    if (
+      (requiresAcknowledgement && !acknowledged) ||
+      pendingRef.current ||
+      reviewExpired ||
+      noteGuard.isBlocked()
+    )
+      return
     pendingRef.current = true
     setPending(true)
     setFailure(null)
@@ -164,6 +177,7 @@ export default function LinkConfirmDialog({
   const sharedNoteDisclosure = (profile: LinkedProfile): React.JSX.Element => (
     <details
       key={profile.id}
+      open
       className="rounded-control border border-[var(--border)] p-[var(--space-2)]"
     >
       <summary className="cursor-pointer text-[12px] text-[var(--text-dim)]">
@@ -176,6 +190,27 @@ export default function LinkConfirmDialog({
       </p>
     </details>
   )
+  const unsavedWarning = notesBlocked ? (
+    <div role="alert" className={warningClass}>
+      <p>{t('linking.confirm.sharedNote.unsaved')}</p>
+      {onReviewNote &&
+        affected
+          .filter((profile) => noteGuard.blockedIds.includes(profile.id))
+          .map((profile) => (
+            <button
+              key={profile.id}
+              type="button"
+              className={buttonClass}
+              disabled={pending}
+              onClick={() => onReviewNote(profile)}
+            >
+              {t('linking.confirm.sharedNote.return', {
+                name: profile.customName ?? profile.defaultName
+              })}
+            </button>
+          ))}
+    </div>
+  ) : null
   const failureMessage =
     failure === null ? null : (
       <p role="alert" className="text-[12px] text-[var(--error)]">
@@ -225,6 +260,7 @@ export default function LinkConfirmDialog({
         </label>
 
         {failureMessage}
+        {unsavedWarning}
 
         <div className="flex justify-end gap-[var(--space-2)]">
           <button type="button" className={buttonClass} disabled={pending} onClick={onBack}>
@@ -236,7 +272,7 @@ export default function LinkConfirmDialog({
           <button
             type="submit"
             className={buttonClass}
-            disabled={!acknowledged || pending || reviewExpired}
+            disabled={!acknowledged || pending || reviewExpired || notesBlocked}
           >
             {pending ? t('linking.confirm.pending') : t('linking.confirm.unlink.submit')}
           </button>
@@ -387,6 +423,7 @@ export default function LinkConfirmDialog({
       )}
 
       {failureMessage}
+      {unsavedWarning}
 
       <div className="flex justify-end gap-[var(--space-2)]">
         <button type="button" className={buttonClass} disabled={pending} onClick={onBack}>
@@ -398,7 +435,9 @@ export default function LinkConfirmDialog({
         <button
           type="submit"
           className={buttonClass}
-          disabled={(requiresAcknowledgement && !acknowledged) || pending || reviewExpired}
+          disabled={
+            (requiresAcknowledgement && !acknowledged) || pending || reviewExpired || notesBlocked
+          }
         >
           {pending
             ? t('linking.confirm.pending')

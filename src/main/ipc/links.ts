@@ -12,11 +12,13 @@ import type {
 import type { Platform } from '@shared/types'
 import type { AccountSession } from '../services/accountSession'
 import type { LinkGraphStore } from '../services/linkGraphStore'
+import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 
 export interface LinksHandlerOptions {
   accountSession: AccountSession
   linkGraph: LinkGraphStore
+  locationAuthority?: LocationAuthority
   onChanged?: () => void
 }
 
@@ -97,7 +99,39 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
     })
   const snapshot = (): LinkResult<LinkSnapshot> => {
     try {
-      const current = linkGraph.snapshot()
+      let current = linkGraph.snapshot()
+      const updates = current.profiles.flatMap((person) => {
+        const member = person.members.find((entry) => entry.platform === person.preferredPlatform)!
+        if (
+          'status' in accountSession.resolve(member.platform) ||
+          accountSession.getAccountId(member.platform) !== member.platformAccountId
+        )
+          return []
+        const resolved = options.locationAuthority?.resolve(member.platform, member.friendId)
+        if (
+          !resolved?.ok ||
+          !resolved.friend.displayName ||
+          resolved.friend.displayName.length > 256 ||
+          resolved.friend.displayName === person.defaultName
+        )
+          return []
+        return [
+          {
+            personId: person.id,
+            expectedRevision: person.revision,
+            member,
+            defaultName: resolved.friend.displayName
+          }
+        ]
+      })
+      if (updates.length > 0) {
+        current = linkGraph.refreshDefaultNames(updates)
+        try {
+          options.onChanged?.()
+        } catch {
+          /* The refreshed document is already committed. */
+        }
+      }
       return {
         ok: true,
         value: { ...current, profiles: current.profiles.filter(isAnchored), lease: currentLease() }

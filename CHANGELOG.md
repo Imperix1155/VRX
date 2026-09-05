@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merged picture and a shared private note separate from both account notes.
   Replacement and unlink confirmations show the exact affected pairs and shared
   notes before requiring acknowledgement. Links stay local and account-scoped.
+  Unsaved shared-note drafts block destructive changes until resolved; automatic
+  names retain the latest verified preferred-account name for unavailable states.
   (VRX-143)
 - Linked roster rows show both visible worlds and offer a destination chooser
   before the existing Join flow. Live presence changes keep an interacted row

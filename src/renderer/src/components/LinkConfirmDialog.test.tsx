@@ -1,8 +1,20 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within
+} from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LinkResult, LinkSnapshot, LinkedProfile } from '@shared/linkedProfiles'
 import LinkConfirmDialog, { type LinkReview } from './LinkConfirmDialog'
+import { linkedProfilesKey } from '../queries/linkedProfiles'
+import { resetPersonNoteCoordinatorForTests, usePersonNote } from '../hooks/usePersonNote'
 
 const copy = vi.hoisted(() => ({
   'linking.confirm.replace.question': 'Do these accounts belong to the same person?',
@@ -28,6 +40,9 @@ const copy = vi.hoisted(() => ({
   'linking.confirm.combinedHelp': 'You can set a custom VRX name later.',
   'linking.confirm.sharedNote.summary': 'Shared note for {{name}}',
   'linking.confirm.sharedNote.empty': 'No shared note',
+  'linking.confirm.sharedNote.unsaved':
+    'A shared note has unsaved changes. Return to its profile and save or restore the saved text before changing this link.',
+  'linking.confirm.sharedNote.return': 'Return to {{name}}',
   'linking.confirm.unlink.warning':
     'The shared note will be permanently deleted. Save any text you want to keep before unlinking.',
   'linking.confirm.unlink.accountNotes': 'Both original account notes stay unchanged.',
@@ -152,9 +167,73 @@ function renderReview(
   return { ...render(<LinkConfirmDialog {...props} />), props }
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  resetPersonNoteCoordinatorForTests()
+  Reflect.deleteProperty(window, 'vrx')
+})
 
 describe('LinkConfirmDialog content', () => {
+  it('checks new local text synchronously and releases the guard only after the writer settles', async () => {
+    resetPersonNoteCoordinatorForTests()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const saved: LinkSnapshot = { lease: 'scope', storeRevision: 10, profiles: [alice, bob] }
+    client.setQueryData(linkedProfilesKey, saved)
+    let finish!: (result: LinkResult<LinkSnapshot>) => void
+    window.vrx = {
+      getLinkedProfiles: vi.fn().mockResolvedValue({ ok: true, value: saved }),
+      changeLinkedProfile: vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      ),
+      onIdentityBoundary: () => () => {}
+    } as unknown as Window['vrx']
+    const editor = renderHook(() => usePersonNote('bob'), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      )
+    })
+    await waitFor(() => expect(editor.result.current.value).toBe(bob.sharedNote))
+    const onSubmit = vi.fn().mockResolvedValue({ ok: false, reason: 'stale' })
+    renderReview(replaceReview, onSubmit)
+    fireEvent.click(screen.getByRole('checkbox', { name: /permanently deleted/i }))
+    const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Replace and link' })
+    act(() => {
+      editor.result.current.setValue('New local text')
+      fireEvent.submit(submit.closest('form')!)
+    })
+    expect(onSubmit).not.toHaveBeenCalled()
+    act(() => editor.result.current.onBlur())
+    expect(submit.disabled).toBe(true)
+    await act(async () =>
+      finish({
+        ok: true,
+        value: {
+          ...saved,
+          storeRevision: 11,
+          profiles: [alice, { ...bob, revision: 8, sharedNote: 'New local text' }]
+        }
+      })
+    )
+    await waitFor(() => expect(submit.disabled).toBe(false))
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedPeople: [
+            { id: 'alice', revision: 4 },
+            { id: 'bob', revision: 7 }
+          ]
+        })
+      )
+    )
+    expect(
+      await screen.findByText('The existing link changed. Go back and review it again.')
+    ).toBeTruthy()
+    client.clear()
+  })
   it('enumerates both replaced pairs, notes, new pair, and accounts left unlinked', () => {
     renderReview(replaceReview)
 
@@ -162,6 +241,8 @@ describe('LinkConfirmDialog content', () => {
     expect(screen.getByText('Bob VRC + Bob CVR')).toBeTruthy()
     expect(screen.getByText('Alice private shared note')).toBeTruthy()
     expect(screen.getByText('Bob private shared note')).toBeTruthy()
+    expect(screen.getByText('Alice private shared note').closest('details')?.open).toBe(true)
+    expect(screen.getByText('Bob private shared note').closest('details')?.open).toBe(true)
     const newPair = screen.getByRole('group', { name: 'New linked pair' })
     expect(within(newPair).getByText('Alice VRC')).toBeTruthy()
     expect(within(newPair).getByText('Bob CVR')).toBeTruthy()
@@ -190,7 +271,6 @@ describe('LinkConfirmDialog content', () => {
   it('keeps an opened shared-note disclosure open while acknowledgement changes', () => {
     renderReview(replaceReview)
     const summary = screen.getByText('Shared note for Alice VRC profile')
-    fireEvent.click(summary)
     expect(summary.closest('details')?.hasAttribute('open')).toBe(true)
 
     fireEvent.click(screen.getByRole('checkbox', { name: /permanently deleted/i }))
@@ -199,6 +279,47 @@ describe('LinkConfirmDialog content', () => {
       screen.getByText('Shared note for Alice VRC profile').closest('details')?.hasAttribute('open')
     ).toBe(true)
   })
+
+  it.each(['unlink', 'replace'] as const)(
+    'blocks %s while a failed shared-note draft remains after navigation',
+    async (kind) => {
+      resetPersonNoteCoordinatorForTests()
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const saved: LinkSnapshot = { lease: 'scope', storeRevision: 10, profiles: [alice, bob] }
+      client.setQueryData(linkedProfilesKey, saved)
+      window.vrx = {
+        getLinkedProfiles: vi.fn().mockResolvedValue({ ok: true, value: saved }),
+        changeLinkedProfile: vi.fn().mockResolvedValue({ ok: false, reason: 'storage' }),
+        onIdentityBoundary: () => () => {}
+      } as unknown as Window['vrx']
+      const editor = renderHook(() => usePersonNote('alice'), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        )
+      })
+      await waitFor(() => expect(editor.result.current.value).toBe(alice.sharedNote))
+      act(() => editor.result.current.setValue('Newer draft that was not saved'))
+      act(() => editor.result.current.onBlur())
+      await waitFor(() => expect(editor.result.current.saveFailed).toBe(true))
+      editor.unmount()
+      const onSubmit = vi.fn().mockResolvedValue(success())
+      const review: LinkReview =
+        kind === 'unlink' ? { kind: 'unlink', profile: alice } : replaceReview
+      const onReviewNote = vi.fn()
+      renderReview(review, onSubmit, { onReviewNote })
+      fireEvent.click(screen.getByRole('checkbox', { name: /shared note.*deleted/i }))
+      const submit = screen.getByRole<HTMLButtonElement>('button', {
+        name: kind === 'unlink' ? 'Unlink and delete shared note' : 'Replace and link'
+      })
+      expect(submit.disabled).toBe(true)
+      fireEvent.submit(submit.closest('form')!)
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(screen.getByText(/A shared note has unsaved changes/)).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Return to Alice VRC profile' }))
+      expect(onReviewNote).toHaveBeenCalledWith(alice)
+      client.clear()
+    }
+  )
 
   it('does not label an old scoped member with the current account owner name', () => {
     const scopedIdentities = [

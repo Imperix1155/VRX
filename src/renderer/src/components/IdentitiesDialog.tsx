@@ -58,10 +58,11 @@ export default function IdentitiesDialog({
   const client = useQueryClient()
   const query = useLinkedProfiles()
   const snapshot = query.data
-  const [lease] = useState(snapshot?.lease ?? '')
+  const [lease, setLease] = useState<string | null>(snapshot?.lease || null)
+  if (lease === null && snapshot?.lease) setLease(snapshot.lease)
   const [flow, setFlow] = useState<Flow>({ kind: 'identities' })
   const [search, setSearch] = useState('')
-  const [customName, setCustomName] = useState(selection.profile?.customName ?? selection.name)
+  const [nameDraft, setNameDraft] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -86,12 +87,12 @@ export default function IdentitiesDialog({
         )
 
   useEffect(() => {
-    if (snapshot !== undefined && snapshot.lease !== lease) onClose()
+    if (lease !== null && snapshot !== undefined && snapshot.lease !== lease) onClose()
   }, [snapshot, lease, onClose])
   useEffect(() => window.vrx?.onIdentityBoundary?.(onClose), [onClose])
 
   async function submit(change: LinkRequest): Promise<LinkResult<LinkSnapshot>> {
-    if (pending.current || !canWrite) return { ok: false, reason: 'unavailable' }
+    if (pending.current || !canWrite || lease === null) return { ok: false, reason: 'unavailable' }
     pending.current = true
     setBusy(true)
     setError(null)
@@ -108,14 +109,24 @@ export default function IdentitiesDialog({
       setBusy(false)
     }
   }
-  async function update(patch: Extract<LinkRequest, { kind: 'update' }>['patch']): Promise<void> {
+  async function update(
+    patch: Extract<LinkRequest, { kind: 'update' }>['patch']
+  ): Promise<LinkResult<LinkSnapshot> | undefined> {
     if (profile === null) return
-    await submit({
+    return await submit({
       kind: 'update',
       personId: profile.id,
       expectedRevision: profile.revision,
       patch
     })
+  }
+  async function saveName(value: string): Promise<void> {
+    const result = await update({ customName: value })
+    if (result?.ok) setNameDraft((current) => (current?.trim() === value ? null : current))
+  }
+  async function resetName(defaultName: string): Promise<void> {
+    const result = await update({ customName: null, defaultName })
+    if (result?.ok) setNameDraft(null)
   }
   function openAccount(ref: FriendRef): void {
     onNavigate({
@@ -209,6 +220,14 @@ export default function IdentitiesDialog({
     onClose()
   }
   const displayedMembers = profile?.members ?? [origin]
+  const preferredMember = profile?.members.find(
+    (member) => member.platform === profile.preferredPlatform
+  )
+  const automaticName =
+    preferredMember && preferredMember.platformAccountId === accountIds[preferredMember.platform]
+      ? (findFriend(preferredMember)?.displayName ?? profile?.defaultName)
+      : profile?.defaultName
+  const customName = nameDraft ?? profile?.customName ?? automaticName ?? selection.name
   const pickerCandidates =
     flow.kind === 'picker'
       ? friends.filter(
@@ -246,6 +265,20 @@ export default function IdentitiesDialog({
             setFlow({ kind: 'identities' })
           }}
           onSuccess={success}
+          onReviewNote={(person) => {
+            const anchor =
+              person.members.find(
+                (member) =>
+                  member.platformAccountId === accountIds[member.platform] &&
+                  findFriend(member) !== undefined
+              ) ?? person.members[0]
+            onNavigate({
+              kind: 'person',
+              personId: person.id,
+              anchor: { platform: anchor.platform, friendId: anchor.friendId }
+            })
+            onClose()
+          }}
         />
       ) : (
         <>
@@ -391,7 +424,7 @@ export default function IdentitiesDialog({
                       maxLength={256}
                       className={inputClass}
                       value={customName}
-                      onChange={(event) => setCustomName(event.target.value)}
+                      onChange={(event) => setNameDraft(event.target.value)}
                     />
                   </label>
                   <div className="flex gap-[var(--space-2)]">
@@ -399,7 +432,7 @@ export default function IdentitiesDialog({
                       type="button"
                       className={buttonClass}
                       disabled={!canWrite || busy || !customName.trim()}
-                      onClick={() => void update({ customName: customName.trim() })}
+                      onClick={() => void saveName(customName.trim())}
                     >
                       {t('linking.manage.saveName')}
                     </button>
@@ -415,8 +448,7 @@ export default function IdentitiesDialog({
                           preferred.platformAccountId === accountIds[preferred.platform]
                             ? (findFriend(preferred)?.displayName ?? profile.defaultName)
                             : profile.defaultName
-                        setCustomName(defaultName)
-                        void update({ customName: null, defaultName })
+                        void resetName(defaultName)
                       }}
                     >
                       {t('linking.manage.platformName')}

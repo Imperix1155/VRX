@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
@@ -70,6 +70,83 @@ afterEach(() => {
   client.clear()
 })
 describe('identity management', () => {
+  it('waits for the first lease without closing and still closes on a later lease change', async () => {
+    client.removeQueries({ queryKey: linkedProfilesKey })
+    let finish!: (result: { ok: true; value: LinkSnapshot }) => void
+    vi.mocked(window.vrx!.getLinkedProfiles).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    render(dialog())
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' }).disabled
+    ).toBe(true)
+    await act(async () => finish({ ok: true, value: snapshot }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' }).disabled
+      ).toBe(false)
+    )
+    expect(close).not.toHaveBeenCalled()
+    act(() => {
+      client.setQueryData(linkedProfilesKey, { ...snapshot, lease: 'next-session' })
+    })
+    await waitFor(() => expect(close).toHaveBeenCalled())
+  })
+
+  it('updates the automatic name after a successful preference change without overwriting typed text', async () => {
+    snapshot.profiles = [
+      {
+        id: 'pair',
+        members: [
+          { platform: 'vrchat', platformAccountId: 'v', friendId: source.platformUserId },
+          { platform: 'chilloutvr', platformAccountId: 'c', friendId: candidate.platformUserId }
+        ],
+        customName: null,
+        defaultName: 'Origin',
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '',
+        revision: 1
+      }
+    ]
+    client.setQueryData(linkedProfilesKey, snapshot)
+    mutate.mockImplementation(({ change }) => {
+      snapshot = {
+        ...snapshot,
+        storeRevision: snapshot.storeRevision + 1,
+        profiles: [
+          {
+            ...snapshot.profiles[0]!,
+            ...change.patch,
+            revision: snapshot.profiles[0]!.revision + 1
+          }
+        ]
+      }
+      return Promise.resolve({ ok: true, value: snapshot })
+    })
+    render(dialog())
+    fireEvent.change(screen.getByRole('combobox', { name: 'Preferred platform' }), {
+      target: { value: 'chilloutvr' }
+    })
+    await waitFor(() =>
+      expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'VRX name' }).value).toBe(
+        'Counterpart'
+      )
+    )
+    expect(snapshot.profiles[0]?.customName).toBeNull()
+    fireEvent.change(screen.getByRole('textbox', { name: 'VRX name' }), {
+      target: { value: 'My draft' }
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Preferred platform' }), {
+      target: { value: 'vrchat' }
+    })
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'VRX name' }).value).toBe(
+      'My draft'
+    )
+  })
   it('selects duplicate names by exact friend identity and creates a blank-note link', async () => {
     const duplicate = { ...candidate, platformUserId: 'different_friend' }
     render(dialog([source, candidate, duplicate]))

@@ -5,10 +5,12 @@ import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../store
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useAuthStatus } from '../queries/auth'
+import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
+import { projectLinkedFriends } from '../utils/projectLinkedFriends'
 
 // `PlatformFilter` (the segmented control's value type) is the store's canonical
 // union — imported, not redefined, so it can't drift (VRX-66). The type import
@@ -143,6 +145,9 @@ export default function TopBar(): React.JSX.Element {
   const setPlatform = useFriendsStore((s) => s.setPlatformFilter)
   const vrcAuth = useAuthStatus('vrchat').data
   const cvrAuth = useAuthStatus('chilloutvr').data
+  const vrcFriends = useFriends('vrchat')
+  const cvrFriends = useFriends('chilloutvr')
+  const linkedProfiles = useLinkedProfiles().data?.profiles ?? []
   const [connectionHealth, setConnectionHealth] = useState(defaultConnectionHealth)
 
   useEffect(() => {
@@ -215,13 +220,26 @@ export default function TopBar(): React.JSX.Element {
   // queries are already cached (Friends/Dashboard views), so this re-uses them
   // rather than fetching again. Scoped to the platform filter (VRX-66) so the
   // count reflects whichever platform(s) the user is currently viewing.
-  const onlineCount = scopeByPlatformFilter(
-    platform,
-    useFriends('vrchat'),
-    useFriends('chilloutvr')
+  const filteredFriends = scopeByPlatformFilter(platform, vrcFriends, cvrFriends).flatMap(
+    (query) => query.data ?? []
   )
-    .flatMap((q) => q.data ?? [])
-    .filter((f) => f.presence.state === 'active' || f.presence.state === 'in-game').length
+  const onlineCount =
+    activeTab === 'friends'
+      ? projectLinkedFriends({
+          friends: [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
+          profiles: linkedProfiles,
+          accountIds: {
+            vrchat:
+              vrcAuth?.state === 'authenticated' ? (vrcAuth.accountId ?? undefined) : undefined,
+            chilloutvr:
+              cvrAuth?.state === 'authenticated' ? (cvrAuth.accountId ?? undefined) : undefined
+          },
+          filter: platform,
+          search: ''
+        }).onlinePeople
+      : filteredFriends.filter(
+          (friend) => friend.presence.state === 'active' || friend.presence.state === 'in-game'
+        ).length
 
   return (
     <div className="flex items-center mb-[22px]">

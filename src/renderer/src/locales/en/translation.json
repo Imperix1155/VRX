@@ -26,7 +26,9 @@
       "combinedHelp": "You can set a custom VRX name later.",
       "sharedNote": {
         "summary": "Shared note for {{name}}",
-        "empty": "No shared note"
+        "empty": "No shared note",
+        "unsaved": "A shared note has unsaved changes. Return to its profile and save or restore the saved text before changing this link.",
+        "return": "Return to {{name}}"
       },
       "unlink": {
         "warning": "The shared note will be permanently deleted. Save any text you want to keep before unlinking.",

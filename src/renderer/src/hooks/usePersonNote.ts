@@ -171,6 +171,21 @@ function findProfile(
   return snapshot?.profiles.find((candidate) => candidate.id === personId)
 }
 
+/** Blocks destructive review while any affected owner has local or in-flight text. */
+export function usePersonNoteGuard(personIds: string[]): {
+  blockedIds: string[]
+  isBlocked: () => boolean
+} {
+  ensureCoordinator()
+  useSyncExternalStore(subscribe, snapshotVersion, () => 0)
+  const blockedIds = (): string[] =>
+    personIds.filter((id) => {
+      const key = `${id}:${coordinator.epoch}`
+      return coordinator.drafts.get(key)?.dirty || coordinator.saveStates.get(key)?.saving
+    })
+  return { blockedIds: blockedIds(), isBlocked: () => blockedIds().length > 0 }
+}
+
 async function refreshProfiles(client: QueryClient): Promise<LinkSnapshot | undefined> {
   try {
     return await client.fetchQuery({
@@ -261,7 +276,11 @@ async function runWriter(
     }
   } finally {
     state.saving = false
-    if (coordinator.saveStates.get(key) === state) coordinator.saveStates.delete(key)
+    if (coordinator.saveStates.get(key) === state) {
+      coordinator.saveStates.delete(key)
+      coordinator.nextIntentVersion += 1
+      notify()
+    }
   }
 }
 

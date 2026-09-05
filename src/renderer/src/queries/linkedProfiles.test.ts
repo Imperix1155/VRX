@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
+import { fullFriend } from '../test-utils/friendFixture'
 import {
   fetchLinkedProfiles,
   changeLinkedProfile,
@@ -11,6 +12,26 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 describe('linked profile snapshots', () => {
+  it('refreshes fallback names after friend-name changes but not presence-only updates', () => {
+    vi.stubGlobal('window', {})
+    const client = new QueryClient()
+    const friend = fullFriend('First name', 'vrchat')
+    client.setQueryData(['friends', 'vrchat'], [friend])
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const dispose = subscribeLinkedProfiles(client)
+    client.setQueryData(['friends', 'vrchat'], [{ ...friend, presence: { state: 'offline' } }])
+    expect(invalidate).not.toHaveBeenCalled()
+    client.setQueryData(['friends', 'vrchat'], [{ ...friend, displayName: 'Renamed' }])
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: linkedProfilesKey })
+    client.setQueryData(
+      ['friends', 'vrchat'],
+      [{ ...friend, displayName: 'Renamed', status: 'busy' }]
+    )
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    dispose()
+    client.clear()
+  })
   it('does not let an earlier read roll back a committed mutation', async () => {
     let finish!: (value: unknown) => void
     const newer = { profiles: [], lease: 'lease', storeRevision: 2 }

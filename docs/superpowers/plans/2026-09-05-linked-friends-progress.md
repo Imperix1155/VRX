@@ -132,3 +132,41 @@ Final implementation checkpoint: native Electron fixture rerun passed after the
 last functional cleanup. Standard Codex weekly usage is 6% used; no standard
 five-hour window was returned. No reset credit was redeemed. All implementation
 workers have completed; fresh nonbuilder review lenses are next.
+
+## Local review round 1 and corrections
+
+Review head `6650f105c2af13038e6db316089f2d92a00d483e`, base `60ce0a0`.
+Artifact SHA-256 `3eecd74aa7d601a1f342428ada3f95add94e7f60983f40474746434ddb29f0bc`,
+660,486 bytes / 12,011 lines / 72 files. Three fresh nonbuilder Codex lenses ran:
+security/authority, correctness/lifecycle, tests/contracts. Same-lineage review.
+Security reported no material finding; the other lenses found seven actionable
+defects. Verdict was FIX-FIRST, not publication-ready.
+
+Confirmed and corrected in one functional round:
+
+- Friends TopBar counted linked accounts twice. It now uses unique people;
+  Dashboard stays account-shaped. Regression failed 2 versus 1 before correction.
+- Identities captured an empty initial lease and closed on first query success.
+  It now waits for the first lease and still closes at later boundaries.
+- Saved shared notes were collapsed in destructive review. They start expanded.
+- A successful preference change left a stale automatic-name input. Automatic
+  values now follow the preferred account without overwriting typed name drafts.
+- Failed or in-flight shared-note drafts could escape deletion disclosure.
+  Every affected person now has a reactive and synchronous submission guard,
+  with return-to-profile recovery. Failed drafts retained after navigation and
+  pending/synchronous-edit races are covered. No automatic retry/discard was added.
+- Preferred-name fallback did not persist renames. Main now reads fresh scoped
+  LocationAuthority names and batches updates in one guarded transaction, leaving
+  custom names, notes and membership unchanged. Name-only cache invalidation adds
+  no platform traffic. Removing the member-match guard made the test fail; restored.
+- A chooser destination could revive after moving away and returning. Observed
+  drift now stays invalid until reopen.
+
+Correction gate: 2,407 tests / 159 files, typecheck, uncached ESLint, formatting
+and production build passed `LINKED_FRIENDS_GATE_GREEN`. Fallow's scoped findings
+remain the same pre-existing unused type and four classified clone groups.
+Updated native Electron fixture passed `LINKED_RUNTIME_GREEN`, including expanded
+note disclosure, failed-draft unlink blocking and return to the exact draft owner.
+No screenshots or real-account actions. DOX/API/design references are synchronized.
+Weekly Codex usage: 7% used. No reset credit redeemed. No push or PR yet.
+Next: pin corrected head and repeat full T2 review, then publication and external gates.

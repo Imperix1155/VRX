@@ -97,7 +97,11 @@ export function registerIpcHandlers(
       accountSession: options.accountSession,
       socialStore: options.socialStore
     })
-    registerLinksHandlers({ ...options.links, accountSession: options.accountSession })
+    registerLinksHandlers({
+      ...options.links,
+      accountSession: options.accountSession,
+      locationAuthority: options.locationAuthority
+    })
     registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
     registerAppStatusHandlers(options.appStatus)
     registerLaunchHandlers()

@@ -203,6 +203,22 @@ describe('LinkedDestinationChooser', () => {
     expect(join).not.toHaveBeenCalled()
   })
 
+  it('does not revive a reviewed choice after moving away and returning', () => {
+    const vrc = friend('vrchat', 'vrc', 'VRC')
+    const view = render(<LinkedDestinationChooser accounts={[vrc]} onClose={vi.fn()} />)
+    view.rerender(
+      <LinkedDestinationChooser
+        accounts={[{ ...vrc, instance: { ...instance, instanceId: 'world:moved' } }]}
+        onClose={vi.fn()}
+      />
+    )
+    view.rerender(<LinkedDestinationChooser accounts={[vrc]} onClose={vi.fn()} />)
+    const choice = screen.getByRole<HTMLButtonElement>('button', { name: /Join on/i })
+    expect(choice.disabled).toBe(true)
+    fireEvent.click(choice)
+    expect(join).not.toHaveBeenCalled()
+  })
+
   it('disables all choices when joining is unavailable', () => {
     useJoinInstance.mockReturnValue({ join, isJoining: true, pendingConfirm: null })
     render(

@@ -94,6 +94,12 @@ Snapshots contain only profiles anchored to a healthy signed-in member; replace
 requires both selected platforms ready. Local budgets are 90 reads and 60 writes
 per minute. No network requests or account notes are changed.
 
+`LinksHandlerOptions.locationAuthority` supplies fresh main-owned preferred names.
+`LinkGraphStore.refreshDefaultNames([{personId, expectedRevision, member, defaultName}])`
+validates qualified preferred members and batches changed fallbacks in one write.
+It preserves custom names/notes/membership and advances affected revisions. Snapshot
+reads never source names from renderer requests or stale/different-account data.
+
 Renderer `queries/linkedProfiles.ts` exports `linkedProfilesKey`,
 `fetchLinkedProfiles`, `useLinkedProfiles`,
 `changeLinkedProfile`, `subscribeLinkedProfiles`, `useLinkedProfileEvents`, and
@@ -102,6 +108,8 @@ Renderer `queries/linkedProfiles.ts` exports `linkedProfilesKey`,
 App mounts the event hook once. Identity boundaries cancel reads, clear mounted
 snapshots and invalidate for the current account. Stale write replies cannot
 restore the previous lease; destructive commands are never automatically retried.
+Friend-cache name changes also invalidate linked snapshots; presence-only changes
+do not. This refresh uses existing local data and does not request platform data.
 
 `utils/projectLinkedFriends.ts` exports `projectLinkedFriends`, `resolveLinkedProfile`,
 and the `ProfileTarget`, `LinkedRow`, and `ResolvedProfile` types. Projection groups
@@ -113,6 +121,9 @@ editor interface. Its session-only coordinator serializes per-person saves and r
 drafts/failures through remount/HMR. It clears draft state at identity boundaries;
 only the app query subscription resets/reloads the shared cache. Drawer owner changes
 flush the last committed owner's callback; same-person presence changes do not save.
+`usePersonNoteGuard(personIds)` returns reactive `blockedIds` and a synchronous
+`isBlocked()` check for dirty or in-flight text. Confirmations use both, including
+drafts retained after navigation, and can route back through `onReviewNote(profile)`.
 
 `components/IdentitiesDialog.tsx` owns the local picker, preferences and scoped
 review flow. `LinkConfirmDialog` consumes captured `LinkReview` plus qualified

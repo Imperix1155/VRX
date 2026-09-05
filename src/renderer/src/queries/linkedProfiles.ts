@@ -7,6 +7,7 @@ import {
   type UseQueryResult
 } from '@tanstack/react-query'
 import type { LinkRequest, LinkResult, LinkSnapshot } from '@shared/linkedProfiles'
+import type { Friend } from '@shared/types'
 
 export const linkedProfilesKey = ['linked-profiles'] as const
 const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '', storeRevision: 0 }
@@ -73,6 +74,16 @@ export async function changeLinkedProfile(
 /** One app-lifetime subscription; shared notes never enter persisted friends caches. */
 export function subscribeLinkedProfiles(client: QueryClient): () => void {
   if (typeof window === 'undefined') return () => {}
+  const names = new Map<string, string>()
+  const fingerprint = (data: unknown): string =>
+    JSON.stringify(
+      Array.isArray(data)
+        ? (data as Friend[]).map((friend) => [friend.platformUserId, friend.displayName])
+        : []
+    )
+  for (const query of client.getQueryCache().getAll()) {
+    if (query.queryKey[0] === 'friends') names.set(query.queryHash, fingerprint(query.state.data))
+  }
   const invalidate = (): void => {
     void client.invalidateQueries({ queryKey: linkedProfilesKey })
   }
@@ -84,6 +95,12 @@ export function subscribeLinkedProfiles(client: QueryClient): () => void {
   })
   const auth = client.getQueryCache().subscribe((event) => {
     const queryKey = event.query.queryKey as readonly unknown[]
+    if (event.type === 'updated' && queryKey[0] === 'friends' && event.action.type === 'success') {
+      const next = fingerprint(event.query.state.data)
+      const previous = names.get(event.query.queryHash)
+      names.set(event.query.queryHash, next)
+      if (next !== previous) invalidate()
+    }
     if (
       event.type === 'updated' &&
       queryKey[0] === 'auth-status' &&

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountSession } from '../services/accountSession'
+import { LocationAuthority } from '../services/locationAuthority'
+import { fullFriend } from '../../renderer/src/test-utils/friendFixture'
 import { LinkGraphStore, type LinkGraphStorage } from '../services/linkGraphStore'
 import { registerLinksHandlers } from './links'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
@@ -25,7 +27,7 @@ beforeEach(() => {
   handlers.clear()
   trusted.mockReturnValue(true)
 })
-function setup(): {
+function setup(locationAuthority?: LocationAuthority): {
   session: AccountSession
   graph: LinkGraphStore
   storage: LinkGraphStorage
@@ -43,7 +45,12 @@ function setup(): {
   session.setIdentity('chilloutvr', 'owner_cvr')
   const graph = new LinkGraphStore(storage, () => 'person')
   const changed = vi.fn()
-  registerLinksHandlers({ accountSession: session, linkGraph: graph, onChanged: changed })
+  registerLinksHandlers({
+    accountSession: session,
+    linkGraph: graph,
+    onChanged: changed,
+    locationAuthority
+  })
   return { session, graph, storage, changed }
 }
 function create(): ReturnType<typeof invoke> {
@@ -60,6 +67,28 @@ function create(): ReturnType<typeof invoke> {
   })
 }
 describe('scoped linked profile IPC', () => {
+  it('persists only fresh preferred names from the matching main-owned account scope', () => {
+    const authority = new LocationAuthority()
+    const { session, graph } = setup(authority)
+    create()
+    const friend = { ...fullFriend('Renamed', 'vrchat'), platformUserId: vrc.friendId }
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    authority.seed('vrchat', [friend], authority.captureSeedRevision('vrchat'))
+    const updated = invoke('get-linked-profiles').value
+    expect(updated.profiles[0]?.defaultName).toBe('Renamed')
+    expect(graph.snapshot().profiles[0]?.defaultName).toBe('Renamed')
+    const revision = updated.storeRevision
+    authority.clearPlatform('vrchat')
+    expect(invoke('get-linked-profiles').value.storeRevision).toBe(revision)
+    session.setIdentity('vrchat', 'another_owner')
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    authority.seed(
+      'vrchat',
+      [{ ...friend, displayName: 'Other account name' }],
+      authority.captureSeedRevision('vrchat')
+    )
+    expect(invoke('get-linked-profiles').value.profiles[0]?.defaultName).toBe('Renamed')
+  })
   it('publishes monotonic document revisions without rotating a healthy session lease', () => {
     setup()
     const before = invoke('get-linked-profiles').value

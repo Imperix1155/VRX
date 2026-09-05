@@ -49,6 +49,106 @@ function fixture(): {
 }
 
 describe('transactional linked profiles', () => {
+  it('refreshes preferred fallback names in one transaction without changing notes or custom names', () => {
+    const { graph, storage, writes } = fixture()
+    const a = graph.apply({
+      kind: 'replace',
+      members: [vrc, cvr],
+      preferredPlatform: 'vrchat',
+      defaultName: 'A',
+      expectedPeople: []
+    })!
+    const b = graph.apply({
+      kind: 'replace',
+      members: [vrc2, cvr2],
+      preferredPlatform: 'chilloutvr',
+      defaultName: 'B',
+      expectedPeople: []
+    })!
+    graph.apply({
+      kind: 'update',
+      personId: a.id,
+      expectedRevision: 1,
+      patch: { sharedNote: 'Keep', customName: 'Custom' }
+    })
+    const before = graph.snapshot()
+    const writeCount = writes()
+    const refreshed = graph.refreshDefaultNames([
+      { personId: a.id, expectedRevision: 2, member: vrc, defaultName: 'Renamed A' },
+      { personId: b.id, expectedRevision: 1, member: cvr2, defaultName: 'Renamed B' }
+    ])
+    expect(writes()).toBe(writeCount + 1)
+    expect(refreshed.storeRevision).toBe(before.storeRevision + 1)
+    expect(refreshed.profiles[0]).toMatchObject({
+      defaultName: 'Renamed A',
+      customName: 'Custom',
+      sharedNote: 'Keep',
+      revision: 3
+    })
+    expect(refreshed.profiles[1]).toMatchObject({ defaultName: 'Renamed B', revision: 2 })
+    expect(new LinkGraphStore(storage).snapshot()).toEqual(refreshed)
+    expect(() => graph.apply({ kind: 'unlink', personId: a.id, expectedRevision: 2 })).toThrow(
+      'stale confirmation'
+    )
+    graph.refreshDefaultNames([
+      { personId: a.id, expectedRevision: 3, member: vrc, defaultName: 'Renamed A' }
+    ])
+    expect(writes()).toBe(writeCount + 1)
+  })
+
+  it('ignores stale revisions, nonpreferred members and another account owner during name refresh', () => {
+    const { graph, writes } = fixture()
+    const person = graph.apply({
+      kind: 'replace',
+      members: [vrc, cvr],
+      preferredPlatform: 'vrchat',
+      defaultName: 'A',
+      expectedPeople: []
+    })!
+    const before = graph.snapshot()
+    for (const update of [
+      { personId: person.id, expectedRevision: 2, member: vrc, defaultName: 'Wrong' },
+      { personId: person.id, expectedRevision: 1, member: cvr, defaultName: 'Wrong' },
+      {
+        personId: person.id,
+        expectedRevision: 1,
+        member: { ...vrc, platformAccountId: 'someone_else' },
+        defaultName: 'Wrong'
+      }
+    ])
+      expect(graph.refreshDefaultNames([update])).toEqual(before)
+    expect(writes()).toBe(1)
+  })
+
+  it('preserves all fallback names after a failed batched refresh and rejects accessor inputs without executing them', () => {
+    const { graph, fail } = fixture()
+    const person = graph.apply({
+      kind: 'replace',
+      members: [vrc, cvr],
+      preferredPlatform: 'vrchat',
+      defaultName: 'A',
+      expectedPeople: []
+    })!
+    const before = graph.snapshot()
+    const getter = vi.fn(() => 'Bad')
+    const hostile = {
+      personId: person.id,
+      expectedRevision: 1,
+      member: vrc,
+      get defaultName() {
+        return getter()
+      }
+    }
+    expect(() => graph.refreshDefaultNames([hostile])).toThrow()
+    expect(getter).not.toHaveBeenCalled()
+    fail()
+    expect(() =>
+      graph.refreshDefaultNames([
+        { personId: person.id, expectedRevision: 1, member: vrc, defaultName: 'Renamed' }
+      ])
+    ).toThrow()
+    expect(graph.snapshot()).toEqual(before)
+  })
   it('creates one profile with a blank independent note and round-trips preferences', () => {
     const { graph, storage } = fixture()
     const person = graph.apply({

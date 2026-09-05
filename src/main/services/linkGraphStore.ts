@@ -567,6 +567,60 @@ export class LinkGraphStore {
     return this.runOperation(() => this.loadSnapshot())
   }
 
+  /** Main-owned name observations never alter membership, custom names or notes. */
+  refreshDefaultNames(
+    updates: Array<{
+      personId: string
+      expectedRevision: number
+      member: LinkedPersonMember
+      defaultName: string
+    }>
+  ): LinkProfileSnapshot {
+    return this.runOperation(() => {
+      const captured = plainSnapshot(updates)
+      z.array(
+        z
+          .object({
+            personId: personIdSchema,
+            expectedRevision: revisionSchema,
+            member: memberSchema,
+            defaultName: z.string().min(1).max(256)
+          })
+          .strict()
+      )
+        .max(LINK_GRAPH_MAX_PEOPLE)
+        .refine((items) => new Set(items.map((item) => item.personId)).size === items.length)
+        .parse(captured)
+      const loaded = parseProfiles(this.storage.read())
+      const next = copyProfileFile(loaded.file)
+      let changed = false
+      for (const update of captured as typeof updates) {
+        const person = loaded.file.people[update.personId]
+        const preferred = person?.members.find(
+          (member) => member.platform === person.preferredPlatform
+        )
+        if (
+          !person ||
+          !preferred ||
+          person.revision !== update.expectedRevision ||
+          memberKey(preferred) !== memberKey(update.member) ||
+          person.defaultName === update.defaultName
+        )
+          continue
+        next.people[person.id] = {
+          ...person,
+          defaultName: update.defaultName,
+          revision: person.revision + 1
+        }
+        changed = true
+      }
+      if (!changed) return profileSnapshot(loaded.file)
+      const response = profileSnapshot(next)
+      this.commit(next, loaded.legacy)
+      return response
+    })
+  }
+
   private loadSnapshot(): LinkProfileSnapshot {
     const loaded = parseProfiles(this.storage.read())
     if (loaded.legacy) {

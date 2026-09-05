@@ -566,6 +566,14 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 
+Destructive confirmation starts with saved shared notes expanded. Any affected
+person's unsaved or in-flight local draft blocks submission and offers a return
+to that profile for the existing save/retry flow. A saved revision changing
+during review still requires a fresh review. Preferred-name fallbacks refresh
+from fresh account-scoped main data; custom names remain unchanged. Friends'
+top-bar online count uses unique people; Dashboard statistics remain account-based.
+Once a chooser observes destination drift, that choice stays invalid until reopened.
+
 - Linking is user-driven. VRX never infers identity from names or presence. Each person has exactly one account-qualified VRChat member and one account-qualified ChilloutVR member: `{platform, platformAccountId, friendId}`. Bare upstream IDs never identify a saved member.
 - The main-owned link document stores preferred platform, picture mode, stable default or custom name, revision, and shared note. Account notes remain in their original account stores. All three notes are private local data under app `userData`; VRX never writes VRCX or CVRX files.
 - **Identities** is a native modal over the drawer. Search includes offline friends from the other platform. Link confirmation shows the selected pair, preferred platform, and combined-name preview. A new link starts with a blank shared note and leaves both account notes unchanged.
