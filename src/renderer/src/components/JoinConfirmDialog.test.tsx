@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from '../hooks/useJoinInstance'
@@ -218,7 +219,8 @@ beforeEach(() => {
       }
     }
   } as unknown as Window['vrx']
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   // confirmJoin defaults TRUE (the cautious default this feature ships with).
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   cacheGeneration = 0
@@ -229,7 +231,7 @@ afterEach(() => {
   // The join store is module-level: close any parked confirmation so an open
   // dialog never leaks into the next test.
   const { result } = renderHook(() => useJoinInstance())
-  act(() => result.current.cancelPending())
+  act(() => result.current.invalidatePending())
   cleanup()
   vi.useRealTimers()
   useFriendsMock.mockReset()
@@ -283,7 +285,11 @@ describe('join path interception (confirmJoin on)', () => {
   })
 
   it('drawer Join button: same dialog, same single join', async () => {
-    useFriendsStore.setState({ selectedFriendId: 'vrchat:usr_alex' })
+    useProfileSelection.getState().select({
+      kind: 'account',
+      personId: null,
+      account: { platform: 'vrchat', friendId: 'usr_alex' }
+    })
     render(
       <>
         <FriendsList />
@@ -1005,7 +1011,11 @@ describe('never-show-again footnote', () => {
 
 describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
   function renderDrawerPlusDialog(): void {
-    useFriendsStore.setState({ selectedFriendId: 'vrchat:usr_alex' })
+    useProfileSelection.getState().select({
+      kind: 'account',
+      personId: null,
+      account: { platform: 'vrchat', friendId: 'usr_alex' }
+    })
     render(
       <>
         <FriendsList />
@@ -2212,6 +2222,37 @@ describe('VRX-239/241 liveness contract', () => {
 })
 
 describe('defensive latch clear (VRX-239/241)', () => {
+  it.each(['identity', 'auth', 'unmount'] as const)(
+    'clears and fences a direct join at %s boundary',
+    async (boundary) => {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false } })
+      let finish!: (value: { ok: false; reason: 'cooldown' }) => void
+      joinInstance.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      const view = render(<TestSurface friend={joinableFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const hook = renderHook(() => useJoinInstance())
+      expect(hook.result.current.pendingConfirm).toBeNull()
+      expect(hook.result.current.isJoining).toBe(true)
+      act(() => {
+        if (boundary === 'identity') fireIdentityBoundary!({ platform: 'vrchat' })
+        else if (boundary === 'auth')
+          fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' })
+        else view.unmount()
+      })
+      expect(hook.result.current.isJoining).toBe(false)
+      await act(async () => {
+        finish({ ok: false, reason: 'cooldown' })
+        await Promise.resolve()
+      })
+      expect(hook.result.current.joinFailureFor(joinableFriend)).toBeNull()
+    }
+  )
+
   it('identity-boundary for the dialog platform closes the dialog', () => {
     render(<TestSurface friend={joinableFriend} />)
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))

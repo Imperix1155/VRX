@@ -8,14 +8,25 @@ import type {
   RefCallback
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, FriendSection } from '@shared/types'
+import { FRIEND_SECTIONS, type Friend, type FriendSection, type Platform } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
+import type { LinkedProfile } from '@shared/linkedProfiles'
 import { useFriends, useCombineFriendQueries } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
-import { groupFriendsBySection } from '../utils/groupFriendsBySection'
+import {
+  projectLinkedFriends,
+  resolveLinkedProfile,
+  type LinkedRow,
+  type ProfileTarget
+} from '../utils/projectLinkedFriends'
+import { useLinkedProfiles } from '../queries/linkedProfiles'
+import { useProfileSelection } from '../stores/profileSelection'
+import { useStableLinkedRows } from '../hooks/useStableLinkedRows'
+import LinkedWorlds from './LinkedWorlds'
+import LinkedDestinationChooser from './LinkedDestinationChooser'
 import InstancePill from './InstancePill'
 import FriendDrawer from './FriendDrawer'
 import { Avatar } from './Avatar'
@@ -31,6 +42,7 @@ const SECTION_ROW_ESTIMATE = 32
 const COMPACT_FRIEND_ROW_ESTIMATE = 60
 const DETAIL_FRIEND_ROW_ESTIMATE = 72
 const VIRTUAL_OVERSCAN = 5
+const EMPTY_LINKED_ROWS: LinkedRow[] = []
 
 function findActiveStickyIndex(
   stickyIndexes: readonly number[],
@@ -70,7 +82,7 @@ function PlatformTab({
   platform,
   labelId
 }: {
-  platform: Friend['platform']
+  platform: Friend['platform'] | 'vrx'
   /** Stable per-row id so the row's details opener can compose the platform
    *  into its accessible name via aria-labelledby (VRX-69 re-review). */
   labelId?: string
@@ -82,15 +94,36 @@ function PlatformTab({
     <span
       id={labelId}
       role="img"
-      aria-label={isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
-      className="grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180"
+      aria-label={
+        platform === 'vrx'
+          ? 'VRX'
+          : isVrc
+            ? t('friends.platform.vrchat')
+            : t('friends.platform.chilloutvr')
+      }
+      className={`grid place-items-center self-stretch -mt-[5px] -mb-[5px] -ml-[7px] w-[calc(100%+7px)] rounded-[9px] border text-[10.5px] font-semibold tracking-[0.09em] [writing-mode:vertical-rl] rotate-180 ${platform === 'vrx' ? 'linked-platform-rail' : ''}`}
       style={{
-        background: `color-mix(in srgb, var(${pvar}) 13%, transparent)`,
-        borderColor: `color-mix(in srgb, var(${pvar}) 36%, transparent)`,
-        color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)'
+        background:
+          platform === 'vrx'
+            ? 'linear-gradient(to top, color-mix(in srgb, var(--cvr) 13%, transparent), color-mix(in srgb, var(--vrc) 13%, transparent))'
+            : `color-mix(in srgb, var(${pvar}) 13%, transparent)`,
+        borderColor:
+          platform === 'vrx' ? 'transparent' : `color-mix(in srgb, var(${pvar}) 36%, transparent)`,
+        color:
+          platform === 'vrx'
+            ? 'var(--text)'
+            : isVrc
+              ? 'var(--plat-vrc-ghost-text)'
+              : 'var(--plat-cvr-ghost-text)'
       }}
     >
-      {isVrc ? t('friends.platform.vrchatShort') : t('friends.platform.chilloutvrShort')}
+      {platform === 'vrx' ? (
+        <span className="linked-gradient-text">VRX</span>
+      ) : isVrc ? (
+        t('friends.platform.vrchatShort')
+      ) : (
+        t('friends.platform.chilloutvrShort')
+      )}
     </span>
   )
 }
@@ -102,6 +135,11 @@ function PlatformTab({
 // re-rendering an unchanged visible row when unrelated list state changes.
 const FriendRow = memo(function FriendRow({
   friend,
+  projection,
+  linkedProfile,
+  accountIds,
+  onChoose,
+  onRowHover,
   searchQuery,
   onOpen,
   isRovingStop,
@@ -118,9 +156,14 @@ const FriendRow = memo(function FriendRow({
   measureElement
 }: {
   friend: Friend
+  projection: LinkedRow
+  linkedProfile: LinkedProfile | undefined
+  accountIds: Partial<Record<Platform, string>>
+  onChoose: (target: ProfileTarget) => void
+  onRowHover: (key: string | null) => void
   searchQuery: string
   /** Open the friend drawer (VRX-69). Stable callback so the memo holds. */
-  onOpen: (friend: Friend, opener: HTMLElement) => void
+  onOpen: (friend: Friend, opener: HTMLElement, target: ProfileTarget) => void
   isRovingStop: boolean
   isFullyVisible: boolean
   positionInSet: number
@@ -145,7 +188,12 @@ const FriendRow = memo(function FriendRow({
   // row clicks delegate to the same open path with THIS element as the opener
   // so focus return still lands on the avatar (VRX-228 contract).
   const avatarButtonRef = useRef<HTMLButtonElement>(null)
-  const key = friendRowKey(friend)
+  const key = projection.key
+  const combined = projection.target.kind === 'person'
+  const destinations = projection.accounts.filter(isFriendJoinable)
+  const destination = destinations[0]
+  const twoLocations = combined && destinations.length === 2
+  const pillFriend = combined ? destination : friend
   const setAvatarButton = useCallback(
     (element: HTMLButtonElement | null) => {
       avatarButtonRef.current = element
@@ -160,8 +208,8 @@ const FriendRow = memo(function FriendRow({
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
-  const hideWorld = isWorldHidden(friend)
-  const instance = friend.instance
+  const hideWorld = isWorldHidden(pillFriend ?? friend)
+  const instance = pillFriend?.instance ?? null
   const worldText =
     !hideWorld && instance != null
       ? (instance.worldName ?? t('friends.instance.unknownWorld'))
@@ -183,8 +231,27 @@ const FriendRow = memo(function FriendRow({
   } else if (friend.presence.state === 'in-game') {
     instancePill = t('friends.instance.private')
   }
-  const joinable = isFriendJoinable(friend)
-  const joinFailure = joinFailureFor(friend)
+  const joinable = combined ? destinations.length > 0 : isFriendJoinable(friend)
+  const joinFailure =
+    combined && linkedProfile
+      ? linkedProfile.members
+          .filter((member) => accountIds[member.platform] === member.platformAccountId)
+          .map((member) =>
+            joinFailureFor({ platform: member.platform, platformUserId: member.friendId })
+          )
+          .find((reason) => reason !== null)
+      : joinFailureFor(friend)
+  const failureStatus = (
+    <span
+      role="status"
+      className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
+      style={
+        combined && joinFailure ? { background: 'var(--bg-base)', borderRadius: 10 } : undefined
+      }
+    >
+      {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
+    </span>
+  )
 
   function joinFriend(event: MouseEvent<HTMLButtonElement>): void {
     // Containment is BACK (VRX-228): VRX-225 removed stopPropagation because the
@@ -192,7 +259,8 @@ const FriendRow = memo(function FriendRow({
     // puts a click target under it again. Belt-and-suspenders with the li's
     // `closest('[data-join-pill]')` guard below: join wins over open, always.
     event.stopPropagation()
-    void join(friend)
+    if (combined) onChoose(projection.target)
+    else void join(friend)
   }
 
   // Whole-card POINTER opener (VRX-228, owner ruling 2026-07-27 — knowingly
@@ -226,7 +294,7 @@ const FriendRow = memo(function FriendRow({
     )
       return
     const opener = avatarButtonRef.current
-    if (opener !== null) onOpen(friend, opener)
+    if (opener !== null) onOpen(friend, opener, projection.target)
   }
 
   function navigateFromAvatar(event: ReactKeyboardEvent<HTMLButtonElement>): void {
@@ -244,6 +312,20 @@ const FriendRow = memo(function FriendRow({
       data-index={virtualIndex}
       data-virtual-kind="friend"
       data-friend-key={key}
+      data-person-key={projection.personKey}
+      data-gesture-key={JSON.stringify([
+        projection.target,
+        projection.accounts.map((account) => [
+          account.platform,
+          account.platformUserId,
+          account.presence.state,
+          account.status,
+          isWorldHidden(account) ? null : account.instance?.worldId,
+          isWorldHidden(account) ? null : account.instance?.instanceId
+        ])
+      ])}
+      onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
+      onPointerLeave={() => onRowHover(null)}
       aria-posinset={positionInSet}
       aria-setsize={setSize}
       onFocusCapture={() => onRowFocus(key)}
@@ -276,7 +358,7 @@ const FriendRow = memo(function FriendRow({
         cardOpens ? 'cursor-pointer' : ''
       ].join(' ')}
     >
-      <PlatformTab platform={friend.platform} labelId={`${rowId}-platform`} />
+      <PlatformTab platform={projection.platformMark} labelId={`${rowId}-platform`} />
       {/* Details opener = the AVATAR button (VRX-225, owner decision — the old
           stretched whole-row opener made every stray click open the drawer).
           Still a native <button>, still the row's keyboard stop (Enter/Space),
@@ -294,14 +376,21 @@ const FriendRow = memo(function FriendRow({
         type="button"
         id={`${rowId}-avatar`}
         data-drawer-opener
-        onClick={(event) => onOpen(friend, event.currentTarget)}
+        onClick={(event) => onOpen(friend, event.currentTarget, projection.target)}
         onFocus={() => onRovingFocus(key)}
         onKeyDown={navigateFromAvatar}
         tabIndex={isRovingStop ? 0 : -1}
         aria-labelledby={`${rowId}-name ${rowId}-avatar ${rowId}-world ${rowId}-platform`}
         className="cursor-pointer rounded-full focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] focus:ring-offset-2 focus:ring-offset-transparent"
       >
-        <Avatar friend={friend} />
+        <Avatar
+          friend={friend}
+          mergedWith={
+            combined && linkedProfile?.pictureMode === 'merged'
+              ? projection.accounts.find((account) => account.platform !== friend.platform)
+              : undefined
+          }
+        />
       </button>
 
       {/* Content — name + custom status (beside), world beneath */}
@@ -311,17 +400,18 @@ const FriendRow = memo(function FriendRow({
             id={`${rowId}-name`}
             className="max-w-[68%] shrink-0 truncate text-sm font-semibold text-[var(--text)]"
           >
-            {splitByMatch(friend.displayName, searchQuery).map((segment, index) =>
-              segment.isMatch ? (
-                <span
-                  key={index}
-                  className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
-                >
-                  {segment.text}
-                </span>
-              ) : (
-                segment.text
-              )
+            {splitByMatch(projection.name || t('linking.unknownName'), searchQuery).map(
+              (segment, index) =>
+                segment.isMatch ? (
+                  <span
+                    key={index}
+                    className="bg-[color-mix(in_srgb,var(--text)_16%,transparent)] text-[var(--text)]"
+                  >
+                    {segment.text}
+                  </span>
+                ) : (
+                  segment.text
+                )
             )}
           </span>
           {customStatus && (
@@ -333,7 +423,7 @@ const FriendRow = memo(function FriendRow({
           id={`${rowId}-world`}
           className="mt-[1px] block h-[16px] truncate text-[12.5px] leading-[16px] text-[var(--text-dim)]"
         >
-          {worldText}
+          {combined ? <LinkedWorlds accounts={projection.accounts} variant="row" /> : worldText}
         </span>
       </div>
 
@@ -341,7 +431,27 @@ const FriendRow = memo(function FriendRow({
           openness ladder (inline style: tier→token is runtime lookup, so Tailwind
           can't emit it). Neutral (Private / CVR Offline Instance) pills stay hueless
           but readable. Joinable friends receive the button variant (VRX-166). */}
-      {instancePill != null ? (
+      {twoLocations ? (
+        <span className="relative block" data-join-pill>
+          <button
+            type="button"
+            data-join-pill
+            className="linked-location-button disabled:opacity-50"
+            onClick={joinFriend}
+            disabled={isJoining}
+            tabIndex={isFullyVisible ? undefined : -1}
+            style={Object.fromEntries(
+              destinations.map((account) => [
+                `--linked-${account.platform === 'vrchat' ? 'vrc' : 'cvr'}-tier`,
+                `var(${instancePillFor(account.instance!, labelScheme).tier ? `--op-${instancePillFor(account.instance!, labelScheme).tier}` : '--text'})`
+              ])
+            )}
+          >
+            {t('linking.locations', { count: 2 })}
+          </button>
+          {failureStatus}
+        </span>
+      ) : instancePill !== null && (!combined || joinable) ? (
         joinable ? (
           <span className="relative block min-w-[78px]" data-join-pill>
             <InstancePill
@@ -352,16 +462,11 @@ const FriendRow = memo(function FriendRow({
               disabled={isJoining}
               tabIndex={isFullyVisible ? undefined : -1}
               aria-label={t('friends.joinAria', {
-                name: friend.displayName,
+                name: combined ? projection.name : friend.displayName,
                 world: instance?.worldName ?? instancePill
               })}
             />
-            <span
-              role="status"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
-            >
-              {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
-            </span>
+            {failureStatus}
           </span>
         ) : (
           <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />
@@ -470,7 +575,8 @@ type VirtualFriendRow =
   | {
       kind: 'friend'
       key: string
-      friend: Friend
+      friend: Friend | null
+      projection: LinkedRow
     }
 
 export default function FriendsList(): React.JSX.Element {
@@ -485,25 +591,40 @@ export default function FriendsList(): React.JSX.Element {
   // the composite row key (platform:platformUserId) so the two platforms can
   // never collide. The opener element is remembered so focus RETURNS to the row
   // on close (dialog a11y contract).
-  const selectedFriendId = useFriendsStore((s) => s.selectedFriendId)
+  const target = useProfileSelection((s) => s.target)
+  const selectProfile = useProfileSelection((s) => s.select)
+  const [chooserTarget, setChooserTarget] = useState<ProfileTarget | null>(null)
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null)
+  const [focusedLinkedRowKey, setFocusedLinkedRowKey] = useState<string | null>(null)
+  const viewIdentity = platformFilter + '\u0000' + search
+  const [interactionView, setInteractionView] = useState(viewIdentity)
+  if (interactionView !== viewIdentity) {
+    setInteractionView(viewIdentity)
+    setHoveredRowKey(null)
+    setFocusedLinkedRowKey(null)
+  }
+  const pointerIntent = useRef<string | null>(null)
   // VRX-210: the modal join dialog suppresses the `/` search shortcut.
   const { pendingConfirm } = useJoinInstance()
-  const setSelectedFriendId = useFriendsStore((s) => s.setSelectedFriendId)
   const openerRef = useRef<HTMLElement | null>(null)
+  const openerIdentityRef = useRef<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const openDrawer = useCallback(
-    (friend: Friend, opener: HTMLElement) => {
+    (_friend: Friend, opener: HTMLElement, target: ProfileTarget) => {
       openerRef.current = opener
-      setSelectedFriendId(friendRowKey(friend))
+      const ref = target.kind === 'person' ? target.anchor : target.account
+      openerIdentityRef.current =
+        target.personId === null ? `${ref.platform}:${ref.friendId}` : `person:${target.personId}`
+      selectProfile(target)
     },
-    [setSelectedFriendId]
+    [selectProfile]
   )
   // The ONE close path for EVERY way the drawer shuts (Esc / scrim / ✕ /
   // stale-selection cleanup). Focus returns to the opener row only if it is
   // still in the document; otherwise it falls back to the search input so
   // focus never silently drops to <body> (VRX-69 review).
   const closeDrawer = useCallback(() => {
-    setSelectedFriendId(null)
+    selectProfile(null)
     const opener = openerRef.current
     openerRef.current = null
     // preventScroll (Codex review, VRX-225): the non-modal list can be freely
@@ -512,8 +633,37 @@ export default function FriendsList(): React.JSX.Element {
     // change exists to kill. Keyboard users regain a visible focus point on
     // their next Tab/arrow, which scrolls normally.
     if (opener?.isConnected) opener.focus({ preventScroll: true })
-    else searchInputRef.current?.focus({ preventScroll: true })
-  }, [setSelectedFriendId])
+    else {
+      const identity = openerIdentityRef.current
+      const replacement =
+        identity === null
+          ? undefined
+          : [...avatarElementsRef.current].find(
+              ([key]) => key === identity || key.startsWith(identity + ':')
+            )?.[1]
+      if (replacement?.isConnected) replacement.focus({ preventScroll: true })
+      else searchInputRef.current?.focus({ preventScroll: true })
+    }
+    openerIdentityRef.current = null
+  }, [selectProfile])
+  useEffect(() => {
+    const remove = window.vrx?.onIdentityBoundary?.(() => {
+      // A null intent means keyboard/no preceding pointer and permits a click.
+      // Keep a mismatching tombstone until a fresh gesture starts instead.
+      pointerIntent.current = 'identity-boundary-invalidated'
+      setChooserTarget(null)
+      setHoveredRowKey(null)
+      setFocusedLinkedRowKey(null)
+      openerRef.current = null
+      openerIdentityRef.current = null
+      selectProfile(null)
+      searchInputRef.current?.focus({ preventScroll: true })
+    })
+    return () => {
+      remove?.()
+      selectProfile(null)
+    }
+  }, [closeDrawer, selectProfile])
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const notConnectedKey =
@@ -521,6 +671,12 @@ export default function FriendsList(): React.JSX.Element {
   const [appliedSearch, setAppliedSearch] = useState(search)
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
+  const links = useLinkedProfiles()
+  const accountIds = useMemo(() => links.data?.accountIds ?? {}, [links.data])
+  const allFriends = useMemo(
+    () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
+    [vrcFriends.data, cvrFriends.data]
+  )
   const { friends, isPending, isError, isFetching, refetch } = useCombineFriendQueries(
     platformFilter,
     vrcFriends,
@@ -570,20 +726,35 @@ export default function FriendsList(): React.JSX.Element {
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const density = useSettingsStore((s) => s.settings.density)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-  const { filteredFriends, sections, searchActive } = useMemo(() => {
+  const { filteredFriends, searchActive, personCount } = useMemo(() => {
     const searchActive = appliedSearch.length > 0
-    const filteredFriends =
-      friends === undefined
+    const projected = projectLinkedFriends({
+      friends: allFriends,
+      profiles: links.data?.profiles ?? [],
+      accountIds,
+      filter: platformFilter,
+      search: appliedSearch
+    })
+    const rows = projected.rows.map((row) =>
+      row.target.personId === null ? { ...row, key: friendRowKey(row.accounts[0]!) } : row
+    )
+    const filteredFriends = friends === undefined ? undefined : rows
+    return { filteredFriends, searchActive, personCount: projected.personCount }
+  }, [friends, allFriends, links.data, accountIds, platformFilter, appliedSearch])
+  const stableRows = useStableLinkedRows(
+    filteredFriends ?? EMPTY_LINKED_ROWS,
+    interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
+  )
+  const sections = useMemo(
+    () =>
+      filteredFriends === undefined
         ? undefined
-        : searchActive
-          ? friends.filter((friend) =>
-              splitByMatch(friend.displayName, appliedSearch).some((segment) => segment.isMatch)
-            )
-          : friends
-    const sections =
-      filteredFriends === undefined ? undefined : groupFriendsBySection(filteredFriends)
-    return { filteredFriends, sections, searchActive }
-  }, [friends, appliedSearch])
+        : FRIEND_SECTIONS.map((section) => ({
+            section,
+            friends: stableRows.filter((row) => row.section === section)
+          })),
+    [filteredFriends, stableRows]
+  )
 
   // One flattened stream lets a single virtualizer own headers and friend rows.
   // Keeping headers in the same index space is what makes a section-aware sticky
@@ -602,13 +773,21 @@ export default function FriendsList(): React.JSX.Element {
         collapsed
       })
       if (!collapsed) {
-        for (const friend of sectionFriends) {
-          rows.push({ kind: 'friend', key: friendRowKey(friend), friend })
+        for (const projection of sectionFriends) {
+          const friend =
+            resolveLinkedProfile(projection.target, {
+              friends: projection.accounts,
+              profiles: links.data?.profiles ?? [],
+              accountIds
+            })?.header ??
+            projection.accounts[0] ??
+            null
+          rows.push({ kind: 'friend', key: projection.key, friend, projection })
         }
       }
     }
     return rows
-  }, [sections, searchActive, collapsedSections])
+  }, [sections, searchActive, collapsedSections, links.data, accountIds])
 
   const friendKeys = useMemo(
     () => virtualRows.flatMap((row) => (row.kind === 'friend' ? [row.key] : [])),
@@ -635,6 +814,7 @@ export default function FriendsList(): React.JSX.Element {
   const sectionButtonElementsRef = useRef(new Map<FriendSection, HTMLButtonElement>())
   const pendingFocusKeyRef = useRef<string | null>(null)
   const focusedRowKeyRef = useRef<string | null>(null)
+  const focusedPersonRef = useRef<string | null>(null)
   const [rovingKey, setRovingKey] = useState<string | null>(null)
   const [focusedSection, setFocusedSection] = useState<FriendSection | null>(null)
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -746,15 +926,22 @@ export default function FriendsList(): React.JSX.Element {
   const onRovingFocus = useCallback((key: string): void => {
     setRovingKey(key)
   }, [])
-  const onRowFocus = useCallback((key: string): void => {
-    focusedRowKeyRef.current = key
-    // Join is a separate native control after the avatar in each row. If Tab
-    // reaches it, that row must also own the roving avatar stop so a live
-    // update that removes Join can hand focus back to the connected avatar.
-    setRovingKey(key)
-  }, [])
+  const onRowFocus = useCallback(
+    (key: string): void => {
+      focusedRowKeyRef.current = key
+      setFocusedLinkedRowKey(key.startsWith('person:') ? key : null)
+      focusedPersonRef.current =
+        stableRows.find((row) => row.key === key && row.target.personId !== null)?.personKey ?? null
+      // Join is a separate native control after the avatar in each row. If Tab
+      // reaches it, that row must also own the roving avatar stop so a live
+      // update that removes Join can hand focus back to the connected avatar.
+      setRovingKey(key)
+    },
+    [stableRows]
+  )
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
+    setFocusedLinkedRowKey((current) => (current === key ? null : current))
   }, [])
   const onSectionFocus = useCallback((section: FriendSection): void => {
     setFocusedSection(section)
@@ -827,10 +1014,17 @@ export default function FriendsList(): React.JSX.Element {
 
   // Look up in the UNFILTERED (but platform-scoped) list so an active search
   // can't close an open drawer. A friend that leaves the roster closes it.
-  const selectedFriend =
-    selectedFriendId === null
-      ? null
-      : (friends?.find((friend) => friendRowKey(friend) === selectedFriendId) ?? null)
+  const selectedProfile = resolveLinkedProfile(target, {
+    friends: allFriends,
+    profiles: links.data?.profiles ?? [],
+    accountIds
+  })
+  const selectedFriend = selectedProfile?.header ?? null
+  const chooserProfile = resolveLinkedProfile(chooserTarget, {
+    friends: allFriends,
+    profiles: links.data?.profiles ?? [],
+    accountIds
+  })
 
   // A selection whose friend is no longer renderable — gone from the settled
   // roster OR the roster itself went undefined (refetch gap, account switch) —
@@ -838,11 +1032,8 @@ export default function FriendsList(): React.JSX.Element {
   // passes null to the drawer, stranding focus on the inert ✕, keeping "/"
   // disabled, and reopening the drawer uninvited when data returns).
   useEffect(() => {
-    if (selectedFriendId === null) return
-    const stillPresent =
-      friends !== undefined && friends.some((friend) => friendRowKey(friend) === selectedFriendId)
-    if (!stillPresent) closeDrawer()
-  }, [friends, selectedFriendId, closeDrawer])
+    if (target !== null && selectedFriend === null) closeDrawer()
+  }, [selectedFriend, target, closeDrawer])
 
   function toggleSection(section: FriendSection): void {
     const next = collapsedSections.includes(section)
@@ -948,17 +1139,54 @@ export default function FriendsList(): React.JSX.Element {
       replacementAvatar?.isConnected === true
     if (!focusedRowWasRemoved && !focusedRowWasReplaced) return
 
+    if (focusedPersonRef.current !== null && focusedRowWasRemoved) {
+      const samePerson = virtualRows.find(
+        (row) => row.kind === 'friend' && row.projection.personKey === focusedPersonRef.current
+      )
+      const avatar = samePerson ? avatarElementsRef.current.get(samePerson.key) : undefined
+      focusedRowKeyRef.current = null
+      setFocusedLinkedRowKey(null)
+      if (avatar?.isConnected) avatar.focus({ preventScroll: true })
+      else searchInputRef.current?.focus({ preventScroll: true })
+      return
+    }
+
     if (renderedRovingKey === null) {
       focusedRowKeyRef.current = null
       searchInputRef.current?.focus({ preventScroll: true })
       return
     }
     avatarElementsRef.current.get(renderedRovingKey)?.focus({ preventScroll: true })
-  }, [density, friendPositionByKey, renderedRovingKey])
+  }, [density, friendPositionByKey, renderedRovingKey, virtualRows])
 
   return (
     <section
       aria-labelledby="friends-list-heading"
+      onPointerDownCapture={(event) => {
+        pointerIntent.current =
+          event.target instanceof Element
+            ? (event.target.closest('[data-friend-key]')?.getAttribute('data-gesture-key') ?? null)
+            : null
+      }}
+      onPointerCancelCapture={() => {
+        pointerIntent.current = null
+      }}
+      onKeyDownCapture={() => {
+        pointerIntent.current = null
+      }}
+      onClickCapture={(event) => {
+        const reviewed = pointerIntent.current
+        pointerIntent.current = null
+        if (reviewed === null) return
+        const current =
+          event.target instanceof Element
+            ? event.target.closest('[data-friend-key]')?.getAttribute('data-gesture-key')
+            : null
+        if (current !== reviewed) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      }}
       className="rounded-panel border border-[var(--border)] p-[var(--space-4)]"
     >
       <div className="mb-[var(--space-3)] flex items-center justify-between gap-[var(--space-2)]">
@@ -968,6 +1196,11 @@ export default function FriendsList(): React.JSX.Element {
         >
           {t('friends.title')}
         </h2>
+        {links.data?.profiles.length ? (
+          <span data-testid="linked-person-count" className="text-xs text-[var(--text-dim)]">
+            {t('linking.people', { count: personCount })}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={() => void refetch()}
@@ -981,6 +1214,7 @@ export default function FriendsList(): React.JSX.Element {
       <div className="relative mb-[var(--space-3)]">
         <input
           ref={searchInputRef}
+          id="friends-search"
           type="text"
           value={search}
           onChange={(event) => updateSearch(event.target.value)}
@@ -1086,11 +1320,40 @@ export default function FriendsList(): React.JSX.Element {
 
                 const positionInSet = friendPositionByKey.get(row.key)
                 if (positionInSet === undefined) return null
+                if (row.friend === null)
+                  return (
+                    <li
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      data-virtual-kind="friend"
+                      data-friend-key={row.key}
+                      style={{ ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }}
+                      className="rounded-control border border-[var(--border)] px-[var(--space-3)] text-[var(--text-dim)]"
+                      onPointerLeave={() => setHoveredRowKey(null)}
+                    >
+                      <button
+                        type="button"
+                        aria-disabled="true"
+                        ref={(element) => setAvatarElement(row.key, element)}
+                        onFocus={() => onRowFocus(row.key)}
+                        onBlur={() => onRowBlur(row.key)}
+                      >
+                        {t('linking.unavailable')}
+                      </button>
+                    </li>
+                  )
 
                 return (
                   <FriendRow
                     key={virtualItem.key}
                     friend={row.friend}
+                    projection={row.projection}
+                    linkedProfile={links.data?.profiles.find(
+                      (profile) => profile.id === row.projection.target.personId
+                    )}
+                    accountIds={accountIds}
+                    onChoose={setChooserTarget}
+                    onRowHover={setHoveredRowKey}
                     searchQuery={appliedSearch}
                     onOpen={openDrawer}
                     isRovingStop={row.key === renderedRovingKey}
@@ -1118,7 +1381,24 @@ export default function FriendsList(): React.JSX.Element {
           )}
         </>
       )}
-      <FriendDrawer friend={selectedFriend} onClose={closeDrawer} />
+      <FriendDrawer
+        friend={selectedFriend}
+        selection={selectedProfile}
+        friends={allFriends}
+        accountIds={accountIds}
+        available={{
+          vrchat: !vrcFriends.isError && vrcFriends.data !== undefined,
+          chilloutvr: !cvrFriends.isError && cvrFriends.data !== undefined
+        }}
+        onNavigate={selectProfile}
+        onClose={closeDrawer}
+      />
+      {chooserTarget && (
+        <LinkedDestinationChooser
+          accounts={chooserProfile?.accounts ?? []}
+          onClose={() => setChooserTarget(null)}
+        />
+      )}
     </section>
   )
 }

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Manually link a friend's VRChat and ChilloutVR identities from the friend
+  drawer. Combined profiles support a custom name, preferred platform, optional
+  merged picture and a shared private note separate from both account notes.
+  Replacement and unlink confirmations show the exact affected pairs and shared
+  notes before requiring acknowledgement. Links stay local and account-scoped.
+  Unsaved shared-note drafts block destructive changes until resolved; automatic
+  names retain the latest verified preferred-account name for unavailable states.
+  Saved links remain readable if that automatic name refresh cannot be written.
+  Replacement disables when its retained account is unavailable, and unnamed
+  account drawers keep a localized accessible name.
+  (VRX-143)
+- Linked roster rows show both visible worlds and offer a destination chooser
+  before the existing Join flow. Live presence changes keep an interacted row
+  in place for up to five seconds while unsafe destinations disable immediately.
+  Drawer world images use single or diagonal platform outlines; rule context
+  remains in the Join flow and trust information sits quietly below Notes.
+  Destination labels and failed-join feedback follow the selected account.
+  Account changes discard stale join feedback, including one-click joins.
+  Temporary connection errors preserve linked rows, open profiles and people counts
+  while the account session remains valid.
+  (VRX-143)
+
 ## [0.19.2] - 2026-09-04
 
 ### Fixed

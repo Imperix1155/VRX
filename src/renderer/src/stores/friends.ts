@@ -13,17 +13,13 @@ export type PlatformFilter = Platform | 'all'
 interface FriendsState {
   search: string
   platformFilter: PlatformFilter
-  selectedFriendId: string | null
   setSearch: (search: string) => void
   setPlatformFilter: (filter: PlatformFilter) => void
-  setSelectedFriendId: (id: string | null) => void
 }
 
 export const useFriendsStore = create<FriendsState>((set) => ({
   search: '',
   platformFilter: 'all',
-  selectedFriendId: null,
   setSearch: (search) => set({ search }),
-  setPlatformFilter: (platformFilter) => set({ platformFilter }),
-  setSelectedFriendId: (selectedFriendId) => set({ selectedFriendId })
+  setPlatformFilter: (platformFilter) => set({ platformFilter })
 }))

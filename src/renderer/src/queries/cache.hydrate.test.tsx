@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import ErrorBoundary from '../components/ErrorBoundary'
 import FriendsList from '../components/FriendsList'
@@ -152,7 +153,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   useAuthStatusMock.mockReset()
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   window.localStorage.clear()
   Object.assign(window, { vrx: undefined })
 })
