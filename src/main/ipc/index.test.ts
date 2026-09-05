@@ -59,6 +59,18 @@ vi.mock('./notes', () => ({
     electron.ipcMain.handle('set-friend-note', () => ({ ok: true }))
   }
 }))
+vi.mock('./links', () => ({
+  registerLinksHandlers: () => {
+    electron.ipcMain.handle('get-linked-profiles', () => ({
+      ok: true,
+      value: { profiles: [], lease: 'fixture' }
+    }))
+    electron.ipcMain.handle('change-linked-profile', () => ({
+      ok: true,
+      value: { profiles: [], lease: 'fixture' }
+    }))
+  }
+}))
 vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
@@ -103,6 +115,7 @@ function options(): IpcHandlerOptions {
     accountSession: {},
     locationAuthority: {},
     socialStore: {},
+    links: { linkGraph: {} },
     appStatus: {},
     onRendererHydrated: hydrated,
     rateLimit: {
@@ -142,12 +155,12 @@ describe('registerIpcHandlers rate limiting', () => {
     expect(updaterService.check).toHaveBeenCalledTimes(6)
   })
 
-  it('wraps all 19 invoke channels and restores ipcMain.handle after registration', () => {
+  it('wraps all invoke channels and restores ipcMain.handle after registration', () => {
     const originalHandle = electron.ipcMain.handle
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(19)
+    expect(electron.invokeHandlers.size).toBe(21)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -161,12 +174,14 @@ describe('registerIpcHandlers rate limiting', () => {
 
     expect([...electron.invokeHandlers.keys()].sort()).toEqual(
       [
+        'change-linked-profile',
         'get-accounts',
         'get-app-status',
         'get-auth-status',
         'get-avatar',
         'get-friend-note',
         'get-friends',
+        'get-linked-profiles',
         'get-settings',
         'join-instance',
         'login',

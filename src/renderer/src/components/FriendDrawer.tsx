@@ -1,6 +1,5 @@
 /**
- * FriendDrawer — the friend-details drawer (VRX-69 phase 1, owner-approved
- * design round 2026-07-17, mock rev d3).
+ * FriendDrawer: account and linked-person details (VRX-69/143).
  *
  * A floating `.glass glass-frosted` card pinned to the right edge (14px
  * top/right/bottom inset, 372px wide, panel-scale 20px radius from `.glass`
@@ -11,21 +10,20 @@
  * variant (VRX-226) adds an opaque underlay + stronger blur: the panel floats
  * OVER the live friend list, so base glass let row text read through it.
  *
- * Phase 1 content — ONLY sections with real data today:
- *   1. Header: 64px ringed avatar (no corner badge) · name 18/700 · custom
- *      status (VRChat only) · ghost platform pill (full platform word).
+ * Content uses the selected person or explicitly selected account:
+ *   1. Header: 64px ringed avatar, name, attributed status and platform identity.
  *   2. Status band — the HEADLINE: the privacy tier in WORDS (word + dot in
  *      the status token, dim right-aligned descriptor). This is the drawer's
  *      §5/R12 non-color signifier now that the row badge lost its glyph.
  *      Reuses `ringFor` (utils/statusRing) — CVR online folds to tier-2 Online.
- *   3. WHERE: world name + the SHARED InstancePill (same tier logic as the
- *      row); Ask Me/DND show "Hidden"; VRChat trust line when known.
- *   4. Actions: ONE primary Join button, only when `isFriendJoinable` — same
- *      bridge flow + in-flight guard + 2.5s failure blip as the row (VRX-166).
+ *   3. Where: one world card or a diagonal pair, canonical InstancePill and
+ *      privacy-safe Hidden layers. No policy-space pill or raw instance ID here.
+ *   4. Join: linked people choose a reviewed destination before the existing
+ *      bridge flow, confirmation and in-flight guard (VRX-166).
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
- *   5. Notes: account-scoped private text with save-on-blur and explicit Retry
- *      after a rejected load or save (VRX-72/269).
+ *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
+ *      explicit Retry after failure, then quiet VRChat trust when known.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -40,21 +38,19 @@
  * the opening row on close (owner of that contract is FriendsList's
  * `closeDrawer`).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, TrustRank } from '@shared/types'
+import type { Friend, Platform, TrustRank } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
-import { isHotInstanceMember } from '@shared/hotInstanceKey'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { useFriendNote } from '../hooks/useFriendNote'
-import { useAvatar } from '../hooks/useAvatar'
-import { useSettingsStore } from '../stores/settings'
-import { instancePillFor, type OpennessTier } from '../utils/instancePill'
-import { policySpaceFor } from '../utils/instancePolicySpace'
-import { ringFor, isWorldHidden } from '../utils/statusRing'
-import InstancePill from './InstancePill'
+import { usePersonNote } from '../hooks/usePersonNote'
+import { ringFor } from '../utils/statusRing'
 import { Avatar } from './Avatar'
-import PolicySpacePill from './PolicySpacePill'
+import LinkedWorlds from './LinkedWorlds'
+import LinkedDestinationChooser from './LinkedDestinationChooser'
+import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
+import IdentitiesDialog from './IdentitiesDialog'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -79,28 +75,60 @@ const TRUST_RANK_KEY: Record<NonNullable<TrustRank>, string> = {
 
 export default function FriendDrawer({
   friend,
-  onClose
+  onClose,
+  selection,
+  onNavigate,
+  friends,
+  accountIds,
+  available
 }: {
   /** The selected friend, or null = closed. */
   friend: Friend | null
   /** Close request (Esc / outside pointerdown / ✕). Focus restoration lives with the caller. */
   onClose: () => void
+  selection?: ResolvedProfile | null
+  onNavigate?: (target: ProfileTarget) => void
+  friends?: Friend[]
+  accountIds?: Partial<Record<Platform, string>>
+  available?: Partial<Record<Platform, boolean>>
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const open = friend !== null
   // Retain the last friend so the panel doesn't empty mid slide-out
   // (render-phase state adjustment — the react.dev-endorsed pattern).
   const [retained, setRetained] = useState<Friend | null>(null)
   if (friend !== null && friend !== retained) setRetained(friend)
   const shown = friend ?? retained
+  const combined = selection?.target.kind === 'person'
+  const shownAccounts = combined ? selection.accounts : shown ? [shown] : []
+  const profileName = selection?.name ?? shown?.displayName
+  const identityOwner =
+    selection?.target.kind === 'person'
+      ? `person:${selection.target.personId}`
+      : selection?.target.kind === 'account'
+        ? `${selection.target.account.platform}:${selection.target.account.friendId}`
+        : null
+  const [identityDialogOwner, setIdentityDialogOwner] = useState<string | null>(null)
+  const [chooserOwner, setChooserOwner] = useState<string | null>(null)
+  if (chooserOwner !== null && (!open || chooserOwner !== identityOwner)) setChooserOwner(null)
+  if (identityDialogOwner !== null && (!open || identityDialogOwner !== identityOwner))
+    setIdentityDialogOwner(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
-  const joinFailure = shown === null ? null : joinFailureFor(shown)
+  const failureAccounts =
+    combined && selection.profile
+      ? selection.profile.members
+          .filter((member) => accountIds?.[member.platform] === member.platformAccountId)
+          .map((member) => ({
+            platform: member.platform,
+            platformUserId: member.friendId
+          }))
+      : shownAccounts
+  const joinFailure = failureAccounts.map(joinFailureFor).find((reason) => reason !== null)
 
   // Initial focus lands on the ✕ button — keyed on `open` ONLY. Never fold
   // this into the listener effect below: `pendingConfirm` changes (the join
@@ -166,47 +194,18 @@ export default function FriendDrawer({
   const wordColor = sc.startsWith('--st-') ? `var(${sc}-text)` : `var(${sc})`
   const descriptorKey = ring ? STATUS_DESCRIPTOR_KEY[ring.labelKey] : undefined
 
-  const hideWorld = shown ? isWorldHidden(shown) : false
-  const visibleInstance = shown != null && isHotInstanceMember(shown) ? shown.instance : null
-  let worldText: string | null = null
-  let pillLabel: string | null = null
-  let pillTier: OpennessTier | null = null
-  if (shown) {
-    if (hideWorld) {
-      worldText = t('drawer.hidden')
-    } else if (visibleInstance != null) {
-      worldText = visibleInstance.worldName ?? t('friends.instance.unknownWorld')
-      const resolved = instancePillFor(visibleInstance, labelScheme)
-      pillLabel = t(resolved.labelKey)
-      pillTier = resolved.tier
-    } else if (shown.presence.state === 'in-game') {
-      worldText = t('friends.instance.private')
-    }
-  }
-
-  // VRX-251 enrichment: world image through the SAME avatar pipeline, instance
-  // id, and the policy-space pill. Only for visible instances
-  // (Ask Me / DND / hidden worlds show none of it).
-  const worldImageRef = useRef<HTMLDivElement>(null)
-  const thumbnailUrl = visibleInstance?.thumbnailUrl ?? null
-  const worldImageUrl = useAvatar(thumbnailUrl, worldImageRef)
-  // Local image-element failure state: the avatar pipeline returns null for both
-  // loading and fetch failure, so we can only collapse on a real <img> error.
-  // `failedKey` remembers the (url + friend) key that failed; any change to that
-  // key implicitly resets the failure flag without an effect-setState.
-  const imageKey = JSON.stringify([thumbnailUrl, shown?.platform, shown?.platformUserId])
-  const [failedKey, setFailedKey] = useState<string | null>(null)
-  const imageFailed = failedKey === imageKey
-  const policySpace =
-    shown !== null && visibleInstance !== null
-      ? policySpaceFor(shown.platform, visibleInstance)
-      : null
-  const trustKey =
-    shown?.platform === 'vrchat' && shown.trustRank != null ? TRUST_RANK_KEY[shown.trustRank] : null
+  const trustAccount = shownAccounts.find((account) => account.platform === 'vrchat')
+  const trustKey = trustAccount?.trustRank != null ? TRUST_RANK_KEY[trustAccount.trustRank] : null
   const customStatus = shown?.platform === 'vrchat' ? (shown.statusDescription ?? null) : null
-  const joinable = shown != null && isFriendJoinable(shown)
+  const joinable = shownAccounts.some(isFriendJoinable)
   const isVrc = shown?.platform === 'vrchat'
 
+  const accountNote = useFriendNote({
+    platform: shown?.platform ?? 'vrchat',
+    friendId: combined ? '' : (shown?.platformUserId ?? '')
+  })
+  const sharedNote = usePersonNote(combined ? (selection.profile?.id ?? null) : null)
+  const note = combined ? sharedNote : accountNote
   const {
     value: noteValue,
     isWritable: noteWritable,
@@ -216,10 +215,20 @@ export default function FriendDrawer({
     onBlur: onNoteBlur,
     saveFailed: noteSaveFailed,
     retry: retryNoteSave
-  } = useFriendNote({
-    platform: shown?.platform ?? 'vrchat',
-    friendId: shown?.platformUserId ?? ''
+  } = note
+  const noteOwner = !open
+    ? 'closed'
+    : combined
+      ? `person:${selection.profile?.id}`
+      : `${shown?.platform}:${shown?.platformUserId}`
+  const committedNote = useRef(note)
+  // Cleanup runs before the next owner's layout effects. Keep the last
+  // committed callback, not the new render's callback: navigation must flush
+  // the old owner even when removing a focused editor produces no blur.
+  useLayoutEffect(() => {
+    committedNote.current = note
   })
+  useLayoutEffect(() => () => committedNote.current.onBlur(), [noteOwner])
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
   const retryNote = (): void => {
     // The Retry button is conditionally removed after success; retain a useful
@@ -246,14 +255,16 @@ export default function FriendDrawer({
           users can reach the list would be a lie (VRX-225). */}
       <div
         ref={panelRef}
+        data-friend-drawer
         role="dialog"
-        aria-label={shown?.displayName}
+        aria-label={profileName || t('linking.unknownName')}
         className={`glass glass-frosted fixed top-[14px] right-[14px] bottom-[14px] z-50 flex w-[372px] flex-col motion-safe:transition-transform motion-safe:duration-[260ms] motion-safe:ease-[cubic-bezier(0.32,0.72,0.29,1)] ${
           open ? 'translate-x-0' : 'translate-x-[calc(100%+14px)]'
         }`}
       >
         <button
           ref={closeButtonRef}
+          data-drawer-close
           type="button"
           onClick={onClose}
           aria-label={t('drawer.close')}
@@ -264,27 +275,95 @@ export default function FriendDrawer({
 
         {shown && (
           <div className="flex min-h-0 flex-1 flex-col gap-[var(--space-4)] overflow-y-auto p-[var(--space-4)]">
+            {!combined && selection?.profile && onNavigate && (
+              <button
+                type="button"
+                className="self-start text-[12px] text-[var(--text-dim)] hover:text-[var(--text)]"
+                onClick={() => {
+                  if (selection.target.kind === 'account' && selection.profile)
+                    onNavigate({
+                      kind: 'person',
+                      personId: selection.profile.id,
+                      anchor: selection.target.account
+                    })
+                }}
+              >
+                {t('linking.back')}
+              </button>
+            )}
             {/* 1 · Header */}
             <div className="flex items-center gap-[var(--space-3)] pr-[var(--space-8)]">
-              <Avatar friend={shown} variant="drawer" />
+              <Avatar
+                friend={shown}
+                variant="drawer"
+                mergedWith={
+                  combined && selection.profile?.pictureMode === 'merged'
+                    ? shownAccounts.find((account) => account.platform !== shown.platform)
+                    : undefined
+                }
+              />
               <div className="min-w-0">
                 <h2 className="truncate text-[18px] font-bold text-[var(--text)]">
-                  {shown.displayName}
+                  {profileName || t('linking.unknownName')}
                 </h2>
                 {customStatus && (
                   <p className="truncate text-[12.5px] text-[var(--text-dim)]">{customStatus}</p>
                 )}
-                <span
-                  className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border bg-transparent px-[var(--space-2-5)] text-[11px] font-semibold"
-                  style={{
-                    color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
-                    borderColor: isVrc
-                      ? 'var(--plat-vrc-ghost-border)'
-                      : 'var(--plat-cvr-ghost-border)'
-                  }}
-                >
-                  {isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
-                </span>
+                {combined && onNavigate ? (
+                  <div className="mt-[var(--space-1)] flex gap-[var(--space-2)]">
+                    {selection.profile?.members.map((member) => {
+                      const available = selection.accounts.some(
+                        (account) =>
+                          account.platform === member.platform &&
+                          account.platformUserId === member.friendId
+                      )
+                      return (
+                        <button
+                          key={member.platform}
+                          type="button"
+                          disabled={!available}
+                          title={!available ? t('linking.unavailable') : undefined}
+                          className="rounded-pill border px-[var(--space-2)] text-[11px] disabled:opacity-50"
+                          style={{
+                            color:
+                              member.platform === 'vrchat'
+                                ? 'var(--plat-vrc-ghost-text)'
+                                : 'var(--plat-cvr-ghost-text)',
+                            borderColor:
+                              member.platform === 'vrchat'
+                                ? 'var(--plat-vrc-ghost-border)'
+                                : 'var(--plat-cvr-ghost-border)'
+                          }}
+                          onClick={() =>
+                            onNavigate({
+                              kind: 'account',
+                              personId: selection.profile?.id ?? null,
+                              account: { platform: member.platform, friendId: member.friendId }
+                            })
+                          }
+                        >
+                          {t(
+                            member.platform === 'vrchat'
+                              ? 'friends.platform.vrchat'
+                              : 'friends.platform.chilloutvr'
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <span
+                    className="mt-[var(--space-1)] inline-flex h-[24px] items-center rounded-[9px] border bg-transparent px-[var(--space-2-5)] text-[11px] font-semibold"
+                    style={{
+                      color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
+                      borderColor: isVrc
+                        ? 'var(--plat-vrc-ghost-border)'
+                        : 'var(--plat-cvr-ghost-border)'
+                    }}
+                  >
+                    {isVrc ? t('friends.platform.vrchat') : t('friends.platform.chilloutvr')}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -304,6 +383,15 @@ export default function FriendDrawer({
               <span className="text-[14px] font-bold" style={{ color: wordColor }}>
                 {ring ? t(ring.labelKey) : null}
               </span>
+              {combined && (
+                <span className="text-[11px] text-[var(--text-dim)]">
+                  {t(
+                    shown.platform === 'vrchat'
+                      ? 'friends.platform.vrchatShort'
+                      : 'friends.platform.chilloutvrShort'
+                  )}
+                </span>
+              )}
               {descriptorKey && (
                 <span className="ml-auto text-right text-[12px] text-[var(--text-dim)]">
                   {t(descriptorKey)}
@@ -311,58 +399,12 @@ export default function FriendDrawer({
               )}
             </div>
 
-            {/* 3 · WHERE */}
-            {(worldText != null || trustKey != null || visibleInstance != null) && (
+            {shownAccounts.some((account) => account.presence.state === 'in-game') && (
               <div className="flex flex-col gap-[var(--space-2)]">
                 <h3 className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase">
                   {t('drawer.where')}
                 </h3>
-                {thumbnailUrl != null && !imageFailed && (
-                  <div
-                    ref={worldImageRef}
-                    data-testid="friend-drawer-world-image-wrapper"
-                    className="relative aspect-video w-full overflow-hidden rounded-[12px] bg-[color-mix(in_srgb,var(--text)_7%,transparent)]"
-                  >
-                    {worldImageUrl != null && (
-                      <img
-                        data-testid="friend-drawer-world-image"
-                        src={worldImageUrl}
-                        alt=""
-                        aria-hidden="true"
-                        className="h-full w-full object-cover"
-                        onError={() => setFailedKey(imageKey)}
-                      />
-                    )}
-                  </div>
-                )}
-                {worldText != null && (
-                  <div className="flex items-center justify-between gap-[var(--space-2)]">
-                    <span className="min-w-0 truncate text-[14px] font-semibold text-[var(--text)]">
-                      {worldText}
-                    </span>
-                    {pillLabel != null && (
-                      <InstancePill label={pillLabel} tier={pillTier} className="shrink-0" />
-                    )}
-                  </div>
-                )}
-                {visibleInstance?.instanceId != null && (
-                  <p
-                    data-testid="friend-drawer-instance-id"
-                    className="break-all font-mono text-[12px] text-[var(--text-faint)]"
-                  >
-                    {visibleInstance.instanceId}
-                  </p>
-                )}
-                {policySpace !== null && (
-                  <div data-testid="friend-drawer-policy-space">
-                    <PolicySpacePill space={policySpace} />
-                  </div>
-                )}
-                {trustKey != null && (
-                  <p className="text-[12px] text-[var(--text-dim)]">
-                    {t('drawer.trust', { rank: t(trustKey) })}
-                  </p>
-                )}
+                <LinkedWorlds accounts={shownAccounts} variant="drawer" />
               </div>
             )}
 
@@ -372,7 +414,8 @@ export default function FriendDrawer({
                 <button
                   type="button"
                   onClick={() => {
-                    if (shown) void join(shown)
+                    if (combined) setChooserOwner(identityOwner)
+                    else if (shown) void join(shown)
                   }}
                   disabled={isJoining}
                   className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
@@ -400,7 +443,9 @@ export default function FriendDrawer({
                   id="friend-notes-label"
                   className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase"
                 >
-                  <label htmlFor="friend-notes">{t('drawer.notes.heading')}</label>
+                  <label htmlFor="friend-notes">
+                    {t(combined ? 'linking.sharedNotes' : 'drawer.notes.heading')}
+                  </label>
                 </h3>
                 <textarea
                   ref={notesTextareaRef}
@@ -452,9 +497,50 @@ export default function FriendDrawer({
                 </span>
               </div>
             )}
+            {trustKey && (
+              <p className="text-[12px] text-[var(--text-dim)]">
+                {t('drawer.trust', { rank: t(trustKey) })}
+              </p>
+            )}
+            {selection && onNavigate && (
+              <div className="mt-auto pt-[var(--space-2)]">
+                <button
+                  type="button"
+                  className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
+                  onClick={() => {
+                    onNoteBlur()
+                    setIdentityDialogOwner(identityOwner)
+                  }}
+                >
+                  <span
+                    style={{
+                      background:
+                        'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
+                      backgroundClip: 'text',
+                      color: 'transparent'
+                    }}
+                  >
+                    {t('linking.identities')}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
+      {open && chooserOwner !== null && (
+        <LinkedDestinationChooser accounts={shownAccounts} onClose={() => setChooserOwner(null)} />
+      )}
+      {open && identityDialogOwner !== null && selection && onNavigate && (
+        <IdentitiesDialog
+          selection={selection}
+          friends={friends ?? selection.accounts}
+          accountIds={accountIds ?? {}}
+          available={available}
+          onNavigate={onNavigate}
+          onClose={() => setIdentityDialogOwner(null)}
+        />
+      )}
     </div>
   )
 }

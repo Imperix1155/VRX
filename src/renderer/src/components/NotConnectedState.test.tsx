@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Friend, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -140,7 +141,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   useFriendsMock.mockReset()
   useAuthStatusMock.mockReset()
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
 })

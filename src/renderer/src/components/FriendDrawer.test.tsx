@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
@@ -130,7 +131,8 @@ beforeEach(() => {
     setFriendNote,
     getAvatar: vi.fn().mockResolvedValue(null)
   } as unknown as Window['vrx']
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   // Drawer/row interactions here exercise the one-click join flow — the
   // VRX-210 confirmation gate (default ON) is covered by JoinConfirmDialog.test.tsx.
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
@@ -176,8 +178,7 @@ describe('FriendDrawer (VRX-69)', () => {
     const policyPill = panel.querySelector<HTMLElement>('[data-policy-space-pill]')
     expect(instancePill?.textContent).toBe('Unknown')
     expect(instancePill?.style.color).toBe('var(--text-dim)')
-    expect(policyPill?.textContent).toBe('Unknown')
-    expect(policyPill?.style.color).toBe('var(--text-dim)')
+    expect(policyPill).toBeNull()
   })
 
   it('the same instance WITHOUT opennessUnknown still renders its typed label (regression pin)', () => {
@@ -214,8 +215,8 @@ describe('FriendDrawer (VRX-69)', () => {
 
     const panel = screen.getByRole('dialog', { name: 'Mika' })
     expect(within(panel).getByText('Offline Instance')).toBeTruthy()
-    const policyPill = within(panel).getByText('Private space')
-    expect(policyPill.getAttribute('data-policy-space')).toBe('private')
+    expect(within(panel).queryByRole('button', { name: 'Join' })).toBeNull()
+    expect(panel.querySelector('[data-policy-space-pill]')).toBeNull()
   })
 
   it('renders the frosted glass variant on the panel (VRX-226)', () => {
@@ -551,7 +552,7 @@ describe('FriendDrawer (VRX-69)', () => {
     mockFriends([joinableFriend]) // friend returns — the drawer must NOT reopen
     rerender(<FriendsList />)
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+    expect(useProfileSelection.getState().target).toBeNull()
   })
 
   it('a transient roster gap (undefined) closes through the one close path — no reopen', () => {
@@ -565,7 +566,7 @@ describe('FriendDrawer (VRX-69)', () => {
     // dialog is gone, and focus lands on the fallback — not stranded on the
     // now-inert hidden ✕ button.
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+    expect(useProfileSelection.getState().target).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
 
     mockFriends([joinableFriend]) // data returns — the drawer must NOT reopen
@@ -766,7 +767,7 @@ describe('FriendDrawer (VRX-69)', () => {
     expect((textarea as HTMLTextAreaElement).value).toBe('')
   })
 
-  describe('VRX-251 drawer enrichment (world image, instance ID, openness)', () => {
+  describe('VRX-143 world composite preserves the VRX-251 privacy guards', () => {
     function stubIntersectionObserver(): { trigger: () => void } {
       let callback: ((entries: { isIntersecting: boolean }[]) => void) | null = null
       vi.stubGlobal(
@@ -786,7 +787,7 @@ describe('FriendDrawer (VRX-69)', () => {
       }
     }
 
-    it('visible instance: world image through the pipeline, instance ID, and policy-space pill', async () => {
+    it('shows the fetched world image and instance pill without initial policy context or raw ID', async () => {
       const thumbnailUrl = 'https://example.com/world-251.png'
       const getAvatar = vi
         .fn()
@@ -807,17 +808,18 @@ describe('FriendDrawer (VRX-69)', () => {
       await waitFor(() => expect(getAvatar).toHaveBeenCalledWith(thumbnailUrl))
 
       const scoped = within(dialog())
-      const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
+      const img = await waitFor(() => {
+        const image = dialog().querySelector('[data-linked-world-layer] img')
+        expect(image).not.toBeNull()
+        return image!
+      })
       expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
-      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
-        publicInstance.instanceId
-      )
-      const policyPill = scoped.getByText('Public space')
-      expect(policyPill.getAttribute('data-policy-space-pill')).toBe('')
-      expect(policyPill.style.color).toBe('var(--policy-public-text)')
+      expect(scoped.queryByText(publicInstance.instanceId)).toBeNull()
+      expect(dialog().querySelector('[data-policy-space-pill]')).toBeNull()
+      expect(scoped.getByText('Public')).toBeTruthy()
     })
 
-    it('opennessUnknown shows a neutral Unknown policy pill', () => {
+    it('opennessUnknown remains a neutral Unknown instance pill', () => {
       mockFriends([
         {
           ...joinableFriend,
@@ -832,12 +834,10 @@ describe('FriendDrawer (VRX-69)', () => {
       render(<FriendsList />)
       openDrawerFor('Alex')
 
-      const scoped = within(dialog())
-      const policyPill = scoped
-        .getByTestId('friend-drawer-policy-space')
-        .querySelector('[data-policy-space-pill]')
-      expect(policyPill?.textContent).toBe('Unknown')
-      expect(policyPill?.getAttribute('data-policy-space')).toBe('unknown')
+      const pill = dialog().querySelector<HTMLElement>('[data-instance-pill]')
+      expect(pill?.textContent).toBe('Unknown')
+      expect(pill?.style.color).toBe('var(--text-dim)')
+      expect(dialog().querySelector('[data-policy-space-pill]')).toBeNull()
     })
 
     it.each([['ask-me'], ['dnd']] as const)(
@@ -854,24 +854,23 @@ describe('FriendDrawer (VRX-69)', () => {
         openDrawerFor('Alex')
 
         const scoped = within(dialog())
-        expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+        expect(dialog().querySelector('[data-linked-world-layer] img')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-policy-space')).toBeNull()
         expect(scoped.getByText('Hidden')).toBeTruthy()
       }
     )
 
-    it('no thumbnailUrl renders no broken image; ID and policy space still render', () => {
+    it('no thumbnail retains a neutral composite with the world name and instance pill', () => {
       mockFriends([joinableFriend])
       render(<FriendsList />)
       openDrawerFor('Alex')
 
       const scoped = within(dialog())
-      expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
-      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
-        publicInstance.instanceId
-      )
-      expect(scoped.getByText('Public space')).toBeTruthy()
+      expect(dialog().querySelector('[data-linked-world-layer] img')).toBeNull()
+      expect(scoped.queryByText(publicInstance.instanceId)).toBeNull()
+      expect(scoped.getByText('Public')).toBeTruthy()
+      expect(dialog().querySelector('[data-linked-worlds]')).toBeTruthy()
     })
 
     it.each([['ask-me'], ['dnd']] as const)(
@@ -897,7 +896,7 @@ describe('FriendDrawer (VRX-69)', () => {
         expect(scoped.queryByText('Hidden')).toBeNull()
         expect(scoped.queryByText('The Great Pug')).toBeNull()
         expect(scoped.queryByText('Public')).toBeNull()
-        expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
+        expect(dialog().querySelector('[data-linked-world-layer] img')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-instance-id')).toBeNull()
         expect(scoped.queryByTestId('friend-drawer-policy-space')).toBeNull()
       }
@@ -917,8 +916,7 @@ describe('FriendDrawer (VRX-69)', () => {
       const scoped = within(dialog())
       expect(scoped.getByText('The Great Pug')).toBeTruthy()
       expect(scoped.getByText('Public')).toBeTruthy()
-      expect(scoped.getByTestId('friend-drawer-instance-id')).toBeTruthy()
-      expect(scoped.getByTestId('friend-drawer-policy-space')).toBeTruthy()
+      expect(dialog().querySelector('[data-linked-worlds]')).toBeTruthy()
 
       mockFriends([
         {
@@ -934,12 +932,12 @@ describe('FriendDrawer (VRX-69)', () => {
       expect(next.getByText('Offline')).toBeTruthy()
       expect(next.queryByText('The Great Pug')).toBeNull()
       expect(next.queryByText('Public')).toBeNull()
-      expect(next.queryByTestId('friend-drawer-world-image')).toBeNull()
+      expect(dialog().querySelector('[data-linked-world-layer] img')).toBeNull()
       expect(next.queryByTestId('friend-drawer-instance-id')).toBeNull()
       expect(next.queryByTestId('friend-drawer-policy-space')).toBeNull()
     })
 
-    it('image load failure collapses the slot entirely and resets when the friend changes', async () => {
+    it('image failure keeps a neutral composite and resets when the friend changes', async () => {
       // Use a fresh URL so the module-level avatar cache from earlier tests
       // doesn't satisfy the request without calling getAvatar.
       const thumbnailUrl = 'https://example.com/world-fail-251.png'
@@ -964,28 +962,33 @@ describe('FriendDrawer (VRX-69)', () => {
       await waitFor(() => expect(getAvatar).toHaveBeenCalledWith(thumbnailUrl))
 
       const scoped = within(dialog())
-      const img = await waitFor(() => scoped.getByTestId('friend-drawer-world-image'))
+      const img = await waitFor(() => {
+        const image = dialog().querySelector('[data-linked-world-layer] img')
+        expect(image).not.toBeNull()
+        return image!
+      })
       expect(img.getAttribute('src')).toBe('data:image/png;base64,thumb')
       // The wrapper exists BEFORE the error — without this, the null-after
       // assertion would pass vacuously on a missing testid.
-      expect(scoped.getByTestId('friend-drawer-world-image-wrapper')).not.toBeNull()
+      expect(dialog().querySelector('[data-linked-worlds]')).not.toBeNull()
 
       fireEvent.error(img)
 
-      // The entire 16:9 wrapper must collapse, not just the <img> inside it.
-      expect(scoped.queryByTestId('friend-drawer-world-image-wrapper')).toBeNull()
-      expect(scoped.queryByTestId('friend-drawer-world-image')).toBeNull()
-      expect(scoped.getByTestId('friend-drawer-instance-id').textContent).toBe(
-        publicInstance.instanceId
-      )
+      // Keep the approved composite geometry while removing the failed image.
+      expect(dialog().querySelector('[data-linked-worlds]')).not.toBeNull()
+      expect(dialog().querySelector('[data-linked-world-layer] img')).toBeNull()
+      expect(scoped.queryByText(publicInstance.instanceId)).toBeNull()
 
       // Switch to a different friend with the SAME thumbnail — the failure key
       // must include the user id so the flag resets and the slot renders again.
       openDrawerFor('Bea')
       act(() => trigger())
 
-      const beaScoped = within(dialog())
-      const beaImg = await waitFor(() => beaScoped.getByTestId('friend-drawer-world-image'))
+      const beaImg = await waitFor(() => {
+        const image = dialog().querySelector('[data-linked-world-layer] img')
+        expect(image).not.toBeNull()
+        return image!
+      })
       expect(beaImg.getAttribute('src')).toBe('data:image/png;base64,thumb')
     })
   })

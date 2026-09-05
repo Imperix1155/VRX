@@ -63,10 +63,88 @@ afterEach(() => {
   // The join store is module-level: close any parked confirmation so an open
   // dialog never leaks into the next test.
   const { result } = renderHook(() => useJoinInstance())
-  act(() => result.current.cancelPending())
+  act(() => result.current.invalidatePending())
 })
 
 describe('useJoinInstance', () => {
+  it.each(['success', 'denial', 'exception'] as const)(
+    'fences direct join %s after invalidation without clearing a newer join',
+    async (outcome) => {
+      let finishOld!: (value: { ok: boolean; reason?: string }) => void
+      let rejectOld!: (reason: Error) => void
+      let finishNew!: (value: { ok: true }) => void
+      joinInstance
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              finishOld = resolve
+              rejectOld = reject
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishNew = resolve
+            })
+        )
+      const hook = renderHook(() => useJoinInstance())
+      let old!: Promise<void>
+      act(() => {
+        old = hook.result.current.join(friend)
+      })
+      act(() => hook.result.current.invalidatePending('vrchat'))
+      expect(hook.result.current.isJoining).toBe(false)
+      const other: Friend = {
+        ...friend,
+        platform: 'chilloutvr',
+        status: null,
+        statusDescription: null,
+        trustRank: null,
+        presence: { state: 'in-game' }
+      }
+      let next!: Promise<void>
+      act(() => {
+        next = hook.result.current.join(other)
+      })
+      await act(async () => {
+        if (outcome === 'exception') rejectOld(new Error('old session'))
+        else finishOld(outcome === 'success' ? { ok: true } : { ok: false, reason: 'cooldown' })
+        await old
+      })
+      expect(hook.result.current.isJoining).toBe(true)
+      expect(hook.result.current.joinFailureFor(friend)).toBeNull()
+      await act(async () => {
+        finishNew({ ok: true })
+        await next
+      })
+      expect(hook.result.current.isJoining).toBe(false)
+    }
+  )
+  it('leaves a direct join and its failure intact across an unrelated platform boundary', async () => {
+    let finish!: (value: { ok: false; reason: 'cooldown' }) => void
+    joinInstance.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const hook = renderHook(() => useJoinInstance())
+    let pending!: Promise<void>
+    act(() => {
+      pending = hook.result.current.join(friend)
+    })
+    act(() => hook.result.current.invalidatePending('chilloutvr'))
+    expect(hook.result.current.isJoining).toBe(true)
+    await act(async () => {
+      finish({ ok: false, reason: 'cooldown' })
+      await pending
+    })
+    act(() => hook.result.current.invalidatePending('chilloutvr'))
+    expect(hook.result.current.joinFailureFor(friend)).toBe('cooldown')
+    act(() => hook.result.current.invalidatePending('vrchat'))
+    expect(hook.result.current.joinFailureFor(friend)).toBeNull()
+  })
+
   it('maps the main-process joining-disabled denial to specific copy', () => {
     expect(joinFailureMessageKey('joining-disabled')).toBe('friends.joinFailure.joiningDisabled')
   })

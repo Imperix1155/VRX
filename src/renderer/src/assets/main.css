@@ -1,5 +1,201 @@
 @import 'tailwindcss';
 
+/* Linked profiles: approved compact roster and diagonal world geometry. */
+.linked-platform-vrchat {
+  --linked-platform: var(--vrc);
+  --linked-platform-text: var(--plat-vrc-ghost-text);
+}
+.linked-platform-chilloutvr {
+  --linked-platform: var(--cvr);
+  --linked-platform-text: var(--plat-cvr-ghost-text);
+}
+.linked-world-pair {
+  display: flex;
+  min-width: 0;
+  max-width: var(--linked-world-pair-max);
+  gap: var(--space-2);
+}
+.linked-world-group {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  line-height: 16px;
+}
+.linked-world-platform {
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--linked-platform) 36%, transparent);
+  background: color-mix(in srgb, var(--linked-platform) 13%, transparent);
+  color: var(--linked-platform-text);
+  padding-inline: var(--space-1);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+}
+.linked-world-name {
+  flex: 1;
+  min-width: 0;
+  max-width: var(--linked-world-name-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  line-height: 16px;
+}
+.linked-world-composite {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.linked-world-image {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-hover);
+}
+.linked-world-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.linked-world-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-base) 65%, transparent),
+    transparent 45%,
+    transparent 55%,
+    color-mix(in srgb, var(--bg-base) 65%, transparent)
+  );
+}
+.linked-world-outline {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--linked-platform) 75%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+}
+.linked-world-overlay {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: calc(100% - 2 * var(--linked-world-corner));
+  min-width: 0;
+}
+.linked-world-split .linked-world-overlay {
+  max-width: 52%;
+}
+.linked-world-upper {
+  top: var(--linked-world-corner);
+  right: var(--linked-world-corner);
+  align-items: flex-end;
+  text-align: right;
+}
+.linked-world-lower {
+  bottom: var(--linked-world-corner);
+  left: var(--linked-world-corner);
+  align-items: flex-start;
+  text-align: left;
+  flex-direction: column-reverse;
+}
+.linked-world-caption {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--text);
+  text-shadow:
+    0 1px 1px var(--bg-base),
+    0 0 3px var(--bg-base),
+    0 1px 6px var(--bg-base);
+}
+.linked-world-pill {
+  display: inline-flex;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-base) 42%, transparent);
+  backdrop-filter: blur(10px);
+}
+.linked-identities,
+.linked-platform-rail {
+  position: relative;
+}
+.linked-identities {
+  background: transparent;
+}
+.linked-identities::before,
+.linked-platform-rail::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, var(--plat-vrc-ghost-border), var(--plat-cvr-ghost-border));
+  mask:
+    linear-gradient(white 0 0) content-box,
+    linear-gradient(white 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.linked-gradient-text {
+  background: linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text));
+  background-clip: text;
+  color: transparent;
+}
+.linked-platform-rail::before {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--cvr) 36%, transparent),
+    color-mix(in srgb, var(--vrc) 36%, transparent)
+  );
+}
+.linked-platform-rail .linked-gradient-text {
+  background-image: linear-gradient(to top, var(--plat-cvr-ghost-text), var(--plat-vrc-ghost-text));
+}
+.linked-location-button {
+  position: relative;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding-inline: var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--linked-cvr-tier) 13%, transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) 13%, transparent) 50%
+  );
+}
+.linked-location-button::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--linked-cvr-tier) 36%, transparent) 50%,
+    color-mix(in srgb, var(--linked-vrc-tier) 36%, transparent) 50%
+  );
+  mask:
+    linear-gradient(white 0 0) content-box,
+    linear-gradient(white 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 /* Local OFL faces (VRX-32). Keep these URLs relative so Vite emits both WOFF2
    files into out/renderer/assets and electron-builder carries them into ASAR. */
 @font-face {
@@ -37,6 +233,9 @@
 
 /* ── §2 Tokens — dark (default) ───────────────────────────────────────────── */
 :root {
+  --linked-world-corner: 14px;
+  --linked-world-name-max: 145px;
+  --linked-world-pair-max: 370px;
   --bg-base: #08080b;
   --text: #f3f1fb;
   --text-dim: rgba(231, 225, 250, 0.72);

@@ -7,6 +7,7 @@ import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
+import { useLinkedProfileEvents } from './queries/linkedProfiles'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { useSettingsStore } from './stores/settings'
 import { useUiStore } from './stores/ui'
@@ -39,6 +40,7 @@ function App(): React.JSX.Element {
   // like useApplyTheme: the subscription is idempotent and event application
   // no-ops until a friends fetch has populated the cache.
   useLiveFriendEvents()
+  useLinkedProfileEvents()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85).
   useEffect(() => {

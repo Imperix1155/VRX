@@ -1,6 +1,11 @@
 import type { IpcEvents, IpcInvoke } from '@shared/ipc'
 
 type VrxBridge = {
+  getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
+  changeLinkedProfile: (
+    req: IpcInvoke['change-linked-profile']['req']
+  ) => Promise<IpcInvoke['change-linked-profile']['res']>
+  onLinkedProfilesChanged: (callback: () => void) => () => void
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
   getAvatar: (url: string) => Promise<IpcInvoke['get-avatar']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>

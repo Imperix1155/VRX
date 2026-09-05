@@ -5,6 +5,7 @@ import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import type { Friend } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
@@ -60,7 +61,8 @@ async function finishDebounce(): Promise<void> {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   mockFriends([friend('José'), friend('Alice')])
 })
