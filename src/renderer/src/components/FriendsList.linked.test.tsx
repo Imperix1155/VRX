@@ -4,12 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import type { LinkedProfile } from '@shared/linkedProfiles'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import '../i18n'
 import { fullFriend } from '../test-utils/friendFixture'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useProfileSelection } from '../stores/profileSelection'
 import FriendsList from './FriendsList'
+import i18n from '../i18n'
 
 const mocks = vi.hoisted(() => ({ friends: vi.fn(), links: vi.fn() }))
 vi.mock('../queries/friends', async (original) => ({
@@ -96,8 +96,49 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it('labels the one eligible counterpart rather than the hidden header account', () => {
+    roster([{ ...inWorldVrc, status: 'ask-me' }, inWorldCvr])
+    render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    const pill = within(list).getByRole('button', { name: /Join Combined/ })
+    expect(pill.textContent).toContain('Friends')
+    expect(pill.textContent).not.toContain('Private')
+  })
+  it.each([false, true])(
+    'shows a failed counterpart join after the chooser closes (two locations: %s)',
+    async (both) => {
+      roster([both ? inWorldVrc : { ...inWorldVrc, status: 'ask-me' }, inWorldCvr])
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, confirmJoin: false, collapsedFriendSections: [] }
+      })
+      const joinInstance = vi.fn().mockResolvedValue({ ok: false, reason: 'cooldown' })
+      window.vrx = { joinInstance } as unknown as Window['vrx']
+      render(<FriendsList />)
+      const list = screen.getByRole('list', { name: 'Friends' })
+      fireEvent.click(
+        within(list).getByRole('button', { name: both ? '2 locations' : /Join Combined/ })
+      )
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
+      })
+      expect(joinInstance).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: 'chilloutvr', friendId: cvr.platformUserId })
+      )
+      expect(screen.queryByRole('button', { name: /Join on ChilloutVR/ })).toBeNull()
+      expect(within(list).getByRole('status').textContent).toContain(
+        i18n.t('friends.joinFailure.cooldown')
+      )
+      fireEvent.click(within(list).getByRole('button', { name: /^Combined/ }))
+      expect(
+        within(screen.getByRole('dialog', { name: 'Combined' })).getByRole('status').textContent
+      ).toContain(i18n.t('friends.joinFailure.cooldown'))
+      Reflect.deleteProperty(window, 'vrx')
+    }
+  )
+
   it('renders both in-game accounts as one named person and selects a person target', () => {
     render(<FriendsList />)
     const list = screen.getByRole('list', { name: 'Friends' })

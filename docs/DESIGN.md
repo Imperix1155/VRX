@@ -573,6 +573,9 @@ during review still requires a fresh review. Preferred-name fallbacks refresh
 from fresh account-scoped main data; custom names remain unchanged. Friends'
 top-bar online count uses unique people; Dashboard statistics remain account-based.
 Once a chooser observes destination drift, that choice stays invalid until reopened.
+The single eligible destination supplies its own openness label, independently of
+the header account's hidden state. Join failures from either account appear in
+the combined row and drawer through the existing short-lived failure message.
 
 - Linking is user-driven. VRX never infers identity from names or presence. Each person has exactly one account-qualified VRChat member and one account-qualified ChilloutVR member: `{platform, platformAccountId, friendId}`. Bare upstream IDs never identify a saved member.
 - The main-owned link document stores preferred platform, picture mode, stable default or custom name, revision, and shared note. Account notes remain in their original account stores. All three notes are private local data under app `userData`; VRX never writes VRCX or CVRX files.

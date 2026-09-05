@@ -206,7 +206,7 @@ const FriendRow = memo(function FriendRow({
   const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
-  const hideWorld = isWorldHidden(friend)
+  const hideWorld = isWorldHidden(pillFriend ?? friend)
   const instance = pillFriend?.instance ?? null
   const worldText =
     !hideWorld && instance != null
@@ -230,7 +230,20 @@ const FriendRow = memo(function FriendRow({
     instancePill = t('friends.instance.private')
   }
   const joinable = combined ? destinations.length > 0 : isFriendJoinable(friend)
-  const joinFailure = joinFailureFor(friend)
+  const joinFailure = combined
+    ? projection.accounts.map(joinFailureFor).find((reason) => reason !== null)
+    : joinFailureFor(friend)
+  const failureStatus = (
+    <span
+      role="status"
+      className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
+      style={
+        combined && joinFailure ? { background: 'var(--bg-base)', borderRadius: 10 } : undefined
+      }
+    >
+      {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
+    </span>
+  )
 
   function joinFriend(event: MouseEvent<HTMLButtonElement>): void {
     // Containment is BACK (VRX-228): VRX-225 removed stopPropagation because the
@@ -411,22 +424,25 @@ const FriendRow = memo(function FriendRow({
           can't emit it). Neutral (Private / CVR Offline Instance) pills stay hueless
           but readable. Joinable friends receive the button variant (VRX-166). */}
       {twoLocations ? (
-        <button
-          type="button"
-          data-join-pill
-          className="linked-location-button disabled:opacity-50"
-          onClick={joinFriend}
-          disabled={isJoining}
-          tabIndex={isFullyVisible ? undefined : -1}
-          style={Object.fromEntries(
-            destinations.map((account) => [
-              `--linked-${account.platform === 'vrchat' ? 'vrc' : 'cvr'}-tier`,
-              `var(${instancePillFor(account.instance!, labelScheme).tier ? `--op-${instancePillFor(account.instance!, labelScheme).tier}` : '--text'})`
-            ])
-          )}
-        >
-          {t('linking.locations', { count: 2 })}
-        </button>
+        <span className="relative block" data-join-pill>
+          <button
+            type="button"
+            data-join-pill
+            className="linked-location-button disabled:opacity-50"
+            onClick={joinFriend}
+            disabled={isJoining}
+            tabIndex={isFullyVisible ? undefined : -1}
+            style={Object.fromEntries(
+              destinations.map((account) => [
+                `--linked-${account.platform === 'vrchat' ? 'vrc' : 'cvr'}-tier`,
+                `var(${instancePillFor(account.instance!, labelScheme).tier ? `--op-${instancePillFor(account.instance!, labelScheme).tier}` : '--text'})`
+              ])
+            )}
+          >
+            {t('linking.locations', { count: 2 })}
+          </button>
+          {failureStatus}
+        </span>
       ) : instancePill !== null && (!combined || joinable) ? (
         joinable ? (
           <span className="relative block min-w-[78px]" data-join-pill>
@@ -442,12 +458,7 @@ const FriendRow = memo(function FriendRow({
                 world: instance?.worldName ?? instancePill
               })}
             />
-            <span
-              role="status"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
-            >
-              {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
-            </span>
+            {failureStatus}
           </span>
         ) : (
           <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />

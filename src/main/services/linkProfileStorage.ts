@@ -20,6 +20,8 @@ interface StorageOperations {
   rename: typeof renameSync
 }
 
+const MAX_FILE_BYTES = 32 * 1024 * 1024
+
 /** One file and one rename are the commit boundary for links and shared notes. */
 export class LinkProfileStorage implements LinkGraphStorage {
   private readonly path: string
@@ -35,7 +37,7 @@ export class LinkProfileStorage implements LinkGraphStorage {
   read(): unknown {
     try {
       const stat = lstatSync(this.path)
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 32 * 1024 * 1024)
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_FILE_BYTES)
         throw new Error('link storage: invalid file')
       this.originalBytes = readFileSync(this.path)
       return this.originalBytes.toString('utf8')
@@ -66,6 +68,7 @@ export class LinkProfileStorage implements LinkGraphStorage {
 
   write(value: LinkGraphFile | LinkProfileFile): void {
     const bytes = Buffer.from(JSON.stringify(value, null, 2) + '\n')
+    if (bytes.length > MAX_FILE_BYTES) throw new Error('link storage: file too large')
     mkdirSync(this.directory, { recursive: true })
     const temporary = join(this.directory, `.link-graph-${randomUUID()}.tmp`)
     let fd: number | undefined

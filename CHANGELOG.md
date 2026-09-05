@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in place for up to five seconds while unsafe destinations disable immediately.
   Drawer world images use single or diagonal platform outlines; rule context
   remains in the Join flow and trust information sits quietly below Notes.
+  Destination labels and failed-join feedback follow the selected account.
   (VRX-143)
 
 ## [0.19.2] - 2026-09-04

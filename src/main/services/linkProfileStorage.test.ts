@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { LinkProfileStorage } from './linkProfileStorage'
 import { LinkGraphStore } from './linkGraphStore'
+import type { LinkProfileFile } from '@shared/linkedProfiles'
 
 vi.mock('electron', () => ({
   app: {
@@ -27,6 +28,52 @@ const members = [
 ] as const
 
 describe('strict link profile storage', () => {
+  it('rejects oversized valid profiles before replacing a readable file', () => {
+    const dir = directory()
+    const storage = new LinkProfileStorage(dir)
+    const graph = new LinkGraphStore(storage, () => 'original')
+    const original = graph.apply({
+      kind: 'replace',
+      members: [...members],
+      defaultName: 'Original',
+      preferredPlatform: 'vrchat',
+      expectedPeople: []
+    })!
+    const before = readFileSync(join(dir, 'link-graph.json'))
+    const large: LinkProfileFile = { storeFormatVersion: 2, revision: 2, people: {} }
+    for (let index = 0; index < 5000; index += 1) {
+      const id = `person_${index}`
+      large.people[id] = {
+        id,
+        members: members.map((member) => ({
+          ...member,
+          platformAccountId: 'a'.repeat(128),
+          friendId: `friend_${index}`.padEnd(256, 'a')
+        })) as typeof original.members,
+        customName: '\0'.repeat(256),
+        defaultName: '\0'.repeat(256),
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '\0'.repeat(500),
+        revision: 1
+      }
+    }
+    // Verify schema validity independently of the filesystem byte ceiling.
+    expect(new LinkGraphStore({ read: () => large, write: vi.fn() }).list()).toHaveLength(5000)
+    expect(Buffer.byteLength(JSON.stringify(large, null, 2) + '\n')).toBeGreaterThan(
+      32 * 1024 * 1024
+    )
+    expect(() => storage.write(large)).toThrow('link storage: file too large')
+    expect(readFileSync(join(dir, 'link-graph.json')).equals(before)).toBe(true)
+    expect(readdirSync(dir)).toEqual(['link-graph.json'])
+    expect(new LinkGraphStore(new LinkProfileStorage(dir)).list()).toEqual([original])
+    // A large valid document below the ceiling remains writable and restart-safe.
+    for (let index = 4500; index < 5000; index += 1) delete large.people[`person_${index}`]
+    expect(Buffer.byteLength(JSON.stringify(large, null, 2) + '\n')).toBeLessThan(32 * 1024 * 1024)
+    storage.write(large)
+    expect(new LinkGraphStore(new LinkProfileStorage(dir)).list()).toHaveLength(4500)
+  })
+
   it('migrates fully valid v1 once and retains the exact original bytes', () => {
     const dir = directory()
     const original =

@@ -170,3 +170,39 @@ note disclosure, failed-draft unlink blocking and return to the exact draft owne
 No screenshots or real-account actions. DOX/API/design references are synchronized.
 Weekly Codex usage: 7% used. No reset credit redeemed. No push or PR yet.
 Next: pin corrected head and repeat full T2 review, then publication and external gates.
+
+## Local review round 2 and corrections
+
+Review head `7243a6e7ee347415b5d211d7cc1dbcf02a8070ab`, base `60ce0a0`.
+Artifact SHA-256 `47c863c1c704c666a2927f6eeff255b6bfd52fa395d821288298e9a62d143c05`,
+701,355 bytes / 12,856 lines / 74 files. Two fresh nonbuilder lenses covered
+lifecycle and tests/contracts; the security lens reused its nonbuilder context
+because the runtime rejected further agent creation. All three read the full
+pinned artifact and verified its hash. This remains same-lineage review, with
+the continuing security context disclosed rather than called newly independent.
+Verdict: FIX-FIRST for three confirmed findings.
+
+- A schema-valid 5,000-profile document can serialize above the 32 MiB reader
+  limit. Writes now share that ceiling and reject before any filesystem mutation.
+  The regression first failed because the oversized write succeeded; the fix
+  preserves exact original bytes and restart data, while a large below-limit
+  document still saves and reopens.
+- A hidden header account could label its public counterpart's destination
+  Private. The eligible account now supplies its own openness label.
+- The combined row and drawer missed counterpart join failures, and the
+  two-location row had no failure live region. Both now display the existing
+  attributed failure from either account; combined failure text covers the old
+  button label. Tests exercise the real shared join hook and synthetic failed
+  bridge with one and two eligible destinations. Removing the drawer correction
+  independently fails both cases; the correction was restored.
+
+Native Electron fixture passed `LINKED_RUNTIME_GREEN` with the corrected single
+destination label, unchanged dark/light row/world geometry, and a synthetic CVR
+join failure visible in both combined surfaces. No real account or screenshot.
+Fallow retains only the pre-existing unused `IpcEventChannel` type and the same
+four classified production clone groups. DOX/API/design/changelog are synchronized;
+API policy/volatility remain intentionally unchanged. Weekly Codex usage: 8% used,
+no reset redeemed. Correction gate: 2,411 tests / 159 files, typecheck, uncached
+ESLint, formatting, production build and diff check passed
+`LINKED_FRIENDS_GATE_GREEN`. Both HTML design references parse successfully.
+Next: pin this checkpoint and repeat full T2 review before publication.

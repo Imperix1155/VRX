@@ -57,6 +57,10 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Local Contracts
 
+- Combined linked rows derive a single destination's openness from that account,
+  never the priority-selected header. Row and drawer failure feedback includes
+  either linked account and retains the existing join flow's lifetime.
+
 - Destructive link confirmations show saved notes expanded and use
   `usePersonNoteGuard` for every affected person. Dirty, failed or in-flight
   local text blocks submission synchronously, with a return-to-profile action.
