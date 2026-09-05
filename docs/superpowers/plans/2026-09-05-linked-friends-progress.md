@@ -237,3 +237,42 @@ HTML files parse. DOX/design/API updated; the touched join hook's two pre-existi
 catalog entries were consolidated into one complete entry (verified count: one).
 Changelog/README remain current; API policy/volatility intentionally unchanged.
 Next: pin the corrected head and repeat full T2 review; no PR or push yet.
+
+## Local review round 4 and corrections
+
+Review head `e10bedae7e4743eeb3f287c4b96d38484b9003bc`, base `60ce0a0`.
+Artifact SHA-256 `f53a517316c717984effbace74b857abd0765af265f3ba30ca584a613298022e`,
+793,584 bytes / 13,195 lines / 75 files. Three continuing nonbuilder lenses
+accounted for the full head and verified its provenance. Lifecycle was clear;
+tests/contracts and security found related P2 ownership and session-lifecycle
+defects. Verdict: FIX-FIRST.
+
+- Saved-member failure retention omitted the current platform-account check,
+  allowing a different owner's same upstream friend ID to match. Combined row
+  and drawer now require the saved member's exact owner before lookup. A real
+  join-hook integration test reproduced the wrong blip on the old linked person;
+  the corrected row and drawer stay empty while the new owner's account row
+  shows its own denial. Removing the drawer guard independently fails the test.
+- Direct joins with confirmation off did not fence IPC results across identity
+  changes. The shared store now tracks the active direct platform and captures
+  a generation for success, denial, exception and final latch release. Scoped
+  `invalidatePending(platform?)` handles confirmation, direct join and existing
+  failures; unmount invalidates all, unrelated platforms remain untouched.
+  The existing global JoinConfirmDialog owns boundary/auth subscriptions for
+  both paths, including direct joins without a pending confirmation.
+
+Regression probes cover old success/denial/exception settling during a newer
+join, unrelated-platform invalidation, identity/auth/unmount cleanup and the full
+linked chooser boundary. Removing identity cleanup fails the integration test.
+Its post-boundary drawer opener requires a fresh pointer-down, as the existing
+stale-gesture contract intends. No launch permission, main validation or platform
+request cadence changed.
+
+Native fixture passed `LINKED_RUNTIME_GREEN` with a late synthetic one-click
+denial discarded after its CVR boundary and the healthy Join action re-enabled.
+The preceding same-session roster-removal denial remains visible. No real accounts
+or captures. DOX/API/design/changelog are synchronized; API policy/volatility and
+README intentionally unchanged. Fallow findings remain previously classified.
+Correction gate: 2,421 tests / 159 files, typecheck, uncached ESLint, format,
+production build and diff check passed `LINKED_FRIENDS_GATE_GREEN`. Both HTML
+references parse. Next: checkpoint and repeat full T2 review before publication.

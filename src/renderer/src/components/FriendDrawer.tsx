@@ -121,10 +121,12 @@ export default function FriendDrawer({
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
   const failureAccounts =
     combined && selection.profile
-      ? selection.profile.members.map((member) => ({
-          platform: member.platform,
-          platformUserId: member.friendId
-        }))
+      ? selection.profile.members
+          .filter((member) => accountIds?.[member.platform] === member.platformAccountId)
+          .map((member) => ({
+            platform: member.platform,
+            platformUserId: member.friendId
+          }))
       : shownAccounts
   const joinFailure = failureAccounts.map(joinFailureFor).find((reason) => reason !== null)
 

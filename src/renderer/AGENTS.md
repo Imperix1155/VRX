@@ -61,7 +61,10 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   never the priority-selected header. Row and drawer failure feedback includes
   either linked account by saved member reference, including a member removed
   from the roster during an in-flight join. Explicit account views remain
-  account-attributed. Hidden locations stay out of DOM gesture metadata as well
+  account-attributed. Saved-member lookups require the current platform account
+  ID to match their owner. Direct and confirmed joins both fence late results at
+  identity/auth boundaries; unrelated platform changes leave healthy joins alone.
+  Hidden locations stay out of DOM gesture metadata as well
   as visible labels; state/status changes still invalidate the gesture.
 
 - Destructive link confirmations show saved notes expanded and use

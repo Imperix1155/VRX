@@ -8,7 +8,7 @@ import type {
   RefCallback
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FRIEND_SECTIONS, type Friend, type FriendSection } from '@shared/types'
+import { FRIEND_SECTIONS, type Friend, type FriendSection, type Platform } from '@shared/types'
 import { SEARCH_DEBOUNCE_MS } from '@shared/constants'
 import { isFriendJoinable } from '@shared/joinability'
 import type { LinkedProfile } from '@shared/linkedProfiles'
@@ -138,6 +138,7 @@ const FriendRow = memo(function FriendRow({
   friend,
   projection,
   linkedProfile,
+  accountIds,
   onChoose,
   onRowHover,
   searchQuery,
@@ -158,6 +159,7 @@ const FriendRow = memo(function FriendRow({
   friend: Friend
   projection: LinkedRow
   linkedProfile: LinkedProfile | undefined
+  accountIds: Partial<Record<Platform, string>>
   onChoose: (target: ProfileTarget) => void
   onRowHover: (key: string | null) => void
   searchQuery: string
@@ -234,6 +236,7 @@ const FriendRow = memo(function FriendRow({
   const joinFailure =
     combined && linkedProfile
       ? linkedProfile.members
+          .filter((member) => accountIds[member.platform] === member.platformAccountId)
           .map((member) =>
             joinFailureFor({ platform: member.platform, platformUserId: member.friendId })
           )
@@ -1357,6 +1360,7 @@ export default function FriendsList(): React.JSX.Element {
                     linkedProfile={links.data?.profiles.find(
                       (profile) => profile.id === row.projection.target.personId
                     )}
+                    accountIds={accountIds}
                     onChoose={setChooserTarget}
                     onRowHover={setHoveredRowKey}
                     searchQuery={appliedSearch}

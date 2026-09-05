@@ -579,6 +579,10 @@ the combined row and drawer through the existing short-lived failure message.
 Attribution uses saved member references when a joining account leaves the roster;
 explicit account views never inherit the counterpart's error. Hidden world and
 instance identifiers are also omitted from row gesture metadata.
+Saved-member feedback requires the current platform account to match its owner.
+Identity/auth changes clear that platform's pending join and failure state;
+late replies cannot restore it or clear a newer attempt. This also applies when
+the user has turned off join confirmation. Other platforms remain usable.
 
 - Linking is user-driven. VRX never infers identity from names or presence. Each person has exactly one account-qualified VRChat member and one account-qualified ChilloutVR member: `{platform, platformAccountId, friendId}`. Bare upstream IDs never identify a saved member.
 - The main-owned link document stores preferred platform, picture mode, stable default or custom name, revision, and shared note. Account notes remain in their original account stores. All three notes are private local data under app `userData`; VRX never writes VRCX or CVRX files.

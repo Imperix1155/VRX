@@ -9,9 +9,14 @@ import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useProfileSelection } from '../stores/profileSelection'
 import FriendsList from './FriendsList'
+import JoinConfirmDialog from './JoinConfirmDialog'
 import i18n from '../i18n'
 
-const mocks = vi.hoisted(() => ({ friends: vi.fn(), links: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  friends: vi.fn(),
+  links: vi.fn(),
+  accounts: { vrchat: 'vrchat-owner', chilloutvr: 'chilloutvr-owner' }
+}))
 vi.mock('../queries/friends', async (original) => ({
   ...(await original<typeof import('../queries/friends')>()),
   useFriends: mocks.friends
@@ -22,7 +27,11 @@ vi.mock('../queries/linkedProfiles', async (original) => ({
 }))
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
-    data: { platform, state: 'authenticated', accountId: platform + '-owner' }
+    data: {
+      platform,
+      state: 'authenticated',
+      accountId: mocks.accounts[platform as keyof typeof mocks.accounts]
+    }
   })
 }))
 const vrc = {
@@ -81,6 +90,7 @@ function roster(friends: Friend[]): void {
   }))
 }
 beforeEach(() => {
+  mocks.accounts = { vrchat: 'vrchat-owner', chilloutvr: 'chilloutvr-owner' }
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
   }
@@ -99,6 +109,94 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it('discards a pending chooser join when that platforms identity changes', async () => {
+    roster([inWorldVrc, inWorldCvr])
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false, collapsedFriendSections: [] }
+    })
+    let finish!: (value: { ok: false; reason: 'cooldown' }) => void
+    const listeners = new Set<(event: { platform: 'chilloutvr' }) => void>()
+    const joinInstance = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    window.vrx = {
+      joinInstance,
+      onIdentityBoundary: (listener: (event: { platform: 'chilloutvr' }) => void) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    const tree = (
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+    const view = render(tree)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
+    fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
+    expect(joinInstance).toHaveBeenCalledOnce()
+    mocks.accounts.chilloutvr = 'replacement-owner'
+    roster([inWorldVrc])
+    act(() => {
+      for (const listener of listeners) listener({ platform: 'chilloutvr' })
+    })
+    view.rerender(
+      <>
+        <FriendsList />
+        <JoinConfirmDialog />
+      </>
+    )
+    expect(
+      within(list).getByRole<HTMLButtonElement>('button', { name: /Join Combined/ }).disabled
+    ).toBe(false)
+    await act(async () => {
+      finish({ ok: false, reason: 'cooldown' })
+      await Promise.resolve()
+    })
+    expect(within(list).getByRole('status').textContent).toBe('')
+    const opener = within(list).getByRole('button', { name: /^Combined/ })
+    // Identity boundaries invalidate the old gesture; opening needs a fresh one.
+    fireEvent.pointerDown(opener)
+    fireEvent.click(opener)
+    expect(
+      within(screen.getByRole('dialog', { name: 'Combined' })).getByRole('status').textContent
+    ).toBe('')
+  })
+
+  it('does not attribute another owners same friend ID failure to a saved linked person', async () => {
+    mocks.accounts.chilloutvr = 'different-owner'
+    roster([inWorldVrc, inWorldCvr])
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false, collapsedFriendSections: [] }
+    })
+    window.vrx = {
+      joinInstance: vi.fn().mockResolvedValue({ ok: false, reason: 'cooldown' })
+    } as unknown as Window['vrx']
+    render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    await act(async () => {
+      fireEvent.click(within(list).getByRole('button', { name: /Join CVR alias/ }))
+    })
+    const combined = document.querySelector<HTMLElement>('[data-friend-key="person:pair"]')!
+    const account = document.querySelector<HTMLElement>(
+      `[data-friend-key="chilloutvr:${cvr.platformUserId}"]`
+    )!
+    expect(within(account).getByRole('status').textContent).toContain(
+      i18n.t('friends.joinFailure.cooldown')
+    )
+    expect(within(combined).getByRole('status').textContent).toBe('')
+    fireEvent.click(within(combined).getByRole('button', { name: /^Combined/ }))
+    expect(
+      within(screen.getByRole('dialog', { name: 'Combined' })).getByRole('status').textContent
+    ).toBe('')
+  })
+
   it('keeps a pending counterpart denial attributed after that account leaves the roster', async () => {
     roster([inWorldVrc, inWorldCvr])
     useSettingsStore.setState({

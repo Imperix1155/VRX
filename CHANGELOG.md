@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Drawer world images use single or diagonal platform outlines; rule context
   remains in the Join flow and trust information sits quietly below Notes.
   Destination labels and failed-join feedback follow the selected account.
+  Account changes discard stale join feedback, including one-click joins.
   (VRX-143)
 
 ## [0.19.2] - 2026-09-04

@@ -231,7 +231,7 @@ afterEach(() => {
   // The join store is module-level: close any parked confirmation so an open
   // dialog never leaks into the next test.
   const { result } = renderHook(() => useJoinInstance())
-  act(() => result.current.cancelPending())
+  act(() => result.current.invalidatePending())
   cleanup()
   vi.useRealTimers()
   useFriendsMock.mockReset()
@@ -2222,6 +2222,37 @@ describe('VRX-239/241 liveness contract', () => {
 })
 
 describe('defensive latch clear (VRX-239/241)', () => {
+  it.each(['identity', 'auth', 'unmount'] as const)(
+    'clears and fences a direct join at %s boundary',
+    async (boundary) => {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false } })
+      let finish!: (value: { ok: false; reason: 'cooldown' }) => void
+      joinInstance.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+          })
+      )
+      const view = render(<TestSurface friend={joinableFriend} />)
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      const hook = renderHook(() => useJoinInstance())
+      expect(hook.result.current.pendingConfirm).toBeNull()
+      expect(hook.result.current.isJoining).toBe(true)
+      act(() => {
+        if (boundary === 'identity') fireIdentityBoundary!({ platform: 'vrchat' })
+        else if (boundary === 'auth')
+          fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' })
+        else view.unmount()
+      })
+      expect(hook.result.current.isJoining).toBe(false)
+      await act(async () => {
+        finish({ ok: false, reason: 'cooldown' })
+        await Promise.resolve()
+      })
+      expect(hook.result.current.joinFailureFor(joinableFriend)).toBeNull()
+    }
+  )
+
   it('identity-boundary for the dialog platform closes the dialog', () => {
     render(<TestSurface friend={joinableFriend} />)
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))

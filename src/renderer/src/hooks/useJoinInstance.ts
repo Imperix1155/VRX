@@ -89,7 +89,7 @@ interface JoinStore {
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
-  invalidatePending: () => void
+  invalidatePending: (platform?: Platform) => void
 }
 
 /** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
@@ -130,6 +130,7 @@ function createJoinStore(): JoinStore {
    *  explicit invalidation (boundary/unmount). In-flight completions must check
    *  their captured generation before mutating state. */
   let sessionGeneration = 0
+  let directJoinPlatform: Platform | null = null
   let snapshot: JoinSnapshot = {
     joining: false,
     pendingConfirm: null,
@@ -164,6 +165,8 @@ function createJoinStore(): JoinStore {
   }
 
   async function performJoin(friend: Friend, mode: JoinMode): Promise<void> {
+    const generation = ++sessionGeneration
+    directJoinPlatform = friend.platform
     emit({ joining: true })
     // A new attempt clears any lingering blip immediately (whoever it was for).
     clearFailureBlip()
@@ -186,14 +189,18 @@ function createJoinStore(): JoinStore {
         mode,
         expectedTarget: { worldId: target.worldId, instanceId: target.instanceId }
       })
+      if (generation !== sessionGeneration) return
       if (result.ok) clearFailureBlip()
       else showFailureBlip(friendKey, result.reason)
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
       // unhandled rejection.
-      showFailureBlip(friendKey, 'unknown')
+      if (generation === sessionGeneration) showFailureBlip(friendKey, 'unknown')
     } finally {
-      emit({ joining: false })
+      if (generation === sessionGeneration) {
+        directJoinPlatform = null
+        emit({ joining: false })
+      }
     }
   }
 
@@ -366,8 +373,16 @@ function createJoinStore(): JoinStore {
   /** Invalidation is stronger than user Cancel: it clears the dialog even while
    *  a launch is settling, and advances the session generation so any late IPC
    *  completion for the old session is ignored. */
-  function invalidatePending(): void {
+  function invalidatePending(platform?: Platform): void {
+    if (
+      platform !== undefined &&
+      snapshot.pendingConfirm?.platform !== platform &&
+      directJoinPlatform !== platform &&
+      !snapshot.failedFriendId?.startsWith(`${platform}:`)
+    )
+      return
     sessionGeneration += 1
+    directJoinPlatform = null
     clearFailureBlip()
     if (snapshot.pendingConfirm !== null || snapshot.joining) {
       emit({ pendingConfirm: null, joining: false })
@@ -424,7 +439,7 @@ export function useJoinInstance(): {
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
-  invalidatePending: () => void
+  invalidatePending: (platform?: Platform) => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
