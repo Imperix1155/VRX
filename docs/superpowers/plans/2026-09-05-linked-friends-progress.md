@@ -362,3 +362,27 @@ exception is granted. The bounded follow-up must park after independently
 actionable CodeRabbit triage if this remains unchanged after 14:30 UTC. Next:
 pin the corrective head, run the full T2 review, push, disposition review threads,
 then leave the PR unmerged pending both bots' substantive final-head coverage.
+
+## Local review round 7 and owner-qualified replacement correction
+
+Head `eac467a8ffc1cbb0dc587eb0a3e42c6830e14e93`, artifact SHA-256
+`cba17b29938416e288d3c5d15cdd9d1e6652bd9b18756b96ecc53d50c3477055`,
+829,416 bytes / 13,935 lines / 77 files. Security and contracts lenses found a
+retained-member owner mismatch missed by the roster-absence test: after a switch,
+the new account may also have the same friend ID. Main requalifies safely, but
+the picker would operate on a different link than the saved identity it offered
+to retain. Verdict: FIX-FIRST; this head was not pushed.
+
+Member lookup now verifies saved account ownership as well as platform/friend ID
+and availability, including inside the picker transition. The parameterized
+wrong-owner/same-ID test failed before correction and passed afterward, while
+the healthy counterpart remains usable. The isolated native fixture reproduced
+both availability states and passed all previous scenarios with
+`LINKED_RUNTIME_GREEN`. No real account or capture was involved.
+
+The full gate passed 2,432 tests / 159 files, typecheck, uncached lint, formatting,
+production build and `LINKED_FRIENDS_GATE_GREEN`. Fallow's baseline findings are
+unchanged. Renderer DOX and all design references now explicitly pin owner
+qualification. Changelog, API catalog, README and API policy/volatility remain
+accurate; no new surface or external operation was introduced. Next: pin and
+repeat the full T2 review, then publish the coherent corrective batch.

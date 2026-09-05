@@ -80,7 +80,8 @@ export default function IdentitiesDialog({
     available?.vrchat !== false &&
     available?.chilloutvr !== false
   const findFriend = (ref: FriendRef): Friend | undefined =>
-    available?.[ref.platform] === false
+    available?.[ref.platform] === false ||
+    ('platformAccountId' in ref && ref.platformAccountId !== accountIds[ref.platform])
       ? undefined
       : friends.find(
           (friend) => friend.platform === ref.platform && friend.platformUserId === ref.friendId
