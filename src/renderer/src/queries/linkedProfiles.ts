@@ -1,9 +1,24 @@
-import { useEffect } from 'react'
-import { QueryClient, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useContext, useEffect, useState } from 'react'
+import {
+  QueryClient,
+  QueryClientContext,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult
+} from '@tanstack/react-query'
 import type { LinkRequest, LinkResult, LinkSnapshot } from '@shared/linkedProfiles'
 
 export const linkedProfilesKey = ['linked-profiles'] as const
-export const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '' }
+export const emptyLinkSnapshot: LinkSnapshot = { profiles: [], lease: '', storeRevision: 0 }
+
+/** Used at publication time by every read and write, not at request start. */
+export function retainNewestLinkSnapshot(previous: unknown, incoming: unknown): LinkSnapshot {
+  const current = previous as LinkSnapshot | undefined
+  const next = incoming as LinkSnapshot
+  return current?.lease === next.lease && current.storeRevision > next.storeRevision
+    ? current
+    : next
+}
 
 export async function fetchLinkedProfiles(signal?: AbortSignal): Promise<LinkSnapshot> {
   if (typeof window === 'undefined' || typeof window.vrx?.getLinkedProfiles !== 'function')
@@ -15,13 +30,19 @@ export async function fetchLinkedProfiles(signal?: AbortSignal): Promise<LinkSna
 }
 
 export function useLinkedProfiles(): UseQueryResult<LinkSnapshot, Error> {
-  return useQuery({
-    queryKey: linkedProfilesKey,
-    queryFn: ({ signal }) => fetchLinkedProfiles(signal),
-    staleTime: Infinity,
-    retry: false,
-    enabled: typeof window !== 'undefined' && typeof window.vrx?.getLinkedProfiles === 'function'
-  })
+  const provided = useContext(QueryClientContext)
+  const [fallback] = useState(() => new QueryClient())
+  return useQuery(
+    {
+      queryKey: linkedProfilesKey,
+      queryFn: ({ signal }) => fetchLinkedProfiles(signal),
+      staleTime: Infinity,
+      retry: false,
+      structuralSharing: retainNewestLinkSnapshot,
+      enabled: typeof window !== 'undefined' && typeof window.vrx?.getLinkedProfiles === 'function'
+    },
+    provided ?? fallback
+  )
 }
 
 export async function changeLinkedProfile(
@@ -37,7 +58,12 @@ export async function changeLinkedProfile(
     const result = await window.vrx.changeLinkedProfile({ lease, change })
     if (client.getQueryData<LinkSnapshot>(linkedProfilesKey)?.lease !== lease)
       return { ok: false, reason: 'stale' }
-    if (result.ok) client.setQueryData(linkedProfilesKey, result.value)
+    if (result.ok) {
+      const adopted = client.setQueryData<LinkSnapshot>(linkedProfilesKey, (previous) =>
+        retainNewestLinkSnapshot(previous, result.value)
+      )
+      return { ok: true, value: adopted ?? result.value }
+    }
     return result
   } catch {
     return { ok: false, reason: 'storage' }

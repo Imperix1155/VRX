@@ -19,7 +19,12 @@ const cvr = {
 const vrc2 = { ...vrc, friendId: 'friend_vrc2' }
 const cvr2 = { ...cvr, friendId: 'friend_cvr2' }
 
-function fixture() {
+function fixture(): {
+  graph: LinkGraphStore
+  storage: LinkGraphStorage
+  writes: () => number
+  fail: () => void
+} {
   let value: unknown = {}
   let writes = 0
   let fail = false

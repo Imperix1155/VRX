@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type {
   LinkChange,
+  LinkProfileSnapshot,
   LinkedProfile,
   LinkRequest,
   LinkResult,
@@ -96,9 +97,10 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
     })
   const snapshot = (): LinkResult<LinkSnapshot> => {
     try {
+      const current = linkGraph.snapshot()
       return {
         ok: true,
-        value: { profiles: linkGraph.list(true).filter(isAnchored), lease: currentLease() }
+        value: { ...current, profiles: current.profiles.filter(isAnchored), lease: currentLease() }
       }
     } catch {
       return { ok: false, reason: 'storage' }
@@ -140,7 +142,7 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
         return { ok: false, reason: 'unavailable' }
       qualified = change
     }
-    let committed: LinkedProfile[]
+    let committed: LinkProfileSnapshot
     try {
       committed = linkGraph.apply(qualified, true)
     } catch (error) {
@@ -153,7 +155,11 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
     // the caller to replay a destructive command that already succeeded.
     const result: LinkResult<LinkSnapshot> = {
       ok: true,
-      value: { profiles: committed.filter(isAnchored), lease: currentLease() }
+      value: {
+        ...committed,
+        profiles: committed.profiles.filter(isAnchored),
+        lease: currentLease()
+      }
     }
     try {
       options.onChanged?.()

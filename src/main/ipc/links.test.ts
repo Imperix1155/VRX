@@ -60,6 +60,14 @@ function create(): ReturnType<typeof invoke> {
   })
 }
 describe('scoped linked profile IPC', () => {
+  it('publishes monotonic document revisions without rotating a healthy session lease', () => {
+    setup()
+    const before = invoke('get-linked-profiles').value
+    const after = create().value
+    expect(after.lease).toBe(before.lease)
+    expect(after.storeRevision).toBe(before.storeRevision + 1)
+    expect(invoke('get-linked-profiles').value).toEqual(after)
+  })
   it('returns the committed snapshot even when a later read fails', () => {
     const { storage, changed } = setup()
     changed.mockImplementation(() => {
@@ -69,13 +77,13 @@ describe('scoped linked profile IPC', () => {
     })
     const result = create()
     expect(result.ok).toBe(true)
-    expect(result.value.profiles[0].revision).toBe(1)
+    expect(result.value.profiles[0]?.revision).toBe(1)
   })
   it('qualifies both selected identities in main and publishes successful changes', () => {
     const { changed } = setup()
     const result = create()
     expect(result.ok).toBe(true)
-    expect(result.value.profiles[0].members).toEqual([
+    expect(result.value.profiles[0]?.members).toEqual([
       { ...vrc, platformAccountId: 'owner_vrc' },
       { ...cvr, platformAccountId: 'owner_cvr' }
     ])

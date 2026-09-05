@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { LinkedPerson, LinkedPersonMember, Platform } from '@shared/types'
-import type { LinkChange, LinkedProfile, LinkProfileFile } from '@shared/linkedProfiles'
+import type {
+  LinkChange,
+  LinkedProfile,
+  LinkProfileFile,
+  LinkProfileSnapshot
+} from '@shared/linkedProfiles'
 import { isPlatformAccountId } from './accountSession'
 import { LinkProfileStorage } from './linkProfileStorage'
 
@@ -550,22 +555,28 @@ export class LinkGraphStore {
   list(strict = false): LinkedProfile[] {
     return this.runOperation(() => {
       try {
-        const loaded = parseProfiles(this.storage.read())
-        if (loaded.legacy) {
-          try {
-            this.commit(loaded.file, true)
-          } catch {
-            /* Keep valid v1 readable. */
-          }
-        }
-        return Object.values(loaded.file.people)
-          .sort((a, b) => a.id.localeCompare(b.id))
-          .map((p) => structuredClone(p))
+        return this.loadSnapshot().profiles
       } catch (error) {
         if (strict) throw error
         return []
       }
     })
+  }
+
+  snapshot(): LinkProfileSnapshot {
+    return this.runOperation(() => this.loadSnapshot())
+  }
+
+  private loadSnapshot(): LinkProfileSnapshot {
+    const loaded = parseProfiles(this.storage.read())
+    if (loaded.legacy) {
+      try {
+        this.commit(loaded.file, true)
+      } catch {
+        /* Keep valid v1 readable. */
+      }
+    }
+    return profileSnapshot(loaded.file)
   }
 
   getByMember(member: LinkedPersonMember): LinkedProfile | null {
@@ -591,16 +602,14 @@ export class LinkGraphStore {
   }
 
   apply(change: LinkChange): LinkedProfile | null
-  apply(change: LinkChange, snapshot: true): LinkedProfile[]
-  apply(change: LinkChange, snapshot = false): LinkedProfile | LinkedProfile[] | null {
+  apply(change: LinkChange, snapshot: true): LinkProfileSnapshot
+  apply(change: LinkChange, snapshot = false): LinkedProfile | LinkProfileSnapshot | null {
     return this.runOperation(() => {
       const result = (
         person: LinkedProfile,
         file: LinkProfileFile
-      ): LinkedProfile | LinkedProfile[] =>
-        structuredClone(
-          snapshot ? Object.values(file.people).sort((a, b) => a.id.localeCompare(b.id)) : person
-        )
+      ): LinkedProfile | LinkProfileSnapshot =>
+        structuredClone(snapshot ? profileSnapshot(file) : person)
       const captured = plainSnapshot(change)
       changeSchema.parse(captured)
       // Zod validates, but its ordinary-object output may lose inherited
@@ -693,6 +702,15 @@ export class LinkGraphStore {
     } finally {
       linkGraphOperationActive = false
     }
+  }
+}
+
+function profileSnapshot(file: LinkProfileFile): LinkProfileSnapshot {
+  return {
+    storeRevision: file.revision,
+    profiles: Object.values(file.people)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((person) => structuredClone(person))
   }
 }
 

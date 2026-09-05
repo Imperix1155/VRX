@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import FriendsList from './FriendsList'
@@ -130,7 +131,8 @@ beforeEach(() => {
     setFriendNote,
     getAvatar: vi.fn().mockResolvedValue(null)
   } as unknown as Window['vrx']
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   // Drawer/row interactions here exercise the one-click join flow — the
   // VRX-210 confirmation gate (default ON) is covered by JoinConfirmDialog.test.tsx.
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, confirmJoin: false }, dirty: false })
@@ -551,7 +553,7 @@ describe('FriendDrawer (VRX-69)', () => {
     mockFriends([joinableFriend]) // friend returns — the drawer must NOT reopen
     rerender(<FriendsList />)
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+    expect(useProfileSelection.getState().target).toBeNull()
   })
 
   it('a transient roster gap (undefined) closes through the one close path — no reopen', () => {
@@ -565,7 +567,7 @@ describe('FriendDrawer (VRX-69)', () => {
     // dialog is gone, and focus lands on the fallback — not stranded on the
     // now-inert hidden ✕ button.
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(useFriendsStore.getState().selectedFriendId).toBeNull()
+    expect(useProfileSelection.getState().target).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
 
     mockFriends([joinableFriend]) // data returns — the drawer must NOT reopen

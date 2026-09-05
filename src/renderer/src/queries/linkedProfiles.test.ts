@@ -5,11 +5,58 @@ import {
   fetchLinkedProfiles,
   changeLinkedProfile,
   linkedProfilesKey,
-  subscribeLinkedProfiles
+  subscribeLinkedProfiles,
+  retainNewestLinkSnapshot
 } from './linkedProfiles'
 
 afterEach(() => vi.unstubAllGlobals())
 describe('linked profile snapshots', () => {
+  it('does not let an earlier read roll back a committed mutation', async () => {
+    let finish!: (value: unknown) => void
+    const newer = { profiles: [], lease: 'lease', storeRevision: 2 }
+    vi.stubGlobal('window', {
+      vrx: {
+        getLinkedProfiles: () =>
+          new Promise((resolve) => {
+            finish = resolve
+          }),
+        changeLinkedProfile: () => Promise.resolve({ ok: true, value: newer })
+      }
+    })
+    const client = new QueryClient()
+    const earlier = { ...newer, storeRevision: 1 }
+    client.setQueryData(linkedProfilesKey, earlier)
+    const read = client.fetchQuery({
+      queryKey: linkedProfilesKey,
+      queryFn: ({ signal }) => fetchLinkedProfiles(signal),
+      structuralSharing: retainNewestLinkSnapshot
+    })
+    await changeLinkedProfile(client, 'lease', {
+      kind: 'unlink',
+      personId: 'p',
+      expectedRevision: 1
+    })
+    finish({ ok: true, value: earlier })
+    await read
+    expect(client.getQueryData(linkedProfilesKey)).toEqual(newer)
+  })
+  it('does not publish an older mutation reply over a newer document', async () => {
+    const replies: Array<(value: unknown) => void> = []
+    vi.stubGlobal('window', {
+      vrx: { changeLinkedProfile: () => new Promise((resolve) => replies.push(resolve)) }
+    })
+    const client = new QueryClient()
+    client.setQueryData(linkedProfilesKey, { profiles: [], lease: 'lease', storeRevision: 1 })
+    const change = { kind: 'unlink' as const, personId: 'person', expectedRevision: 1 }
+    const earlier = changeLinkedProfile(client, 'lease', change)
+    const later = changeLinkedProfile(client, 'lease', { ...change, personId: 'second' })
+    const newest = { profiles: [], lease: 'lease', storeRevision: 3 }
+    replies[1]!({ ok: true, value: newest })
+    await later
+    replies[0]!({ ok: true, value: { ...newest, storeRevision: 2 } })
+    expect(await earlier).toEqual({ ok: true, value: newest })
+    expect(client.getQueryData(linkedProfilesKey)).toEqual(newest)
+  })
   it('fails safely without a bridge', async () => {
     vi.stubGlobal('window', {})
     await expect(fetchLinkedProfiles()).rejects.toThrow('unavailable')
@@ -55,7 +102,11 @@ describe('linked profile snapshots', () => {
     boundary()
     finish({ ok: true, value: { profiles: [{ id: 'private-old-person' }], lease: 'old' } })
     expect(await pending).toEqual({ ok: false, reason: 'stale' })
-    expect(client.getQueryData(linkedProfilesKey)).toEqual({ profiles: [], lease: '' })
+    expect(client.getQueryData(linkedProfilesKey)).toEqual({
+      profiles: [],
+      lease: '',
+      storeRevision: 0
+    })
     dispose()
   })
 })

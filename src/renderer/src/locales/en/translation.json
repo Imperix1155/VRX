@@ -1,5 +1,19 @@
 {
   "appName": "VRX",
+  "linking": {
+    "people_one": "{{count}} person",
+    "people_other": "{{count}} people",
+    "unknownName": "Unknown friend",
+    "sharedNotes": "Shared notes",
+    "back": "Back to combined profile",
+    "identities": "Identities",
+    "unavailable": "Unavailable",
+    "locations": "2 locations",
+    "chooseDestination": "Choose a destination",
+    "joinOn": "Join on {{platform}}",
+    "activityChanged": "Activity changed. Review the current location.",
+    "cancel": "Cancel"
+  },
   "boot": {
     "connecting": "Connecting…"
   },

@@ -62,9 +62,29 @@ Initial standard Codex weekly usage: 0% used; no standard five-hour window.
   Removing the revision check made the stale-unlink test fail; restored and reran green.
 - Task 2: implemented, 33 focused IPC/preload/query tests green and typecheck green. A post-commit read
   failure regression is covered; IPC now returns the transaction's committed snapshot.
-- Task 3: pure projection and tests delegated to a separate scratch worktree.
-- Tasks 4–7: unstarted.
-- Task 1 local commit: `c3dce48`. PR, pushes, merge: none.
+- Task 3: pure projection integrated, 27 cases green; five navigation-resolution
+  cases green. Combined, mixed and filtered roster integration is present. Full
+  visuals and interaction retention remain Tasks 6–7. The legacy selected friend
+  ID was removed; the profile target is now the only navigation owner.
+- Task 4: shared-note hook integrated after inspecting the worker files and
+  rerunning focused tests. Person selection, account shortcuts and Back are wired.
+  Drawer tests prove the same textarea/draft/caret survives presence changes and
+  navigation flushes the old owner even without a browser blur. The latter test
+  failed with zero writes before the layout-cleanup fix; 59 drawer tests then
+  passed, followed by full typecheck. Identities entry remains with Task 5.
+- Tasks 5–7: pending. Required full gates, runtime probes and reviews have not run.
+- Task 1 local commit: `c3dce48`; Task 2: `f0096ad`. PR, pushes, merge: none.
 
-Next: finish Task 2 bridge, limits and query checks; integrate pure projection,
-then continue navigation, notes, identity dialogs and approved visual work.
+Next: finish identity dialogs, approved rendering and stable placement. A bounded
+read-only audit found same-lease read/write publication rollback and an HMR
+boundary listener ordering race. Both were reproduced/addressed: snapshots now
+carry atomic document revisions and one app listener owns query reset/reload.
+The combined store/IPC/query/shared-note/drawer gate passed 114 tests.
+The checkpoint also passed typecheck, lint, format check, production bundle and
+all 2,328 tests in 152 files. Nine initial SSR roster failures exposed a stale
+test fixture that returned the same mixed array from both platform queries;
+the fixture now mirrors platform-scoped caches without weakening its assertions.
+Runtime visual checks and final feature acceptance remain pending.
+DOX pass: API/renderer ownership updates follow the completed callable surfaces;
+all three design references and changelog remain pending the final implementation
+sync, not intentionally omitted from the PR.

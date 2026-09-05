@@ -1,5 +1,18 @@
 {
   "appName": "VRX",
+  "linking": {
+    "people_other": "{{count}}人",
+    "unknownName": "不明なフレンド",
+    "sharedNotes": "共有メモ",
+    "back": "統合プロフィールに戻る",
+    "identities": "アカウントの関連付け",
+    "unavailable": "利用できません",
+    "locations": "2つの場所",
+    "chooseDestination": "参加先を選択",
+    "joinOn": "{{platform}}で参加",
+    "activityChanged": "状況が変わりました。現在の場所を確認してください。",
+    "cancel": "キャンセル"
+  },
   "boot": {
     "connecting": "接続中…"
   },

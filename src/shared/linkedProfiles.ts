@@ -50,4 +50,5 @@ export type LinkRequest =
       expectedPeople: Array<{ id: string; revision: number }>
     }
   | Extract<LinkChange, { kind: 'unlink' | 'update' }>
-export type LinkSnapshot = { profiles: LinkedProfile[]; lease: string }
+export type LinkProfileSnapshot = { profiles: LinkedProfile[]; storeRevision: number }
+export type LinkSnapshot = LinkProfileSnapshot & { lease: string }

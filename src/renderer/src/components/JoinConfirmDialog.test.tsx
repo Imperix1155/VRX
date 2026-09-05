@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
+import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useJoinInstance } from '../hooks/useJoinInstance'
@@ -218,7 +219,8 @@ beforeEach(() => {
       }
     }
   } as unknown as Window['vrx']
-  useFriendsStore.setState({ search: '', platformFilter: 'all', selectedFriendId: null })
+  useFriendsStore.setState({ search: '', platformFilter: 'all' })
+  useProfileSelection.getState().select(null)
   // confirmJoin defaults TRUE (the cautious default this feature ships with).
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
   cacheGeneration = 0
@@ -283,7 +285,11 @@ describe('join path interception (confirmJoin on)', () => {
   })
 
   it('drawer Join button: same dialog, same single join', async () => {
-    useFriendsStore.setState({ selectedFriendId: 'vrchat:usr_alex' })
+    useProfileSelection.getState().select({
+      kind: 'account',
+      personId: null,
+      account: { platform: 'vrchat', friendId: 'usr_alex' }
+    })
     render(
       <>
         <FriendsList />
@@ -1005,7 +1011,11 @@ describe('never-show-again footnote', () => {
 
 describe('drawer coexistence (the drawer must SURVIVE the modal)', () => {
   function renderDrawerPlusDialog(): void {
-    useFriendsStore.setState({ selectedFriendId: 'vrchat:usr_alex' })
+    useProfileSelection.getState().select({
+      kind: 'account',
+      personId: null,
+      account: { platform: 'vrchat', friendId: 'usr_alex' }
+    })
     render(
       <>
         <FriendsList />
