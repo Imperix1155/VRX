@@ -82,6 +82,25 @@ queued operations.
 
 ## 2. IPC channels (the typed contract)
 
+### Linked profiles (VRX-143)
+
+`window.vrx.getLinkedProfiles()` invokes `get-linked-profiles` and returns
+`LinkResult<LinkSnapshot>`. `changeLinkedProfile({ lease, change })` invokes
+`change-linked-profile` with the same result type. `onLinkedProfilesChanged(cb)`
+subscribes to the payload-free `linked-profiles-changed` push and returns cleanup.
+`ipc/links.ts` checks sender trust, validates bounded requests, qualifies selected
+friends using main-owned accounts, and requires a current identity/epoch lease.
+Snapshots contain only profiles anchored to a healthy signed-in member; replace
+requires both selected platforms ready. Local budgets are 90 reads and 60 writes
+per minute. No network requests or account notes are changed.
+
+Renderer `queries/linkedProfiles.ts` exports `linkedProfilesKey`,
+`emptyLinkSnapshot`, `fetchLinkedProfiles`, `useLinkedProfiles`,
+`changeLinkedProfile`, `subscribeLinkedProfiles`, and `useLinkedProfileEvents`.
+App mounts the event hook once. Identity boundaries cancel reads, clear mounted
+snapshots and invalidate for the current account. Stale write replies cannot
+restore the previous lease; destructive commands are never automatically retried.
+
 Single source: [`src/shared/ipc.ts`](../src/shared/ipc.ts) (`IpcInvoke` /
 `IpcEvents`). Handlers live in [`src/main/ipc/`](../src/main/ipc/) — one file
 per domain, every handler behind `isTrustedIpcSender` first.

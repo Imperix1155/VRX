@@ -60,11 +60,11 @@ Initial standard Codex weekly usage: 0% used; no standard five-hour window.
   Verified exact-byte v1 migration, restart, corrupt/future preservation, failed and
   ambiguous rename, all-or-nothing replacement and original hostile-input cases.
   Removing the revision check made the stale-unlink test fail; restored and reran green.
-- Task 2: implemented, focused IPC/query verification underway. A post-commit read
+- Task 2: implemented, 33 focused IPC/preload/query tests green and typecheck green. A post-commit read
   failure regression is covered; IPC now returns the transaction's committed snapshot.
 - Task 3: pure projection and tests delegated to a separate scratch worktree.
 - Tasks 4–7: unstarted.
-- PR, pushes, merge: none.
+- Task 1 local commit: `c3dce48`. PR, pushes, merge: none.
 
 Next: finish Task 2 bridge, limits and query checks; integrate pure projection,
 then continue navigation, notes, identity dialogs and approved visual work.

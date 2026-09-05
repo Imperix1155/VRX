@@ -20,6 +20,7 @@ import type {
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 
 export type UpdaterState =
   'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
@@ -57,6 +58,11 @@ export type InstanceActionResult =
  * `ipcRenderer.invoke(channel, req)` ↔ `ipcMain.handle(channel, …) → res`.
  */
 export interface IpcInvoke {
+  'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
+  'change-linked-profile': {
+    req: { lease: string; change: LinkRequest }
+    res: LinkResult<LinkSnapshot>
+  }
   'get-friends': { req: { platform: Platform }; res: Friend[] }
   'get-avatar': { req: { url: string }; res: { ok: true; dataUrl: string } | null }
   'get-accounts': { req: void; res: Account[] }
@@ -112,6 +118,7 @@ export interface IpcInvoke {
  * never polled (CLAUDE.md).
  */
 export interface IpcEvents {
+  'linked-profiles-changed': void
   'friend-event': AdapterEvent
   'identity-boundary': { platform: Platform }
   'navigate-to-dashboard': void

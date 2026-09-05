@@ -27,6 +27,14 @@ const vrx = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string) => invoke('get-avatar', { url }),
   getAccounts: () => invoke('get-accounts', undefined),
+  getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
+  changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>
+    invoke('change-linked-profile', req),
+  onLinkedProfilesChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('linked-profiles-changed', listener)
+    return () => ipcRenderer.removeListener('linked-profiles-changed', listener)
+  },
   getAuthStatus: (req: IpcInvoke['get-auth-status']['req']) => invoke('get-auth-status', req),
   login: (req: IpcInvoke['login']['req']) => invoke('login', req),
   verify2fa: (req: IpcInvoke['verify-2fa']['req']) => invoke('verify-2fa', req),
