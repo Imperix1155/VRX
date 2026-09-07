@@ -520,7 +520,7 @@ export default function IdentitiesDialog({
                   </button>
                 )}
                 <button type="button" className={buttonClass} disabled={busy} onClick={onClose}>
-                  {t('linking.manage.done')}
+                  {profile ? t('linking.manage.done') : t('drawer.close')}
                 </button>
               </div>
             </div>
