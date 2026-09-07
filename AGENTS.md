@@ -111,8 +111,11 @@ For every BrowserWindow or IPC change:
 Before declaring application implementation complete, run:
 
 ```bash
-npm run typecheck && npm run lint && npm run format:check && npm run build
+npm run lint && npm run format:check && npm run build
 ```
+
+`npm run build` includes both TypeScript checks and the entry-chunk assertion;
+do not run the same typecheck again solely to complete this gate.
 
 For changes only to review-policy instructions or reviewer-role configuration,
 use focused format/configuration/reference and policy-scenario checks. Changes
@@ -182,8 +185,9 @@ These rules apply to local review and Codex GitHub PR review:
   one automatic escalation per named question. Obtain missing evidence first.
   Unresolved material uncertainty remains unresolved after the cap.
 - All ordinary T0/T1 PR bots are advisory, including CodeRabbit, Greptile, and
-  automatic Codex GitHub review. Inspect actual available feedback while other
-  required work runs and before merge. Missing, running, skipped, or rate-limited
+  automatic Codex GitHub review. Repository CodeRabbit overrides live in
+  [`.coderabbit.yaml`](.coderabbit.yaml). Inspect actual available feedback, including
+  collapsed summary findings, while other required work runs and before merge. Missing, running, skipped, or rate-limited
   advisory bots do not block readiness. No minimum wait, ceremonial full-review
   request, or waiting solely for advisory output is required. Validate material
   findings and fix or refute them; cosmetic preferences are not gates.
