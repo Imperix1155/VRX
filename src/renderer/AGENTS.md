@@ -59,7 +59,8 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 - Linked roster rows keep a neutral, non-actionable Private pill when an in-game
   header has an unavailable location and neither account is joinable. Otherwise,
-  a known non-joinable header instance keeps its canonical label. A joinable
+  a known non-joinable in-game header instance keeps its canonical label.
+  Offline/web-only linked rows never revive a stale cached instance pill. A joinable
   destination still supplies its own pill; this fallback never enables Join.
   The initial unlinked Identities footer says Close; linked management retains
   Done. The top X and dismissal semantics are unchanged.

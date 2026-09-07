@@ -211,7 +211,7 @@ const FriendRow = memo(function FriendRow({
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
   const hideWorld = isWorldHidden(pillFriend ?? friend)
-  const instance = pillFriend?.instance ?? null
+  const instance = !combined || pillFriend.presence.state === 'in-game' ? pillFriend.instance : null
   const worldText =
     !hideWorld && instance != null
       ? (instance.worldName ?? t('friends.instance.unknownWorld'))

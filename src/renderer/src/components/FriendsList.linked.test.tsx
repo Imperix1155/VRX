@@ -148,6 +148,22 @@ describe('linked roster integration', () => {
     expect(within(list).getByText('Second world')).toBeTruthy()
   })
 
+  it.each(['offline', 'active'] as const)(
+    'does not revive stale instance pills when the linked header is %s',
+    (state) => {
+      roster([
+        { ...inWorldVrc, presence: { state } },
+        { ...inWorldCvr, presence: { state: 'offline' } }
+      ])
+      render(<FriendsList />)
+      const list = screen.getByRole('list', { name: 'Friends' })
+      expect(list.querySelectorAll('[data-instance-pill]')).toHaveLength(0)
+      expect(within(list).queryByRole('button', { name: /Join / })).toBeNull()
+      expect(list.textContent).not.toContain('First world')
+      expect(list.textContent).not.toContain('Second world')
+    }
+  )
+
   it('keeps the linked row and open shared profile through transient auth errors', () => {
     roster([inWorldVrc, inWorldCvr])
     mocks.links.mockReturnValue({

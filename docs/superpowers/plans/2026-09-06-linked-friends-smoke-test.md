@@ -161,13 +161,17 @@ no callable surface, stack, platform request, or API assumption changed.
   no subscription changed. This round references original VRX-143.
 - Baseline focused tests: 28 passed. Six new regression cases then failed for
   missing pills/Close footer. After the minimal fixes and Japanese coverage,
-  35 focused cases passed. Known non-joinable CVR labels and linked-management
+  37 focused cases passed. Known non-joinable CVR labels and linked-management
   Done are explicitly preserved. Existing joinable-counterpart coverage passes.
-- Full gate: 2,439 tests across 159 files, typecheck, uncached ESLint, formatting,
+- Driver transition probe caught stale instance pills on offline/web-only linked
+  headers in the first fix. Two new tests failed before the in-game guard and
+  passed afterward. The initial review artifact is superseded by this correction.
+- Full gate: 2,441 tests across 159 files, typecheck, uncached ESLint, formatting,
   build and diff checks passed with `SMOKE_FIX_GATE_GREEN`.
 - Isolated Electron fixture: `/private/tmp/vrx-smoke-runtime.Stl5TZ`.
   `SMOKE_RUNTIME_GREEN` covered each single-platform hidden case, both hidden,
-  known CVR Offline Instance and both offline in dark/light. Private pills are
+  known CVR Offline Instance, both offline, and offline/web-only stale-instance
+  cases in dark/light. Private pills are
   neutral 78×28 non-buttons contained in their rows; no unavailable case enables
   Join. Native Identities modality, Tab containment, footer Close, unchanged X,
   opener focus restoration and zero writes/launches passed. The probe initially
@@ -176,5 +180,11 @@ no callable surface, stack, platform request, or API assumption changed.
 - Runtime verification used current source and compiled CSS with synthetic
   data, disposable userData and blocked network. No screenshots, real account
   actions, installed-app replacements, or external launches occurred.
-- Review, commit, PR and final-head CI are not yet complete. Prior linking-PR
+- Static analysis matches main: 1 unused file, 5 unused exports, 1 unused type,
+  1 duplicate export pair; duplication reports 10,164 lines across 95 files.
+  These are unchanged baseline findings, not a zero-finding report.
+- The original Linear issue now has a verified follow-up tracking comment;
+  its completed status was preserved despite the new-issue limit.
+- Initial commit and two Codex review lenses completed; the driver correction
+  requires a new full review before PR publication. Prior linking-PR
   review exceptions do not carry over to this new fix round.

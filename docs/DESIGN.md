@@ -568,7 +568,8 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 
 Linked rows with no joinable destination retain the header's informational
 instance pill: neutral **Private** for an in-game unavailable location, or the
-canonical label for a known non-joinable instance. The pill is not a button.
+canonical label for a known non-joinable in-game instance. The pill is not a button.
+Offline/web-only linked rows never display a stale cached instance pill.
 Joinable destinations still supply their own label; Hidden world captions and
 privacy rules are unchanged. The initial unlinked Identities footer keeps its
 button and position but says **Close**, not Done. Linked management retains Done;
