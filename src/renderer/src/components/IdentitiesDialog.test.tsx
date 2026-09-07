@@ -7,7 +7,7 @@ import type { LinkSnapshot } from '@shared/linkedProfiles'
 import { fullFriend } from '../test-utils/friendFixture'
 import { linkedProfilesKey } from '../queries/linkedProfiles'
 import { resolveLinkedProfile } from '../utils/projectLinkedFriends'
-import '../i18n'
+import i18n from '../i18n'
 import IdentitiesDialog from './IdentitiesDialog'
 
 const source = fullFriend('Origin', 'vrchat')
@@ -65,11 +65,34 @@ beforeEach(() => {
   navigate.mockClear()
   close.mockClear()
 })
-afterEach(() => {
+afterEach(async () => {
   cleanup()
   client.clear()
+  await i18n.changeLanguage('en')
 })
 describe('identity management', () => {
+  it.each([
+    ['en', 'Close'],
+    ['ja', '閉じる']
+  ])(
+    'closes the unlinked introduction without changing identities in %s',
+    async (language, label) => {
+      await i18n.changeLanguage(language)
+      render(dialog())
+      const panel = screen.getByRole('dialog')
+      const exits = within(panel).getAllByRole('button', { name: label })
+      expect(exits).toHaveLength(2)
+      const footer = exits.find((button) => button.textContent === label)!
+      expect(footer).toBeTruthy()
+      expect(within(panel).queryByRole('button', { name: 'Done' })).toBeNull()
+      fireEvent.click(footer)
+      expect(close).toHaveBeenCalledOnce()
+      expect(mutate).not.toHaveBeenCalled()
+      expect(navigate).not.toHaveBeenCalled()
+      expect(client.getQueryData<LinkSnapshot>(linkedProfilesKey)?.profiles).toEqual([])
+    }
+  )
+
   it.each(['missing', 'different-owner'])(
     'disables replacement when the retained account is %s, keeping its healthy counterpart usable',
     (unavailable) => {
@@ -94,6 +117,8 @@ describe('identity management', () => {
       ]
       client.setQueryData(linkedProfilesKey, snapshot)
       render(dialog(unavailable === 'missing' ? [source] : [source, candidate]))
+      expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+      expect(screen.getAllByRole('button', { name: 'Close' })).toHaveLength(1)
       const replacements = screen.getAllByRole<HTMLButtonElement>('button', {
         name: 'Replace account'
       })

@@ -193,7 +193,9 @@ const FriendRow = memo(function FriendRow({
   const destinations = projection.accounts.filter(isFriendJoinable)
   const destination = destinations[0]
   const twoLocations = combined && destinations.length === 2
-  const pillFriend = combined ? destination : friend
+  // Joinable destinations keep their own label; otherwise retain the header's
+  // informational pill even when joining is unavailable.
+  const pillFriend = combined ? (destination ?? friend) : friend
   const setAvatarButton = useCallback(
     (element: HTMLButtonElement | null) => {
       avatarButtonRef.current = element
@@ -451,7 +453,7 @@ const FriendRow = memo(function FriendRow({
           </button>
           {failureStatus}
         </span>
-      ) : instancePill !== null && (!combined || joinable) ? (
+      ) : instancePill !== null ? (
         joinable ? (
           <span className="relative block min-w-[78px]" data-join-pill>
             <InstancePill

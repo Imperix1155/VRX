@@ -566,6 +566,14 @@ Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2
 
 ## §10 Cross-platform friend linking (cited by Linear — VRX-143)
 
+Linked rows with no joinable destination retain the header's informational
+instance pill: neutral **Private** for an in-game unavailable location, or the
+canonical label for a known non-joinable instance. The pill is not a button.
+Joinable destinations still supply their own label; Hidden world captions and
+privacy rules are unchanged. The initial unlinked Identities footer keeps its
+button and position but says **Close**, not Done. Linked management retains Done;
+the top X and all dismissal behavior remain unchanged.
+
 Destructive confirmation starts with saved shared notes expanded. Any affected
 person's unsaved or in-flight local draft blocks submission and offers a return
 to that profile for the existing save/retry flow. A saved revision changing
