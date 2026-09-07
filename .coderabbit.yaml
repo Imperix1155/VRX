@@ -1,0 +1,5 @@
+# Preserve existing organization/repository settings; override only review profile.
+inheritance: true
+reviews:
+  # Quiet keeps lower-priority feedback in collapsed review-summary sections.
+  profile: quiet

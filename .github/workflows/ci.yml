@@ -217,13 +217,11 @@ jobs:
       - name: Format check
         run: npm run format:check
 
-      - name: Type-check
-        run: npm run typecheck
-
       - name: Test
         run: npm test --if-present
 
-      - name: Build
+      # Build includes the node/web typechecks and the entry-chunk assertion.
+      - name: Type-check and build
         run: npm run build
 
   # Dependency vulnerability gate — fails the build on high/critical advisories

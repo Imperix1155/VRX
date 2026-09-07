@@ -91,17 +91,12 @@ For every BrowserWindow or IPC change:
   feature branch, push that branch, open or update a PR, push review fixes, and
   keep Linear current without a separate permission prompt. These are normal,
   reversible delivery steps. Never commit or push directly to protected `main`.
-- Merge only with explicit merge authority, `review-loop` coverage of the review
-  anchor plus any verified nonfunctional-only delta, the applicable local gates
-  green, final-head CI green, and substantive CodeRabbit and Greptile output
-  covering the initial PR head and every later functional head. The initial PR
-  head is the review anchor until a later functional head replaces it; this also
-  defines the anchor for PRs with no functional changes. Resolve or refute every
-  finding. The focused nonfunctional lane under Code Review Rules is the
-  standing exception for later corrections. Any other review-leg exception must
-  be narrowly defined by its owning skill and does not generalize. Without merge
-  authority, leave the green PR open for owner approval; with it, merge when all
-  gates are satisfied.
+- Merge only with explicit owner authority, applicable local gates and required
+  final-head CI green, and `review-loop` coverage of the general review anchor plus validated
+  focused functional reviews and nonfunctional checks through the final head. Its tier-specific bot and bounded-wait
+  policy applies; known material defects or uncertainty block readiness,
+  cosmetic preferences do not. Without merge authority, leave the PR open.
+  An active grant permits merge only when all applicable gates are satisfied.
 - Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
   `vrx-XX`.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
@@ -113,21 +108,29 @@ For every BrowserWindow or IPC change:
 
 ## Verification and Done
 
-Before declaring implementation complete, run:
+Before declaring application implementation complete, run:
 
 ```bash
-npm run typecheck && npm run lint && npm run format:check && npm run build
+npm run lint && npm run format:check && npm run build
 ```
 
-Run focused tests for the changed behavior as well. Read the final sentinel or
-exit status; silence is not proof. For bug fixes, demonstrate that the new test
+`npm run build` includes both TypeScript checks and the entry-chunk assertion;
+do not run the same typecheck again solely to complete this gate.
+
+For changes only to review-policy instructions or reviewer-role configuration,
+use focused format/configuration/reference and policy-scenario checks. Changes
+to app, build, runtime, release, or CI configuration still need their applicable
+project gates. Required CI still applies to a published PR.
+
+Run focused tests for changed application behavior as well. Read the final
+sentinel or exit status; silence is not proof. For bug fixes, demonstrate that the new test
 fails without the fix when practical.
 
 Before every PR, invoke the available `review-loop` skill over the actual
 PR diff. Its deterministic pass includes `fallow dead-code` and `fallow dupes`
-for JavaScript/TypeScript. A functional fix starts a new full review round. A
-verified nonfunctional-only correction follows the focused delta lane under
-Code Review Rules and does not restart the full review loop.
+for application JavaScript/TypeScript changes. Functional fixes use focused
+behavioral review by default, with broader review under the criteria below.
+Nonfunctional-only corrections use a separate focused check.
 
 Linux release builds must keep the AppImage and deb launcher identity, desktop
 metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
@@ -146,13 +149,15 @@ explicitly excluded from Electron Builder packages; the probe contract test
 pins that boundary.
 
 If the personal `review-loop` skill is unavailable, use this repository-portable
-fallback: inspect the final PR diff from a fresh context; run the documented
-project gate; run `fallow dead-code` and `fallow dupes` when Fallow is
+fallback: use the reviewer routing and tier rules below to inspect the final PR
+diff from a fresh context; run the applicable documented gate; for application
+JavaScript/TypeScript changes, run `fallow dead-code` and `fallow dupes` when Fallow is
 installed. If it is unavailable, record that limitation and use the repository
 TypeScript and ESLint results plus a targeted diff inspection for unused
 exports and duplicated logic. Check security, correctness, tests, and
-documentation sync; reconcile every finding; then re-review after functional
-fixes. Inspect a later nonfunctional-only delta with the focused checks below.
+documentation sync; resolve or refute material findings; use focused behavioral
+review after functional fixes and broaden under the criteria below. Inspect
+nonfunctional-only deltas with the separate focused checks below.
 Record that this fallback is a same-lineage Codex review, not independent model
 confirmation.
 
@@ -160,8 +165,9 @@ confirmation.
 
 These rules apply to local review and Codex GitHub PR review:
 
-- GitHub automatic Codex review is enabled for every push with exhaustive
-  review. Push coherent checkpoints rather than tiny incremental updates, and
+- GitHub automatic Codex review was configured for every push with exhaustive
+  review. This policy does not change that account setting. Push coherent
+  checkpoints rather than tiny incremental updates, and
   check Codex usage during long work blocks and after unusually review-heavy
   PRs. If review usage becomes disproportionate, surface it to the owner and
   revisit the trigger or depth instead of silently exhausting the allowance.
@@ -170,30 +176,68 @@ These rules apply to local review and Codex GitHub PR review:
   Compare usage consumed, actionable findings found, false-positive burden,
   and whether the findings escaped the local `review-loop`; keep or change the
   setting from that evidence.
-- Except for a narrow safe-class review exception explicitly defined by its
-  owning skill, inspect substantive CodeRabbit and Greptile output for the
-  initial PR head and every later functional head. Read the walkthrough or
-  summary, inline findings, unresolved threads, attached evidence, and last
-  reviewed commit. A score, bare green check, or skipped/manual-review/rate-limit
-  message is not substantive; request a full review and wait when that review
-  leg is required.
-- Classify each verified bot finding by effect, not file type. A **functional**
-  finding can change app runtime, tests that could hide an app bug, packaging,
-  workflows, security, permissions, or other operational behavior. Fix it,
-  write the focused test or probe, run the full project gate and a new exact-diff
-  `review-loop`, push, wait for final-head CI, and obtain fresh substantive
-  CodeRabbit and Greptile reviews. Repeat until no valid functional finding
-  remains.
-- A **nonfunctional** correction changes only prose, spelling, formatting,
-  spacing, comments, labels, or test descriptions and cannot affect or conceal
-  app, build, test, release, security, or workflow behavior. Fix it directly;
-  inspect the exact delta and run only the relevant formatting, link,
-  consistency, or `git diff --check` checks. Do not rerun the full
-  `review-loop`, and do not manually request or wait for another bot review
-  solely to bless that correction. Prior substantive bot coverage remains valid
-  for the review anchor. If a change mixes lanes or its effect remains uncertain
-  after a decisive probe, use the functional lane. Record the
-  classification and evidence in one concise PR disposition.
+- `review-loop` is the primary workflow authority. Meaningful ordinary changes
+  get one fresh Astra at High general review covering requirement/acceptance
+  alignment and correctness/quality. Sol at High handles additional
+  bounded checks only for a concrete risk, coverage gap, or unresolved question;
+  use Astra for critical or unusually difficult questions. Choose model and
+  effort separately, with higher supported effort upfront when justified or
+  one automatic escalation per named question. Obtain missing evidence first.
+  Unresolved material uncertainty remains unresolved after the cap.
+- All ordinary T0/T1 PR bots are advisory, including CodeRabbit, Greptile, and
+  automatic Codex GitHub review. Repository CodeRabbit overrides live in
+  [`.coderabbit.yaml`](.coderabbit.yaml). Inspect actual available feedback, including
+  collapsed summary findings, while other required work runs and before merge. Missing, running, skipped, or rate-limited
+  advisory bots do not block readiness. No minimum wait, ceremonial full-review
+  request, or waiting solely for advisory output is required. Validate material
+  findings and fix or refute them; cosmetic preferences are not gates.
+- T2 is top-level critical: credible risk of making the app unusable or putting
+  a user's VRChat/ChilloutVR account in danger. Judge reachable behavioral
+  consequences, not filenames or hypothetical "anything could break." Investigate
+  startup/core-process failure, updates that prevent launch, credential exposure
+  or wrong-account access/actions, and API request amplification, frequency,
+  rate-limit/backoff/retry faults, or forbidden actions/policy violations that
+  could cause an account ban. Certainty of failure is not required.
+- UI changes must preserve access to previously exposed controls and workflows
+  unless removal was explicitly approved. Observe the affected UI using the
+  applicable verification skill and capture consent. Credible loss of essential
+  workflows/app usability is T2 even when processes still run. Styling alone
+  does not make a change critical; accidental smaller regressions still require
+  correction. Existing credential, security, irreversible-data, account,
+  test/CI, and owner-permission safeguards remain mandatory outside T2 too.
+- T2 requires evidence for the actual critical consequences, applicable probes,
+  risk disclosure, owner review, and substantive CodeRabbit and Greptile output
+  for the initial PR head and every later functional head. One fresh general
+  review remains the baseline, covering acceptance alignment and correctness.
+  Add targeted Astra review only for a concrete critical risk or coverage gap;
+  there is no fixed additional-reviewer count.
+  Preserve explicitly scoped workflow exceptions, including `dependabot-triage`'s
+  verified safe class, which excludes credible critical risk. Scores,
+  skipped/rate-limit messages, and bare green checks do not satisfy required
+  review. Same-lineage agreement does not waive critical merge gates.
+- The general review head is the local anchor. Functional corrections normally
+  get fresh focused review of the exact delta and affected behavior, callers,
+  and contracts, relevant regression tests/probes, applicable required gates,
+  and current-head CI. Record which prior conclusions remain valid and why.
+  Assess the cumulative delta so combined coverage reaches the actual final
+  head. Restart general review if design/security assumptions change, shared
+  behavior is broadly affected, earlier conclusions fail, or effects cannot be
+  reliably bounded. Small line counts do not prove bounded impact. Critical
+  bots still require substantive coverage on every later functional head.
+- A verified nonfunctional-only delta changes no app, build, test, release,
+  security, workflow, or policy behavior. It gets focused format/link/consistency
+  and `git diff --check` checks plus required final-head CI. It needs no new
+  general review or bot wait solely for that correction. Preserve prior review
+  coverage; mixed or uncertain corrections use the functional lane. This check
+  is distinct from focused functional review and cannot verify changed behavior.
+- Required CI, local reviews, and genuinely required external reviews need
+  bounded watchers with practical deadlines, sane polling, and distinct
+  completion, failure, parse-failure, and timeout outcomes. Timeout requires
+  investigation, a blocker, or a durable handoff, never success or a merge
+  waiver. Do not restart the same deadline or wait half a day for bot quota; a
+  known limit may justify immediate parking of a required review.
+  Do not change GitHub protection or review settings to implement this
+  policy; report any actual protection blocker.
 - Review the actual PR head and changed lines. Report only actionable findings
   introduced or exposed by the diff.
 - Prioritize data loss, credential exposure, authentication mistakes, unsafe
