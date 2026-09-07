@@ -114,6 +114,56 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it.each([
+    ['VRChat missing location', { ...vrc, instance: null }, cvr],
+    ['CVR missing location', { ...cvr, instance: null }, vrc],
+    ['VRChat Ask Me', { ...inWorldVrc, status: 'ask-me' }, cvr],
+    ['VRChat DND', { ...inWorldVrc, status: 'dnd' }, cvr]
+  ] as const)('keeps a neutral Private pill without Join for %s', (_label, active, other) => {
+    roster([active, { ...other, presence: { state: 'offline' }, instance: null }])
+    render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    const pills = list.querySelectorAll<HTMLElement>('[data-instance-pill]')
+    expect(pills).toHaveLength(1)
+    expect(pills[0]!.textContent).toBe('Private')
+    expect(pills[0]!.tagName).toBe('SPAN')
+    expect(pills[0]!.style.color).toBe('var(--text-dim)')
+    expect(within(list).queryByRole('button', { name: /Join / })).toBeNull()
+    expect(within(list).getByText('Hidden')).toBeTruthy()
+    expect(list.textContent).not.toContain('First world')
+    expect(list.textContent).not.toContain('Second world')
+  })
+
+  it('keeps the known non-joinable CVR instance label instead of calling it Private', () => {
+    roster([
+      { ...vrc, presence: { state: 'offline' }, instance: null },
+      { ...inWorldCvr, instance: { ...inWorldCvr.instance!, type: 'offline' } }
+    ])
+    render(<FriendsList />)
+    const list = screen.getByRole('list', { name: 'Friends' })
+    const pill = list.querySelector<HTMLElement>('[data-instance-pill]')
+    expect(pill?.textContent).toBe('Offline Instance')
+    expect(pill?.tagName).toBe('SPAN')
+    expect(within(list).queryByRole('button', { name: /Join / })).toBeNull()
+    expect(within(list).getByText('Second world')).toBeTruthy()
+  })
+
+  it.each(['offline', 'active'] as const)(
+    'does not revive stale instance pills when the linked header is %s',
+    (state) => {
+      roster([
+        { ...inWorldVrc, presence: { state } },
+        { ...inWorldCvr, presence: { state: 'offline' } }
+      ])
+      render(<FriendsList />)
+      const list = screen.getByRole('list', { name: 'Friends' })
+      expect(list.querySelectorAll('[data-instance-pill]')).toHaveLength(0)
+      expect(within(list).queryByRole('button', { name: /Join / })).toBeNull()
+      expect(list.textContent).not.toContain('First world')
+      expect(list.textContent).not.toContain('Second world')
+    }
+  )
+
   it('keeps the linked row and open shared profile through transient auth errors', () => {
     roster([inWorldVrc, inWorldCvr])
     mocks.links.mockReturnValue({

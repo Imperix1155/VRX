@@ -1,5 +1,9 @@
 # Linked friends execution ledger
 
+Post-build feedback: [September 6 smoke-test log](2026-09-06-linked-friends-smoke-test.md).
+The owner authorized the two-item fix round on September 7. Both fixes are locally
+verified on a separate follow-up branch; review and delivery remain pending.
+
 Plan: `2026-09-05-linked-friends.md`, approved documents copied from local source
 commit `146444a9585a775b1cbee44aba2f74c415e8bf63` without Explore files or private art.
 

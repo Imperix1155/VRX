@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Linked friends retain a neutral Private instance pill when their in-game
+  location is unavailable, without enabling Join. Known non-joinable instances
+  retain their existing labels. The initial Identities dialog now says Close
+  instead of Done. (VRX-143)
+
 ### Added
 
 - Manually link a friend's VRChat and ChilloutVR identities from the friend
