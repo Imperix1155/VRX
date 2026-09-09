@@ -4,7 +4,7 @@ import { API_TIMEOUT_MS } from '@shared/constants'
 import type { AuthStatus, LoginResult, Platform } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
-import type { ApiAdmissionController } from './ApiAdmissionController'
+import { ApiAdmissionController } from './ApiAdmissionController'
 import { AuthError, NetworkError, RateLimitError, RequestCancelledError } from './errors'
 import { noopSleep, instantAdmission } from './__testutils__/adapterTestKit'
 import { AvatarCache } from '../avatarCache'
@@ -35,8 +35,11 @@ class TestAdapter extends BaseAdapter {
 
   // Explicit public constructor so tests can call `new TestAdapter(sleepFn)`
   // from outside the class hierarchy (BaseAdapter's constructor is protected).
-  constructor(sleepFn: (ms: number) => Promise<void> = noopSleep) {
-    super(instantAdmission(sleepFn))
+  constructor(
+    sleepFn: (ms: number) => Promise<void> = noopSleep,
+    admission?: ApiAdmissionController
+  ) {
+    super(admission ?? instantAdmission(sleepFn))
   }
 
   getAuthStatus(): Promise<AuthStatus> {
@@ -351,6 +354,68 @@ describe('BaseAdapter', () => {
         { url: 'http://api/explicit', at: 11_000 }
       ])
     })
+
+    it.each(['0', 'Thu, 01 Jan 1970 00:00:11 GMT', '1'])(
+      'revokes a just-resolved batch permit after Retry-After %s before fetch',
+      async (retryAfter) => {
+        let now = 10_000
+        let releaseSleep!: () => void
+        let releaseResponse!: (response: Response) => void
+        const admission = new ApiAdmissionController({
+          now: () => now,
+          random: () => 0,
+          sleep: (_ms, signal) =>
+            new Promise((resolve, reject) => {
+              const abort = (): void => reject(new RequestCancelledError())
+              signal.addEventListener('abort', abort, { once: true })
+              releaseSleep = () => {
+                signal.removeEventListener('abort', abort)
+                resolve()
+              }
+            })
+        })
+        const adapter = new TestAdapter(noopSleep, admission)
+        const events: string[] = []
+        fetchMock.mockImplementation((url: string) => {
+          events.push(url)
+          return url.endsWith('/first')
+            ? new Promise((resolve) => {
+                releaseResponse = resolve
+              })
+            : Promise.resolve(new Response(null))
+        })
+        const rateLimited = admission.rateLimited.bind(admission)
+        vi.spyOn(admission, 'rateLimited').mockImplementation((header) => {
+          events.push('429')
+          expect(admission.pendingCount).toBe(0)
+          return rateLimited(header)
+        })
+        const flush = async (): Promise<void> => {
+          for (let i = 0; i < 20; i++) await Promise.resolve()
+        }
+        const first = adapter
+          .raw('http://api/first', {}, { retry: 'none' })
+          .catch((error: unknown) => error)
+        await flush()
+        const queued = adapter
+          .raw('http://api/queued', {}, { retry: 'none' })
+          .catch((error: unknown) => error)
+        await flush()
+        expect(admission.pendingCount).toBe(1)
+        now = 11_000
+        // Permit resolution queues its continuation before the first response's
+        // 429 handler; that handler then runs before the actual second fetch.
+        releaseSleep()
+        releaseResponse(new Response(null, { status: 429, headers: { 'Retry-After': retryAfter } }))
+        await flush()
+        expect(await first).toBeInstanceOf(RateLimitError)
+        expect(await queued).toBeInstanceOf(RateLimitError)
+        expect(events).toEqual(['http://api/first', '429'])
+        now = 12_000
+        await adapter.raw('http://api/fresh', {}, { retry: 'none' })
+        expect(events).toEqual(['http://api/first', '429', 'http://api/fresh'])
+      }
+    )
 
     it('paces mixed REST and API-backed images through the same platform budget', async () => {
       vi.useFakeTimers()

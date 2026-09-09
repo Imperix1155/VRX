@@ -23,7 +23,7 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `updater.test.ts` — unit tests for state transitions, consent-first download, portable→unsupported, jittered scheduling, broadcast, and error handling (VRX-113), plus closed failure categories, payload-free diagnostics, event/rejection deduplication, scoped macOS native staging, timeout handling, and listener cleanup (VRX-268).
 - `services/adapters/IPlatformAdapter.ts` — the platform adapter interface (VRX-16/166/222): the contract VRChat/CVR adapters implement; stream-aware via `subscribe()`. `getFriends()` returns `FriendRoster { friends, completeness, rateLimit? }`, where only `complete` snapshots authorize absent-means-removed reconciliation. Instance launching is not an adapter side effect: `buildJoinUrl(instance, mode)` is pure and main IPC owns final validation + `shell.openExternal`.
 - `services/adapters/errors.ts` — structured error types (VRX-17/55): generic `AuthError`, `RateLimitError`, `NetworkError`, the `AuthSessionPendingError` subtype used to quarantine not-yet-durable VRChat and ChilloutVR requests without invalidating the session, plus CVR-specific subclasses. Main-process only; no electron imports.
-- `services/adapters/BaseAdapter.ts` owns HTTP attempts, bounded 429 replay, timeout, response validation and circuit failures. Main injects the same `ApiAdmissionController` into the platform adapter and its API image path. `AdapterRequestOptions` supports priority, cancellation, a pre-dispatch check and bounded/no-retry policy; headers may be built lazily from a `RequestInitSource`. Every retry re-enters admission and every physical fetch rechecks shared cooldown. Cancel unused response bodies. Cancellation does not count as a circuit failure.
+- `services/adapters/BaseAdapter.ts` owns HTTP attempts, bounded 429 replay, timeout, response validation and circuit failures. Main injects the same `ApiAdmissionController` into the platform adapter and its API image path. `AdapterRequestOptions` supports priority, cancellation, a pre-dispatch check and bounded/no-retry policy; headers may be built lazily from a `RequestInitSource`. Every retry re-enters admission and every physical fetch rechecks shared cooldown; no-retry attempts also reject a permit resolved before a newer 429. Cancel unused response bodies. Cancellation does not count as a circuit failure.
 - `services/adapters/credentialValidation.ts` / `.test.ts` — pure main-only authentication boundary guards (VRX-38): direct credentials reject C0/DEL exactly as entered before any wire call (Unicode remains valid), while platform-issued values that will become VRChat Cookie or CVR Username/AccessKey headers must be printable ASCII before use or persistence.
 - `services/adapters/BaseAdapter.test.ts` — unit tests for `BaseAdapter` infrastructure (VRX-17): rate limiting, 429 backoff, circuit breaker (incl. the W6 time-reset pin under fake timers and the rawRequest-401s-never-trip pin), error classification, Zod validation.
 - `services/adapters/__testutils__/adapterTestKit.ts` — shared TEST-ONLY fixtures (audit W6): `noopSleep`, `jsonResponse` (a REAL `Response`, dual signature: bare status or `{status, setCookies}`), `markVrcSessionEstablished` (models an already owner-validated durable cookie only in tests unrelated to restore), and `stubPlatformAdapter` (full `IPlatformAdapter` of `vi.fn()`s for IPC/registry tests). Replaces the per-file copies that had drifted across the adapter + ipc test files; never import from production code.
@@ -81,7 +81,8 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   callers and CVR name warming. Main marks an active first read dirty before
   broadcasting a live/roster trigger; all callers then receive at most one final
   read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work.
+  Cooldown, cancellation and failed reads discard pending follow-up work. Any
+  shared 429 during a run also discards its follow-up, even with no remaining wait.
   Partial final data retains first-read omissions. Identity-checked cleanup
   cannot erase a replacement account's operation; session boundaries clear it.
   Main injects a LocationAuthority revision capture before each physical read,
@@ -91,7 +92,11 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 - Roster and background metadata batches use no-retry admission. A 429 ends
   pagination/enrichment and removes queued batch attempts even when the parsed
-  Retry-After deadline and jitter are immediate; background triggers
+  Retry-After deadline and jitter are immediate. The controller's monotonic
+  `rateLimitRevision` fences resolved permits, later pages, active metadata pool
+  workers and roster-triggered enrichment against any newer shared 429;
+  successful in-flight data may still publish. Fresh later operations capture
+  the new revision. Background triggers
   during cooldown send nothing and are not replayed at expiry. Useful roster
   pages may publish as partial; only complete rosters reconcile omissions.
   World/group pools permanently latch failures and retain pending IDs until

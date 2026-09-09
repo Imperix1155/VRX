@@ -111,6 +111,104 @@ describe('VRChat dispatch cancellation', () => {
     expect(results.every((result) => result === results[0])).toBe(true)
   })
 
+  it.each(['online', 'offline'] as const)(
+    'stops roster continuation after a shared immediate 429 during the %s page',
+    async (stage) => {
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const admission = instantAdmission()
+      let release!: (response: Response) => void
+      const page = new Promise<Response>((resolve) => {
+        release = resolve
+      })
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ onlineFriends: ['usr_friend'] }))
+      if (stage === 'offline') fetchMock.mockResolvedValueOnce(jsonResponse([]))
+      fetchMock.mockReturnValueOnce(page).mockResolvedValue(jsonResponse([]))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=synthetic'), admission)
+      markSessionEstablished(adapter)
+      const internal = adapter as unknown as {
+        kickWorldMetadata(friends: Friend[], generation: number): void
+        kickGroupMetadata(friends: Friend[], generation: number): void
+      }
+      const world = vi.spyOn(internal, 'kickWorldMetadata').mockImplementation(() => {})
+      const group = vi.spyOn(internal, 'kickGroupMetadata').mockImplementation(() => {})
+      const request = adapter.getFriends()
+      const expectedCalls = stage === 'online' ? 2 : 3
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(expectedCalls))
+      admission.rateLimited('0')
+      expect(admission.cooldownRemainingMs).toBe(0)
+      release(
+        jsonResponse([
+          {
+            id: 'usr_friend',
+            displayName: 'Friend',
+            status: 'active',
+            tags: [],
+            location: 'wrld_shared:instance~group(grp_shared)'
+          }
+        ])
+      )
+      const result = await request
+      expect(fetchMock).toHaveBeenCalledTimes(expectedCalls)
+      expect(result).toMatchObject({
+        friends: [{ platformUserId: 'usr_friend' }],
+        completeness: stage === 'online' ? 'partial' : 'complete',
+        ...(stage === 'online' ? { rateLimit: { retryAfterMs: 0 } } : {})
+      })
+      expect(world).not.toHaveBeenCalled()
+      expect(group).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(['world', 'group'] as const)(
+    'stops later %s workers after an immediate 429 from shared traffic',
+    async (kind) => {
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const admission = instantAdmission()
+      const adapter = new VrcAdapter(fakeStore('auth=synthetic'), admission)
+      markSessionEstablished(adapter)
+      const internal = adapter as unknown as {
+        sessionGeneration: number
+        worldResolver: { resolve(id: string): Promise<unknown> }
+        groupResolver: { resolve(id: string): Promise<unknown> }
+        pendingWorldResolutions: Set<string>
+        pendingGroupResolutions: Set<string>
+        kickWorldMetadata(friends: Friend[], generation: number): void
+        kickGroupMetadata(friends: Friend[], generation: number): void
+      }
+      let release!: () => void
+      const slow = new Promise<null>((resolve) => {
+        release = () => resolve(null)
+      })
+      const resolver = kind === 'world' ? internal.worldResolver : internal.groupResolver
+      const pending =
+        kind === 'world' ? internal.pendingWorldResolutions : internal.pendingGroupResolutions
+      const resolve = vi
+        .spyOn(resolver, 'resolve')
+        .mockReturnValueOnce(slow)
+        .mockResolvedValue(null)
+      const friends = Array.from({ length: CONCURRENCY_LIMIT + 1 }, (_, i) => ({
+        instance: { worldId: `wrld_${i}`, groupId: `grp_${i}` }
+      })) as Friend[]
+      const kick = (): void => {
+        if (kind === 'world') internal.kickWorldMetadata(friends, internal.sessionGeneration)
+        else internal.kickGroupMetadata(friends, internal.sessionGeneration)
+      }
+      kick()
+      admission.rateLimited('0')
+      expect(admission.cooldownRemainingMs).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(resolve).toHaveBeenCalledTimes(CONCURRENCY_LIMIT)
+      release()
+      await vi.waitFor(() => expect(pending.size).toBe(0))
+      kick()
+      await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(2 * CONCURRENCY_LIMIT + 1))
+      await vi.waitFor(() => expect(pending.size).toBe(0))
+    }
+  )
+
   it.each(['world', 'group'] as const)(
     'retains failed %s batch ownership until active workers settle',
     async (kind) => {

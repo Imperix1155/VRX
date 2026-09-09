@@ -15,7 +15,8 @@ export class RosterRefresh {
   constructor(
     private readonly read: () => Promise<FriendRoster>,
     private readonly cooldownRemaining: () => number,
-    private readonly captureRevision?: () => number | undefined
+    private readonly captureRevision?: () => number | undefined,
+    private readonly readRateLimitRevision?: () => number
   ) {}
 
   get(lease: RequestLease): Promise<FriendRoster> {
@@ -37,9 +38,16 @@ export class RosterRefresh {
   }
 
   private async execute(state: RunState): Promise<FriendRoster> {
+    const rateLimitRevision = this.readRateLimitRevision?.()
     const first = await this.readWithRevision()
     assertRequestLease(state.lease)
-    if (!state.dirty || first.rateLimit || this.cooldownRemaining() > 0) return first
+    if (
+      !state.dirty ||
+      first.rateLimit ||
+      this.cooldownRemaining() > 0 ||
+      rateLimitRevision !== this.readRateLimitRevision?.()
+    )
+      return first
     state.finalRead = true
     try {
       const last = await this.readWithRevision()

@@ -27,8 +27,10 @@ VRX/<app version> (https://github.com/Imperix1155/VRX)
   seconds or an HTTP date. Missing or invalid headers use growing jittered
   fallback. Every later attempt rechecks the deadline and normal pacing.
 - Roster pagination and background metadata stop at the first 429, even with
-  a zero-delay Retry-After. Useful pages
-  remain partial; missing entries are retained from cache. These batches do not
+  a zero-delay Retry-After from another request sharing the platform controller.
+  Pending pages, enrichment and refresh follow-ups cannot resume the old run.
+  Successfully completed data may publish; interrupted rosters remain partial
+  and missing entries are retained from cache. These batches do not
   sleep and replay, and cooldown expiry does not trigger a burst. Other existing
   request kinds retain their bounded retry policy; every allowed retry re-enters
   admission under its original session lease. No additional action retries are

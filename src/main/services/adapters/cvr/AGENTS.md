@@ -38,7 +38,8 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
   callers and CVR name warming. Main marks an active first read dirty before
   broadcasting a live/roster trigger; all callers then receive at most one final
   read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work.
+  Cooldown, cancellation and failed reads discard pending follow-up work. Any
+  shared 429 during a run also discards its follow-up, even with no remaining wait.
   Partial final data retains first-read omissions. Identity-checked cleanup
   cannot erase a replacement account's operation; session boundaries clear it.
   Main injects a LocationAuthority revision capture before each physical read,

@@ -86,6 +86,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       throw new NetworkError('Circuit open: too many consecutive failures')
     }
     let notBefore: number | undefined
+    const rateLimitRevision = this.admission.rateLimitRevision
     for (let attempt = 0; ; attempt++) {
       do {
         await this.admission.acquire({
@@ -96,6 +97,9 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         })
         if (signal?.aborted) throw new RequestCancelledError()
         assertRequestLease(requestOptions.lease)
+        if (retry === 'none' && rateLimitRevision !== this.admission.rateLimitRevision) {
+          throw new RateLimitError(this.admission.cooldownRemainingMs)
+        }
         beforeDispatch?.()
         // A response can extend cooldown between permit resolution and this
         // continuation. No captured headers may leave during that new wait.

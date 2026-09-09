@@ -248,3 +248,24 @@ Integration checks pass: 2,535 tests, fresh-cache lint, format, build, diff,
 zero-delay mutation and production updater probe. High/critical audit is clear.
 No new Fallow finding in the follow-up delta. Next: focused review, a coherent
 PR update and required current-head external/CI evidence.
+
+## Immediate-429 operation lifetime follow-up
+
+The focused review of pushed head `7c69a39` found a resolved-permit race despite
+its green CI and substantive CodeRabbit review. Reproduction also identified
+old roster/metadata continuations across another shared request's zero-delay 429. A monotonic rate-limit revision now fences those operation lifetimes,
+including queued refresh follow-ups, while retaining successful in-flight data
+and fresh later operations. Eight new regressions and five restored source
+mutations cover the correction; the focused five-file suite passes 307 tests.
+Full refreshed gates and a new focused critical review are in progress.
+
+Greptile remains unavailable: neither published-head request has a substantive
+response. Required current-head reviews/CI and owner merge authority still gate
+integration. No account, release, installed-app or Explore work was performed.
+
+Correction gate: 165 files / 2,543 tests pass, including the two disposable
+localhost socket fixtures rerun under their existing test allowance after the
+sandbox denied binding. Fresh-cache lint, format, build and diff checks pass
+(`REVOCATION_PROJECT_GATE_GREEN`). The only subsequent edit is this evidence
+record; focused format/diff checks cover it. New focused review and required
+current-head CI/external review remain pending.

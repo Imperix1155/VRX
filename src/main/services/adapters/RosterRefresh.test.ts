@@ -82,6 +82,28 @@ describe('RosterRefresh', () => {
     }
   )
 
+  it('drops a dirty follow-up after a shared zero-delay 429 but allows a fresh read', async () => {
+    const first = deferred<FriendRoster>()
+    const read = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(roster('Later'))
+    let rateLimitRevision = 0
+    const refresh = new RosterRefresh(
+      read,
+      () => 0,
+      undefined,
+      () => rateLimitRevision
+    )
+    const owner = lease()
+    const request = refresh.get(owner)
+    refresh.invalidate()
+    rateLimitRevision++
+    const completed = roster('First')
+    first.resolve(completed)
+    await expect(request).resolves.toBe(completed)
+    expect(read).toHaveBeenCalledOnce()
+    await expect(refresh.get(owner)).resolves.toEqual(roster('Later'))
+    expect(read).toHaveBeenCalledTimes(2)
+  })
+
   it('preserves usable data as partial when the follow-up rate limits', async () => {
     const read = vi
       .fn()

@@ -37,7 +37,8 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
   callers and CVR name warming. Main marks an active first read dirty before
   broadcasting a live/roster trigger; all callers then receive at most one final
   read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work.
+  Cooldown, cancellation and failed reads discard pending follow-up work. Any
+  shared 429 during a run also discards its follow-up, even with no remaining wait.
   Partial final data retains first-read omissions. Identity-checked cleanup
   cannot erase a replacement account's operation; session boundaries clear it.
   Main injects a LocationAuthority revision capture before each physical read,
@@ -57,7 +58,9 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
   a negative-cacheable metadata miss.
 - Multi-request fetchers must let the adapter bind every later request/resolve
   launch to the session generation that started the operation; an older batch
-  must not continue with a newer durable account's credentials.
+  must not continue with a newer durable account's credentials. A captured
+  admission rate-limit revision also prevents later pages, pool workers or
+  post-roster enrichment from continuing after any shared 429, even with zero wait.
 - Defensive parsing — unknown enum/tag/suffix/shape values degrade gracefully, never throw (root `AGENTS.md` API etiquette).
 - Read shared types from `@shared/types`; do not redefine the canonical model here.
 

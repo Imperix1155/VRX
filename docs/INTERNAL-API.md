@@ -484,7 +484,9 @@ injected as the second `VrcAdapter`/`CvrAdapter` constructor argument and throug
 `AvatarCache.setApiAdmission`. `acquire({ priority?, signal?, notBefore?, rejectOnCooldown? })`
 admits one API attempt; `deferUntil(deadline)` monotonically extends cooldown;
 `rateLimited(Retry-After)` parses seconds/date or growing jittered fallback and
-returns the shared deadline. `cooldownUntil`, `cooldownRemainingMs` and
+returns the shared deadline. `rateLimitRevision` advances on every 429, including
+zero-delay responses; no-retry operations capture it to reject resolved permits
+or batch continuations after a newer shared 429. `cooldownUntil`, `cooldownRemainingMs` and
 `pendingCount` expose scheduling state without credentials. `succeeded()`
 resets fallback only after cooldown. Clock/sleep/random are injectable. The
 256-entry queue reserves 16 slots for interactive work; cancellation throws
@@ -502,8 +504,10 @@ headers after admission. `assertRequestLease` rejects obsolete work before
 fetch, retry and body publication. Auth/session cancellation is not an auth
 failure or circuit failure. Old rosters/details reject; a new account needs a
 fresh operation. Rosters and background metadata use no-retry mode: a 429
-ends the batch and rejects its queued admissions, including zero-delay
-Retry-After responses. A future wait is not required for batch termination.
+ends the batch and rejects its queued or just-resolved admissions, including
+zero-delay Retry-After responses. Pagination, metadata workers and post-roster
+enrichment retain their operation's initial rate-limit revision. A future wait
+is not required for batch termination; completed in-flight data may still publish.
 During cooldown they fail
 without dispatch; no automatic batch replay is scheduled. Explicit operations
 retain their existing bounded retry policy. Main-only `FriendRoster.rateLimit`
@@ -535,7 +539,10 @@ The optional capture callback is wired by both adapters from main's
 before starting, including CVR warming before IPC joins. Main-only `seeds` retain
 separate chronological provenance for first-read omissions and final partial
 entries; IPC applies those fences without exposing them to the renderer. A
-complete final read replaces earlier seed batches.
+complete final read replaces earlier seed batches. The separate optional fourth
+constructor callback reads `rateLimitRevision`; both adapters wire it to their
+shared admission controller. A change during the first read drops its dirty
+follow-up without discarding successful data or blocking a fresh later read.
 
 World/group metadata pools latch the first resolver failure permanently and
 wait for already-active workers before settling and releasing pending IDs.

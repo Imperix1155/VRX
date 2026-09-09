@@ -16,7 +16,7 @@ import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease, type RequestLease, type AvatarRequestLease } from './RequestLease'
-import { AuthError, AuthSessionPendingError, NetworkError } from './errors'
+import { AuthError, AuthSessionPendingError, NetworkError, RateLimitError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
@@ -147,7 +147,8 @@ export class VrcAdapter extends VrcApiClient {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
-    () => this.live?.captureRosterRevision?.()
+    () => this.live?.captureRosterRevision?.(),
+    () => this.admission.rateLimitRevision
   )
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
@@ -692,12 +693,16 @@ export class VrcAdapter extends VrcApiClient {
   private async readFriends(): Promise<FriendRoster> {
     this.assertDurableSession()
     const generation = this.sessionGeneration
+    const rateLimitRevision = this.admission.rateLimitRevision
     try {
       const result = await fetchFriends((path, schema) => {
         // fetchFriends can issue several pages. Bind every request launch to
         // the account that started this roster so a later durable login
         // cannot lend its cookie to the old paginator.
         if (generation !== this.sessionGeneration) throw new StaleSessionError()
+        if (rateLimitRevision !== this.admission.rateLimitRevision) {
+          throw new RateLimitError(this.admission.cooldownRemainingMs)
+        }
         return this.get(path, schema, { retry: 'none' })
       })
       const { friends, failedPages, skippedRecords } = result
@@ -729,7 +734,7 @@ export class VrcAdapter extends VrcApiClient {
         if (groupCached != null) patched = this.withGroupMetadata(patched, groupCached)
         return patched
       })
-      if (!result.rateLimit) {
+      if (!result.rateLimit && rateLimitRevision === this.admission.rateLimitRevision) {
         this.kickWorldMetadata(roster, generation)
         this.kickGroupMetadata(roster, generation)
       }
@@ -773,6 +778,7 @@ export class VrcAdapter extends VrcApiClient {
    */
   private kickGroupMetadata(friends: Friend[], generation: number): void {
     if (this.admission.cooldownRemainingMs > 0) return
+    const rateLimitRevision = this.admission.rateLimitRevision
     const groupIds = friends.map((friend) => {
       const groupId = friend.instance?.groupId ?? null
       if (groupId === null) return null
@@ -798,7 +804,10 @@ export class VrcAdapter extends VrcApiClient {
           groupImageUrl: meta.iconUrl
         })
       },
-      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0,
+      () =>
+        generation === this.sessionGeneration &&
+        rateLimitRevision === this.admission.rateLimitRevision &&
+        this.admission.cooldownRemainingMs === 0,
       (error) => this.handleMetadataFailure(error, generation)
     )
       .catch((error: unknown) => {
@@ -823,6 +832,7 @@ export class VrcAdapter extends VrcApiClient {
    */
   private kickWorldMetadata(friends: Friend[], generation: number): void {
     if (this.admission.cooldownRemainingMs > 0) return
+    const rateLimitRevision = this.admission.rateLimitRevision
     const worldIds = friends.map((friend) => {
       const worldId = friend.instance?.worldId ?? null
       if (worldId === null) return null
@@ -851,7 +861,10 @@ export class VrcAdapter extends VrcApiClient {
           thumbnailUrl: meta.thumbnailUrl
         })
       },
-      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0,
+      () =>
+        generation === this.sessionGeneration &&
+        rateLimitRevision === this.admission.rateLimitRevision &&
+        this.admission.cooldownRemainingMs === 0,
       (error) => this.handleMetadataFailure(error, generation)
     )
       .catch((error: unknown) => {

@@ -199,3 +199,58 @@ files changed since the prior PR head. The cumulative pre-existing findings
 remain under the prior reviewed disposition. API shapes and design artifacts
 remain unchanged; API policy/catalog, owning contract and changelog describe
 zero-delay termination. Focused review of this integrated head is next.
+
+### Resolved-permit and batch-continuation correction
+
+Fresh read-only Astra/High focused review of `3c5a9cd` → `7c69a39` returned
+FIX-FIRST. The exact integration artifact SHA-256 is
+`4ad632334f388bba68f92c212e35301649bd4367c3d8d3c37ba143609b5810f0`
+(15,792 bytes / 291 lines / 10 files). The dependency merge and updater probe
+were sound, but a no-retry permit removed from the queue just before a zero-delay
+429 could still reach fetch. CodeRabbit's substantive clean review of `7c69a39`
+did not invalidate that reproduced race. Prior-head CI was green; it does not
+cover the correction below. Greptile has not supplied substantive output for
+either published functional head.
+
+The controller now advances a main-only rate-limit revision on every 429.
+BaseAdapter checks the operation's captured revision after admission, before
+fetch. The same revision fences later VRC roster pages, world/group worker
+launches, metadata kicked after a completed roster, and the shared coalescer's
+dirty follow-up on both platforms. A successful in-flight result remains usable;
+fresh later operations capture the new revision. Existing explicit retries,
+session leases and platform pacing remain unchanged.
+
+Eight added regressions cover numeric zero, immediate HTTP dates, positive-wait
+control, both metadata pools, online and terminal offline roster pages, and a
+dirty follow-up followed by a fresh read. The five relevant files pass 307 tests.
+Before fixes, each newly identified continuation was reproduced. A missing
+RateLimitError import initially made pagination stop through generic-error
+fallback; the typed rate-limit assertion caught it and the import was fixed.
+
+Five separate source mutations remove the resolved-permit guard, metadata
+worker guards, paginator guard, post-roster enrichment guard and follow-up
+guard. They produce respectively 2, 2, 1, 1 and 1 expected test failures, then
+restore exact source (`REVOCATION_MUTATION_GREEN`). The positive-wait control
+remains green without the new permit guard. Artifacts: `revocation-mutation.py`
+and `revocation-mutation.log` in the existing temporary artifact directory.
+
+Focused Fallow dead-code analysis reports zero issues. Production duplicate
+analysis in affected files reports six groups / 200 lines: five are retained
+adapter auth/event/metadata patterns, and the new seven-line pair is intentional
+identical coalescer wiring in both adapters. Centralizing the operation in
+RosterRefresh already owns the behavior; no extra abstraction is warranted for
+those constructor callbacks. No new dependency/import issue is reported.
+
+DOX updates the main and platform contracts, callable API catalog, API policy
+and changelog. No new API-shape assumption, renderer, visual or interaction
+change is introduced; volatility/design artifacts and indexes stay unchanged.
+This correction narrows the existing stop-on-429 contract; final focused review
+must assess its cumulative behavior with the previous review anchors. No merge
+readiness or additional authority is implied.
+
+Correction gate: 165 files / 2,543 tests pass, including the two disposable
+localhost socket fixtures rerun under their existing test allowance after the
+sandbox denied binding. Fresh-cache lint, format, build and diff checks pass
+(`REVOCATION_PROJECT_GATE_GREEN`). The only subsequent edit is this evidence
+record; focused format/diff checks cover it. New focused review and required
+current-head CI/external review remain pending.

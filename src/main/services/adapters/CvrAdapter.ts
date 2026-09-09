@@ -87,7 +87,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
-    () => this.live?.captureRosterRevision?.()
+    () => this.live?.captureRosterRevision?.(),
+    () => this.admission.rateLimitRevision
   )
   private sessionAbort = new AbortController()
   private loginAbort = new AbortController()

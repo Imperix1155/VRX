@@ -77,6 +77,7 @@ export class ApiAdmissionController {
   private nextStart = 0
   private cooldown = 0
   private failures = 0
+  private rateLimitGeneration = 0
   private dispatching = false
   private wake: AbortController | null = null
 
@@ -98,6 +99,11 @@ export class ApiAdmissionController {
 
   get pendingCount(): number {
     return this.waiters.length
+  }
+
+  /** Changes on every 429, even when its wait is zero, to revoke resolved batch permits. */
+  get rateLimitRevision(): number {
+    return this.rateLimitGeneration
   }
 
   acquire(options: AdmissionOptions = {}): Promise<void> {
@@ -143,6 +149,7 @@ export class ApiAdmissionController {
 
   /** Returns the shared deadline, including any longer wait from an older response. */
   rateLimited(retryAfter: string | null): number {
+    this.rateLimitGeneration += 1
     const delay =
       retryAfterDelayMs(retryAfter, this.now()) ??
       Math.min(1_000 * 2 ** Math.min(this.failures, 15), MAX_BACKOFF_MS)
