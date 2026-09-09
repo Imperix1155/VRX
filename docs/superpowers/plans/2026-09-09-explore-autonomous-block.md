@@ -115,6 +115,27 @@ uncached lint, formatting, both typechecks, build and diff whitespace
 source was restored, with 29 UI/locale tests passing afterward. Static analysis
 findings remain unchanged from the general anchor.
 
-Fresh focused review and draft-PR CI are next. All component/parser workers have
+At this correction checkpoint, fresh focused review and draft-PR CI were next. All component/parser workers have
 finished; their isolated worktrees and diagnostic artifacts are retained. Weekly
 usage was 37% consumed at this checkpoint; no reset credits were redeemed.
+
+## Phase-A code closeout
+
+Fresh focused review now verifies all five corrections with no material finding.
+The [coverage ledger](2026-09-09-explore-phase-a-review.md) pins the general and
+focused artifacts, affected contracts, retained conclusions, runtime routing and
+evidence limits. The functional head is
+`32922d2626c00fff43567c2dc0974f26e15f01d2`; subsequent closeout changes are prose
+only. The reviewer confirmed that general review does not need restarting.
+
+The reviewed sample-data implementation is ready for a draft PR. Final branch,
+PR link and CI results will be recorded in the PR and VRX-270 after publication.
+This block stops at that checkpoint. Production Explore and Dashboard remain
+unwired; no live requests, installed-app restart, screen capture or game launch
+occurred. The visual check and phase-B dependency/traffic gate remain open work.
+No merge, release, usage reset or automatic continuation is authorized or implied.
+
+The liaison was told the local verification results and will receive the final
+delivery status. Its API-safety progress report is not an inspected dependency
+handoff: that task still has critical review and CI work outstanding. API safety
+remains owned by that separate task.
