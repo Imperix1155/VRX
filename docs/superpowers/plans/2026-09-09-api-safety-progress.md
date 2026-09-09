@@ -2,7 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Units 1–3 are verified locally. Units 4–6 are pending. No PR, push, or merge has occurred.
+Production work is underway. Units 1–4 are verified locally. Units 5–6 are pending. No PR, push, or merge has occurred.
 
 ## Autonomous authority
 
@@ -47,7 +47,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Implement unit 4 main-owned roster coalescing next.
+Implement unit 5 reconnect backoff and rejected-upgrade cooldown next.
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -136,3 +136,28 @@ updated. Design artifacts remain unchanged because no visual treatment/control
 changed. Final policy/volatility/README pass and actual isolated Electron error
 wrapping probe remain unit 6. Usage is 33% used in the weekly window. No push,
 PR, external review, merge, live-account test or app restart has occurred.
+
+## Unit 4 verified locally
+
+Unit 3 is local commit `5445a35`. Unit 4 adds main-only `RosterRefresh` to both
+adapters: ordinary reads/CVR name warming share one session-owned promise, and
+live/roster events during its first read request at most one final read. All
+joiners receive that final result. Events during the final read join it; later
+fresh events and selected recovery intervals remain eligible. Partial final
+reads retain useful first-read entries. Rate limits discard follow-ups and
+retain useful data as partial. Failure clears the run; account boundaries abort
+and clear it with identity-checked cleanup. No renderer trigger/bridge change.
+
+Executable baseline: 20 ordinary VRChat callers made 60 physical requests;
+20 CVR callers plus warming made 21. Both regressions fail again when bypassing
+the coalescer (`A4_MUTATION_GREEN`), then pass with it. Both platforms' event-storm
+probes confirm one final read, shared final data, no 429 follow-up, and later
+recovery. Existing internal name-ordering tests now drive the single-read seam
+because public overlapping reads deliberately share the same operation.
+
+The wider suite passed 42 files / 754 tests. After correcting two test URL
+stringification lint errors, the affected 143 tests passed again. Lint, format,
+build and diff checks printed `A4_PROJECT_GATE_GREEN`. DOX: main/platform
+contracts, API catalog and changelog updated. Unit 5 fake flap regressions have
+since reproduced the remaining immediate-open backoff reset on both platforms;
+those uncommitted tests are not part of this checkpoint. No push or PR yet.

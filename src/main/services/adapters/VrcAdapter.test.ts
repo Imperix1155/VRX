@@ -46,6 +46,29 @@ describe('VRChat dispatch cancellation', () => {
     vi.unstubAllGlobals()
   })
 
+  it('coalesces simultaneous VRChat roster reads into one physical pagination', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) =>
+      Promise.resolve(
+        jsonResponse(
+          (typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url
+          ).endsWith('/auth/user')
+            ? { onlineFriends: [] }
+            : []
+        )
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=a'), instantAdmission())
+    markSessionEstablished(adapter)
+    const results = await Promise.all(Array.from({ length: 20 }, () => adapter.getFriends()))
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(results.every((result) => result === results[0])).toBe(true)
+  })
+
   it('stops a physical roster batch on 429 and suppresses enrichment and repeat refreshes', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Concurrent friend refreshes and CVR name warming share one request per session.
+  Reconnect and roster-event bursts coalesce into one follow-up refresh. (VRX-218)
+
 - Friend refreshes and background metadata stop when the platform rate-limits
   them. Partial refreshes retain omitted cached friends, and repeated refresh
   triggers cannot bypass the cooldown. (VRX-218)

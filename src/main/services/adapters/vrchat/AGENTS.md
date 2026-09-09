@@ -26,6 +26,14 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 ## Local Contracts
 
+- `RosterRefresh` shares one pending roster result per session across ordinary
+  callers and CVR name warming. Main marks an active first read dirty before
+  broadcasting a live/roster trigger; all callers then receive at most one final
+  read. Events during that final read join it; later triggers remain eligible.
+  Cooldown, cancellation and failed reads discard pending follow-up work.
+  Partial final data retains first-read omissions. Identity-checked cleanup
+  cannot erase a replacement account's operation; session boundaries clear it.
+
 - Request cancellation and admission overflow are control flow: propagate
   `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
   Never continue a page batch or negative-cache these outcomes. Account-owned

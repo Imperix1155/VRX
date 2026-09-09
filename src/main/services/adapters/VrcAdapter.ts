@@ -1,3 +1,4 @@
+import { RosterRefresh } from './RosterRefresh'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
@@ -141,6 +142,10 @@ function isInstanceLocation(location: string): boolean {
  * scaffolded as not-yet-implemented and land in later issues (getFriends = VRX-43).
  */
 export class VrcAdapter extends VrcApiClient {
+  private readonly rosterRefresh = new RosterRefresh(
+    () => this.readFriends(),
+    () => this.admission.cooldownRemainingMs
+  )
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
   private cookie: string | null = null
@@ -677,81 +682,83 @@ export class VrcAdapter extends VrcApiClient {
     }
   }
 
-  async getFriends(): Promise<FriendRoster> {
-    for (;;) {
-      this.assertDurableSession()
-      const generation = this.sessionGeneration
-      try {
-        const result = await fetchFriends((path, schema) => {
-          // fetchFriends can issue several pages. Bind every request launch to
-          // the account that started this roster so a later durable login
-          // cannot lend its cookie to the old paginator.
-          if (generation !== this.sessionGeneration) throw new StaleSessionError()
-          return this.get(path, schema, { retry: 'none' })
-        })
-        const { friends, failedPages, skippedRecords } = result
-        if (result.presence === 'degraded') {
-          throw new NetworkError('Failed to fetch friends (presence=degraded)')
-        }
-        // If anything failed (page fetches OR schema-drifted records) AND we got
-        // nothing, surface an error rather than a misleading empty list (the UI shows
-        // "couldn't load" instead of "no friends"). A partial result is still returned
-        // as graceful degradation; signalling partial failure to the UI is a follow-up.
-        if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
-          // Carry both counters so logs can tell transport failure from pure schema
-          // drift (failedPages=0, skippedRecords>0 means the wire was fine).
-          throw new NetworkError(
-            `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
-          )
-        }
+  getFriends(): Promise<FriendRoster> {
+    return this.rosterRefresh.get(this.captureSessionLease())
+  }
 
-        // A replacement account needs a fresh caller-owned operation.
-        // Never replay this old roster under its credentials.
-        if (generation !== this.sessionGeneration) {
-          throw new Error('Session ended')
-        }
-        const roster = friends.map((friend) => {
-          let patched = friend
-          const worldCached = this.worldResolver.peek(friend.instance?.worldId ?? null)
-          if (worldCached != null) patched = this.withWorldMetadata(patched, worldCached)
-          const groupCached = this.groupResolver.peek(friend.instance?.groupId ?? null)
-          if (groupCached != null) patched = this.withGroupMetadata(patched, groupCached)
-          return patched
-        })
-        if (!result.rateLimit) {
-          this.kickWorldMetadata(roster, generation)
-          this.kickGroupMetadata(roster, generation)
-        }
-        return {
-          friends: roster,
-          completeness: result.completeness,
-          ...(result.rateLimit ? { rateLimit: result.rateLimit } : {})
-        }
-      } catch (error) {
-        // Staleness is checked before auth invalidation or any other outcome.
-        // The old account's failure is irrelevant to a replacement session; a
-        // completed logout aborts instead of manufacturing a second auth failure.
-        if (generation !== this.sessionGeneration) {
-          throw new Error('Session ended')
-        }
-
-        // A data-path 401 in the roster fetch — the /auth/user buckets probe or a
-        // friend page — means the cookie is dead/2FA-expired. Signal the renderer
-        // to re-check auth + quarantine so a stale "connected" card flips to reconnect
-        // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
-        // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
-        // unauthenticated; a blunt clear would force a full re-login. 401 ONLY —
-        // a 403 is an ordinary denial on a live session, never an invalidation
-        // (VRX-42 boundary rule, same as selfInvite). NetworkError and other
-        // failures just propagate untouched.
-        if (error instanceof AuthError && error.status === 401) {
-          // Ordering exemption: a data-path AuthError may mean only that 2FA
-          // expired, so this boundary deliberately retains the current identity.
-          this.bumpSessionGeneration()
-          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-        }
-        throw error
+  private async readFriends(): Promise<FriendRoster> {
+    this.assertDurableSession()
+    const generation = this.sessionGeneration
+    try {
+      const result = await fetchFriends((path, schema) => {
+        // fetchFriends can issue several pages. Bind every request launch to
+        // the account that started this roster so a later durable login
+        // cannot lend its cookie to the old paginator.
+        if (generation !== this.sessionGeneration) throw new StaleSessionError()
+        return this.get(path, schema, { retry: 'none' })
+      })
+      const { friends, failedPages, skippedRecords } = result
+      if (result.presence === 'degraded') {
+        throw new NetworkError('Failed to fetch friends (presence=degraded)')
       }
+      // If anything failed (page fetches OR schema-drifted records) AND we got
+      // nothing, surface an error rather than a misleading empty list (the UI shows
+      // "couldn't load" instead of "no friends"). A partial result is still returned
+      // as graceful degradation, with a partial marker to preserve cache omissions.
+      if ((failedPages > 0 || skippedRecords > 0) && friends.length === 0) {
+        // Carry both counters so logs can tell transport failure from pure schema
+        // drift (failedPages=0, skippedRecords>0 means the wire was fine).
+        throw new NetworkError(
+          `Failed to fetch friends (failedPages=${failedPages}, skippedRecords=${skippedRecords})`
+        )
+      }
+
+      // A replacement account needs a fresh caller-owned operation.
+      // Never replay this old roster under its credentials.
+      if (generation !== this.sessionGeneration) {
+        throw new Error('Session ended')
+      }
+      const roster = friends.map((friend) => {
+        let patched = friend
+        const worldCached = this.worldResolver.peek(friend.instance?.worldId ?? null)
+        if (worldCached != null) patched = this.withWorldMetadata(patched, worldCached)
+        const groupCached = this.groupResolver.peek(friend.instance?.groupId ?? null)
+        if (groupCached != null) patched = this.withGroupMetadata(patched, groupCached)
+        return patched
+      })
+      if (!result.rateLimit) {
+        this.kickWorldMetadata(roster, generation)
+        this.kickGroupMetadata(roster, generation)
+      }
+      return {
+        friends: roster,
+        completeness: result.completeness,
+        ...(result.rateLimit ? { rateLimit: result.rateLimit } : {})
+      }
+    } catch (error) {
+      // Staleness is checked before auth invalidation or any other outcome.
+      // The old account's failure is irrelevant to a replacement session; a
+      // completed logout aborts instead of manufacturing a second auth failure.
+      if (generation !== this.sessionGeneration) {
+        throw new Error('Session ended')
+      }
+
+      // A data-path 401 in the roster fetch — the /auth/user buckets probe or a
+      // friend page — means the cookie is dead/2FA-expired. Signal the renderer
+      // to re-check auth + quarantine so a stale "connected" card flips to reconnect
+      // and the stale roster is dropped (VRX-195/197). We do NOT clearSession:
+      // VRChat's getAuthStatus is 2FA-aware and decides needs-2fa vs
+      // unauthenticated; a blunt clear would force a full re-login. 401 ONLY —
+      // a 403 is an ordinary denial on a live session, never an invalidation
+      // (VRX-42 boundary rule, same as selfInvite). NetworkError and other
+      // failures just propagate untouched.
+      if (error instanceof AuthError && error.status === 401) {
+        // Ordering exemption: a data-path AuthError may mean only that 2FA
+        // expired, so this boundary deliberately retains the current identity.
+        this.bumpSessionGeneration()
+        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      }
+      throw error
     }
   }
 
@@ -982,6 +989,7 @@ export class VrcAdapter extends VrcApiClient {
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
         if (generation !== this.sessionGeneration) return
+        if (event.type === 'connection' && event.health === 'live') this.rosterRefresh.invalidate()
         this.emit(this.enrichPipelineEvent(event, generation))
       },
       socketFactory:
@@ -1250,6 +1258,7 @@ export class VrcAdapter extends VrcApiClient {
    */
   private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionAbort.abort()
+    this.rosterRefresh.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()

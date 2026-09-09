@@ -60,6 +60,38 @@ function markSessionEstablishedForTest(adapter: CvrAdapter): CvrAdapter {
 }
 
 describe('CvrAdapter', () => {
+  it('coalesces simultaneous CVR name warming and renderer roster reads', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const fetchMock = vi.fn(async () => {
+      await held
+      return jsonResponse({
+        message: 'ok',
+        data: [
+          {
+            id: 'a1b2c3d4-0000-0000-0000-000000000001',
+            name: 'Shared',
+            imageUrl: null,
+            categories: []
+          }
+        ]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = markSessionEstablishedForTest(
+      new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), instantAdmission())
+    )
+    const drive = adapter as unknown as { handlePipelineEvent(event: AdapterEvent): void }
+    drive.handlePipelineEvent({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const callers = Array.from({ length: 20 }, () => adapter.getFriends())
+    release()
+    const results = await Promise.all(callers)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(results.every((result) => result === results[0])).toBe(true)
+    expect(adapter.resolveFriendName('a1b2c3d4-0000-0000-0000-000000000001')).toBe('Shared')
+  })
   it('stops roster 429 on its first physical attempt and suppresses repeat refreshes', async () => {
     const fetchMock = vi.fn().mockImplementation(() =>
       Promise.resolve(
@@ -1201,10 +1233,16 @@ describe('CvrAdapter', () => {
         })
       )
       const adapter = sessioned()
+      const read = (): Promise<import('./IPlatformAdapter').FriendRoster> =>
+        (
+          adapter as unknown as {
+            readFriends(): Promise<import('./IPlatformAdapter').FriendRoster>
+          }
+        ).readFriends()
 
-      const first = adapter.getFriends()
+      const first = read()
       await vi.waitFor(() => expect(calls).toBe(1))
-      await adapter.getFriends()
+      await read()
       expect(adapter.resolveFriendName(id)).toBe('Newer roster name')
 
       releaseOlder(
@@ -1232,10 +1270,16 @@ describe('CvrAdapter', () => {
         })
       )
       const adapter = sessioned()
+      const read = (): Promise<import('./IPlatformAdapter').FriendRoster> =>
+        (
+          adapter as unknown as {
+            readFriends(): Promise<import('./IPlatformAdapter').FriendRoster>
+          }
+        ).readFriends()
 
-      const first = adapter.getFriends()
+      const first = read()
       await vi.waitFor(() => expect(calls).toBe(1))
-      await expect(adapter.getFriends()).rejects.toThrow()
+      await expect(read()).rejects.toThrow()
 
       // The newer request FAILED — a committed-sequence fence (not a started-
       // sequence one) must still allow the older success to land.

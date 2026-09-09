@@ -70,6 +70,14 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Local Contracts
 
+- `RosterRefresh` shares one pending roster result per session across ordinary
+  callers and CVR name warming. Main marks an active first read dirty before
+  broadcasting a live/roster trigger; all callers then receive at most one final
+  read. Events during that final read join it; later triggers remain eligible.
+  Cooldown, cancellation and failed reads discard pending follow-up work.
+  Partial final data retains first-read omissions. Identity-checked cleanup
+  cannot erase a replacement account's operation; session boundaries clear it.
+
 - Roster and background metadata batches use no-retry admission. A 429 ends
   pagination/enrichment and removes queued batch attempts; background triggers
   during cooldown send nothing and are not replayed at expiry. Useful roster

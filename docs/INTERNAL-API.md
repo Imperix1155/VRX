@@ -511,6 +511,14 @@ The friends IPC boundary exposes only a partial marker, never the deadline;
 after the bridge resolves. Unavailable rate-limited rosters and admission
 overflow use the existing `rate_limited` error with no outer query retry.
 
+`adapters/RosterRefresh.ts` exposes `get(lease)`, `invalidate()` and `clear()`
+for main-owned per-session roster sharing. Concurrent initial/manual/interval
+and CVR warm reads share one promise. Main pipeline live/roster triggers mark
+one pending follow-up before broadcast; the shared promise publishes its final
+result. A run has at most two reads, observes cooldown and cancellation, and
+never automatically retries a failed/rate-limited batch. Partial final reads
+retain useful first-read omissions. Ordinary later triggers remain enabled.
+
 `VrcAdapter.getAvatarRequestLease()` returns a durable session lease with a
 main-only `getCookie()` accessor, or null during logout/quarantine.
 `AvatarCache.setVrcSessionProvider()` captures it per API image operation;
