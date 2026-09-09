@@ -2,8 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Units 1–2 are verified locally; unit 3 is next.
-Units 4–6 are pending. No PR, push, or merge has occurred.
+Production work is underway. Units 1–3 are verified locally. Units 4–6 are pending. No PR, push, or merge has occurred.
 
 ## Autonomous authority
 
@@ -48,7 +47,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Checkpoint unit 2, then implement unit 3 batch termination and retry propagation.
+Implement unit 4 main-owned roster coalescing next.
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -110,3 +109,30 @@ not pushed or reviewed for merge.
 Usage checkpoint before unit 2 was 26% used in the relevant weekly window.
 No required external review or final CI exists yet. T2 review and merge gates
 remain in force; Explore integration is still blocked on the final handoff.
+
+## Unit 3 verified locally
+
+Unit 2 is saved as local commit `782fbb7`. Unit 3 ends rate-limited roster and
+background enrichment batches, rejects their queued admissions, and retains
+usable partial results. Cooldown errors/overflow become sanitized
+`rate_limited` at IPC; no outer retry or expiry replay is scheduled.
+
+The renderer previously received only arrays and could drop omitted cached
+friends despite main's partial authority. Complete results keep their array
+shape; partial responses now carry only friends and a partial marker, while
+main retains rate-limit metadata. The query reads its cache after IPC settles
+and merges omissions. No new controls, copy, polling or account traffic.
+
+Four paginator regressions and the mounted partial-cache regression fail when
+the protections are removed, then source is restored (`A3_MUTATION_GREEN`).
+An initial mutation filter matched no tests; that was rejected as evidence and
+corrected. The mounted test also needed an actual data subscription, matching
+the production observer. Final focused suite: 40 files, 723 tests passed. After
+fixing one test-only floating-promise lint error, its 13-test file passed again,
+then lint, format, build and diff checks passed (`A3_PROJECT_GATE_GREEN`).
+
+DOX: main, IPC, platform, renderer and shared contracts, API catalog and changelog
+updated. Design artifacts remain unchanged because no visual treatment/control
+changed. Final policy/volatility/README pass and actual isolated Electron error
+wrapping probe remain unit 6. Usage is 33% used in the weekly window. No push,
+PR, external review, merge, live-account test or app restart has occurred.

@@ -4,7 +4,7 @@ import {
   MAX_ADMISSION_SLEEP_MS,
   retryAfterDelayMs
 } from './ApiAdmissionController'
-import { RequestCancelledError, RequestQueueFullError } from './errors'
+import { RateLimitError, RequestCancelledError, RequestQueueFullError } from './errors'
 
 describe('ApiAdmissionController', () => {
   beforeEach(() => {
@@ -42,6 +42,32 @@ describe('ApiAdmissionController', () => {
     await vi.advanceTimersByTimeAsync(3_000)
     await Promise.all([image, normal, action])
     expect(order).toEqual(['action', 'normal', 'image'])
+  })
+
+  it('terminates queued batch admissions on a cooldown while retaining explicit work', async () => {
+    const admission = new ApiAdmissionController({ random: () => 0 })
+    await admission.acquire()
+    const batches = Array.from({ length: 3 }, () =>
+      admission.acquire({ rejectOnCooldown: true }).catch((error: unknown) => error)
+    )
+    let explicitStarted = false
+    const explicit = admission.acquire({ priority: 'interactive' }).then(() => {
+      explicitStarted = true
+    })
+    admission.rateLimited('60')
+    expect(await Promise.all(batches)).toEqual(
+      Array.from({ length: 3 }, () => expect.any(RateLimitError))
+    )
+    expect(admission.pendingCount).toBe(1)
+    await expect(admission.acquire({ rejectOnCooldown: true })).rejects.toBeInstanceOf(
+      RateLimitError
+    )
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(explicitStarted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await explicit
+    expect(explicitStarted).toBe(true)
+    expect(admission.pendingCount).toBe(0)
   })
 
   it('extends cooldown monotonically when in-flight responses disagree', async () => {

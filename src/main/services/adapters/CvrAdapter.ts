@@ -116,7 +116,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
   private readonly instanceResolver = createCvrInstanceResolver({
-    fetcher: (path, schema, options) => this.get(path, schema, options)
+    fetcher: (path, schema, options) =>
+      this.get(path, schema, {
+        ...options,
+        retry: options?.priority === 'interactive' ? 'bounded' : 'none'
+      })
   })
   /** Last successful enrichment for instance ids in the current full snapshot.
    *  Survives resolver TTL expiry so a refresh never makes metadata blink. */
@@ -396,7 +400,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       const requestSequence = ++this.friendNamesRequestSequence
       let result: { friends: Friend[]; skippedRecords: number }
       try {
-        result = await fetchCvrFriends((path, schema) => this.get(path, schema))
+        result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
       } catch (error) {
         // A replacement account needs a fresh caller-owned operation.
         if (generation !== this.sessionGeneration) {
@@ -689,6 +693,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * during that refresh, re-emit the wire fallback once failure is known.
    */
   private kickResolutions(snapshot: PresenceSnapshotEvent, generation: number): void {
+    if (this.admission.cooldownRemainingMs > 0) return
     const unseen = new Set<string>()
     for (const entry of snapshot.entries) {
       if (entry.instance == null) continue
@@ -829,7 +834,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private warmFriendNames(): void {
-    if (this.rosterWarmStarted) return
+    if (this.rosterWarmStarted || this.admission.cooldownRemainingMs > 0) return
     this.rosterWarmStarted = true
     const generation = this.sessionGeneration
     // Name warming is best-effort and never delays the socket. getFriends fences

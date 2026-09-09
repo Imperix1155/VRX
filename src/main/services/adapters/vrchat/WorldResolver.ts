@@ -26,7 +26,7 @@
 
 import { z } from 'zod'
 import { WORLD_CACHE_TTL_MS } from '@shared/constants'
-import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
 
 /**
  * Failure TTL for WorldResolver (VRX-254). Long enough that a deleted/private
@@ -144,6 +144,7 @@ export class WorldResolver {
       // degrades to null so world resolution never breaks the friend list.
       if (
         error instanceof AuthError ||
+        error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError
       )

@@ -70,6 +70,11 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Local Contracts
 
+- Roster and background metadata batches use no-retry admission. A 429 ends
+  pagination/enrichment and removes queued batch attempts; background triggers
+  during cooldown send nothing and are not replayed at expiry. Useful roster
+  pages may publish as partial; only complete rosters reconcile omissions.
+
 - `services/adapters/ApiAdmissionController.ts` is main-only, credential-free
   shared admission. One controller per platform covers every API attempt;
   another platform never inherits its cooldown. `acquire`, `deferUntil` and

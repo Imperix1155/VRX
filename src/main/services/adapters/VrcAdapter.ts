@@ -150,7 +150,7 @@ export class VrcAdapter extends VrcApiClient {
   private sessionGeneration = 0
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
-    this.get(`/worlds/${worldId}`, z.unknown())
+    this.get(`/worlds/${worldId}`, z.unknown(), { retry: 'none' })
   )
   /**
    * WorldIds with an enrichment fetch in flight (the CvrAdapter
@@ -164,7 +164,8 @@ export class VrcAdapter extends VrcApiClient {
   private readonly pendingWorldResolutions = new Set<string>()
   /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded. */
   private readonly groupResolver: GroupResolver = createGroupResolver({
-    fetcher: (groupId) => this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown())
+    fetcher: (groupId) =>
+      this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), { retry: 'none' })
   })
   /**
    * GroupIds with an enrichment fetch in flight. Mirrors the world dedupe
@@ -686,7 +687,7 @@ export class VrcAdapter extends VrcApiClient {
           // the account that started this roster so a later durable login
           // cannot lend its cookie to the old paginator.
           if (generation !== this.sessionGeneration) throw new StaleSessionError()
-          return this.get(path, schema)
+          return this.get(path, schema, { retry: 'none' })
         })
         const { friends, failedPages, skippedRecords } = result
         if (result.presence === 'degraded') {
@@ -717,9 +718,15 @@ export class VrcAdapter extends VrcApiClient {
           if (groupCached != null) patched = this.withGroupMetadata(patched, groupCached)
           return patched
         })
-        this.kickWorldMetadata(roster, generation)
-        this.kickGroupMetadata(roster, generation)
-        return { friends: roster, completeness: result.completeness }
+        if (!result.rateLimit) {
+          this.kickWorldMetadata(roster, generation)
+          this.kickGroupMetadata(roster, generation)
+        }
+        return {
+          friends: roster,
+          completeness: result.completeness,
+          ...(result.rateLimit ? { rateLimit: result.rateLimit } : {})
+        }
       } catch (error) {
         // Staleness is checked before auth invalidation or any other outcome.
         // The old account's failure is irrelevant to a replacement session; a
@@ -755,6 +762,7 @@ export class VrcAdapter extends VrcApiClient {
    * roster-time presence, location, or profile.
    */
   private kickGroupMetadata(friends: Friend[], generation: number): void {
+    if (this.admission.cooldownRemainingMs > 0) return
     const groupIds = friends.map((friend) => {
       const groupId = friend.instance?.groupId ?? null
       if (groupId === null) return null
@@ -780,7 +788,7 @@ export class VrcAdapter extends VrcApiClient {
           groupImageUrl: meta.iconUrl
         })
       },
-      () => generation === this.sessionGeneration
+      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0
     )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
@@ -809,6 +817,7 @@ export class VrcAdapter extends VrcApiClient {
    * roster-time presence, location, or profile.
    */
   private kickWorldMetadata(friends: Friend[], generation: number): void {
+    if (this.admission.cooldownRemainingMs > 0) return
     const worldIds = friends.map((friend) => {
       const worldId = friend.instance?.worldId ?? null
       if (worldId === null) return null
@@ -837,7 +846,7 @@ export class VrcAdapter extends VrcApiClient {
           thumbnailUrl: meta.thumbnailUrl
         })
       },
-      () => generation === this.sessionGeneration
+      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0
     )
       .catch((error: unknown) => {
         if (generation !== this.sessionGeneration) return
@@ -1001,7 +1010,7 @@ export class VrcAdapter extends VrcApiClient {
     const worldCached = this.worldResolver.peek(worldId)
     if (worldCached != null) {
       friend = this.withWorldMetadata(friend, worldCached)
-    } else if (worldCached === undefined) {
+    } else if (worldCached === undefined && this.admission.cooldownRemainingMs === 0) {
       // Miss: start at most one resolution for this id through the existing
       // deduped, generation-fenced, rate-limited lane.
       if (!this.pendingWorldResolutions.has(worldId)) {
@@ -1046,7 +1055,7 @@ export class VrcAdapter extends VrcApiClient {
       const groupCached = this.groupResolver.peek(groupId)
       if (groupCached != null) {
         friend = this.withGroupMetadata(friend, groupCached)
-      } else if (groupCached === undefined) {
+      } else if (groupCached === undefined && this.admission.cooldownRemainingMs === 0) {
         // Miss: start at most one resolution for this id.
         if (!this.pendingGroupResolutions.has(groupId)) {
           this.pendingGroupResolutions.add(groupId)

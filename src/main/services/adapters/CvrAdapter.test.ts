@@ -4,7 +4,7 @@ import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
 import { ApiAdmissionController } from './ApiAdmissionController'
-import { AuthSessionPendingError, CVRAuthError } from './errors'
+import { AuthSessionPendingError, CVRAuthError, CVRRateLimitError } from './errors'
 import { jsonResponse, instantAdmission, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
 import { AccountSession } from '../accountSession'
@@ -60,12 +60,30 @@ function markSessionEstablishedForTest(adapter: CvrAdapter): CvrAdapter {
 }
 
 describe('CvrAdapter', () => {
+  it('stops roster 429 on its first physical attempt and suppresses repeat refreshes', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(null, {
+          status: 429,
+          headers: { 'Retry-After': '60' }
+        })
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = markSessionEstablishedForTest(
+      new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), instantAdmission())
+    )
+    await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRRateLimitError)
+    await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRRateLimitError)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+  })
   it('sends neither access key for an obsolete queued roster after switching', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const admission = new ApiAdmissionController()
-    admission.deferUntil(20_000)
+    await admission.acquire()
     const fetchMock = vi
       .fn()
       .mockImplementation(() =>
@@ -1489,6 +1507,52 @@ describe('CvrAdapter', () => {
       })
       return { snapshots, drive }
     }
+
+    it('stops queued instance enrichment on 429 without negative caching or an expiry burst', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: number[] = []
+      const fetchMock = vi.fn().mockImplementation(() => {
+        starts.push(Date.now())
+        return Promise.resolve(
+          starts.length === 1
+            ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } })
+            : jsonResponse(envelope(instanceDetail))
+        )
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const admission = new ApiAdmissionController()
+      const adapter = markSessionEstablishedForTest(
+        new CvrAdapter(fakeStore({ username: 'u', accessKey: 'k' }), admission)
+      )
+      const { drive, snapshots } = directPresenceHarness(adapter)
+      const base = groupWireSnapshot().entries[0]!
+      const snapshot: Extract<AdapterEvent, { type: 'presence-snapshot' }> = {
+        type: 'presence-snapshot',
+        platform: 'chilloutvr',
+        entries: Array.from({ length: 3 }, (_, i) => ({
+          ...base,
+          platformUserId: `user-${i}`,
+          instance: { ...base.instance!, instanceId: `i_${i}` }
+        }))
+      }
+      drive.handlePipelineEvent(snapshot)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(starts).toEqual([10_000])
+      expect(admission.pendingCount).toBe(0)
+      const resolver = (
+        adapter as unknown as { instanceResolver: { peek: (id: string) => unknown } }
+      ).instanceResolver
+      for (let i = 0; i < 3; i++) expect(resolver.peek(`i_${i}`)).toBeUndefined()
+      for (let i = 0; i < 20; i++) drive.handlePipelineEvent(snapshot)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(starts).toEqual([10_000])
+      expect(snapshots).toHaveLength(21)
+      drive.handlePipelineEvent(snapshot)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(starts).toEqual([10_000, 70_000, 71_000, 72_000])
+    })
 
     function stubHeldInstanceRefresh(): {
       requests: { count: number }

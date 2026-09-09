@@ -13,8 +13,8 @@
 import { z } from 'zod'
 import { MAX_FRIENDS } from '@shared/constants'
 import type { VrcFriend } from '@shared/types'
-import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
-import type { RosterCompleteness } from '../IPlatformAdapter'
+import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import type { FriendRoster, RosterCompleteness } from '../IPlatformAdapter'
 import { parsePresence, toBucketSets } from './parsePresence'
 import type { VrcCurrentUserBucketSets } from './parsePresence'
 import { parseTrustRank } from './parseTrustRank'
@@ -135,6 +135,7 @@ export interface FetchFriendsResult {
   failedPages: number
   /** Number of individual records skipped for failing the friend schema (W4). */
   skippedRecords: number
+  rateLimit?: FriendRoster['rateLimit']
 }
 
 // ─── Paginator ────────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ async function fetchPass(
       // instead of silently degrading to a partial/empty roster (Codex, VRX-197).
       if (
         error instanceof AuthError ||
+        error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError
       )
@@ -230,6 +232,7 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   } catch (error) {
     if (
       error instanceof AuthError ||
+      error instanceof RateLimitError ||
       error instanceof RequestCancelledError ||
       error instanceof RequestQueueFullError
     )
@@ -246,10 +249,15 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   const friends: VrcFriend[] = []
   const counters = { failedPages: 0, skippedRecords: 0 }
 
-  // Step 2: online pass
-  await fetchPass(fetcher, false, buckets, friends, counters)
-  // Step 3: offline pass
-  await fetchPass(fetcher, true, buckets, friends, counters)
+  let rateLimit: FriendRoster['rateLimit']
+  try {
+    await fetchPass(fetcher, false, buckets, friends, counters)
+    await fetchPass(fetcher, true, buckets, friends, counters)
+  } catch (error) {
+    if (!(error instanceof RateLimitError) || friends.length === 0) throw error
+    counters.failedPages++
+    rateLimit = { retryAfterMs: error.retryAfterMs }
+  }
 
   const completeness: RosterCompleteness =
     counters.failedPages === 0 && counters.skippedRecords === 0 && friends.length < MAX_FRIENDS
@@ -260,6 +268,7 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
     presence: 'complete',
     completeness,
     failedPages: counters.failedPages,
-    skippedRecords: counters.skippedRecords
+    skippedRecords: counters.skippedRecords,
+    ...(rateLimit ? { rateLimit } : {})
   }
 }

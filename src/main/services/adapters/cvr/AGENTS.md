@@ -27,6 +27,11 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Local Contracts
 
+- Roster and background instance enrichment use no-retry requests. Rate limits
+  end the active batch, suppress subsequent background launches during cooldown,
+  and propagate without negative caching. No timer replays dropped batches;
+  later valid refreshes can resolve again. Interactive request policy is retained.
+
 - Request cancellation and admission overflow are control flow: propagate
   `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
   Never continue a page batch or negative-cache these outcomes. Account-owned

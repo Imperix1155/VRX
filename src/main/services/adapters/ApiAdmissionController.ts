@@ -1,5 +1,5 @@
 import { API_REQUEST_MIN_INTERVAL_MS } from '@shared/constants'
-import { RequestCancelledError, RequestQueueFullError } from './errors'
+import { RateLimitError, RequestCancelledError, RequestQueueFullError } from './errors'
 
 export type RequestPriority = 'default' | 'interactive' | 'background'
 
@@ -15,6 +15,8 @@ export interface AdmissionOptions {
   priority?: RequestPriority
   signal?: AbortSignal
   notBefore?: number
+  /** Batch work stops at cooldown instead of sleeping and replaying it later. */
+  rejectOnCooldown?: boolean
 }
 
 export interface AdmissionClock {
@@ -100,6 +102,9 @@ export class ApiAdmissionController {
 
   acquire(options: AdmissionOptions = {}): Promise<void> {
     if (options.signal?.aborted) return Promise.reject(new RequestCancelledError())
+    if (options.rejectOnCooldown && this.cooldownRemainingMs > 0) {
+      return Promise.reject(new RateLimitError(this.cooldownRemainingMs))
+    }
     const capacity =
       options.priority === 'interactive'
         ? this.maxPending
@@ -132,6 +137,14 @@ export class ApiAdmissionController {
   deferUntil(deadline: number): void {
     if (!Number.isFinite(deadline)) throw new Error('Invalid cooldown deadline')
     this.cooldown = Math.max(this.cooldown, deadline)
+    if (this.cooldownRemainingMs > 0) {
+      for (const waiter of [...this.waiters]) {
+        if (!waiter.options.rejectOnCooldown) continue
+        this.waiters.splice(this.waiters.indexOf(waiter), 1)
+        waiter.removeAbort()
+        waiter.reject(new RateLimitError(this.cooldownRemainingMs))
+      }
+    }
     this.wake?.abort()
   }
 

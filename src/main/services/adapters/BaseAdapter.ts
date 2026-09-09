@@ -88,7 +88,12 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     let notBefore: number | undefined
     for (let attempt = 0; ; attempt++) {
       do {
-        await this.admission.acquire({ priority, signal, notBefore })
+        await this.admission.acquire({
+          priority,
+          signal,
+          notBefore,
+          rejectOnCooldown: retry === 'none'
+        })
         if (signal?.aborted) throw new RequestCancelledError()
         assertRequestLease(requestOptions.lease)
         beforeDispatch?.()

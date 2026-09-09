@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
-import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import type { FriendRoster, IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
+import { RateLimitError, RequestQueueFullError } from '../services/adapters/errors'
 import type { AppStatusService } from '../services/appStatus'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
@@ -19,9 +20,21 @@ export function registerFriendsHandlers(
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     const revision = authority.captureSeedRevision(req.platform)
-    const roster = await adapter.getFriends()
+    let roster: FriendRoster
+    try {
+      roster = await adapter.getFriends()
+    } catch (error) {
+      // Error properties do not survive Electron's invoke wrapping. Reuse the
+      // preload-normalized marker that the query client never retries.
+      if (error instanceof RateLimitError || error instanceof RequestQueueFullError) {
+        throw new Error('rate_limited')
+      }
+      throw error
+    }
     authority.seed(req.platform, roster.friends, revision, roster.completeness)
     appStatus.recordReconcile(req.platform)
-    return roster.friends
+    return roster.completeness === 'partial'
+      ? { friends: roster.friends, completeness: 'partial' as const }
+      : roster.friends
   })
 }

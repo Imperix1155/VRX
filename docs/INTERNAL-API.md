@@ -23,7 +23,7 @@ tests do not install the preload; every consumer must guard that absence.
 
 | `window.vrx.…`                                               | IPC channel                    | Returns                                                                                                                                                                                                                         |
 | ------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getFriends({ platform })`                                   | `get-friends`                  | `Promise<Friend[]>`                                                                                                                                                                                                             |
+| `getFriends({ platform })`                                   | `get-friends`                  | `Promise<Friend[]                                                                                                                                                                                                               | { friends: Friend[]; completeness: 'partial' }>` |
 | `getAvatar({ url })`                                         | `get-avatar`                   | `Promise<{ ok, dataUrl } \| null>` — allowlisted main-process avatar fetch (VRX-48); see §6 AvatarCache                                                                                                                         |
 | `getAccounts()`                                              | `get-accounts`                 | `Promise<Account[]>`                                                                                                                                                                                                            |
 | `getAuthStatus({ platform })`                                | `get-auth-status`              | `Promise<AuthStatus>`                                                                                                                                                                                                           |
@@ -171,7 +171,7 @@ the only remaining renderer→main surface: 21 invokes and `renderer-hydrated`.
 
 | Channel             | Request                                                                 | Response                         | Handler             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------- | ----------------------------------------------------------------------- | -------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get-friends`       | `{ platform }`                                                          | `Friend[]`                       | `ipc/friends.ts`    | Captures a LocationAuthority revision before delegation and seeds every successful response; throws when nothing fetched AND pages/records failed                                                                                                                                                                                                                                                                                                                             |
+| `get-friends`       | `{ platform }`                                                          | `Friend[]` or partial envelope   | `ipc/friends.ts`    | Captures a LocationAuthority revision before delegation and seeds every successful response; partial envelopes preserve omitted cached friends; rate limits map to `rate_limited`; throws when nothing fetched AND pages/records failed                                                                                                                                                                                                                                       |
 | `get-avatar`        | `{ url }`                                                               | `{ok:true,dataUrl} \| null`      | `ipc/avatar.ts`     | Shape/length-validates the URL, then delegates to the allowlisted AvatarCache                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `get-accounts`      | —                                                                       | `Account[]`                      | `ipc/accounts.ts`   | AccountRegistry active/known entries only for platforms with a currently ready AccountSession; fully logged out returns `[]`; tombstones excluded; logged-out picker deferred to VRX-89                                                                                                                                                                                                                                                                                       |
 | `get-auth-status`   | `{ platform }`                                                          | `AuthStatus`                     | `ipc/auth.ts`       | `needs-2fa` carries `twoFactorMethod`; authenticated adoption passes `status.accountId` plus a captured AccountSession epoch and rejects either mismatch (VRX-24/173)                                                                                                                                                                                                                                                                                                         |
@@ -238,16 +238,16 @@ carry `status`/`trustRank` (§5).
 every platform must implement. VRChat and ChilloutVR adapters are registered
 per-platform in `main/app.ts`.
 
-| Method                         | Purpose                                                                                                                                | VRChat status     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| `getAuthStatus()`              | Session check → `authenticated` / `unauthenticated` / `needs-2fa`(+method) / `error`. Clears the session on 401; keeps it on needs-2fa | ✅                |
-| `login(credentials)`           | First leg; success follows secure session persistence, while `needs2fa` routes to the 2FA prompt                                       | ✅                |
-| `verify2fa(code)`              | Second leg via session cookie (no password); success follows secure session persistence                                                | ✅                |
-| `getFriends()`                 | `FriendRoster { friends, completeness }`; complete/partial authority is explicit, and unavailable presence rejects as degraded         | ✅                |
-| `getInstanceDetails(id)`       | Full `InstanceInfo` on demand — CVR: via the VRX-59 resolver (rejects when unresolvable); VRChat: still a stub                         | CVR ✅ / VRC stub |
-| `buildJoinUrl(instance, mode)` | Pure per-platform URL construction; main IPC owns validation + launch. VRChat mode is a no-op because its URI has no mode field        | ✅                |
-| `selfInvite(id)`               | Invite self to a non-public instance                                                                                                   | ✅                |
-| `subscribe(handler)`           | Live `AdapterEvent` stream; returns `Unsubscribe`. One shared pipeline per adapter                                                     | ✅                |
+| Method                         | Purpose                                                                                                                                    | VRChat status     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| `getAuthStatus()`              | Session check → `authenticated` / `unauthenticated` / `needs-2fa`(+method) / `error`. Clears the session on 401; keeps it on needs-2fa     | ✅                |
+| `login(credentials)`           | First leg; success follows secure session persistence, while `needs2fa` routes to the 2FA prompt                                           | ✅                |
+| `verify2fa(code)`              | Second leg via session cookie (no password); success follows secure session persistence                                                    | ✅                |
+| `getFriends()`                 | `FriendRoster { friends, completeness, rateLimit? }`; complete/partial authority is explicit, and unavailable presence rejects as degraded | ✅                |
+| `getInstanceDetails(id)`       | Full `InstanceInfo` on demand — CVR: via the VRX-59 resolver (rejects when unresolvable); VRChat: still a stub                             | CVR ✅ / VRC stub |
+| `buildJoinUrl(instance, mode)` | Pure per-platform URL construction; main IPC owns validation + launch. VRChat mode is a no-op because its URI has no mode field            | ✅                |
+| `selfInvite(id)`               | Invite self to a non-public instance                                                                                                       | ✅                |
+| `subscribe(handler)`           | Live `AdapterEvent` stream; returns `Unsubscribe`. One shared pipeline per adapter                                                         | ✅                |
 
 Both adapters' injected live-wiring options include `onIdentity?: (accountId: string | null) => void` (VRX-24). They publish `null` before every identity-clearing `onSessionBoundary`, so boundary callbacks cannot observe the outgoing account through `AccountSession`, then publish the current platform user id only after generation-guarded auth state settles. The VRChat data-path `AuthError` boundary is exempt because it may represent only an expired second factor and deliberately retains identity pending `getAuthStatus`. `onIdentity` feeds only `AccountSession`/registry state. The injected credential stores use `save(credential, accountId: string | null)`; after successful login, 2FA, or restore validation, adapters persist before publishing the non-null identity. Each `main/app.ts` save closure calls `saveCredential` first and records a non-null owner only if that ciphertext write succeeds. `saveCredential` revokes the old slot with an exact non-secret marker before any keychain or replacement write that can fail, so even failed best-effort deletion cannot make the prior account restorable. This is main-only state and adds no IPC or broadcast.
 
@@ -481,7 +481,7 @@ and success remains the only path that invalidates auth status.
 
 `services/adapters/ApiAdmissionController.ts` exports the main-only controller
 injected as the second `VrcAdapter`/`CvrAdapter` constructor argument and through
-`AvatarCache.setApiAdmission`. `acquire({ priority?, signal?, notBefore? })`
+`AvatarCache.setApiAdmission`. `acquire({ priority?, signal?, notBefore?, rejectOnCooldown? })`
 admits one API attempt; `deferUntil(deadline)` monotonically extends cooldown;
 `rateLimited(Retry-After)` parses seconds/date or growing jittered fallback and
 returns the shared deadline. `cooldownUntil`, `cooldownRemainingMs` and
@@ -501,7 +501,15 @@ separate; concrete clients capture a lease before queuing and build matching
 headers after admission. `assertRequestLease` rejects obsolete work before
 fetch, retry and body publication. Auth/session cancellation is not an auth
 failure or circuit failure. Old rosters/details reject; a new account needs a
-fresh operation. Roster-specific no-retry consumption is still pending.
+fresh operation. Rosters and background metadata use no-retry mode: a 429
+ends the batch and rejects its queued admissions. During cooldown they fail
+without dispatch; no automatic batch replay is scheduled. Explicit operations
+retain their existing bounded retry policy. Main-only `FriendRoster.rateLimit`
+records the remaining wait when useful pages can be returned as partial.
+The friends IPC boundary exposes only a partial marker, never the deadline;
+`fetchFriends(platform, getCached?)` merges omitted current-session entries
+after the bridge resolves. Unavailable rate-limited rosters and admission
+overflow use the existing `rate_limited` error with no outer query retry.
 
 `VrcAdapter.getAvatarRequestLease()` returns a durable session lease with a
 main-only `getCookie()` accessor, or null during logout/quarantine.

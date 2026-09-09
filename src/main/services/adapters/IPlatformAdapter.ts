@@ -25,6 +25,8 @@ export type RosterCompleteness = 'complete' | 'partial'
 export interface FriendRoster {
   friends: Friend[]
   completeness: RosterCompleteness
+  /** Main-only batch stop metadata; the controller retains the live deadline. */
+  rateLimit?: { retryAfterMs: number }
 }
 
 export interface IPlatformAdapter {

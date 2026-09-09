@@ -12,7 +12,7 @@
 
 import { z } from 'zod'
 import type { AdapterRequestOptions } from '../BaseAdapter'
-import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
+import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
@@ -158,6 +158,7 @@ export function createGroupResolver(options: {
       // A dead session must reach VrcAdapter's auth-invalidated boundary.
       if (
         error instanceof AuthError ||
+        error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError
       )

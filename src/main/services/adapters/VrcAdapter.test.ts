@@ -4,7 +4,7 @@ import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } fr
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
 import { ApiAdmissionController } from './ApiAdmissionController'
-import { AuthError, AuthSessionPendingError } from './errors'
+import { AuthError, AuthSessionPendingError, RateLimitError } from './errors'
 import {
   jsonResponse,
   markVrcSessionEstablished as markSessionEstablished,
@@ -46,12 +46,46 @@ describe('VRChat dispatch cancellation', () => {
     vi.unstubAllGlobals()
   })
 
+  it('stops a physical roster batch on 429 and suppresses enrichment and repeat refreshes', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (href.endsWith('/auth/user'))
+        return Promise.resolve(jsonResponse({ onlineFriends: ['usr_0'] }))
+      if (href.includes('offset=0&') && href.includes('offline=false')) {
+        return Promise.resolve(
+          jsonResponse(
+            Array.from({ length: 100 }, (_, i) => ({
+              id: `usr_${i}`,
+              displayName: `Friend ${i}`,
+              location: 'wrld_test:123~group(grp_test)'
+            }))
+          )
+        )
+      }
+      return Promise.resolve(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const admission = instantAdmission()
+    const adapter = new VrcAdapter(fakeStore('auth=a'), admission)
+    markSessionEstablished(adapter)
+    const roster = await adapter.getFriends()
+    expect(roster.friends).toHaveLength(100)
+    expect(roster).toMatchObject({
+      completeness: 'partial',
+      rateLimit: { retryAfterMs: expect.any(Number) }
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(admission.pendingCount).toBe(0)
+    await expect(adapter.getFriends()).rejects.toBeInstanceOf(RateLimitError)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
   it('sends neither account cookie for an obsolete queued roster after switching', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     vi.spyOn(Math, 'random').mockReturnValue(0)
     const admission = new ApiAdmissionController()
-    admission.deferUntil(20_000)
+    await admission.acquire()
     const fetchMock = vi
       .fn()
       .mockImplementation(() =>

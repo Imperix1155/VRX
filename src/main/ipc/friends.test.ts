@@ -5,6 +5,11 @@ import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterT
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { AppStatusService } from '../services/appStatus'
 import { LocationAuthority } from '../services/locationAuthority'
+import {
+  RateLimitError,
+  CVRRateLimitError,
+  RequestQueueFullError
+} from '../services/adapters/errors'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
 vi.mock('electron', () => ({
@@ -53,6 +58,18 @@ beforeEach(() => {
 })
 
 describe('get-friends location seeding', () => {
+  it.each([new RateLimitError(60_000), new CVRRateLimitError(60_000), new RequestQueueFullError()])(
+    'sanitizes admission failures and preserves existing authority',
+    async (error) => {
+      vi.mocked(adapter.getFriends).mockRejectedValue(error)
+      const seed = vi.spyOn(authority, 'seed')
+      await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).rejects.toThrow(
+        /^rate_limited$/
+      )
+      expect(seed).not.toHaveBeenCalled()
+      expect(appStatus.snapshot().lastReconcileAt.vrchat).toBeNull()
+    }
+  )
   it('rejects an untrusted sender before adapter delegation', async () => {
     trusted.value = false
 
@@ -157,9 +174,10 @@ describe('get-friends location seeding', () => {
       completeness: 'partial'
     })
 
-    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual([
-      rosterFriend
-    ])
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
+      friends: [rosterFriend],
+      completeness: 'partial'
+    })
     expect(authority.resolve('vrchat', omittedFriend.platformUserId)).toMatchObject({
       ok: true,
       friend: { platformUserId: omittedFriend.platformUserId }
