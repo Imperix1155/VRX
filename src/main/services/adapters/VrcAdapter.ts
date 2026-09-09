@@ -41,6 +41,8 @@ export interface VrcCredentialStore {
 }
 
 export interface VrcLiveWiring {
+  /** Captures main's location fence when a physical roster read begins. */
+  captureRosterRevision?: () => number
   socketFactory?: (url: string) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
@@ -144,7 +146,8 @@ function isInstanceLocation(location: string): boolean {
 export class VrcAdapter extends VrcApiClient {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
-    () => this.admission.cooldownRemainingMs
+    () => this.admission.cooldownRemainingMs,
+    () => this.live?.captureRosterRevision?.()
   )
   private sessionAbort = new AbortController()
   private authOperationAbort = new AbortController()
@@ -795,16 +798,11 @@ export class VrcAdapter extends VrcApiClient {
           groupImageUrl: meta.iconUrl
         })
       },
-      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0
+      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0,
+      (error) => this.handleMetadataFailure(error, generation)
     )
       .catch((error: unknown) => {
-        if (generation !== this.sessionGeneration) return
-        if (error instanceof AuthSessionPendingError) return
-        if (error instanceof AuthError && error.status === 401) {
-          this.bumpSessionGeneration()
-          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-          return
-        }
+        if (this.handleMetadataFailure(error, generation)) return
         this.live?.log?.('warn', 'vrc adapter: group enrichment failed', {
           message: error instanceof Error ? error.message : String(error)
         })
@@ -853,19 +851,11 @@ export class VrcAdapter extends VrcApiClient {
           thumbnailUrl: meta.thumbnailUrl
         })
       },
-      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0
+      () => generation === this.sessionGeneration && this.admission.cooldownRemainingMs === 0,
+      (error) => this.handleMetadataFailure(error, generation)
     )
       .catch((error: unknown) => {
-        if (generation !== this.sessionGeneration) return
-        if (error instanceof AuthSessionPendingError) return
-        if (error instanceof AuthError && error.status === 401) {
-          // A background 401 has the same meaning as the former awaited path:
-          // preserve the cookie for the 2FA-aware status check, quarantine the
-          // roster, and fence every other resolution from this generation.
-          this.bumpSessionGeneration()
-          this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
-          return
-        }
+        if (this.handleMetadataFailure(error, generation)) return
         this.live?.log?.('warn', 'vrc adapter: world enrichment failed', {
           message: error instanceof Error ? error.message : String(error)
         })
@@ -877,6 +867,17 @@ export class VrcAdapter extends VrcApiClient {
         // 60 s negative-cache window or at reconcile.
         for (const id of kicked) this.pendingWorldResolutions.delete(id)
       })
+  }
+
+  private handleMetadataFailure(error: unknown, generation: number): boolean {
+    if (generation !== this.sessionGeneration || error instanceof AuthSessionPendingError)
+      return true
+    if (!(error instanceof AuthError) || error.status !== 401) return false
+    // Invalidate immediately, even while another batch worker is still active.
+    // Keep the cookie for the existing 2FA-aware status check.
+    this.bumpSessionGeneration()
+    this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+    return true
   }
 
   private withWorldMetadata<T extends Friend>(friend: T, meta: WorldMeta): T {

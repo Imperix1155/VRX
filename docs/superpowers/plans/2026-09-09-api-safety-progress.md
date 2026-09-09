@@ -202,3 +202,20 @@ Usage was 36% used before the final pass. No reset credit redeemed. No live
 platform traffic, installed-app restart or release occurred. General review is
 next; required external reviews/CI and owner merge authority are still absent.
 The branch has no existing open PR. Explore integration remains gated.
+
+## General review corrections in progress
+
+The six-unit checkpoint `46d155f` is pushed. Fresh Astra/High read-only general
+review found two material races before PR creation: late shared-roster callers
+could re-date old locations, and surviving metadata workers could resume after
+a short cooldown and outlive their pending-ID ownership. Both are being fixed
+with synthetic regressions; the verification ledger records the review anchor
+and scope. Focused review, refreshed gates and external reviews/CI remain.
+
+The unchanged baseline js-yaml audit failure is owned by a separately authorized
+dependency-repair task. This branch does not change package manifests/lockfiles
+or waive audit. Explore remains gated. No merge, release or live-account grant.
+
+Correction gate: 165 files / 2,532 tests passed, with both metadata stop-latch
+mutations reproduced and restored. Lint/format/build/diff checks passed as
+`FOCUSED_PROJECT_GATE_GREEN`. Focused read-only review is the next gate.

@@ -382,6 +382,7 @@ app
     const vrcAdmission = new ApiAdmissionController()
     const cvrAdmission = new ApiAdmissionController()
     const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
+      captureRosterRevision: () => locationAuthority.captureSeedRevision('vrchat'),
       // handshakeTimeout bounds a black-holed connect so the reconnect backoff
       // can retry instead of waiting for the OS default (~1-2 min).
       socketFactory: createVrcSocket,
@@ -456,6 +457,7 @@ app
     // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the
     // socketFactory forwards them verbatim; logs route through the redaction hook.
     const cvrAdapter = new CvrAdapter(cvrCredentials, cvrAdmission, {
+      captureRosterRevision: () => locationAuthority.captureSeedRevision('chilloutvr'),
       // Same black-hole guard as the VRChat pipeline (audit OP-A4).
       socketFactory: createCvrSocket,
       log: (level, message, meta) => log[level](message, meta),

@@ -41,6 +41,10 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
   Cooldown, cancellation and failed reads discard pending follow-up work.
   Partial final data retains first-read omissions. Identity-checked cleanup
   cannot erase a replacement account's operation; session boundaries clear it.
+  Main injects a LocationAuthority revision capture before each physical read,
+  including warming. Partial aggregation retains each read's original seed
+  provenance; later joiners cannot re-date old entries or clear live fences with
+  pre-reconnect data. These revisions stay in main.
 
 - Roster and background instance enrichment use no-retry requests. Rate limits
   end the active batch, suppress subsequent background launches during cooldown,

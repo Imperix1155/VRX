@@ -40,6 +40,10 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
   Cooldown, cancellation and failed reads discard pending follow-up work.
   Partial final data retains first-read omissions. Identity-checked cleanup
   cannot erase a replacement account's operation; session boundaries clear it.
+  Main injects a LocationAuthority revision capture before each physical read,
+  including warming. Partial aggregation retains each read's original seed
+  provenance; later joiners cannot re-date old entries or clear live fences with
+  pre-reconnect data. These revisions stay in main.
 
 - Request cancellation and admission overflow are control flow: propagate
   `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.

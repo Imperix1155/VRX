@@ -27,6 +27,8 @@ export interface FriendRoster {
   completeness: RosterCompleteness
   /** Main-only batch stop metadata; the controller retains the live deadline. */
   rateLimit?: { retryAfterMs: number }
+  /** Main-only publication provenance, captured before each physical read. */
+  seeds?: Array<{ revision: number; friends: Friend[]; completeness: RosterCompleteness }>
 }
 
 export interface IPlatformAdapter {

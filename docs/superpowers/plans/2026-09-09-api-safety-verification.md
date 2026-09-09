@@ -88,7 +88,53 @@ evidence, not packaged application files or a claim of permanent remote storage.
 
 ## Review and delivery
 
-General review, external critical reviews and current-head CI are pending.
-The general review must record its immutable base/head/diff hash, actual routing,
-findings and disposition here. Any Codex review is same-lineage fresh context,
-not independent model-family confirmation. No merge readiness is claimed.
+General review used fresh Astra at High through an ephemeral read-only CLI
+session (v0.153.4, approval never) over base `9dbac8b` through
+`46d155fdbf4eb323313887d2b88c15415e021c8f`. Artifact SHA-256:
+`3594f4e03b51a208685b52cebe17521512b39a5dc457e40d00562e2e17923283`,
+480,817 bytes / 8,536 lines / 61 files. The reviewer verified the artifact
+against Git and reported two material findings before PR creation:
+
+- P1: a later IPC caller joining a shared roster supplied a newer location fence
+  to old data, overwriting a newer live location. Both real-adapter/IPC
+  regressions reproduced this. The correction captures each physical read's
+  revision, including warming before IPC, and preserves separate chronological
+  seed batches when the follow-up is partial. Reconnect tests cover fresh final
+  data, live updates, stale omissions and removal semantics.
+- P2: a metadata worker could resume the old batch after a short cooldown while
+  another worker had already rejected; early settlement also released pending
+  ownership. The correction permanently latches failure, retains ownership until
+  all active workers settle and reports resolver failures immediately so a 401
+  cannot wait behind another response. World/group regressions cover resumed
+  guards, untouched IDs, later auth failure and adapter ownership/invalidation.
+
+These are bounded corrections to publication provenance and metadata pool
+lifetime. Admission, session-lease architecture, image transport, pagination,
+reconnect and renderer contracts remain under the general anchor; focused
+review must validate the exact corrections and their cumulative effects.
+External critical reviews and current-head CI remain pending. All Codex review
+is same-lineage fresh context, not independent model-family confirmation.
+No merge readiness or merge authority is claimed.
+
+### Correction verification
+
+The corrected full suite passed 165 files / 2,532 tests. Lint initially rejected
+six unnecessary test assertions; removing them changed no runtime behavior.
+The affected 38 tests passed again, followed by lint, format, build and diff
+checks (`FOCUSED_PROJECT_GATE_GREEN`). Both metadata latch mutations failed by
+dispatching the untouched ID after recovery; exact sources were restored and
+the 20 pool tests passed (`FOCUSED_MUTATION_GREEN`). The first mutation command
+selected an outdated test name and skipped all tests; it is excluded as evidence.
+
+The initial adapter auth fixture accidentally subscribed a synthetic session
+and started a reconnect loop that interfered with later mocks. It now observes
+the private emitter without subscribing. The final suite is clean. No real
+account credentials were used.
+
+Refreshed Fallow dead-code analysis retains only the unchanged pre-existing
+`IpcEventChannel` type. Production duplicate analysis reports nine groups /
+311 lines (1.11%); the additional group is the corresponding world/group pool
+stop logic, intentionally kept in the existing separately typed fetchers. The
+other groups remain the reviewed guards, auth fences, event decoding and query
+folding. No new unused export/dependency/import failure was found. Focused
+review of these exact corrections is next.

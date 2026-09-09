@@ -46,6 +46,48 @@ describe('VRChat dispatch cancellation', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['world', 'group'] as const)(
+    'invalidates a background %s 401 before another worker settles',
+    async (kind) => {
+      const adapter = new VrcAdapter(fakeStore('auth=synthetic'), instantAdmission())
+      markSessionEstablished(adapter)
+      const internal = adapter as unknown as {
+        sessionGeneration: number
+        worldResolver: { resolve(id: string): Promise<unknown> }
+        groupResolver: { resolve(id: string): Promise<unknown> }
+        emit(event: AdapterEvent): void
+        kickWorldMetadata(friends: Friend[], generation: number): void
+        kickGroupMetadata(friends: Friend[], generation: number): void
+      }
+      let release!: () => void
+      const slow = new Promise<null>((resolve) => {
+        release = () => resolve(null)
+      })
+      const resolver = kind === 'world' ? internal.worldResolver : internal.groupResolver
+      const resolve = vi
+        .spyOn(resolver, 'resolve')
+        .mockReturnValueOnce(slow)
+        .mockRejectedValueOnce(new AuthError('expired', 401))
+        .mockResolvedValue(null)
+      const events: AdapterEvent[] = []
+      vi.spyOn(internal, 'emit').mockImplementation((event) => events.push(event))
+      const generation = internal.sessionGeneration
+      const friends = Array.from({ length: CONCURRENCY_LIMIT + 1 }, (_, i) => ({
+        instance: { worldId: `wrld_${i}`, groupId: `grp_${i}` }
+      })) as Friend[]
+      if (kind === 'world') internal.kickWorldMetadata(friends, generation)
+      else internal.kickGroupMetadata(friends, generation)
+      await vi.waitFor(() =>
+        expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      )
+      expect(internal.sessionGeneration).toBeGreaterThan(generation)
+      expect(resolve.mock.calls.map(([id]) => id)).not.toContain(
+        `${kind === 'world' ? 'wrld' : 'grp'}_${CONCURRENCY_LIMIT}`
+      )
+      release()
+    }
+  )
+
   it('coalesces simultaneous VRChat roster reads into one physical pagination', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) =>
       Promise.resolve(
@@ -68,6 +110,53 @@ describe('VRChat dispatch cancellation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(results.every((result) => result === results[0])).toBe(true)
   })
+
+  it.each(['world', 'group'] as const)(
+    'retains failed %s batch ownership until active workers settle',
+    async (kind) => {
+      const adapter = new VrcAdapter(fakeStore('auth=synthetic'), instantAdmission())
+      markSessionEstablished(adapter)
+      const internal = adapter as unknown as {
+        sessionGeneration: number
+        worldResolver: { resolve(id: string): Promise<unknown> }
+        groupResolver: { resolve(id: string): Promise<unknown> }
+        pendingWorldResolutions: Set<string>
+        pendingGroupResolutions: Set<string>
+        kickWorldMetadata(friends: Friend[], generation: number): void
+        kickGroupMetadata(friends: Friend[], generation: number): void
+      }
+      let release!: () => void
+      const slow = new Promise<null>((resolve) => {
+        release = () => resolve(null)
+      })
+      const resolver = kind === 'world' ? internal.worldResolver : internal.groupResolver
+      const pending =
+        kind === 'world' ? internal.pendingWorldResolutions : internal.pendingGroupResolutions
+      const resolve = vi
+        .spyOn(resolver, 'resolve')
+        .mockReturnValueOnce(slow)
+        .mockRejectedValueOnce(new RateLimitError(1))
+        .mockResolvedValue(null)
+      const friends = Array.from({ length: CONCURRENCY_LIMIT + 1 }, (_, i) => ({
+        instance: { worldId: `wrld_${i}`, groupId: `grp_${i}` }
+      })) as Friend[]
+      const kick = (): void => {
+        if (kind === 'world') internal.kickWorldMetadata(friends, internal.sessionGeneration)
+        else internal.kickGroupMetadata(friends, internal.sessionGeneration)
+      }
+      kick()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(pending.size).toBe(CONCURRENCY_LIMIT + 1)
+      kick()
+      expect(resolve).toHaveBeenCalledTimes(CONCURRENCY_LIMIT)
+      release()
+      await vi.waitFor(() => expect(pending.size).toBe(0))
+      expect(resolve).toHaveBeenCalledTimes(CONCURRENCY_LIMIT)
+      kick()
+      await vi.waitFor(() => expect(resolve).toHaveBeenCalledTimes(2 * CONCURRENCY_LIMIT + 1))
+      await vi.waitFor(() => expect(pending.size).toBe(0))
+    }
+  )
 
   it('stops a physical roster batch on 429 and suppresses enrichment and repeat refreshes', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {

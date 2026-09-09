@@ -40,6 +40,8 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
  *  electron-log bridge live in main/app.ts; tests inject fakes. */
 export interface CvrLiveWiring {
+  /** Captures main's location fence when a physical roster read begins. */
+  captureRosterRevision?: () => number
   socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
@@ -84,7 +86,8 @@ export interface CvrCredentialStore {
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
-    () => this.admission.cooldownRemainingMs
+    () => this.admission.cooldownRemainingMs,
+    () => this.live?.captureRosterRevision?.()
   )
   private sessionAbort = new AbortController()
   private loginAbort = new AbortController()

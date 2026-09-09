@@ -31,7 +31,13 @@ export function registerFriendsHandlers(
       }
       throw error
     }
-    authority.seed(req.platform, roster.friends, revision, roster.completeness)
+    if (roster.seeds) {
+      for (const seed of roster.seeds) {
+        authority.seed(req.platform, seed.friends, seed.revision, seed.completeness)
+      }
+    } else {
+      authority.seed(req.platform, roster.friends, revision, roster.completeness)
+    }
     appStatus.recordReconcile(req.platform)
     return roster.completeness === 'partial'
       ? { friends: roster.friends, completeness: 'partial' as const }
