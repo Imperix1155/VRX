@@ -102,3 +102,19 @@ without that consent, disclose the visual verification gap and park that gate.
   physical-attempt/cooldown/session/dedupe/socket tests, local/CI/critical review
   evidence, integration checks and approval of recalculated Explore traffic.
   The old sixteen-request proposal remains withdrawn.
+
+## Correction checkpoint
+
+The fresh general review confirmed T1 isolation and found five bounded gaps:
+unknown VRC access coverage, incomplete empty-sheet copy, Dashboard source state,
+the sheet's non-color platform label, and Home/End count bounds. All five are
+corrected. The [review ledger](2026-09-09-explore-phase-a-review.md) records the
+general anchor and correction scope. The corrected source passes all 2,503 tests,
+uncached lint, formatting, both typechecks, build and diff whitespace
+(`EXPLORE_CORRECTION_GATE_GREEN`). Each correction has a failing mutation probe;
+source was restored, with 29 UI/locale tests passing afterward. Static analysis
+findings remain unchanged from the general anchor.
+
+Fresh focused review and draft-PR CI are next. All component/parser workers have
+finished; their isolated worktrees and diagnostic artifacts are retained. Weekly
+usage was 37% consumed at this checkpoint; no reset credits were redeemed.

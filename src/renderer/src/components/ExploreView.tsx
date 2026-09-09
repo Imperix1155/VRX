@@ -10,6 +10,7 @@ import { EXPLORE_WORLD_TOTALS } from '@shared/explore'
 import NumberStepper from './NumberStepper'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
+import ExploreSourceState from './ExploreSourceState'
 
 export interface ExploreViewProps {
   worlds: readonly ExploreWorld[]
@@ -24,43 +25,6 @@ export interface ExploreViewProps {
   onOpenWorld: (world: ExploreWorld, opener: HTMLElement) => void
   onCloseSheet: () => void
   onJoinRoom: (room: ExploreRoom) => void
-}
-
-function SourceState({
-  sources
-}: {
-  sources: readonly ExplorePlatformSnapshot[]
-}): React.JSX.Element | null {
-  const { t } = useTranslation()
-  const statusKey = (source: ExplorePlatformSnapshot): string | null => {
-    if (source.status === 'loading') return 'explore.sourceState.loading'
-    if (source.status === 'error') return 'explore.sourceState.error'
-    if (source.status === 'unavailable') return 'explore.sourceState.unavailable'
-    if (source.isStale) return 'explore.sourceState.stale'
-    return null
-  }
-  const states = sources
-    .map((source) => ({ source, key: statusKey(source) }))
-    .filter(
-      (entry): entry is { source: ExplorePlatformSnapshot; key: string } => entry.key !== null
-    )
-  if (states.length === 0) return null
-  return (
-    <ul className="grid gap-[var(--space-1)] text-sm">
-      {states.map(({ source, key }) => (
-        <li
-          key={source.platform}
-          className={source.status === 'error' ? 'text-[var(--error)]' : 'text-[var(--text-dim)]'}
-        >
-          {t(key, {
-            platform: t(
-              source.platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr'
-            )
-          })}
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 /** Presentational grid. The existing platform selector remains owned by the shell. */
@@ -87,6 +51,10 @@ export default function ExploreView({
   )
   const setTotal = (raw: number): void => {
     if (raw === total) return
+    if (EXPLORE_WORLD_TOTALS.includes(raw as ExploreWorldTotal)) {
+      onTotalChange(raw as ExploreWorldTotal)
+      return
+    }
     const next =
       raw > total
         ? EXPLORE_WORLD_TOTALS.find((value) => value > total)
@@ -116,7 +84,7 @@ export default function ExploreView({
         </div>
       </div>
       <div className="mt-[var(--space-4)]">
-        <SourceState sources={shownSources} />
+        <ExploreSourceState sources={shownSources} />
       </div>
       {worlds.length === 0 &&
       !shownSources.some((source) => source.status === 'loading') &&

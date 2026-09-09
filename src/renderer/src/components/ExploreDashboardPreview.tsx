@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import type { ExploreWorld } from '@shared/explore'
+import type { ExplorePlatformSnapshot, ExploreWorld } from '@shared/explore'
 import ExploreWorldCard from './ExploreWorldCard'
+import ExploreSourceState from './ExploreSourceState'
 
 export interface ExploreDashboardPreviewProps {
   worlds: readonly ExploreWorld[]
+  platformSnapshots: readonly ExplorePlatformSnapshot[]
   images?: Readonly<Record<string, string | undefined>>
   onOpenWorld: (world: ExploreWorld, opener: HTMLElement) => void
 }
@@ -11,11 +13,19 @@ export interface ExploreDashboardPreviewProps {
 /** Dashboard composition receives the same selector output, already capped to two. */
 export default function ExploreDashboardPreview({
   worlds,
+  platformSnapshots,
   images,
   onOpenWorld
 }: ExploreDashboardPreviewProps): React.JSX.Element | null {
   const { t } = useTranslation()
-  if (worlds.length === 0) return null
+  const hasSourceState = platformSnapshots.some(
+    (source) =>
+      source.status === 'loading' ||
+      source.status === 'error' ||
+      source.status === 'unavailable' ||
+      source.isStale
+  )
+  if (worlds.length === 0 && !hasSourceState) return null
   return (
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
@@ -24,16 +34,21 @@ export default function ExploreDashboardPreview({
       >
         {t('explore.popularNow')}
       </h2>
-      <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-        {worlds.slice(0, 2).map((world) => (
-          <ExploreWorldCard
-            key={`${world.platform}:${world.worldId}`}
-            world={world}
-            image={images?.[world.worldRef]}
-            onOpen={onOpenWorld}
-          />
-        ))}
+      <div className="mt-[var(--space-2)]">
+        <ExploreSourceState sources={platformSnapshots} />
       </div>
+      {worlds.length > 0 ? (
+        <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
+          {worlds.slice(0, 2).map((world) => (
+            <ExploreWorldCard
+              key={`${world.platform}:${world.worldId}`}
+              world={world}
+              image={images?.[world.worldRef]}
+              onOpen={onOpenWorld}
+            />
+          ))}
+        </div>
+      ) : null}
     </section>
   )
 }

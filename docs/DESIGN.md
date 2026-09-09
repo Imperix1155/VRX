@@ -618,6 +618,9 @@ action callbacks only; production shell/Dashboard wiring, image bridging, querie
 live discovery remain unchanged. Worlds shown defaults to 4 and offers only 2/4/6; Dashboard
 shows at most 2. Unknown totals remain unknown, fresh CVR public/group-public full rooms may
 remain actionable when main supplies that action, and VRChat action authority remains strict.
+Grid and Dashboard preview share named source states, including empty loading or failed
+sources. The sheet shows a platform text label and distinguishes incomplete coverage from
+verified empty results. Home/End select the count bounds.
 Live integration is blocked on the exact API-safety artifact and a newly approved traffic allowance.
 
 - Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
