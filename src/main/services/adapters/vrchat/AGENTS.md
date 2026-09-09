@@ -14,7 +14,9 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 - `parseExplore.ts` owns standalone phase-A discovery candidate/world/room
   parsers and strict Public/Group Public identifier classification (VRX-270).
   Canonical IDs and response identity must agree. Known region/nonce/ageGate
-  modifiers do not weaken access. Missing or contradictory eligibility disables
+  modifiers do not weaken access. Recognized non-public rooms are excluded;
+  malformed or unknown identifiers make enumeration partial with a null count.
+  Missing or contradictory eligibility disables
   joining; inherited flags cannot supply evidence. World `occupants` remain
   separate from tuple counts; room detail prefers valid `n_users`, then
   `userCount`, retaining provenance. No member payloads, I/O, action references

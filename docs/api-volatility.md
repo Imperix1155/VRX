@@ -364,7 +364,9 @@ production paths below are unchanged.
 
 - VRC cards retain aggregate `occupants`; tuple counts have separate provenance.
   Public/Group Public identifiers use a bounded modifier allowlist, independent
-  of the friend parser's public fallback. Room `worldId` and `instanceId` must
+  of the friend parser's public fallback. Known non-public access is excluded;
+  malformed/unknown access leaves enumeration partial with a null visible-room
+  count. Room `worldId` and `instanceId` must
   match the requested identity. The community schema names both `id` and
   `instanceId`, while a source response demonstrates a qualified `id`; an
   optional `id` must therefore match the instance or qualified location, and

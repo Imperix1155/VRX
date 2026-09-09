@@ -6,6 +6,7 @@ import type {
   ExploreRoom,
   ExploreWorldSnapshot
 } from '@shared/explore'
+import PlatformPill from './PlatformPill'
 
 export interface ExploreWorldSheetProps {
   snapshot: ExploreWorldSnapshot | null
@@ -152,7 +153,10 @@ export default function ExploreWorldSheet({
       <div
         ref={panelRef}
         role="dialog"
-        aria-label={t('explore.sheetAria', { world: world.name })}
+        aria-label={t('explore.sheetAria', {
+          world: world.name,
+          platform: t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
+        })}
         className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 max-h-[55vh] overflow-y-auto rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] bg-[var(--glass-frost)] p-[var(--space-4)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
       >
         <div
@@ -184,6 +188,9 @@ export default function ExploreWorldSheet({
           <h2 className="truncate text-xl font-bold text-[var(--text)]" title={world.name}>
             {world.name}
           </h2>
+          <div className="mt-[var(--space-1)]">
+            <PlatformPill platform={world.platform} />
+          </div>
           {shown.isStale ? (
             <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
               {t('explore.stale')}
@@ -208,9 +215,14 @@ export default function ExploreWorldSheet({
             {t('explore.roomsUnavailable')}
           </p>
         ) : null}
-        {shown.rooms.length === 0 && shown.status === 'ready' ? (
+        {shown.rooms.length === 0 && shown.status === 'ready' && shown.roomsComplete ? (
           <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
             {t('explore.noVisibleRooms')}
+          </p>
+        ) : null}
+        {shown.rooms.length === 0 && shown.status === 'ready' && !shown.roomsComplete ? (
+          <p className="mt-[var(--space-2)] text-sm text-[var(--text-faint)]">
+            {t('explore.incompleteRooms')}
           </p>
         ) : null}
         {shown.rooms.length > 0 ? (

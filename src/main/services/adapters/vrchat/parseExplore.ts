@@ -68,10 +68,11 @@ function parseVrcRoomResponseAccess(raw: RecordValue): ExplorePublicAccess | nul
 }
 
 /**
- * Accepts only the public and Group Public identifier forms used by discovery.
+ * Distinguishes documented access from failed qualification. Known non-public
+ * rooms are excluded; unknown/malformed identifiers leave coverage incomplete.
  * The permissive friend-location parser intentionally does not apply here.
  */
-export function parseVrcExplorePublicAccess(instanceId: unknown): ExplorePublicAccess | null {
+function classifyVrcExploreAccess(instanceId: unknown): ExplorePublicAccess | 'excluded' | null {
   if (typeof instanceId !== 'string' || instanceId.length === 0 || instanceId.length > 1024)
     return null
   const parts = instanceId.split('~')
@@ -84,7 +85,9 @@ export function parseVrcExplorePublicAccess(instanceId: unknown): ExplorePublicA
     return null
 
   let group = false
-  let groupPublic = false
+  let groupAccess: 'public' | 'plus' | 'members' | null = null
+  let ownerAccess: 'hidden' | 'friends' | 'private' | null = null
+  let canRequestInvite = false
   const seen = new Set<string>()
   for (const modifier of parts) {
     const match = /^([A-Za-z]+)(?:\(([A-Za-z0-9_-]{1,160})\))?$/.exec(modifier)
@@ -93,7 +96,20 @@ export function parseVrcExplorePublicAccess(instanceId: unknown): ExplorePublicA
     if (!key) return null
     if (seen.has(key)) return null
     seen.add(key)
-    if (!['group', 'groupAccessType', 'region', 'nonce', 'ageGate'].includes(key)) return null
+    if (
+      ![
+        'group',
+        'groupAccessType',
+        'region',
+        'nonce',
+        'ageGate',
+        'hidden',
+        'friends',
+        'private',
+        'canRequestInvite'
+      ].includes(key)
+    )
+      return null
     if (key === 'region' && !['us', 'use', 'usw', 'eu', 'jp'].includes(tagValue)) return null
     if (key === 'nonce' && !tagValue) return null
     if (key === 'ageGate' && tagValue !== '' && tagValue !== 'true' && tagValue !== 'false')
@@ -103,12 +119,35 @@ export function parseVrcExplorePublicAccess(instanceId: unknown): ExplorePublicA
       group = true
     }
     if (key === 'groupAccessType') {
-      if (tagValue !== 'public') return null
-      groupPublic = true
+      if (tagValue !== 'public' && tagValue !== 'plus' && tagValue !== 'members') return null
+      groupAccess = tagValue
+    }
+    if (key === 'hidden' || key === 'friends' || key === 'private') {
+      if (!tagValue || ownerAccess !== null) return null
+      ownerAccess = key
+    }
+    if (key === 'canRequestInvite') {
+      if (tagValue !== '') return null
+      canRequestInvite = true
     }
   }
-  if (group !== groupPublic) return null
-  return group ? 'group-public' : 'public'
+  if (ownerAccess !== null) {
+    if (group || groupAccess !== null || (canRequestInvite && ownerAccess !== 'private'))
+      return null
+    return 'excluded'
+  }
+  if (canRequestInvite) return null
+  if (group) {
+    if (groupAccess === 'public') return 'group-public'
+    return groupAccess === 'plus' || groupAccess === 'members' ? 'excluded' : null
+  }
+  return groupAccess === null ? 'public' : null
+}
+
+/** Unknown identifiers and known non-public access both stay outside public discovery. */
+export function parseVrcExplorePublicAccess(instanceId: unknown): ExplorePublicAccess | null {
+  const access = classifyVrcExploreAccess(instanceId)
+  return access === 'excluded' ? null : access
 }
 
 function expectedAgeGated(instanceId: string): boolean {
@@ -178,14 +217,18 @@ export function parseVrcExploreWorld(
       complete = false
       continue
     }
-    const access = parseVrcExplorePublicAccess(tuple[0])
+    const access = classifyVrcExploreAccess(tuple[0])
     const users = nonNegativeInteger(tuple[1])
     if (!record(tuple[2])) {
       complete = false
       continue
     }
-    // A non-public tuple is expected in a world response and is not incomplete coverage.
-    if (!access || seen.has(tuple[0])) continue
+    // Known non-public rooms are excluded; failed qualification is incomplete evidence.
+    if (access === null) {
+      complete = false
+      continue
+    }
+    if (access === 'excluded' || seen.has(tuple[0])) continue
     seen.add(tuple[0])
     roomIds.push(tuple[0])
     roomCounts.push({

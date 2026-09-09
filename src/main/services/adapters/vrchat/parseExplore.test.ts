@@ -183,6 +183,52 @@ describe('VRChat Explore parsers', () => {
     )
   })
 
+  it('keeps unknown or contradictory access partial instead of claiming no public rooms', () => {
+    for (const id of [
+      'room~future(foo)',
+      'room~region(us)~region(eu)',
+      'room~friends(usr_one)~private(usr_two)',
+      'room~canRequestInvite',
+      groupPublicRoom.replace('public', 'unknown')
+    ]) {
+      const result = parseVrcExploreWorld(
+        { id: worldId, name: 'World', instances: [[id, 8, {}]] },
+        worldId
+      )!
+      expect(result.roomsComplete).toBe(false)
+      expect(result.roomIds).toEqual([])
+      expect(result.world.visibleRoomCount).toEqual({
+        state: 'partial',
+        value: null,
+        source: 'visible-rooms'
+      })
+      expect(parseVrcExplorePublicAccess(id)).toBeNull()
+    }
+  })
+
+  it('can exclude recognized non-public rooms without losing known public coverage', () => {
+    const excluded = [
+      'room~hidden(usr_owner)',
+      'room~friends(usr_owner)',
+      'room~private(usr_owner)',
+      'room~private(usr_owner)~canRequestInvite',
+      groupPublicRoom.replace('public', 'members'),
+      groupPublicRoom.replace('public', 'plus')
+    ]
+    for (const id of excluded) expect(parseVrcExplorePublicAccess(id)).toBeNull()
+    const result = parseVrcExploreWorld(
+      {
+        id: worldId,
+        name: 'World',
+        instances: [[publicRoom, 2, {}], ...excluded.map((id) => [id, 8, {}])]
+      },
+      worldId
+    )!
+    expect(result.roomsComplete).toBe(true)
+    expect(result.roomIds).toEqual([publicRoom])
+    expect(result.world.visibleRoomCount.value).toBe(1)
+  })
+
   it('uses n_users before divergent userCount and requires every VRC action field', () => {
     const raw = {
       id: groupPublicRoom,

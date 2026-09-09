@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ExplorePlatformSnapshot,
@@ -109,6 +109,16 @@ describe('ExploreView', () => {
     expect(high.onTotalChange).toHaveBeenCalledWith(4)
   })
 
+  it('passes Home and End through as valid Explore totals', () => {
+    const high = setup({ total: 6 })
+    fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'Worlds shown' }), { key: 'Home' })
+    expect(high.onTotalChange).toHaveBeenCalledWith(2)
+    cleanup()
+    const low = setup({ total: 2 })
+    fireEvent.keyDown(screen.getByRole('spinbutton', { name: 'Worlds shown' }), { key: 'End' })
+    expect(low.onTotalChange).toHaveBeenCalledWith(6)
+  })
+
   it('opens cards through the injected callback and never uses their source thumbnail URL', () => {
     const selected = world('vrchat', 'vrc', 'World')
     const props = setup({ worlds: [selected] })
@@ -189,6 +199,44 @@ describe('ExploreView', () => {
     expect(document.activeElement).toBe(close)
     expect(screen.getByRole('button', { name: 'Restricted' }).hasAttribute('disabled')).toBe(true)
     fireEvent.keyDown(document, { key: 'Escape' })
+    expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('only claims an empty sheet after complete coverage and qualifies the sheet platform', () => {
+    const selected = world('vrchat', 'vrc', 'Same Name')
+    const incomplete: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [],
+      roomsComplete: false
+    }
+    const props = setup({ worlds: [selected], sheet: incomplete })
+    expect(screen.getByText('Visible public room coverage is incomplete.')).toBeTruthy()
+    expect(screen.queryByText('No visible public rooms are available.')).toBeNull()
+    const sheet = screen.getByRole('dialog', {
+      name: 'Visible public rooms for Same Name on VRChat'
+    })
+    expect(within(sheet).getByText('VRChat')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
+    cleanup()
+    setup({ worlds: [selected], sheet: { ...incomplete, roomsComplete: true } })
+    expect(screen.getByText('No visible public rooms are available.')).toBeTruthy()
+  })
+
+  it('dismisses only for pointerdown outside the sheet and not for its card opener or panel', () => {
+    const selected = world('vrchat', 'vrc', 'World')
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [],
+      roomsComplete: true
+    }
+    const props = setup({ worlds: [selected], sheet: snapshot })
+    fireEvent.pointerDown(screen.getByRole('dialog'))
+    fireEvent.pointerDown(screen.getByRole('button', { name: /open visible rooms/i }))
+    expect(props.onCloseSheet).not.toHaveBeenCalled()
+    fireEvent.pointerDown(document.body)
     expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
   })
 
@@ -478,8 +526,46 @@ describe('ExploreView', () => {
 describe('ExploreDashboardPreview', () => {
   it('caps a shared selection at two cards', () => {
     const worlds = [world('vrchat', '1'), world('chilloutvr', '2'), world('vrchat', '3')]
-    render(<ExploreDashboardPreview worlds={worlds} onOpenWorld={vi.fn()} />)
+    render(<ExploreDashboardPreview worlds={worlds} platformSnapshots={[]} onOpenWorld={vi.fn()} />)
     expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
+  })
+
+  it('reuses named source truth for stale cards and empty loading/error/unavailable previews', () => {
+    const cached = world('vrchat', 'cached', 'Cached')
+    const { rerender } = render(
+      <ExploreDashboardPreview
+        worlds={[cached]}
+        platformSnapshots={[{ ...source('vrchat', [cached]), isStale: true }]}
+        onOpenWorld={vi.fn()}
+      />
+    )
+    expect(screen.getByText('VRChat is showing saved results while refreshing.')).toBeTruthy()
+    expect(screen.getByText('Cached')).toBeTruthy()
+    rerender(
+      <ExploreDashboardPreview
+        worlds={[]}
+        platformSnapshots={[source('vrchat', [], 'loading'), source('chilloutvr', [], 'error')]}
+        onOpenWorld={vi.fn()}
+      />
+    )
+    expect(screen.getByText('VRChat worlds are loading…')).toBeTruthy()
+    expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+    rerender(
+      <ExploreDashboardPreview
+        worlds={[]}
+        platformSnapshots={[source('vrchat', [], 'unavailable')]}
+        onOpenWorld={vi.fn()}
+      />
+    )
+    expect(screen.getByText('VRChat discovery is unavailable.')).toBeTruthy()
+    rerender(
+      <ExploreDashboardPreview
+        worlds={[]}
+        platformSnapshots={[source('vrchat', [])]}
+        onOpenWorld={vi.fn()}
+      />
+    )
+    expect(screen.queryByRole('heading', { name: 'Popular now' })).toBeNull()
   })
 
   it('composes its two cards from the same ranked lists and neutral seeds as Explore', () => {
@@ -493,7 +579,9 @@ describe('ExploreDashboardPreview', () => {
     const listSeeds = { vrchat: 17, chilloutvr: 29 }
     const explore = selectExploreWorlds({ lists, filter: 'all', total: 4, listSeeds })
     const dashboard = selectExploreWorlds({ lists, filter: 'all', total: 2, listSeeds })
-    render(<ExploreDashboardPreview worlds={dashboard} onOpenWorld={vi.fn()} />)
+    render(
+      <ExploreDashboardPreview worlds={dashboard} platformSnapshots={[]} onOpenWorld={vi.fn()} />
+    )
     expect(dashboard).toEqual(explore.slice(0, 2))
     expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
   })
@@ -525,7 +613,7 @@ describe('ExploreDashboardPreview', () => {
         <ExploreDashboardComposition
           stats={stats}
           hotInstances={hot}
-          preview={{ worlds: preview, onOpenWorld: vi.fn() }}
+          preview={{ worlds: preview, platformSnapshots: [], onOpenWorld: vi.fn() }}
         />
       )
       const order = Array.from(document.body.textContent ?? '')
