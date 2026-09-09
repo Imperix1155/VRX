@@ -138,3 +138,31 @@ stop logic, intentionally kept in the existing separately typed fetchers. The
 other groups remain the reviewed guards, auth fences, event decoding and query
 folding. No new unused export/dependency/import failure was found. Focused
 review of these exact corrections is next.
+
+### Focused review result
+
+Fresh Astra at High, CLI v0.153.4, explicit read-only sandbox and approval never,
+reviewed `46d155fdbf4eb323313887d2b88c15415e021c8f` through
+`24dba5b33a38a911f78b4dda7dd221e4464d5736`. Artifact SHA-256
+`e00d96702856f251725f5576bf0600b04d9ef83fd08a92e4123f7d4fdba9dc7e`:
+74,748 bytes / 1,066 lines / 19 files, verified byte-identical to Git. Both
+original findings are closed; no actionable introduced/exposed finding remains.
+Local correctness verdict: SHIP. Merge verdict: PARK pending external reviews,
+current-head CI, dependency-audit resolution and owner authority.
+
+The reviewer independently exercised in-memory roster, metadata and physical
+attempt probes: both platforms, repeated joiners, partial/complete follow-ups,
+rate-limit fallback, account replacement, both failure orders, pending ownership,
+no post-cooldown resumption and late auth invalidation. Full project gates and
+mutations were inspected as driver evidence rather than rerun by the reviewer.
+The general anchor plus this complete cumulative correction review cover the
+functional head. Unchanged admission, leases, images, pagination, reconnect and
+renderer conclusions remain valid; no broadened design assumption or unbounded
+effect required restarting general review. Reports and runtime logs remain in
+the temporary artifact directory named above.
+
+This ledger-only update changes no executable or policy behavior; focused
+format/consistency and diff checks cover it. Required final-head CI and
+substantive CodeRabbit/Greptile coverage of the initial PR head remain required.
+The unchanged baseline js-yaml 4.3.1 audit failure is owned by the separate
+dependency repair; no package or lockfile change is included here.

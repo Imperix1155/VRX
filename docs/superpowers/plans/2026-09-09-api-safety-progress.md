@@ -2,7 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Units 1–5 and unit 6 integration are verified locally. Review/publication remain. No PR, push, or merge has occurred.
+All six units and both general-review corrections are verified locally and pushed. General and focused local review are complete. PR publication and required external reviews/CI remain; no merge has occurred.
 
 ## Autonomous authority
 
@@ -47,7 +47,10 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Run the immutable general review, resolve findings, then publish and obtain required reviews/CI.
+Publish the locally reviewed checkpoint and collect required external reviews/CI. The unchanged dependency-audit repair has a separate owner; do not duplicate it.
+
+### Unit 1 verification history
+
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -219,3 +222,8 @@ or waive audit. Explore remains gated. No merge, release or live-account grant.
 Correction gate: 165 files / 2,532 tests passed, with both metadata stop-latch
 mutations reproduced and restored. Lint/format/build/diff checks passed as
 `FOCUSED_PROJECT_GATE_GREEN`. Focused read-only review is the next gate.
+
+Focused review closed both findings with no remaining material defect at
+`24dba5b33a38a911f78b4dda7dd221e4464d5736`. Its exact delta and fresh synthetic
+probes are recorded in the verification ledger. Publication is authorized;
+merge remains parked pending required reviews/CI and owner approval.
