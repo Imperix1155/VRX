@@ -1,4 +1,9 @@
-import { API_REQUEST_MIN_INTERVAL_MS, API_TIMEOUT_MS } from '@shared/constants'
+import {
+  ApiAdmissionController,
+  API_MAX_PENDING_ADMISSIONS
+} from './adapters/ApiAdmissionController'
+import { RequestQueueFullError } from './adapters/errors'
+import { API_TIMEOUT_MS } from '@shared/constants'
 import { VRC_USER_AGENT } from './adapters/VrcApiClient'
 
 export const AVATAR_ALLOWED_HOSTS = new Set([
@@ -35,18 +40,13 @@ export const AVATAR_MAX_URL_LENGTH = 2048
 export const AVATAR_NEGATIVE_CACHE_MS = 30_000
 export const AVATAR_POSITIVE_CACHE_MS = 60 * 60 * 1000
 
-function pacingJitter(): number {
-  return Math.floor(Math.random() * 100)
-}
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
 interface CacheEntry {
   dataUrl: string | null
   expiresAt: number
 }
 
 interface AvatarCacheOptions {
+  apiAdmission?: ApiAdmissionController
   fetchFn?: typeof fetch
   now?: () => number
   maxEntries?: number
@@ -97,9 +97,8 @@ function isForbiddenRedirectHost(hostname: string): boolean {
 }
 
 /**
- * Session-only avatar image cache. This deliberately does not use a platform
- * adapter: image traffic has its own cache/dedupe lifecycle and must not consume
- * either API adapter's rate-limit queue.
+ * Session-only image cache. API hops share the platform admission controller;
+ * CDN body transfers retain their own bounded concurrency and host cooldowns.
  */
 export class AvatarCache {
   private readonly cache = new Map<string, CacheEntry>()
@@ -113,7 +112,9 @@ export class AvatarCache {
   private activeFetches = 0
   private readonly fetchWaiters: Array<() => void> = []
   private apiFetchActive = false
-  private apiNextRequestAt = 0
+  private apiAdmission: ApiAdmissionController
+  private readonly cdnAdmissions = new Map<string, ApiAdmissionController>()
+  private readonly cdnUsers = new Map<string, number>()
   private readonly apiFetchWaiters: Array<() => void> = []
   private vrcCookieProvider: (() => string | null) | null
 
@@ -125,10 +126,15 @@ export class AvatarCache {
     this.positiveCacheMs = options.positiveCacheMs ?? AVATAR_POSITIVE_CACHE_MS
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
     this.vrcCookieProvider = options.vrcCookieProvider ?? null
+    this.apiAdmission = options.apiAdmission ?? new ApiAdmissionController({ now: this.now })
   }
 
   /** Late wiring for the module singleton: index.ts registers the adapter's
    *  cookie accessor after the adapters are constructed (VRX-202). */
+  setApiAdmission(admission: ApiAdmissionController): void {
+    this.apiAdmission = admission
+  }
+
   setVrcCookieProvider(provider: (() => string | null) | null): void {
     this.vrcCookieProvider = provider
   }
@@ -164,6 +170,7 @@ export class AvatarCache {
     const pending = this.inFlight.get(url)
     if (pending) return pending
 
+    if (this.inFlight.size >= API_MAX_PENDING_ADMISSIONS) return Promise.resolve(null)
     const request = this.fetchAndCache(url)
     this.inFlight.set(url, request)
     void request.finally(() => this.inFlight.delete(url))
@@ -208,10 +215,31 @@ export class AvatarCache {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
       const usesApiLane = target.hostname === AVATAR_COOKIE_HOST
+      const admission = usesApiLane ? this.apiAdmission : this.cdnAdmission(target.hostname)
       if (usesApiLane) {
         await this.acquireApiFetchSlot()
+        try {
+          do {
+            await admission.acquire({ priority: 'background' })
+          } while (admission.cooldownRemainingMs > 0)
+        } catch (error) {
+          this.releaseApiFetchSlot()
+          throw error
+        }
       } else {
-        await this.acquireFetchSlot()
+        this.cdnUsers.set(target.hostname, (this.cdnUsers.get(target.hostname) ?? 0) + 1)
+        try {
+          // Do not occupy CDN body slots while one host is cooling down.
+          for (;;) {
+            await admission.acquire({ priority: 'background' })
+            await this.acquireFetchSlot()
+            if (admission.cooldownRemainingMs === 0) break
+            this.releaseFetchSlot()
+          }
+        } catch (error) {
+          this.releaseCdnUser(target.hostname)
+          throw error
+        }
       }
       const headers: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
       if (usesApiLane) {
@@ -225,6 +253,14 @@ export class AvatarCache {
           redirect: 'manual',
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
         })
+
+        if (response.status === 429) {
+          admission.rateLimited(response.headers.get('Retry-After'))
+          controller.abort()
+          await response.body?.cancel()
+          return null
+        }
+        if (response.ok) admission.succeeded()
 
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           await response.body?.cancel()
@@ -257,6 +293,7 @@ export class AvatarCache {
           this.releaseApiFetchSlot()
         } else {
           this.releaseFetchSlot()
+          this.releaseCdnUser(target.hostname)
         }
       }
     }
@@ -328,25 +365,33 @@ export class AvatarCache {
     this.fetchWaiters.shift()?.()
   }
 
-  /**
-   * VRChat profile images can use the same cookie-bearing API host as REST.
-   * Keep that host on its own serial, jitter-paced etiquette lane; CDN traffic
-   * remains on the independent four-slot semaphore above.
-   */
+  private cdnAdmission(host: string): ApiAdmissionController {
+    let admission = this.cdnAdmissions.get(host)
+    if (admission === undefined) {
+      // Drop idle, expired host entries; active cooldowns must never be evicted.
+      for (const [key, entry] of this.cdnAdmissions) {
+        if (entry.cooldownRemainingMs === 0 && entry.pendingCount === 0 && !this.cdnUsers.has(key))
+          this.cdnAdmissions.delete(key)
+      }
+      if (this.cdnAdmissions.size >= API_MAX_PENDING_ADMISSIONS) throw new RequestQueueFullError()
+      admission = new ApiAdmissionController({ now: this.now, minimumIntervalMs: 0 })
+      this.cdnAdmissions.set(host, admission)
+    }
+    return admission
+  }
+
+  private releaseCdnUser(host: string): void {
+    const remaining = (this.cdnUsers.get(host) ?? 1) - 1
+    if (remaining === 0) this.cdnUsers.delete(host)
+    else this.cdnUsers.set(host, remaining)
+  }
+
   private async acquireApiFetchSlot(): Promise<void> {
     if (this.apiFetchActive) {
-      await new Promise<void>((resolve) => {
-        this.apiFetchWaiters.push(resolve)
-      })
+      await new Promise<void>((resolve) => this.apiFetchWaiters.push(resolve))
     } else {
       this.apiFetchActive = true
     }
-
-    const now = this.now()
-    const requestAt = Math.max(now, this.apiNextRequestAt)
-    if (requestAt > now) await sleep(requestAt - now)
-    this.apiNextRequestAt =
-      Math.max(requestAt, this.now()) + API_REQUEST_MIN_INTERVAL_MS + pacingJitter()
   }
 
   private releaseApiFetchSlot(): void {

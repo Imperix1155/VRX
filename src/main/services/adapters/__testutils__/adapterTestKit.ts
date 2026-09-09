@@ -7,9 +7,25 @@
 import { vi } from 'vitest'
 import type { IPlatformAdapter } from '../IPlatformAdapter'
 import type { VrcAdapter } from '../VrcAdapter'
+import { ApiAdmissionController } from '../ApiAdmissionController'
 
 /** Instant sleep — skips the rate-limiter's real timers in unit tests. */
 export const noopSleep = (): Promise<void> => Promise.resolve()
+
+/** Paired virtual clock/sleep for tests that do not exercise real-time pacing. */
+export function instantAdmission(
+  sleepFn: (ms: number) => Promise<void> = noopSleep
+): ApiAdmissionController {
+  let time = Date.now()
+  return new ApiAdmissionController({
+    now: () => Math.max(Date.now(), time),
+    sleep: async (ms, signal) => {
+      const until = Math.max(Date.now(), time) + ms
+      await sleepFn(ms)
+      if (!signal.aborted) time = Math.max(time, until)
+    }
+  })
+}
 
 /**
  * Build a non-restore-focused VRChat fixture from a cookie whose owner binding

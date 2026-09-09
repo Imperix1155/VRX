@@ -377,6 +377,62 @@ describe('AvatarCache', () => {
     expect(dispatches).toEqual([10_000, 11_500, 12_500])
   })
 
+  it("holds distinct CDN URLs after 429 without occupying another host's body slots", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const starts: Array<{ host: string; at: number }> = []
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const host = new URL(input instanceof Request ? input.url : input).hostname
+      starts.push({ host, at: Date.now() })
+      return Promise.resolve(
+        starts.length === 1
+          ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } })
+          : imageResponse()
+      )
+    })
+    const cache = new AvatarCache({ fetchFn })
+    await expect(cache.get('https://files.vrchat.cloud/limited.png')).resolves.toBeNull()
+    const held = Array.from({ length: 5 }, (_, index) =>
+      cache.get(`https://files.vrchat.cloud/next-${index}.png`)
+    )
+    await expect(cache.get('https://files.chilloutvr.net/other.png')).resolves.toMatch(/^data:/)
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(starts).toEqual([
+      { host: 'files.vrchat.cloud', at: 10_000 },
+      { host: 'files.chilloutvr.net', at: 10_000 }
+    ])
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.all(held)
+    expect(starts.slice(2).every(({ at }) => at === 70_000)).toBe(true)
+  })
+
+  it('retains an in-flight CDN host controller when another host begins before a late 429', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    let release: ((response: Response) => void) | undefined
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(() =>
+      fetchFn.mock.calls.length === 1
+        ? new Promise((resolve) => {
+            release = resolve
+          })
+        : Promise.resolve(imageResponse())
+    )
+    const cache = new AvatarCache({ fetchFn })
+    const first = cache.get('https://files.vrchat.cloud/first.png')
+    await vi.advanceTimersByTimeAsync(0)
+    await cache.get('https://files.chilloutvr.net/other.png')
+    release?.(new Response(null, { status: 429, headers: { 'Retry-After': '60' } }))
+    await first
+    const next = cache.get('https://files.vrchat.cloud/next.png')
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    await next
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+  })
+
   it('reads the cookie provider after a queued API fetch reaches its dispatch slot', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)

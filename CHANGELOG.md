@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- API-backed images and normal API requests now share each platform's pacing
+  and cooldown. A rate-limit response holds affected API traffic across both
+  paths, and CDN images respect their own host cooldowns. Other platforms stay
+  independent. (VRX-218)
+
 - Linked friends retain a neutral Private instance pill when their in-game
   location is unavailable, without enabling Join. Known non-joinable instances
   retain their existing labels. The initial Identities dialog now says Close

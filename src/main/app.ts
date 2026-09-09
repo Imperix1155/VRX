@@ -1,3 +1,4 @@
+import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import {
   app,
   shell,
@@ -378,7 +379,9 @@ app
       clock: () => performance.now(),
       log: (level, message, meta) => log[level](message, meta)
     })
-    const vrcAdapter = new VrcAdapter(vrcCredentials, undefined, {
+    const vrcAdmission = new ApiAdmissionController()
+    const cvrAdmission = new ApiAdmissionController()
+    const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
       // handshakeTimeout bounds a black-holed connect so the reconnect backoff
       // can retry instead of waiting for the OS default (~1-2 min).
       socketFactory: createVrcSocket,
@@ -452,7 +455,7 @@ app
     // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
     // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the
     // socketFactory forwards them verbatim; logs route through the redaction hook.
-    const cvrAdapter = new CvrAdapter(cvrCredentials, undefined, {
+    const cvrAdapter = new CvrAdapter(cvrCredentials, cvrAdmission, {
       // Same black-hole guard as the VRChat pipeline (audit OP-A4).
       socketFactory: createCvrSocket,
       log: (level, message, meta) => log[level](message, meta),
@@ -514,6 +517,7 @@ app
 
     // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
     // endpoint 401s unauthenticated). Late-wired so logout/rotation apply on read.
+    avatarCache.setApiAdmission(vrcAdmission)
     avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
 
     registerIpcHandlers(adapters, {

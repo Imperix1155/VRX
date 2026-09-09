@@ -1,3 +1,4 @@
+import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
   AdapterEvent,
   AuthStatus,
@@ -137,10 +138,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   constructor(
     private readonly store: CvrCredentialStore,
-    sleepFn?: (ms: number) => Promise<void>,
+    admission?: ApiAdmissionController,
     private readonly live?: CvrLiveWiring
   ) {
-    super(sleepFn)
+    super(admission)
     // Session restore (VRX-174) — adopt any persisted session; tolerate a
     // missing/locked store. Validation is lazy: the first getAuthStatus()
     // reauthenticates server-side before 'authenticated' is ever reported.

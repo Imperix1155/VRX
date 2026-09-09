@@ -1,3 +1,4 @@
+import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
 import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
@@ -181,7 +182,7 @@ export class VrcAdapter extends VrcApiClient {
 
   constructor(
     private readonly credentials: VrcCredentialStore,
-    sleepFn?: (ms: number) => Promise<void>,
+    admission?: ApiAdmissionController,
     /**
      * Live-pipeline wiring (VRX-146), injected at the call site so this file
      * stays electron-free: the real socketFactory (ws + User-Agent) and the
@@ -189,7 +190,7 @@ export class VrcAdapter extends VrcApiClient {
      */
     private readonly live?: VrcLiveWiring
   ) {
-    super(sleepFn)
+    super(admission)
     // Session restore — adopt any persisted cookie; tolerate a missing/locked store.
     try {
       const stored = this.credentials.load()
