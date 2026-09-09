@@ -58,11 +58,46 @@ without that consent, disclose the visual verification gap and park that gate.
   of platform counts and display totals. Mutating neutral list comparison makes
   five tests fail; bypassing count provenance makes two fail. Both restored;
   the sixteen tests pass again. Initial node/web typecheck and 48 existing hot
-  identity/Dashboard aggregation tests passed. Files are local and uncommitted.
+  identity/Dashboard aggregation tests passed. Saved as local commit
+  `19e9e8c11af608dfdd17c5af8c839e4e623457f9`; not yet pushed at this checkpoint.
 - Worker integration: parser and UI artifacts inspected in isolated worktrees.
   Corrections requested for VRC world-total provenance, response access evidence,
   CVR aggregate coverage, sheet opener switching and stale actions. These are
   implementation fixes within the approved behavior, not new product scope.
+- Integrated 15 worker-owned files after byte-for-byte verification. Driver
+  strengthened orphan/conflicting access checks, own-property eligibility,
+  optional tuple-count tolerance and same-world/provenance-safe CVR aggregation.
+  Sixty Explore/parser/ranking/locale tests now pass. Separately, 116 existing
+  Dashboard/Hot Instance/join tests pass. Full gate and fresh review follow.
+- Phase-B settings plan remains unimplemented: add the approved 2/4/6 preference
+  and persist the existing global filter through the settings path. Reconcile
+  the current schema version after the API dependency lands; preserve downgrade
+  refusal, first-paint hydration and friends-only persistence allowlists. No
+  Explore data persistence or new independent platform filter is planned.
+- DOX updated the owning shared/platform/renderer contracts, callable catalog,
+  three design references, README status and a scoped API-assumption section.
+  Root/main indexes remain valid. CHANGELOG and API policy are intentionally
+  unchanged: no production behavior, endpoint, transport or etiquette changed.
+- Full local gate passed: uncached ESLint, repository Prettier check, all 2,497
+  tests in 163 files, node/web typechecks, electron-vite production build and
+  entry/font assertion, plus diff whitespace. Sentinel:
+  `EXPLORE_FULL_GATE_GREEN`. No application was launched.
+- Mutation testing found that the stale-action fixture also had a wrong-world
+  row, masking the stale guard. The fixture now isolates staleness. Five
+  independent bypasses (orphan access, cross-world counts, count provenance,
+  stale UI action and focus-close transition) each fail one relevant test;
+  exact source bytes were restored and all 40 parser/component tests pass.
+  Sentinel: `EXPLORE_MUTATIONS_GREEN`. The complete gate passed again with this
+  stronger test: 2,497 tests, lint, formatting, both typechecks and build;
+  sentinel `EXPLORE_FINAL_GATE_GREEN`.
+- Fallow 2.89.0: dead-code scan reports eight existing findings outside Explore,
+  zero new unused exports/unresolved imports/cycles/boundary violations. The
+  duplication scan reports six new groups: two small platform-parser structural
+  similarities retained to keep distinct protocol validation local, and four
+  test arrangement/assertion repetitions retained for independent scenarios.
+  These are inspected dispositions, not a claim of zero repository findings.
+- Import inspection found no existing production module importing Explore
+  (`EXPLORE_PRODUCTION_ISOLATION_GREEN`). No real data fallback was added.
 - Phase B remains closed pending inspected API-safety artifacts, exact contracts,
   physical-attempt/cooldown/session/dedupe/socket tests, local/CI/critical review
   evidence, integration checks and approval of recalculated Explore traffic.

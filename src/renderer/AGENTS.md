@@ -6,6 +6,19 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Ownership
 
+- `src/components/ExploreView.tsx`, `ExploreWorldCard.tsx`, `ExploreWorldSheet.tsx`,
+  `ExploreDashboardPreview.tsx` and `ExploreDashboardComposition.tsx` are phase-A
+  presentational components (VRX-270), reachable only through synthetic tests.
+  All data, resolved images, selection state and action callbacks are injected;
+  no bridge, account store, query, settings or production route imports.
+  The existing shell owns the platform filter; the controlled stepper offers
+  2/4/6. Dashboard composition retains supplied stats and Hot Instances around
+  at most two shared cards. The contained sheet is nonmodal, reports per-source
+  freshness/failures, disables stale/mismatched actions, uses an explicit latest
+  opener with connected fallback, and closes on Escape/outside/Close. Failed
+  images remain neutral. Browser/Electron visual verification and all live
+  integration are still pending the separate authority/dependency gates.
+
 - `src/components/IdentitiesDialog.tsx`, `LinkConfirmDialog.tsx`, and `LinkedDialog.tsx` own manual local identity management. Dialog reviews capture exact pairs, account-qualified labels, shared notes and revisions; replacement is one request, never sequential unlink operations. New links start a blank shared note; unlink/replacement requires explicit loss acknowledgement and preserves original account notes. A stale review must be reopened. Native modality owns keyboard trapping and background inertness; the underlying drawer stays non-modal. A session boundary invalidates the open review.
 
 - `src/utils/projectLinkedFriends.ts` projects account-qualified linked people without changing raw caches. `src/stores/profileSelection.ts` owns durable person/account navigation, independently of roster placement. `src/hooks/usePersonNote.ts` owns session-only shared drafts and serialized explicit-retry writers; original account notes remain separate. Same-person presence updates retain the editor and caret. Owner changes flush the previous committed editor. Only the app linked-profile subscription cancels/reloads the query at boundaries; the note coordinator clears drafts without racing that reload. All link publications retain the highest document revision within the current lease.
