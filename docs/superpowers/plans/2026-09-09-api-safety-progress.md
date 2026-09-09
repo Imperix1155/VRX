@@ -2,7 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Units 1–4 are verified locally. Units 5–6 are pending. No PR, push, or merge has occurred.
+Production work is underway. Units 1–5 are verified locally. Unit 6 integration/review is pending. No PR, push, or merge has occurred.
 
 ## Autonomous authority
 
@@ -47,7 +47,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Implement unit 5 reconnect backoff and rejected-upgrade cooldown next.
+Complete unit 6 mixed-load/IPC probes, full gates, DOX, review and open PR.
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -161,3 +161,29 @@ build and diff checks printed `A4_PROJECT_GATE_GREEN`. DOX: main/platform
 contracts, API catalog and changelog updated. Unit 5 fake flap regressions have
 since reproduced the remaining immediate-open backoff reset on both platforms;
 those uncommitted tests are not part of this checkpoint. No push or PR yet.
+
+## Unit 5 verified locally
+
+Unit 4 is local commit `524f9bc`. Socket reconnects now retain exponential
+backoff through brief opens, resetting after the existing 60-second cap as a
+healthy-open interval. Both adapters inject their shared controller's deadline
+and rate-limit callback. Rejected upgrades forward only status/Retry-After;
+factory disposal explicitly terminates the failed handshake. Cooldown waits
+recheck before token/header preparation and dialing, split long timer delays,
+and cancel on stop/replacement. No extra socket, endpoint or heartbeat.
+
+Both brief-flap regressions fail with immediate-open reset restored, then pass
+with source restored (`A5_MUTATION_GREEN`). Sixteen fake-clock tests cover both
+platforms, seconds/date/missing/invalid wait headers, repeated fallback,
+close/error/rejection races, shared API cooldown, extension during preparation,
+restart ownership, timer overflow and cancellation. Existing platform lifecycle
+and normal event tests remain green. Factory tests assert sanitized fields and
+disposal; two real-ws tests against a disposable loopback server also close
+unfinished 429 bodies successfully. Loopback listening required sandbox
+escalation; no external server or platform account was contacted.
+
+Wider adapter/image/factory suite: 31 files / 676 tests passed. After fixing a
+test-only missing return annotation, the 16-test file passed again, then lint,
+format, build and diff checks printed `A5_PROJECT_GATE_GREEN`. DOX updated main,
+platform contracts, API catalog and changelog. Final review remains T2 and the
+branch remains unpushed, with no PR, merge authority or external review yet.

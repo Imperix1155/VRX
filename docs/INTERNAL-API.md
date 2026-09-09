@@ -511,6 +511,16 @@ The friends IPC boundary exposes only a partial marker, never the deadline;
 after the bridge resolves. Unavailable rate-limited rosters and admission
 overflow use the existing `rate_limited` error with no outer query retry.
 
+`ReconnectingPipeline` owns sustained-open backoff and abortable cooldown waits.
+`PipelineSocket.on('upgrade-rejected', listener)` carries only statusCode and
+Retry-After. `PipelineReconnectOptions` supplies optional `now`,
+`onUpgradeRateLimited(retryAfter)` and `cooldownUntil()`; both adapters inject
+shared admission. A rejected upgrade settles once, suppresses late events, and
+its production factory disposes the response and terminates the request.
+Both platform dependency types accept the same options and optional abortable
+`sleepFn(ms, signal?)`. Backoff resets after an open lasting at least 60 seconds;
+server waits are rechecked before credentials/dialing and long waits are split.
+
 `adapters/RosterRefresh.ts` exposes `get(lease)`, `invalidate()` and `clear()`
 for main-owned per-session roster sharing. Concurrent initial/manual/interval
 and CVR warm reads share one promise. Main pipeline live/roster triggers mark

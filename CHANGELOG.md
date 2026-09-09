@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Brief socket connections no longer reset reconnect backoff. Rejected upgrades
+  honor server cooldowns across the affected platform's API traffic. (VRX-218)
+
 - Concurrent friend refreshes and CVR name warming share one request per session.
   Reconnect and roster-event bursts coalesce into one follow-up refresh. (VRX-218)
 

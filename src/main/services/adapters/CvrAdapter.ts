@@ -560,6 +560,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private createPipeline(): CvrPipeline {
     const generation = this.sessionGeneration
     return new CvrPipeline({
+      onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
+      cooldownUntil: () => this.admission.cooldownUntil,
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
       onEvent: (event) => this.handlePipelineEvent(event, generation),
       socketFactory:

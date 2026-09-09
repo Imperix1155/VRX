@@ -26,6 +26,13 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 ## Local Contracts
 
+- Reconnect backoff survives brief open-close flaps and resets only after an
+  open lasting at least the existing backoff cap. Rejected upgrades forward
+  only status/Retry-After; factories dispose the response and terminate the
+  failed handshake. A 429 extends platform admission and socket cooldown;
+  waits recheck extensions before credential preparation and dialing, split
+  long timers safely, and cancel on stop/session replacement. No new heartbeat.
+
 - `RosterRefresh` shares one pending roster result per session across ordinary
   callers and CVR name warming. Main marks an active first read dirty before
   broadcasting a live/roster trigger; all callers then receive at most one final

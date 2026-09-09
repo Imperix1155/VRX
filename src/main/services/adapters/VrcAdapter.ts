@@ -986,6 +986,8 @@ export class VrcAdapter extends VrcApiClient {
   private createPipeline(): VrcPipeline {
     const generation = this.sessionGeneration
     return new VrcPipeline({
+      onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
+      cooldownUntil: () => this.admission.cooldownUntil,
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
         if (generation !== this.sessionGeneration) return
