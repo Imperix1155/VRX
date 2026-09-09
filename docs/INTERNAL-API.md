@@ -12,6 +12,20 @@
 
 ---
 
+## Explore phase A (VRX-270; not connected to production)
+
+These pure and presentational surfaces are staged for the approved Explore
+integration. They do not create IPC, queries, timers, requests or game launches.
+The [phase boundary](superpowers/plans/2026-09-09-explore-session-readiness.md)
+still applies.
+
+| Surface                                                                                     | Source                         | Contract                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ExploreWorld`, `ExploreRoom`, `ExploreCount`, snapshots and action unions                  | `src/shared/explore.ts`        | Display-only DTOs with explicit count provenance and null incomplete totals; opaque references are not renderer launch authority.                            |
+| `EXPLORE_WORLD_TOTALS`, `DEFAULT_EXPLORE_WORLD_TOTAL`, `ExploreWorldTotal`, `ExploreFilter` | `src/shared/explore.ts`        | Allowed totals 2/4/6, default 4; All or one platform. No persisted settings field yet.                                                                       |
+| `rankExploreWorlds(platform, worlds)`                                                       | `src/shared/exploreRanking.ts` | Deduplicate and rank one bounded platform list; VRC aggregate occupants/popularity, CVR verified complete public totals then stable incomplete source order. |
+| `selectExploreWorlds({ lists, filter, total, listSeeds })` / `ExploreSelection`             | `src/shared/exploreRanking.ts` | Already-ranked lists; equal shares, alternating leaders, neutral ID/seed ties, symmetric backfill. Dashboard passes total 2. Does not mutate inputs.         |
+
 ## 1. The renderer's entry point: `window.vrx`
 
 The ONLY way the renderer talks to the system. Exposed by
