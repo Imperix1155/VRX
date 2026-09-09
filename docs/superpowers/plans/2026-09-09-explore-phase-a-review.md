@@ -75,7 +75,7 @@ run is authorized. No merge grant exists.
   tool's completion output; the saved command log contains the command results
   but not that separately emitted sentinel. Both reviewers independently checked
   diff whitespace. This limitation does not replace or inflate the driver evidence.
-- Changes after the corrected functional head are review/handoff prose only;
+- At the first draft checkpoint, changes after the corrected functional head were review/handoff prose only;
   inspect the exact delta, links, formatting and diff whitespace without reopening
   the functional review. Final branch head and CI results belong in the draft PR
   and linked tracker update after publication.
@@ -84,3 +84,50 @@ Verdict: **READY-for-draft; PARK for visual verification and phase B**. Phase-A
 scope is aligned and locally verified within the stated boundary. PR CI remains
 pending at this ledger commit. Same-lineage reviews are not independent model
 confirmation, visual evidence or permission to merge.
+
+## Dependency integration follow-up
+
+The liaison authorized a bounded branch update after the shared dependency
+repair merged. No phase-B work or new UI behavior is authorized.
+
+- Previous draft head: `a3ef6a193f736d55f417a42fc4fd868c42fa9764`.
+- Integrated merge head: `9da3ea9737bc22267476a714d3955864d1be67ae`.
+- Exact merged dependency: `f783e773405e1abf319b319ca2b6f671f54111f1`, from
+  [the js-yaml repair](https://github.com/Imperix1155/VRX/pull/306).
+  Its complete tree equals reviewed upstream head
+  `19e1e40d18ed9fb39d0a09080e443646705b31b4`.
+- First-parent integration delta: only `package-lock.json`, 720 bytes, 17 lines,
+  three additions and three deletions. SHA-256:
+  `c30eadc580a48cd9b38bc7101fe21343b89c5f0595b12e45a4a03cc0a9220788`.
+  It is byte-identical to the upstream reviewed patch. Only the js-yaml version,
+  registry URL and integrity move from 4.3.1 to 4.3.2.
+- Clean `npm ci --ignore-scripts` installed the updated lock. Every installed
+  package version matches its lock entry; one js-yaml 4.3.2 node satisfies all
+  consumers, including electron-updater and build/lint tooling. The earlier
+  copied node_modules contained stale versions despite matching manifest/lock
+  files. This clean-install verification supersedes that earlier local evidence;
+  prior Windows/Ubuntu CI also used clean installs.
+- All 2,503 tests, uncached lint, formatting, both typechecks, build and diff
+  whitespace pass. The saved log includes individual exit-0 records and
+  `EXPLORE_DEPENDENCY_GATE_GREEN`. Audit reports zero high/critical findings and
+  one unchanged low esbuild advisory, with `EXPLORE_DEPENDENCY_AUDIT_GREEN`.
+  Fresh Fallow results remain identical at eight existing dead-code findings
+  and 551 duplicate groups.
+- One fresh focused Sol/high review ran with observed read-only sandbox and
+  approval never; the bounded process exited 0. It independently verified the
+  hashes, merge ancestry, tree equality and unchanged consumers. Its in-memory
+  installed-parser probe parsed builder configuration and real updater metadata,
+  preserving ordinary empty/non-empty YAML merge behavior. No material finding
+  or dependency inconsistency was found.
+- The general Explore review and five-finding correction review remain valid:
+  first-party source, scripts, configuration and workflows are unchanged. The
+  cumulative review found no reason to restart general review. This is still
+  same-lineage evidence, not independent model confirmation.
+
+Verdict: locally verified and ready to update the existing draft. Current-head
+CI remains pending at this evidence commit; final results belong in the PR and
+tracker. Following changes are evidence prose only and receive exact-delta,
+formatting, link and whitespace checks. The visual-verification gap remains.
+Phase B, app launches, captures, live-account tests and merging remain outside
+this follow-up. Owning contracts, design/API docs, README and changelog are
+intentionally unchanged because no first-party behavior or contract changed.
