@@ -166,3 +166,36 @@ format/consistency and diff checks cover it. Required final-head CI and
 substantive CodeRabbit/Greptile coverage of the initial PR head remain required.
 The unchanged baseline js-yaml 4.3.1 audit failure is owned by the separate
 dependency repair; no package or lockfile change is included here.
+
+### Dependency integration and zero-delay 429 follow-up
+
+The normal branch merge imports the exact merged dependency commit `f783e77`:
+one js-yaml lock node, version/resolved/integrity 4.3.1 → 4.3.2. No upstream
+application change is present. Installed production electron-updater resolves
+4.3.2. High-threshold npm audit passes; only a low advisory remains. An offline
+probe uses electron-updater's actual `parseUpdateInfo` and `resolveFiles` for a
+valid release document, confirms malformed YAML rejection and ordinary merge-key
+parsing, and prints `DEPENDENCY_INTEGRATION_PROBE_GREEN`. No updater or account
+network calls are made by the probe.
+
+GitHub Codex finding at `3c5a9cd`:
+https://github.com/Imperix1155/VRX/pull/307#discussion_r3973924358.
+Applied as a functional correction: Retry-After zero plus zero jitter left queued
+batch waiters alive because draining depended on positive remaining cooldown.
+Both numeric-zero and immediate-date tests failed before the fix. Every 429 now
+rejects existing no-retry waiters, even if fresh work is already eligible; their
+abort listeners are removed. Explicit work retains its slot/normal pacing, and
+fresh caller-owned requests remain eligible. A physical transport test checks
+that queued batch requests never dispatch after the first 429. Prior local and
+CodeRabbit coverage remains anchored to earlier heads until focused and required
+external review cover this complete integration delta.
+
+Integration gate: 165 files / 2,535 tests passed, followed by fresh-cache lint,
+formatting, build and diff checks (`INTEGRATION_PROJECT_GATE_GREEN`). Removing
+the unconditional 429 drain makes all three new regressions fail; restoring the
+exact source returns them green (`ZERO_DELAY_MUTATION_GREEN`). Focused Fallow
+reports zero introduced dead-code issues and zero production clone groups in
+files changed since the prior PR head. The cumulative pre-existing findings
+remain under the prior reviewed disposition. API shapes and design artifacts
+remain unchanged; API policy/catalog, owning contract and changelog describe
+zero-delay termination. Focused review of this integrated head is next.

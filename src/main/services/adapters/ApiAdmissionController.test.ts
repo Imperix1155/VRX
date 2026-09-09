@@ -88,6 +88,42 @@ describe('ApiAdmissionController', () => {
     expect(admitted).toBe(true)
   })
 
+  it.each(['0', 'Thu, 01 Jan 1970 00:00:10 GMT'])(
+    'ends queued batches for immediate Retry-After %s without dropping explicit work',
+    async (retryAfter) => {
+      const admission = new ApiAdmissionController({ random: () => 0 })
+      await admission.acquire()
+      const controller = new AbortController()
+      const removeAbort = vi.spyOn(controller.signal, 'removeEventListener')
+      const starts: number[] = []
+      const batches = Array.from({ length: 3 }, () =>
+        admission.acquire({ rejectOnCooldown: true, signal: controller.signal }).then(
+          () => starts.push(Date.now()),
+          (error: unknown) => error
+        )
+      )
+      const explicit = admission
+        .acquire({ priority: 'interactive' })
+        .then(() => starts.push(Date.now()))
+      admission.rateLimited(retryAfter)
+      expect(admission.cooldownRemainingMs).toBe(0)
+      expect(admission.pendingCount).toBe(1)
+      expect(await Promise.all(batches)).toEqual(
+        Array.from({ length: 3 }, () => expect.any(RateLimitError))
+      )
+      expect(removeAbort).toHaveBeenCalledTimes(3)
+      // Fresh caller-owned work is still eligible; the failed batch is not replayed.
+      const fresh = admission
+        .acquire({ rejectOnCooldown: true })
+        .then(() => starts.push(Date.now()))
+      await vi.advanceTimersByTimeAsync(10_000)
+      await Promise.all([explicit, fresh])
+      expect(starts).toEqual([11_000, 12_000])
+      expect(admission.pendingCount).toBe(0)
+      expect(vi.getTimerCount()).toBe(0)
+    }
+  )
+
   it('uses growing fallback across operations and ignores late success during cooldown', async () => {
     const admission = new ApiAdmissionController({ random: () => 0.5 })
     admission.rateLimited(null)

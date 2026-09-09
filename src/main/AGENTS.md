@@ -90,7 +90,8 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   pre-reconnect data. These revisions stay in main.
 
 - Roster and background metadata batches use no-retry admission. A 429 ends
-  pagination/enrichment and removes queued batch attempts; background triggers
+  pagination/enrichment and removes queued batch attempts even when the parsed
+  Retry-After deadline and jitter are immediate; background triggers
   during cooldown send nothing and are not replayed at expiry. Useful roster
   pages may publish as partial; only complete rosters reconcile omissions.
   World/group pools permanently latch failures and retain pending IDs until

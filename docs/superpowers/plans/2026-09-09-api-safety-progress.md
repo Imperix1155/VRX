@@ -2,7 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-All six units and both general-review corrections are verified locally and pushed. General and focused local review are complete. PR publication and required external reviews/CI remain; no merge has occurred.
+The API-safety PR is open. Its six units and first review corrections were verified and pushed. The authorized follow-up now integrates the merged dependency repair and corrects the zero-delay 429 finding. Refreshed review/CI remain; no API merge has occurred.
 
 ## Autonomous authority
 
@@ -47,7 +47,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Publish the locally reviewed checkpoint and collect required external reviews/CI. The unchanged dependency-audit repair has a separate owner; do not duplicate it.
+Finish the bounded dependency-integration/zero-delay correction follow-up, refresh required external reviews and current-head CI, and retain the API merge boundary.
 
 ### Unit 1 verification history
 
@@ -227,3 +227,24 @@ Focused review closed both findings with no remaining material defect at
 `24dba5b33a38a911f78b4dda7dd221e4464d5736`. Its exact delta and fresh synthetic
 probes are recorded in the verification ledger. Publication is authorized;
 merge remains parked pending required reviews/CI and owner approval.
+
+## Authorized dependency integration follow-up
+
+The liaison verified the separately approved dependency repair merged as
+`f783e773405e1abf319b319ca2b6f671f54111f1` and authorized this bounded follow-up.
+A normal feature-branch merge `b2fba12f5109ef89520515fd19d2d481153a9ea5` imports
+only the expected js-yaml 4.3.2 lock node. Clean install, high-threshold audit
+and an offline production updater YAML parse/file-resolution probe pass.
+No API/Explore merge, account, release or installed-app restart grant exists.
+
+GitHub Codex review at prior PR head `3c5a9cd` subsequently found a zero-delay
+429 queue-drain defect. Numeric zero and an immediate HTTP date reproduced it.
+The controller now rejects queued no-retry admissions on every 429, independent
+of remaining wait, preserving ordinary explicit work, pacing and later fresh
+operations. A physical BaseAdapter test verifies no queued batch dispatch.
+Refreshed gates and focused critical review cover this functional correction.
+
+Integration checks pass: 2,535 tests, fresh-cache lint, format, build, diff,
+zero-delay mutation and production updater probe. High/critical audit is clear.
+No new Fallow finding in the follow-up delta. Next: focused review, a coherent
+PR update and required current-head external/CI evidence.

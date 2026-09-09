@@ -26,7 +26,8 @@ VRX/<app version> (https://github.com/Imperix1155/VRX)
 - A 429 monotonically extends the affected cooldown using valid `Retry-After`
   seconds or an HTTP date. Missing or invalid headers use growing jittered
   fallback. Every later attempt rechecks the deadline and normal pacing.
-- Roster pagination and background metadata stop at the first 429. Useful pages
+- Roster pagination and background metadata stop at the first 429, even with
+  a zero-delay Retry-After. Useful pages
   remain partial; missing entries are retained from cache. These batches do not
   sleep and replay, and cooldown expiry does not trigger a burst. Other existing
   request kinds retain their bounded retry policy; every allowed retry re-enters

@@ -502,7 +502,9 @@ headers after admission. `assertRequestLease` rejects obsolete work before
 fetch, retry and body publication. Auth/session cancellation is not an auth
 failure or circuit failure. Old rosters/details reject; a new account needs a
 fresh operation. Rosters and background metadata use no-retry mode: a 429
-ends the batch and rejects its queued admissions. During cooldown they fail
+ends the batch and rejects its queued admissions, including zero-delay
+Retry-After responses. A future wait is not required for batch termination.
+During cooldown they fail
 without dispatch; no automatic batch replay is scheduled. Explicit operations
 retain their existing bounded retry policy. Main-only `FriendRoster.rateLimit`
 records the remaining wait when useful pages can be returned as partial.

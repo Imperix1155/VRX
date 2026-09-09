@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Friend refreshes and background metadata stop when the platform rate-limits
   them. Partial refreshes retain omitted cached friends, and repeated refresh
-  triggers cannot bypass the cooldown. (VRX-218)
+  triggers cannot bypass the cooldown. Queued batches also stop when a 429
+  supplies an immediate retry time. (VRX-218)
 
 - Logout, account switching and newer login attempts cancel obsolete queued
   requests. Images retain their original account lease, and stale responses

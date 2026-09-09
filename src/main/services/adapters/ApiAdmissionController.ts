@@ -137,14 +137,7 @@ export class ApiAdmissionController {
   deferUntil(deadline: number): void {
     if (!Number.isFinite(deadline)) throw new Error('Invalid cooldown deadline')
     this.cooldown = Math.max(this.cooldown, deadline)
-    if (this.cooldownRemainingMs > 0) {
-      for (const waiter of [...this.waiters]) {
-        if (!waiter.options.rejectOnCooldown) continue
-        this.waiters.splice(this.waiters.indexOf(waiter), 1)
-        waiter.removeAbort()
-        waiter.reject(new RateLimitError(this.cooldownRemainingMs))
-      }
-    }
+    if (this.cooldownRemainingMs > 0) this.rejectBatchAdmissions()
     this.wake?.abort()
   }
 
@@ -155,7 +148,19 @@ export class ApiAdmissionController {
       Math.min(1_000 * 2 ** Math.min(this.failures, 15), MAX_BACKOFF_MS)
     this.failures += 1
     this.deferUntil(this.now() + delay + this.jitter())
+    // A 429 ends queued batches even when Retry-After and jitter are both zero.
+    // The deadline controls when fresh work may start, not whether this batch failed.
+    this.rejectBatchAdmissions()
     return this.cooldown
+  }
+
+  private rejectBatchAdmissions(): void {
+    for (const waiter of [...this.waiters]) {
+      if (!waiter.options.rejectOnCooldown) continue
+      this.waiters.splice(this.waiters.indexOf(waiter), 1)
+      waiter.removeAbort()
+      waiter.reject(new RateLimitError(this.cooldownRemainingMs))
+    }
   }
 
   succeeded(): void {

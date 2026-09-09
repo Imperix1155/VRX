@@ -323,6 +323,35 @@ describe('BaseAdapter', () => {
       expect(adapter.getAdmission().cooldownRemainingMs).toBeGreaterThan(59_000)
     })
 
+    it('does not dispatch queued batch requests after a zero-delay 429', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        starts.push({ url, at: Date.now() })
+        return Promise.resolve(
+          url.endsWith('/batch/0')
+            ? new Response(null, { status: 429, headers: { 'Retry-After': '0' } })
+            : new Response(null)
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const batch = Array.from({ length: 4 }, (_, i) =>
+        adapter.raw(`http://api/batch/${i}`, {}, { retry: 'none' }).catch((error: unknown) => error)
+      )
+      const explicit = adapter.raw('http://api/explicit', {}, { priority: 'interactive' })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect((await Promise.all(batch)).every((error) => error instanceof RateLimitError)).toBe(
+        true
+      )
+      await explicit
+      expect(starts).toEqual([
+        { url: 'http://api/batch/0', at: 10_000 },
+        { url: 'http://api/explicit', at: 11_000 }
+      ])
+    })
+
     it('paces mixed REST and API-backed images through the same platform budget', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)
