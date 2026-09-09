@@ -125,7 +125,7 @@ Fresh focused review now verifies all five corrections with no material finding.
 The [coverage ledger](2026-09-09-explore-phase-a-review.md) pins the general and
 focused artifacts, affected contracts, retained conclusions, runtime routing and
 evidence limits. The functional head is
-`32922d2626c00fff43567c2dc0974f26e15f01d2`; subsequent closeout changes are prose
+`32922d2626c00fff43567c2dc0974f26e15f01d2`; the first draft's subsequent closeout changes were prose
 only. The reviewer confirmed that general review does not need restarting.
 
 The reviewed sample-data implementation is ready for a draft PR. Final branch,
@@ -139,3 +139,22 @@ The liaison was told the local verification results and will receive the final
 delivery status. Its API-safety progress report is not an inspected dependency
 handoff: that task still has critical review and CI work outstanding. API safety
 remains owned by that separate task.
+
+## Bounded dependency follow-up
+
+After the shared js-yaml repair merged, the liaison authorized integrating that
+exact dependency into this draft and clearing its audit blocker. The normal
+branch merge at `9da3ea9737bc22267476a714d3955864d1be67ae` includes
+`f783e773405e1abf319b319ca2b6f671f54111f1`. Its only functional delta is the
+reviewed js-yaml 4.3.1 to 4.3.2 lock entry; Explore source and behavior are unchanged.
+The [coverage ledger](2026-09-09-explore-phase-a-review.md) records exact hashes,
+clean-install provenance, all 2,503 passing tests, the full local gate, the
+cleared high/critical audit and a fresh focused review with no material finding.
+
+This follow-up ends after publishing the evidence checkpoint and collecting
+current-head CI. Keep the PR draft and record final delivery status in it and
+VRX-270. Visual verification remains unperformed; API-safety integration and a
+new traffic allowance are still prerequisites for phase B. No app launch,
+capture, live account use, UI change or Explore/API merge is authorized.
+Josh's confirmed sole-maintainer status does not grant merge permission.
+No personal owner instructions were edited in this task.
