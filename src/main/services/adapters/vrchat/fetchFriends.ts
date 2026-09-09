@@ -13,7 +13,7 @@
 import { z } from 'zod'
 import { MAX_FRIENDS } from '@shared/constants'
 import type { VrcFriend } from '@shared/types'
-import { AuthError } from '../errors'
+import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
 import type { RosterCompleteness } from '../IPlatformAdapter'
 import { parsePresence, toBucketSets } from './parsePresence'
 import type { VrcCurrentUserBucketSets } from './parsePresence'
@@ -164,7 +164,12 @@ async function fetchPass(
       // A 401/403 anywhere in the pass (not just the /auth/user probe) means the
       // cookie died mid-fetch — rethrow it so the adapter emits auth-invalidated
       // instead of silently degrading to a partial/empty roster (Codex, VRX-197).
-      if (error instanceof AuthError) throw error
+      if (
+        error instanceof AuthError ||
+        error instanceof RequestCancelledError ||
+        error instanceof RequestQueueFullError
+      )
+        throw error
       // Skip-and-continue (the api-volatility.md promise): count the failure,
       // skip past the failed window, and try the next page — one transient blip
       // must not discard every page behind it. Give up only after
@@ -223,7 +228,12 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
     const rawBuckets = await fetcher('/auth/user', currentUserBucketsSchema)
     buckets = toBucketSets(rawBuckets)
   } catch (error) {
-    if (error instanceof AuthError) throw error
+    if (
+      error instanceof AuthError ||
+      error instanceof RequestCancelledError ||
+      error instanceof RequestQueueFullError
+    )
+      throw error
     return {
       friends: [],
       presence: 'degraded',

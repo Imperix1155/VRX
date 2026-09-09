@@ -26,6 +26,11 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 ## Local Contracts
 
+- Request cancellation and admission overflow are control flow: propagate
+  `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
+  Never continue a page batch or negative-cache these outcomes. Account-owned
+  operations cannot resume under a replacement session.
+
 - Pure parsers/builders: no electron/node imports, no side effects, no I/O. Importable + testable in isolation.
 - Fetchers (`fetchFriends`/`WorldResolver`/`fetchWorldMetadata`): never import HTTP/electron directly — take an injected fetcher/resolver; stay electron-free + unit-testable (mock the fetcher).
 - Resolver/fetcher catches must propagate `AuthError` subclasses, including

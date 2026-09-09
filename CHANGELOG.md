@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Logout, account switching and newer login attempts cancel obsolete queued
+  requests. Images retain their original account lease, and stale responses
+  cannot repopulate the replacement session's cache. (VRX-218)
+
 - API-backed images and normal API requests now share each platform's pacing
   and cooldown. A rate-limit response holds affected API traffic across both
   paths, and CDN images respect their own host cooldowns. Other platforms stay

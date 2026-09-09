@@ -8,6 +8,7 @@ import {
   instantAdmission
 } from './__testutils__/adapterTestKit'
 import { createGroupResolver, type GroupResolver } from './vrchat/GroupResolver'
+import { RequestCancelledError } from './errors'
 
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
   let value = initial
@@ -461,7 +462,8 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     pendingWorlds.add('wrld_stale_previous_gen')
     adapter.clearSession()
     release()
-    await inFlight
+    await expect(inFlight).rejects.toBeInstanceOf(RequestCancelledError)
+    expect(fetchMock).not.toHaveBeenCalled()
 
     expect(resolver.peek(groupId)).toBeUndefined()
     // The boundary also drops stale pending ids — otherwise the new session's

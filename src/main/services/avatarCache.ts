@@ -2,7 +2,8 @@ import {
   ApiAdmissionController,
   API_MAX_PENDING_ADMISSIONS
 } from './adapters/ApiAdmissionController'
-import { RequestQueueFullError } from './adapters/errors'
+import { RequestQueueFullError, RequestCancelledError } from './adapters/errors'
+import { assertRequestLease, type AvatarRequestLease } from './adapters/RequestLease'
 import { API_TIMEOUT_MS } from '@shared/constants'
 import { VRC_USER_AGENT } from './adapters/VrcApiClient'
 
@@ -54,12 +55,11 @@ interface AvatarCacheOptions {
   positiveCacheMs?: number
   maxConcurrency?: number
   /**
-   * Returns the CURRENT VRChat auth Cookie header value, or null when logged
-   * out (VRX-202: the image endpoint 401s unauthenticated). Read at fetch time
-   * so rotation/logout apply immediately. Sent ONLY to AVATAR_COOKIE_HOST —
-   * never forwarded on redirects. Never log its value.
+   * Capture one account lease when the image operation begins. A null lease
+   * suppresses API images until the session is durable. Its cookie accessor
+   * runs only after admission, and never for CDN hosts. Never log its value.
    */
-  vrcCookieProvider?: () => string | null
+  vrcSessionProvider?: () => AvatarRequestLease | null
 }
 
 function parseAllowedAvatarUrl(value: string): URL | null {
@@ -103,6 +103,7 @@ function isForbiddenRedirectHost(hostname: string): boolean {
 export class AvatarCache {
   private readonly cache = new Map<string, CacheEntry>()
   private readonly inFlight = new Map<string, Promise<string | null>>()
+  private readonly inFlightLeases = new Map<string, AvatarRequestLease>()
   private readonly fetchFn: typeof fetch
   private readonly now: () => number
   private readonly maxEntries: number
@@ -116,7 +117,7 @@ export class AvatarCache {
   private readonly cdnAdmissions = new Map<string, ApiAdmissionController>()
   private readonly cdnUsers = new Map<string, number>()
   private readonly apiFetchWaiters: Array<() => void> = []
-  private vrcCookieProvider: (() => string | null) | null
+  private vrcSessionProvider: (() => AvatarRequestLease | null) | null
 
   constructor(options: AvatarCacheOptions = {}) {
     this.fetchFn = options.fetchFn ?? fetch
@@ -125,7 +126,7 @@ export class AvatarCache {
     this.negativeCacheMs = options.negativeCacheMs ?? AVATAR_NEGATIVE_CACHE_MS
     this.positiveCacheMs = options.positiveCacheMs ?? AVATAR_POSITIVE_CACHE_MS
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
-    this.vrcCookieProvider = options.vrcCookieProvider ?? null
+    this.vrcSessionProvider = options.vrcSessionProvider ?? null
     this.apiAdmission = options.apiAdmission ?? new ApiAdmissionController({ now: this.now })
   }
 
@@ -135,16 +136,15 @@ export class AvatarCache {
     this.apiAdmission = admission
   }
 
-  setVrcCookieProvider(provider: (() => string | null) | null): void {
-    this.vrcCookieProvider = provider
+  setVrcSessionProvider(provider: (() => AvatarRequestLease | null) | null): void {
+    this.vrcSessionProvider = provider
   }
 
   /**
    * Drop cached FAILURES (auth-boundary hook, VRX-202/Codex): a fetch that
    * 401'd around a login/logout/rotation would otherwise pin the placeholder
    * for the negative TTL. Positive entries stay — images are auth-invariant.
-   * Residual (accepted): a fetch IN FLIGHT across the boundary can still write
-   * one stale failure after the clear; it self-heals within the 30s TTL.
+   * In-flight API images retain their lease and cannot repopulate stale entries.
    */
   clearNegativeEntries(): void {
     for (const [url, entry] of this.cache) {
@@ -167,25 +167,36 @@ export class AvatarCache {
       this.cache.delete(url)
     }
 
+    const lease = parsed.hostname === AVATAR_COOKIE_HOST ? this.vrcSessionProvider?.() : undefined
+    if (lease === null) return Promise.resolve(null)
     const pending = this.inFlight.get(url)
-    if (pending) return pending
+    const pendingLease = this.inFlightLeases.get(url)
+    if (pending && (!pendingLease || (!pendingLease.signal.aborted && pendingLease.isCurrent())))
+      return pending
 
     if (this.inFlight.size >= API_MAX_PENDING_ADMISSIONS) return Promise.resolve(null)
-    const request = this.fetchAndCache(url)
+    const request = this.fetchAndCache(url, lease)
     this.inFlight.set(url, request)
-    void request.finally(() => this.inFlight.delete(url))
+    if (lease) this.inFlightLeases.set(url, lease)
+    void request.finally(() => {
+      if (this.inFlight.get(url) === request) {
+        this.inFlight.delete(url)
+        this.inFlightLeases.delete(url)
+      }
+    })
     return request
   }
 
-  private async fetchAndCache(url: string): Promise<string | null> {
+  private async fetchAndCache(url: string, lease?: AvatarRequestLease): Promise<string | null> {
     let dataUrl: string | null = null
     try {
-      dataUrl = await this.fetchAvatar(url)
+      dataUrl = await this.fetchAvatar(url, lease)
     } catch {
       // Avatar failures are intentionally non-fatal; the renderer keeps the
       // initial-letter fallback and the short negative cache prevents hammering.
     }
 
+    if (lease && (lease.signal.aborted || !lease.isCurrent())) return null
     this.cache.set(url, {
       dataUrl,
       expiresAt: this.now() + (dataUrl === null ? this.negativeCacheMs : this.positiveCacheMs)
@@ -211,16 +222,17 @@ export class AvatarCache {
    *    it is never forwarded to a redirect target.
    *  - At most AVATAR_MAX_REDIRECTS hops.
    */
-  private async fetchAvatar(url: string): Promise<string | null> {
+  private async fetchAvatar(url: string, lease?: AvatarRequestLease): Promise<string | null> {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
+      assertRequestLease(lease)
       const usesApiLane = target.hostname === AVATAR_COOKIE_HOST
       const admission = usesApiLane ? this.apiAdmission : this.cdnAdmission(target.hostname)
       if (usesApiLane) {
-        await this.acquireApiFetchSlot()
+        await this.acquireApiFetchSlot(lease?.signal)
         try {
           do {
-            await admission.acquire({ priority: 'background' })
+            await admission.acquire({ priority: 'background', signal: lease?.signal })
           } while (admission.cooldownRemainingMs > 0)
         } catch (error) {
           this.releaseApiFetchSlot()
@@ -231,8 +243,8 @@ export class AvatarCache {
         try {
           // Do not occupy CDN body slots while one host is cooling down.
           for (;;) {
-            await admission.acquire({ priority: 'background' })
-            await this.acquireFetchSlot()
+            await admission.acquire({ priority: 'background', signal: lease?.signal })
+            await this.acquireFetchSlot(lease?.signal)
             if (admission.cooldownRemainingMs === 0) break
             this.releaseFetchSlot()
           }
@@ -241,17 +253,22 @@ export class AvatarCache {
           throw error
         }
       }
-      const headers: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
-      if (usesApiLane) {
-        const cookie = this.vrcCookieProvider?.() ?? null
-        if (cookie !== null) headers['Cookie'] = cookie
-      }
       const controller = new AbortController()
       try {
+        assertRequestLease(lease)
+        const headers: Record<string, string> = { 'User-Agent': VRC_USER_AGENT }
+        if (usesApiLane) {
+          const cookie = lease?.getCookie() ?? null
+          if (cookie !== null) headers['Cookie'] = cookie
+        }
         const response = await this.fetchFn(target.href, {
           headers,
           redirect: 'manual',
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(API_TIMEOUT_MS)])
+          signal: AbortSignal.any([
+            controller.signal,
+            AbortSignal.timeout(API_TIMEOUT_MS),
+            ...(lease ? [lease.signal] : [])
+          ])
         })
 
         if (response.status === 429) {
@@ -261,6 +278,11 @@ export class AvatarCache {
           return null
         }
         if (response.ok) admission.succeeded()
+        if (lease && (lease.signal.aborted || !lease.isCurrent())) {
+          controller.abort()
+          await response.body?.cancel().catch(() => {})
+          return null
+        }
 
         if ([301, 302, 303, 307, 308].includes(response.status)) {
           await response.body?.cancel()
@@ -347,16 +369,14 @@ export class AvatarCache {
     return `data:${contentType};base64,${bytes.toString('base64')}`
   }
 
-  private acquireFetchSlot(): Promise<void> {
+  private acquireFetchSlot(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return Promise.reject(new RequestCancelledError())
     if (this.activeFetches < this.maxConcurrency) {
       this.activeFetches += 1
       return Promise.resolve()
     }
-    return new Promise((resolve) => {
-      this.fetchWaiters.push(() => {
-        this.activeFetches += 1
-        resolve()
-      })
+    return this.waitForSlot(this.fetchWaiters, signal, () => {
+      this.activeFetches += 1
     })
   }
 
@@ -386,12 +406,35 @@ export class AvatarCache {
     else this.cdnUsers.set(host, remaining)
   }
 
-  private async acquireApiFetchSlot(): Promise<void> {
+  private async acquireApiFetchSlot(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new RequestCancelledError()
     if (this.apiFetchActive) {
-      await new Promise<void>((resolve) => this.apiFetchWaiters.push(resolve))
+      await this.waitForSlot(this.apiFetchWaiters, signal)
     } else {
       this.apiFetchActive = true
     }
+  }
+
+  private waitForSlot(
+    waiters: Array<() => void>,
+    signal?: AbortSignal,
+    onAcquire?: () => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const ready = (): void => {
+        signal?.removeEventListener('abort', cancel)
+        onAcquire?.()
+        resolve()
+      }
+      const cancel = (): void => {
+        const index = waiters.indexOf(ready)
+        if (index !== -1) waiters.splice(index, 1)
+        signal?.removeEventListener('abort', cancel)
+        reject(new RequestCancelledError())
+      }
+      waiters.push(ready)
+      signal?.addEventListener('abort', cancel, { once: true })
+    })
   }
 
   private releaseApiFetchSlot(): void {

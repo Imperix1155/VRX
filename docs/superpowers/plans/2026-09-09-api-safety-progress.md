@@ -2,8 +2,8 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Unit 1 is verified locally; unit 2 is next and
-units 3–6 are pending. No PR, push, or merge has occurred.
+Production work is underway. Units 1–2 are verified locally; unit 3 is next.
+Units 4–6 are pending. No PR, push, or merge has occurred.
 
 ## Autonomous authority
 
@@ -48,7 +48,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Checkpoint unit 1, then implement unit 2 session leases.
+Checkpoint unit 2, then implement unit 3 batch termination and retry propagation.
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -71,3 +71,42 @@ DOX for unit 1 updates the main contract, API catalog and changelog. Design
 artifacts, README and API policy remain pending the integrated unit 6 pass;
 no visible control or design changed. Preserve the final dependency handoff
 requirements. No merge or live-account authority exists.
+
+## Unit 1 checkpoint
+
+Local commit `f0037d6` saves shared admission, its tests and the received approved
+plan/audit. The commit hook scanned staged content and reported no leaks. It is
+not pushed or reviewed for merge.
+
+## Unit 2 verified locally
+
+- Added main-only request/image leases. Session and interactive-login abort
+  lifetimes remain independent; background invalidation preserves a newer login.
+- Header creation follows admission and lease validation. Queued work, retries,
+  pipeline token exchange, body publication and authenticated image hops keep
+  their original ownership. Logout/switch cancels obsolete work without circuit
+  penalties; a replacement account uses a fresh caller operation.
+- Images cancel body/admission waits, do not borrow new credentials, and cannot
+  write stale cache entries or clear a replacement in-flight promise.
+- Fetchers/resolvers propagate cancellation and queue overflow without advancing
+  pagination or negative-caching control-flow failures.
+- Three initial tests reproduced queued logout and superseded-login dispatches.
+  Final mutation probe dropped BaseAdapter's lease: five logout/switch/login
+  regressions failed, then exact source was restored (`A2_MUTATION_GREEN`).
+  The first mutation also showed CVR's lazy missing-credential header guard
+  independently prevents logout traffic; the strengthened test additionally
+  proves immediate admission cleanup.
+- Final focused gate: 27 files, 632 tests, then lint, formatting and build passed
+  with `A2_PROJECT_GATE_GREEN`. Build includes Node/web types and entry assertion.
+  Existing auth/persistence and stale-response tests remain green. Old tests that
+  expected automatic cross-account replay now prove rejection plus a fresh read.
+  One enrichment test needed its previously implicit durable-session fixture.
+- A new fake-timer test initially leaked its clock into unrelated tests; the
+  bounded hung run was stopped and explicit cleanup fixed the test fixture.
+- DOX: main and both platform contracts, API catalog and changelog updated.
+  Renderer/design docs unchanged: no controls or presentation changed. Final API
+  policy/volatility/README synchronization remains unit 6.
+
+Usage checkpoint before unit 2 was 26% used in the relevant weekly window.
+No required external review or final CI exists yet. T2 review and merge gates
+remain in force; Explore integration is still blocked on the final handoff.

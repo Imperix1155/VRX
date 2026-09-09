@@ -245,6 +245,32 @@ describe('BaseAdapter', () => {
   })
 
   describe('429 backoff', () => {
+    it('discards cancelled response bodies without poisoning the circuit', async () => {
+      const adapter = new TestAdapter()
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController()
+        let release!: (body: unknown) => void
+        let started = false
+        const response = new Response(null)
+        vi.spyOn(response, 'json').mockImplementation(() => {
+          started = true
+          return new Promise((resolve) => {
+            release = resolve
+          })
+        })
+        fetchMock.mockResolvedValueOnce(response)
+        const request = adapter
+          .fetch('http://api/read', schema, { signal: controller.signal })
+          .catch((error: unknown) => error)
+        await vi.waitFor(() => expect(started).toBe(true))
+        controller.abort()
+        release(validBody)
+        expect(await request).toBeInstanceOf(RequestCancelledError)
+      }
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(validBody)))
+      await expect(adapter.fetch('http://api/current', schema)).resolves.toEqual(validBody)
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+    })
     it('rechecks cooldown after permit resolution and before physical fetch', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)

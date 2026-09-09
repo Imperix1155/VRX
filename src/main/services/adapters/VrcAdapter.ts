@@ -14,6 +14,7 @@ import type {
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import type { AdapterEvent } from '@shared/types'
 import type { AdapterRequestOptions } from './BaseAdapter'
+import { assertRequestLease, type RequestLease, type AvatarRequestLease } from './RequestLease'
 import { AuthError, AuthSessionPendingError, NetworkError } from './errors'
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
@@ -140,6 +141,8 @@ function isInstanceLocation(location: string): boolean {
  * scaffolded as not-yet-implemented and land in later issues (getFriends = VRX-43).
  */
 export class VrcAdapter extends VrcApiClient {
+  private sessionAbort = new AbortController()
+  private authOperationAbort = new AbortController()
   private cookie: string | null = null
   private displayName: string | null = null
   private accountId: string | null = null
@@ -226,14 +229,14 @@ export class VrcAdapter extends VrcApiClient {
     try {
       response = await this.rawRequest(
         `${VRC_API_BASE}/auth/user`,
-        {
+        () => ({
           method: 'GET',
           headers: {
             Authorization: basicAuthHeader(creds.username, creds.password),
             'User-Agent': VRC_USER_AGENT
           }
-        },
-        { priority: 'interactive' }
+        }),
+        { priority: 'interactive', lease: this.authRequestLease(operationId) }
       )
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
@@ -346,6 +349,7 @@ export class VrcAdapter extends VrcApiClient {
     // no auth component. The pending marker makes such in-flight status requests
     // report the existing 2FA state instead of clearing this tentative session.
     const retainedAuthCookie = cookiePart(this.cookie, 'auth')
+    const verificationCookie = this.cookie
     if (!retainedAuthCookie || !isValidVrcSessionCookie(retainedAuthCookie)) {
       return { ok: false, needs2fa: false, error: 'invalid_credentials' }
     }
@@ -364,16 +368,16 @@ export class VrcAdapter extends VrcApiClient {
     try {
       response = await this.rawRequest(
         `${VRC_API_BASE}${endpoint}`,
-        {
+        () => ({
           method: 'POST',
           headers: {
-            ...this.cookieHeader(),
+            ...(verificationCookie ? { Cookie: verificationCookie } : {}),
             'User-Agent': VRC_USER_AGENT,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ code })
-        },
-        { priority: 'interactive' }
+        }),
+        { priority: 'interactive', lease: this.authRequestLease(operationId) }
       )
     } catch {
       if (!this.isAuthOperationCurrent(operationId)) {
@@ -490,11 +494,15 @@ export class VrcAdapter extends VrcApiClient {
       try {
         response = await this.rawRequest(
           `${VRC_API_BASE}/auth/user`,
-          {
+          () => ({
             method: 'GET',
             headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-          },
-          { priority: 'interactive', recordCircuitFailure: false }
+          }),
+          {
+            priority: 'interactive',
+            recordCircuitFailure: false,
+            lease: this.captureSessionLease()
+          }
         )
       } catch {
         if (this.authPersistencePending) {
@@ -597,11 +605,46 @@ export class VrcAdapter extends VrcApiClient {
     return this.isSessionConsumerReady() ? super.getAuthCookieHeader() : null
   }
 
+  getAvatarRequestLease(): AvatarRequestLease | null {
+    if (!this.isSessionConsumerReady()) return null
+    const lease = this.captureSessionLease(true)
+    return {
+      ...lease,
+      getCookie: () => {
+        assertRequestLease(lease)
+        return this.getAuthCookieHeader()
+      }
+    }
+  }
+
+  protected override sessionRequestLease(): RequestLease {
+    this.assertDurableSession()
+    return this.captureSessionLease(true)
+  }
+
+  private captureSessionLease(requireDurable = false): RequestLease {
+    const generation = this.sessionGeneration
+    return {
+      generation,
+      signal: this.sessionAbort.signal,
+      isCurrent: () =>
+        generation === this.sessionGeneration && (!requireDurable || this.isSessionConsumerReady())
+    }
+  }
+
+  private authRequestLease(operationId: number): RequestLease {
+    return {
+      generation: operationId,
+      signal: this.authOperationAbort.signal,
+      isCurrent: () => this.isAuthOperationCurrent(operationId)
+    }
+  }
+
   /** Fence every typed authenticated GET, including paginators and old metadata workers. */
   protected override get<T>(
     path: string,
     schema: z.ZodType<T>,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    options?: AdapterRequestOptions
   ): Promise<T> {
     this.assertDurableSession()
     return super.get(path, schema, options)
@@ -612,7 +655,7 @@ export class VrcAdapter extends VrcApiClient {
     path: string,
     body: unknown,
     schema: z.ZodType<T>,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    options?: AdapterRequestOptions
   ): Promise<T> {
     this.assertDurableSession()
     return super.post(path, body, schema, options)
@@ -661,11 +704,9 @@ export class VrcAdapter extends VrcApiClient {
           )
         }
 
-        // A different account landed while this roster was in flight. Never
-        // return the old account's success: retry a replacement session, but
-        // abort when logout left no session to retry.
+        // A replacement account needs a fresh caller-owned operation.
+        // Never replay this old roster under its credentials.
         if (generation !== this.sessionGeneration) {
-          if (this.cookie) continue
           throw new Error('Session ended')
         }
         const roster = friends.map((friend) => {
@@ -684,7 +725,6 @@ export class VrcAdapter extends VrcApiClient {
         // The old account's failure is irrelevant to a replacement session; a
         // completed logout aborts instead of manufacturing a second auth failure.
         if (generation !== this.sessionGeneration) {
-          if (this.cookie) continue
           throw new Error('Session ended')
         }
 
@@ -1056,13 +1096,19 @@ export class VrcAdapter extends VrcApiClient {
    */
   private async pipelineToken(): Promise<string | null> {
     if (!this.isSessionConsumerReady() || !this.cookie) return null
+    const lease = this.captureSessionLease()
     try {
-      const response = await this.rawRequest(`${VRC_API_BASE}/auth`, {
-        method: 'GET',
-        headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-      })
+      const response = await this.rawRequest(
+        `${VRC_API_BASE}/auth`,
+        () => ({
+          method: 'GET',
+          headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
+        }),
+        { lease }
+      )
       if (response.ok) {
         const parsed = authTokenSchema.safeParse(await response.json())
+        if (!lease.isCurrent() || lease.signal.aborted) return null
         if (parsed.success) return parsed.data.token
       }
     } catch {
@@ -1072,6 +1118,7 @@ export class VrcAdapter extends VrcApiClient {
     // work; the exchange is preferred as it validates the session first). Split
     // once — the value can itself contain `=` (base64 padding), so slice-join
     // rather than [1], which would truncate it.
+    if (!lease.isCurrent() || lease.signal.aborted || !this.isSessionConsumerReady()) return null
     const authPart = cookiePart(this.cookie, 'auth')
     if (!authPart) return null
     const eq = authPart.indexOf('=')
@@ -1088,6 +1135,8 @@ export class VrcAdapter extends VrcApiClient {
     // older in-flight request at its next await fence while the queue still
     // prevents concurrent mutation of the shared cookie/session fields.
     const operationId = ++this.authOperationSequence
+    this.authOperationAbort.abort()
+    this.authOperationAbort = new AbortController()
     const cancellationGeneration = this.authOperationCancellationGeneration
     const run = async (): Promise<LoginResult> => {
       if (
@@ -1125,6 +1174,7 @@ export class VrcAdapter extends VrcApiClient {
   }
 
   private cancelAuthOperations(): void {
+    this.authOperationAbort.abort()
     this.authOperationCancellationGeneration += 1
     this.activeAuthOperation = null
   }
@@ -1190,6 +1240,8 @@ export class VrcAdapter extends VrcApiClient {
    * and is dropped by createPipeline's event handler.
    */
   private bumpSessionGeneration(restartPipeline = true): void {
+    this.sessionAbort.abort()
+    this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.worldResolver.clear()
     this.groupResolver.clear()
@@ -1332,11 +1384,17 @@ export class VrcAdapter extends VrcApiClient {
     try {
       const response = await this.rawRequest(
         `${VRC_API_BASE}/auth/user`,
-        {
+        () => ({
           method: 'GET',
           headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
-        },
-        { priority }
+        }),
+        {
+          priority,
+          lease:
+            operationId === undefined
+              ? this.captureSessionLease()
+              : this.authRequestLease(operationId)
+        }
       )
       if (operationId !== undefined && !this.isAuthOperationCurrent(operationId)) return
       if (!response.ok) return

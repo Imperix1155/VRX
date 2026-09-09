@@ -3,6 +3,7 @@ import { CONCURRENCY_LIMIT } from '@shared/constants'
 import { AUTH_IDENTITY_UNAVAILABLE, type AdapterEvent, Friend, InstanceInfo } from '@shared/types'
 import type { VrcCredentialStore } from './VrcAdapter'
 import { VrcAdapter } from './VrcAdapter'
+import { ApiAdmissionController } from './ApiAdmissionController'
 import { AuthError, AuthSessionPendingError } from './errors'
 import {
   jsonResponse,
@@ -37,6 +38,114 @@ function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; de
 }
 
 const creds = { username: 'neo', password: 'redpill' }
+
+describe('VRChat dispatch cancellation', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('sends neither account cookie for an obsolete queued roster after switching', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(20_000)
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          jsonResponse(
+            { id: 'ACCOUNTB1', displayName: 'Account B' },
+            { setCookies: ['auth=account-b'] }
+          )
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), admission)
+    markSessionEstablished(adapter)
+    const roster = adapter.getFriends().catch((error: unknown) => error)
+    const login = adapter.login({ username: 'account-b', password: 'fake-b' })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await expect(login).resolves.toEqual({ ok: true })
+    expect(((await roster) as Error).message).toBe('Session ended')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Cookie')).toBeNull()
+    expect(adapter.getAuthCookieHeader()).toBe('auth=account-b')
+  })
+
+  it('does not retry an action after logout during a server cooldown', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const admission = new ApiAdmissionController()
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(null, {
+          status: 429,
+          headers: { 'Retry-After': '60' }
+        })
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), admission)
+    markSessionEstablished(adapter)
+    const action = adapter
+      .selfInvite('wrld_test:123~hidden(usr_owner)')
+      .catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    adapter.clearSession()
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(await action).toBeInstanceOf(Error)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(admission.pendingCount).toBe(0)
+  })
+  it('sends no queued roster or action after logout', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(70_000)
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), admission)
+    markSessionEstablished(adapter)
+    const roster = adapter.getFriends().catch((error: unknown) => error)
+    const action = adapter
+      .selfInvite('wrld_test:123~hidden(usr_owner)')
+      .catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    adapter.clearSession()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(admission.pendingCount).toBe(0)
+    await vi.advanceTimersByTimeAsync(65_000)
+    expect(await roster).toBeInstanceOf(Error)
+    expect(await action).toBeInstanceOf(Error)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(admission.pendingCount).toBe(0)
+  })
+
+  it('cancels a queued login when a later login supersedes it', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(20_000)
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({}, 401)))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore(), admission)
+    const first = adapter.login({ username: 'account-a', password: 'fake-a' })
+    await vi.advanceTimersByTimeAsync(0)
+    const second = adapter.login({ username: 'account-b', password: 'fake-b' })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await expect(first).resolves.toMatchObject({ ok: false })
+    await expect(second).resolves.toMatchObject({ ok: false })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('Authorization')).toBe(
+      `Basic ${Buffer.from('account-b:fake-b').toString('base64')}`
+    )
+  })
+})
 
 type SocketListener = (...args: unknown[]) => void
 class DrivableVrcSocket {
@@ -3035,7 +3144,7 @@ describe('VrcAdapter', () => {
       expect(friends[0]!.displayName).toBe('Alice')
     })
 
-    it('retries a stale account-A roster error and returns account B without invalidating it', async () => {
+    it('rejects a stale account-A roster and lets a fresh read use B without invalidation', async () => {
       let releaseAccountA!: (response: Response) => void
       const heldAccountA = new Promise<Response>((resolve) => {
         releaseAccountA = resolve
@@ -3094,7 +3203,8 @@ describe('VrcAdapter', () => {
       const boundariesAfterLogin = boundary.mock.calls.length
       releaseAccountA(jsonResponse({ error: 'expired account A' }, { status: 401 }))
 
-      await expect(roster).resolves.toEqual({
+      await expect(roster).rejects.toThrow('Session ended')
+      await expect(adapter.getFriends()).resolves.toEqual({
         friends: [
           expect.objectContaining({
             platformUserId: 'usr_b_friend',
@@ -3153,12 +3263,12 @@ describe('VrcAdapter', () => {
       releaseLoginBody({ id: 'ACCOUNTB1', displayName: 'Account B' })
       await expect(login).resolves.toEqual({ ok: true })
 
-      expect(rosterError).toBeInstanceOf(AuthSessionPendingError)
-      expect((rosterError as Error).message).toBe('Authentication session is still being persisted')
+      expect(rosterError).toBeInstanceOf(Error)
+      expect((rosterError as Error).message).toBe('Session ended')
       expect(tentativeAccountBRequests).toBe(0)
     })
 
-    it('restarts a roster before its next page can use a durable replacement cookie', async () => {
+    it('stops a roster before its next page can use a durable replacement cookie', async () => {
       let releaseAccountAPage!: (response: Response) => void
       const heldAccountAPage = new Promise<Response>((resolve) => {
         releaseAccountAPage = resolve
@@ -3221,7 +3331,9 @@ describe('VrcAdapter', () => {
         ok: true
       })
       releaseAccountAPage(jsonResponse([]))
-      await expect(roster).resolves.toEqual({ friends: [], completeness: 'complete' })
+      await expect(roster).rejects.toThrow('Session ended')
+      expect(accountBPaths).toEqual([])
+      await expect(adapter.getFriends()).resolves.toEqual({ friends: [], completeness: 'complete' })
 
       expect(accountBPaths[0]).toBe('/api/1/auth/user')
     })

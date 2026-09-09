@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
 import type { Platform } from '@shared/types'
-import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
+import { BaseAdapter, type AdapterRequestOptions, type RequestInitSource } from './BaseAdapter'
+import type { RequestLease } from './RequestLease'
 import {
   AuthError,
   CVRAuthError,
@@ -45,6 +46,10 @@ export abstract class CvrApiClient extends BaseAdapter {
 
   private credentials: CVRCredentials | null = null
 
+  protected sessionRequestLease(): RequestLease | undefined {
+    return undefined
+  }
+
   /** Supply or clear the in-memory credentials used by authenticated calls. */
   protected setCredentials(credentials: CVRCredentials | null): void {
     this.credentials = credentials
@@ -54,26 +59,36 @@ export abstract class CvrApiClient extends BaseAdapter {
   protected async get<T>(
     path: string,
     schema: z.ZodType<T>,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    options?: AdapterRequestOptions
   ): Promise<T> {
     return await this.requestData(
       path,
       schema,
-      {
+      () => ({
         method: 'GET',
         headers: this.authenticatedHeaders()
-      },
-      options
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
     )
   }
 
   /** POST JSON to an authenticated CVR endpoint and unwrap its validated data envelope. */
-  protected async post<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
-    return await this.requestData(path, schema, {
-      method: 'POST',
-      headers: this.authenticatedHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body)
-    })
+  protected async post<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return await this.requestData(
+      path,
+      schema,
+      () => ({
+        method: 'POST',
+        headers: this.authenticatedHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
   }
 
   /**
@@ -91,11 +106,11 @@ export abstract class CvrApiClient extends BaseAdapter {
   ): Promise<Response> {
     return this.rawRequest(
       CVR_API_BASE + '/users/auth',
-      {
+      () => ({
         method: 'POST',
         headers: this.baseHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ AuthType: authType, Username: username, Password: password })
-      },
+      }),
       options
     )
   }
@@ -103,8 +118,8 @@ export abstract class CvrApiClient extends BaseAdapter {
   private async requestData<T>(
     path: string,
     schema: z.ZodType<T>,
-    requestInit: RequestInit,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    requestInit: RequestInitSource,
+    options?: AdapterRequestOptions
   ): Promise<T> {
     try {
       const envelope = await this.request(

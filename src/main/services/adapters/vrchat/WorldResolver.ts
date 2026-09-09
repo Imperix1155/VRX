@@ -26,7 +26,7 @@
 
 import { z } from 'zod'
 import { WORLD_CACHE_TTL_MS } from '@shared/constants'
-import { AuthError } from '../errors'
+import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
 
 /**
  * Failure TTL for WorldResolver (VRX-254). Long enough that a deleted/private
@@ -142,7 +142,12 @@ export class WorldResolver {
       // it propagates so VrcAdapter can emit auth-invalidated from its background
       // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
-      if (error instanceof AuthError) throw error
+      if (
+        error instanceof AuthError ||
+        error instanceof RequestCancelledError ||
+        error instanceof RequestQueueFullError
+      )
+        throw error
       if (mayWrite()) {
         this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
       }

@@ -21,7 +21,7 @@
 import { z } from 'zod'
 import { INSTANCE_CACHE_TTL_MS } from '@shared/constants'
 import type { AdapterRequestOptions } from '../BaseAdapter'
-import { AuthError } from '../errors'
+import { AuthError, RequestCancelledError, RequestQueueFullError } from '../errors'
 import type { CvrFetcher } from './fetchCvrFriends'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
@@ -202,7 +202,12 @@ export function createCvrInstanceResolver(options: {
     } catch (error) {
       // A dead session must reach CvrAdapter's auth-invalidated boundary. It is
       // neither an unavailable instance nor safe to negative-cache.
-      if (error instanceof AuthError) throw error
+      if (
+        error instanceof AuthError ||
+        error instanceof RequestCancelledError ||
+        error instanceof RequestQueueFullError
+      )
+        throw error
 
       // Private/hidden/deleted instances and non-auth transient failures land
       // here — null-not-throw and negative-cached so repeated snapshots don't

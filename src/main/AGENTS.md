@@ -78,6 +78,15 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   and rechecked after every wake. Pending admission is capped at 256 with 16
   entries reserved for interactive work; overflow fails once. CDN controllers
   use zero pacing only behind the existing bounded body semaphore.
+- `services/adapters/RequestLease.ts` owns main-only request/image leases.
+  Session boundaries abort old account work; interactive auth owns a separate
+  cancellation lifetime so automatic invalidation cannot cancel a newer login.
+  Both API clients build headers after lease validation at admission. Typed
+  reads, auth, retries, pipeline token exchange and API image redirects retain
+  their originating lease. Old rosters/details reject instead of borrowing a
+  replacement account; fresh reads capture fresh leases. Images discard stale
+  body/cache results and use identity-checked pending cleanup. Cancellation and
+  overflow propagate through fetchers/resolvers without negative caching.
 - Adapter constructors accept an admission controller instead of a sleep
   callback. Timing regressions use a paired injected clock and sleep; other
   adapter tests use the test-only `instantAdmission` virtual clock. No test

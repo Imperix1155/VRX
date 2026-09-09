@@ -13,6 +13,7 @@ import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAda
 import { AuthError, NetworkError, RateLimitError, RequestCancelledError } from './errors'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import type { RequestPriority } from './ApiAdmissionController'
+import { assertRequestLease, type RequestLease } from './RequestLease'
 export type { RequestPriority } from './ApiAdmissionController'
 
 const MAX_429_RETRIES = 3
@@ -23,6 +24,7 @@ export interface AdapterRequestOptions {
   priority?: RequestPriority
   recordCircuitFailure?: boolean
   signal?: AbortSignal
+  lease?: RequestLease
   retry?: 'bounded' | 'none'
   beforeDispatch?: () => void
 }
@@ -69,11 +71,13 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       retry = 'bounded',
       beforeDispatch
     } = requestOptions
-    const callerSignal = typeof options === 'function' ? undefined : options.signal
-    const signal =
-      requestOptions.signal && callerSignal
-        ? AbortSignal.any([requestOptions.signal, callerSignal])
-        : (requestOptions.signal ?? callerSignal ?? undefined)
+    assertRequestLease(requestOptions.lease)
+    const signalsForCaller = [
+      requestOptions.signal,
+      requestOptions.lease?.signal,
+      typeof options === 'function' ? undefined : options.signal
+    ].filter((value): value is AbortSignal => value != null)
+    const signal = signalsForCaller.length ? AbortSignal.any(signalsForCaller) : undefined
     if (signal?.aborted) throw new RequestCancelledError()
     if (
       this.consecutiveFailures >= CIRCUIT_OPEN_THRESHOLD &&
@@ -86,6 +90,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       do {
         await this.admission.acquire({ priority, signal, notBefore })
         if (signal?.aborted) throw new RequestCancelledError()
+        assertRequestLease(requestOptions.lease)
         beforeDispatch?.()
         // A response can extend cooldown between permit resolution and this
         // continuation. No captured headers may leave during that new wait.
@@ -109,7 +114,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       }
       if (response.status === 429) {
         notBefore = this.admission.rateLimited(response.headers.get('Retry-After'))
-        await response.body?.cancel()
+        await response.body?.cancel().catch(() => {})
         if (signal?.aborted) throw new RequestCancelledError()
         if (retry === 'none' || attempt >= MAX_429_RETRIES) {
           throw new RateLimitError(this.admission.cooldownRemainingMs)
@@ -117,9 +122,10 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         continue
       }
       if (signal?.aborted) {
-        await response.body?.cancel()
+        await response.body?.cancel().catch(() => {})
         throw new RequestCancelledError()
       }
+      assertRequestLease(requestOptions.lease)
       if (response.ok) this.admission.succeeded()
       return response
     }
@@ -138,15 +144,18 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     requestOptions: AdapterRequestOptions = {}
   ): Promise<T> {
     const response = await this.rawRequest(url, options, requestOptions)
+    this.assertRequestCurrent(options, requestOptions)
 
     if (response.status === 401 || response.status === 403) {
-      await response.body?.cancel()
+      await response.body?.cancel().catch(() => {})
+      this.assertRequestCurrent(options, requestOptions)
       this.recordFailure()
       throw new AuthError(undefined, response.status)
     }
 
     if (!response.ok) {
-      await response.body?.cancel()
+      await response.body?.cancel().catch(() => {})
+      this.assertRequestCurrent(options, requestOptions)
       this.recordFailure()
       throw new NetworkError(`HTTP ${response.status}`)
     }
@@ -155,12 +164,12 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     try {
       data = await response.json()
     } catch {
-      if (requestOptions.signal?.aborted) throw new RequestCancelledError()
+      this.assertRequestCurrent(options, requestOptions)
       this.recordFailure()
       throw new NetworkError('Failed to parse response body')
     }
 
-    if (requestOptions.signal?.aborted) throw new RequestCancelledError()
+    this.assertRequestCurrent(options, requestOptions)
     const parsed = schema.safeParse(data)
     if (!parsed.success) {
       this.recordFailure()
@@ -174,6 +183,19 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   private recordFailure(): void {
     this.consecutiveFailures++
     this.lastFailureAt = Date.now()
+  }
+
+  private assertRequestCurrent(
+    options: RequestInitSource,
+    requestOptions: AdapterRequestOptions
+  ): void {
+    assertRequestLease(requestOptions.lease)
+    if (
+      requestOptions.signal?.aborted ||
+      (typeof options !== 'function' && options.signal?.aborted)
+    ) {
+      throw new RequestCancelledError()
+    }
   }
 
   /**

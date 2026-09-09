@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AvatarRequestLease } from './adapters/RequestLease'
 import {
   AVATAR_CACHE_MAX_ENTRIES,
   AVATAR_FETCH_MAX_CONCURRENCY,
@@ -7,6 +8,15 @@ import {
   AVATAR_MAX_URL_LENGTH,
   AvatarCache
 } from './avatarCache'
+
+function imageLease(cookie: string, controller = new AbortController()): AvatarRequestLease {
+  return {
+    generation: 1,
+    signal: controller.signal,
+    isCurrent: () => !controller.signal.aborted,
+    getCookie: () => cookie
+  }
+}
 
 const ALLOWED_URL = 'https://files.vrchat.cloud/avatar/file_1.png'
 
@@ -27,6 +37,13 @@ describe('AvatarCache', () => {
   const VRC_IMAGE_URL = 'https://api.vrchat.cloud/api/1/image/file_0000/1/256'
   const CDN_URL = 'https://d348imysud55la.cloudfront.net/thumbnails/file_0000.256.png'
 
+  it('does not fetch API images while the session provider is quarantined', async () => {
+    const fetchFn = vi.fn<typeof fetch>()
+    const cache = new AvatarCache({ fetchFn, vrcSessionProvider: () => null })
+    await expect(cache.get(VRC_IMAGE_URL)).resolves.toBeNull()
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
   function redirectResponse(location: string): Response {
     return new Response(null, { status: 302, headers: { Location: location } })
   }
@@ -36,7 +53,10 @@ describe('AvatarCache', () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(redirectResponse(CDN_URL))
       .mockResolvedValueOnce(imageResponse())
-    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease('auth=authcookie_test')
+    })
 
     await expect(cache.get(VRC_IMAGE_URL)).resolves.toMatch(/^data:image\/png;base64,/)
 
@@ -63,7 +83,10 @@ describe('AvatarCache', () => {
 
   it('fetches files.abidata.io directly with no cookie (CVR live CDN)', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
-    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease('auth=authcookie_test')
+    })
 
     await expect(cache.get('https://files.abidata.io/user_images/00-0000.png')).resolves.toMatch(
       /^data:image\/png;base64,/
@@ -75,7 +98,10 @@ describe('AvatarCache', () => {
 
   it('fetches files.chilloutvr.net directly with no cookie (CVR current roster CDN, VRX-62)', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
-    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease('auth=authcookie_test')
+    })
 
     await expect(
       cache.get('https://files.chilloutvr.net/user_images/00-0000.png')
@@ -131,7 +157,10 @@ describe('AvatarCache', () => {
 
   it('withholds the cookie from sibling VRChat hosts (exact-host attach, not suffix match)', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(imageResponse())
-    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => 'auth=authcookie_test' })
+    const cache = new AvatarCache({
+      fetchFn,
+      vrcSessionProvider: () => imageLease('auth=authcookie_test')
+    })
 
     await expect(cache.get('https://files.vrchat.cloud/avatar/file_2.png')).resolves.toMatch(
       /^data:image\/png;base64,/
@@ -433,11 +462,12 @@ describe('AvatarCache', () => {
     expect(fetchFn).toHaveBeenCalledTimes(3)
   })
 
-  it('reads the cookie provider after a queued API fetch reaches its dispatch slot', async () => {
+  it('cancels queued images and discards old results instead of borrowing the next account cookie', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     vi.spyOn(Math, 'random').mockReturnValue(0)
-    let cookie: string | null = 'auth=account-a'
+    const accountA = new AbortController()
+    let lease: AvatarRequestLease | null = imageLease('auth=account-a', accountA)
     let releaseFirst: ((response: Response) => void) | undefined
     const fetchFn = vi.fn<typeof fetch>().mockImplementation(() => {
       if (fetchFn.mock.calls.length === 1) {
@@ -447,25 +477,22 @@ describe('AvatarCache', () => {
       }
       return Promise.resolve(imageResponse())
     })
-    const cache = new AvatarCache({ fetchFn, vrcCookieProvider: () => cookie })
-
+    const cache = new AvatarCache({ fetchFn, vrcSessionProvider: () => lease })
     const first = cache.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
-    const queued = cache.get('https://api.vrchat.cloud/api/1/image/file_b/1/256')
+    const queuedUrl = 'https://api.vrchat.cloud/api/1/image/file_b/1/256'
+    const queued = cache.get(queuedUrl)
     await vi.advanceTimersByTimeAsync(0)
-    expect((fetchFn.mock.calls[0]?.[1]?.headers as Record<string, string>)['Cookie']).toBe(
-      'auth=account-a'
-    )
-
-    cookie = null
+    expect(new Headers(fetchFn.mock.calls[0]?.[1]?.headers).get('Cookie')).toBe('auth=account-a')
+    accountA.abort()
+    lease = imageLease('auth=account-b')
+    await expect(queued).resolves.toBeNull()
+    const replacement = cache.get(queuedUrl)
     releaseFirst?.(imageResponse())
     await vi.advanceTimersByTimeAsync(1_000)
-    await expect(Promise.all([first, queued])).resolves.toEqual([
-      expect.stringMatching(/^data:image\/png;base64,/),
-      expect.stringMatching(/^data:image\/png;base64,/)
-    ])
-    expect(
-      (fetchFn.mock.calls[1]?.[1]?.headers as Record<string, string>)['Cookie']
-    ).toBeUndefined()
+    await expect(first).resolves.toBeNull()
+    await expect(replacement).resolves.toMatch(/^data:image\/png;base64,/)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    expect(new Headers(fetchFn.mock.calls[1]?.[1]?.headers).get('Cookie')).toBe('auth=account-b')
   })
 
   it('runs the paced API lane independently from all four CDN slots', async () => {

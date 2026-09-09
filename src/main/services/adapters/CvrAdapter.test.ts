@@ -3,6 +3,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import type { CVRCredentials } from './CvrApiClient'
 import type { CvrCredentialStore } from './CvrAdapter'
 import { CvrAdapter } from './CvrAdapter'
+import { ApiAdmissionController } from './ApiAdmissionController'
 import { AuthSessionPendingError, CVRAuthError } from './errors'
 import { jsonResponse, instantAdmission, ownerBindingHarness } from './__testutils__/adapterTestKit'
 import { FriendAlerts, type FriendAlert } from '../friendAlerts'
@@ -59,6 +60,70 @@ function markSessionEstablishedForTest(adapter: CvrAdapter): CvrAdapter {
 }
 
 describe('CvrAdapter', () => {
+  it('sends neither access key for an obsolete queued roster after switching', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    vi.spyOn(Math, 'random').mockReturnValue(0)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(20_000)
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          jsonResponse(envelope(authPayload({ username: 'account-b', accessKey: 'key-b' })))
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = markSessionEstablishedForTest(
+      new CvrAdapter(fakeStore({ username: 'account-a', accessKey: 'key-a' }), admission)
+    )
+    const roster = adapter.getFriends().catch((error: unknown) => error)
+    const login = adapter.login(creds)
+    await vi.advanceTimersByTimeAsync(15_000)
+    await expect(login).resolves.toEqual({ ok: true })
+    expect(((await roster) as Error).message).toBe('Session ended')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('AccessKey')).toBeNull()
+  })
+
+  it('cancels a superseded login before dispatch', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(20_000)
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({}, 401)))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new CvrAdapter(fakeStore(), admission)
+    const first = adapter.login({ username: 'account-a', password: 'fake-a' })
+    const second = adapter.login({ username: 'account-b', password: 'fake-b' })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await expect(first).resolves.toMatchObject({ ok: false })
+    await expect(second).resolves.toMatchObject({ ok: false })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      Username: 'account-b'
+    })
+  })
+  it('sends no queued roster after logout', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const admission = new ApiAdmissionController()
+    admission.deferUntil(70_000)
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ message: 'ok', data: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = markSessionEstablishedForTest(
+      new CvrAdapter(fakeStore({ username: 'account-a', accessKey: 'key-a' }), admission)
+    )
+    const roster = adapter.getFriends().catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    adapter.clearSession()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(admission.pendingCount).toBe(0)
+    await vi.advanceTimersByTimeAsync(65_000)
+    expect(await roster).toBeInstanceOf(Error)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(admission.pendingCount).toBe(0)
+  })
   it('rejects control-character direct credentials before making a request', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
@@ -964,7 +1029,7 @@ describe('CvrAdapter', () => {
       expect(adapter.resolveFriendName('missing')).toBeNull()
     })
 
-    it('retries an account-A roster success after account B is adopted', async () => {
+    it('rejects an account-A roster success after B is adopted and allows a fresh read', async () => {
       const accountAId = 'a1b2c3d4-0000-0000-0000-000000000001'
       const accountBId = 'a1b2c3d4-0000-0000-0000-000000000002'
       let releaseAccountARoster!: (response: Response) => void
@@ -1005,7 +1070,9 @@ describe('CvrAdapter', () => {
           data: [{ id: accountAId, name: 'Account A Friend', imageUrl: null, categories: [] }]
         })
       )
-      await expect(staleRoster).resolves.toEqual({
+      await expect(staleRoster).rejects.toThrow('Session ended')
+      expect(friendsCalls).toBe(1)
+      await expect(adapter.getFriends()).resolves.toEqual({
         friends: [
           expect.objectContaining({
             platformUserId: accountBId,
@@ -1019,7 +1086,7 @@ describe('CvrAdapter', () => {
       expect(friendsCalls).toBe(2)
     })
 
-    it('ignores a stale account-A 401 and retries without clearing account B', async () => {
+    it('rejects a stale account-A 401 without clearing account B', async () => {
       const accountBId = 'a1b2c3d4-0000-0000-0000-000000000002'
       let releaseAccountARoster!: (response: Response) => void
       const accountARoster = new Promise<Response>((resolve) => {
@@ -1052,7 +1119,9 @@ describe('CvrAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: true })
       releaseAccountARoster(jsonResponse({ message: 'denied' }, { status: 401 }))
 
-      await expect(roster).resolves.toEqual({
+      await expect(roster).rejects.toThrow('Session ended')
+      expect(friendsCalls).toBe(1)
+      await expect(adapter.getFriends()).resolves.toEqual({
         friends: [
           expect.objectContaining({ platformUserId: accountBId, displayName: 'Account B Friend' })
         ],
@@ -2220,6 +2289,7 @@ describe('CvrAdapter', () => {
       const adapter = new CvrAdapter(store, instantAdmission(), {
         socketFactory: () => ({ on: () => {}, close: () => {} })
       })
+      markSessionEstablishedForTest(adapter)
       const events: AdapterEvent[] = []
       const unsub = adapter.subscribe((event) => events.push(event))
       const drive = adapter as unknown as {
@@ -2568,7 +2638,7 @@ describe('CvrAdapter', () => {
       })
     })
 
-    it('retries instance resolution after a session swap instead of returning account-A data', async () => {
+    it('rejects obsolete instance resolution and permits a fresh account-B lookup', async () => {
       let releaseAccountA!: (response: Response) => void
       const heldAccountA = new Promise<Response>((resolve) => {
         releaseAccountA = resolve
@@ -2606,7 +2676,9 @@ describe('CvrAdapter', () => {
       expect(await adapter.login(creds)).toEqual({ ok: true })
       releaseAccountA(jsonResponse(envelope(instanceDetail)))
 
-      await expect(details).resolves.toMatchObject({
+      await expect(details).rejects.toThrow('Session ended')
+      expect(instanceCalls).toBe(1)
+      await expect(adapter.getInstanceDetails('i_abc')).resolves.toMatchObject({
         worldId: 'world-b',
         worldName: 'Account B World'
       })

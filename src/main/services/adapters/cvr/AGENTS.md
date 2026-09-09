@@ -27,6 +27,11 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Local Contracts
 
+- Request cancellation and admission overflow are control flow: propagate
+  `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
+  Never continue a page batch or negative-cache these outcomes. Account-owned
+  operations cannot resume under a replacement session.
+
 - Same as `vrchat/`: no electron imports; injected socketFactory/headers/log; defensive parsing — unknown values degrade, never throw; CVR has NO status/trust (§5) — never fabricate them.
 - The shared lifecycle machinery lives in `../ReconnectingPipeline.ts` — don't fork it; extend it.
 

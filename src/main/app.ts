@@ -516,9 +516,9 @@ app
     friendAlertBoundary.current = friendAlerts
 
     // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
-    // endpoint 401s unauthenticated). Late-wired so logout/rotation apply on read.
+    // endpoint 401s unauthenticated). Each operation captures its own session lease.
     avatarCache.setApiAdmission(vrcAdmission)
-    avatarCache.setVrcCookieProvider(() => vrcAdapter.getAuthCookieHeader())
+    avatarCache.setVrcSessionProvider(() => vrcAdapter.getAvatarRequestLease())
 
     registerIpcHandlers(adapters, {
       accountRegistry,

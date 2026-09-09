@@ -12,6 +12,7 @@ import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { z } from 'zod'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
+import type { RequestLease } from './RequestLease'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
 import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
@@ -80,6 +81,8 @@ export interface CvrCredentialStore {
  * — `verify2fa` rejects per the interface.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
+  private sessionAbort = new AbortController()
+  private loginAbort = new AbortController()
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private accountId: string | null = null
@@ -155,6 +158,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   async login(creds: Credentials): Promise<LoginResult> {
     const operationGeneration = ++this.loginOperationGeneration
+    this.loginAbort.abort()
+    this.loginAbort = new AbortController()
+    const lease: RequestLease = {
+      generation: operationGeneration,
+      signal: this.loginAbort.signal,
+      isCurrent: () => this.isLoginOperationCurrent(operationGeneration)
+    }
     // ── CVR-2FA SEAM (owner directive 2026-07-28, VRX-229 review) ──────────
     // ChilloutVR has NO second factor as of 2026-07 (verified: the auth
     // response carries no 2FA field; docs/api-volatility.md row). If CVR ever
@@ -197,7 +207,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     let response: Response
     try {
-      response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
+      response = await this.authenticateRaw(2, email, password, { priority: 'interactive', lease })
     } catch {
       if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       // Keep authentication diagnostics fixed: raw exception fields can carry
@@ -281,7 +291,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       response = await this.authenticateRaw(1, validated.username, validated.accessKey, {
         priority: 'interactive',
-        recordCircuitFailure: false
+        recordCircuitFailure: false,
+        lease: this.captureSessionLease()
       })
     } catch {
       // Network trouble or an already-open circuit — the session may still be
@@ -363,6 +374,20 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     if (!this.validated) throw new AuthSessionPendingError()
   }
 
+  protected override sessionRequestLease(): RequestLease {
+    this.assertDurableSession()
+    return this.captureSessionLease()
+  }
+
+  private captureSessionLease(): RequestLease {
+    const generation = this.sessionGeneration
+    return {
+      generation,
+      signal: this.sessionAbort.signal,
+      isCurrent: () => generation === this.sessionGeneration
+    }
+  }
+
   async getFriends(): Promise<FriendRoster> {
     for (;;) {
       this.assertDurableSession()
@@ -373,10 +398,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       try {
         result = await fetchCvrFriends((path, schema) => this.get(path, schema))
       } catch (error) {
-        // A different account landed while this request was in flight. Retry a
-        // replacement session, but abort when logout left no session to retry.
+        // A replacement account needs a fresh caller-owned operation.
         if (generation !== this.sessionGeneration) {
-          if (this.session) continue
           throw new Error('Session ended')
         }
 
@@ -395,7 +418,6 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
       // Check staleness before normalization errors or returning account data.
       if (generation !== this.sessionGeneration) {
-        if (this.session) continue
         throw new Error('Session ended')
       }
 
@@ -446,18 +468,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       try {
         resolved = await this.instanceResolver.resolve(instanceId, { priority: 'interactive' })
       } catch (error) {
-        // Match getFriends: only the session that issued this request may own
-        // its auth-invalidated boundary. A replacement session retries instead.
+        // Only the session that issued this request owns its outcome.
         if (generation !== this.sessionGeneration) {
-          if (this.session) continue
           throw new Error('Session ended')
         }
         if (error instanceof CVRAuthError) this.invalidateSession(true)
         throw error
       }
-      // Never return an old session's success or surface its null/failure as the
-      // current call's outcome. Resolve again through the current session.
-      if (generation !== this.sessionGeneration) continue
+      if (generation !== this.sessionGeneration) throw new Error('Session ended')
       if (resolved === null) {
         throw new CVRNetworkError('CVR instance is private or could not be resolved')
       }
@@ -782,7 +800,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private clearSessionState(restartPipeline = true, cancelLoginOperations = true): void {
-    if (cancelLoginOperations) this.loginOperationGeneration += 1
+    if (cancelLoginOperations) {
+      this.loginOperationGeneration += 1
+      this.loginAbort.abort()
+    }
     this.session = null
     this.setCredentials(null)
     this.displayName = null
@@ -832,6 +853,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   /** Reset every account-scoped cache and replace a running socket pipeline. */
   private bumpSessionGeneration(restartPipeline = true): void {
+    this.sessionAbort.abort()
+    this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.friendNames.clear()
     this.friendNamesRequestSequence = 0
