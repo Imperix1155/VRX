@@ -9,8 +9,8 @@ session restore, live friends and the hot-instance dashboard. Local manual
 identity linking adds combined profiles, separate shared/account notes and an
 explicit destination chooser. The app also includes theming and auto-update.
 
-Explore's pure ranking/parsers and presentational components are being prepared
-with synthetic data only. Explore is not yet connected to the sidebar or live
+Explore's pure ranking/parsers and presentational components have synthetic
+tests. Explore is not yet connected to the sidebar or live
 Dashboard. Its [implementation handoff](docs/superpowers/plans/2026-09-09-explore-session-readiness.md)
 records the API-safety dependency and the separate approval needed for live traffic.
 

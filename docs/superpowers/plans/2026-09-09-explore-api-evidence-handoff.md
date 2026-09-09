@@ -17,7 +17,9 @@ not this file. The reachable local
 [implementation plan](2026-09-08-explore-implementation-plan.md) contain the
 complete context.
 
-The current [API registry](../../api-volatility.md) remains unchanged.
+At receipt, the current [API registry](../../api-volatility.md) was unchanged.
+The later authorized phase-A block adds a separately labelled parsing section;
+it does not replace the registry with this preserved source snapshot.
 Its SHA-256 at receipt is `f451e2f09032515d02a85db7a77ec7277f601c913da857b4aa780453a6b6cfbb`.
 Use the implementation plan's September 9 parallel-work split for sequencing:
 phase A uses fixtures only; phase B requires verified API safety and approval of

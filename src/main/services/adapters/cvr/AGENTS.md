@@ -15,6 +15,17 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Ownership
 
+- `parseExplore.ts` owns isolated phase-A discovery parsers (VRX-270), separate
+  from the permissive friend-privacy parser. Category `entries` are candidates
+  only; `instances` enumerate unqualified room IDs. Room details bind their own
+  ID and nested `world.id` to the expected canonical IDs. Only exact Public or
+  GroupPublic strings qualify, case-insensitively; both supplied privacy fields
+  must agree. Full qualifying rooms stay eligible without an admission probe.
+  `aggregateCvrExploreQualifiedRooms` binds one expected world, deduplicates
+  qualified rooms and sums safe room-detail counts only with complete coverage;
+  incomplete totals are null. No I/O, raw members, issued action references or
+  production adapter consumer exists in this phase.
+
 - `buildCvrJoinUrl.ts` — pure strict builder for the documented `chilloutvr://instance/join?instanceId=<encoded>&startInVR=<bool>` contract (VRX-166). Accepts only the official `i+` 16-6-6-8 hex id shape, percent-encodes `+` as `%2B`, maps desktop→false / vr→true, and returns null for malformed input.
 - `fetchCvrFriends.ts` — `fetchCvrFriends(fetcher)` → `{ friends: CvrFriend[], skippedRecords }` (VRX-57). Pure, DI'd: ONE flat `GET /friends` (never paginated, never per-friend polled), per-entry defensive parse (a drifted entry is skipped + counted, never sinks the roster), total failure throws (no misleading `[]`). Presence initialized offline — real presence is the pipeline's job. Never logs.
 - `cvrPlatformUserId.ts` — `extractCvrPlatformUserId(id)` → stable lowercased `platformUserId` from the CVR GUID (VRX-61): survives display-name changes; validates GUID shape, rejects malformed. Pure.
