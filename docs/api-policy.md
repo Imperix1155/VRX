@@ -13,18 +13,46 @@ VRX authenticates **as the user** on the user's own machine. It reads only that 
 Every outbound request carries a descriptive `User-Agent` header identifying the app and providing a contact URL so either platform can reach the project if needed:
 
 ```
-VRX/0.1.0 (https://github.com/Imperix1155/VRX)
+VRX/<app version> (https://github.com/Imperix1155/VRX)
 ```
 
 ### Rate limiting
 
-- VRX enforces a ceiling of approximately **1 request per second** per platform.
-- All HTTP clients use **exponential backoff with random jitter** — never fixed-interval retries — to avoid synchronized burst patterns.
-- `429 Too Many Requests` responses are respected immediately. If the server returns a `Retry-After` header, VRX waits that exact duration before retrying.
+- One main-owned controller per platform spaces API attempts by at least one
+  second plus jitter. Auth, REST, eligible retries and API-backed image hops
+  share that admission path. VRChat and ChilloutVR remain independent. This is
+  VRX's conservative local policy, not a vendor-published allowance or a promise
+  that requests at this rate cannot be restricted.
+- A 429 monotonically extends the affected cooldown using valid `Retry-After`
+  seconds or an HTTP date. Missing or invalid headers use growing jittered
+  fallback. Every later attempt rechecks the deadline and normal pacing.
+- Roster pagination and background metadata stop at the first 429. Useful pages
+  remain partial; missing entries are retained from cache. These batches do not
+  sleep and replay, and cooldown expiry does not trigger a burst. Other existing
+  request kinds retain their bounded retry policy; every allowed retry re-enters
+  admission under its original session lease. No additional action retries are
+  introduced by this policy.
+- Queued requests are bounded. Logout, account changes and superseded login
+  attempts cancel obsolete work before dispatch; stale responses cannot publish
+  into a replacement session. Headers are built only after admission and lease
+  validation. Tentative/restored credentials remain quarantined until ready.
+- CDN image bodies have separate bounded concurrency and host cooldowns. A
+  credentialed API image hop still uses platform admission; redirects keep their
+  original lease and never forward the API cookie to the CDN. Updater downloads
+  are outside these platform queues.
 
-### Real-time data via WebSocket, not polling
+### Real-time data and recovery
 
-Friend presence and location updates are received through the platform's push channel (VRChat Pipeline WebSocket / ChilloutVR `/users/ws`) rather than polling. Polling friend status is the primary cause of rate-limiting and account flags on VRChat; VRX avoids it entirely.
+WebSockets remain the live presence/location source. Full REST rosters serve
+initial load, manual refresh, reconnect recovery and the existing jittered
+recovery interval. Concurrent callers, including CVR name warming, share one
+refresh per session. Events during its first read request at most one final
+read; later events and recovery remain available. No new presence poll is added.
+
+Socket reconnect backoff grows through brief opens and resets after a sustained
+open of at least 60 seconds. Rejected-upgrade 429s share the platform cooldown.
+Waits honor extensions and cancel when the pipeline stops; no additional
+heartbeat protocol or socket is used.
 
 ### No mass actions
 

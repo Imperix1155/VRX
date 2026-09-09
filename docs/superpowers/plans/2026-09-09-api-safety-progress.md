@@ -2,7 +2,7 @@
 
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
-Production work is underway. Units 1–5 are verified locally. Unit 6 integration/review is pending. No PR, push, or merge has occurred.
+Production work is underway. Units 1–5 and unit 6 integration are verified locally. Review/publication remain. No PR, push, or merge has occurred.
 
 ## Autonomous authority
 
@@ -47,7 +47,7 @@ platform request or credential-store inspection was performed.
 
 ## Next action
 
-Complete unit 6 mixed-load/IPC probes, full gates, DOX, review and open PR.
+Run the immutable general review, resolve findings, then publish and obtain required reviews/CI.
 The A1 tests reproduced three baseline failures. With the controller integrated,
 all three passed. Mutation verification intentionally replaced image shared
 admission with a private controller; all three failed, then source was restored.
@@ -187,3 +187,18 @@ test-only missing return annotation, the 16-test file passed again, then lint,
 format, build and diff checks printed `A5_PROJECT_GATE_GREEN`. DOX updated main,
 platform contracts, API catalog and changelog. Final review remains T2 and the
 branch remains unpushed, with no PR, merge authority or external review yet.
+
+## Unit 6 integration verified locally
+
+Unit 5 is local commit `2dbc80a`. The final full suite passed 165 files / 2,522
+tests, followed by fresh-cache lint, format, build and diff checks with
+`A6_PROJECT_GATE_GREEN`. The mixed real-adapter/image probe and isolated real
+Electron IPC/query probe passed. API policy, volatility registry and README now
+state the implemented behavior and limits. Design artifacts remain intentionally
+unchanged. See [verification evidence](2026-09-09-api-safety-verification.md)
+for acceptance, static-analysis disposition and exact probe provenance.
+
+Usage was 36% used before the final pass. No reset credit redeemed. No live
+platform traffic, installed-app restart or release occurred. General review is
+next; required external reviews/CI and owner merge authority are still absent.
+The branch has no existing open PR. Explore integration remains gated.
