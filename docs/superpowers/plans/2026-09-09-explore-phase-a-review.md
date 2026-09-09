@@ -47,7 +47,40 @@ Sentinel: `EXPLORE_REVIEW_MUTATIONS_GREEN`. Fallow remains at eight existing
 dead-code findings and 551 duplication groups; no additional findings or groups
 were introduced by these corrections.
 
-Focused review and PR CI are pending. Browser/Electron appearance has not been
-witnessed; no capture or live-account run is authorized.
-Current verdict: corrections implemented, focused review pending before a draft
-checkpoint with the visual and phase-B limitations retained. No merge grant exists.
+Browser/Electron appearance has not been witnessed; no capture or live-account
+run is authorized. No merge grant exists.
+
+## Focused review and final coverage
+
+- Corrected functional head: `32922d2626c00fff43567c2dc0974f26e15f01d2`.
+- Focused range: general anchor `f65faf17fda6937f9fcd537859884aeaebfe470a`
+  through the corrected functional head. Exact SHA-256:
+  `4cb59a83f4a15396f0c18ea2938669ba333b025e002a702f1b0a2d1831c7f6d4`.
+  Artifact: 44,001 bytes, 786 lines, 18 files.
+- Cumulative base-to-corrected-head SHA-256:
+  `7d2b312fa309021347325c506acb36f585addcea977e5f8087a4533f55586bfc`.
+  Artifact: 315,327 bytes, 5,985 lines, 36 files.
+- Fresh CLI runtime reported Sol, high reasoning, approval never and enforced
+  read-only sandbox. The bounded process exited 0. The reviewer reproduced both
+  hashes, verified the clean working/index state, inspected all affected source,
+  tests and contracts, and probed the VRC access matrix in memory.
+- All five findings are resolved; no new material defect was found. The earlier
+  general conclusions remain applicable to shared DTO/ranking/count provenance,
+  CVR qualification, guarded actions and production isolation. No shared ranking,
+  CVR parser, security assumption or production boundary changed in this delta.
+  The cumulative assessment found no reason to restart general review.
+- The independent Vitest attempt ran zero tests because the read-only sandbox
+  denied its temporary transform directory. Full-gate results remain driver
+  evidence. The driver observed `EXPLORE_CORRECTION_GATE_GREEN` and exit 0 in the
+  tool's completion output; the saved command log contains the command results
+  but not that separately emitted sentinel. Both reviewers independently checked
+  diff whitespace. This limitation does not replace or inflate the driver evidence.
+- Changes after the corrected functional head are review/handoff prose only;
+  inspect the exact delta, links, formatting and diff whitespace without reopening
+  the functional review. Final branch head and CI results belong in the draft PR
+  and linked tracker update after publication.
+
+Verdict: **READY-for-draft; PARK for visual verification and phase B**. Phase-A
+scope is aligned and locally verified within the stated boundary. PR CI remains
+pending at this ledger commit. Same-lineage reviews are not independent model
+confirmation, visual evidence or permission to merge.
