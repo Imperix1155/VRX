@@ -5,7 +5,7 @@
  *
  * The base owns the hard-won lifecycle discipline:
  * - One long-lived loop per start(): prepare → connect → await close →
- *   backoff → repeat. Exponential backoff + jitter, reset on a successful open.
+ *   backoff → repeat. Exponential backoff resets only after a sustained open.
  * - A `generation` counter kills stale loops on stop()/start() — every await
  *   is followed by a stopped/generation recheck BEFORE side effects.
  * - `settle()` guards socket identity so a rapid stop→start can't null (and
@@ -23,10 +23,14 @@
  */
 import { PIPELINE_BACKOFF_BASE_MS, PIPELINE_BACKOFF_CAP_MS } from '@shared/constants'
 import type { AdapterEvent, Platform } from '@shared/types'
+import { MAX_ADMISSION_SLEEP_MS, retryAfterDelayMs } from './ApiAdmissionController'
 
 /** The slice of a WebSocket the pipelines use — `ws` satisfies it; tests fake it. */
 export interface PipelineSocket {
-  on(event: 'open' | 'message' | 'close' | 'error', listener: (...args: unknown[]) => void): void
+  on(
+    event: 'open' | 'message' | 'close' | 'error' | 'upgrade-rejected',
+    listener: (...args: unknown[]) => void
+  ): void
   close(): void
   /** Present on bidirectional sockets (CVR); VRChat's pipeline never sends. */
   send?(data: string): void
@@ -39,13 +43,22 @@ export type PipelineLog = (
 ) => void
 
 const jitter = (): number => Math.floor(Math.random() * 250)
-const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+export interface PipelineReconnectOptions {
+  now?: () => number
+  onUpgradeRateLimited?: (retryAfter: string | null) => number
+  cooldownUntil?: () => number
+}
 
 export abstract class ReconnectingPipeline<Prep> {
   protected abstract readonly platform: Platform
 
   private readonly onEvent: (event: AdapterEvent) => void
-  private readonly sleepFn?: (ms: number) => Promise<void>
+  private readonly sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
+  private readonly now: () => number
+  private readonly onUpgradeRateLimited?: (retryAfter: string | null) => number
+  private readonly cooldownUntil?: () => number
+  private upgradeDeadline = 0
+  private loopAbort = new AbortController()
   private readonly logFn?: PipelineLog
 
   protected socket: PipelineSocket | null = null
@@ -61,14 +74,19 @@ export abstract class ReconnectingPipeline<Prep> {
   /** Increments per start(); stale async loops from a previous run see it changed and exit. */
   private generation = 0
 
-  protected constructor(deps: {
-    onEvent: (event: AdapterEvent) => void
-    sleepFn?: (ms: number) => Promise<void>
-    log?: PipelineLog
-  }) {
+  protected constructor(
+    deps: PipelineReconnectOptions & {
+      onEvent: (event: AdapterEvent) => void
+      sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
+      log?: PipelineLog
+    }
+  ) {
     this.onEvent = deps.onEvent
     this.sleepFn = deps.sleepFn
     this.logFn = deps.log
+    this.now = deps.now ?? Date.now
+    this.onUpgradeRateLimited = deps.onUpgradeRateLimited
+    this.cooldownUntil = deps.cooldownUntil
   }
 
   // ── Subclass surface ────────────────────────────────────────────────────────
@@ -86,6 +104,7 @@ export abstract class ReconnectingPipeline<Prep> {
   start(): void {
     if (!this.stopped) return
     this.stopped = false
+    this.loopAbort = new AbortController()
     this.generation++
     void this.runLoop(this.generation)
   }
@@ -94,6 +113,7 @@ export abstract class ReconnectingPipeline<Prep> {
   stop(): void {
     if (this.stopped) return
     this.stopped = true
+    this.loopAbort.abort()
     this.generation++
     this.closeSocket()
   }
@@ -105,7 +125,27 @@ export abstract class ReconnectingPipeline<Prep> {
   }
 
   private sleep(ms: number): Promise<void> {
-    return (this.sleepFn ?? defaultSleep)(ms)
+    const signal = this.loopAbort.signal
+    if (signal.aborted) return Promise.resolve()
+    return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const finish = (): void => {
+        if (timer !== undefined) clearTimeout(timer)
+        signal.removeEventListener('abort', finish)
+        resolve()
+      }
+      signal.addEventListener('abort', finish, { once: true })
+      if (this.sleepFn) void this.sleepFn(ms, signal).then(finish, finish)
+      else timer = setTimeout(finish, ms)
+    })
+  }
+
+  private async waitForCooldown(generation: number): Promise<void> {
+    while (!this.stopped && generation === this.generation) {
+      const remaining = Math.max(this.upgradeDeadline, this.cooldownUntil?.() ?? 0) - this.now()
+      if (remaining <= 0) return
+      await this.sleep(Math.min(remaining, MAX_ADMISSION_SLEEP_MS))
+    }
   }
 
   private closeSocket(): void {
@@ -128,6 +168,8 @@ export abstract class ReconnectingPipeline<Prep> {
 
   private async runLoop(generation: number): Promise<void> {
     while (!this.stopped && generation === this.generation) {
+      await this.waitForCooldown(generation)
+      if (this.stopped || generation !== this.generation) return
       let prep: Prep | null = null
       try {
         prep = await this.prepareConnection()
@@ -145,10 +187,14 @@ export abstract class ReconnectingPipeline<Prep> {
         continue
       }
 
+      // A REST/image response may extend cooldown while credentials are prepared.
+      await this.waitForCooldown(generation)
+      if (this.stopped || generation !== this.generation) return
       this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
       const closed = await this.connectOnce(prep, generation)
       if (this.stopped || generation !== this.generation) return
 
+      if (closed.healthy) this.consecutiveFailures = 0
       this.emit({ type: 'connection', platform: this.platform, health: 'reconnecting' })
       const delay = this.backoffDelay()
       this.consecutiveFailures++
@@ -158,9 +204,13 @@ export abstract class ReconnectingPipeline<Prep> {
   }
 
   /** Connect and resolve when the socket closes (however it closes). */
-  private connectOnce(prep: Prep, generation: number): Promise<{ opened: boolean }> {
+  private connectOnce(
+    prep: Prep,
+    generation: number
+  ): Promise<{ opened: boolean; healthy: boolean }> {
     return new Promise((resolve) => {
       let opened = false
+      let openedAt: number | null = null
       let settled = false
       let socket: PipelineSocket | null = null
       const settle = (): void => {
@@ -173,7 +223,10 @@ export abstract class ReconnectingPipeline<Prep> {
           this.socket = null
           this.isOpen = false
         }
-        resolve({ opened })
+        resolve({
+          opened,
+          healthy: openedAt !== null && this.now() - openedAt >= PIPELINE_BACKOFF_CAP_MS
+        })
       }
 
       try {
@@ -191,10 +244,10 @@ export abstract class ReconnectingPipeline<Prep> {
       this.socket = socket
 
       socket.on('open', () => {
-        if (this.stopped || generation !== this.generation) return
+        if (settled || this.stopped || generation !== this.generation) return
         opened = true
+        openedAt = this.now()
         this.isOpen = true
-        this.consecutiveFailures = 0
         this.log('info', 'pipeline: connected')
         // The consumer's reconcile trigger: refetch over REST so anything
         // missed while disconnected is caught.
@@ -202,7 +255,7 @@ export abstract class ReconnectingPipeline<Prep> {
       })
 
       socket.on('message', (data: unknown) => {
-        if (this.stopped || generation !== this.generation) return
+        if (settled || this.stopped || generation !== this.generation) return
         try {
           this.handleMessage(data)
         } catch {
@@ -210,6 +263,30 @@ export abstract class ReconnectingPipeline<Prep> {
           // there must degrade to a dropped frame, not a dead pipeline.
           this.log('warn', 'pipeline: message handler threw (frame dropped)')
         }
+      })
+
+      socket.on('upgrade-rejected', (value: unknown) => {
+        if (settled || this.stopped || generation !== this.generation) return
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          'statusCode' in value &&
+          value.statusCode === 429
+        ) {
+          const retryAfter =
+            'retryAfter' in value && typeof value.retryAfter === 'string' ? value.retryAfter : null
+          const fallback =
+            this.now() + (retryAfterDelayMs(retryAfter, this.now()) ?? this.backoffDelay())
+          let deadline = fallback
+          try {
+            deadline = this.onUpgradeRateLimited?.(retryAfter) ?? fallback
+          } catch {
+            /* local fallback still prevents rapid retries */
+          }
+          if (Number.isFinite(deadline))
+            this.upgradeDeadline = Math.max(this.upgradeDeadline, fallback, deadline)
+        }
+        settle()
       })
 
       socket.on('error', (err: unknown) => {

@@ -5,7 +5,7 @@ import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { CVRAuthError, CVRNetworkError } from './errors'
 import { CvrApiClient, type CVRUserAuth } from './CvrApiClient'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, noopSleep, instantAdmission } from './__testutils__/adapterTestKit'
 
 const userSchema = z.object({ id: z.string(), username: z.string() })
 
@@ -22,7 +22,7 @@ const authData: CVRUserAuth = {
 
 class TestClient extends CvrApiClient {
   constructor(sleepFn: (ms: number) => Promise<void> = noopSleep) {
-    super(sleepFn)
+    super(instantAdmission(sleepFn))
   }
   callGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.get(path, schema)
