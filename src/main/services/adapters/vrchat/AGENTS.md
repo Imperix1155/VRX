@@ -11,6 +11,18 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 ## Ownership
 
+- `parseExplore.ts` owns standalone phase-A discovery candidate/world/room
+  parsers and strict Public/Group Public identifier classification (VRX-270).
+  Canonical IDs and response identity must agree. Known region/nonce/ageGate
+  modifiers do not weaken access. Recognized non-public rooms are excluded;
+  malformed or unknown identifiers make enumeration partial with a null count.
+  Missing or contradictory eligibility disables
+  joining; inherited flags cannot supply evidence. Missing closure fields stay
+  unknown rather than proving unavailability. World `occupants` remain
+  separate from tuple counts; room detail prefers valid `n_users`, then
+  `userCount`, retaining provenance. No member payloads, I/O, action references
+  or production adapter consumers exist in phase A.
+
 - `parsePresence.ts` — `parsePresence(friend, buckets)` → `{ state, status, statusDescription }` (VRX-44). `state` is DERIVED from the current-user friend buckets as **Sets** — `VrcCurrentUserBucketSets`, built ONCE per fetch via the exported `toBucketSets(arrays)` (O(1) membership per friend instead of O(bucket) array scans, VRX-218 audit) — (`onlineFriends`→`'in-game'`, `activeFriends`→`'active'`, else `'offline'`), NOT a field. `status` maps the VRChat status string; unknown → `'online'`. DESIGN.md §5 — never conflate state (the dot) with status (the pill).
 - `parseInstanceType.ts` — `parseInstanceType(instanceId)` → the 8-type VRChat taxonomy (`public`/`friends-plus`/`friends`/`invite`/`invite-plus`/`group-public`/`group-plus`/`group`); also exports `opennessFor(type) → OpennessTier` — the canonical type-to-openness table (VRX-45/162). Never throws — malformed/empty → `'public'`.
 - `parseLocation.ts` — `parseLocation(location) → InstanceInfo | null` (VRX-162 / VRX-260). Pure parser. Returns `null` for sentinel values (`''`, `'private'`, `'offline'`, `'traveling'`) and any string without a colon (the reliable gate for real instances). For real locations splits on the first `:` into `worldId` / `instanceId`, derives `type` via `parseInstanceType`, `openness` via `opennessFor`, `isGroup` from the group-type set, `groupId` from the `~group(grp_x)` tag, and `region` from the `~region(..)` tag. `worldName`, `thumbnailUrl`, `groupName`, `groupImageUrl`, and `userCount` are left `null` — enrichment via `WorldResolver` / `GroupResolver` is a separate step. Never throws.

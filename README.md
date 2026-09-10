@@ -13,6 +13,12 @@ obsolete requests. Existing slow recovery/manual roster reads coalesce, while
 WebSockets remain the live presence path. See the API policy for the limits of
 these safeguards.
 
+Explore's pure ranking/parsers and presentational components have synthetic
+tests. Explore is not yet connected to the sidebar or live
+Dashboard. Its [integration continuation](docs/superpowers/plans/2026-09-09-explore-integration-continuation.md)
+records the integrated API dependency and settled discovery limits. Production
+activation and visual acceptance remain future work; no live-account tests are authorized.
+
 ## Stack
 
 Electron 43 · React 19 · Vite 7 · TypeScript 5.9 strict · electron-vite

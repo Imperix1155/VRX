@@ -370,6 +370,45 @@ host-bounded and cookie-free. No API-host migration or discovery traffic is adde
 
 ## VRX's Resilience Strategy
 
+### Explore phase-A parsing (September 9, 2026; not wired)
+
+The standalone Explore parsers use the
+[preserved feasibility evidence](./superpowers/plans/2026-09-09-explore-api-evidence-handoff.md)
+and synthetic fixtures. They have no transport or production adapter consumer.
+The new pure parsers validate values explicitly; the existing Zod-backed
+production paths below are unchanged.
+
+- VRC cards retain aggregate `occupants`; tuple counts have separate provenance.
+  Public/Group Public identifiers use a bounded modifier allowlist, independent
+  of the friend parser's public fallback. Known non-public access is excluded;
+  malformed/unknown access leaves enumeration partial with a null visible-room
+  count. Room `worldId` and `instanceId` must
+  match the requested identity. The community schema names both `id` and
+  `instanceId`, while a source response demonstrates a qualified `id`; an
+  optional `id` must therefore match the instance or qualified location, and
+  an optional `location` must match the qualified location. See the
+  [community schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml)
+  and [source response report](https://github.com/vrchatapi/specification/issues/328).
+  Response access and explicit eligibility flags must agree before the parser
+  reports eligibility. Missing or inherited closure fields stay unknown;
+  they cannot prove a room is unavailable. The 25/22 fixture retains `n_users` precedence over
+  `userCount`; missing or invalid counts are unknown, never admission evidence.
+- CVR category parsing expects the client's already-unwrapped `data` object
+  with `entries`. World `instances` are unqualified candidates; room details
+  bind `id` and nested `world.id`, matching the existing resolver's shape.
+  Only exact Public/GroupPublic strings qualify, case-insensitively; supplied
+  conflicting or unknown secondary privacy rejects promotion. Numeric friend
+  privacy mappings do not apply. Full qualifying rooms remain eligible.
+  Public totals sum unique same-world room-detail counts; incomplete coverage,
+  wrong provenance and unsafe arithmetic cannot produce a displayed total.
+
+These are fixture-verified assumptions, not new live observations. Future
+integration must consume the integrated API-safety transport and lease
+contracts and the settled discovery limits in the
+[integration continuation](./superpowers/plans/2026-09-09-explore-integration-continuation.md).
+No authenticated request, new route, pacing policy or join action was added here.
+Production activation and visual acceptance remain future work; no live-account tests are authorized.
+
 ### 1. Defensive Zod Schemas
 
 Every API response is validated against a Zod schema **before** being used. Schemas are designed to tolerate benign drift:

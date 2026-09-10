@@ -12,6 +12,36 @@
 
 ---
 
+## Explore phase A (VRX-270; not connected to production)
+
+These pure and presentational surfaces are staged for the approved Explore
+integration. They do not create IPC, queries, timers, requests or game launches.
+The [phase boundary](superpowers/plans/2026-09-09-explore-integration-continuation.md)
+still applies.
+
+VRChat room evidence keeps missing or inherited closure fields unknown; only
+explicit closure evidence or an inactive room proves unavailability. Every
+eligibility prerequisite is still required before reporting eligibility.
+
+| Surface                                                                                     | Source                         | Contract                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ExploreWorld`, `ExploreRoom`, `ExploreCount`, snapshots and action unions                  | `src/shared/explore.ts`        | Display-only DTOs with explicit count provenance and null incomplete totals; opaque references are not renderer launch authority.                            |
+| `EXPLORE_WORLD_TOTALS`, `DEFAULT_EXPLORE_WORLD_TOTAL`, `ExploreWorldTotal`, `ExploreFilter` | `src/shared/explore.ts`        | Allowed totals 2/4/6, default 4; All or one platform. No persisted settings field yet.                                                                       |
+| `rankExploreWorlds(platform, worlds)`                                                       | `src/shared/exploreRanking.ts` | Deduplicate and rank one bounded platform list; VRC aggregate occupants/popularity, CVR verified complete public totals then stable incomplete source order. |
+| `selectExploreWorlds({ lists, filter, total, listSeeds })` / `ExploreSelection`             | `src/shared/exploreRanking.ts` | Already-ranked lists; equal shares, alternating leaders, neutral ID/seed ties, symmetric backfill. Dashboard passes total 2. Does not mutate inputs.         |
+
+| Surface                                                                                                   | Source                                                        | Contract                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseVrcExploreCandidates`, `parseVrcExploreWorld`, `parseVrcExploreRoom`, `parseVrcExplorePublicAccess` | `src/main/services/adapters/vrchat/parseExplore.ts`           | Pure strict discovery parsers. Main-only `VrcExploreWorldEvidence`, `VrcExploreWorldDetail` (including separate tuple counts) and `VrcExploreRoomEvidence` omit issued references/actions; room evidence reports eligibility only.                   |
+| `parseCvrExploreCandidates`, `parseCvrExploreWorld`, `parseCvrExploreRoom`, `parseCvrExplorePublicAccess` | `src/main/services/adapters/cvr/parseExplore.ts`              | Already-unwrapped category entries, world enumeration and explicitly qualified Public/GroupPublic room details. `CvrExploreWorldEvidence`, `CvrExploreWorldDetail` and `CvrExploreRoomEvidence` remain main-only evidence with no issued references. |
+| `aggregateCvrExploreQualifiedRooms(expectedWorldId, rooms, roomsComplete)`                                | `src/main/services/adapters/cvr/parseExplore.ts`              | Safe, deduplicated same-world public occupancy. No qualifying room yields unknown; incomplete coverage/counts yield partial with a null total.                                                                                                       |
+| `ExploreView` / `ExploreViewProps`                                                                        | `src/renderer/src/components/ExploreView.tsx`                 | Controlled selected worlds, source states, 2/4/6 total, sheet/opener/fallback, resolved images and callbacks. Shell filter remains external.                                                                                                         |
+| `ExploreWorldCard` / `ExploreWorldCardProps`                                                              | `src/renderer/src/components/ExploreWorldCard.tsx`            | Shared world card; no API image access; failed supplied image falls back. Opens a world and supplies the actual opener element.                                                                                                                      |
+| `ExploreWorldSheet` / `ExploreWorldSheetProps`                                                            | `src/renderer/src/components/ExploreWorldSheet.tsx`           | Contained nonmodal sheet, explicit opener/fallback, controlled freshness and action callback. Never enables stale, non-ready or wrong-world/platform actions.                                                                                        |
+| `ExploreDashboardPreview` / `ExploreDashboardPreviewProps`                                                | `src/renderer/src/components/ExploreDashboardPreview.tsx`     | Displays at most two supplied worlds using the same card, with required platform snapshots for named source states even when no cards are available.                                                                                                 |
+| `ExploreSourceState`                                                                                      | `src/renderer/src/components/ExploreSourceState.tsx`          | Props-only named loading/error/stale/unavailable states shared by Explore and the Dashboard preview.                                                                                                                                                 |
+| `ExploreDashboardComposition` / `ExploreDashboardCompositionProps`                                        | `src/renderer/src/components/ExploreDashboardComposition.tsx` | Props-only stats → preview → Hot Instances layout; retains opaque Dashboard-owned nodes. Only synthetic tests consume it in phase A.                                                                                                                 |
+
 ## 1. The renderer's entry point: `window.vrx`
 
 The ONLY way the renderer talks to the system. Exposed by
