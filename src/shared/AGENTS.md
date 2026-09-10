@@ -26,6 +26,10 @@ The common data model and constants shared across the main, preload, and rendere
 
 ## Local Contracts
 
+- `get-friends` preserves the array shape for complete snapshots; partial snapshots
+  return `{ friends, completeness: 'partial' }`. Only the completeness marker
+  crosses IPC. Cooldown deadlines and rate-limit metadata remain main-only.
+
 - `CREDENTIAL_PERSISTENCE_FAILED` is the literal `LoginResult.error` when a
   direct login or completed VRChat 2FA cannot save its new session securely.
   It is the sole login failure with dedicated renderer copy.

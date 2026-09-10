@@ -52,6 +52,26 @@ afterEach(() => {
 })
 
 describe('useFriends enabled gate', () => {
+  it('retains omitted cached friends in the mounted query after a partial refresh', async () => {
+    mockAuthState('authenticated')
+    const { result, getFriends, queryClient } = renderFriends()
+    await waitFor(() => expect(result.current.isPending).toBe(false))
+    const omitted = { ...fullFriend('Omitted', 'vrchat'), presence: { state: 'in-game' as const } }
+    const fresh = fullFriend('Fresh', 'vrchat')
+    // Subscribe to data as the production list does; reading only isPending
+    // would leave TanStack's tracked observer unsubscribed from data changes.
+    expect(result.current.data).toEqual([])
+    await act(() => queryClient.setQueryData(friendsQueryKey('vrchat'), [omitted]))
+    await waitFor(() => expect(result.current.data).toEqual([omitted]))
+    getFriends.mockResolvedValue({ friends: [fresh], completeness: 'partial' })
+    await act(async () => {
+      await result.current.refetch()
+    })
+    expect(queryClient.getQueryData(friendsQueryKey('vrchat'))).toEqual([fresh, omitted])
+    await waitFor(() => expect(result.current.data).toEqual([fresh, omitted]))
+    expect(getFriends).toHaveBeenCalledTimes(2)
+    queryClient.clear()
+  })
   it.each(['authenticated', 'error'] as const)('fetches under auth state %s', async (state) => {
     mockAuthState(state)
     const { result, getFriends } = renderFriends()

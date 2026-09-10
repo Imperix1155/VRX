@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { VrcFetcher } from './fetchFriends'
 import { fetchFriends } from './fetchFriends'
-import { AuthError } from '../errors'
+import { AuthError, RateLimitError } from '../errors'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -70,6 +70,35 @@ function buildFetcher(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('fetchFriends', () => {
+  it.each(['/auth/user', 'offline=false', 'offline=true'])(
+    'propagates a rate limit at %s without later pages or an empty success',
+    async (stage) => {
+      const paths: string[] = []
+      const limited = new RateLimitError(60_000)
+      const fetcher: VrcFetcher = async <T>(path: string): Promise<T> => {
+        paths.push(path)
+        if (path === stage || path.includes(stage)) throw limited
+        return (path === '/auth/user' ? BUCKETS : []) as T
+      }
+      await expect(fetchFriends(fetcher)).rejects.toBe(limited)
+      expect(paths).toHaveLength(stage === '/auth/user' ? 1 : stage === 'offline=false' ? 2 : 3)
+    }
+  )
+
+  it('preserves usable pages and stops both passes at a later rate limit', async () => {
+    const paths: string[] = []
+    const fetcher: VrcFetcher = async <T>(path: string): Promise<T> => {
+      paths.push(path)
+      if (path === '/auth/user') return BUCKETS as T
+      if (paths.length === 2) return makePage(1, 100) as T
+      throw new RateLimitError(60_000)
+    }
+    const result = await fetchFriends(fetcher)
+    expect(result.friends).toHaveLength(100)
+    expect(result).toMatchObject({ completeness: 'partial', rateLimit: { retryAfterMs: 60_000 } })
+    expect(paths).toHaveLength(3)
+    expect(paths.some((path) => path.includes('offline=true'))).toBe(false)
+  })
   describe('pagination stops when a page < PAGE_SIZE items', () => {
     it('stops the online pass when a page has fewer than 100 items', async () => {
       const fetcher = buildFetcher(

@@ -5,14 +5,14 @@ import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { AuthError } from './errors'
 import { VrcApiClient } from './VrcApiClient'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, instantAdmission } from './__testutils__/adapterTestKit'
 
 const userSchema = z.object({ id: z.string(), displayName: z.string() })
 
 /** Exposes the protected client methods; stubs the IPlatformAdapter contract (VrcAdapter's job, not under test here). */
 class TestClient extends VrcApiClient {
   public constructor() {
-    super(noopSleep)
+    super(instantAdmission())
   }
   callGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.get(path, schema)

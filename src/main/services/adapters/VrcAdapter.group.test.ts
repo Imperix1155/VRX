@@ -5,9 +5,10 @@ import { VrcAdapter, type VrcCredentialStore } from './VrcAdapter'
 import {
   jsonResponse,
   markVrcSessionEstablished as markSessionEstablished,
-  noopSleep
+  instantAdmission
 } from './__testutils__/adapterTestKit'
 import { createGroupResolver, type GroupResolver } from './vrchat/GroupResolver'
+import { RequestCancelledError } from './errors'
 
 function fakeStore(initial?: string): VrcCredentialStore & { saved: string[]; deleted: number } {
   let value = initial
@@ -125,7 +126,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission())
     markSessionEstablished(adapter)
     const unsubscribe = adapter.subscribe((event) => events.push(event))
 
@@ -209,7 +210,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission())
     markSessionEstablished(adapter)
     const events: AdapterEvent[] = []
     const unsubscribe = adapter.subscribe((event) => events.push(event))
@@ -283,7 +284,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission())
     markSessionEstablished(adapter)
     await adapter.getFriends()
     const pending = (adapter as unknown as { pendingGroupResolutions: Set<string> })
@@ -353,7 +354,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), instantAdmission())
     markSessionEstablished(adapter)
     await adapter.getFriends()
     await vi.waitFor(() => expect(accountAGroupRequests).toBe(CONCURRENCY_LIMIT))
@@ -392,7 +393,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
       return Promise.reject(new Error(`Unexpected URL: ${href}`))
     })
     vi.stubGlobal('fetch', fetchMock)
-    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), instantAdmission())
     markSessionEstablished(adapter)
     const internal = adapter as unknown as {
       sessionGeneration: number
@@ -448,7 +449,7 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission())
     markSessionEstablished(adapter)
     const resolver = (adapter as unknown as { groupResolver: GroupResolver }).groupResolver
 
@@ -461,7 +462,8 @@ describe('VrcAdapter group enrichment (VRX-260)', () => {
     pendingWorlds.add('wrld_stale_previous_gen')
     adapter.clearSession()
     release()
-    await inFlight
+    await expect(inFlight).rejects.toBeInstanceOf(RequestCancelledError)
+    expect(fetchMock).not.toHaveBeenCalled()
 
     expect(resolver.peek(groupId)).toBeUndefined()
     // The boundary also drops stale pending ids — otherwise the new session's
@@ -488,7 +490,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -543,7 +545,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -595,7 +597,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -659,7 +661,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=old'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=old'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -711,7 +713,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
       return Promise.reject(new Error(`Unexpected URL: ${href}`))
     })
     vi.stubGlobal('fetch', fetchMock)
-    const adapter = new VrcAdapter(fakeStore('auth=account-a'), noopSleep)
+    const adapter = new VrcAdapter(fakeStore('auth=account-a'), instantAdmission())
     markSessionEstablished(adapter)
     const internal = adapter as unknown as {
       sessionGeneration: number
@@ -771,7 +773,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=old'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=old'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -836,7 +838,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -886,7 +888,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const events: AdapterEvent[] = []
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)
@@ -926,7 +928,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
       return Promise.reject(new Error(`unexpected: ${url}`))
     })
     vi.stubGlobal('fetch', fetchMock)
-    const adapter = new VrcAdapter(fakeStore('auth=x'), noopSleep, {
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
       socketFactory: () => {
         const socket = new DrivableVrcSocket()
         sockets.push(socket)

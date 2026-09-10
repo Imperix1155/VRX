@@ -23,9 +23,19 @@ export function friendsQueryKey(platform: Platform): readonly ['friends', Platfo
  * Fetch the friend list over the IPC bridge. Guards `window.vrx` being absent
  * (Preview/test env), mirroring the old store. Exported (pure) for unit tests.
  */
-export async function fetchFriends(platform: Platform): Promise<Friend[]> {
+export async function fetchFriends(
+  platform: Platform,
+  getCached?: () => Friend[] | undefined
+): Promise<Friend[]> {
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
-  return window.vrx.getFriends({ platform })
+  const result = await window.vrx.getFriends({ platform })
+  if (Array.isArray(result)) return result
+  const seen = new Set(result.friends.map((friend) => friend.platformUserId))
+  // Read after the await: live updates and account-boundary cache clears win.
+  const omitted = (getCached?.() ?? []).filter(
+    (friend) => friend.platform === platform && !seen.has(friend.platformUserId)
+  )
+  return omitted.length ? [...result.friends, ...omitted] : result.friends
 }
 
 /**
@@ -59,7 +69,9 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // AFTER the fetch resolves so any live world-metadata enrichment that lands
     // mid-flight survives the REST write.
     queryFn: async () => {
-      const fresh = await fetchFriends(platform)
+      const fresh = await fetchFriends(platform, () =>
+        queryClient.getQueryData(friendsQueryKey(platform))
+      )
       return mergeKnownInstanceMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
     },
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
