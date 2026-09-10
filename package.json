@@ -63,7 +63,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "app-builder-lib": "^26.16.0",
     "builder-util": "^26.15.3",
-    "electron": "^43.4.1",
+    "electron": "^44.2.0",
     "electron-builder": "^26.16.0",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",
