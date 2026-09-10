@@ -1,5 +1,13 @@
 # Explore integration continuation
 
+Current checkpoint: the exact API dependency is integrated and the combined
+source is verified. Josh has authorized merging the isolated foundation in
+PR 305. The [merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness)
+records the scope and evidence, superseding this document's earlier unintegrated
+and missing-merge-grant status. Unit 1 below is complete; the next implementation
+unit is adapters/service work with synthetic transport. No phase-B work starts
+from this checkpoint merge.
+
 Recorded September 9, 2026 Central. This is the current continuation of the
 [implementation plan](2026-09-08-explore-implementation-plan.md), following
 phase A and the merged API-safety work. It records decisions for implementation;

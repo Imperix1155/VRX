@@ -1,5 +1,10 @@
 # Explore autonomous work block
 
+Latest continuation: Josh authorized merging this isolated foundation. The
+[merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness)
+records exact API integration, combined checks and the merge boundary. It
+supersedes earlier missing-merge-authority statements without starting phase B.
+
 Current handoff: this phase-A block has ended. The
 [integration continuation](2026-09-09-explore-integration-continuation.md)
 records the merged API dependency and Josh's subsequent delegation of Explore

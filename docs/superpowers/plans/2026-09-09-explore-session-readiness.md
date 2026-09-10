@@ -1,5 +1,11 @@
 # Explore session receipt and phase-A readiness
 
+Latest status: the API dependency is integrated and combined checks pass. Josh
+authorized merging the isolated foundation, with current evidence in the
+[merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness).
+This supersedes the earlier integration/merge holds below. Production Explore
+remains inactive and its implementation work remains open.
+
 Prepared September 9, 2026. Phase A is now implemented and verified with
 synthetic data; VRX-270 is In Review with draft PR 305 open. The
 [autonomous block ledger](2026-09-09-explore-autonomous-block.md) records that

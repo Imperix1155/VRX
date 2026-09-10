@@ -1,5 +1,8 @@
 # Explore phase-A review coverage
 
+Current merge readiness and authority are recorded in the final section below.
+Earlier draft-only verdicts and missing-authority statements are historical.
+
 ## General anchor
 
 - Base: `9dbac8b569efb27e03ef06882d96b89d8a45c969`.
@@ -131,3 +134,66 @@ formatting, link and whitespace checks. The visual-verification gap remains.
 Phase B, app launches, captures, live-account tests and merging remain outside
 this follow-up. Owning contracts, design/API docs, README and changelog are
 intentionally unchanged because no first-party behavior or contract changed.
+
+## Foundation merge readiness
+
+Josh explicitly requested merging the remaining checkpoint PR 305. The liaison
+task `01a08848-992f-7412-875b-a4a6ee9fc833` relayed that grant for the tested
+sample-data foundation and integration plan. It covers the sole-maintainer
+additional-human-approval bypass only after all other applicable gates pass.
+It does not authorize phase-B implementation, live-account traffic, capture,
+installed-app restart or release.
+
+Exact API main `e6960c1d6cb7b717fe668370bb99cfd901040039` was integrated without
+conflicts by feature-branch merge `b59c19fb232a6775328df208e2a2dd7c1b808112`.
+Its reviewed tree is `e4e92a26f279e897d6f9ee28c33f37f7a5e6c886`.
+
+- PR artifact against exact main: 302,278 bytes, 5,712 lines, SHA-256
+  `a2ecdc22465e0c5f7599be4102ddcb37962fe01a93e02f8b451080f04a87b22a`.
+- Integration artifact from `22e44a8`: 511,798 bytes, 9,175 lines, SHA-256
+  `99e0deb9cb7122a8f979f432085aa666891c681ebc72dc93b593224e2ba0ccb8`.
+- All 49 upstream executable/test files match main byte-for-byte. All 14 added
+  Explore source/test files match the previously corrected review head. The only
+  modified existing source data against main is the two additive locale objects;
+  every previous translation remains equal. Overlapping docs/contracts preserve
+  both lanes. Sentinel: `EXPLORE_COMBINED_SOURCE_ISOLATION_GREEN`.
+- The combined gate passes 2,605 tests in 169 files, uncached lint, formatting,
+  both typechecks and production build. Sentinel: `EXPLORE_MERGE_GATE_GREEN`.
+  The first sandboxed run failed only the two synthetic localhost socket tests
+  with `listen EPERM`; the permitted rerun passed. No test or application fix
+  was made. Exact main separately passes 2,543 tests in 165 files; the four new
+  Explore test files account for the 62 added tests.
+- Fresh Fallow retains eight pre-existing issues and no unresolved imports or
+  cycles. Exact main has 581 duplicate groups; the combined tree has 587. The
+  six added fingerprints are the previously dispositioned two parser structures
+  and four independent test arrangements. No extra duplicate group was added.
+- Non-capture CSS builds compare exact main and the isolated Explore checkpoint.
+  Existing emitted lines and order are preserved; additions are 84 lines,
+  65 nonblank. Added selectors have no current production use. Main CSS SHA-256
+  is `f3aa138d5d4afefe23b4404a0835d6a4452166b4f4be3d7ed3851c66471b588a`;
+  Explore CSS is `ce3cb33b48de31f1cfa52314b6f8931b0b5a815d7d6a21a2718ede08b9064d26`.
+  The combined production build emits that same Explore CSS. This verifies
+  isolation, not the appearance of the unmounted Explore components.
+- A fresh Sol/high review reached its ten-minute limit without a verdict and is
+  not counted as passing. The one bounded escalation ran fresh Astra/high with
+  observed read-only sandbox and approval never. It exited 0, reproduced both
+  artifact hashes and the immutable tree, and returned SHIP with no material
+  findings. It confirmed that the prior general/correction/dependency reviews
+  remain applicable and that no new general review is needed.
+
+This is T1. Production startup, navigation, Dashboard, IPC and queries remain
+unchanged from current main; no account path calls Explore. The visual gate
+belongs to later activation because no changed UI is mounted. Browser/Electron
+appearance remains unverified, and this assessment does not waive its future
+acceptance gate. Reviews are same-lineage Codex evidence. At readiness, the only
+available bot feedback was CodeRabbit's draft-skip notice; absent advisory
+reviews are not counted as clean external reviews or required waits.
+
+The source is locally ready to merge. Later receipt changes contain evidence
+and status prose only and receive focused formatting/link/diff checks. Final
+head, fresh CI, available feedback, protection checks, merge result and
+post-merge CI are recorded in PR 305 and the existing Linear handoff. Do not
+interpret this pre-publication receipt as proof those future steps completed.
+VRX-270 remains unfinished after the foundation merges; phase B is the next
+implementation work. Production contracts, design/API guides, README and
+CHANGELOG need no additional changes for this unchanged-source receipt.
