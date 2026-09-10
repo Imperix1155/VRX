@@ -63,7 +63,11 @@ export interface IpcInvoke {
     req: { lease: string; change: LinkRequest }
     res: LinkResult<LinkSnapshot>
   }
-  'get-friends': { req: { platform: Platform }; res: Friend[] }
+  'get-friends': {
+    req: { platform: Platform }
+    /** Complete results retain the array shape; partial results preserve cache omissions. */
+    res: Friend[] | { friends: Friend[]; completeness: 'partial' }
+  }
   'get-avatar': { req: { url: string }; res: { ok: true; dataUrl: string } | null }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }

@@ -7,7 +7,13 @@ const WebSocketMock = vi.hoisted(() =>
   })
 )
 
-vi.mock('ws', () => ({ WebSocket: WebSocketMock }))
+vi.mock('ws', async () => {
+  const { EventEmitter } = await import('node:events')
+  WebSocketMock.mockImplementation(function () {
+    return Object.assign(new EventEmitter(), { terminate: vi.fn() })
+  })
+  return { WebSocket: WebSocketMock }
+})
 
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 
@@ -15,6 +21,30 @@ describe('production WebSocket factories', () => {
   beforeEach(() => {
     WebSocketMock.mockClear()
   })
+
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'sanitizes and disposes a rejected %s upgrade',
+    (platform) => {
+      const socket =
+        platform === 'vrchat'
+          ? createVrcSocket('wss://fixture.example')
+          : createCvrSocket('wss://fixture.example', { AccessKey: 'fixture-secret' })
+      const rejected = vi.fn()
+      socket.on('upgrade-rejected', rejected)
+      const response = {
+        statusCode: 429,
+        headers: { 'retry-after': '60', 'set-cookie': 'fixture-secret' },
+        resume: vi.fn(),
+        destroy: vi.fn()
+      }
+      socket.emit('unexpected-response', { secret: 'fixture-secret' }, response)
+      expect(rejected).toHaveBeenCalledExactlyOnceWith({ statusCode: 429, retryAfter: '60' })
+      expect(response.resume).toHaveBeenCalledOnce()
+      expect(response.destroy).toHaveBeenCalledOnce()
+      expect(socket.terminate).toHaveBeenCalledOnce()
+      expect(JSON.stringify(rejected.mock.calls)).not.toContain('fixture-secret')
+    }
+  )
 
   it('bounds the VRChat Pipeline handshake with the API timeout', () => {
     createVrcSocket('wss://pipeline.example')

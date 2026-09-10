@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Brief socket connections no longer reset reconnect backoff. Rejected upgrades
+  honor server cooldowns across the affected platform's API traffic. (VRX-218)
+
+- Concurrent friend refreshes and CVR name warming share one request per session.
+  Reconnect and roster-event bursts coalesce into one follow-up refresh. (VRX-218)
+
+- Friend refreshes and background metadata stop when the platform rate-limits
+  them. Partial refreshes retain omitted cached friends, and repeated refresh
+  triggers cannot bypass the cooldown. Queued and active batches stop launching
+  further work even when another request's 429 supplies an immediate retry time. (VRX-218)
+
+- Logout, account switching and newer login attempts cancel obsolete queued
+  requests. Images retain their original account lease, and stale responses
+  cannot repopulate the replacement session's cache. (VRX-218)
+
+- API-backed images and normal API requests now share each platform's pacing
+  and cooldown. A rate-limit response holds affected API traffic across both
+  paths, and CDN images respect their own host cooldowns. Other platforms stay
+  independent. (VRX-218)
+
 - Linked friends retain a neutral Private instance pill when their in-game
   location is unavailable, without enabling Join. Known non-joinable instances
   retain their existing labels. The initial Identities dialog now says Close

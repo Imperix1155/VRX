@@ -1,3 +1,5 @@
+import { RosterRefresh } from './RosterRefresh'
+import { ApiAdmissionController } from './ApiAdmissionController'
 import type {
   AdapterEvent,
   AuthStatus,
@@ -11,6 +13,7 @@ import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
 import { z } from 'zod'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
+import type { RequestLease } from './RequestLease'
 import { CvrApiClient, cvrAuthEnvelopeSchema, type CVRCredentials } from './CvrApiClient'
 import { CvrPipeline } from './cvr/CvrPipeline'
 import { fetchCvrFriends } from './cvr/fetchCvrFriends'
@@ -37,6 +40,8 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
  *  electron-log bridge live in main/app.ts; tests inject fakes. */
 export interface CvrLiveWiring {
+  /** Captures main's location fence when a physical roster read begins. */
+  captureRosterRevision?: () => number
   socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
   /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
@@ -79,6 +84,14 @@ export interface CvrCredentialStore {
  * — `verify2fa` rejects per the interface.
  */
 export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
+  private readonly rosterRefresh = new RosterRefresh(
+    () => this.readFriends(),
+    () => this.admission.cooldownRemainingMs,
+    () => this.live?.captureRosterRevision?.(),
+    () => this.admission.rateLimitRevision
+  )
+  private sessionAbort = new AbortController()
+  private loginAbort = new AbortController()
   private session: CVRCredentials | null = null
   private displayName: string | null = null
   private accountId: string | null = null
@@ -112,7 +125,11 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
   private readonly instanceResolver = createCvrInstanceResolver({
-    fetcher: (path, schema, options) => this.get(path, schema, options)
+    fetcher: (path, schema, options) =>
+      this.get(path, schema, {
+        ...options,
+        retry: options?.priority === 'interactive' ? 'bounded' : 'none'
+      })
   })
   /** Last successful enrichment for instance ids in the current full snapshot.
    *  Survives resolver TTL expiry so a refresh never makes metadata blink. */
@@ -137,10 +154,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   constructor(
     private readonly store: CvrCredentialStore,
-    sleepFn?: (ms: number) => Promise<void>,
+    admission?: ApiAdmissionController,
     private readonly live?: CvrLiveWiring
   ) {
-    super(sleepFn)
+    super(admission)
     // Session restore (VRX-174) — adopt any persisted session; tolerate a
     // missing/locked store. Validation is lazy: the first getAuthStatus()
     // reauthenticates server-side before 'authenticated' is ever reported.
@@ -154,6 +171,13 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   async login(creds: Credentials): Promise<LoginResult> {
     const operationGeneration = ++this.loginOperationGeneration
+    this.loginAbort.abort()
+    this.loginAbort = new AbortController()
+    const lease: RequestLease = {
+      generation: operationGeneration,
+      signal: this.loginAbort.signal,
+      isCurrent: () => this.isLoginOperationCurrent(operationGeneration)
+    }
     // ── CVR-2FA SEAM (owner directive 2026-07-28, VRX-229 review) ──────────
     // ChilloutVR has NO second factor as of 2026-07 (verified: the auth
     // response carries no 2FA field; docs/api-volatility.md row). If CVR ever
@@ -196,7 +220,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
     let response: Response
     try {
-      response = await this.authenticateRaw(2, email, password, { priority: 'interactive' })
+      response = await this.authenticateRaw(2, email, password, { priority: 'interactive', lease })
     } catch {
       if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
       // Keep authentication diagnostics fixed: raw exception fields can carry
@@ -280,7 +304,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     try {
       response = await this.authenticateRaw(1, validated.username, validated.accessKey, {
         priority: 'interactive',
-        recordCircuitFailure: false
+        recordCircuitFailure: false,
+        lease: this.captureSessionLease()
       })
     } catch {
       // Network trouble or an already-open circuit — the session may still be
@@ -362,67 +387,80 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
     if (!this.validated) throw new AuthSessionPendingError()
   }
 
-  async getFriends(): Promise<FriendRoster> {
-    for (;;) {
-      this.assertDurableSession()
-      // Static roster only (VRX-57); live presence arrives via the pipeline below.
-      const generation = this.sessionGeneration
-      const requestSequence = ++this.friendNamesRequestSequence
-      let result: { friends: Friend[]; skippedRecords: number }
-      try {
-        result = await fetchCvrFriends((path, schema) => this.get(path, schema))
-      } catch (error) {
-        // A different account landed while this request was in flight. Retry a
-        // replacement session, but abort when logout left no session to retry.
-        if (generation !== this.sessionGeneration) {
-          if (this.session) continue
-          throw new Error('Session ended')
-        }
+  protected override sessionRequestLease(): RequestLease {
+    this.assertDurableSession()
+    return this.captureSessionLease()
+  }
 
-        // The data path is where a dead session surfaces (VRX-190): getAuthStatus
-        // trusts the session without re-authing, so a 401 here IS the signal that
-        // the accessKey died — clear it so the UI reflects logged-out, then let
-        // the error propagate for the "couldn't load" state.
-        if (error instanceof CVRAuthError) {
-          // Dead access key on the data path — clear the session AND tell the
-          // renderer, which has no other signal that auth changed out of band, so
-          // the Accounts card stops showing a stale "connected" (VRX-195).
-          this.invalidateSession(true)
-        }
-        throw error
-      }
+  private captureSessionLease(): RequestLease {
+    const generation = this.sessionGeneration
+    return {
+      generation,
+      signal: this.sessionAbort.signal,
+      isCurrent: () => generation === this.sessionGeneration
+    }
+  }
 
-      // Check staleness before normalization errors or returning account data.
+  getFriends(): Promise<FriendRoster> {
+    return this.rosterRefresh.get(this.captureSessionLease())
+  }
+
+  private async readFriends(): Promise<FriendRoster> {
+    this.assertDurableSession()
+    // Static roster only (VRX-57); live presence arrives via the pipeline below.
+    const generation = this.sessionGeneration
+    const requestSequence = ++this.friendNamesRequestSequence
+    let result: { friends: Friend[]; skippedRecords: number }
+    try {
+      result = await fetchCvrFriends((path, schema) => this.get(path, schema, { retry: 'none' }))
+    } catch (error) {
+      // A replacement account needs a fresh caller-owned operation.
       if (generation !== this.sessionGeneration) {
-        if (this.session) continue
         throw new Error('Session ended')
       }
 
-      // Everything was dropped as malformed → surface an error rather than a
-      // misleading empty list (UI shows "couldn't load", not "no friends"), the
-      // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
-      if (result.skippedRecords > 0 && result.friends.length === 0) {
-        throw new CVRNetworkError(
-          `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
-        )
+      // The data path is where a dead session surfaces (VRX-190): getAuthStatus
+      // trusts the session without re-authing, so a 401 here IS the signal that
+      // the accessKey died — clear it so the UI reflects logged-out, then let
+      // the error propagate for the "couldn't load" state.
+      if (error instanceof CVRAuthError) {
+        // Dead access key on the data path — clear the session AND tell the
+        // renderer, which has no other signal that auth changed out of band, so
+        // the Accounts card stops showing a stale "connected" (VRX-195).
+        this.invalidateSession(true)
       }
+      throw error
+    }
 
-      // Overlapping renderer and socket-warm fetches are expected. Both callers
-      // may use their own result, but an older response must not overwrite the
-      // name cache established by a newer SUCCESSFUL request — track the highest
-      // committed sequence, not the highest started one, so a failed newer
-      // request can't forbid the only successful roster from populating names.
-      if (requestSequence > this.friendNamesCommittedSequence) {
-        this.friendNamesCommittedSequence = requestSequence
-        this.friendNames.clear()
-        for (const friend of result.friends) {
-          this.friendNames.set(friend.platformUserId, friend.displayName)
-        }
+    // Check staleness before normalization errors or returning account data.
+    if (generation !== this.sessionGeneration) {
+      throw new Error('Session ended')
+    }
+
+    // Everything was dropped as malformed → surface an error rather than a
+    // misleading empty list (UI shows "couldn't load", not "no friends"), the
+    // same rule as VrcAdapter.getFriends. A total fetch failure already throws.
+    if (result.skippedRecords > 0 && result.friends.length === 0) {
+      throw new CVRNetworkError(
+        `Failed to normalize CVR friends (skippedRecords=${result.skippedRecords})`
+      )
+    }
+
+    // Public callers coalesce. Retain the internal ordering fence so an older
+    // successful read can never overwrite the
+    // name cache established by a newer SUCCESSFUL request — track the highest
+    // committed sequence, not the highest started one, so a failed newer
+    // request can't forbid the only successful roster from populating names.
+    if (requestSequence > this.friendNamesCommittedSequence) {
+      this.friendNamesCommittedSequence = requestSequence
+      this.friendNames.clear()
+      for (const friend of result.friends) {
+        this.friendNames.set(friend.platformUserId, friend.displayName)
       }
-      return {
-        friends: result.friends,
-        completeness: result.skippedRecords === 0 ? 'complete' : 'partial'
-      }
+    }
+    return {
+      friends: result.friends,
+      completeness: result.skippedRecords === 0 ? 'complete' : 'partial'
     }
   }
 
@@ -445,18 +483,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
       try {
         resolved = await this.instanceResolver.resolve(instanceId, { priority: 'interactive' })
       } catch (error) {
-        // Match getFriends: only the session that issued this request may own
-        // its auth-invalidated boundary. A replacement session retries instead.
+        // Only the session that issued this request owns its outcome.
         if (generation !== this.sessionGeneration) {
-          if (this.session) continue
           throw new Error('Session ended')
         }
         if (error instanceof CVRAuthError) this.invalidateSession(true)
         throw error
       }
-      // Never return an old session's success or surface its null/failure as the
-      // current call's outcome. Resolve again through the current session.
-      if (generation !== this.sessionGeneration) continue
+      if (generation !== this.sessionGeneration) throw new Error('Session ended')
       if (resolved === null) {
         throw new CVRNetworkError('CVR instance is private or could not be resolved')
       }
@@ -530,6 +564,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   private createPipeline(): CvrPipeline {
     const generation = this.sessionGeneration
     return new CvrPipeline({
+      onUpgradeRateLimited: (retryAfter) => this.admission.rateLimited(retryAfter),
+      cooldownUntil: () => this.admission.cooldownUntil,
       headersProvider: () => Promise.resolve(this.pipelineHeaders()),
       onEvent: (event) => this.handlePipelineEvent(event, generation),
       socketFactory:
@@ -550,6 +586,12 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    */
   private handlePipelineEvent(event: AdapterEvent, generation = this.sessionGeneration): void {
     if (generation !== this.sessionGeneration) return
+    if (
+      event.type === 'roster-changed' ||
+      (event.type === 'connection' && event.health === 'live')
+    ) {
+      this.rosterRefresh.invalidate()
+    }
 
     if (event.type === 'connection' && event.platform === 'chilloutvr') {
       // Every socket boundary invalidates the enrichment source, including
@@ -670,6 +712,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
    * during that refresh, re-emit the wire fallback once failure is known.
    */
   private kickResolutions(snapshot: PresenceSnapshotEvent, generation: number): void {
+    if (this.admission.cooldownRemainingMs > 0) return
     const unseen = new Set<string>()
     for (const entry of snapshot.entries) {
       if (entry.instance == null) continue
@@ -781,7 +824,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private clearSessionState(restartPipeline = true, cancelLoginOperations = true): void {
-    if (cancelLoginOperations) this.loginOperationGeneration += 1
+    if (cancelLoginOperations) {
+      this.loginOperationGeneration += 1
+      this.loginAbort.abort()
+    }
     this.session = null
     this.setCredentials(null)
     this.displayName = null
@@ -807,7 +853,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   }
 
   private warmFriendNames(): void {
-    if (this.rosterWarmStarted) return
+    if (this.rosterWarmStarted || this.admission.cooldownRemainingMs > 0) return
     this.rosterWarmStarted = true
     const generation = this.sessionGeneration
     // Name warming is best-effort and never delays the socket. getFriends fences
@@ -831,6 +877,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
 
   /** Reset every account-scoped cache and replace a running socket pipeline. */
   private bumpSessionGeneration(restartPipeline = true): void {
+    this.sessionAbort.abort()
+    this.rosterRefresh.clear()
+    this.sessionAbort = new AbortController()
     this.sessionGeneration += 1
     this.friendNames.clear()
     this.friendNamesRequestSequence = 0

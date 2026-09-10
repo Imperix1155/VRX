@@ -2,12 +2,16 @@
 
 > Social VR companion for VRChat + ChilloutVR — like VRCX and CVRX, unified.
 
-VRX is a local desktop Electron app that brings your VRChat and ChilloutVR social lives into one place. Friends list, presence, hot instances, notifications, and more — without polling, without bots, without touching VRCX or CVRX data.
+VRX is a local desktop Electron app that brings your VRChat and ChilloutVR social lives into one place. Friends list, presence, hot instances, notifications, and more — using live WebSocket presence, with no bots or writes to VRCX or CVRX data.
 
 **Status:** Early development. VRChat and ChilloutVR support direct login,
 session restore, live friends and the hot-instance dashboard. Local manual
 identity linking adds combined profiles, separate shared/account notes and an
 explicit destination chooser. The app also includes theming and auto-update.
+API traffic shares per-platform pacing and cooldowns; session changes cancel
+obsolete requests. Existing slow recovery/manual roster reads coalesce, while
+WebSockets remain the live presence path. See the API policy for the limits of
+these safeguards.
 
 ## Stack
 

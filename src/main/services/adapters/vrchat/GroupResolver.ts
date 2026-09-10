@@ -12,7 +12,7 @@
 
 import { z } from 'zod'
 import type { AdapterRequestOptions } from '../BaseAdapter'
-import { AuthError } from '../errors'
+import { AuthError, RateLimitError, RequestCancelledError, RequestQueueFullError } from '../errors'
 
 // ─── Raw API shape (defensive) ────────────────────────────────────────────────
 
@@ -156,7 +156,13 @@ export function createGroupResolver(options: {
       return value
     } catch (error) {
       // A dead session must reach VrcAdapter's auth-invalidated boundary.
-      if (error instanceof AuthError) throw error
+      if (
+        error instanceof AuthError ||
+        error instanceof RateLimitError ||
+        error instanceof RequestCancelledError ||
+        error instanceof RequestQueueFullError
+      )
+        throw error
 
       // Private/deleted groups and non-auth transient failures negative-cache to
       // null so repeated roster/snapshot cycles don't hammer the API.

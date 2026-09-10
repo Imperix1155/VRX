@@ -27,6 +27,36 @@ Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
 
 ## Local Contracts
 
+- Reconnect backoff survives brief open-close flaps and resets only after an
+  open lasting at least the existing backoff cap. Rejected upgrades forward
+  only status/Retry-After; factories dispose the response and terminate the
+  failed handshake. A 429 extends platform admission and socket cooldown;
+  waits recheck extensions before credential preparation and dialing, split
+  long timers safely, and cancel on stop/session replacement. No new heartbeat.
+
+- `RosterRefresh` shares one pending roster result per session across ordinary
+  callers and CVR name warming. Main marks an active first read dirty before
+  broadcasting a live/roster trigger; all callers then receive at most one final
+  read. Events during that final read join it; later triggers remain eligible.
+  Cooldown, cancellation and failed reads discard pending follow-up work. Any
+  shared 429 during a run also discards its follow-up, even with no remaining wait.
+  Partial final data retains first-read omissions. Identity-checked cleanup
+  cannot erase a replacement account's operation; session boundaries clear it.
+  Main injects a LocationAuthority revision capture before each physical read,
+  including warming. Partial aggregation retains each read's original seed
+  provenance; later joiners cannot re-date old entries or clear live fences with
+  pre-reconnect data. These revisions stay in main.
+
+- Roster and background instance enrichment use no-retry requests. Rate limits
+  end the active batch, suppress subsequent background launches during cooldown,
+  and propagate without negative caching. No timer replays dropped batches;
+  later valid refreshes can resolve again. Interactive request policy is retained.
+
+- Request cancellation and admission overflow are control flow: propagate
+  `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
+  Never continue a page batch or negative-cache these outcomes. Account-owned
+  operations cannot resume under a replacement session.
+
 - Same as `vrchat/`: no electron imports; injected socketFactory/headers/log; defensive parsing — unknown values degrade, never throw; CVR has NO status/trust (§5) — never fabricate them.
 - The shared lifecycle machinery lives in `../ReconnectingPipeline.ts` — don't fork it; extend it.
 

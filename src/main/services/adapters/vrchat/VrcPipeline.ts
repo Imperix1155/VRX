@@ -32,6 +32,7 @@ import type { AdapterEvent } from '@shared/types'
 import {
   ReconnectingPipeline,
   type PipelineLog,
+  type PipelineReconnectOptions,
   type PipelineSocket
 } from '../ReconnectingPipeline'
 import { normalize, rawFriendSchema } from './fetchFriends'
@@ -40,7 +41,7 @@ import { toBucketSets } from './parsePresence'
 
 export type { PipelineSocket } from '../ReconnectingPipeline'
 
-export interface VrcPipelineDeps {
+export interface VrcPipelineDeps extends PipelineReconnectOptions {
   /**
    * Yields the Pipeline auth token for the NEXT connection attempt (the
    * `authcookie_…` value — via the GET /auth exchange or the raw cookie), or
@@ -50,7 +51,7 @@ export interface VrcPipelineDeps {
   onEvent: (event: AdapterEvent) => void
   /** Opens a socket. Injected so tests never touch the network. */
   socketFactory: (url: string) => PipelineSocket
-  sleepFn?: (ms: number) => Promise<void>
+  sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
   /** Logging is injected — this module stays electron-free (directory contract). */
   log?: PipelineLog
 }
@@ -88,7 +89,7 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
   private readonly socketFactory: (url: string) => PipelineSocket
 
   constructor(deps: VrcPipelineDeps) {
-    super({ onEvent: deps.onEvent, sleepFn: deps.sleepFn, log: deps.log })
+    super(deps)
     this.tokenProvider = deps.tokenProvider
     this.socketFactory = deps.socketFactory
   }

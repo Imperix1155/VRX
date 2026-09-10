@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { AuthError, RateLimitError } from '../errors'
 import { WorldResolver, type WorldMeta } from './WorldResolver'
 import { fetchWorldMetadata } from './fetchWorldMetadata'
 
@@ -227,6 +228,93 @@ describe('fetchWorldMetadata', () => {
 
     await expect(batch).resolves.toHaveProperty('size', 1)
     expect(calls).toEqual(['wrld_first'])
+  })
+
+  it('reports active failures while stopping a failed batch permanently', async () => {
+    let releaseSlow!: () => void
+    const slow = new Promise<void>((resolve) => {
+      releaseSlow = resolve
+    })
+    let releaseRateLimit!: () => void
+    const rateLimitGate = new Promise<void>((resolve) => {
+      releaseRateLimit = resolve
+    })
+    let releaseAuth!: () => void
+    const authGate = new Promise<void>((resolve) => {
+      releaseAuth = resolve
+    })
+    const rateLimit = new RateLimitError(1)
+    const auth = new AuthError('Session expired', 401)
+    const calls: string[] = []
+    let active = 0
+    let peakActive = 0
+    let canContinue = true
+    const resolver = new WorldResolver(async (worldId) => {
+      calls.push(worldId)
+      active += 1
+      peakActive = Math.max(peakActive, active)
+      try {
+        if (worldId === 'wrld_slow') {
+          await slow
+          return { name: 'Slow World', capacity: 10 }
+        }
+        if (worldId === 'wrld_rate_limited') {
+          await rateLimitGate
+          canContinue = false
+          throw rateLimit
+        }
+        if (worldId === 'wrld_auth') {
+          await authGate
+          throw auth
+        }
+        return { name: 'Untouched World', capacity: 10 }
+      } finally {
+        active -= 1
+      }
+    })
+    const failures: unknown[] = []
+    let settled = false
+    const batch = fetchWorldMetadata(
+      ['wrld_slow', 'wrld_rate_limited', 'wrld_auth', 'wrld_untouched'],
+      resolver,
+      3,
+      undefined,
+      () => canContinue,
+      (error) => failures.push(error)
+    )
+    const outcome = batch.then(
+      () => {
+        settled = true
+        return new Error('Expected rate-limit failure')
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    releaseRateLimit()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseAuth()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const settledBeforeRelease = settled
+    const failuresBeforeRelease = [...failures]
+
+    // A short server cooldown elapsed while the slow request was still active.
+    canContinue = true
+    releaseSlow()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(calls).toEqual(['wrld_slow', 'wrld_rate_limited', 'wrld_auth'])
+    expect(settledBeforeRelease).toBe(false)
+    expect(failuresBeforeRelease).toEqual([rateLimit, auth])
+    expect(peakActive).toBeLessThanOrEqual(3)
+    expect(await outcome).toBe(rateLimit)
+    expect(peakActive).toBe(3)
+    expect(settled).toBe(true)
   })
 
   it('reports each world as it resolves without waiting for the whole batch', async () => {

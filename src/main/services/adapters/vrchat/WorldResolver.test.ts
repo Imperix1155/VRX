@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WORLD_CACHE_TTL_MS } from '@shared/constants'
 import { WorldResolver, WORLD_NEGATIVE_CACHE_TTL_MS } from './WorldResolver'
-import { AuthError } from '../errors'
+import { AuthError, RateLimitError } from '../errors'
 
 const VALID_WORLD_RAW = {
   name: 'The Great Pug',
@@ -17,6 +17,16 @@ const VALID_WORLD_META = {
 }
 
 describe('WorldResolver', () => {
+  it('propagates a rate limit without caching a false metadata miss', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new RateLimitError(60_000))
+      .mockResolvedValue(VALID_WORLD_RAW)
+    const resolver = new WorldResolver(fetcher)
+    await expect(resolver.resolve('wrld_limited')).rejects.toBeInstanceOf(RateLimitError)
+    expect(resolver.peek('wrld_limited')).toBeUndefined()
+    await expect(resolver.resolve('wrld_limited')).resolves.toEqual(VALID_WORLD_META)
+  })
   // ── Null / missing worldId ───────────────────────────────────────────────────
 
   it('returns null immediately when worldId is null (no fetch)', async () => {

@@ -30,6 +30,22 @@ export class NetworkError extends Error {
   }
 }
 
+/** Obsolete work is stopped locally; it is neither a network nor an auth failure. */
+export class RequestCancelledError extends Error {
+  constructor() {
+    super('Request cancelled')
+    this.name = 'RequestCancelledError'
+  }
+}
+
+/** Admission overflow must fail once, without replaying an action automatically. */
+export class RequestQueueFullError extends Error {
+  constructor() {
+    super('Request queue is full')
+    this.name = 'RequestQueueFullError'
+  }
+}
+
 export class CVRAuthError extends AuthError {
   constructor(message = 'ChilloutVR authentication required') {
     super(message)

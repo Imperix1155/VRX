@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { AuthError, RateLimitError } from '../errors'
 import { createGroupResolver, type GroupMeta } from './GroupResolver'
 import { fetchGroupMetadata } from './fetchGroupMetadata'
 
@@ -115,5 +116,93 @@ describe('fetchGroupMetadata', () => {
 
     await expect(batch).resolves.toHaveProperty('size', 1)
     expect(calls).toEqual(['grp_first'])
+  })
+
+  it('reports active failures while stopping a failed batch permanently', async () => {
+    let releaseSlow!: () => void
+    const slow = new Promise<void>((resolve) => {
+      releaseSlow = resolve
+    })
+    let releaseRateLimit!: () => void
+    const rateLimitGate = new Promise<void>((resolve) => {
+      releaseRateLimit = resolve
+    })
+    let releaseAuth!: () => void
+    const authGate = new Promise<void>((resolve) => {
+      releaseAuth = resolve
+    })
+    const rateLimit = new RateLimitError(1)
+    const auth = new AuthError('Session expired', 401)
+    const calls: string[] = []
+    let active = 0
+    let peakActive = 0
+    let canContinue = true
+    const resolver = createGroupResolver({
+      fetcher: async (groupId) => {
+        calls.push(groupId)
+        active += 1
+        peakActive = Math.max(peakActive, active)
+        try {
+          if (groupId === 'grp_slow') {
+            await slow
+            return { name: 'Slow Group', iconUrl: null }
+          }
+          if (groupId === 'grp_rate_limited') {
+            await rateLimitGate
+            canContinue = false
+            throw rateLimit
+          }
+          if (groupId === 'grp_auth') {
+            await authGate
+            throw auth
+          }
+          return { name: 'Untouched Group', iconUrl: null }
+        } finally {
+          active -= 1
+        }
+      }
+    })
+    const failures: unknown[] = []
+    let settled = false
+    const batch = fetchGroupMetadata(
+      ['grp_slow', 'grp_rate_limited', 'grp_auth', 'grp_untouched'],
+      resolver,
+      3,
+      undefined,
+      () => canContinue,
+      (error) => failures.push(error)
+    )
+    const outcome = batch.then(
+      () => {
+        settled = true
+        return new Error('Expected rate-limit failure')
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    releaseRateLimit()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseAuth()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const settledBeforeRelease = settled
+    const failuresBeforeRelease = [...failures]
+
+    canContinue = true
+    releaseSlow()
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(calls).toEqual(['grp_slow', 'grp_rate_limited', 'grp_auth'])
+    expect(settledBeforeRelease).toBe(false)
+    expect(failuresBeforeRelease).toEqual([rateLimit, auth])
+    expect(peakActive).toBeLessThanOrEqual(3)
+    expect(await outcome).toBe(rateLimit)
+    expect(peakActive).toBe(3)
+    expect(settled).toBe(true)
   })
 })
