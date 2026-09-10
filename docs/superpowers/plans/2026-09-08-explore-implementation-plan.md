@@ -1,5 +1,16 @@
 # Explore implementation plan
 
+Current continuation, September 9 Central: the API-safety dependency has merged
+and Josh delegated remaining refresh, caching and discovery-volume choices to
+the driver's judgment. Follow the
+[integration continuation](2026-09-09-explore-integration-continuation.md) for
+the selected limits, current dependency state and next executable unit. Its
+authority and loading policy supersede the historical approval hold and bounded
+loading proposal below. The 16-request proposal remains withdrawn. This update
+records a plan; it does not start another implementation block.
+
+The remainder of this document preserves the imported historical body.
+
 Readiness update after the owner's whole-app review request: **live integration on hold**.
 The [API etiquette audit](2026-09-08-api-etiquette-audit.md) reproduced existing
 transport gaps and identified policy/disclosure questions. Follow the

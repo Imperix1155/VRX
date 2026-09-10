@@ -1,5 +1,12 @@
 # Explore autonomous work block
 
+Current handoff: this phase-A block has ended. The
+[integration continuation](2026-09-09-explore-integration-continuation.md)
+records the merged API dependency and Josh's subsequent delegation of Explore
+refresh/caching/volume decisions. It supersedes historical pending-API and
+numeric-approval holds below. It prepares the next integration unit without
+starting another implementation block. No Explore merge or live test is granted.
+
 Started September 9, 2026 after Josh explicitly authorized this task to run
 its own autonomous block. This continuation supersedes the receipt's
 preparation-only stopping point. The approved product and API-safety split

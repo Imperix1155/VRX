@@ -1,15 +1,20 @@
 # Explore session receipt and phase-A readiness
 
-Prepared September 9, 2026. **Phase A was subsequently authorized and started.**
-The [autonomous block ledger](2026-09-09-explore-autonomous-block.md) records
-current implementation, verification and authority. VRX-270 is now In Progress.
-Live integration still requires the API-safety evidence and revised traffic
-approval below. No live API, app-restart, game-launch, merge, release or
-installable-build grant exists.
+Prepared September 9, 2026. Phase A is now implemented and verified with
+synthetic data; VRX-270 is In Review with draft PR 305 open. The
+[autonomous block ledger](2026-09-09-explore-autonomous-block.md) records that
+work. The [integration continuation](2026-09-09-explore-integration-continuation.md)
+records the merged API dependency and Josh's later delegation of refresh,
+caching and discovery-volume choices. No new numeric-allowance approval is
+pending. Dependency integration and production implementation remain undone;
+this clarification does not start another autonomous block. No live API,
+app-restart, capture, game-launch, merge, release or installable-build grant exists.
 
 The receipt sections below preserve the earlier preparation checkpoint. Their
 uncommitted files, missing dependencies and preparation-only status describe
-that checkpoint, not the later authorized block.
+that checkpoint, not the later authorized block. The six hashes below identify
+the original imported bodies. The implementation plan now has an explicit
+continuation notice; removing that notice restores its original bytes.
 
 ## Baseline and saved files
 
@@ -131,7 +136,12 @@ The API task owns BaseAdapter, API clients, pacing/cooldown, cancellation and
 session leases, socket backoff, roster retry and deduplication. Explore cannot
 build a competing transport fix. If phase A finishes first, checkpoint and stop.
 
-## Phase B remains closed
+## Historical phase-B dependency gate
+
+The current [continuation](2026-09-09-explore-integration-continuation.md)
+supersedes this checkpoint's missing upstream evidence and repeated numeric
+approval requirement. Integrating the dependency and verifying the combined
+source are still required. The list below records what was pending at receipt.
 
 Before live integration, inspect actual artifacts for all of the following:
 
