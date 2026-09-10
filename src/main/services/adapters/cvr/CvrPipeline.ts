@@ -39,6 +39,7 @@ import type { AdapterEvent, InstanceInfo } from '@shared/types'
 import {
   ReconnectingPipeline,
   type PipelineLog,
+  type PipelineReconnectOptions,
   type PipelineSocket
 } from '../ReconnectingPipeline'
 import { parseCvrPrivacy } from './parseCvrPrivacy'
@@ -46,7 +47,7 @@ import { extractCvrPlatformUserId } from './cvrPlatformUserId'
 
 // ─── Injected surfaces ────────────────────────────────────────────────────────
 
-export interface CvrPipelineDeps {
+export interface CvrPipelineDeps extends PipelineReconnectOptions {
   /**
    * Auth headers for the NEXT connection attempt (Username/AccessKey/
    * User-Agent/Platform — same as REST, on the upgrade handshake), or null
@@ -56,7 +57,7 @@ export interface CvrPipelineDeps {
   onEvent: (event: AdapterEvent) => void
   /** Opens a socket with upgrade headers. Injected so tests never touch the network. */
   socketFactory: (url: string, headers: Record<string, string>) => PipelineSocket
-  sleepFn?: (ms: number) => Promise<void>
+  sleepFn?: (ms: number, signal?: AbortSignal) => Promise<void>
   log?: PipelineLog
 }
 
@@ -179,7 +180,7 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   >()
 
   constructor(deps: CvrPipelineDeps) {
-    super({ onEvent: deps.onEvent, sleepFn: deps.sleepFn, log: deps.log })
+    super(deps)
     this.headersProvider = deps.headersProvider
     this.socketFactory = deps.socketFactory
   }

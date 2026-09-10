@@ -2,6 +2,7 @@ import type { z } from 'zod'
 import type { Platform } from '@shared/types'
 import { VRC_API_BASE } from '@shared/constants'
 import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
+import type { RequestLease } from './RequestLease'
 
 /**
  * VRChat-required User-Agent. VRChat rate-limits / blocks clients without a
@@ -32,6 +33,11 @@ export abstract class VrcApiClient extends BaseAdapter {
 
   private authCookie: string | null = null
 
+  /** Concrete adapters bind authenticated operations to their account boundary. */
+  protected sessionRequestLease(): RequestLease | undefined {
+    return undefined
+  }
+
   /** Set (or clear) the VRChat `auth` session cookie sent on every request. */
   protected setAuthCookie(cookie: string | null): void {
     this.authCookie = cookie
@@ -51,16 +57,16 @@ export abstract class VrcApiClient extends BaseAdapter {
   protected get<T>(
     path: string,
     schema: z.ZodType<T>,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    options?: AdapterRequestOptions
   ): Promise<T> {
     return this.request(
       VRC_API_BASE + path,
       schema,
-      {
+      () => ({
         method: 'GET',
         headers: this.headers()
-      },
-      options
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
     )
   }
 
@@ -69,17 +75,17 @@ export abstract class VrcApiClient extends BaseAdapter {
     path: string,
     body: unknown,
     schema: z.ZodType<T>,
-    options?: Pick<AdapterRequestOptions, 'priority'>
+    options?: AdapterRequestOptions
   ): Promise<T> {
     return this.request(
       VRC_API_BASE + path,
       schema,
-      {
+      () => ({
         method: 'POST',
         headers: this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
-      },
-      options
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
     )
   }
 

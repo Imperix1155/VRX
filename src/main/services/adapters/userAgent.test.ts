@@ -6,7 +6,7 @@ import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { CvrApiClient } from './CvrApiClient'
 import { VRC_USER_AGENT } from './VrcApiClient'
-import { jsonResponse, noopSleep } from './__testutils__/adapterTestKit'
+import { jsonResponse, instantAdmission } from './__testutils__/adapterTestKit'
 
 const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version: string }
 const expectedUserAgent = `VRX/${pkg.version} (https://github.com/Imperix1155/VRX)`
@@ -39,7 +39,7 @@ const userSchema = z.object({ id: z.string(), username: z.string() })
 /** Exposes the protected CVR GET method so the test can observe real headers. */
 class TestCvrClient extends CvrApiClient {
   constructor() {
-    super(noopSleep)
+    super(instantAdmission())
   }
   callGet<T>(path: string, schema: z.ZodType<T>): Promise<T> {
     return this.get(path, schema)

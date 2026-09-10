@@ -73,6 +73,12 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Local Contracts
 
+- Friends queries merge a partial `get-friends` result with omitted cached
+  entries read after IPC resolves. Partial results never imply a removal or
+  offline transition. Complete arrays retain replacement semantics; account
+  boundaries still clear the cache. The existing `rate_limited` error remains
+  excluded from query retries.
+
 - Linked roster rows keep a neutral, non-actionable Private pill when an in-game
   header has an unavailable location and neither account is joinable. Otherwise,
   a known non-joinable in-game header instance keeps its canonical label.

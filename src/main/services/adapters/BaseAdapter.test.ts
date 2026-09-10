@@ -3,9 +3,11 @@ import { z } from 'zod'
 import { API_TIMEOUT_MS } from '@shared/constants'
 import type { AuthStatus, LoginResult, Platform } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
-import { BaseAdapter } from './BaseAdapter'
-import { AuthError, NetworkError, RateLimitError } from './errors'
-import { noopSleep } from './__testutils__/adapterTestKit'
+import { BaseAdapter, type AdapterRequestOptions } from './BaseAdapter'
+import { ApiAdmissionController } from './ApiAdmissionController'
+import { AuthError, NetworkError, RateLimitError, RequestCancelledError } from './errors'
+import { noopSleep, instantAdmission } from './__testutils__/adapterTestKit'
+import { AvatarCache } from '../avatarCache'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,8 +35,11 @@ class TestAdapter extends BaseAdapter {
 
   // Explicit public constructor so tests can call `new TestAdapter(sleepFn)`
   // from outside the class hierarchy (BaseAdapter's constructor is protected).
-  constructor(sleepFn: (ms: number) => Promise<void> = noopSleep) {
-    super(sleepFn)
+  constructor(
+    sleepFn: (ms: number) => Promise<void> = noopSleep,
+    admission?: ApiAdmissionController
+  ) {
+    super(admission ?? instantAdmission(sleepFn))
   }
 
   getAuthStatus(): Promise<AuthStatus> {
@@ -70,12 +75,20 @@ class TestAdapter extends BaseAdapter {
     return () => {}
   }
 
+  getAdmission(): ApiAdmissionController {
+    return this.admission
+  }
+
   // Expose the protected methods for testing.
   fetch<T>(url: string, schema: z.ZodType<T>, options?: RequestInit): Promise<T> {
     return this.request(url, schema, options)
   }
-  raw(url: string, options?: RequestInit): Promise<Response> {
-    return this.rawRequest(url, options)
+  raw(
+    url: string,
+    options?: RequestInit,
+    requestOptions?: AdapterRequestOptions
+  ): Promise<Response> {
+    return this.rawRequest(url, options, requestOptions)
   }
   rawInteractive(url: string): Promise<Response> {
     return this.rawRequest(url, {}, { priority: 'interactive' })
@@ -235,6 +248,247 @@ describe('BaseAdapter', () => {
   })
 
   describe('429 backoff', () => {
+    it('discards cancelled response bodies without poisoning the circuit', async () => {
+      const adapter = new TestAdapter()
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController()
+        let release!: (body: unknown) => void
+        let started = false
+        const response = new Response(null)
+        vi.spyOn(response, 'json').mockImplementation(() => {
+          started = true
+          return new Promise((resolve) => {
+            release = resolve
+          })
+        })
+        fetchMock.mockResolvedValueOnce(response)
+        const request = adapter
+          .fetch('http://api/read', schema, { signal: controller.signal })
+          .catch((error: unknown) => error)
+        await vi.waitFor(() => expect(started).toBe(true))
+        controller.abort()
+        release(validBody)
+        expect(await request).toBeInstanceOf(RequestCancelledError)
+      }
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(validBody)))
+      await expect(adapter.fetch('http://api/current', schema)).resolves.toEqual(validBody)
+      expect(fetchMock).toHaveBeenCalledTimes(4)
+    })
+    it('rechecks cooldown after permit resolution and before physical fetch', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      fetchMock.mockResolvedValue(new Response(null))
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const request = adapter.raw('http://api/read')
+      adapter.getAdmission().deferUntil(70_000)
+      await vi.advanceTimersByTimeAsync(59_999)
+      expect(fetchMock).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await request
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('cancels queued work before fetch and does not count cancellation as a circuit failure', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      fetchMock.mockImplementation(() => Promise.resolve(new Response(null)))
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      adapter.getAdmission().deferUntil(70_000)
+      const controller = new AbortController()
+      const reads = Array.from({ length: 3 }, () =>
+        adapter
+          .raw('http://api/obsolete', { signal: controller.signal })
+          .catch((error: unknown) => error)
+      )
+      controller.abort()
+      expect(
+        (await Promise.all(reads)).every((error) => error instanceof RequestCancelledError)
+      ).toBe(true)
+      expect(fetchMock).not.toHaveBeenCalled()
+      const valid = adapter.raw('http://api/current')
+      await vi.advanceTimersByTimeAsync(60_000)
+      await valid
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('stops a no-retry operation on its first 429 and cancels the unused response body', async () => {
+      const response = new Response('unused', { status: 429, headers: { 'Retry-After': '60' } })
+      const cancel = vi.spyOn(response.body!, 'cancel')
+      fetchMock.mockResolvedValue(response)
+      const adapter = new TestAdapter()
+      await expect(adapter.raw('http://api/roster', {}, { retry: 'none' })).rejects.toBeInstanceOf(
+        RateLimitError
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(adapter.getAdmission().cooldownRemainingMs).toBeGreaterThan(59_000)
+    })
+
+    it('does not dispatch queued batch requests after a zero-delay 429', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        starts.push({ url, at: Date.now() })
+        return Promise.resolve(
+          url.endsWith('/batch/0')
+            ? new Response(null, { status: 429, headers: { 'Retry-After': '0' } })
+            : new Response(null)
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const batch = Array.from({ length: 4 }, (_, i) =>
+        adapter.raw(`http://api/batch/${i}`, {}, { retry: 'none' }).catch((error: unknown) => error)
+      )
+      const explicit = adapter.raw('http://api/explicit', {}, { priority: 'interactive' })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect((await Promise.all(batch)).every((error) => error instanceof RateLimitError)).toBe(
+        true
+      )
+      await explicit
+      expect(starts).toEqual([
+        { url: 'http://api/batch/0', at: 10_000 },
+        { url: 'http://api/explicit', at: 11_000 }
+      ])
+    })
+
+    it.each(['0', 'Thu, 01 Jan 1970 00:00:11 GMT', '1'])(
+      'revokes a just-resolved batch permit after Retry-After %s before fetch',
+      async (retryAfter) => {
+        let now = 10_000
+        let releaseSleep!: () => void
+        let releaseResponse!: (response: Response) => void
+        const admission = new ApiAdmissionController({
+          now: () => now,
+          random: () => 0,
+          sleep: (_ms, signal) =>
+            new Promise((resolve, reject) => {
+              const abort = (): void => reject(new RequestCancelledError())
+              signal.addEventListener('abort', abort, { once: true })
+              releaseSleep = () => {
+                signal.removeEventListener('abort', abort)
+                resolve()
+              }
+            })
+        })
+        const adapter = new TestAdapter(noopSleep, admission)
+        const events: string[] = []
+        fetchMock.mockImplementation((url: string) => {
+          events.push(url)
+          return url.endsWith('/first')
+            ? new Promise((resolve) => {
+                releaseResponse = resolve
+              })
+            : Promise.resolve(new Response(null))
+        })
+        const rateLimited = admission.rateLimited.bind(admission)
+        vi.spyOn(admission, 'rateLimited').mockImplementation((header) => {
+          events.push('429')
+          expect(admission.pendingCount).toBe(0)
+          return rateLimited(header)
+        })
+        const flush = async (): Promise<void> => {
+          for (let i = 0; i < 20; i++) await Promise.resolve()
+        }
+        const first = adapter
+          .raw('http://api/first', {}, { retry: 'none' })
+          .catch((error: unknown) => error)
+        await flush()
+        const queued = adapter
+          .raw('http://api/queued', {}, { retry: 'none' })
+          .catch((error: unknown) => error)
+        await flush()
+        expect(admission.pendingCount).toBe(1)
+        now = 11_000
+        // Permit resolution queues its continuation before the first response's
+        // 429 handler; that handler then runs before the actual second fetch.
+        releaseSleep()
+        releaseResponse(new Response(null, { status: 429, headers: { 'Retry-After': retryAfter } }))
+        await flush()
+        expect(await first).toBeInstanceOf(RateLimitError)
+        expect(await queued).toBeInstanceOf(RateLimitError)
+        expect(events).toEqual(['http://api/first', '429'])
+        now = 12_000
+        await adapter.raw('http://api/fresh', {}, { retry: 'none' })
+        expect(events).toEqual(['http://api/first', '429', 'http://api/fresh'])
+      }
+    )
+
+    it('paces mixed REST and API-backed images through the same platform budget', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: number[] = []
+      fetchMock.mockImplementation(() => {
+        starts.push(Date.now())
+        return Promise.resolve(new Response('image', { headers: { 'Content-Type': 'image/png' } }))
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const images = new AvatarCache({ fetchFn: fetch, apiAdmission: adapter.getAdmission() })
+
+      const rest = adapter.raw('https://api.vrchat.cloud/api/1/auth/user')
+      const image = images.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
+      await vi.advanceTimersByTimeAsync(999)
+      expect(starts).toEqual([10_000])
+      await vi.advanceTimersByTimeAsync(1)
+      await Promise.all([rest, image])
+      expect(starts).toEqual([10_000, 11_000])
+    })
+
+    it('holds queued API images during a REST Retry-After cooldown', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: Array<{ url: string; at: number }> = []
+      fetchMock.mockImplementation((url: string) => {
+        starts.push({ url, at: Date.now() })
+        return Promise.resolve(
+          starts.length === 1
+            ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } })
+            : new Response('image', { headers: { 'Content-Type': 'image/png' } })
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const images = new AvatarCache({ fetchFn: fetch, apiAdmission: adapter.getAdmission() })
+      const rest = adapter.raw('https://api.vrchat.cloud/api/1/auth/user')
+      await vi.advanceTimersByTimeAsync(0)
+      const image = images.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
+      await vi.advanceTimersByTimeAsync(59_999)
+      expect(starts).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_001)
+      await Promise.all([rest, image])
+      expect(starts.slice(1).every(({ at }) => at >= 70_000)).toBe(true)
+      expect(starts[2]!.at - starts[1]!.at).toBeGreaterThanOrEqual(1_000)
+    })
+
+    it('holds REST and distinct image URLs after an API image returns 429', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(10_000)
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const starts: number[] = []
+      fetchMock.mockImplementation(() => {
+        starts.push(Date.now())
+        return Promise.resolve(
+          starts.length === 1
+            ? new Response(null, { status: 429, headers: { 'Retry-After': '60' } })
+            : new Response('image', { headers: { 'Content-Type': 'image/png' } })
+        )
+      })
+      const adapter = new TestAdapter((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+      const images = new AvatarCache({ fetchFn: fetch, apiAdmission: adapter.getAdmission() })
+      await images.get('https://api.vrchat.cloud/api/1/image/file_a/1/256')
+      const rest = adapter.raw('https://api.vrchat.cloud/api/1/auth/user')
+      const image = images.get('https://api.vrchat.cloud/api/1/image/file_b/1/256')
+      await vi.advanceTimersByTimeAsync(59_999)
+      expect(starts).toEqual([10_000])
+      await vi.advanceTimersByTimeAsync(1_001)
+      await Promise.all([rest, image])
+      expect(starts).toEqual([10_000, 70_000, 71_000])
+    })
+
     it('keeps an earlier reserved retry behind a cooldown extended by a later 429', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(10_000)
@@ -282,9 +536,10 @@ describe('BaseAdapter', () => {
       vi.spyOn(Math, 'random')
         // Initial admission: the queued waiter starts sleeping until t=11_099.
         .mockReturnValueOnce(0.99)
-        // Fast 429 at t=10_050: retry jitter 0 => retry at t=11_050.
+        // Fast 429 at t=10_050: server cooldown ends at t=11_050, but
+        // the previous attempt's full paced slot still ends at t=11_099.
         .mockReturnValueOnce(0)
-        // Reserving the retry moves nextRequestAt forward to t=12_149.
+        // The retry's own interval+jitter holds new work until t=12_198.
         .mockReturnValueOnce(0.99)
         // Queued admission jitter after the dispatcher recomputes.
         .mockReturnValue(0)
@@ -305,12 +560,12 @@ describe('BaseAdapter', () => {
       const limited = adapter.fetch('http://api/limited', schema)
       const queued = adapter.fetch('http://api/queued', schema)
 
-      await vi.advanceTimersByTimeAsync(2_149)
+      await vi.advanceTimersByTimeAsync(2_198)
       await expect(Promise.all([limited, queued])).resolves.toEqual([validBody, validBody])
       expect(dispatches).toEqual([
         { url: 'http://api/limited', at: 10_000 },
-        { url: 'http://api/limited', at: 11_050 },
-        { url: 'http://api/queued', at: 12_149 }
+        { url: 'http://api/limited', at: 11_099 },
+        { url: 'http://api/queued', at: 12_198 }
       ])
       expect(
         dispatches.slice(1).every((entry, index) => entry.at - dispatches[index]!.at >= 1_000)

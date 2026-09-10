@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AuthError } from '../errors'
+import { AuthError, RateLimitError } from '../errors'
 import { createGroupResolver, GROUP_NEGATIVE_TTL_MS } from './GroupResolver'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 describe('GroupResolver', () => {
+  it('propagates a rate limit without caching a false metadata miss', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new RateLimitError(60_000))
+      .mockResolvedValue({ name: 'Group' })
+    const resolver = createGroupResolver({ fetcher })
+    await expect(resolver.resolve('grp_limited')).rejects.toBeInstanceOf(RateLimitError)
+    expect(resolver.peek('grp_limited')).toBeUndefined()
+    await expect(resolver.resolve('grp_limited')).resolves.toMatchObject({ name: 'Group' })
+  })
   it('resolves a group to its name and icon', async () => {
     const fetcher = vi.fn().mockResolvedValue({ name: 'Pixel Pals', iconUrl: 'https://x/icon.png' })
     const resolver = createGroupResolver({ fetcher })
