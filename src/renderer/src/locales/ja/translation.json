@@ -458,6 +458,46 @@
     "decrease": "減らす",
     "increase": "増やす"
   },
+  "explore": {
+    "heading": "探索",
+    "description": "VRChat と ChilloutVR の人気パブリックワールド",
+    "popularNow": "人気のワールド",
+    "worldsShown": "表示するワールド",
+    "worldsShownAria": "表示するワールド数",
+    "openWorldAria": "{{platform}} の {{world}} の表示可能なルームを開く",
+    "viewRooms": "ルームを見る",
+    "peopleInWorld": "このワールドの人数",
+    "peopleInPublicRooms": "パブリックルームの人数",
+    "visibleRooms": "表示可能なルーム",
+    "visiblePublicRooms": "表示可能なパブリックルーム",
+    "unknownCount": "不明",
+    "sourceState": {
+      "loading": "{{platform}} のワールドを読み込み中…",
+      "error": "{{platform}} のワールドを読み込めませんでした。",
+      "unavailable": "{{platform}} の探索は利用できません。",
+      "stale": "{{platform}} は更新中のため、保存済みの結果を表示しています。"
+    },
+    "stale": "更新中のため、保存済みの結果を表示しています。",
+    "empty": "現在利用可能なパブリックワールドはありません。",
+    "sheetAria": "{{platform}} の {{world}} にある表示可能なパブリックルーム",
+    "loadingRooms": "表示可能なパブリックルームを読み込み中…",
+    "roomsError": "表示可能なパブリックルームを読み込めませんでした。",
+    "roomsUnavailable": "表示可能なパブリックルームは利用できません。",
+    "noVisibleRooms": "表示可能なパブリックルームはありません。",
+    "incompleteRooms": "表示可能なパブリックルームの情報が不完全です。",
+    "partialRooms": "表示可能なパブリックルームの一部のみを表示しています。",
+    "public": "パブリック",
+    "groupPublic": "グループパブリック",
+    "joinDenied": {
+      "full": "満員",
+      "restricted": "制限中",
+      "unavailable": "利用不可",
+      "unknown": "利用不可",
+      "stale": "更新中",
+      "busy": "参加中…",
+      "joining-disabled": "無効"
+    }
+  },
   "updater": {
     "sidebar": {
       "update": "更新",

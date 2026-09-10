@@ -607,6 +607,23 @@ the user has turned off join confirmation. Other platforms remain usable.
 
 ## §12 Implementation mapping + GENERATION CHECKLIST
 
+### Explore phase-A presentation boundary (September 9, 2026)
+
+The approved [cross-platform Explore specification](superpowers/specs/2026-09-04-cross-platform-explore-design.md)
+and [integration continuation](superpowers/plans/2026-09-09-explore-integration-continuation.md)
+now have presentational sample components: world-first liquid-glass cards, a mixed grid,
+a contained non-modal room sheet, and a Dashboard composition of stats → up to two Popular
+now cards → unchanged Hot Instances. They consume injected sample DTOs, resolved images and
+action callbacks only; production shell/Dashboard wiring, image bridging, queries, IPC and
+live discovery remain unchanged. Worlds shown defaults to 4 and offers only 2/4/6; Dashboard
+shows at most 2. Unknown totals remain unknown, fresh CVR public/group-public full rooms may
+remain actionable when main supplies that action, and VRChat action authority remains strict.
+Grid and Dashboard preview share named source states, including empty loading or failed
+sources. The sheet shows a platform text label and distinguishes incomplete coverage from
+verified empty results. Home/End select the count bounds.
+The API dependency is integrated and discovery refresh and volume choices are settled.
+Production activation and visual acceptance remain future work; no live-account tests are authorized.
+
 - Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
 - `glass.html` = living visual reference (the dashboard); keep in sync with this file — it carries BOTH themes (dark default; add `data-theme="light"` to `<html>` to preview light per §2A–§4A). `design.html` = human contributor guide (served at root `/`; embeds glass.html live). `platform-colors.html` = retired early explainer (superseded by design.html). On repo creation, this file → repo root / `docs/DESIGN.md`.
 - Light theme: dark is the DEFAULT baseline (§2–§4); light is specified by the `[data-theme="light"]` token/material/background overrides in §2A–§4A (VRX-115). Light MUST NOT fork layout, components, typography, or channel meanings — overrides only.

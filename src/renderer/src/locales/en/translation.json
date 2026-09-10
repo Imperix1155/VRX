@@ -461,6 +461,46 @@
     "decrease": "Decrease",
     "increase": "Increase"
   },
+  "explore": {
+    "heading": "Explore",
+    "description": "Popular public worlds across VRChat and ChilloutVR",
+    "popularNow": "Popular now",
+    "worldsShown": "Worlds shown",
+    "worldsShownAria": "Worlds shown",
+    "openWorldAria": "Open visible rooms for {{world}} on {{platform}}",
+    "viewRooms": "View rooms",
+    "peopleInWorld": "People in this world",
+    "peopleInPublicRooms": "People in public rooms",
+    "visibleRooms": "Visible rooms",
+    "visiblePublicRooms": "Visible public rooms",
+    "unknownCount": "Unknown",
+    "sourceState": {
+      "loading": "{{platform}} worlds are loading…",
+      "error": "{{platform}} worlds could not load.",
+      "unavailable": "{{platform}} discovery is unavailable.",
+      "stale": "{{platform}} is showing saved results while refreshing."
+    },
+    "stale": "Showing saved results while refreshing.",
+    "empty": "No public worlds are available right now.",
+    "sheetAria": "Visible public rooms for {{world}} on {{platform}}",
+    "loadingRooms": "Loading visible public rooms…",
+    "roomsError": "Visible public rooms could not load.",
+    "roomsUnavailable": "Visible public rooms are unavailable.",
+    "noVisibleRooms": "No visible public rooms are available.",
+    "incompleteRooms": "Visible public room coverage is incomplete.",
+    "partialRooms": "Only some visible public rooms are available.",
+    "public": "Public",
+    "groupPublic": "Group public",
+    "joinDenied": {
+      "full": "Full",
+      "restricted": "Restricted",
+      "unavailable": "Unavailable",
+      "unknown": "Unavailable",
+      "stale": "Refreshing",
+      "busy": "Joining…",
+      "joining-disabled": "Disabled"
+    }
+  },
   "updater": {
     "sidebar": {
       "update": "Update",
