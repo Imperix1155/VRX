@@ -320,7 +320,10 @@ export function parseVrcExploreRoom(
       ? 'full'
       : raw.roleRestricted === true || raw.ageGate === true
         ? 'restricted'
-        : raw.active === false || raw.closedAt !== null || raw.hardClose !== null
+        : raw.active === false ||
+            ['closedAt', 'hardClose'].some(
+              (key) => Object.hasOwn(raw, key) && raw[key] !== null && raw[key] !== undefined
+            )
           ? 'unavailable'
           : 'unknown'
   return {

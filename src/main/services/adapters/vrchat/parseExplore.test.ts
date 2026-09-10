@@ -298,6 +298,34 @@ describe('VRChat Explore parsers', () => {
     })
   })
 
+  it.each(['closedAt', 'hardClose'])('keeps missing %s evidence unknown', (field) => {
+    const raw: Record<string, unknown> = {
+      worldId,
+      instanceId: publicRoom,
+      type: 'public',
+      active: true,
+      full: false,
+      hasCapacityForYou: true,
+      roleRestricted: false,
+      ageGate: false,
+      closedAt: null,
+      hardClose: null
+    }
+    expect(parseVrcExploreRoom(raw, worldId, publicRoom)?.joinEligibility).toBe('eligible')
+    delete raw[field]
+    expect(parseVrcExploreRoom(raw, worldId, publicRoom)?.joinEligibility).toBe('unknown')
+    raw[field] = undefined
+    expect(parseVrcExploreRoom(raw, worldId, publicRoom)?.joinEligibility).toBe('unknown')
+    delete raw[field]
+    const inherited = Object.assign(Object.create({ [field]: '2026-09-10T00:00:00Z' }), raw)
+    expect(parseVrcExploreRoom(inherited, worldId, publicRoom)?.joinEligibility).toBe('unknown')
+    raw[field] = '2026-09-10T00:00:00Z'
+    expect(parseVrcExploreRoom(raw, worldId, publicRoom)?.joinEligibility).toBe('unavailable')
+    delete raw[field]
+    raw.active = false
+    expect(parseVrcExploreRoom(raw, worldId, publicRoom)?.joinEligibility).toBe('unavailable')
+  })
+
   it('rejects unsafe numeric counts rather than exposing a lossy total', () => {
     const raw = {
       id: publicRoom,

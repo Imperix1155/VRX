@@ -610,7 +610,7 @@ the user has turned off join confirmation. Other platforms remain usable.
 ### Explore phase-A presentation boundary (September 9, 2026)
 
 The approved [cross-platform Explore specification](superpowers/specs/2026-09-04-cross-platform-explore-design.md)
-and [session readiness receipt](superpowers/plans/2026-09-09-explore-session-readiness.md)
+and [integration continuation](superpowers/plans/2026-09-09-explore-integration-continuation.md)
 now have presentational sample components: world-first liquid-glass cards, a mixed grid,
 a contained non-modal room sheet, and a Dashboard composition of stats → up to two Popular
 now cards → unchanged Hot Instances. They consume injected sample DTOs, resolved images and
@@ -621,7 +621,8 @@ remain actionable when main supplies that action, and VRChat action authority re
 Grid and Dashboard preview share named source states, including empty loading or failed
 sources. The sheet shows a platform text label and distinguishes incomplete coverage from
 verified empty results. Home/End select the count bounds.
-Live integration is blocked on the exact API-safety artifact and a newly approved traffic allowance.
+The API dependency is integrated and discovery refresh and volume choices are settled.
+Production activation and visual acceptance remain future work; no live-account tests are authorized.
 
 - Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
 - `glass.html` = living visual reference (the dashboard); keep in sync with this file — it carries BOTH themes (dark default; add `data-theme="light"` to `<html>` to preview light per §2A–§4A). `design.html` = human contributor guide (served at root `/`; embeds glass.html live). `platform-colors.html` = retired early explainer (superseded by design.html). On repo creation, this file → repo root / `docs/DESIGN.md`.

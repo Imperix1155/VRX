@@ -390,7 +390,8 @@ production paths below are unchanged.
   [community schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml)
   and [source response report](https://github.com/vrchatapi/specification/issues/328).
   Response access and explicit eligibility flags must agree before the parser
-  reports eligibility. The 25/22 fixture retains `n_users` precedence over
+  reports eligibility. Missing or inherited closure fields stay unknown;
+  they cannot prove a room is unavailable. The 25/22 fixture retains `n_users` precedence over
   `userCount`; missing or invalid counts are unknown, never admission evidence.
 - CVR category parsing expects the client's already-unwrapped `data` object
   with `entries`. World `instances` are unqualified candidates; room details
@@ -402,9 +403,11 @@ production paths below are unchanged.
   wrong provenance and unsafe arithmetic cannot produce a displayed total.
 
 These are fixture-verified assumptions, not new live observations. Future
-integration must consume the API-safety task's exact reviewed transport and
-lease contracts, then obtain the revised traffic allowance. No authenticated
-request, new route, pacing policy or join action was added here.
+integration must consume the integrated API-safety transport and lease
+contracts and the settled discovery limits in the
+[integration continuation](./superpowers/plans/2026-09-09-explore-integration-continuation.md).
+No authenticated request, new route, pacing policy or join action was added here.
+Production activation and visual acceptance remain future work; no live-account tests are authorized.
 
 ### 1. Defensive Zod Schemas
 

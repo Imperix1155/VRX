@@ -15,8 +15,9 @@ these safeguards.
 
 Explore's pure ranking/parsers and presentational components have synthetic
 tests. Explore is not yet connected to the sidebar or live
-Dashboard. Its [implementation handoff](docs/superpowers/plans/2026-09-09-explore-session-readiness.md)
-records the API-safety dependency and the separate approval needed for live traffic.
+Dashboard. Its [integration continuation](docs/superpowers/plans/2026-09-09-explore-integration-continuation.md)
+records the integrated API dependency and settled discovery limits. Production
+activation and visual acceptance remain future work; no live-account tests are authorized.
 
 ## Stack
 
