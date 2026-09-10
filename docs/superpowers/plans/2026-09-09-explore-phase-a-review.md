@@ -197,3 +197,46 @@ interpret this pre-publication receipt as proof those future steps completed.
 VRX-270 remains unfinished after the foundation merges; phase B is the next
 implementation work. Production contracts, design/API guides, README and
 CHANGELOG need no additional changes for this unchanged-source receipt.
+
+## Final advisory corrections
+
+After the earlier execution gate rejected the liaison-relayed grant, Josh
+said "merge it please" directly in this task. That direct grant covers the
+same foundation PR and sole-maintainer approval exception. No production
+activation, phase-B implementation, capture or live-account test was added.
+
+Codex GitHub review completed on `7977316badda0e79aa00ac89c0adaa44b3a0f7db`
+with two verified P2 findings. Current README/design/API summaries still
+repeated the superseded traffic-approval hold, and missing VRChat closure
+fields were incorrectly classified as unavailable. The current summaries now
+link the settled continuation. The pure room parser preserves unknown for
+omitted, undefined or inherited closure fields, while explicit closure and
+inactive-room evidence still mean unavailable. All eligibility prerequisites
+remain unchanged.
+
+The focused artifact from `7977316` changes nine files, 14,064 bytes and
+182 lines, SHA-256
+`364e5959d41c7a5d6a322f5e54c7b730ef453041bab67517d7c34408c7de72a1`.
+Both new parameterized regressions failed on the old parser, then all 15
+parser cases passed with the fix. The full gate passed 2,607 tests in
+169 files, uncached lint, formatting, both typechecks and production build:
+`EXPLORE_FIX_GATE_GREEN`. Fresh Fallow retained exactly the same eight issues
+and 587 duplicate fingerprints. Current-status links and stale-text checks
+passed with `EXPLORE_CURRENT_STATUS_DOCS_GREEN`.
+
+A fresh Sol/high focused review ran with observed read-only sandbox and
+approval never, exited 0 within its five-minute limit, verified the exact
+artifact, and returned SHIP with no actionable material findings. It
+confirmed that prior general, correction and integration coverage remains
+applicable and that a new general review is unnecessary. This remains T1 and
+same-lineage evidence. The parser has no production consumer, and no account,
+transport, IPC, controls or visual behavior changed.
+
+This receipt is a separate evidence-prose delta with format/link/whitespace
+checks. The nearest parser contract and API catalog were updated alongside
+the code; the three design references and README now agree on current status.
+API policy, renderer/shared contracts and CHANGELOG are intentionally unchanged:
+no transport policy, production UI behavior or wider contract changed.
+Final pushed head, CI, merge execution and post-merge results belong in PR 305
+and the existing Linear handoff. This receipt does not claim those future
+steps have completed or that the full Explore feature is delivered.

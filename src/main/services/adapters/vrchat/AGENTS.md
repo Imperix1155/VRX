@@ -17,7 +17,8 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
   modifiers do not weaken access. Recognized non-public rooms are excluded;
   malformed or unknown identifiers make enumeration partial with a null count.
   Missing or contradictory eligibility disables
-  joining; inherited flags cannot supply evidence. World `occupants` remain
+  joining; inherited flags cannot supply evidence. Missing closure fields stay
+  unknown rather than proving unavailability. World `occupants` remain
   separate from tuple counts; room detail prefers valid `n_users`, then
   `userCount`, retaining provenance. No member payloads, I/O, action references
   or production adapter consumers exist in phase A.

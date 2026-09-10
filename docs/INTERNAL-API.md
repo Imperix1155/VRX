@@ -16,8 +16,12 @@
 
 These pure and presentational surfaces are staged for the approved Explore
 integration. They do not create IPC, queries, timers, requests or game launches.
-The [phase boundary](superpowers/plans/2026-09-09-explore-session-readiness.md)
+The [phase boundary](superpowers/plans/2026-09-09-explore-integration-continuation.md)
 still applies.
+
+VRChat room evidence keeps missing or inherited closure fields unknown; only
+explicit closure evidence or an inactive room proves unavailability. Every
+eligibility prerequisite is still required before reporting eligibility.
 
 | Surface                                                                                     | Source                         | Contract                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
