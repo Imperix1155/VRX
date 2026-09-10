@@ -60,7 +60,7 @@
     "@types/react-dom": "^19.2.7",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "app-builder-lib": "^26.16.0",
     "builder-util": "^26.15.3",
     "electron": "^43.4.1",
