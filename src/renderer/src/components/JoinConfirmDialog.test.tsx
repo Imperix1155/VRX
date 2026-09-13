@@ -21,6 +21,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
+import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useProfileSelection } from '../stores/profileSelection'
@@ -171,6 +172,61 @@ function TestSurface({ friend }: { friend: Friend }): React.JSX.Element {
   return (
     <>
       <OpenJoin friend={friend} />
+      <JoinConfirmDialog />
+    </>
+  )
+}
+
+const exploreWorld: ExploreWorld = {
+  platform: 'vrchat',
+  worldId: 'wrld_explore',
+  worldRef: 'explore-world-ref',
+  name: 'Explore World',
+  thumbnailUrl: null,
+  activity: { state: 'complete', value: 12, source: 'vrc-world-occupants' },
+  visibleRoomCount: { state: 'complete', value: 1, source: 'visible-rooms' },
+  popularity: null,
+  sourceOrder: 0
+}
+
+const exploreRoom: ExploreRoom = {
+  platform: 'vrchat',
+  worldId: 'wrld_explore',
+  roomId: 'room_explore',
+  access: 'public',
+  region: 'us',
+  groupName: null,
+  occupancy: { state: 'complete', value: 12, source: 'vrc-room-n-users' },
+  capacity: 40,
+  full: false,
+  action: { state: 'available', selectionRef: 'explore-selection-ref' }
+}
+
+function OpenExplore({
+  world = exploreWorld,
+  room = exploreRoom
+}: {
+  world?: ExploreWorld
+  room?: ExploreRoom
+}): React.JSX.Element {
+  const { joinExplore } = useJoinInstance()
+  return (
+    <button type="button" onClick={() => void joinExplore(world, room)}>
+      open explore join
+    </button>
+  )
+}
+
+function ExploreTestSurface({
+  world = exploreWorld,
+  room = exploreRoom
+}: {
+  world?: ExploreWorld
+  room?: ExploreRoom
+}): React.JSX.Element {
+  return (
+    <>
+      <OpenExplore world={world} room={room} />
       <JoinConfirmDialog />
     </>
   )
@@ -2431,5 +2487,134 @@ describe('join() guard', () => {
     const { result } = renderHook(() => useJoinInstance())
     expect(result.current.joinFailedFor(askMe)).toBe(true)
     expect(result.current.joinFailureFor(askMe)).toBe('not-joinable')
+  })
+})
+
+describe('Explore confirmation source', () => {
+  it('keeps an opened Explore confirmation mounted, traps focus, and cancels with Escape', () => {
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+    expect(document.activeElement).toBe(cancel)
+    const more = within(dialog).getByRole('button', { name: 'More info' })
+    more.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: /Don't ask again/ })
+    )
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+  })
+
+  it('uses the same no-picker VRC and explicit-CVR mode semantics, including never ask again', async () => {
+    const joinExploreRoom = vi.fn().mockResolvedValue({ ok: true })
+    window.vrx = { ...window.vrx, joinExploreRoom } as unknown as Window['vrx']
+    const firstSurface = render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const vrcDialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(vrcDialog).queryByRole('radiogroup')).toBeNull()
+    expect(within(vrcDialog).getByText(/VRChat chooses VR or desktop/)).toBeTruthy()
+    fireEvent.click(within(vrcDialog).getByRole('button', { name: /Don't ask again/ }))
+    await waitFor(() => expect(joinExploreRoom).toHaveBeenCalledTimes(1))
+    expect(joinExploreRoom).toHaveBeenCalledWith({
+      platform: 'vrchat',
+      selectionRef: 'explore-selection-ref',
+      mode: 'desktop'
+    })
+    expect(useSettingsStore.getState().settings.confirmJoin).toBe(false)
+    firstSurface.unmount()
+
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true, joinMode: 'vr' },
+      dirty: false
+    })
+    const cvrWorld: ExploreWorld = { ...exploreWorld, platform: 'chilloutvr', worldId: 'cvr_world' }
+    const cvrRoom: ExploreRoom = {
+      ...exploreRoom,
+      platform: 'chilloutvr',
+      worldId: 'cvr_world',
+      roomId: 'cvr_room',
+      action: { state: 'available', selectionRef: 'cvr-selection-ref' }
+    }
+    render(<ExploreTestSurface world={cvrWorld} room={cvrRoom} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const cvrDialog = screen.getByRole('dialog', { name: 'Explore World' })
+    expect(within(cvrDialog).queryByRole('radiogroup')).toBeNull()
+    expect(within(cvrDialog).getByText('Will launch in VR.')).toBeTruthy()
+    fireEvent.click(within(cvrDialog).getByRole('button', { name: 'Join' }))
+    await waitFor(() => expect(joinExploreRoom).toHaveBeenCalledTimes(2))
+    expect(joinExploreRoom).toHaveBeenLastCalledWith({
+      platform: 'chilloutvr',
+      selectionRef: 'cvr-selection-ref',
+      mode: 'vr'
+    })
+  })
+
+  it('clears only the matching Explore confirmation at an account boundary and fences a late join', async () => {
+    let resolveJoin!: (value: { ok: true }) => void
+    const joinExploreRoom = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    window.vrx = { ...window.vrx, joinExploreRoom } as unknown as Window['vrx']
+    render(<ExploreTestSurface />)
+    fireEvent.click(screen.getByRole('button', { name: 'open explore join' }))
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+    await waitFor(() => expect(joinExploreRoom).toHaveBeenCalledTimes(1))
+    expect(within(dialog).getByRole('button', { name: 'Joining…' })).toHaveProperty(
+      'disabled',
+      true
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'Explore World' })).toBeTruthy()
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+    expect(screen.queryByRole('dialog', { name: 'Explore World' })).toBeNull()
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+    const { result } = renderHook(() => useJoinInstance())
+    expect(result.current.pendingConfirm).toBeNull()
+    expect(result.current.isJoining).toBe(false)
+  })
+
+  it('keeps focus on the inert Explore panel during a launch and returns a committed join to main', async () => {
+    let resolveJoin!: (value: { ok: true }) => void
+    const joinExploreRoom = vi.fn(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          resolveJoin = resolve
+        })
+    )
+    window.vrx = { ...window.vrx, joinExploreRoom } as unknown as Window['vrx']
+    render(
+      <main tabIndex={-1}>
+        <ExploreTestSurface />
+      </main>
+    )
+    const opener = screen.getByRole('button', { name: 'open explore join' })
+    fireEvent.click(opener)
+    const dialog = screen.getByRole('dialog', { name: 'Explore World' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+    await waitFor(() => expect(joinExploreRoom).toHaveBeenCalledOnce())
+
+    opener.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(dialog)
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(dialog)
+
+    await act(async () => {
+      resolveJoin({ ok: true })
+      await Promise.resolve()
+    })
+    expect(document.activeElement).toBe(document.querySelector('main'))
   })
 })

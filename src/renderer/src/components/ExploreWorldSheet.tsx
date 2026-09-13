@@ -17,6 +17,11 @@ export interface ExploreWorldSheetProps {
   focusFallback: HTMLElement | null
   onClose: () => void
   onJoin: (room: ExploreRoom) => void
+  /** A true Join modal owns Escape/outside while the contained sheet remains visible beneath it. */
+  dismissable?: boolean
+  joining?: boolean
+  onRefresh?: () => void
+  joinFailureFor?: (room: ExploreRoom) => boolean
 }
 
 const denialKey: Readonly<Record<ExploreJoinDenial, string>> = {
@@ -37,21 +42,25 @@ function Count({ count }: { count: ExploreCount }): React.JSX.Element {
 function RoomRow({
   room,
   onJoin,
-  actionAllowed
+  actionAllowed,
+  joining
 }: {
   room: ExploreRoom
   onJoin: (room: ExploreRoom) => void
   actionAllowed: boolean
+  joining: boolean
 }): React.JSX.Element {
   const { t } = useTranslation()
   const enabled = actionAllowed && room.action.state === 'available'
   const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
   const details = [room.region, room.groupName].filter((part): part is string => part !== null)
-  const disabledLabel = enabled
-    ? null
-    : room.action.state === 'disabled'
-      ? t(denialKey[room.action.reason])
-      : t('explore.joinDenied.unavailable')
+  const disabledLabel = joining
+    ? t('explore.joinDenied.busy')
+    : enabled
+      ? null
+      : room.action.state === 'disabled'
+        ? t(denialKey[room.action.reason])
+        : t('explore.joinDenied.unavailable')
   return (
     <li className="flex min-w-0 items-center justify-between gap-[var(--space-3)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]">
       <div className="min-w-0">
@@ -94,7 +103,11 @@ export default function ExploreWorldSheet({
   opener,
   focusFallback,
   onClose,
-  onJoin
+  onJoin,
+  dismissable = true,
+  joining = false,
+  onRefresh,
+  joinFailureFor
 }: ExploreWorldSheetProps): React.JSX.Element {
   const { t } = useTranslation()
   const [retained, setRetained] = useState<ExploreWorldSnapshot | null>(null)
@@ -106,6 +119,20 @@ export default function ExploreWorldSheet({
   const openerRef = useRef<HTMLElement | null>(null)
   const wasOpenRef = useRef(false)
   const [failedImage, setFailedImage] = useState<string | null>(null)
+  const [expiredFreshnessKey, setExpiredFreshnessKey] = useState<string | null>(null)
+  const freshnessKey =
+    snapshot?.updatedAt === null || snapshot?.updatedAt === undefined
+      ? null
+      : `${snapshot.world.platform}:${snapshot.world.worldRef}:${snapshot.updatedAt}`
+
+  useEffect(() => {
+    if (snapshot === null || snapshot.isStale || freshnessKey === null) return
+    const updatedAt = snapshot.updatedAt
+    if (updatedAt === null) return
+    const delay = Math.max(0, updatedAt + 60_000 - Date.now())
+    const timer = window.setTimeout(() => setExpiredFreshnessKey(freshnessKey), delay)
+    return () => window.clearTimeout(timer)
+  }, [freshnessKey, snapshot])
 
   useEffect(() => {
     if (open) openerRef.current = opener
@@ -115,22 +142,24 @@ export default function ExploreWorldSheet({
     if (open && !wasOpenRef.current) {
       closeRef.current?.focus()
     } else if (!open && wasOpenRef.current) {
-      const target = openerRef.current?.isConnected ? openerRef.current : focusFallback
+      const target = openerRef.current?.isConnected
+        ? openerRef.current
+        : (focusFallback ?? document.querySelector<HTMLElement>('main'))
       if (target?.isConnected) target.focus()
       openerRef.current = null
     }
     wasOpenRef.current = open
   }, [focusFallback, open])
   useEffect(() => {
-    if (!open) return
+    if (!open || !dismissable) return
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open])
+  }, [onClose, open, dismissable])
   useEffect(() => {
-    if (!open) return
+    if (!open || !dismissable) return
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target
       if (!(target instanceof Element) || panelRef.current?.contains(target)) return
@@ -139,11 +168,12 @@ export default function ExploreWorldSheet({
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [onClose, open])
+  }, [onClose, open, dismissable])
 
   if (shown === null) return <div inert aria-hidden />
   const { world } = shown
   const isVrc = world.platform === 'vrchat'
+  const isStale = shown.isStale || (freshnessKey !== null && expiredFreshnessKey === freshnessKey)
   return (
     <div inert={!open} aria-hidden={!open}>
       <div
@@ -191,10 +221,19 @@ export default function ExploreWorldSheet({
           <div className="mt-[var(--space-1)]">
             <PlatformPill platform={world.platform} />
           </div>
-          {shown.isStale ? (
-            <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
-              {t('explore.stale')}
-            </p>
+          {isStale ? (
+            <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
+              <p className="text-xs text-[var(--text-dim)]">{t('explore.stale')}</p>
+              {onRefresh ? (
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  className="text-xs text-[var(--text)] underline"
+                >
+                  {t('explore.refresh')}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <h3 className="mt-[var(--space-4)] text-sm font-semibold text-[var(--text)]">
@@ -234,13 +273,20 @@ export default function ExploreWorldSheet({
                 onJoin={onJoin}
                 actionAllowed={
                   shown.status === 'ready' &&
-                  !shown.isStale &&
+                  !isStale &&
+                  !joining &&
                   room.platform === world.platform &&
                   room.worldId === world.worldId
                 }
+                joining={joining}
               />
             ))}
           </ul>
+        ) : null}
+        {shown.rooms.some((room) => joinFailureFor?.(room)) ? (
+          <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
+            {t('explore.joinFailed')}
+          </p>
         ) : null}
         {!shown.roomsComplete && shown.rooms.length > 0 ? (
           <p className="mt-[var(--space-2)] text-xs text-[var(--text-faint)]">

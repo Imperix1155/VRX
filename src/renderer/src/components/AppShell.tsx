@@ -8,6 +8,8 @@ import DashboardView from './DashboardView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
 import JoinConfirmDialog from './JoinConfirmDialog'
+import ExploreRoute from './ExploreRoute'
+import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
 /** Glass "coming soon" stub for views not yet implemented. */
 function ComingSoonStub({ labelKey }: { labelKey: string }): React.JSX.Element {
@@ -43,8 +45,12 @@ function MainContent(): React.JSX.Element {
       )
     case 'activity':
       return <ComingSoonStub labelKey="shell.nav.activity" />
-    case 'instances':
-      return <ComingSoonStub labelKey="shell.nav.instances" />
+    case 'explore':
+      return (
+        <ErrorBoundary variant="panel">
+          <ExploreRoute />
+        </ErrorBoundary>
+      )
     case 'groups':
       return <ComingSoonStub labelKey="shell.nav.groups" />
     case 'settings':
@@ -66,6 +72,7 @@ function MainContent(): React.JSX.Element {
 export default function AppShell(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
+  useExploreCoordinator()
 
   return (
     <div

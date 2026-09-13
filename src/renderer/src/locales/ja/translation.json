@@ -106,7 +106,7 @@
       "dashboard": "ダッシュボード",
       "activity": "アクティビティ",
       "friends": "フレンド",
-      "instances": "インスタンス",
+      "explore": "探索",
       "groups": "グループ",
       "settings": "設定"
     },
@@ -466,6 +466,9 @@
     "worldsShownAria": "表示するワールド数",
     "openWorldAria": "{{platform}} の {{world}} の表示可能なルームを開く",
     "viewRooms": "ルームを見る",
+    "confirmAria": "{{world}} への参加を確認",
+    "refresh": "更新",
+    "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
     "peopleInWorld": "このワールドの人数",
     "peopleInPublicRooms": "パブリックルームの人数",
     "visibleRooms": "表示可能なルーム",

@@ -35,10 +35,12 @@ main including PR 308. Root checkout and unrelated worktrees are preserved.
 
 ## Checkpoint
 
-2026-09-13, 08:16 UTC: main/adapters/IPC/settings integration is implemented in
-this feature checkout, still uncommitted. Production renderer integration is
-being corrected in an isolated worker checkout before serial import. No
-production PR, packaged build or runtime acceptance exists yet.
+2026-09-13, 08:34 UTC: the main unit is committed locally as `9867b1d`.
+Renderer integration and bounded corrections are implemented in this feature
+checkout and have passed the complete local gate and disposable runtime exercise.
+No production PR or packaged build exists yet. General and external critical
+reviews are still required; this is a verified implementation checkpoint, not
+merge readiness.
 
 - Main holds one original adapter lease and shared 429 revision per job. Jobs
   abort at 45 seconds, respect the 13/7/20 JSON limits and keep process budgets
@@ -79,13 +81,49 @@ production PR, packaged build or runtime acceptance exists yet.
   main Explore/settings handlers with synthetic adapters, disposable profile,
   blocked external traffic and a launcher spy. It never captures pixels.
 
-Renderer corrections still in progress include fencing every pending sheet read
-across close/switch/account boundaries, local sheet stale expiry, Dashboard
-filter cancellation and empty-source feedback, alongside open-sheet invalidations,
-shared Join confirmation/mode/keyboard behavior, error feedback, account
-boundaries, socket reconnect, and preventing local stale-display timers from
-becoming automatic request triggers. Worker test reports remain provisional
-until driver inspection and a rerun against the combined checkout.
+Renderer inspection found and corrected mounted disabled query observers retaining
+old account data after cache removal. Resetting the query clears the mounted
+observer without a request. Both routes now use `useExploreWorldSelection` for
+ordered reads and cancellation; delayed manual/cache replies cannot restore a
+closed or different-account sheet. Older loading replies cannot overwrite newer
+ready data. `/private/tmp/explore-renderer-mutations.log` records the ordering
+mutation failing on both routes and 29 restored query/lifetime tests passing.
+Its first restored run used Escape before the listener had settled; the lifetime
+test now uses the direct Close control, with Escape covered separately.
+
+The oversight task identified raw world-ID prefixes and an unfair tie seed
+biasing the first platform. `/private/tmp/explore-ranking-red.log` reproduces both.
+Cross-platform comparisons now use common UUID material; a fair session coin
+flip assigns distinct tie seeds. Twenty ranking/seed tests include either real
+platform leading and label-swap symmetry.
+
+`/private/tmp/explore-production-full-gate.log` records uncached max-warnings-zero
+ESLint, Prettier, both TypeScript checks, production build and entry assertion,
+and 2,713 passing tests. Two existing socket integration tests were blocked by
+sandbox loopback permissions. They passed unchanged with local-listener access
+in `/private/tmp/explore-production-loopback-gate.log`, ending
+`EXPLORE_FULL_GATE_GREEN`. Combined: 181 files and 2,715 passing tests.
+
+Fallow 2.89.0 compared the exact `4a39eb3` baseline in
+`/private/tmp/vrx-explore-fallow/`. `final-dead-code.json` reports zero new issues
+and matches all eight baseline entries. `final-dupes.json` reports 113 groups
+remaining after baseline filtering, not a total of 113 for the whole project.
+Production entries are existing or platform-specific adapter shapes, independent
+Join/self-invite checks, repeated public type signatures and shared modal focus
+handling. Test setup/assertion clones remain. No duplicate group touches the new
+main Explore service or common selected-world hook.
+
+`/private/tmp/explore-production-runtime.log` ends
+`EXPLORE_RUNTIME_PROBE_EXERCISE_GREEN`. The actual built renderer/preload and
+production Explore/settings handlers ran in Electron 43.4.1 arm64 with a fresh
+temporary profile, synthetic adapters, blocked external traffic and launcher spy.
+It exercised Dashboard stats/Explore/Hot Instances, 2/4/6 and filters, asynchronous
+sheets, focus restoration, both Join modals including an enabled qualifying full
+CVR room, dark/light card/sheet/scrim measurements at a 900×638 content viewport,
+and settings JSON plus renderer reload. Zero blocked-network attempts occurred.
+The first probe miscounted retained hidden sheet exit-animation DOM as an open
+sheet; correcting its locator produced the passing exercise. No screenshot,
+real account, game launch, installed-app change or live API result was involved.
 
 ## Automatic approval review receipts
 
@@ -101,19 +139,17 @@ expiry and cache invalidation cannot themselves trigger fresh requests.
 
 A later module-global retained-account proposal was rejected because it could
 outlive coordinator lifecycles and enable work with stale identity state during
-transient auth errors. The worker is replacing it with instance-scoped account
+transient auth errors. It was replaced with instance-scoped account
 retention, boundary clearing and quarantine until a later authenticated result.
-That correction has not yet been driver-verified. Neither rejection created a
+Driver inspection and the integrated suite cover that correction. Neither rejection created a
 new numeric policy decision or authorized a bypass.
 
 ## Next safe action
 
-Finish and serially import the renderer corrections; run the complete lint,
-format, build, test and Fallow gates. Then run disposable Electron behavior and
-layout measurements, perform pinned critical review, open the PR, inspect
-required CI/external reviews, and package the private native Mac build. Keep
-runtime, visual and real-account evidence distinct. Merge, capture and installed
-app replacement remain outside the current production grant.
+Save the verified renderer/ranking checkpoint, perform the pinned critical general
+review, open the PR, inspect required CI/external reviews, and package the private
+native Mac build. Keep runtime, visual and real-account evidence distinct. Merge,
+capture and installed app replacement remain outside the current production grant.
 
 Policy evidence was checked on 2026-09-13 against the
 [VRChat creator guidelines](https://hello.vrchat.com/creator-guidelines#api-usage--bots)

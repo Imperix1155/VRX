@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, cleanup, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, cleanup, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ExplorePlatformSnapshot,
@@ -10,7 +10,6 @@ import type {
 import { rankExploreWorlds, selectExploreWorlds } from '@shared/exploreRanking'
 import '../i18n'
 import ExploreDashboardPreview from './ExploreDashboardPreview'
-import ExploreDashboardComposition from './ExploreDashboardComposition'
 import ExploreView from './ExploreView'
 import ExploreWorldSheet from './ExploreWorldSheet'
 
@@ -186,6 +185,21 @@ describe('ExploreView', () => {
     expect(props.onJoinRoom).toHaveBeenCalledWith(snapshot.rooms[0])
   })
 
+  it('shows a busy disabled action while the shared join latch is held', () => {
+    const selected = world('vrchat', 'busy', 'Busy World')
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, selected.worldId)],
+      roomsComplete: true
+    }
+    const props = setup({ worlds: [selected], sheet: snapshot, isJoining: true })
+    const button = screen.getByRole('button', { name: 'Joining…' })
+    expect(button.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(button)
+    expect(props.onJoinRoom).not.toHaveBeenCalled()
+  })
+
   it('disables restricted room actions, closes on Escape, and focuses Close on open', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const snapshot: ExploreWorldSnapshot = {
@@ -238,6 +252,27 @@ describe('ExploreView', () => {
     expect(props.onCloseSheet).not.toHaveBeenCalled()
     fireEvent.pointerDown(document.body)
     expect(props.onCloseSheet).toHaveBeenCalledTimes(1)
+  })
+
+  it('locally expires a fresh sheet after sixty seconds without calling a refresh callback', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000)
+    const selected = world('vrchat', 'expiring', 'Expiring World')
+    const snapshot: ExploreWorldSnapshot = {
+      ...source('vrchat', [selected]),
+      world: selected,
+      updatedAt: 1_000,
+      rooms: [room('vrchat', { state: 'available', selectionRef: 'synthetic' }, selected.worldId)],
+      roomsComplete: true
+    }
+    const props = setup({ worlds: [selected], sheet: snapshot, onRefreshSheet: vi.fn() })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(screen.getByText('Showing saved results while refreshing.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Unavailable' }).hasAttribute('disabled')).toBe(true)
+    expect(props.onRefreshSheet).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it('never activates an otherwise available matching room action from a stale snapshot', () => {
@@ -584,46 +619,5 @@ describe('ExploreDashboardPreview', () => {
     )
     expect(dashboard).toEqual(explore.slice(0, 2))
     expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
-  })
-
-  it('keeps supplied stats and Hot Instances nodes around the shared preview across totals and filters', () => {
-    const lists = {
-      vrchat: rankExploreWorlds('vrchat', [world('vrchat', 'v1'), world('vrchat', 'v2')]),
-      chilloutvr: rankExploreWorlds('chilloutvr', [
-        world('chilloutvr', 'c1'),
-        world('chilloutvr', 'c2')
-      ])
-    }
-    const seeds = { vrchat: 17, chilloutvr: 29 }
-    const hotAction = vi.fn()
-    const stats = <div data-testid="stats">stats</div>
-    const hot = (
-      <button type="button" onClick={hotAction}>
-        Hot Instances
-      </button>
-    )
-    for (const total of [2, 4, 6] as const) {
-      const preview = selectExploreWorlds({
-        lists,
-        filter: total === 6 ? 'vrchat' : 'all',
-        total,
-        listSeeds: seeds
-      })
-      const { unmount } = render(
-        <ExploreDashboardComposition
-          stats={stats}
-          hotInstances={hot}
-          preview={{ worlds: preview, platformSnapshots: [], onOpenWorld: vi.fn() }}
-        />
-      )
-      const order = Array.from(document.body.textContent ?? '')
-      expect(order.join('')).toMatch(/stats[\s\S]*Popular now[\s\S]*Hot Instances/)
-      expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(
-        Math.min(2, preview.length)
-      )
-      fireEvent.click(screen.getByRole('button', { name: 'Hot Instances' }))
-      unmount()
-    }
-    expect(hotAction).toHaveBeenCalledTimes(3)
   })
 })

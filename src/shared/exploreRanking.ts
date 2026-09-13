@@ -64,12 +64,22 @@ export function rankExploreWorlds(
   })
 }
 
+/** Both platforms identify worlds with UUIDs, but VRC adds `wrld_`. Compare
+ * the same UUID material so a platform namespace cannot choose every leader.
+ * Normalize by syntax rather than platform labels to preserve swap symmetry. */
+function candidateKey(id: string): string {
+  const uuid = /^(?:wrld_)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+    id
+  )
+  return uuid?.[1]?.toLowerCase() ?? id
+}
+
 function compareLists(a: readonly ExploreWorld[], b: readonly ExploreWorld[]): number {
   for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
     const aWorld = a[index]
     const bWorld = b[index]
     if (aWorld && bWorld) {
-      const difference = compareText(aWorld.worldId, bWorld.worldId)
+      const difference = compareText(candidateKey(aWorld.worldId), candidateKey(bWorld.worldId))
       if (difference !== 0) return difference
     }
   }

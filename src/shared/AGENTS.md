@@ -13,7 +13,8 @@ The common data model and constants shared across the main, preload, and rendere
   Only an opaque main-issued reference may request discovery or Join. Synthetic references belong only in tests.
   `exploreRanking.ts` ranks bounded platform lists separately,
   then selects equal shares with alternating pair leaders and symmetric
-  backfill. Identical ID lists use distinct neutral session seeds; keep seeds
+  backfill. Compare UUID material without platform prefixes; tied lists use a fair session
+  coin flip to assign distinct seeds; keep seeds
   with their list identities. Dashboard selects total 2 from the same lists.
   Main `ExploreService` produces the snapshots; renderer selectors consume the pure ranking helpers (VRX-270).
 - `linkedProfiles.ts` defines the v2 `LinkedProfile`, transactional revision-checked changes, renderer friend references, and account-session snapshot leases. Snapshots include the atomically read document `storeRevision`, independent of individual profile revisions, and main-owned ready `accountIds` captured with the lease. Transient auth-status errors retain session ownership; identity boundaries clear the map. Shared notes belong to the installation-global person, never an account cache. Renderer requests cannot supply account ownership; main qualifies references.

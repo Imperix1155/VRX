@@ -30,6 +30,7 @@ import { stripInstanceSuffix } from '../utils/worldName'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import HotInstanceSheet from './HotInstanceSheet'
+import { ExploreDashboardPreviewRoute } from './ExploreRoute'
 
 /** How many friend names show on a card before collapsing to "+N" (VRX-198). */
 const WHO_HERE_MAX_NAMES = 4
@@ -384,23 +385,31 @@ export default function DashboardView(): React.JSX.Element {
     // while the other platform may yet deliver); error only when every scoped
     // source has settled with nothing.
     if (scoped.some((q) => q.isPending)) {
-      return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+      return (
+        <>
+          <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+          <ExploreDashboardPreviewRoute />
+        </>
+      )
     }
     // Manual retry (same affordance as FriendsList's Refresh) — without it the
     // only recovery is the 5-minute reconcile tick or a view remount.
     return (
-      <div className="flex items-center gap-[var(--space-3)]">
-        <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
-        <button
-          type="button"
-          onClick={() => {
-            for (const q of scoped) void q.refetch()
-          }}
-          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
-        >
-          {t('dashboard.retry')}
-        </button>
-      </div>
+      <>
+        <div className="flex items-center gap-[var(--space-3)]">
+          <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
+          <button
+            type="button"
+            onClick={() => {
+              for (const q of scoped) void q.refetch()
+            }}
+            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
+          >
+            {t('dashboard.retry')}
+          </button>
+        </div>
+        <ExploreDashboardPreviewRoute />
+      </>
     )
   }
 
@@ -419,6 +428,8 @@ export default function DashboardView(): React.JSX.Element {
         <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
         <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
       </div>
+
+      <ExploreDashboardPreviewRoute />
 
       {/* Hot instances section — a labelled landmark (audit W5). */}
       <section aria-labelledby="dashboard-hot-heading">
