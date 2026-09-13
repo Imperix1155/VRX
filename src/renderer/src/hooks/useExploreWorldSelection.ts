@@ -5,7 +5,7 @@ import type {
   ExploreWorldReason,
   ExploreWorldSnapshot
 } from '@shared/explore'
-import { requestExploreImage } from '../queries/explore'
+import { readExploreSnapshot, requestExploreImage } from '../queries/explore'
 
 interface Selection {
   world: ExploreWorld
@@ -13,6 +13,7 @@ interface Selection {
   request: number
   reading: boolean
   dirty: boolean
+  recoveredExpiredRef: boolean
 }
 
 function cancel(selection: Selection | null): void {
@@ -50,11 +51,27 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   }, [])
   const open = useCallback((world: ExploreWorld, opener: HTMLElement) => {
     cancel(current.current)
-    const next = { world, opener, request: 0, reading: false, dirty: false }
+    const next = {
+      world,
+      opener,
+      request: 0,
+      reading: false,
+      dirty: false,
+      recoveredExpiredRef: false
+    }
     current.current = next
     setSelected(next)
     setSheet(null)
     setImage(undefined)
+  }, [])
+
+  const readImage = useCallback((selection: Selection) => {
+    const ref = selection.world.worldRef
+    void requestExploreImage(selection.world.platform, ref)
+      .then((value) => {
+        if (current.current === selection && selection.world.worldRef === ref) setImage(value)
+      })
+      .catch(() => undefined)
   }, [])
 
   const read = useCallback(
@@ -69,7 +86,46 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
         })
         if (current.current !== selection || request !== selection.request) return
         if (result === null) {
-          close()
+          // Main may renew opaque references while the card is still rendered.
+          // An explicit open gets one cache-only lookup for the same displayed
+          // world, then reopens with the replacement reference. It never starts
+          // discovery work or weakens the main-owned reference TTL.
+          if (reason === 'open' && !selection.recoveredExpiredRef) {
+            selection.recoveredExpiredRef = true
+            try {
+              const snapshot = await readExploreSnapshot(selection.world.platform)
+              if (current.current !== selection || request !== selection.request) return
+              const renewed = snapshot.worlds.find(
+                (world) =>
+                  world.platform === selection.world.platform &&
+                  world.worldId === selection.world.worldId &&
+                  world.worldRef !== selection.world.worldRef
+              )
+              if (renewed !== undefined) {
+                selection.world = renewed
+                readImage(selection)
+                const reopened = await window.vrx?.getExploreWorld?.({
+                  platform: renewed.platform,
+                  worldRef: renewed.worldRef,
+                  reason: 'open'
+                })
+                if (current.current !== selection || request !== selection.request) return
+                if (
+                  reopened !== undefined &&
+                  reopened !== null &&
+                  reopened.platform === renewed.platform &&
+                  reopened.world.worldId === renewed.worldId
+                ) {
+                  setSheet(reopened)
+                } else close()
+                return
+              }
+            } catch {
+              // The old reference cannot be safely reopened without a current
+              // cache answer. Close instead of retrying bridge work.
+            }
+          }
+          if (current.current === selection && request === selection.request) close()
         } else if (
           result.platform === selection.world.platform &&
           result.world.worldId === selection.world.worldId
@@ -81,7 +137,7 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
         // if the bridge itself fails; there is no implicit retry.
       }
     },
-    [close]
+    [close, readImage]
   )
 
   useEffect(() => {
@@ -122,12 +178,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   useEffect(() => {
     if (selected === null || current.current !== selected) return
     void read(selected, 'open')
-    void requestExploreImage(selected.world.platform, selected.world.worldRef)
-      .then((value) => {
-        if (current.current === selected) setImage(value)
-      })
-      .catch(() => undefined)
-  }, [read, selected])
+    readImage(selected)
+  }, [read, readImage, selected])
 
   useEffect(() => {
     const selection = current.current

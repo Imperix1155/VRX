@@ -14,7 +14,9 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   `ExploreSourceState.tsx` remain presentational: data, selection state, resolved
   images, and callbacks are injected. The route and the Dashboard preview use the
   same ranking/selection and contained non-modal sheet; the preview adds at most
-  two cards and leaves Dashboard statistics and Hot Instances unchanged.
+  two cards and leaves Dashboard statistics and Hot Instances unchanged. Its
+  contained sheet and the Hot Instance sheet are mutually exclusive for pointer
+  and keyboard activation.
   The global social platform
   filter is shared with Friends/Dashboard, while the persisted 2/4/6 world count
   is owned by settings. Sheets identify their platform in text, distinguish
@@ -23,7 +25,14 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   owns dismissal. A stale sheet offers explicit refresh; stale, mismatched, busy,
   and denied room actions are honestly disabled. World openings may first return
   a loading snapshot; `onExploreChanged` then reads cache-only room data rather
-  than closing the sheet or retrying discovery. Failed images stay neutral.
+  than closing the sheet or retrying discovery. When an explicit card open finds
+  an expired opaque reference, selection may make one fenced cache-only snapshot
+  read and reopen only the same platform/world ID under its replacement ref;
+  close, reselect, and identity fences prevent that recovery from publishing
+  later. A disconnected selected platform renders the existing unavailable source
+  state without discovery work, while a healthy platform remains visible. Failed
+  images stay neutral. Sheet art is fenced by the selected opaque ref, independently
+  of later room-snapshot request ordering.
 
 - `src/hooks/useExploreCoordinator.ts` is the sole renderer trigger for Explore
   work. It sets active platforms for a relevant visible Dashboard/Explore view,

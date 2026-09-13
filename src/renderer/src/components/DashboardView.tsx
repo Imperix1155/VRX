@@ -316,9 +316,13 @@ export default function DashboardView(): React.JSX.Element {
   // Hot-instance sheet selection (VRX-250): store the composite key, derive the
   // live instance every render so the sheet stays truthful as friends/rosters change.
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
+  const [exploreDismissSignal, setExploreDismissSignal] = useState(0)
   const openerRef = useRef<HTMLElement | null>(null)
   const fallbackFocusRef = useRef<HTMLElement | null>(null)
   const openSheet = useCallback((instance: HotInstance, opener: HTMLElement) => {
+    // The Dashboard has two contained, non-modal sheets. Opening one always
+    // clears the other selection so keyboard activation cannot stack panels.
+    setExploreDismissSignal((signal) => signal + 1)
     openerRef.current = opener
     setSelectedGroupKey(instance.groupKey)
   }, [])
@@ -388,7 +392,7 @@ export default function DashboardView(): React.JSX.Element {
       return (
         <>
           <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
-          <ExploreDashboardPreviewRoute />
+          <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
         </>
       )
     }
@@ -408,7 +412,7 @@ export default function DashboardView(): React.JSX.Element {
             {t('dashboard.retry')}
           </button>
         </div>
-        <ExploreDashboardPreviewRoute />
+        <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
       </>
     )
   }
@@ -429,7 +433,10 @@ export default function DashboardView(): React.JSX.Element {
         <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
       </div>
 
-      <ExploreDashboardPreviewRoute />
+      <ExploreDashboardPreviewRoute
+        onSheetOpen={() => setSelectedGroupKey(null)}
+        dismissSignal={exploreDismissSignal}
+      />
 
       {/* Hot instances section — a labelled landmark (audit W5). */}
       <section aria-labelledby="dashboard-hot-heading">

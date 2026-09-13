@@ -2,16 +2,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
+import { QueryClientProvider } from '@tanstack/react-query'
+import type { AuthStatus } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
+import { queryClient } from '../queries/queryClient'
 import ExploreRoute, { ExploreDashboardPreviewRoute } from './ExploreRoute'
 
 const query = vi.hoisted(() => ({
   vrc: undefined as ExplorePlatformSnapshot | undefined,
   cvr: undefined as ExplorePlatformSnapshot | undefined,
   requestExplore: vi.fn(),
+  readExploreSnapshot: vi.fn(),
   requestExploreImage: vi.fn()
 }))
 
@@ -22,7 +26,13 @@ vi.mock('../queries/explore', () => ({
   useExploreCachedSnapshot: (platform: 'vrchat' | 'chilloutvr') =>
     platform === 'vrchat' ? query.vrc : query.cvr,
   requestExplore: query.requestExplore,
+  readExploreSnapshot: query.readExploreSnapshot,
   requestExploreImage: query.requestExploreImage
+}))
+
+const auth = vi.hoisted(() => ({
+  vrc: {} as AuthStatus,
+  cvr: {} as AuthStatus
 }))
 
 vi.mock('../hooks/useExploreImage', () => ({
@@ -96,7 +106,17 @@ beforeEach(() => {
   query.vrc = source
   query.cvr = undefined
   query.requestExplore.mockReset()
+  query.readExploreSnapshot.mockReset()
   query.requestExploreImage.mockResolvedValue(undefined)
+  auth.vrc = { platform: 'vrchat', state: 'authenticated', accountId: 'vrc', displayName: 'VRC' }
+  auth.cvr = {
+    platform: 'chilloutvr',
+    state: 'authenticated',
+    accountId: 'cvr',
+    displayName: 'CVR'
+  }
+  queryClient.setQueryData(['auth-status', 'vrchat'], auth.vrc)
+  queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr)
   changed = undefined
   boundary = undefined
   worldReads = vi.fn().mockResolvedValue(loading)
@@ -123,6 +143,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  queryClient.removeQueries({ queryKey: ['auth-status'] })
 })
 
 describe('ExploreRoute world sheet', () => {
@@ -169,6 +190,134 @@ describe('ExploreRoute world sheet', () => {
     )
   })
 
+  it('recovers an expired opaque reference from the cache before opening the sheet', async () => {
+    const renewedWorld = { ...world, worldRef: 'renewed-ref', name: 'Renamed world' }
+    query.readExploreSnapshot.mockResolvedValue({ ...source, worlds: [renewedWorld] })
+    query.requestExploreImage.mockResolvedValue('data:image/png;base64,renewed')
+    worldReads.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...ready, world: renewedWorld })
+    render(<ExploreRoute />)
+
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+
+    expect(
+      await screen.findByRole('dialog', {
+        name: 'Visible public rooms for Renamed world on VRChat'
+      })
+    ).toBeTruthy()
+    expect(query.readExploreSnapshot).toHaveBeenCalledWith('vrchat')
+    expect(worldReads).toHaveBeenLastCalledWith({
+      platform: 'vrchat',
+      worldRef: 'renewed-ref',
+      reason: 'open'
+    })
+    expect(query.requestExploreImage).toHaveBeenCalledWith('vrchat', 'renewed-ref')
+  })
+
+  it('closes the sheet if the renewed-ref open rejects', async () => {
+    query.readExploreSnapshot.mockResolvedValue({
+      ...source,
+      worlds: [{ ...world, worldRef: 'renewed-ref' }]
+    })
+    worldReads.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('bridge closed'))
+    render(<ExploreRoute />)
+
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    await waitFor(() =>
+      expect(window.vrx!.cancelExploreWorld).toHaveBeenCalledWith({
+        platform: 'vrchat',
+        worldRef: 'renewed-ref'
+      })
+    )
+    expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+  })
+
+  it('advances a recovered loading sheet from its renewed ref after an Explore change', async () => {
+    const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+    let resolveImage!: (value: string) => void
+    query.requestExploreImage.mockImplementation((_platform: string, ref: string) =>
+      ref === 'renewed-ref'
+        ? new Promise<string>((resolve) => {
+            resolveImage = resolve
+          })
+        : Promise.resolve(undefined)
+    )
+    query.readExploreSnapshot.mockResolvedValue({ ...source, worlds: [renewedWorld] })
+    worldReads
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...loading, world: renewedWorld })
+      .mockResolvedValueOnce({ ...ready, world: renewedWorld })
+    render(<ExploreRoute />)
+
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByText('Loading visible public rooms…')).toBeTruthy()
+
+    await act(async () => {
+      changed?.({ platform: 'vrchat' })
+      await Promise.resolve()
+    })
+    expect(worldReads).toHaveBeenLastCalledWith({
+      platform: 'vrchat',
+      worldRef: 'renewed-ref',
+      reason: 'snapshot'
+    })
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    await act(async () => {
+      resolveImage('data:image/png;base64,after-ready')
+    })
+    expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe(
+      'data:image/png;base64,after-ready'
+    )
+  })
+
+  it('does not let an old-ref image replace recovered sheet art', async () => {
+    const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+    let resolveOldImage!: (value: string | undefined) => void
+    query.readExploreSnapshot.mockResolvedValue({ ...source, worlds: [renewedWorld] })
+    query.requestExploreImage.mockImplementation((_platform: string, worldRef: string) =>
+      worldRef === 'world-ref'
+        ? new Promise<string | undefined>((resolve) => {
+            resolveOldImage = resolve
+          })
+        : Promise.resolve('data:image/png;base64,renewed')
+    )
+    worldReads.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...ready, world: renewedWorld })
+    render(<ExploreRoute />)
+
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Visible public rooms for A world on VRChat'
+    })
+    await waitFor(() =>
+      expect(dialog.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,renewed')
+    )
+    await act(async () => {
+      resolveOldImage('data:image/png;base64,old')
+    })
+    expect(dialog.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,renewed')
+  })
+
+  it('does not reopen with a recovered reference after an account boundary', async () => {
+    let resolveSnapshot!: (value: ExplorePlatformSnapshot) => void
+    query.readExploreSnapshot.mockImplementation(
+      () =>
+        new Promise<ExplorePlatformSnapshot>((resolve) => {
+          resolveSnapshot = resolve
+        })
+    )
+    worldReads.mockResolvedValue(null)
+    render(<ExploreRoute />)
+
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledWith('vrchat'))
+    act(() => boundary?.({ platform: 'vrchat' }))
+    await act(async () => {
+      resolveSnapshot({ ...source, worlds: [{ ...world, worldRef: 'renewed-ref' }] })
+    })
+
+    expect(worldReads).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+  })
+
   it('does not publish an old world response after the selected platform is filtered out', async () => {
     let resolve!: (value: ExploreWorldSnapshot) => void
     worldReads.mockImplementation(
@@ -186,6 +335,66 @@ describe('ExploreRoute world sheet', () => {
       await Promise.resolve()
     })
     expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+  })
+
+  it('shows the existing unavailable source state for a selected disconnected platform', () => {
+    auth.cvr = {
+      platform: 'chilloutvr',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    }
+    queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr)
+    useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    render(<ExploreRoute />)
+
+    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(query.requestExplore).not.toHaveBeenCalled()
+  })
+
+  it('reads stale auth on mount and remount without an authentication request', async () => {
+    auth.cvr = {
+      platform: 'chilloutvr',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    }
+    queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr, {
+      updatedAt: Date.now() - 31_000
+    })
+    const getAuthStatus = vi.fn(async () => auth.cvr)
+    window.vrx = { ...(window.vrx ?? {}), getAuthStatus } as unknown as Window['vrx']
+    useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    const route = (
+      <QueryClientProvider client={queryClient}>
+        <ExploreRoute />
+      </QueryClientProvider>
+    )
+    const first = render(route)
+    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    first.unmount()
+    render(route)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(getAuthStatus).not.toHaveBeenCalled()
+  })
+
+  it('keeps the healthy platform cards while naming the disconnected source', () => {
+    queryClient.setQueryData(['auth-status', 'chilloutvr'], {
+      platform: 'chilloutvr',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    render(<ExploreRoute />)
+    expect(screen.getByRole('button', { name: /open visible rooms for a world/i })).toBeTruthy()
+    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(query.requestExplore).not.toHaveBeenCalled()
   })
 
   it('gives the Dashboard preview the same changed-snapshot and explicit refresh behavior', async () => {

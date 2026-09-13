@@ -35,9 +35,10 @@ main including PR 308. Root checkout and unrelated worktrees are preserved.
 
 ## Checkpoint
 
-2026-09-13, 08:48 UTC: implementation anchors are `9867b1d` and `c9a2d51`.
-The general review identified four P2 issues. Main concurrent-read correction
-is implemented and verified; the three renderer corrections are in progress.
+2026-09-13, 08:59 UTC: implementation anchors are `9867b1d` and `c9a2d51`.
+The main correction is committed as `5db8540`. All four general-review findings
+are corrected and integrated. Full verification and the focused review cover
+this cumulative delta before the final private package is prepared.
 No production PR exists. A private packaging proof from `c9a2d51` exists, but
 the final test package must be rebuilt from the corrected verified head.
 External critical review, CI and a new merge grant remain required.
@@ -164,6 +165,48 @@ project script's `--composite false` and failed on existing cross-tree test
 imports; using the documented script passed. Its generated build-info file
 was verified and removed.
 
+The three renderer corrections are integrated. Explicit opening recovers an
+expired ref once from the main cache, matching stable platform/world identity.
+Close/account/filter/request-order fences apply to the entire recovery, including
+bridge rejection and loading-to-ready change events. Image results belong to
+the selected reference, independently of subsequent room reads. The deferred
+renewed-image case failed before that last fence correction in
+`/private/tmp/explore-recovered-image-red.log`; its fixed route suite is in
+`/private/tmp/explore-recovered-image-green.log`.
+
+Dashboard opening either sheet clears the other, including native keyboard
+activation. Disconnected source presentation observes existing auth cache
+without creating an auth query, and preserves healthy-platform cards. Driver
+caught and removed a proposed `useAuthStatus` observer because remounts after
+its stale time could dispatch `/auth`. Real-cache tests cover mount and remount
+without a bridge request. Three existing partial module mocks now retain the
+real query-key export used by this cache subscription.
+
+Driver mutation checks rejected removal of ref recovery, restoration of the
+auth-fetching observer, removal of sheet exclusion and removal of unavailable
+presentation. `/private/tmp/explore-four-fixes-renderer-mutations.log` includes
+all four deliberate failures, 94 restored tests and
+`EXPLORE_RENDERER_CORRECTIONS_MUTATIONS_GREEN`. Python/subprocess buffering
+interleaved the restored-run output with one mutation report; each labeled
+result and the final full gate provide the distinct outcomes.
+
+`/private/tmp/explore-corrections-full-gate.log` records the integrated uncached
+ESLint/format/build/typecheck/entry gate and all 181 files / 2,734 tests passing,
+with `EXPLORE_CORRECTIONS_FULL_GATE_GREEN`. Fallow correction receipts remain
+under `/private/tmp/vrx-explore-fallow/`: zero new dead-code findings, all eight
+baseline entries matched, and 139 baseline-filtered clone groups. The 26 new
+fingerprints since the general anchor touch test files only.
+
+`/private/tmp/explore-corrections-runtime.log` records the actual built app
+components and handlers passing `EXPLORE_RUNTIME_PROBE_EXERCISE_GREEN`. The
+probe now also verifies Hot-to-Explore-to-Hot with native Enter input and exactly
+one visible sheet. It briefly shows only the disposable synthetic-data window
+for macOS focus, then destroys it during cleanup. Earlier probe attempts failed
+because native focus had not settled and because keyDown/keyUp omitted Enter's
+character event required by native buttons. Awaiting focus and sending the full
+native sequence resolved those probe defects. No application fix was inferred
+from either harness failure. No capture or real-account traffic occurred.
+
 ## Private packaging proof and recovered tooling incident
 
 Electron Builder produced the native arm64 directory package using the locked
@@ -207,9 +250,10 @@ new numeric policy decision or authorized a bypass.
 
 ## Next safe action
 
-Integrate and verify the three renderer corrections, review the focused
-functional delta from `c9a2d51`, open the PR, inspect required CI/external
-reviews, and rebuild the private native Mac test package from that final head. Keep runtime, visual and real-account evidence distinct. Merge,
+Pin and review the corrected functional delta from `c9a2d51`, open the PR, and
+rebuild the private native Mac test package from that verified head. CI and
+critical external reviews govern merge readiness separately; a private local
+test package does not require merge or public release. Keep runtime, visual and real-account evidence distinct. Merge,
 capture and installed app replacement remain outside the current production grant.
 
 Policy evidence was checked on 2026-09-13 against the

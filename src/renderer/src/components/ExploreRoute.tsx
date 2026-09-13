@@ -1,11 +1,14 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ExploreRoom, ExploreWorld } from '@shared/explore'
+import type { ExplorePlatformSnapshot, ExploreRoom, ExploreWorld } from '@shared/explore'
+import type { AuthStatus, Platform } from '@shared/types'
 import { DEFAULT_EXPLORE_WORLD_TOTAL } from '@shared/explore'
 import { rankExploreWorlds, selectExploreWorlds } from '@shared/exploreRanking'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
 import { requestExplore, useExploreCachedSnapshot, useExploreSnapshot } from '../queries/explore'
+import { queryClient } from '../queries/queryClient'
+import { authStatusQueryKey } from '../queries/auth'
 import { useExploreImage } from '../hooks/useExploreImage'
 import { useExploreWorldSelection } from '../hooks/useExploreWorldSelection'
 import { useJoinInstance } from '../hooks/useJoinInstance'
@@ -14,6 +17,36 @@ import ExploreView from './ExploreView'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import ExploreSourceState from './ExploreSourceState'
+
+function unavailableSnapshot(platform: Platform): ExplorePlatformSnapshot {
+  return {
+    platform,
+    worlds: [],
+    status: 'unavailable',
+    problem: 'unavailable',
+    isStale: false,
+    updatedAt: null
+  }
+}
+
+function sourceSnapshot(
+  platform: Platform,
+  snapshot: ExplorePlatformSnapshot | undefined,
+  auth: AuthStatus | undefined
+): ExplorePlatformSnapshot | undefined {
+  if (snapshot !== undefined) return snapshot
+  return auth?.state === 'unauthenticated' ? unavailableSnapshot(platform) : undefined
+}
+
+/** App already owns auth queries. Explore only observes their cache so this
+ * display fallback cannot mount or refetch /auth for a disconnected platform. */
+function useCachedAuthStatus(platform: Platform): AuthStatus | undefined {
+  return useSyncExternalStore(
+    (listener) => queryClient.getQueryCache().subscribe(listener),
+    () => queryClient.getQueryData<AuthStatus>(authStatusQueryKey(platform)),
+    () => undefined
+  )
+}
 
 function ResolvedCard({
   world,
@@ -40,14 +73,18 @@ export default function ExploreRoute(): React.JSX.Element {
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const vrc = useExploreSnapshot('vrchat')
   const cvr = useExploreSnapshot('chilloutvr')
+  const vrcAuth = useCachedAuthStatus('vrchat')
+  const cvrAuth = useCachedAuthStatus('chilloutvr')
+  const vrcSource = sourceSnapshot('vrchat', vrc.data, vrcAuth)
+  const cvrSource = sourceSnapshot('chilloutvr', cvr.data, cvrAuth)
   const snapshots = useMemo(
     () =>
-      [vrc.data, cvr.data].filter(
+      [vrcSource, cvrSource].filter(
         (snapshot): snapshot is NonNullable<typeof snapshot> =>
           snapshot !== undefined &&
           (platformFilter === 'all' || snapshot.platform === platformFilter)
       ),
-    [platformFilter, vrc.data, cvr.data]
+    [platformFilter, vrcSource, cvrSource]
   )
   const worlds = useMemo(() => {
     const lists = {
@@ -127,11 +164,22 @@ export default function ExploreRoute(): React.JSX.Element {
 }
 
 /** Dashboard-only shared cache preview. Cards use exactly the same ranking and sheet component. */
-export function ExploreDashboardPreviewRoute(): React.JSX.Element | null {
+export function ExploreDashboardPreviewRoute({
+  onSheetOpen,
+  dismissSignal = 0
+}: {
+  onSheetOpen?: () => void
+  dismissSignal?: number
+} = {}): React.JSX.Element | null {
   const platformFilter = useFriendsStore((state) => state.platformFilter)
   const vrc = useExploreCachedSnapshot('vrchat')
   const cvr = useExploreCachedSnapshot('chilloutvr')
-  const snapshots = [vrc, cvr].filter(
+  const vrcAuth = useCachedAuthStatus('vrchat')
+  const cvrAuth = useCachedAuthStatus('chilloutvr')
+  const snapshots = [
+    sourceSnapshot('vrchat', vrc, vrcAuth),
+    sourceSnapshot('chilloutvr', cvr, cvrAuth)
+  ].filter(
     (value): value is NonNullable<typeof value> =>
       value !== undefined && (platformFilter === 'all' || value.platform === platformFilter)
   )
@@ -154,6 +202,16 @@ export function ExploreDashboardPreviewRoute(): React.JSX.Element | null {
     close,
     refresh: refreshSheet
   } = useExploreWorldSelection(platformFilter)
+  const openWorld = useCallback(
+    (world: ExploreWorld, opener: HTMLElement) => {
+      onSheetOpen?.()
+      open(world, opener)
+    },
+    [onSheetOpen, open]
+  )
+  useEffect(() => {
+    close()
+  }, [close, dismissSignal])
   if (
     worlds.length === 0 &&
     snapshots.every((source) => source.status === 'ready' || source.status === 'idle')
@@ -172,7 +230,11 @@ export function ExploreDashboardPreviewRoute(): React.JSX.Element | null {
       </div>
       <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
         {worlds.map((world) => (
-          <ResolvedCard key={`${world.platform}:${world.worldId}`} world={world} onOpen={open} />
+          <ResolvedCard
+            key={`${world.platform}:${world.worldId}`}
+            world={world}
+            onOpen={openWorld}
+          />
         ))}
       </div>
       <ExploreWorldSheet

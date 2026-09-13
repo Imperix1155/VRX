@@ -20,7 +20,8 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: () => ({ data: [], isPending: false, isError: false })
 }))
-vi.mock('../queries/auth', () => ({
+vi.mock('../queries/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
     data: {
       platform,
