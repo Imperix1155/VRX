@@ -61,7 +61,10 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 - `services/exploreService.ts` — main-only, per-account session-memory Explore
   orchestrator. It owns bounded candidate/world jobs, current snapshots, short
   evidence freshness, opaque world/selection references, cancellation and
-  publication. Existing platform admission remains its only queue; it does not
+  publication. Identical world/room reads share account-scoped pending work.
+  Each consumer can cancel independently; the last cancellation aborts transport.
+  Shared transport retains its first consumer's lease, deadline and attempt budget.
+  Existing platform admission remains its only queue; it does not
   add polling, retries or a new authentication flow. It applies the settled
   JSON/image limits and stale-evidence join guards from `docs/api-policy.md`.
 - `services/joinCoordinator.ts` — one shared exact-instance lock/cooldown for

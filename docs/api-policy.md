@@ -50,7 +50,10 @@ Explore is an on-demand, session-memory discovery feature. It has no polling
 timer, no saved discovery cache, no direct renderer transport, and no automatic
 continuation when a cooldown or budget window expires. Main coalesces the
 visible platform work, cancels it when the view hides or the account changes,
-and preserves the last display snapshot when a refresh cannot finish.
+and preserves the last display snapshot when a refresh cannot finish. Identical
+world/room reads share pending work only inside one account session. Cancelling
+one consumer preserves work needed by another; losing every consumer aborts it.
+Sharing never renews the original transport lease, deadline or attempt budget.
 
 - Every Explore JSON attempt uses the existing platform admission controller,
   original session lease, no-retry policy and pre-dispatch budget guard. A 429,

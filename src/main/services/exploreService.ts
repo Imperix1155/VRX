@@ -23,7 +23,8 @@ import type {
   ExploreAdapter,
   ExploreRequestContext,
   ExploreRoomEvidence,
-  ExploreWorldEvidence
+  ExploreWorldEvidence,
+  ExploreWorldDetail
 } from './adapters/ExploreAdapter'
 import { ExploreDataError } from './adapters/ExploreAdapter'
 import { assertRequestLease, type RequestLease } from './adapters/RequestLease'
@@ -68,10 +69,17 @@ interface Selection {
   generation: number
   expiresAt: number
 }
+interface SharedRead<T> {
+  consumers: Set<Job>
+  controller: AbortController
+  promise: Promise<T>
+}
 interface State {
   session: ResolvedAccountSession | null
   worlds: Map<string, WorldRecord>
   candidateIds: string[]
+  worldReads: Map<string, SharedRead<ExploreWorldDetail | null>>
+  roomReads: Map<string, SharedRead<ExploreRoomEvidence | null>>
   selections: Map<string, Selection>
   images: Map<string, string>
   imagePending: Map<string, Promise<string | null>>
@@ -322,6 +330,8 @@ export class ExploreService {
       session,
       worlds: new Map(),
       candidateIds: [],
+      worldReads: new Map(),
+      roomReads: new Map(),
       selections: new Map(),
       images: new Map(),
       imagePending: new Map(),
@@ -551,8 +561,12 @@ export class ExploreService {
     world: WorldRecord,
     priority: 'background' | 'interactive'
   ): Promise<void> {
-    const data = await this.request(job, priority, (adapter, context) =>
-      adapter.getExploreWorld(world.evidence.worldId, context)
+    const data = await this.sharedRead(
+      job,
+      job.state.worldReads,
+      world.evidence.worldId,
+      priority,
+      (adapter, context) => adapter.getExploreWorld(world.evidence.worldId, context)
     )
     if (
       !data ||
@@ -585,8 +599,13 @@ export class ExploreService {
     roomId: string,
     priority: 'background' | 'interactive'
   ): Promise<void> {
-    const evidence = await this.request(job, priority, (adapter, context) =>
-      adapter.getExploreRoom({ worldId: world.evidence.worldId, instanceId: roomId }, context)
+    const evidence = await this.sharedRead(
+      job,
+      job.state.roomReads,
+      JSON.stringify([world.evidence.worldId, roomId]),
+      priority,
+      (adapter, context) =>
+        adapter.getExploreRoom({ worldId: world.evidence.worldId, instanceId: roomId }, context)
     )
     if (
       evidence &&
@@ -598,6 +617,60 @@ export class ExploreService {
     const previous = world.detail?.rooms.get(roomId)
     if (previous?.selectionRef) job.state.selections.delete(previous.selectionRef)
     world.detail!.rooms.set(roomId, { evidence, checkedAt: this.clock(), selectionRef: null })
+  }
+
+  private async sharedRead<T>(
+    job: Job,
+    pending: Map<string, SharedRead<T>>,
+    key: string,
+    priority: 'background' | 'interactive',
+    operation: (adapter: MainAdapter, context: ExploreRequestContext) => Promise<T>
+  ): Promise<T> {
+    this.check(job)
+    let shared = pending.get(key)
+    if (!shared || shared.controller.signal.aborted) {
+      // The first consumer lends its original lease, deadline and attempt budget.
+      // Consumer cancellation only aborts transport when nobody still needs it.
+      const controller = new AbortController()
+      const transport: Job = {
+        ...job,
+        controller,
+        signal: AbortSignal.any([controller.signal, job.lease.signal]),
+        timedOut: false
+      }
+      transport.timer = setTimeout(
+        () => {
+          transport.timedOut = true
+          controller.abort()
+        },
+        Math.max(0, job.deadline - this.clock())
+      )
+      const created: SharedRead<T> = {
+        consumers: new Set(),
+        controller,
+        promise: Promise.resolve()
+          .then(() => this.request(transport, priority, operation, job))
+          .finally(() => {
+            this.finishJob(transport)
+            if (pending.get(key) === created) pending.delete(key)
+          })
+      }
+      pending.set(key, created)
+      shared = created
+    }
+    const owned = shared
+    owned.consumers.add(job)
+    const release = (): void => {
+      owned.consumers.delete(job)
+      if (owned.consumers.size === 0) owned.controller.abort()
+    }
+    job.signal.addEventListener('abort', release, { once: true })
+    try {
+      return await this.awaitJob(job, () => owned.promise)
+    } finally {
+      job.signal.removeEventListener('abort', release)
+      release()
+    }
   }
 
   private newJob(platform: Platform, state: State, maxAttempts: number, worldRef?: string): Job {
@@ -631,31 +704,39 @@ export class ExploreService {
     return job
   }
 
-  private async request<T>(
+  private request<T>(
     job: Job,
     priority: 'background' | 'interactive',
-    operation: (adapter: MainAdapter, context: ExploreRequestContext) => Promise<T>
+    operation: (adapter: MainAdapter, context: ExploreRequestContext) => Promise<T>,
+    budget: Job = job
   ): Promise<T> {
+    return this.awaitJob(job, () =>
+      operation(this.options.adapters.get(job.platform)!, {
+        lease: job.lease,
+        signal: job.signal,
+        priority,
+        beforeDispatch: () => {
+          this.check(job)
+          if (
+            budget.attempts >= budget.maxAttempts ||
+            !this.take(this.jsonStarts, job.platform, 20)
+          )
+            throw new RateLimitError(FRESH_MS)
+          budget.attempts++
+        }
+      })
+    )
+  }
+
+  private async awaitJob<T>(job: Job, operation: () => Promise<T>): Promise<T> {
     this.check(job)
-    const adapter = this.options.adapters.get(job.platform)!
     let onAbort: () => void = () => undefined
     const cancelled = new Promise<never>((_resolve, reject) => {
       onAbort = () => reject(new RequestCancelledError())
       job.signal.addEventListener('abort', onAbort, { once: true })
     })
     try {
-      const work = operation(adapter, {
-        lease: job.lease,
-        signal: job.signal,
-        priority,
-        beforeDispatch: () => {
-          this.check(job)
-          if (job.attempts >= job.maxAttempts || !this.take(this.jsonStarts, job.platform, 20))
-            throw new RateLimitError(FRESH_MS)
-          job.attempts++
-        }
-      })
-      const result = await Promise.race([work, cancelled])
+      const result = await Promise.race([operation(), cancelled])
       this.check(job)
       return result
     } finally {

@@ -35,12 +35,12 @@ main including PR 308. Root checkout and unrelated worktrees are preserved.
 
 ## Checkpoint
 
-2026-09-13, 08:34 UTC: the main unit is committed locally as `9867b1d`.
-Renderer integration and bounded corrections are implemented in this feature
-checkout and have passed the complete local gate and disposable runtime exercise.
-No production PR or packaged build exists yet. General and external critical
-reviews are still required; this is a verified implementation checkpoint, not
-merge readiness.
+2026-09-13, 08:48 UTC: implementation anchors are `9867b1d` and `c9a2d51`.
+The general review identified four P2 issues. Main concurrent-read correction
+is implemented and verified; the three renderer corrections are in progress.
+No production PR exists. A private packaging proof from `c9a2d51` exists, but
+the final test package must be rebuilt from the corrected verified head.
+External critical review, CI and a new merge grant remain required.
 
 - Main holds one original adapter lease and shared 429 revision per job. Jobs
   abort at 45 seconds, respect the 13/7/20 JSON limits and keep process budgets
@@ -59,7 +59,7 @@ merge readiness.
   `/private/tmp/explore-main-checkpoint-gate.log` adds node typecheck and
   138 tests across ten integrated files with `EXPLORE_MAIN_CHECKPOINT_GREEN`;
   the complete main/shared/preload ESLint check also passes.
-  This is focused unit evidence, not the pending complete project gate.
+  This is focused unit evidence; the later complete project gate is below.
 - Real VrcAdapter, AvatarCache and shared admission run against synthetic
   `fetch` in `exploreService.transport.test.ts`. It verifies one-second API
   spacing, six three-hop images producing 18 image fetches, and two old queued
@@ -76,10 +76,10 @@ merge readiness.
 - Version metadata was rolled using `npm version 0.20.0 --no-git-tag-version`.
   Only package.json and the two root lockfile version fields changed. Changelog,
   API/DOX and design references are being synchronized before the final gate.
-- `/private/tmp/vrx-explore-runtime/` contains a prepared disposable Electron
-  probe. It has not run. It must use actual final renderer/preload plus real
-  main Explore/settings handlers with synthetic adapters, disposable profile,
-  blocked external traffic and a launcher spy. It never captures pixels.
+- `/private/tmp/vrx-explore-runtime/` contains the disposable Electron probe.
+  Its successful exercise and exact limits are recorded below. It uses actual
+  renderer/preload and production main Explore/settings handlers with synthetic
+  adapters, a disposable profile, blocked external traffic and a launcher spy.
 
 Renderer inspection found and corrected mounted disabled query observers retaining
 old account data after cache removal. Resetting the query clears the mounted
@@ -125,6 +125,67 @@ The first probe miscounted retained hidden sheet exit-animation DOM as an open
 sheet; correcting its locator produced the passing exercise. No screenshot,
 real account, game launch, installed-app change or live API result was involved.
 
+## General review and bounded corrections
+
+The general anchor is `c9a2d51024d789db4a248a61ef6fb960f30f4072` against
+`4a39eb3532c0778b29c7036eea12697c61d62a21`. Review files are in
+`/private/tmp/vrx-explore-review/`: `production.patch`, `manifest.json`,
+`prompt.txt`, `run.log` and `verdict.txt`. Exact patch SHA-256 is
+`1ef41e278b213bf04cbb5773910b450f2205e14daba35b9020941b94532cd0c5`,
+463,869 bytes, 8,238 lines, 76 files. The enforced read-only/never CLI runtime
+attested Astra High. `REVIEW_COMPLETE` reported four P2 findings:
+
+- Expired five-minute card refs silently close on explicit opening.
+- Concurrent CVR candidate and sheet jobs duplicate world and room reads.
+- Keyboard activation can stack Dashboard Explore and Hot Instances sheets.
+- An absent disconnected-platform snapshot is presented as an empty result.
+
+No additional material finding was reported. This is one same-lineage review,
+not independent external coverage. The reviewer verified exact artifact/source
+provenance after the temporary extraction incident described below.
+
+The main correction shares identical pending world/room operations only inside
+one account state. Every consumer keeps its own cancellation checks. Transport
+stops when the last consumer leaves, retains its first consumer's original
+lease/deadline/attempt budget, and never retries. Regression cases cover both
+start orders, world and room counts, independent cancellation, all-consumer
+cancellation, lease expiry, the original 45-second deadline, shared 429 revision
+and replacement accounts. Existing 13/7/20 physical limits remain covered.
+`/private/tmp/explore-shared-reads-red.log` records seven failing new cases before
+the fix. `/private/tmp/explore-shared-reads-green.log` records 34 passing service
+integration/guard/transport tests. Driver mutations removed pending reuse and
+made one consumer cancel every other consumer; both were rejected by regression
+tests. Exact source restoration and the 34-test rerun end
+`EXPLORE_SHARED_READS_MUTATIONS_GREEN` in
+`/private/tmp/explore-shared-reads-mutations.log`. The documented node typecheck,
+max-warnings-zero focused ESLint and diff check passed with
+`EXPLORE_SHARED_READS_GATE_GREEN`. An initial raw `tsc` command omitted the
+project script's `--composite false` and failed on existing cross-tree test
+imports; using the documented script passed. Its generated build-info file
+was verified and removed.
+
+## Private packaging proof and recovered tooling incident
+
+Electron Builder produced the native arm64 directory package using the locked
+local Electron 43.4.1 distribution. Ad-hoc signing with hardened runtime passed
+`codesign` verification but failed in dyld before Node. The existing working
+private installation uses ad-hoc signing without hardened runtime. The private
+build command now uses `-c.mac.identity=- -c.mac.hardenedRuntime=false`, leaving
+tracked production signing policy unchanged. The rebuilt proof loads packaged
+`electron-updater`, `builder-util-runtime` and `fs-extra` under Electron Node
+mode and prints `PRIVATE_PACKAGED_MODULES_GREEN`. This does not prove normal
+VRX startup or real-account behavior. No installed application was changed.
+
+During package inspection, a worker used ASAR CLI `extract-file` from the source
+checkout. That command writes basenames into cwd. It replaced `package.json`
+with a dependency manifest and created `index.js` equal to the built preload.
+Driver verified the exact manifest and file hash, restored only those owned
+deltas from `c9a2d51`, and confirmed a clean source tree. The resulting failed
+package attempt was discarded and rebuilt. The general reviewer observed the
+restoration and verified that its pinned patch remained exact. Maintained
+`cut-release/SKILL.md` Gotchas now specify programmatic Buffer extraction or a
+disposable cwd and require module-load proof in addition to signature checks.
+
 ## Automatic approval review receipts
 
 The focus/online patch was initially rejected because it could trigger fresh
@@ -146,9 +207,9 @@ new numeric policy decision or authorized a bypass.
 
 ## Next safe action
 
-Save the verified renderer/ranking checkpoint, perform the pinned critical general
-review, open the PR, inspect required CI/external reviews, and package the private
-native Mac build. Keep runtime, visual and real-account evidence distinct. Merge,
+Integrate and verify the three renderer corrections, review the focused
+functional delta from `c9a2d51`, open the PR, inspect required CI/external
+reviews, and rebuild the private native Mac test package from that final head. Keep runtime, visual and real-account evidence distinct. Merge,
 capture and installed app replacement remain outside the current production grant.
 
 Policy evidence was checked on 2026-09-13 against the

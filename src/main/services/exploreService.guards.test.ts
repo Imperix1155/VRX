@@ -252,6 +252,219 @@ describe('ExploreService guard rails', () => {
     expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).worlds).toEqual([])
   })
 
+  async function sharedCvrRead(): Promise<{
+    h: Harness
+    ref: string
+    detail: NonNullable<Awaited<ReturnType<Adapter['getExploreWorld']>>>
+    room: ExploreRoomEvidence
+    heldWorld: ReturnType<typeof defer<Awaited<ReturnType<Adapter['getExploreWorld']>>>>
+    heldRoom: ReturnType<typeof defer<ExploreRoomEvidence | null>>
+  }> {
+    const h = make('chilloutvr')
+    const entry = world(1, null, 'chilloutvr')
+    const roomId = cvrRoom(1)
+    const detail = { world: entry, roomIds: [roomId], roomsComplete: true }
+    const room: ExploreRoomEvidence = {
+      platform: 'chilloutvr',
+      worldId: entry.worldId,
+      roomId,
+      access: 'public',
+      region: null,
+      groupName: null,
+      occupancy: unknown(),
+      capacity: null,
+      full: false,
+      joinEligibility: 'eligible'
+    }
+    h.adapter.candidates = [entry]
+    h.adapter.details.set(entry.worldId, detail)
+    h.adapter.rooms.set(`${entry.worldId}/${roomId}`, room)
+    const [ref] = await candidate(h)
+    h.now.value = 60_001
+    const heldWorld = defer<Awaited<ReturnType<Adapter['getExploreWorld']>>>()
+    const heldRoom = defer<ExploreRoomEvidence | null>()
+    h.adapter.holdWorld.set(entry.worldId, heldWorld)
+    h.adapter.holdRoom.set(`${entry.worldId}/${roomId}`, heldRoom)
+    return { h, ref: ref!, detail, room, heldWorld, heldRoom }
+  }
+
+  it.each(['candidate', 'sheet'] as const)(
+    'shares concurrent CVR world and room reads when the %s starts first',
+    async (first) => {
+      const { h, ref, detail, room, heldWorld, heldRoom } = await sharedCvrRead()
+      try {
+        const start = (kind: typeof first): Promise<unknown> =>
+          kind === 'candidate'
+            ? h.service.getSnapshot('chilloutvr', 'manual')
+            : h.service.getWorld('chilloutvr', ref, 'open')
+        await start(first)
+        await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+        const owner = h.adapter.contexts.at(-1)!
+        await start(first === 'candidate' ? 'sheet' : 'candidate')
+        await vi.waitFor(() => expect(h.adapter.candidatePhysical).toBe(2))
+        // Flush pending continuations while the first world request remains held.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        expect(h.adapter.worldPhysical).toBe(2)
+        heldWorld.resolve(detail)
+        await vi.waitFor(() => expect(h.adapter.roomPhysical).toBe(2))
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        expect(h.adapter.roomPhysical).toBe(2)
+        expect(h.adapter.contexts.filter((context) => context.lease === owner.lease)).toHaveLength(
+          first === 'candidate' ? 3 : 2
+        )
+        heldRoom.resolve(room)
+        await waitReady(h.service, 'chilloutvr')
+        await vi.waitFor(async () => {
+          const sheet = await h.service.getWorld('chilloutvr', ref, 'snapshot')
+          expect(sheet?.status).toBe('ready')
+          expect(sheet?.roomsComplete).toBe(true)
+          expect(sheet?.rooms[0]?.action.state).toBe('available')
+        })
+        expect(h.adapter.candidatePhysical + h.adapter.worldPhysical + h.adapter.roomPhysical).toBe(
+          6
+        )
+      } finally {
+        h.service.dispose()
+      }
+    }
+  )
+
+  it('cancels a following sheet without aborting the candidate-owned shared read', async () => {
+    const { h, ref, detail, room, heldWorld, heldRoom } = await sharedCvrRead()
+    try {
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+      const ownerSignal = h.adapter.contexts.at(-1)!.signal
+      await h.service.getWorld('chilloutvr', ref, 'open')
+      h.service.cancelWorld('chilloutvr', ref)
+      expect(ownerSignal.aborted).toBe(false)
+      heldWorld.resolve(detail)
+      await vi.waitFor(() => expect(h.adapter.roomPhysical).toBe(2))
+      heldRoom.resolve(room)
+      await waitReady(h.service, 'chilloutvr')
+      expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).status).toBe('ready')
+      expect(h.adapter.worldPhysical).toBe(2)
+      expect(h.adapter.roomPhysical).toBe(2)
+    } finally {
+      h.service.dispose()
+    }
+  })
+
+  it('keeps a candidate follower alive when the first sheet consumer is cancelled', async () => {
+    const { h, ref, detail, room, heldWorld, heldRoom } = await sharedCvrRead()
+    try {
+      await h.service.getWorld('chilloutvr', ref, 'open')
+      await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      h.service.cancelWorld('chilloutvr', ref)
+      heldWorld.resolve(detail)
+      await vi.waitFor(() => expect(h.adapter.roomPhysical).toBe(2))
+      heldRoom.resolve(room)
+      await waitReady(h.service, 'chilloutvr')
+      expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).status).toBe('ready')
+      expect(h.adapter.worldPhysical).toBe(2)
+      expect(h.adapter.roomPhysical).toBe(2)
+    } finally {
+      h.service.dispose()
+    }
+  })
+
+  it.each(['hidden', 'deadline', 'rate-limit'] as const)(
+    'ends shared reads without follow-up requests after %s',
+    async (boundary) => {
+      const { h, ref, detail, heldWorld } = await sharedCvrRead()
+      try {
+        await h.service.getSnapshot('chilloutvr', 'manual')
+        await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+        const sharedSignal = h.adapter.contexts.at(-1)!.signal
+        await h.service.getWorld('chilloutvr', ref, 'open')
+        if (boundary === 'hidden') h.service.setActive([])
+        else if (boundary === 'deadline') h.now.value += 45_000
+        else h.admission.rateLimited('0')
+        if (boundary === 'hidden') expect(sharedSignal.aborted).toBe(true)
+        heldWorld.resolve(detail)
+        await waitReady(h.service, 'chilloutvr')
+        await vi.waitFor(async () =>
+          expect((await h.service.getWorld('chilloutvr', ref, 'snapshot'))?.status).not.toBe(
+            'loading'
+          )
+        )
+        expect(h.adapter.worldPhysical).toBe(2)
+        expect(h.adapter.roomPhysical).toBe(1)
+      } finally {
+        h.service.dispose()
+      }
+    }
+  )
+
+  it('keeps the first read deadline when a later consumer is still within its own deadline', async () => {
+    const { h, ref } = await sharedCvrRead()
+    vi.useFakeTimers()
+    try {
+      await h.service.getWorld('chilloutvr', ref, 'open')
+      await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+      const sharedSignal = h.adapter.contexts.at(-1)!.signal
+      await vi.advanceTimersByTimeAsync(10_000)
+      h.now.value += 10_000
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await vi.waitFor(() => expect(h.adapter.candidatePhysical).toBe(2))
+      await vi.advanceTimersByTimeAsync(35_000)
+      h.now.value += 35_000
+      expect(sharedSignal.aborted).toBe(true)
+      await waitReady(h.service, 'chilloutvr')
+      expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).status).toBe('error')
+      expect(h.adapter.worldPhysical).toBe(2)
+      expect(h.adapter.roomPhysical).toBe(1)
+    } finally {
+      h.service.dispose()
+    }
+  })
+
+  it('aborts all shared consumers when the original adapter lease expires', async () => {
+    const { h, ref } = await sharedCvrRead()
+    const controller = new AbortController()
+    vi.spyOn(h.adapter, 'captureExploreLease').mockReturnValue({
+      generation: 8,
+      signal: controller.signal,
+      isCurrent: () => !controller.signal.aborted
+    })
+    try {
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+      const sharedSignal = h.adapter.contexts.at(-1)!.signal
+      await h.service.getWorld('chilloutvr', ref, 'open')
+      controller.abort()
+      expect(sharedSignal.aborted).toBe(true)
+      await waitReady(h.service, 'chilloutvr')
+      expect(h.adapter.worldPhysical).toBe(2)
+      expect(h.adapter.roomPhysical).toBe(1)
+    } finally {
+      h.service.dispose()
+    }
+  })
+
+  it('does not share a pending world read with a replacement account', async () => {
+    const { h, detail, heldWorld } = await sharedCvrRead()
+    try {
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await vi.waitFor(() => expect(h.adapter.worldPhysical).toBe(2))
+      h.account.setIdentity('chilloutvr', 'replacement')
+      h.adapter.holdWorld.clear()
+      h.adapter.holdRoom.clear()
+      await h.service.getSnapshot('chilloutvr', 'manual')
+      await waitReady(h.service, 'chilloutvr')
+      expect(h.adapter.worldPhysical).toBe(3)
+      expect(h.adapter.roomPhysical).toBe(2)
+      const newRef = (await h.service.getSnapshot('chilloutvr', 'snapshot')).worlds[0]!.worldRef
+      heldWorld.resolve({ ...detail, world: { ...detail.world, name: 'outgoing account' } })
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect((await h.service.getWorld('chilloutvr', newRef, 'snapshot'))?.world.name).toBe('W1')
+    } finally {
+      h.service.dispose()
+    }
+  })
+
   it('discards an image that resolves after its account boundary', async () => {
     const h = make()
     const entry = world(1, 'https://files.vrchat.cloud/image.png')
