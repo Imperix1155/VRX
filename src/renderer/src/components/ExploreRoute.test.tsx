@@ -437,6 +437,41 @@ describe('ExploreRoute world sheet', () => {
     expect(query.requestExplore).not.toHaveBeenCalled()
   })
 
+  it.each(['Close', 'Escape'] as const)(
+    'restores focus on %s after an empty preview unmounts the outgoing handoff sheet',
+    async (dismiss) => {
+      const view = (dismissSignal: number): React.JSX.Element => (
+        <>
+          <button>Sibling sheet</button>
+          <ExploreDashboardPreviewRoute dismissSignal={dismissSignal} />
+        </>
+      )
+      const { rerender } = render(view(0))
+      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      await screen.findByRole('dialog', { name: /Visible public rooms/ })
+
+      query.vrc = { ...source, worlds: [] }
+      rerender(view(0))
+      expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+      const sibling = screen.getByRole('button', { name: 'Sibling sheet' })
+      sibling.focus()
+      rerender(view(1))
+      expect(document.activeElement).toBe(sibling)
+
+      query.vrc = source
+      rerender(view(1))
+      const opener = screen.getByRole('button', { name: /open visible rooms for a world/i })
+      opener.focus()
+      fireEvent.click(opener)
+      await screen.findByRole('dialog', { name: /Visible public rooms/ })
+      if (dismiss === 'Close') fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      else fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+      expect(document.activeElement).toBe(opener)
+      expect(query.requestExplore).not.toHaveBeenCalled()
+    }
+  )
+
   it('gives the Dashboard preview the same changed-snapshot and explicit refresh behavior', async () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreDashboardPreviewRoute />)

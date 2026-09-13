@@ -211,6 +211,9 @@ export function ExploreDashboardPreviewRoute({
   }, [])
   const openWorld = useCallback(
     (world: ExploreWorld, opener: HTMLElement) => {
+      // An empty preview can unmount the old sheet before it consumes a handoff.
+      // Suppression belongs only to that outgoing selection, never this new one.
+      suppressFocusRestore.current = false
       onSheetOpen?.()
       open(world, opener)
     },

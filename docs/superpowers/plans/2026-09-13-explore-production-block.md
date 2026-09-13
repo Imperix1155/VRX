@@ -244,6 +244,27 @@ passes `EXPLORE_RUNTIME_PROBE_EXERCISE_GREEN` in
 issues and 139 baseline-filtered clone groups, with no new production clone.
 A focused follow-up and fresh final-source package remain required.
 
+The next focused review covered `f3bab89` through `38b787b02f996bfcc08d9a5b5b85af39273220f8`,
+patch SHA-256 `0a935483532d2be9735f997b1ef0c4c443472161c15b30dcdaf531e782bf740f`,
+24,823 bytes / 382 lines / 8 files. The enforced read-only Astra High review in
+`/private/tmp/vrx-explore-race-review/` retained recovery and all earlier main
+conclusions. It found one P2: an empty preview could unmount the outgoing sheet
+before consuming its focus suppression, leaving that flag for a later selection.
+The correction now clears suppression when a new world is explicitly opened.
+`/private/tmp/explore-empty-handoff-red.log` reproduces both Close and Escape
+leaving focus on a hidden button before the fix. The same route/Dashboard
+suite passes 71 tests with the fix in `/private/tmp/explore-empty-handoff-green.log`.
+This preserves existing empty-preview behavior and changes no API trigger.
+All 181 files / 2,737 tests and the complete uncached lint/format/build gate
+pass in `/private/tmp/explore-empty-handoff-full-gate.log`, ending
+`EXPLORE_EMPTY_HANDOFF_FULL_GATE_GREEN`. An initial lint run caught a missing
+return annotation in the new test helper; it was added before the complete run.
+The native keyboard exercise passes `EXPLORE_RUNTIME_PROBE_EXERCISE_GREEN` in
+`/private/tmp/explore-empty-handoff-runtime.log`. Fallow retains zero new issues
+and exactly the prior 139 clone fingerprints. No account traffic or capture ran.
+The `38b787b` private ZIP passes package inspection but is superseded by this
+correction. Final focused coverage and a rebuilt package are still required.
+
 ## Private packaging proof and recovered tooling incident
 
 Electron Builder produced the native arm64 directory package using the locked

@@ -18,7 +18,8 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   contained sheet and the Hot Instance sheet are mutually exclusive for pointer
   and keyboard activation. Handoffs suppress outgoing Explore focus restoration
   once so the incoming Close button retains focus; ordinary closure still
-  restores its connected opener or main fallback.
+  restores its connected opener or main fallback. Starting a new selection
+  clears any unconsumed handoff left by an empty preview unmounting the old sheet.
   The global social platform
   filter is shared with Friends/Dashboard, while the persisted 2/4/6 world count
   is owned by settings. Sheets identify their platform in text, distinguish
