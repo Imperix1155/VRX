@@ -296,6 +296,42 @@ describe('ExploreRoute world sheet', () => {
     expect(dialog.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,renewed')
   })
 
+  it('queues invalidations during expired-ref recovery and reads the renewed ref afterward', async () => {
+    const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+    let finishRecovery!: (value: ExplorePlatformSnapshot) => void
+    query.readExploreSnapshot.mockImplementation(
+      () =>
+        new Promise<ExplorePlatformSnapshot>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
+    worldReads.mockImplementation(({ worldRef, reason }) =>
+      Promise.resolve(
+        worldRef === 'world-ref'
+          ? null
+          : { ...(reason === 'open' ? loading : ready), world: renewedWorld }
+      )
+    )
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
+    await act(async () => {
+      changed?.({ platform: 'vrchat' })
+      changed?.({ platform: 'vrchat' })
+      await Promise.resolve()
+    })
+    expect(worldReads).toHaveBeenCalledOnce()
+    await act(async () => {
+      finishRecovery({ ...source, worlds: [renewedWorld] })
+    })
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+    expect(worldReads.mock.calls.map(([request]) => request)).toEqual([
+      { platform: 'vrchat', worldRef: 'world-ref', reason: 'open' },
+      { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'open' },
+      { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'snapshot' }
+    ])
+  })
+
   it('does not reopen with a recovered reference after an account boundary', async () => {
     let resolveSnapshot!: (value: ExplorePlatformSnapshot) => void
     query.readExploreSnapshot.mockImplementation(
@@ -309,6 +345,10 @@ describe('ExploreRoute world sheet', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
     await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledWith('vrchat'))
+    await act(async () => {
+      changed?.({ platform: 'vrchat' })
+      await Promise.resolve()
+    })
     act(() => boundary?.({ platform: 'vrchat' }))
     await act(async () => {
       resolveSnapshot({ ...source, worlds: [{ ...world, worldRef: 'renewed-ref' }] })

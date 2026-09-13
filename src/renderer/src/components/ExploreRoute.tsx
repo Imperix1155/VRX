@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExplorePlatformSnapshot, ExploreRoom, ExploreWorld } from '@shared/explore'
 import type { AuthStatus, Platform } from '@shared/types'
@@ -202,6 +202,13 @@ export function ExploreDashboardPreviewRoute({
     close,
     refresh: refreshSheet
   } = useExploreWorldSelection(platformFilter)
+  const lastDismissSignal = useRef(dismissSignal)
+  const suppressFocusRestore = useRef(false)
+  const consumeFocusRestoreSuppression = useCallback(() => {
+    const suppressed = suppressFocusRestore.current
+    suppressFocusRestore.current = false
+    return suppressed
+  }, [])
   const openWorld = useCallback(
     (world: ExploreWorld, opener: HTMLElement) => {
       onSheetOpen?.()
@@ -210,8 +217,11 @@ export function ExploreDashboardPreviewRoute({
     [onSheetOpen, open]
   )
   useEffect(() => {
+    if (dismissSignal === lastDismissSignal.current) return
+    lastDismissSignal.current = dismissSignal
+    if (sheet !== null) suppressFocusRestore.current = true
     close()
-  }, [close, dismissSignal])
+  }, [close, dismissSignal, sheet])
   if (
     worlds.length === 0 &&
     snapshots.every((source) => source.status === 'ready' || source.status === 'idle')
@@ -252,6 +262,7 @@ export function ExploreDashboardPreviewRoute({
         joinFailureFor={(room) =>
           sheet !== null && joinExploreFailureFor(sheet.world, room) !== null
         }
+        consumeFocusRestoreSuppression={consumeFocusRestoreSuppression}
       />
     </section>
   )

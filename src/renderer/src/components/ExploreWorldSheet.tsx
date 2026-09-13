@@ -22,6 +22,9 @@ export interface ExploreWorldSheetProps {
   joining?: boolean
   onRefresh?: () => void
   joinFailureFor?: (room: ExploreRoom) => boolean
+  /** A coordinated sibling-sheet handoff consumes this once to preserve the
+   * incoming sheet's initial focus. Ordinary sheet closure still restores focus. */
+  consumeFocusRestoreSuppression?: () => boolean
 }
 
 const denialKey: Readonly<Record<ExploreJoinDenial, string>> = {
@@ -107,7 +110,8 @@ export default function ExploreWorldSheet({
   dismissable = true,
   joining = false,
   onRefresh,
-  joinFailureFor
+  joinFailureFor,
+  consumeFocusRestoreSuppression
 }: ExploreWorldSheetProps): React.JSX.Element {
   const { t } = useTranslation()
   const [retained, setRetained] = useState<ExploreWorldSnapshot | null>(null)
@@ -142,14 +146,16 @@ export default function ExploreWorldSheet({
     if (open && !wasOpenRef.current) {
       closeRef.current?.focus()
     } else if (!open && wasOpenRef.current) {
-      const target = openerRef.current?.isConnected
-        ? openerRef.current
-        : (focusFallback ?? document.querySelector<HTMLElement>('main'))
-      if (target?.isConnected) target.focus()
+      if (!consumeFocusRestoreSuppression?.()) {
+        const target = openerRef.current?.isConnected
+          ? openerRef.current
+          : (focusFallback ?? document.querySelector<HTMLElement>('main'))
+        if (target?.isConnected) target.focus()
+      }
       openerRef.current = null
     }
     wasOpenRef.current = open
-  }, [focusFallback, open])
+  }, [consumeFocusRestoreSuppression, focusFallback, open])
   useEffect(() => {
     if (!open || !dismissable) return
     const onKeyDown = (event: KeyboardEvent): void => {

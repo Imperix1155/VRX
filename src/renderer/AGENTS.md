@@ -16,7 +16,9 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   same ranking/selection and contained non-modal sheet; the preview adds at most
   two cards and leaves Dashboard statistics and Hot Instances unchanged. Its
   contained sheet and the Hot Instance sheet are mutually exclusive for pointer
-  and keyboard activation.
+  and keyboard activation. Handoffs suppress outgoing Explore focus restoration
+  once so the incoming Close button retains focus; ordinary closure still
+  restores its connected opener or main fallback.
   The global social platform
   filter is shared with Friends/Dashboard, while the persisted 2/4/6 world count
   is owned by settings. Sheets identify their platform in text, distinguish
@@ -31,7 +33,8 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   close, reselect, and identity fences prevent that recovery from publishing
   later. A disconnected selected platform renders the existing unavailable source
   state without discovery work, while a healthy platform remains visible. Failed
-  images stay neutral. Sheet art is fenced by the selected opaque ref, independently
+  images stay neutral. Same-platform invalidations wait behind an active ref
+  recovery, then read the renewed ref while retaining account/close fences. Sheet art is fenced by the selected opaque ref, independently
   of later room-snapshot request ordering.
 
 - `src/hooks/useExploreCoordinator.ts` is the sole renderer trigger for Explore

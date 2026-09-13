@@ -14,6 +14,7 @@ interface Selection {
   reading: boolean
   dirty: boolean
   recoveredExpiredRef: boolean
+  recovering: boolean
 }
 
 function cancel(selection: Selection | null): void {
@@ -24,6 +25,23 @@ function cancel(selection: Selection | null): void {
       worldRef: selection.world.worldRef
     })
     .catch(() => undefined)
+}
+
+async function readChanges(
+  selection: Selection,
+  isCurrent: () => boolean,
+  read: (selection: Selection, reason: ExploreWorldReason) => Promise<void>
+): Promise<void> {
+  if (!isCurrent() || selection.reading || selection.recovering || !selection.dirty) return
+  selection.reading = true
+  try {
+    do {
+      selection.dirty = false
+      await read(selection, 'snapshot')
+    } while (selection.dirty && isCurrent() && !selection.recovering)
+  } finally {
+    selection.reading = false
+  }
 }
 
 /** Dashboard and Explore share one selected-world lifetime. Every reply belongs
@@ -57,7 +75,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
       request: 0,
       reading: false,
       dirty: false,
-      recoveredExpiredRef: false
+      recoveredExpiredRef: false,
+      recovering: false
     }
     current.current = next
     setSelected(next)
@@ -75,9 +94,10 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   }, [])
 
   const read = useCallback(
-    async (selection: Selection, reason: ExploreWorldReason) => {
+    async function readSelection(selection: Selection, reason: ExploreWorldReason): Promise<void> {
       if (current.current !== selection || !window.vrx?.getExploreWorld) return
       const request = ++selection.request
+      let recovering = false
       try {
         const result = await window.vrx.getExploreWorld({
           platform: selection.world.platform,
@@ -92,6 +112,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
           // discovery work or weakens the main-owned reference TTL.
           if (reason === 'open' && !selection.recoveredExpiredRef) {
             selection.recoveredExpiredRef = true
+            selection.recovering = true
+            recovering = true
             try {
               const snapshot = await readExploreSnapshot(selection.world.platform)
               if (current.current !== selection || request !== selection.request) return
@@ -135,6 +157,11 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
       } catch {
         // Main normally supplies a closed error state. Preserve the last snapshot
         // if the bridge itself fails; there is no implicit retry.
+      } finally {
+        if (recovering) {
+          selection.recovering = false
+          await readChanges(selection, () => current.current === selection, readSelection)
+        }
       }
     },
     [close, readImage]
@@ -144,19 +171,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
     const changed = window.vrx?.onExploreChanged?.(({ platform }) => {
       const selection = current.current
       if (selection === null || selection.world.platform !== platform) return
-      if (selection.reading) {
-        selection.dirty = true
-        return
-      }
-      selection.reading = true
-      void (async () => {
-        do {
-          selection.dirty = false
-          await read(selection, 'snapshot')
-        } while (selection.dirty && current.current === selection)
-      })().finally(() => {
-        selection.reading = false
-      })
+      selection.dirty = true
+      void readChanges(selection, () => current.current === selection, read)
     })
     const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => {
       if (current.current?.world.platform === platform) close()

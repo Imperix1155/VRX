@@ -207,6 +207,43 @@ character event required by native buttons. Awaiting focus and sending the full
 native sequence resolved those probe defects. No application fix was inferred
 from either harness failure. No capture or real-account traffic occurred.
 
+## Focused review follow-up
+
+The first focused review covers `c9a2d51` through `f3bab896a8d201a4e075c9c26d836e2c1aba1ef9`.
+Its exact patch SHA-256 is
+`c53a2b62c7567fbe3015b83a4d901ed4ca0aefe8bd7c2fb4d1fdd08ea9300fed`,
+81,980 bytes, 1,421 lines and 14 files. Artifacts and the enforced read-only,
+never-approval Astra High runtime receipt are in
+`/private/tmp/vrx-explore-focused-review/`. `REVIEW_COMPLETE` reported two P2
+renderer races; main read sharing and cache-only auth presentation had no
+material finding. Prior adapter/IPC/ranking/settings/Join conclusions remain
+applicable, so the reviewer called for bounded corrections without restarting
+the whole-feature review.
+
+- A same-platform change during held expired-ref recovery read the obsolete
+  ref and closed the selection. `/private/tmp/explore-recovery-invalidation-red.log`
+  reproduces it. Recovery now holds those invalidations and drains them against
+  the renewed ref, retaining immediate account/close/reselect fences.
+- Explore-to-Hot handoff restored the outgoing Explore opener after the new
+  Hot sheet focused Close. `/private/tmp/explore-sheet-focus-red.log` reproduces
+  that activeElement mismatch. The handoff now consumes one outgoing focus
+  suppression; ordinary closure still restores its opener. Both handoff
+  directions and subsequent ordinary closes have focus assertions.
+
+`/private/tmp/explore-race-fixes-green.log` records 69 passing route/Dashboard
+tests before the complete gate. The disposable native-keyboard probe now also
+checks the incoming Close focus after two animation frames in each direction.
+The `f3bab89` ZIP is superseded by these fixes and must not be handed out as
+final. It remains an honest packaging proof for its recorded source revision.
+The corrected source passed all 181 files / 2,735 tests plus uncached lint,
+formatting, typechecks, build and entry assertion in
+`/private/tmp/explore-race-fixes-full-gate.log`, ending
+`EXPLORE_RACE_FIXES_FULL_GATE_GREEN`. The updated native keyboard/focus exercise
+passes `EXPLORE_RUNTIME_PROBE_EXERCISE_GREEN` in
+`/private/tmp/explore-race-fixes-runtime.log`. Fallow remains zero new dead-code
+issues and 139 baseline-filtered clone groups, with no new production clone.
+A focused follow-up and fresh final-source package remain required.
+
 ## Private packaging proof and recovered tooling incident
 
 Electron Builder produced the native arm64 directory package using the locked

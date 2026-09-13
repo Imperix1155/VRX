@@ -983,6 +983,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     hotCard.focus()
     fireEvent.keyDown(hotCard, { key: 'Enter' })
     expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: msg('drawer.close') }))
 
     exploreCard.focus()
     // A native button dispatches its activation click with detail 0 for Enter/Space.
@@ -993,6 +994,7 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
       ).toBeTruthy()
     )
     expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     exploreCard.focus()
@@ -1005,6 +1007,16 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
     expect(
       screen.queryByRole('dialog', { name: /Visible public rooms for Preview world/ })
     ).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: msg('drawer.close') }))
+
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+    expect(document.activeElement).toBe(hotCard)
+
+    exploreCard.focus()
+    fireEvent.click(exploreCard, { detail: 0 })
+    await screen.findByRole('dialog', { name: /Visible public rooms for Preview world/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(document.activeElement).toBe(exploreCard)
   })
 
   it('Enter and Space on the card body open the sheet', () => {
