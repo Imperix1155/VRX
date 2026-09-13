@@ -5,6 +5,8 @@ import type { IpcInvoke } from '@shared/ipc'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 import { LocationAuthority } from '../services/locationAuthority'
+import { JoinCoordinator } from '../services/joinCoordinator'
+import { hotInstanceKey } from '@shared/hotInstanceKey'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
 const openExternal = vi.hoisted(() => vi.fn())
@@ -109,6 +111,34 @@ function joinReq(
 }
 
 describe('join-instance handler', () => {
+  it('shares the injected Explore launch lock and exact destination cooldown', async () => {
+    const coordinator = new JoinCoordinator(() => now)
+    registerInstanceHandlers(new Map([['vrchat', adapter]]), authority, {
+      clock: () => now,
+      isJoinAllowed: () => true,
+      joinCoordinator: coordinator
+    })
+    const target = friend()
+    seed(target)
+    const key = hotInstanceKey('vrchat', target.instance!.instanceId, target.instance!.worldId)!
+    const explore = coordinator.acquire('vrchat', key)!
+    await expect(call('join-instance', joinReq(target))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
+    explore.complete()
+    explore.release()
+    await expect(call('join-instance', joinReq(target))).resolves.toEqual({
+      ok: false,
+      reason: 'cooldown'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
+    now += 3_000
+    await expect(call('join-instance', joinReq(target))).resolves.toEqual({ ok: true })
+    expect(openExternal).toHaveBeenCalledTimes(1)
+    expect(coordinator.acquire('vrchat', key)).toBeNull()
+  })
+
   it('guards the sender before validating', async () => {
     trusted.value = false
     await expect(call('join-instance', null)).rejects.toThrow('Untrusted IPC sender')
@@ -250,8 +280,12 @@ describe('join-instance handler', () => {
     await expect(first).resolves.toEqual({ ok: true })
   })
 
-  it('allows friend B immediately after friend A but cools down a repeat join of A', async () => {
-    const friendB = friend({ platformUserId: 'usr_bea', displayName: 'Bea' })
+  it('allows a different destination immediately but retains the existing per-friend cooldown', async () => {
+    const friendB = friend({
+      platformUserId: 'usr_bea',
+      displayName: 'Bea',
+      instance: { ...friend().instance!, instanceId: 'instance-2' }
+    })
     authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     const revision = authority.captureSeedRevision('vrchat')
     authority.seed('vrchat', [friend(), friendB], revision)

@@ -9,7 +9,11 @@
 VRX relies on two unofficial, undocumented APIs:
 
 - **VRChat** (`https://api.vrchat.cloud/api/1`) — endpoint-level documentation exists in community wikis; official schema is absent.
-- **ChilloutVR** (`https://api.abinteractive.net/1`) — no public documentation; reverse-engineered from community libraries and live observation.
+- **ChilloutVR** (`https://api.abinteractive.net/1`) — normal auth/friend API;
+  no public documentation; reverse-engineered from community libraries and live
+  observation. Bounded Explore discovery uses the separately versioned
+  `https://api.chilloutvr.net` routes documented below; this is not a migration
+  of the normal auth/friend host.
 
 Both APIs are subject to **breaking changes without warning**. This document enumerates the critical surfaces and VRX's resilience strategy.
 
@@ -26,7 +30,9 @@ These tests establish local behavior; they do not establish vendor rate quotas,
 new endpoint contracts, or live-account compatibility. Existing live-verification
 labels below keep their original meaning. API-backed image hops share VRChat
 admission and their original durable session lease; redirected CDN bodies remain
-host-bounded and cookie-free. No API-host migration or discovery traffic is added.
+host-bounded and cookie-free. Explore adds only the bounded, main-owned discovery
+traffic recorded in `api-policy.md`; normal CVR auth/friend traffic remains on
+`api.abinteractive.net/1`.
 
 ## Volatile Surfaces at a Glance
 
@@ -370,13 +376,14 @@ host-bounded and cookie-free. No API-host migration or discovery traffic is adde
 
 ## VRX's Resilience Strategy
 
-### Explore phase-A parsing (September 9, 2026; not wired)
+### Explore discovery (September 2026; bounded production integration)
 
-The standalone Explore parsers use the
-[preserved feasibility evidence](./superpowers/plans/2026-09-09-explore-api-evidence-handoff.md)
-and synthetic fixtures. They have no transport or production adapter consumer.
-The new pure parsers validate values explicitly; the existing Zod-backed
-production paths below are unchanged.
+Explore uses the existing authenticated transport, admission and session-lease
+boundaries. Its main-only adapter capability makes one no-retry request per
+method and rejects malformed outer envelopes or identity-mismatched world/room
+responses as `ExploreDataError`; known non-public room evidence may be omitted.
+The service owns cache, refresh eligibility, opaque references, budgets and
+publication. It never retains raw member payloads.
 
 - VRC cards retain aggregate `occupants`; tuple counts have separate provenance.
   Public/Group Public identifiers use a bounded modifier allowlist, independent
@@ -393,21 +400,26 @@ production paths below are unchanged.
   reports eligibility. Missing or inherited closure fields stay unknown;
   they cannot prove a room is unavailable. The 25/22 fixture retains `n_users` precedence over
   `userCount`; missing or invalid counts are unknown, never admission evidence.
-- CVR category parsing expects the client's already-unwrapped `data` object
-  with `entries`. World `instances` are unqualified candidates; room details
-  bind `id` and nested `world.id`, matching the existing resolver's shape.
-  Only exact Public/GroupPublic strings qualify, case-insensitively; supplied
-  conflicting or unknown secondary privacy rejects promotion. Numeric friend
-  privacy mappings do not apply. Full qualifying rooms remain eligible.
-  Public totals sum unique same-world room-detail counts; incomplete coverage,
-  wrong provenance and unsafe arithmetic cannot produce a displayed total.
+- CVR category discovery is the fixed
+  `GET https://api.chilloutvr.net/2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending`
+  route. World and instance reads are respectively fixed to
+  `/1/worlds/{worldId}` and `/1/instances/{instanceId}` on that same host.
+  `CvrApiClient` accepts only its typed closed routes and validates IDs before
+  constructing a path; renderer values cannot select a host or URL. The normal
+  `https://api.abinteractive.net/1` auth/friend base is unchanged.
+  Category payloads are the already-unwrapped `data` object with `entries`.
+  World `instances` are unqualified candidates; room details bind `id` and
+  nested `world.id`. Only exact Public/GroupPublic strings qualify. Conflicting,
+  missing or unknown privacy is incomplete evidence, while a verified known
+  non-public room may be omitted. Numeric friend-privacy mappings do not apply.
+  Full qualifying rooms remain eligible. Public totals sum unique same-world
+  room-detail counts; incomplete coverage, wrong provenance and unsafe
+  arithmetic cannot produce a displayed total.
 
-These are fixture-verified assumptions, not new live observations. Future
-integration must consume the integrated API-safety transport and lease
-contracts and the settled discovery limits in the
-[integration continuation](./superpowers/plans/2026-09-09-explore-integration-continuation.md).
-No authenticated request, new route, pacing policy or join action was added here.
-Production activation and visual acceptance remain future work; no live-account tests are authorized.
+These are synthetic-transport and parser-verified assumptions, not new live
+observations. The fixed limits, host separation and no-retry policy are in
+[`api-policy.md`](./api-policy.md). Real-account compatibility and visual
+acceptance remain separate consent-dependent checks.
 
 ### 1. Defensive Zod Schemas
 

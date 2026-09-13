@@ -1,6 +1,11 @@
 # Explore integration continuation
 
-Current checkpoint: the exact API dependency is integrated and the combined
+Current execution authority: Josh started the production implementation on
+September 13. The [production work receipt](2026-09-13-explore-production-block.md)
+supersedes preparation-only stops below and tracks implementation and evidence.
+The refresh, cache, traffic and Join decisions in this document remain binding.
+
+Historical foundation checkpoint: the exact API dependency is integrated and the combined
 source is verified. Josh has authorized merging the isolated foundation in
 PR 305. The [merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness)
 records the scope and evidence, superseding this document's earlier unintegrated

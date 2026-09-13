@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-09-13
+
 ### Fixed
 
 - Brief socket connections no longer reset reconnect backoff. Rejected upgrades
@@ -35,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of Done. (VRX-143)
 
 ### Added
+
+- Explore public worlds in VRChat and ChilloutVR from the sidebar or Dashboard.
+  The mixed grid shares cached results, keeps the platform filter and 2/4/6
+  world choice between launches, and opens room details without covering the
+  sidebar. Refreshes have bounded work and keep the last good results when a
+  platform is unavailable. Room Join uses the existing confirmation, mode and
+  permission settings; stale or unavailable targets cannot launch. (VRX-270)
 
 - Manually link a friend's VRChat and ChilloutVR identities from the friend
   drawer. Combined profiles support a custom name, preferred platform, optional

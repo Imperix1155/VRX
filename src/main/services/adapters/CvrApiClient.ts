@@ -14,6 +14,16 @@ import {
 
 /** Build-injected User-Agent — version comes from package.json via __APP_VERSION__. */
 const CVR_USER_AGENT = `VRX/${__APP_VERSION__} (https://github.com/Imperix1155/VRX)` as const
+// Discovery deliberately uses the separately verified API host. It remains
+// main-only here rather than becoming a renderer-visible shared constant.
+const CVR_DISCOVERY_BASE = 'https://api.chilloutvr.net' as const
+const cvrWorldId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const cvrInstanceId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
+
+type CvrDiscoveryRoute =
+  | { kind: 'active-worlds' }
+  | { kind: 'world'; worldId: string }
+  | { kind: 'room'; instanceId: string }
 
 export const cvrUserAuthSchema = z.object({
   username: z.string(),
@@ -62,7 +72,7 @@ export abstract class CvrApiClient extends BaseAdapter {
     options?: AdapterRequestOptions
   ): Promise<T> {
     return await this.requestData(
-      path,
+      CVR_API_BASE + path,
       schema,
       () => ({
         method: 'GET',
@@ -80,12 +90,33 @@ export abstract class CvrApiClient extends BaseAdapter {
     options?: AdapterRequestOptions
   ): Promise<T> {
     return await this.requestData(
-      path,
+      CVR_API_BASE + path,
       schema,
       () => ({
         method: 'POST',
         headers: this.authenticatedHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
+      }),
+      { ...options, lease: options?.lease ?? this.sessionRequestLease() }
+    )
+  }
+
+  /**
+   * Closed discovery-route surface: callers choose a typed route, never a URL,
+   * host, query string, or renderer-provided path. Auth headers are still built
+   * lazily after shared admission succeeds through requestData's init factory.
+   */
+  protected async getExploreDiscovery<T>(
+    route: CvrDiscoveryRoute,
+    schema: z.ZodType<T>,
+    options?: AdapterRequestOptions
+  ): Promise<T> {
+    return await this.requestData(
+      this.discoveryUrl(route),
+      schema,
+      () => ({
+        method: 'GET',
+        headers: this.authenticatedHeaders()
       }),
       { ...options, lease: options?.lease ?? this.sessionRequestLease() }
     )
@@ -116,14 +147,14 @@ export abstract class CvrApiClient extends BaseAdapter {
   }
 
   private async requestData<T>(
-    path: string,
+    url: string,
     schema: z.ZodType<T>,
     requestInit: RequestInitSource,
     options?: AdapterRequestOptions
   ): Promise<T> {
     try {
       const envelope = await this.request(
-        CVR_API_BASE + path,
+        url,
         // `message` is CVR's human-readable status string, which we discard — and
         // it comes back `null` on some endpoints (e.g. /friends), so accept
         // null/missing rather than rejecting the whole (valid) `data` payload.
@@ -138,6 +169,22 @@ export abstract class CvrApiClient extends BaseAdapter {
       if (error instanceof RateLimitError) throw new CVRRateLimitError(error.retryAfterMs)
       if (error instanceof NetworkError) throw new CVRNetworkError(error.message, error)
       throw error
+    }
+  }
+
+  private discoveryUrl(route: CvrDiscoveryRoute): string {
+    switch (route.kind) {
+      case 'active-worlds':
+        return `${CVR_DISCOVERY_BASE}/2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending`
+      case 'world':
+        if (!cvrWorldId.test(route.worldId))
+          throw new CVRNetworkError('Invalid CVR discovery world id')
+        return `${CVR_DISCOVERY_BASE}/1/worlds/${encodeURIComponent(route.worldId)}`
+      case 'room':
+        if (!cvrInstanceId.test(route.instanceId)) {
+          throw new CVRNetworkError('Invalid CVR discovery instance id')
+        }
+        return `${CVR_DISCOVERY_BASE}/1/instances/${encodeURIComponent(route.instanceId)}`
     }
   }
 

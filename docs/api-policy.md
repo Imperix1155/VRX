@@ -44,6 +44,36 @@ VRX/<app version> (https://github.com/Imperix1155/VRX)
   original lease and never forward the API cookie to the CDN. Updater downloads
   are outside these platform queues.
 
+### Public-world discovery
+
+Explore is an on-demand, session-memory discovery feature. It has no polling
+timer, no saved discovery cache, no direct renderer transport, and no automatic
+continuation when a cooldown or budget window expires. Main coalesces the
+visible platform work, cancels it when the view hides or the account changes,
+and preserves the last display snapshot when a refresh cannot finish.
+
+- Every Explore JSON attempt uses the existing platform admission controller,
+  original session lease, no-retry policy and pre-dispatch budget guard. A 429,
+  queue refusal, malformed outer response or account boundary ends the current
+  batch; it does not schedule a retry.
+- The rolling per-platform cap is 20 Explore JSON starts per 60 seconds. A cold
+  VRChat candidate pass is one active-world page of at most 12 records. A cold
+  ChilloutVR pass is at most 13 reads: one category, six world details and six
+  room details. A selected world uses at most seven reads: one world detail and
+  six rooms. Enumeration retains at most 100 room IDs and reports incomplete
+  coverage rather than crawling further.
+- Explore image work reuses the authenticated image cache: at most six new
+  image operations per platform per 60 seconds and two outstanding. Cached
+  images do not consume a new operation; denied work remains a placeholder.
+- Discovery evidence is fresh for 60 seconds. Automatic candidate starts wait
+  at least five minutes since the last candidate attempt; manual candidate and
+  world refreshes wait at least 60 seconds. These are eligibility checks, not
+  scheduled wakeups.
+- Join remains main-owned. Opaque world and selection references expire after
+  five minutes; stale room evidence disables joining. VRChat may revalidate one
+  eligible room with no retry. ChilloutVR never calls `/join` or probes capacity;
+  a fresh qualifying Public/GroupPublic room remains eligible even when full.
+
 ### Real-time data and recovery
 
 WebSockets remain the live presence/location source. Full REST rosters serve

@@ -23,6 +23,22 @@ import { AuthSessionPendingError, CVRAuthError, CVRNetworkError } from './errors
 import { buildCvrJoinUrl } from './cvr/buildCvrJoinUrl'
 import { extractCvrPlatformUserId } from './cvr/cvrPlatformUserId'
 import { hasUnsafeCredentialCharacters, isValidCvrSession } from './credentialValidation'
+import type {
+  ExploreAdapter,
+  ExploreRequestContext,
+  ExploreRoomEvidence,
+  ExploreWorldDetail,
+  ExploreWorldEvidence
+} from './ExploreAdapter'
+import { ExploreDataError } from './ExploreAdapter'
+import {
+  parseCvrExploreCandidates,
+  parseCvrExplorePublicAccess,
+  parseCvrExploreRoom,
+  parseCvrExploreWorld
+} from './cvr/parseExplore'
+import type { AdapterRequestOptions } from './BaseAdapter'
+import { assertRequestLease } from './RequestLease'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -35,6 +51,40 @@ const cvrCurrentUserSchema = cvrAuthEnvelopeSchema.extend({
     })
   })
 })
+
+const CVR_EXPLORE_CANDIDATE_LIMIT = 12
+const EXPLORE_ROOM_ID_LIMIT = 100
+const cvrExploreWorldId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const cvrExploreRoomId = /^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$/i
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+/** Distinguish known non-public room evidence from unknown or conflicting access. */
+function isKnownCvrNonPublicRoom(raw: Record<string, unknown>): boolean {
+  const values = [
+    ...(Object.hasOwn(raw, 'instanceSettingPrivacy') ? [raw.instanceSettingPrivacy] : []),
+    ...(Object.hasOwn(raw, 'privacy') ? [raw.privacy] : [])
+  ]
+  if (values.length === 0) return false
+  if (
+    !values.every((value) => {
+      if (parseCvrExplorePublicAccess(value) !== null) return true
+      return (
+        (typeof value === 'string' || typeof value === 'number') &&
+        parseCvrPrivacy(value).opennessUnknown !== true
+      )
+    })
+  ) {
+    return false
+  }
+  // A public marker that failed the stricter discovery parser means conflicting
+  // fields, never a verified private room.
+  return values.every((value) => parseCvrExplorePublicAccess(value) === null)
+}
 
 /** Live-pipeline wiring (VRX-58), injected at the call site so this file stays
  *  electron-free: the real socketFactory (ws + upgrade headers) and the
@@ -83,7 +133,7 @@ export interface CvrCredentialStore {
  * loop without another auth request. Instances = VRX-59/60. CVR has NO 2FA leg
  * — `verify2fa` rejects per the interface.
  */
-export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
+export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, ExploreAdapter {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
@@ -390,6 +440,106 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter {
   protected override sessionRequestLease(): RequestLease {
     this.assertDurableSession()
     return this.captureSessionLease()
+  }
+
+  captureExploreLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getExploreCandidates(context: ExploreRequestContext): Promise<ExploreWorldEvidence[]> {
+    const raw = await this.runExploreRequest(context, () =>
+      this.getExploreDiscovery(
+        { kind: 'active-worlds' },
+        z.unknown(),
+        this.exploreRequestOptions(context)
+      )
+    )
+    const outer = recordValue(raw)
+    if (!outer || !Array.isArray(outer.entries)) {
+      throw new ExploreDataError('ChilloutVR active worlds response was malformed')
+    }
+    return parseCvrExploreCandidates({
+      ...outer,
+      entries: outer.entries.slice(0, CVR_EXPLORE_CANDIDATE_LIMIT)
+    })
+  }
+
+  async getExploreWorld(
+    worldId: string,
+    context: ExploreRequestContext
+  ): Promise<ExploreWorldDetail | null> {
+    if (!cvrExploreWorldId.test(worldId)) throw new ExploreDataError('Invalid ChilloutVR world id')
+    const raw = await this.runExploreRequest(context, () =>
+      this.getExploreDiscovery(
+        { kind: 'world', worldId },
+        z.unknown(),
+        this.exploreRequestOptions(context)
+      )
+    )
+    const outer = recordValue(raw)
+    if (!outer || !Array.isArray(outer.instances)) {
+      throw new ExploreDataError('ChilloutVR world response was malformed')
+    }
+    const truncated = outer.instances.length > EXPLORE_ROOM_ID_LIMIT
+    const detail = parseCvrExploreWorld(
+      { ...outer, instances: outer.instances.slice(0, EXPLORE_ROOM_ID_LIMIT) },
+      worldId
+    )
+    if (!detail) {
+      throw new ExploreDataError('ChilloutVR world response did not match the requested world')
+    }
+    return truncated ? { ...detail, roomsComplete: false } : detail
+  }
+
+  async getExploreRoom(
+    target: { worldId: string; instanceId: string },
+    context: ExploreRequestContext
+  ): Promise<ExploreRoomEvidence | null> {
+    if (!cvrExploreWorldId.test(target.worldId) || !cvrExploreRoomId.test(target.instanceId)) {
+      throw new ExploreDataError('Invalid ChilloutVR room target')
+    }
+    const raw = await this.runExploreRequest(context, () =>
+      this.getExploreDiscovery(
+        { kind: 'room', instanceId: target.instanceId },
+        z.unknown(),
+        this.exploreRequestOptions(context)
+      )
+    )
+    const outer = recordValue(raw)
+    const world = outer && Object.hasOwn(outer, 'world') ? recordValue(outer.world) : null
+    if (!outer || outer.id !== target.instanceId || !world || world.id !== target.worldId) {
+      throw new ExploreDataError('ChilloutVR room response did not match the requested target')
+    }
+    const room = parseCvrExploreRoom(raw, target.worldId, target.instanceId)
+    if (room !== null) return room
+    if (isKnownCvrNonPublicRoom(outer)) return null
+    throw new ExploreDataError('ChilloutVR room access evidence was incomplete')
+  }
+
+  private exploreRequestOptions(context: ExploreRequestContext): AdapterRequestOptions {
+    return {
+      lease: context.lease,
+      signal: context.signal,
+      priority: context.priority,
+      retry: 'none',
+      beforeDispatch: context.beforeDispatch
+    }
+  }
+
+  private async runExploreRequest<T>(
+    context: ExploreRequestContext,
+    request: () => Promise<T>
+  ): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(context.lease)
+      return value
+    } catch (error) {
+      if (context.lease.isCurrent() && error instanceof CVRAuthError) {
+        this.invalidateSession(true)
+      }
+      throw error
+    }
   }
 
   private captureSessionLease(): RequestLease {

@@ -27,6 +27,19 @@ import { WorldResolver, type WorldMeta } from './vrchat/WorldResolver'
 import { createGroupResolver, type GroupMeta, type GroupResolver } from './vrchat/GroupResolver'
 import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
 import { hasUnsafeCredentialCharacters, isValidVrcSessionCookie } from './credentialValidation'
+import type {
+  ExploreAdapter,
+  ExploreRequestContext,
+  ExploreRoomEvidence,
+  ExploreWorldDetail,
+  ExploreWorldEvidence
+} from './ExploreAdapter'
+import { ExploreDataError } from './ExploreAdapter'
+import {
+  parseVrcExploreCandidates,
+  parseVrcExploreRoom,
+  parseVrcExploreWorld
+} from './vrchat/parseExplore'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -73,6 +86,25 @@ const twoFactorVerifySchema = z.object({ verified: z.boolean() })
  * session server-side. Falls back to the raw cookie value if unavailable.
  */
 const authTokenSchema = z.object({ token: z.string() })
+
+const VRC_EXPLORE_CANDIDATE_LIMIT = 12
+const EXPLORE_ROOM_ID_LIMIT = 100
+const vrcExploreWorldId = /^wrld_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const vrcExploreRoomId = /^[A-Za-z0-9_-]{1,80}(?:~[A-Za-z]+(?:\([A-Za-z0-9_-]{0,160}\))?)*$/
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function isVrcExploreWorldId(value: string): boolean {
+  return vrcExploreWorldId.test(value)
+}
+
+function isVrcExploreRoomId(value: string): boolean {
+  return value.length <= 1024 && vrcExploreRoomId.test(value)
+}
 
 /** VRChat Basic auth: `base64(urlencode(username):urlencode(password))`. */
 function basicAuthHeader(username: string, password: string): string {
@@ -143,7 +175,7 @@ function isInstanceLocation(location: string): boolean {
  * breaker lockout after 3 wrong attempts. Data methods (getFriends, …) are
  * scaffolded as not-yet-implemented and land in later issues (getFriends = VRX-43).
  */
-export class VrcAdapter extends VrcApiClient {
+export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
@@ -630,6 +662,112 @@ export class VrcAdapter extends VrcApiClient {
   protected override sessionRequestLease(): RequestLease {
     this.assertDurableSession()
     return this.captureSessionLease(true)
+  }
+
+  captureExploreLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getExploreCandidates(context: ExploreRequestContext): Promise<ExploreWorldEvidence[]> {
+    const raw = await this.runExploreRequest(context, () =>
+      this.get('/worlds/active?n=12', z.unknown(), this.exploreRequestOptions(context))
+    )
+    if (!Array.isArray(raw))
+      throw new ExploreDataError('VRChat active worlds response was malformed')
+    // Slice before parsing: malformed records cannot cause replacement scans or
+    // unbounded parser work, and raw source records never escape this method.
+    return parseVrcExploreCandidates(raw.slice(0, VRC_EXPLORE_CANDIDATE_LIMIT))
+  }
+
+  async getExploreWorld(
+    worldId: string,
+    context: ExploreRequestContext
+  ): Promise<ExploreWorldDetail | null> {
+    if (!isVrcExploreWorldId(worldId)) throw new ExploreDataError('Invalid VRChat world id')
+    const raw = await this.runExploreRequest(context, () =>
+      this.get(
+        `/worlds/${encodeURIComponent(worldId)}`,
+        z.unknown(),
+        this.exploreRequestOptions(context)
+      )
+    )
+    const outer = recordValue(raw)
+    if (!outer || !Array.isArray(outer.instances)) {
+      throw new ExploreDataError('VRChat world response was malformed')
+    }
+    const truncated = outer.instances.length > EXPLORE_ROOM_ID_LIMIT
+    const detail = parseVrcExploreWorld(
+      { ...outer, instances: outer.instances.slice(0, EXPLORE_ROOM_ID_LIMIT) },
+      worldId
+    )
+    if (!detail)
+      throw new ExploreDataError('VRChat world response did not match the requested world')
+    if (!truncated) return detail
+    return {
+      ...detail,
+      world: {
+        ...detail.world,
+        visibleRoomCount: { state: 'partial', value: null, source: 'visible-rooms' }
+      },
+      roomsComplete: false
+    }
+  }
+
+  async getExploreRoom(
+    target: { worldId: string; instanceId: string },
+    context: ExploreRequestContext
+  ): Promise<ExploreRoomEvidence | null> {
+    if (!isVrcExploreWorldId(target.worldId) || !isVrcExploreRoomId(target.instanceId)) {
+      throw new ExploreDataError('Invalid VRChat room target')
+    }
+    const raw = await this.runExploreRequest(context, () =>
+      this.get(
+        `/worlds/${encodeURIComponent(target.worldId)}/${encodeURIComponent(target.instanceId)}`,
+        z.unknown(),
+        this.exploreRequestOptions(context)
+      )
+    )
+    const outer = recordValue(raw)
+    if (
+      !outer ||
+      outer.worldId !== target.worldId ||
+      outer.instanceId !== target.instanceId ||
+      (Object.hasOwn(outer, 'id') &&
+        outer.id !== target.instanceId &&
+        outer.id !== `${target.worldId}:${target.instanceId}`) ||
+      (Object.hasOwn(outer, 'location') &&
+        outer.location !== `${target.worldId}:${target.instanceId}`)
+    ) {
+      throw new ExploreDataError('VRChat room response did not match the requested target')
+    }
+    return parseVrcExploreRoom(raw, target.worldId, target.instanceId)
+  }
+
+  private exploreRequestOptions(context: ExploreRequestContext): AdapterRequestOptions {
+    return {
+      lease: context.lease,
+      signal: context.signal,
+      priority: context.priority,
+      retry: 'none',
+      beforeDispatch: context.beforeDispatch
+    }
+  }
+
+  private async runExploreRequest<T>(
+    context: ExploreRequestContext,
+    request: () => Promise<T>
+  ): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(context.lease)
+      return value
+    } catch (error) {
+      if (context.lease.isCurrent() && error instanceof AuthError && error.status === 401) {
+        this.bumpSessionGeneration()
+        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+      }
+      throw error
+    }
   }
 
   private captureSessionLease(requireDurable = false): RequestLease {
