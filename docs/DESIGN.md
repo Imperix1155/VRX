@@ -420,7 +420,7 @@ body {
 } /* shell fixed; only main scrolls */
 ```
 
-- Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Instances / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z` — the version is BUILD-INJECTED from package.json via `__APP_VERSION__`, never hardcoded). Active nav = glass-gradient fill + left spine that echoes the global platform filter: **All** keeps the existing `--vrc → --cvr` gradient; a single-platform filter (VRChat / ChilloutVR) makes the spine solid `--vrc` / `--cvr`. Position carries "active page"; color is a **reinforcing echo** of the filter — the segmented platform toggle remains the primary carrier (R10/R12: never rely on color alone). "Activity" carries an unread badge. **(Status 2026-07-01: the Friends·count suffix and the Activity unread badge are spec'd but NOT YET BUILT — the nav renders plain labels; no tracking issue yet.)**
+- Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Explore / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z` — the version is BUILD-INJECTED from package.json via `__APP_VERSION__`, never hardcoded). Active nav = glass-gradient fill + left spine that echoes the global platform filter: **All** keeps the existing `--vrc → --cvr` gradient; a single-platform filter (VRChat / ChilloutVR) makes the spine solid `--vrc` / `--cvr`. Position carries "active page"; color is a **reinforcing echo** of the filter — the segmented platform toggle remains the primary carrier (R10/R12: never rely on color alone). "Activity" carries an unread badge. **(Status 2026-07-01: the Friends·count suffix and the Activity unread badge are spec'd but NOT YET BUILT — the nav renders plain labels; no tracking issue yet.)**
 - Main: topbar (view title LEFT; the contextual control + online count share ONE RIGHT-ANCHORED dock — VRX-188: the title's width can never shift the control; count copy is "N online" with a reserved 3-digit tabular-nums cell, VRX-187's stability principle). The dock's status dot is REAL connection health (VRX-223): green = every signed-in platform live, amber = reconnecting (incl. boot dial), red = a signed-in platform down — text-labeled (R12), never decorative. **Login gate (VRX-217, owner-ruled two-tab):** when neither platform is connected, the gate card carries a VRChat | ChilloutVR segmented radiogroup (§8 segmented grammar; platform color on the WORD via AA-verified companion tokens incl. `--text-on-cvr`) over ONE shared credentials/2FA form; the card tint follows the selected platform; tabs freeze during submit. While auth checks are pending the app shows `BootSplash` (brand mark + Connecting…), never a blank window → stat row → titled sections (`.secline` = VT323 kicker + dim hint). **(↻ segmented control REVISED by §9.1 — order `VRChat | All | ChilloutVR`, text-only `VRC/ALL/CVR`; it filters the whole view + drives the sidebar accent. ↻ VRX-188 moved it to the right dock; on Settings the category nav occupies the same dock — owner-ratified 2026-07-11 after live use.)**
 - Dense desktop utility. No responsive collapse required for v1. Deadspace OK at view bottom, NOT between related cards.
 
@@ -607,22 +607,30 @@ the user has turned off join confirmation. Other platforms remain usable.
 
 ## §12 Implementation mapping + GENERATION CHECKLIST
 
-### Explore phase-A presentation boundary (September 9, 2026)
+### Explore production integration (September 13, 2026)
 
 The approved [cross-platform Explore specification](superpowers/specs/2026-09-04-cross-platform-explore-design.md)
 and [integration continuation](superpowers/plans/2026-09-09-explore-integration-continuation.md)
-now have presentational sample components: world-first liquid-glass cards, a mixed grid,
-a contained non-modal room sheet, and a Dashboard composition of stats → up to two Popular
-now cards → unchanged Hot Instances. They consume injected sample DTOs, resolved images and
-action callbacks only; production shell/Dashboard wiring, image bridging, queries, IPC and
-live discovery remain unchanged. Worlds shown defaults to 4 and offers only 2/4/6; Dashboard
-shows at most 2. Unknown totals remain unknown, fresh CVR public/group-public full rooms may
-remain actionable when main supplies that action, and VRChat action authority remains strict.
-Grid and Dashboard preview share named source states, including empty loading or failed
-sources. The sheet shows a platform text label and distinguishes incomplete coverage from
-verified empty results. Home/End select the count bounds.
-The API dependency is integrated and discovery refresh and volume choices are settled.
-Production activation and visual acceptance remain future work; no live-account tests are authorized.
+define world-first liquid-glass cards, a mixed grid and a contained non-modal
+room sheet. Explore replaces the Instances sidebar stub. Dashboard order is
+stats → up to two Popular now cards → unchanged Hot Instances. Both views use
+the same session cache and ranking. The global platform filter and Worlds shown
+choice persist; the count defaults to 4 and offers only 2/4/6. Home/End select
+the count bounds. Platform ranking stays native, with symmetric mixed selection.
+
+The sheet keeps the sidebar usable, restores focus to its opener or a connected
+fallback and retains count/filter state. Room Join uses the shared confirmation,
+permission and platform mode rules without inventing a friend. Fresh CVR
+Public/Group Public full rooms remain actionable; VRChat requires explicit
+eligibility. Stale access evidence disables Join. Unknown totals remain unknown,
+and incomplete coverage is distinct from verified empty results.
+
+Named source states preserve the last good data during loading or failure.
+Visible entry, focus and reconnect can request an eligible refresh; there is no
+periodic discovery scan. Images use the existing cache and only visible targets.
+The [production work receipt](superpowers/plans/2026-09-13-explore-production-block.md)
+records verification separately. Updating these references does not establish
+visual acceptance or authorize live-account tests.
 
 - Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
 - `glass.html` = living visual reference (the dashboard); keep in sync with this file — it carries BOTH themes (dark default; add `data-theme="light"` to `<html>` to preview light per §2A–§4A). `design.html` = human contributor guide (served at root `/`; embeds glass.html live). `platform-colors.html` = retired early explainer (superseded by design.html). On repo creation, this file → repo root / `docs/DESIGN.md`.

@@ -13,11 +13,13 @@ obsolete requests. Existing slow recovery/manual roster reads coalesce, while
 WebSockets remain the live presence path. See the API policy for the limits of
 these safeguards.
 
-Explore's pure ranking/parsers and presentational components have synthetic
-tests. Explore is not yet connected to the sidebar or live
-Dashboard. Its [integration continuation](docs/superpowers/plans/2026-09-09-explore-integration-continuation.md)
-records the integrated API dependency and settled discovery limits. Production
-activation and visual acceptance remain future work; no live-account tests are authorized.
+Explore adds public-world discovery to the sidebar and Dashboard. Both views
+share a session cache, with bounded visible-view refreshes and room details.
+The platform filter and 2/4/6 world choice persist; Join uses the existing
+confirmation and permission settings. The
+[integration contract](docs/superpowers/plans/2026-09-09-explore-integration-continuation.md)
+and [production work receipt](docs/superpowers/plans/2026-09-13-explore-production-block.md)
+separate implemented behavior from synthetic, runtime and live-account evidence.
 
 ## Stack
 

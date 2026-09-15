@@ -12,14 +12,7 @@ describe('useUiStore', () => {
   })
 
   it('setActiveTab switches between all §8 nav views', () => {
-    const tabs: ActiveTab[] = [
-      'dashboard',
-      'activity',
-      'friends',
-      'instances',
-      'groups',
-      'settings'
-    ]
+    const tabs: ActiveTab[] = ['dashboard', 'activity', 'friends', 'explore', 'groups', 'settings']
     for (const tab of tabs) {
       useUiStore.getState().setActiveTab(tab)
       expect(useUiStore.getState().activeTab).toBe(tab)

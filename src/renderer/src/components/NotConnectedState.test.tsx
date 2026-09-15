@@ -18,7 +18,10 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/friends')>()),
   useFriends: useFriendsMock
 }))
-vi.mock('../queries/auth', () => ({ useAuthStatus: useAuthStatusMock }))
+vi.mock('../queries/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/auth')>()),
+  useAuthStatus: useAuthStatusMock
+}))
 
 const accountCta = 'Go to Accounts'
 
