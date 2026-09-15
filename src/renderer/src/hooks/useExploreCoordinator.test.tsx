@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, AuthStatus } from '@shared/types'
 import type { ExplorePlatformSnapshot } from '@shared/explore'
@@ -58,6 +59,136 @@ afterEach(() => {
 })
 
 describe('Explore automatic eligibility', () => {
+  it('restores active platforms after StrictMode cleanup before requesting discovery', async () => {
+    let mainActive: readonly string[] = []
+    const setExploreActive = vi.fn(async ({ platforms }: { platforms: string[] }) => {
+      mainActive = platforms
+    })
+    const getExplore = vi.fn(async () => {
+      expect(mainActive).toEqual(['vrchat'])
+      return snapshot
+    })
+    window.vrx = {
+      setExploreActive,
+      getExplore,
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <Coordinator />
+        </QueryClientProvider>
+      </StrictMode>
+    )
+    await act(async () => undefined)
+    expect(mainActive).toEqual(['vrchat'])
+    expect(getExplore).toHaveBeenCalledOnce()
+    expect(setExploreActive.mock.calls.map(([request]) => request.platforms)).toEqual([
+      ['vrchat'],
+      [],
+      ['vrchat']
+    ])
+  })
+
+  it('coalesces identical active declarations across separate visible wakes', async () => {
+    const setExploreActive = vi.fn().mockResolvedValue(undefined)
+    window.vrx = {
+      setExploreActive,
+      getExplore: vi.fn().mockResolvedValue(snapshot),
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    queryClient.setQueryData(exploreQueryKey('vrchat'), { ...snapshot, updatedAt: Date.now() })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    await act(async () => window.dispatchEvent(new Event('online')))
+
+    expect(setExploreActive).toHaveBeenCalledOnce()
+    expect(setExploreActive).toHaveBeenCalledWith({ platforms: ['vrchat'] })
+  })
+
+  it('retries an active declaration after its rejected invocation on a later wake', async () => {
+    const setExploreActive = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('bridge busy'))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(undefined)
+    window.vrx = {
+      setExploreActive,
+      getExplore: vi.fn().mockResolvedValue(snapshot),
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    queryClient.setQueryData(authStatusQueryKey('vrchat'), { ...auth, state: 'error' })
+    queryClient.setQueryData(exploreQueryKey('vrchat'), { ...snapshot, updatedAt: Date.now() })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    await act(async () => window.dispatchEvent(new Event('focus')))
+
+    expect(setExploreActive).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a new active platform ordered behind its own invocation during an in-flight transition', async () => {
+    let resolveVrchat!: () => void
+    let resolveChilloutvr!: () => void
+    const setExploreActive = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveVrchat = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveChilloutvr = resolve
+          })
+      )
+      .mockResolvedValue(undefined)
+    const getExplore = vi.fn().mockResolvedValue({ ...snapshot, platform: 'chilloutvr' as const })
+    window.vrx = {
+      setExploreActive,
+      getExplore,
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    queryClient.setQueryData(authStatusQueryKey('chilloutvr'), {
+      ...auth,
+      platform: 'chilloutvr',
+      accountId: 'account-c'
+    })
+    await act(async () => useFriendsStore.setState({ platformFilter: 'chilloutvr' }))
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    expect(setExploreActive).toHaveBeenCalledTimes(2)
+    expect(setExploreActive).toHaveBeenNthCalledWith(2, { platforms: ['chilloutvr'] })
+
+    resolveVrchat()
+    resolveChilloutvr()
+    await vi.waitFor(() => expect(getExplore).toHaveBeenCalledOnce())
+    expect(getExplore).toHaveBeenCalledWith({ platform: 'chilloutvr', reason: 'automatic' })
+  })
+
   it('requires missing/stale cache and a five-minute account-scoped gap', () => {
     expect(eligibleExploreAutomatic('vrchat', auth, undefined, 100_000)).toBe(true)
     expect(eligibleExploreAutomatic('vrchat', auth, snapshot, 10_001)).toBe(false)

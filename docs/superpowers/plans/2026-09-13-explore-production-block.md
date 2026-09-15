@@ -319,3 +319,65 @@ Policy evidence was checked on 2026-09-13 against the
 and [ChilloutVR terms](https://docs.chilloutvr.net/official/legal/tos/).
 Their anti-abuse guidance supplies no numeric request quota. Use the already
 approved bounded Explore limits, shared pacing, caching and stop-on-429 rules.
+
+## September 15 merge and Mac delivery continuation
+
+This entry supersedes the earlier production merge/install restriction. Josh
+explicitly asked to merge Explore and then update the installed Mac app for his
+manual testing. The app update must preserve profile, credentials and settings,
+retain a reversible previous app, and use final main after the separate
+Dependabot lane settles. No public release or live-account automated test is
+requested. Required local gates, exact-head CI and critical external reviews
+still apply. The owner smoke test follows installation; its unchecked items do
+not create an extra premerge approval requirement.
+
+Fresh ancestry checks found the API safety PR307 and synthetic Explore PR305
+already on origin/main at `4a39eb3532c0778b29c7036eea12697c61d62a21`.
+Production PR313 remains open at `d0bebc9`. The saved main checkout is behind
+remote and was not moved. Read-only installed-app inspection found version
+`0.20.0-local.20260907.9f9b44f` with none of the production Explore preload
+channels. It was not launched or replaced during the audit.
+
+The Windows job in CI run 34749484257 attempt 3 actually ran and failed, despite
+the run-level startup-failure label. Its expired-ref recovery test used an
+`updatedAt: 1` fixture, allowing the real freshness timer to disable Join before
+the assertion. Fresh default timestamps correct the fixture without weakening
+production expiry or increasing timeouts. CodeQL had no runnable job in the
+inspected run. Missing Greptile output remains missing review, not approval.
+
+Confirmed review corrections are bounded to Explore: manual expiry recovery
+preserves the manual reason and existing account/selection fences; repeated
+activation IPC and retained image denials coalesce; numeric CVR privacy remains
+incomplete evidence rather than inheriting friend privacy mappings; the cold
+CVR batch test counts one original lease capture. StrictMode cleanup must clear
+remembered activation so remount setup restores main's active platforms.
+
+The existing `d0bebc9` private ZIP remains packaging evidence for that revision,
+but is superseded by these confirmed corrections and must not be installed as
+the final candidate. Current logs and isolated red/green/mutation evidence are
+in `/private/tmp/vrx-explore-audit-20260915/`; durable final receipts will be copied
+to `dist/explore-private` after verification.
+
+DOX: renderer ownership, the shared opaque-ref contract and the internal API
+catalog are updated with these corrections. The 0.20.0 changelog documents
+manual recovery. API policy/volatility already require the strict numeric
+privacy behavior and stay unchanged. The three design documents stay unchanged
+because these fixes restore the approved interactions without changing layout,
+copy, controls or traffic limits. No new directory boundary was introduced.
+
+The integrated correction passes uncached ESLint, formatting, both TypeScript
+checks, production build and entry assertion. All 181 files / 2,754 tests pass
+in `tests-loopback-allowed.log`. The initial suite's only failures were two
+localhost WebSocket servers denied by the filesystem/network sandbox; the
+approved loopback-capable rerun passed without source changes. The formerly
+failing Windows test also passes alone in `driver-ci-regression.log`.
+`git diff --check` passes. Together these results are recorded as
+`EXPLORE_SEP15_VERIFIED_GREEN`; the original failed gate log is preserved.
+
+Fallow 2.89 was rerun without caches against both exact `d0bebc9` and the final
+working tree. All eight existing dead-code findings are identical. Eleven new
+clone fingerprints touch test files only, with no new production-code clone.
+The fresh focused review must cover the exact correction patch, while the prior
+general and focused evidence through `d0bebc9` remains in
+`dist/explore-private/review-evidence-d0bebc9/coverage.json`. Merge readiness is
+still separate from these local results.

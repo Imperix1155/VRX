@@ -103,6 +103,10 @@ let boundary: ((event: { platform: 'vrchat' | 'chilloutvr' }) => void) | undefin
 let worldReads: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  const updatedAt = Date.now()
+  source.updatedAt = updatedAt
+  loading.updatedAt = updatedAt
+  ready.updatedAt = updatedAt
   query.vrc = source
   query.cvr = undefined
   query.requestExplore.mockReset()
@@ -493,6 +497,141 @@ for (const [label, Route] of [
   ['Dashboard', ExploreDashboardPreviewRoute]
 ] as const) {
   describe(`${label} selected-world lifetime`, () => {
+    it('recovers each explicit stale-sheet refresh with the latest opaque reference', async () => {
+      const renewedOnce = { ...world, worldRef: 'renewed-once' }
+      const renewedTwice = { ...world, worldRef: 'renewed-twice' }
+      query.readExploreSnapshot
+        .mockResolvedValueOnce({ ...source, worlds: [renewedOnce] })
+        .mockResolvedValueOnce({ ...source, worlds: [renewedTwice] })
+      worldReads
+        .mockResolvedValueOnce({ ...ready, isStale: true })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...ready, world: renewedOnce, isStale: true })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...ready, world: renewedTwice, isStale: true })
+      render(<Route />)
+      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      await screen.findByText('Showing saved results while refreshing.')
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
+      await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(3))
+      fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
+      await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(5))
+
+      expect(worldReads.mock.calls.map(([request]) => request)).toEqual([
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'open' },
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-once', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-once', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-twice', reason: 'manual' }
+      ])
+    })
+
+    it('coalesces duplicate manual recovery and queues its renewed-ref invalidation', async () => {
+      const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+      let finishRecovery!: (value: ExplorePlatformSnapshot) => void
+      query.readExploreSnapshot.mockImplementation(
+        () =>
+          new Promise<ExplorePlatformSnapshot>((resolve) => {
+            finishRecovery = resolve
+          })
+      )
+      worldReads
+        .mockResolvedValueOnce({ ...ready, isStale: true })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ ...loading, world: renewedWorld })
+        .mockResolvedValueOnce({ ...ready, world: renewedWorld })
+      render(<Route />)
+      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      await screen.findByText('Showing saved results while refreshing.')
+
+      const refresh = screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!
+      fireEvent.click(refresh)
+      fireEvent.click(refresh)
+      await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
+      expect(worldReads).toHaveBeenCalledTimes(2)
+      await act(async () => {
+        changed?.({ platform: 'vrchat' })
+        changed?.({ platform: 'vrchat' })
+        await Promise.resolve()
+      })
+
+      await act(async () => {
+        finishRecovery({ ...source, worlds: [renewedWorld] })
+      })
+      await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(4))
+      expect(worldReads.mock.calls.map(([request]) => request)).toEqual([
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'open' },
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'snapshot' }
+      ])
+    })
+
+    it('defers an invalidation that arrives before the manual expiry result', async () => {
+      const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+      let finishManual!: (value: null) => void
+      query.readExploreSnapshot.mockResolvedValue({ ...source, worlds: [renewedWorld] })
+      worldReads
+        .mockResolvedValueOnce({ ...ready, isStale: true })
+        .mockImplementationOnce(
+          () =>
+            new Promise<null>((resolve) => {
+              finishManual = resolve
+            })
+        )
+        .mockResolvedValueOnce({ ...loading, world: renewedWorld })
+        .mockResolvedValueOnce({ ...ready, world: renewedWorld })
+      render(<Route />)
+      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      await screen.findByText('Showing saved results while refreshing.')
+      fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
+      await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(2))
+
+      await act(async () => {
+        changed?.({ platform: 'vrchat' })
+        changed?.({ platform: 'vrchat' })
+        await Promise.resolve()
+      })
+      expect(worldReads).toHaveBeenCalledTimes(2)
+      expect(query.readExploreSnapshot).not.toHaveBeenCalled()
+
+      await act(async () => {
+        finishManual(null)
+      })
+      await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(4))
+      expect(worldReads.mock.calls.map(([request]) => request)).toEqual([
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'open' },
+        { platform: 'vrchat', worldRef: 'world-ref', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'manual' },
+        { platform: 'vrchat', worldRef: 'renewed-ref', reason: 'snapshot' }
+      ])
+    })
+
+    it('closes instead of publishing a manual expired-ref recovery after a boundary', async () => {
+      const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+      let finishRecovery!: (value: ExplorePlatformSnapshot) => void
+      query.readExploreSnapshot.mockImplementation(
+        () =>
+          new Promise<ExplorePlatformSnapshot>((resolve) => {
+            finishRecovery = resolve
+          })
+      )
+      worldReads.mockResolvedValueOnce({ ...ready, isStale: true }).mockResolvedValueOnce(null)
+      render(<Route />)
+      fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+      await screen.findByText('Showing saved results while refreshing.')
+      fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
+      await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
+
+      act(() => boundary?.({ platform: 'vrchat' }))
+      await act(async () => {
+        finishRecovery({ ...source, worlds: [renewedWorld] })
+      })
+      expect(worldReads).toHaveBeenCalledTimes(2)
+      expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
+    })
+
     it('keeps the final changed snapshot when an older open reply arrives last', async () => {
       let finishOpen!: (value: ExploreWorldSnapshot) => void
       worldReads.mockImplementationOnce(

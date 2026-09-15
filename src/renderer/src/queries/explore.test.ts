@@ -200,4 +200,46 @@ describe('Explore renderer requests', () => {
     await requestExploreImage('vrchat', 'world-12')
     expect(getExploreImage).toHaveBeenCalledTimes(14)
   })
+
+  it('retains a denial sentinel only until its platform boundary', async () => {
+    const getExploreImage = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ok: true as const, dataUrl: 'data:image/png;base64,fresh-account' })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+
+    await expect(requestExploreImage('vrchat', 'denied-ref')).resolves.toBeUndefined()
+    await expect(requestExploreImage('vrchat', 'denied-ref')).resolves.toBeUndefined()
+    expect(getExploreImage).toHaveBeenCalledOnce()
+
+    clearExplorePlatform('vrchat')
+    await expect(requestExploreImage('vrchat', 'denied-ref')).resolves.toBe(
+      'data:image/png;base64,fresh-account'
+    )
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retain a late old-account image denial after a boundary', async () => {
+    let resolveDenied!: (value: null) => void
+    const getExploreImage = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            resolveDenied = resolve
+          })
+      )
+      .mockResolvedValueOnce({ ok: true as const, dataUrl: 'data:image/png;base64,new-account' })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+
+    const oldAccount = requestExploreImage('vrchat', 'shared-ref')
+    clearExplorePlatform('vrchat')
+    resolveDenied(null)
+    await expect(oldAccount).resolves.toBeUndefined()
+
+    await expect(requestExploreImage('vrchat', 'shared-ref')).resolves.toBe(
+      'data:image/png;base64,new-account'
+    )
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+  })
 })

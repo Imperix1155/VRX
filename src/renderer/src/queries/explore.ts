@@ -21,7 +21,9 @@ interface Flight {
 const generations: Record<Platform, number> = { vrchat: 0, chilloutvr: 0 }
 const flights = new Map<Platform, Flight>()
 const freshnessTimers = new Map<Platform, ReturnType<typeof setTimeout>>()
-const images = new Map<string, string>()
+// A null value remembers a main denial without retaining any image data. It is
+// bounded and reset with the platform just like successful image entries.
+const images = new Map<string, string | null>()
 const imageFlights = new Map<string, Promise<string | undefined>>()
 const resetGenerations: Record<Platform, number> = { vrchat: 0, chilloutvr: 0 }
 const resetListeners: Record<Platform, Set<() => void>> = {
@@ -33,7 +35,7 @@ function imageKey(platform: Platform, worldRef: string): string {
   return `${platform}:${worldRef}`
 }
 
-function cacheImage(platform: Platform, worldRef: string, dataUrl: string): void {
+function cacheImage(platform: Platform, worldRef: string, dataUrl: string | null): void {
   const key = imageKey(platform, worldRef)
   images.set(key, dataUrl)
   let retained = 0
@@ -186,7 +188,7 @@ export function requestExploreImage(
 ): Promise<string | undefined> {
   const key = imageKey(platform, worldRef)
   const cached = images.get(key)
-  if (cached !== undefined) return Promise.resolve(cached)
+  if (cached !== undefined) return Promise.resolve(cached ?? undefined)
   const pending = imageFlights.get(key)
   if (pending !== undefined) return pending
   const generation = generations[platform]
@@ -194,8 +196,10 @@ export function requestExploreImage(
     if (typeof window === 'undefined' || !window.vrx?.getExploreImage) return undefined
     const response = await window.vrx.getExploreImage({ platform, worldRef })
     const data = response?.ok ? response.dataUrl : undefined
-    if (data !== undefined && generations[platform] === generation)
-      cacheImage(platform, worldRef, data)
+    if (generations[platform] === generation) {
+      if (response === null) cacheImage(platform, worldRef, null)
+      else if (data !== undefined) cacheImage(platform, worldRef, data)
+    }
     return data
   })()
   imageFlights.set(key, request)

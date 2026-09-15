@@ -64,6 +64,7 @@ function deferred<T>(): {
 class FakeExploreAdapter implements ExploreAdapter {
   readonly contexts: ExploreRequestContext[] = []
   readonly physical = { candidates: 0, worlds: 0, rooms: 0 }
+  captureCount = 0
   candidates: Omit<ExploreWorld, 'worldRef'>[] = []
   readonly details = new Map<
     string,
@@ -81,6 +82,7 @@ class FakeExploreAdapter implements ExploreAdapter {
 
   constructor(readonly platform: Platform) {}
   captureExploreLease(): typeof this.lease {
+    this.captureCount++
     return this.lease
   }
   async getExploreCandidates(
@@ -239,6 +241,7 @@ describe('ExploreService integration bounds', () => {
     )
     expect(adapter.contexts).toHaveLength(13)
     expect(adapter.contexts.every((context) => context.lease === adapter.lease)).toBe(true)
+    expect(adapter.captureCount).toBe(1)
     expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).worlds).toHaveLength(6)
   })
 

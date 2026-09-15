@@ -73,10 +73,7 @@ function isKnownCvrNonPublicRoom(raw: Record<string, unknown>): boolean {
   if (
     !values.every((value) => {
       if (parseCvrExplorePublicAccess(value) !== null) return true
-      return (
-        (typeof value === 'string' || typeof value === 'number') &&
-        parseCvrPrivacy(value).opennessUnknown !== true
-      )
+      return typeof value === 'string' && parseCvrPrivacy(value).opennessUnknown !== true
     })
   ) {
     return false

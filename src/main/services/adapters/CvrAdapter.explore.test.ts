@@ -197,6 +197,24 @@ describe('CvrAdapter Explore capability', () => {
     ).rejects.toBeInstanceOf(ExploreDataError)
   })
 
+  it.each([
+    [0, 'a public-like numeric enum value'],
+    [2, 'a mapped friends numeric enum value'],
+    [99, 'an unsupported numeric enum value']
+  ])('rejects %s as incomplete Explore room access evidence', async (privacy) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(envelope({ id: instanceId, world: { id: worldId }, privacy }))
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = established(new CvrAdapter(store(), instantAdmission()))
+
+    await expect(
+      adapter.getExploreRoom({ worldId, instanceId }, context(adapter))
+    ).rejects.toBeInstanceOf(ExploreDataError)
+  })
+
   it('does not invalidate a replacement session for an old lease auth error', async () => {
     const adapter = established(new CvrAdapter(store(), instantAdmission()))
     const stale = context(adapter)

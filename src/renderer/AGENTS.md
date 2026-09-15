@@ -28,19 +28,24 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   owns dismissal. A stale sheet offers explicit refresh; stale, mismatched, busy,
   and denied room actions are honestly disabled. World openings may first return
   a loading snapshot; `onExploreChanged` then reads cache-only room data rather
-  than closing the sheet or retrying discovery. When an explicit card open finds
-  an expired opaque reference, selection may make one fenced cache-only snapshot
-  read and reopen only the same platform/world ID under its replacement ref;
-  close, reselect, and identity fences prevent that recovery from publishing
+  than closing the sheet or retrying discovery. When an explicit card open or
+  manual Refresh finds an expired opaque reference, that gesture may make one
+  fenced cache-only
+  snapshot read and recover only the same platform/world ID under its replacement
+  ref, retaining the original open/manual reason. Close, reselect, and identity fences prevent that recovery from publishing
   later. A disconnected selected platform renders the existing unavailable source
   state without discovery work, while a healthy platform remains visible. Failed
-  images stay neutral. Same-platform invalidations wait behind an active ref
+  images stay neutral. Duplicate manual refreshes coalesce while pending.
+  Same-platform invalidations wait behind an active manual refresh or ref
   recovery, then read the renewed ref while retaining account/close fences. Sheet art is fenced by the selected opaque ref, independently
   of later room-snapshot request ordering.
 
 - `src/hooks/useExploreCoordinator.ts` is the sole renderer trigger for Explore
   work. It sets active platforms for a relevant visible Dashboard/Explore view,
-  then accepts only eligible entry, focus, online, or `connection: 'live'` wakes:
+  coalescing identical pending or successful declarations. Rejected declarations
+  can retry on a later wake; cleanup clears the remembered declaration before
+  deactivation so a remount restores active platforms. It then accepts only
+  eligible entry, focus, online, or `connection: 'live'` wakes:
   selected authenticated (or proven retained transient-error) account, missing or
   60-second-stale cache, and a five-minute account/platform automatic gate. It
   records before IPC and has no interval, retry, or timer-driven request. The
@@ -59,9 +64,10 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   read is quiet. A queued manual/automatic request checks its original
   generation before dispatching, so an old account cannot replay against a new
   one. Image work begins only from a visible card or currently selected sheet,
-  deduplicates a current opaque `worldRef`, never retries a denial, and keeps at
-  most 12 data URLs per platform. Platform boundaries reset only that platform's
-  image observers/cache. Reset disabled query observers at boundaries; removing
+  deduplicates a current opaque `worldRef`, and caches successful images and
+  null denials together within a 12-entry per-platform bound. A retained denial
+  suppresses another request until eviction or that platform boundary. Platform
+  boundaries reset only that platform's image observers/cache. Reset disabled query observers at boundaries; removing
   a query alone leaves an already mounted observer holding old account data.
 
 - `src/components/IdentitiesDialog.tsx`, `LinkConfirmDialog.tsx`, and `LinkedDialog.tsx` own manual local identity management. Dialog reviews capture exact pairs, account-qualified labels, shared notes and revisions; replacement is one request, never sequential unlink operations. New links start a blank shared note; unlink/replacement requires explicit loss acknowledgement and preserves original account notes. A stale review must be reopened. Native modality owns keyboard trapping and background inertness; the underlying drawer stays non-modal. A session boundary invalidates the open review.

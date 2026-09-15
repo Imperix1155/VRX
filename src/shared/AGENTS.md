@@ -10,7 +10,9 @@ The common data model and constants shared across the main, preload, and rendere
   load states, typed refresh reasons and the 2/4/6 world-total options (default
   4). Partial/unknown counts have a null value. World and selection references
   are opaque values issued by main; shared DTOs carry display identifiers, never credentials or launch URLs.
-  Only an opaque main-issued reference may request discovery or Join. Synthetic references belong only in tests.
+  Initial discovery accepts only a platform and typed refresh reason. World details,
+  images, cancellation and Join require opaque main-issued references. Synthetic
+  references belong only in tests.
   `exploreRanking.ts` ranks bounded platform lists separately,
   then selects equal shares with alternating pair leaders and symmetric
   backfill. Compare UUID material without platform prefixes; tied lists use a fair session

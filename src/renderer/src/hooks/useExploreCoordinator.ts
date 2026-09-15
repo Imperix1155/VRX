@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ExplorePlatformSnapshot } from '@shared/explore'
 import type { AuthStatus, Platform } from '@shared/types'
 import {
@@ -83,6 +83,20 @@ interface RetainedExploreAccount {
 
 type RetainedExploreAccounts = Record<Platform, RetainedExploreAccount>
 
+interface ActiveDeclaration {
+  key: string
+  promise: Promise<void>
+}
+
+interface ActiveDeclarationState {
+  successful: string | undefined
+  pending: ActiveDeclaration | undefined
+}
+
+function activeDeclarationKey(relevant: boolean, active: readonly Platform[]): string {
+  return relevant ? active.join(',') : ''
+}
+
 function useRetainedExploreAccounts(
   vrc: AuthStatus | undefined,
   vrcUpdatedAt: number,
@@ -150,6 +164,10 @@ export function useExploreCoordinator(): void {
     () => typeof document === 'undefined' || document.visibilityState === 'visible'
   )
   const [wake, setWake] = useState(0)
+  const activeDeclaration = useRef<ActiveDeclarationState>({
+    successful: undefined,
+    pending: undefined
+  })
   const statuses = useMemo(
     () => ({
       vrchat: effectiveStatus(vrc, vrcQuery.dataUpdatedAt ?? 0, retainedAccounts.vrchat),
@@ -163,8 +181,39 @@ export function useExploreCoordinator(): void {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.setExploreActive) return
     let cancelled = false
-    void window.vrx
-      .setExploreActive({ platforms: relevant ? active : [] })
+    const platforms = relevant ? active : []
+    const key = activeDeclarationKey(relevant, active)
+    const known = activeDeclaration.current
+    let activation: Promise<void>
+    if (known.successful === key) {
+      activation = Promise.resolve()
+    } else if (known.pending?.key === key) {
+      activation = known.pending.promise
+    } else {
+      const declaration: ActiveDeclaration = {
+        key,
+        promise: Promise.resolve()
+      }
+      // A changed declaration invalidates the remembered one. Main may have
+      // applied a later-rejected request, so only an exact settled success is
+      // safe to reuse on future wakes.
+      activeDeclaration.current = { successful: undefined, pending: declaration }
+      declaration.promise = window.vrx
+        .setExploreActive({ platforms })
+        .then(() => {
+          if (activeDeclaration.current.pending === declaration) {
+            activeDeclaration.current = { successful: key, pending: undefined }
+          }
+        })
+        .catch((error: unknown) => {
+          if (activeDeclaration.current.pending === declaration) {
+            activeDeclaration.current = { successful: undefined, pending: undefined }
+          }
+          throw error
+        })
+      activation = declaration.promise
+    }
+    void activation
       .then(() => {
         if (cancelled || !relevant) return
         const now = Date.now()
@@ -237,6 +286,7 @@ export function useExploreCoordinator(): void {
   useEffect(() => {
     const bridge = typeof window === 'undefined' ? undefined : window.vrx
     return () => {
+      activeDeclaration.current = { successful: undefined, pending: undefined }
       void bridge?.setExploreActive?.({ platforms: [] }).catch(() => undefined)
     }
   }, [])

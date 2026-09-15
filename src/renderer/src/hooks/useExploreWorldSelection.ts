@@ -15,6 +15,7 @@ interface Selection {
   dirty: boolean
   recoveredExpiredRef: boolean
   recovering: boolean
+  manualPending: boolean
 }
 
 function cancel(selection: Selection | null): void {
@@ -32,13 +33,20 @@ async function readChanges(
   isCurrent: () => boolean,
   read: (selection: Selection, reason: ExploreWorldReason) => Promise<void>
 ): Promise<void> {
-  if (!isCurrent() || selection.reading || selection.recovering || !selection.dirty) return
+  if (
+    !isCurrent() ||
+    selection.reading ||
+    selection.recovering ||
+    selection.manualPending ||
+    !selection.dirty
+  )
+    return
   selection.reading = true
   try {
     do {
       selection.dirty = false
       await read(selection, 'snapshot')
-    } while (selection.dirty && isCurrent() && !selection.recovering)
+    } while (selection.dirty && isCurrent() && !selection.recovering && !selection.manualPending)
   } finally {
     selection.reading = false
   }
@@ -76,7 +84,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
       reading: false,
       dirty: false,
       recoveredExpiredRef: false,
-      recovering: false
+      recovering: false,
+      manualPending: false
     }
     current.current = next
     setSelected(next)
@@ -96,6 +105,12 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   const read = useCallback(
     async function readSelection(selection: Selection, reason: ExploreWorldReason): Promise<void> {
       if (current.current !== selection || !window.vrx?.getExploreWorld) return
+      if (reason === 'manual') {
+        // A single explicit gesture may recover one expired reference. Further
+        // clicks wait for that gesture to settle instead of overlapping reads.
+        if (selection.manualPending || selection.recovering) return
+        selection.manualPending = true
+      }
       const request = ++selection.request
       let recovering = false
       try {
@@ -107,11 +122,14 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
         if (current.current !== selection || request !== selection.request) return
         if (result === null) {
           // Main may renew opaque references while the card is still rendered.
-          // An explicit open gets one cache-only lookup for the same displayed
-          // world, then reopens with the replacement reference. It never starts
-          // discovery work or weakens the main-owned reference TTL.
-          if (reason === 'open' && !selection.recoveredExpiredRef) {
-            selection.recoveredExpiredRef = true
+          // An explicit open or manual refresh gets one cache-only lookup for
+          // the same displayed world, then reopens with the replacement
+          // reference. It never starts discovery work or weakens the
+          // main-owned reference TTL.
+          const mayRecover =
+            reason === 'manual' || (reason === 'open' && !selection.recoveredExpiredRef)
+          if (mayRecover) {
+            if (reason === 'open') selection.recoveredExpiredRef = true
             selection.recovering = true
             recovering = true
             try {
@@ -129,7 +147,7 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
                 const reopened = await window.vrx?.getExploreWorld?.({
                   platform: renewed.platform,
                   worldRef: renewed.worldRef,
-                  reason: 'open'
+                  reason
                 })
                 if (current.current !== selection || request !== selection.request) return
                 if (
@@ -158,8 +176,9 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
         // Main normally supplies a closed error state. Preserve the last snapshot
         // if the bridge itself fails; there is no implicit retry.
       } finally {
-        if (recovering) {
-          selection.recovering = false
+        if (reason === 'manual') selection.manualPending = false
+        if (recovering) selection.recovering = false
+        if (recovering || reason === 'manual') {
           await readChanges(selection, () => current.current === selection, readSelection)
         }
       }
