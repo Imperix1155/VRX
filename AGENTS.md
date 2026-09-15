@@ -117,6 +117,10 @@ npm run lint && npm run format:check && npm run build
 `npm run build` includes both TypeScript checks and the entry-chunk assertion;
 do not run the same typecheck again solely to complete this gate.
 
+Generated reports under `coverage/` are excluded from ESLint. When changing test
+or coverage tooling, verify `npm run test:coverage` followed by `npm run lint`
+so generated assets do not break source linting.
+
 For changes only to review-policy instructions or reviewer-role configuration,
 use focused format/configuration/reference and policy-scenario checks. Changes
 to app, build, runtime, release, or CI configuration still need their applicable
