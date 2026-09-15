@@ -5,6 +5,8 @@ export const EXPLORE_WORLD_TOTALS = [2, 4, 6] as const
 export type ExploreWorldTotal = (typeof EXPLORE_WORLD_TOTALS)[number]
 export const DEFAULT_EXPLORE_WORLD_TOTAL: ExploreWorldTotal = 4
 export type ExploreFilter = 'all' | Platform
+export type ExploreRefreshReason = 'snapshot' | 'automatic' | 'manual'
+export type ExploreWorldReason = 'snapshot' | 'open' | 'manual'
 
 export type ExploreCountSource =
   | 'vrc-world-occupants'
@@ -24,7 +26,7 @@ export type ExploreCount =
 export interface ExploreWorld {
   platform: Platform
   worldId: string
-  /** Opaque reference issued by main in phase B; fixtures use synthetic references. */
+  /** Opaque reference issued by main; fixtures use synthetic references. */
   worldRef: string
   name: string
   thumbnailUrl: string | null

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { InstanceActionResult } from '@shared/ipc'
 import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useSettingsStore } from '../stores/settings'
@@ -51,7 +52,8 @@ export interface JoinTarget {
 /** The dialog's pending confirmation state. Reset only on join success, cancel,
  *  or an ordinary terminal failure — preserved across drift/unavailable so the
  *  user can review or wait for the cache to catch up (VRX-239/241). */
-export interface PendingConfirm {
+export interface FriendPendingConfirm {
+  source: 'friend'
   /** Increments per dialog OPEN; keyed for per-open UI reset, never friend
    *  object identity. */
   requestId: number
@@ -65,6 +67,21 @@ export interface PendingConfirm {
    *  wait to exceed before another Confirm can proceed. */
   awaitingCacheAfter: number | null
 }
+
+/** A discovery-room confirmation is deliberately not represented as a Friend. */
+export interface ExplorePendingConfirm {
+  source: 'explore'
+  requestId: number
+  platform: Platform
+  world: ExploreWorld
+  room: ExploreRoom
+  /** Deliberately absent: retained only as optional fields for existing generic join consumers. */
+  displayName?: undefined
+  reviewedTarget?: undefined
+  awaitingCacheAfter?: undefined
+}
+
+export type PendingConfirm = FriendPendingConfirm | ExplorePendingConfirm
 
 export type ConfirmPendingResult = 'joined' | 'review-required' | 'unavailable' | 'failed'
 
@@ -86,10 +103,12 @@ interface JoinStore {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => JoinSnapshot
   join: (friend: Friend) => Promise<void>
+  joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
   invalidatePending: (platform?: Platform) => void
+  invalidateFriendPending: () => void
 }
 
 /** Read the latest friends array and the query's dataUpdatedAt watermark for CAS. */
@@ -233,6 +252,7 @@ function createJoinStore(): JoinStore {
       sessionGeneration += 1
       emit({
         pendingConfirm: {
+          source: 'friend',
           requestId,
           platform: friend.platform,
           platformUserId: friend.platformUserId,
@@ -246,12 +266,85 @@ function createJoinStore(): JoinStore {
     await performJoin(friend, resolveWireMode(friend, joinMode))
   }
 
+  function exploreJoinKey(world: ExploreWorld, room: ExploreRoom): string {
+    return `explore:${world.platform}:${world.worldId}:${room.roomId}`
+  }
+
+  async function performExploreJoin(
+    world: ExploreWorld,
+    room: ExploreRoom,
+    mode: JoinMode
+  ): Promise<ConfirmPendingResult> {
+    const generation = ++sessionGeneration
+    directJoinPlatform = world.platform
+    emit({ joining: true })
+    clearFailureBlip()
+    const key = exploreJoinKey(world, room)
+    try {
+      if (!window.vrx?.joinExploreRoom || room.action.state !== 'available') {
+        if (generation === sessionGeneration) showFailureBlip(key, 'not-joinable')
+        return 'failed'
+      }
+      const result = await window.vrx.joinExploreRoom({
+        platform: world.platform,
+        selectionRef: room.action.selectionRef,
+        mode
+      })
+      if (generation !== sessionGeneration) return 'failed'
+      if (result.ok) return 'joined'
+      showFailureBlip(key, result.reason)
+      return result.reason === 'target-changed' ? 'review-required' : 'failed'
+    } catch {
+      if (generation === sessionGeneration) showFailureBlip(key, 'unknown')
+      return 'failed'
+    } finally {
+      if (generation === sessionGeneration) {
+        directJoinPlatform = null
+        emit({ joining: false, pendingConfirm: null })
+      }
+    }
+  }
+
+  async function joinExplore(world: ExploreWorld, room: ExploreRoom): Promise<void> {
+    if (snapshot.joining || snapshot.pendingConfirm !== null) return
+    const { allowJoinInstances, confirmJoin, joinMode } = useSettingsStore.getState().settings
+    const key = exploreJoinKey(world, room)
+    if (!allowJoinInstances) {
+      clearFailureBlip()
+      showFailureBlip(key, 'joining-disabled')
+      return
+    }
+    if (room.action.state !== 'available') {
+      clearFailureBlip()
+      showFailureBlip(key, room.action.reason === 'stale' ? 'stale' : 'not-joinable')
+      return
+    }
+    if (confirmJoin) {
+      clearFailureBlip()
+      requestId += 1
+      sessionGeneration += 1
+      emit({
+        pendingConfirm: { source: 'explore', requestId, platform: world.platform, world, room }
+      })
+      return
+    }
+    await performExploreJoin(world, room, resolveWireMode(world, joinMode))
+  }
+
+  async function confirmExplorePending(
+    pending: ExplorePendingConfirm,
+    mode: JoinMode
+  ): Promise<ConfirmPendingResult> {
+    return performExploreJoin(pending.world, pending.room, mode)
+  }
+
   async function confirmPending(mode: JoinMode): Promise<ConfirmPendingResult> {
     const pc = snapshot.pendingConfirm
     // The latch applies to confirmed joins as well: Confirm fires exactly once.
     // If the dialog state is gone or a launch is already running, there is no
     // actionable target available.
     if (pc === null || snapshot.joining) return 'unavailable'
+    if (pc.source === 'explore') return confirmExplorePending(pc, mode)
 
     // Renderer preflight (VRX-239): re-read the TanStack cache synchronously —
     // NEVER the render closure. Fail closed to 'review-required' (drift) or
@@ -341,6 +434,7 @@ function createJoinStore(): JoinStore {
   function acknowledgePendingTarget(presentedKey?: string): boolean {
     const pc = snapshot.pendingConfirm
     if (pc === null || snapshot.joining) return false
+    if (pc.source === 'explore') return false
     // Acknowledgment must also be healthy: a failed query can retain stale data,
     // and accepting it would let the dialog launch a target the cache can no
     // longer vouch for.
@@ -378,7 +472,8 @@ function createJoinStore(): JoinStore {
       platform !== undefined &&
       snapshot.pendingConfirm?.platform !== platform &&
       directJoinPlatform !== platform &&
-      !snapshot.failedFriendId?.startsWith(`${platform}:`)
+      !snapshot.failedFriendId?.startsWith(`${platform}:`) &&
+      !snapshot.failedFriendId?.startsWith(`explore:${platform}:`)
     )
       return
     sessionGeneration += 1
@@ -389,6 +484,11 @@ function createJoinStore(): JoinStore {
     }
   }
 
+  function invalidateFriendPending(): void {
+    if (snapshot.pendingConfirm?.source === 'explore') return
+    invalidatePending()
+  }
+
   return {
     subscribe: (listener) => {
       listeners.add(listener)
@@ -396,10 +496,12 @@ function createJoinStore(): JoinStore {
     },
     getSnapshot: () => snapshot,
     join,
+    joinExplore,
     confirmPending,
     acknowledgePendingTarget,
     cancelPending,
-    invalidatePending
+    invalidatePending,
+    invalidateFriendPending
   }
 }
 
@@ -435,11 +537,14 @@ export function useJoinInstance(): {
   pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
   joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFailureReason | null
+  joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFailureReason | null
   join: (friend: Friend) => Promise<void>
+  joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
   acknowledgePendingTarget: (presentedKey?: string) => boolean
   cancelPending: () => void
   invalidatePending: (platform?: Platform) => void
+  invalidateFriendPending: () => void
 } {
   const { joining, pendingConfirm, failedFriendId, failureReason } = useSyncExternalStore(
     sharedJoinStore.subscribe,
@@ -453,10 +558,16 @@ export function useJoinInstance(): {
     pendingConfirm,
     joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend),
     joinFailureFor: (friend) => (failedFriendId === friendJoinKey(friend) ? failureReason : null),
+    joinExploreFailureFor: (world, room) =>
+      failedFriendId === `explore:${world.platform}:${world.worldId}:${room.roomId}`
+        ? failureReason
+        : null,
     join: sharedJoinStore.join,
+    joinExplore: sharedJoinStore.joinExplore,
     confirmPending: sharedJoinStore.confirmPending,
     acknowledgePendingTarget: sharedJoinStore.acknowledgePendingTarget,
     cancelPending: sharedJoinStore.cancelPending,
-    invalidatePending: sharedJoinStore.invalidatePending
+    invalidatePending: sharedJoinStore.invalidatePending,
+    invalidateFriendPending: sharedJoinStore.invalidateFriendPending
   }
 }

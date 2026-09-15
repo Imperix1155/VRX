@@ -33,7 +33,11 @@ import type { Friend, InstanceInfo, JoinMode, JoinModePreference, Platform } fro
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useFriends } from '../queries/friends'
-import { resolveWireMode, useJoinInstance } from '../hooks/useJoinInstance'
+import {
+  resolveWireMode,
+  useJoinInstance,
+  type FriendPendingConfirm
+} from '../hooks/useJoinInstance'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
@@ -75,6 +79,221 @@ const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
  *  dialog simply omits the total until the surface lands. */
 type InstanceDetailsBridge = { getInstanceDetails?: (instanceId: string) => Promise<InstanceInfo> }
 
+/** The one modal shell renders a distinct, typed Explore source; it never fabricates a Friend. */
+function ExploreJoinConfirmDialog(): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const { pendingConfirm, isJoining, confirmPending, cancelPending, invalidatePending } =
+    useJoinInstance()
+  const joinMode = useSettingsStore((state) => state.settings.joinMode)
+  const updateSettings = useSettingsStore((state) => state.updateSettings)
+  const [mode, setMode] = useState<JoinMode>('desktop')
+  const [moreOpen, setMoreOpen] = useState(false)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const openerRef = useRef<Element | null>(null)
+  const launchInitiatedRef = useRef(false)
+  const joiningRef = useRef(isJoining)
+  const pending = pendingConfirm?.source === 'explore' ? pendingConfirm : null
+  useEffect(() => {
+    joiningRef.current = isJoining
+  }, [isJoining])
+  useEffect(() => {
+    if (pending === null) return
+    openerRef.current = document.activeElement
+    launchInitiatedRef.current = false
+    cancelRef.current?.focus()
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !joiningRef.current) cancelPending()
+      if (event.key !== 'Tab') return
+      const panel = panelRef.current
+      if (panel === null) return
+      const focusables = getFocusables(panel)
+      const active = document.activeElement
+      if (focusables.length === 0) {
+        panel.focus({ preventScroll: true })
+        event.preventDefault()
+        return
+      }
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      if (first === undefined || last === undefined) return
+      if (
+        active === null ||
+        !panel.contains(active) ||
+        !focusables.includes(active as HTMLElement)
+      ) {
+        first.focus({ preventScroll: true })
+        event.preventDefault()
+      } else if (event.shiftKey && active === first) {
+        last.focus()
+        event.preventDefault()
+      } else if (!event.shiftKey && active === last) {
+        first.focus()
+        event.preventDefault()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    const boundary = window.vrx?.onIdentityBoundary?.(({ platform }) => invalidatePending(platform))
+    const friend = window.vrx?.onFriendEvent?.((event) => {
+      if (event.type === 'auth-invalidated') invalidatePending(event.platform)
+    })
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      boundary?.()
+      friend?.()
+      if (launchInitiatedRef.current) {
+        document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true })
+      } else {
+        const opener = openerRef.current
+        const target =
+          opener instanceof HTMLElement && opener.isConnected
+            ? opener
+            : document.querySelector<HTMLElement>('main')
+        target?.focus({ preventScroll: true })
+      }
+    }
+  }, [cancelPending, invalidatePending, pending])
+  useEffect(() => {
+    if (isJoining && pending !== null) launchInitiatedRef.current = true
+  }, [isJoining, pending])
+  if (pending === null) return null
+  const { world, room } = pending
+  const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
+  const showModePicker = world.platform === 'chilloutvr' && joinMode === 'ask'
+  const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
+  async function joinAndNeverAskAgain(): Promise<void> {
+    const result = await confirmPending(resolvedMode)
+    if (result === 'joined') {
+      updateSettings({
+        confirmJoin: false,
+        ...(showModePicker ? { joinMode: mode } : {})
+      })
+    }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-[var(--space-6)]">
+      <div
+        data-testid="join-confirm-scrim"
+        aria-hidden="true"
+        onPointerDown={() => {
+          if (!isJoining) cancelPending()
+        }}
+        className="absolute inset-0 bg-[var(--scrim-soft)]"
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="explore-join-confirm-title"
+        tabIndex={-1}
+        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
+      >
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-[4px]"
+          style={{
+            background:
+              world.platform === 'vrchat'
+                ? 'linear-gradient(90deg, var(--vrc), transparent)'
+                : 'linear-gradient(90deg, var(--cvr), transparent)'
+          }}
+        />
+        <div className="flex items-start justify-between gap-[var(--space-3)]">
+          <h2
+            id="explore-join-confirm-title"
+            className="text-base font-semibold text-[var(--text)]"
+          >
+            {world.name}
+          </h2>
+          <PlatformPill platform={world.platform} />
+        </div>
+        <p className="text-sm text-[var(--text-dim)]">{access}</p>
+        <div>
+          <PolicySpacePill space="public" />
+        </div>
+        <p className="text-sm text-[var(--text-dim)]">
+          {room.occupancy.state === 'complete'
+            ? t('joinConfirm.peopleCount', { count: room.occupancy.value })
+            : t('explore.unknownCount')}
+        </p>
+        <div>
+          <button
+            type="button"
+            aria-expanded={moreOpen}
+            disabled={isJoining}
+            onClick={() => setMoreOpen((open) => !open)}
+            className="text-xs text-[var(--text-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-dim)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+          >
+            {t('joinConfirm.moreToggle')}
+          </button>
+          {moreOpen ? (
+            <p className="mt-[var(--space-1)] text-xs text-[var(--text-dim)]">
+              {t('policySpace.more.public')}
+            </p>
+          ) : null}
+        </div>
+        {showModePicker ? (
+          <SegmentedControl
+            values={MODE_VALUES}
+            active={mode}
+            labelKeys={MODE_LABEL_KEYS}
+            ariaLabel={t('joinConfirm.mode.aria')}
+            disabled={isJoining}
+            onChange={setMode}
+          />
+        ) : world.platform === 'vrchat' ? (
+          <p className="text-xs text-[var(--text-faint)]">{t('joinConfirm.vrchatModeNote')}</p>
+        ) : joinMode !== 'ask' ? (
+          <p className="text-xs text-[var(--text-faint)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+        ) : null}
+        <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">
+          <button
+            ref={cancelRef}
+            type="button"
+            disabled={isJoining}
+            onClick={cancelPending}
+            className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-sm font-medium text-[var(--text)] hover:bg-[var(--control-fill-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+          >
+            {t('joinConfirm.cancel')}
+          </button>
+          <button
+            type="button"
+            disabled={isJoining || room.action.state !== 'available'}
+            onClick={() => {
+              void confirmPending(resolvedMode)
+            }}
+            className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-[filter] disabled:pointer-events-none disabled:opacity-50"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
+              background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+              color: 'var(--op-public-text)'
+            }}
+          >
+            {isJoining ? t('explore.joinDenied.busy') : t('joinConfirm.confirm')}
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => void joinAndNeverAskAgain()}
+          disabled={isJoining || room.action.state !== 'available'}
+          className="self-center text-[11px] text-[var(--text-faint)] hover:text-[var(--text-dim)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+        >
+          {t('joinConfirm.dontAskAgain')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function JoinConfirmDialog(): React.JSX.Element | null {
+  const { pendingConfirm } = useJoinInstance()
+  return pendingConfirm?.source === 'explore' ? (
+    <ExploreJoinConfirmDialog />
+  ) : (
+    <FriendJoinConfirmDialog />
+  )
+}
+
 /** Focusable descendants of the panel, excluding disabled, aria-disabled, and
  *  hidden controls so the trap never land on an inert element. */
 function getFocusables(panel: HTMLElement): HTMLElement[] {
@@ -90,16 +309,19 @@ function getFocusables(panel: HTMLElement): HTMLElement[] {
   )
 }
 
-export default function JoinConfirmDialog(): React.JSX.Element | null {
+function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
+  const joinState = useJoinInstance()
   const {
-    pendingConfirm,
+    pendingConfirm: rawPendingConfirm,
     isJoining,
     confirmPending,
     acknowledgePendingTarget,
     cancelPending,
-    invalidatePending
-  } = useJoinInstance()
+    invalidatePending,
+    invalidateFriendPending
+  } = joinState
+  const pendingConfirm = rawPendingConfirm as FriendPendingConfirm | null
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -223,9 +445,9 @@ export default function JoinConfirmDialog(): React.JSX.Element | null {
       unsubscribeFriend?.()
       // Use invalidatePending on unmount: a launch may still be settling and
       // cancelPending would leave the latch alive.
-      invalidatePending()
+      invalidateFriendPending()
     }
-  }, [invalidatePending])
+  }, [invalidatePending, invalidateFriendPending])
 
   // Esc closes; focus is trapped inside the panel while it's open; focus
   // returns to whatever opened it on close. The trap stays active during a

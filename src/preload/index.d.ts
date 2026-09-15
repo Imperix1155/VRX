@@ -1,6 +1,23 @@
 import type { IpcEvents, IpcInvoke } from '@shared/ipc'
 
 type VrxBridge = {
+  setExploreActive: (
+    req: IpcInvoke['set-explore-active']['req']
+  ) => Promise<IpcInvoke['set-explore-active']['res']>
+  getExplore: (req: IpcInvoke['get-explore']['req']) => Promise<IpcInvoke['get-explore']['res']>
+  getExploreWorld: (
+    req: IpcInvoke['get-explore-world']['req']
+  ) => Promise<IpcInvoke['get-explore-world']['res']>
+  cancelExploreWorld: (
+    req: IpcInvoke['cancel-explore-world']['req']
+  ) => Promise<IpcInvoke['cancel-explore-world']['res']>
+  getExploreImage: (
+    req: IpcInvoke['get-explore-image']['req']
+  ) => Promise<IpcInvoke['get-explore-image']['res']>
+  joinExploreRoom: (
+    req: IpcInvoke['join-explore-room']['req']
+  ) => Promise<IpcInvoke['join-explore-room']['res']>
+  onExploreChanged: (callback: (event: IpcEvents['explore-changed']) => void) => () => void
   getLinkedProfiles: () => Promise<IpcInvoke['get-linked-profiles']['res']>
   changeLinkedProfile: (
     req: IpcInvoke['change-linked-profile']['req']

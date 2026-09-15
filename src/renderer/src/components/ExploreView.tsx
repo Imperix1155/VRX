@@ -7,6 +7,7 @@ import type {
   ExploreWorldTotal
 } from '@shared/explore'
 import { EXPLORE_WORLD_TOTALS } from '@shared/explore'
+import type { ReactNode } from 'react'
 import NumberStepper from './NumberStepper'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
@@ -25,6 +26,12 @@ export interface ExploreViewProps {
   onOpenWorld: (world: ExploreWorld, opener: HTMLElement) => void
   onCloseSheet: () => void
   onJoinRoom: (room: ExploreRoom) => void
+  /** Production may wrap cards for viewport-owned image resolution. */
+  renderWorld?: (world: ExploreWorld) => ReactNode
+  sheetDismissable?: boolean
+  isJoining?: boolean
+  onRefreshSheet?: () => void
+  joinFailureFor?: (room: ExploreRoom) => boolean
 }
 
 /** Presentational grid. The existing platform selector remains owned by the shell. */
@@ -39,7 +46,12 @@ export default function ExploreView({
   onTotalChange,
   onOpenWorld,
   onCloseSheet,
-  onJoinRoom
+  onJoinRoom,
+  renderWorld,
+  sheetDismissable,
+  isJoining,
+  onRefreshSheet,
+  joinFailureFor
 }: ExploreViewProps): React.JSX.Element {
   const { t } = useTranslation()
   const shownSources = platformSnapshots.filter(
@@ -93,14 +105,17 @@ export default function ExploreView({
       ) : null}
       {worlds.length > 0 ? (
         <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {worlds.map((world) => (
-            <ExploreWorldCard
-              key={`${world.platform}:${world.worldId}`}
-              world={world}
-              image={images?.[world.worldRef]}
-              onOpen={onOpenWorld}
-            />
-          ))}
+          {worlds.map(
+            (world) =>
+              renderWorld?.(world) ?? (
+                <ExploreWorldCard
+                  key={`${world.platform}:${world.worldId}`}
+                  world={world}
+                  image={images?.[world.worldRef]}
+                  onOpen={onOpenWorld}
+                />
+              )
+          )}
         </div>
       ) : null}
       <ExploreWorldSheet
@@ -110,6 +125,10 @@ export default function ExploreView({
         focusFallback={focusFallback}
         onClose={onCloseSheet}
         onJoin={onJoinRoom}
+        dismissable={sheetDismissable}
+        joining={isJoining}
+        onRefresh={onRefreshSheet}
+        joinFailureFor={joinFailureFor}
       />
     </section>
   )
