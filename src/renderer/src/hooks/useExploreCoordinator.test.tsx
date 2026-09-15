@@ -115,6 +115,78 @@ describe('Explore automatic eligibility', () => {
     expect(setExploreActive).toHaveBeenCalledWith({ platforms: ['vrchat'] })
   })
 
+  it('restores active platforms after a separated visibility loss and return', async () => {
+    let mainActive: readonly string[] = []
+    const setExploreActive = vi.fn(async ({ platforms }: { platforms: string[] }) => {
+      mainActive = platforms
+    })
+    window.vrx = {
+      setExploreActive,
+      getExplore: vi.fn().mockResolvedValue(snapshot),
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    queryClient.setQueryData(exploreQueryKey('vrchat'), { ...snapshot, updatedAt: Date.now() })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    expect(mainActive).toEqual([])
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(mainActive).toEqual(['vrchat'])
+    expect(setExploreActive.mock.calls.map(([request]) => request.platforms)).toEqual([
+      ['vrchat'],
+      [],
+      ['vrchat']
+    ])
+  })
+
+  it('restores active platforms when a batched hidden-visible transition skips the hidden render', async () => {
+    let mainActive: readonly string[] = []
+    const setExploreActive = vi.fn(async ({ platforms }: { platforms: string[] }) => {
+      mainActive = platforms
+    })
+    window.vrx = {
+      setExploreActive,
+      getExplore: vi.fn().mockResolvedValue(snapshot),
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    queryClient.setQueryData(exploreQueryKey('vrchat'), { ...snapshot, updatedAt: Date.now() })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    mainActive = []
+
+    await act(async () => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    expect(mainActive).toEqual(['vrchat'])
+    expect(setExploreActive.mock.calls.map(([request]) => request.platforms)).toEqual([
+      ['vrchat'],
+      ['vrchat']
+    ])
+  })
+
   it('retries an active declaration after its rejected invocation on a later wake', async () => {
     const setExploreActive = vi
       .fn()

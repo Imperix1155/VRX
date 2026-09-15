@@ -44,8 +44,9 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   work. It sets active platforms for a relevant visible Dashboard/Explore view,
   coalescing identical pending or successful declarations. Rejected declarations
   can retry on a later wake; cleanup clears the remembered declaration before
-  deactivation so a remount restores active platforms. It then accepts only
-  eligible entry, focus, online, or `connection: 'live'` wakes:
+  deactivation so a remount restores active platforms. Visibility loss clears
+  declarations synchronously so batched hide/show events still reactivate main.
+  It then accepts only eligible entry, focus, online, or `connection: 'live'` wakes:
   selected authenticated (or proven retained transient-error) account, missing or
   60-second-stale cache, and a five-minute account/platform automatic gate. It
   records before IPC and has no interval, retry, or timer-driven request. The

@@ -269,6 +269,11 @@ export function useExploreCoordinator(): void {
     }
     const onVisibility = (): void => {
       const next = document.visibilityState === 'visible'
+      if (!next) {
+        // Main clears active Explore platforms while hidden. Reset before the
+        // state update so a batched hidden→visible render still redeclares them.
+        activeDeclaration.current = { successful: undefined, pending: undefined }
+      }
       setVisible(next)
       if (next) wakeIfVisible()
     }

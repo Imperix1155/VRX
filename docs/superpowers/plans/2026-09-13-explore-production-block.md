@@ -381,3 +381,18 @@ The fresh focused review must cover the exact correction patch, while the prior
 general and focused evidence through `d0bebc9` remains in
 `dist/explore-private/review-evidence-d0bebc9/coverage.json`. Merge readiness is
 still separate from these local results.
+
+The first September 15 Astra High correction review reached its 480-second
+limit without a final verdict. Its read-only runtime log is preserved under
+`sep15-audit/focused-review`; this is incomplete coverage. Before stopping, its
+in-memory React probe reproduced main deactivation being lost when hidden and
+visible events were batched into one render. The correction now clears pending
+and successful declarations synchronously on visibility loss. Both separated
+and batched visibility regressions pass, while normal wake deduplication stays
+covered. Driver reran all 15 coordinator tests. A fresh bounded completion
+review must cover the complete `d0bebc9` correction delta, including this fix.
+
+The visibility correction passes the full gate, ending
+`EXPLORE_SEP15_FULL_GATE_GREEN` in `sep15-audit/visibility/full-gate.log`, with
+181 files / 2,756 tests. Fallow still has the same eight dead-code findings and
+no new production clone; all 14 new clone fingerprints since `d0bebc9` are tests.
