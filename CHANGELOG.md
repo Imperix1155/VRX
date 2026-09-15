@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the Electron runtime to 44.2.0. Upstream now requires macOS 13 or later
+  and provides only 64-bit x64 and arm64 binaries.
+
 ### Fixed
 
 - Brief socket connections no longer reset reconnect backoff. Rejected upgrades
