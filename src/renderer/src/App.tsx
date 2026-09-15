@@ -9,6 +9,7 @@ import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useLinkedProfileEvents } from './queries/linkedProfiles'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
+import { usePlatformFilterSettings } from './hooks/usePlatformFilterSettings'
 import { useSettingsStore } from './stores/settings'
 import { useUiStore } from './stores/ui'
 
@@ -16,6 +17,7 @@ function App(): React.JSX.Element {
   // Load persisted settings + save changes (VRX-184) — before useApplyTheme
   // reads the store so the persisted theme lands as early as possible.
   useSettingsPersistence()
+  usePlatformFilterSettings()
   // Apply the stored theme before any view renders (must be top-level, no early return above).
   useApplyTheme()
   // Apply the stored background-glow level before any view renders.

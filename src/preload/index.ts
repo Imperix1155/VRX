@@ -24,6 +24,22 @@ function notify<K extends keyof IpcNotifications>(channel: K, payload: IpcNotifi
 }
 
 const vrx = {
+  setExploreActive: (req: IpcInvoke['set-explore-active']['req']) =>
+    invoke('set-explore-active', req),
+  getExplore: (req: IpcInvoke['get-explore']['req']) => invoke('get-explore', req),
+  getExploreWorld: (req: IpcInvoke['get-explore-world']['req']) => invoke('get-explore-world', req),
+  cancelExploreWorld: (req: IpcInvoke['cancel-explore-world']['req']) =>
+    invoke('cancel-explore-world', req),
+  getExploreImage: (req: IpcInvoke['get-explore-image']['req']) => invoke('get-explore-image', req),
+  joinExploreRoom: (req: IpcInvoke['join-explore-room']['req']) => invoke('join-explore-room', req),
+  onExploreChanged: (callback: (event: IpcEvents['explore-changed']) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['explore-changed']
+    ): void => callback(payload)
+    ipcRenderer.on('explore-changed', listener)
+    return () => ipcRenderer.removeListener('explore-changed', listener)
+  },
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string) => invoke('get-avatar', { url }),
   getAccounts: () => invoke('get-accounts', undefined),

@@ -11,13 +11,16 @@
  * DashboardView consumes only { data, isPending } from useFriends.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, act, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
 import type { Friend, VrcFriend } from '@shared/types'
+import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
 import { useJoinInstance } from '../hooks/useJoinInstance'
+import { queryClient } from '../queries/queryClient'
+import { exploreQueryKey } from '../queries/explore'
 import DashboardView from './DashboardView'
 
 const useFriendsMock = vi.hoisted(() => vi.fn())
@@ -28,7 +31,8 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   useFriends: useFriendsMock
 }))
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
-vi.mock('../queries/auth', () => ({
+vi.mock('../queries/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
     data: {
       platform,
@@ -131,7 +135,42 @@ afterEach(() => {
   avatarData.current = null
   useFriendsStore.setState({ platformFilter: 'all' }) // reset the global filter
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS }) // reset any mutated settings
+  queryClient.removeQueries({ queryKey: ['explore'] })
 })
+
+function seedExplorePreview(): void {
+  const world: ExploreWorld = {
+    platform: 'vrchat',
+    worldId: 'world-preview',
+    worldRef: 'world-preview-ref',
+    name: 'Preview world',
+    thumbnailUrl: null,
+    activity: { state: 'complete', value: 3, source: 'vrc-world-occupants' },
+    visibleRoomCount: { state: 'complete', value: 1, source: 'visible-rooms' },
+    popularity: null,
+    sourceOrder: 0
+  }
+  const source: ExplorePlatformSnapshot = {
+    platform: 'vrchat',
+    worlds: [world],
+    status: 'ready',
+    problem: null,
+    isStale: false,
+    updatedAt: 1
+  }
+  const sheet: ExploreWorldSnapshot = {
+    ...source,
+    world,
+    rooms: [],
+    roomsComplete: true
+  }
+  queryClient.setQueryData(exploreQueryKey('vrchat'), source)
+  window.vrx = {
+    getExploreWorld: vi.fn().mockResolvedValue(sheet),
+    cancelExploreWorld: vi.fn().mockResolvedValue(undefined),
+    getExploreImage: vi.fn().mockResolvedValue(null)
+  } as unknown as Window['vrx']
+}
 
 describe('DashboardView states (W5)', () => {
   it('shows loading (not 0/0/0) while both queries are pending with no data', () => {
@@ -928,6 +967,58 @@ describe('HotInstanceSheet (VRX-250)', () => {
 })
 
 describe('HotInstanceCard keyboard (VRX-250 review)', () => {
+  it('keeps Explore and Hot Instance sheets mutually exclusive for keyboard activation', async () => {
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },
+      { data: [], isPending: false }
+    )
+    seedExplorePreview()
+    render(<DashboardView />)
+
+    const hotCard = screen.getByRole('button', { name: /SunDown hot instance details/ })
+    const exploreCard = screen.getByRole('button', {
+      name: /open visible rooms for Preview world on VRChat/i
+    })
+
+    hotCard.focus()
+    fireEvent.keyDown(hotCard, { key: 'Enter' })
+    expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: msg('drawer.close') }))
+
+    exploreCard.focus()
+    // A native button dispatches its activation click with detail 0 for Enter/Space.
+    fireEvent.click(exploreCard, { detail: 0 })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('dialog', { name: /Visible public rooms for Preview world/ })
+      ).toBeTruthy()
+    )
+    expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    exploreCard.focus()
+    fireEvent.click(exploreCard, { detail: 0 })
+    await screen.findByRole('dialog', { name: /Visible public rooms for Preview world/ })
+
+    hotCard.focus()
+    fireEvent.keyDown(hotCard, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'SunDown' })).toBeTruthy())
+    expect(
+      screen.queryByRole('dialog', { name: /Visible public rooms for Preview world/ })
+    ).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: msg('drawer.close') }))
+
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.close') }))
+    expect(document.activeElement).toBe(hotCard)
+
+    exploreCard.focus()
+    fireEvent.click(exploreCard, { detail: 0 })
+    await screen.findByRole('dialog', { name: /Visible public rooms for Preview world/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(document.activeElement).toBe(exploreCard)
+  })
+
   it('Enter and Space on the card body open the sheet', () => {
     stubQueries(
       { data: [publicWorld('usr_a', 'Amy'), publicWorld('usr_b', 'Bo')], isPending: false },

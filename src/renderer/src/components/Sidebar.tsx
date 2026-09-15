@@ -56,7 +56,7 @@ function IconFriends(): React.JSX.Element {
   )
 }
 
-function IconInstances(): React.JSX.Element {
+function IconExplore(): React.JSX.Element {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -211,7 +211,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'activity', icon: IconActivity },
   { id: 'friends', icon: IconFriends },
-  { id: 'instances', icon: IconInstances },
+  { id: 'explore', icon: IconExplore },
   { id: 'groups', icon: IconGroups },
   { id: 'settings', icon: IconSettings }
 ]

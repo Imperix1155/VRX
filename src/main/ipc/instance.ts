@@ -7,6 +7,7 @@ import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import type { LocationAuthority } from '../services/locationAuthority'
 import { isTrustedIpcSender } from './security'
 import { isAllowedLaunchUrl } from './url-allowlist'
+import { JoinCoordinator } from '../services/joinCoordinator'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 const VALID_JOIN_MODES = new Set<JoinMode>(['desktop', 'vr'])
@@ -24,6 +25,7 @@ export interface InstanceHandlerOptions {
   isJoinAllowed: () => boolean
   clock?: () => number
   log?: InstanceLog
+  joinCoordinator?: JoinCoordinator
 }
 
 export function registerInstanceHandlers(
@@ -33,6 +35,7 @@ export function registerInstanceHandlers(
 ): void {
   const clock = options.clock ?? Date.now
   const log = options.log ?? (() => undefined)
+  const joins = options.joinCoordinator ?? new JoinCoordinator(clock)
   const inFlight = new Set<string>()
   const lastActionAt = new Map<string, number>()
   const denied = (
@@ -87,27 +90,18 @@ export function registerInstanceHandlers(
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
 
-    const inFlightKey = `${req.platform}:join` satisfies `${Platform}:${InstanceAction}`
-    const cooldownKey = `${req.platform}:${req.friendId}`
-    const previous = lastActionAt.get(cooldownKey)
-    if (
-      inFlight.has(inFlightKey) ||
-      (previous !== undefined && clock() - previous < JOIN_COOLDOWN_MS)
-    ) {
-      return denied(req.platform, 'cooldown')
-    }
-
-    inFlight.add(inFlightKey)
+    const permit = joins.acquire(req.platform, currentKey!, req.friendId)
+    if (!permit) return denied(req.platform, 'cooldown')
     try {
       try {
         await shell.openExternal(url)
       } catch {
         return denied(req.platform, 'launch-failed')
       }
-      lastActionAt.set(cooldownKey, clock())
+      permit.complete()
       return { ok: true }
     } finally {
-      inFlight.delete(inFlightKey)
+      permit.release()
     }
   })
 

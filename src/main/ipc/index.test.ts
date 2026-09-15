@@ -117,6 +117,14 @@ function options(): IpcHandlerOptions {
     socialStore: {},
     links: { linkGraph: {} },
     appStatus: {},
+    explore: {
+      setActive: vi.fn(),
+      getSnapshot: vi.fn(),
+      getWorld: vi.fn(),
+      cancelWorld: vi.fn(),
+      getImage: vi.fn(),
+      joinRoom: vi.fn(() => ({ ok: true }))
+    },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -160,7 +168,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(21)
+    expect(electron.invokeHandlers.size).toBe(27)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -175,6 +183,12 @@ describe('registerIpcHandlers rate limiting', () => {
     expect([...electron.invokeHandlers.keys()].sort()).toEqual(
       [
         'change-linked-profile',
+        'set-explore-active',
+        'get-explore',
+        'get-explore-world',
+        'cancel-explore-world',
+        'get-explore-image',
+        'join-explore-room',
         'get-accounts',
         'get-app-status',
         'get-auth-status',

@@ -19,6 +19,13 @@ interface RateLimitOptions<TResult> {
 }
 
 export const IPC_RATE_LIMIT_BUDGETS = {
+  // Snapshot reads and visible triggers remain distinct from the main wire budget.
+  'set-explore-active': { max: 120, windowMs: 60_000 },
+  'get-explore': { max: 120, windowMs: 60_000 },
+  'get-explore-world': { max: 120, windowMs: 60_000 },
+  'cancel-explore-world': { max: 120, windowMs: 60_000 },
+  'get-explore-image': { max: 120, windowMs: 60_000 },
+  'join-explore-room': { max: 20, windowMs: 60_000 },
   // Fixed process-lifetime guard; repeated dual-platform retry/reconnect cycles
   // can exhaust this headroom. Budget sizing/recovery is a deferred follow-up.
   'get-friends': { max: 12, windowMs: 30_000 },
@@ -69,6 +76,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'verify-2fa':
       return { ok: false, needs2fa: false, error: 'rate_limited' }
     case 'join-instance':
+    case 'join-explore-room':
     case 'self-invite':
     case 'set-friend-note':
     case 'get-linked-profiles':

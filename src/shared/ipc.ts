@@ -21,6 +21,12 @@ import type {
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
+import type {
+  ExplorePlatformSnapshot,
+  ExploreWorldSnapshot,
+  ExploreRefreshReason,
+  ExploreWorldReason
+} from './explore'
 
 export type UpdaterState =
   'idle' | 'checking' | 'update-available' | 'downloading' | 'downloaded' | 'error' | 'unsupported'
@@ -58,6 +64,24 @@ export type InstanceActionResult =
  * `ipcRenderer.invoke(channel, req)` ↔ `ipcMain.handle(channel, …) → res`.
  */
 export interface IpcInvoke {
+  'set-explore-active': { req: { platforms: Platform[] }; res: void }
+  'get-explore': {
+    req: { platform: Platform; reason: ExploreRefreshReason }
+    res: ExplorePlatformSnapshot
+  }
+  'get-explore-world': {
+    req: { platform: Platform; worldRef: string; reason: ExploreWorldReason }
+    res: ExploreWorldSnapshot | null
+  }
+  'cancel-explore-world': { req: { platform: Platform; worldRef: string }; res: void }
+  'get-explore-image': {
+    req: { platform: Platform; worldRef: string }
+    res: { ok: true; dataUrl: string } | null
+  }
+  'join-explore-room': {
+    req: { platform: Platform; selectionRef: string; mode: JoinMode }
+    res: InstanceActionResult
+  }
   'get-linked-profiles': { req: void; res: LinkResult<LinkSnapshot> }
   'change-linked-profile': {
     req: { lease: string; change: LinkRequest }
@@ -122,6 +146,7 @@ export interface IpcInvoke {
  * never polled (CLAUDE.md).
  */
 export interface IpcEvents {
+  'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
   'friend-event': AdapterEvent
   'identity-boundary': { platform: Platform }

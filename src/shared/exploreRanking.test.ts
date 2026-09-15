@@ -177,6 +177,31 @@ describe('selectExploreWorlds', () => {
     expect(selected[0]?.platform).toBe('chilloutvr')
   })
 
+  it.each([
+    ['00000000-0000-4000-8000-000000000001', 'ffffffff-ffff-4fff-8fff-ffffffffffff', 'vrchat'],
+    ['ffffffff-ffff-4fff-8fff-ffffffffffff', '00000000-0000-4000-8000-000000000001', 'chilloutvr']
+  ] as const)(
+    'compares real UUID material without a platform prefix bias: %s',
+    (vrcId, cvrId, leader) => {
+      const realistic = {
+        vrchat: [world('vrchat', `wrld_${vrcId}`)],
+        chilloutvr: [world('chilloutvr', cvrId)]
+      }
+      const selected = selectExploreWorlds({ lists: realistic, filter: 'all', total: 2, listSeeds })
+      expect(selected[0]?.platform).toBe(leader)
+      const swapped = selectExploreWorlds({
+        lists: {
+          vrchat: realistic.chilloutvr.map(swapOwner),
+          chilloutvr: realistic.vrchat.map(swapOwner)
+        },
+        filter: 'all',
+        total: 2,
+        listSeeds: { vrchat: listSeeds.chilloutvr, chilloutvr: listSeeds.vrchat }
+      })
+      expect(ids(swapped)).toEqual(ids(selected))
+    }
+  )
+
   it('compares complete ordered ID lists when the leading IDs match', () => {
     const selected = selectExploreWorlds({
       lists: {

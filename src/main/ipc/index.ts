@@ -9,6 +9,8 @@ import { registerAuthHandlers } from './auth'
 import { registerAvatarHandlers } from './avatar'
 import { registerFriendsHandlers } from './friends'
 import { registerInstanceHandlers } from './instance'
+import { registerExploreHandlers } from './explore'
+import type { ExploreService } from '../services/exploreService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
@@ -42,6 +44,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   instance: InstanceHandlerOptions
+  explore: ExploreService
   onRendererHydrated: (event: IpcMainEvent) => void
   rateLimit?: IpcRateLimitOptions
 }
@@ -103,6 +106,7 @@ export function registerIpcHandlers(
       locationAuthority: options.locationAuthority
     })
     registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
+    registerExploreHandlers(options.explore)
     registerAppStatusHandlers(options.appStatus)
     registerLaunchHandlers()
     registerSettingsHandlers()

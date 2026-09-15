@@ -107,7 +107,7 @@
       "dashboard": "Dashboard",
       "activity": "Activity",
       "friends": "Friends",
-      "instances": "Instances",
+      "explore": "Explore",
       "groups": "Groups",
       "settings": "Settings"
     },
@@ -469,6 +469,9 @@
     "worldsShownAria": "Worlds shown",
     "openWorldAria": "Open visible rooms for {{world}} on {{platform}}",
     "viewRooms": "View rooms",
+    "confirmAria": "Confirm joining {{world}}",
+    "refresh": "Refresh",
+    "joinFailed": "Couldn’t join this room. Try again after refreshing.",
     "peopleInWorld": "People in this world",
     "peopleInPublicRooms": "People in public rooms",
     "visibleRooms": "Visible rooms",

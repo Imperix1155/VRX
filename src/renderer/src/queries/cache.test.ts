@@ -86,6 +86,13 @@ describe('shouldDehydrateQuery', () => {
     expect(shouldDehydrateQuery(query!)).toBe(false)
   })
 
+  it('never persists discovery snapshots or opaque action references', () => {
+    client.setQueryData(['explore', 'vrchat'], { worlds: [{ worldRef: 'opaque-ref' }] })
+    const query = findQuery(['explore', 'vrchat'])
+    expect(query).toBeTruthy()
+    expect(shouldDehydrateQuery(query!)).toBe(false)
+  })
+
   it('excludes auth-status queries', () => {
     client.setQueryData(['auth-status', 'vrchat'], { state: 'authenticated' })
     const query = findQuery(['auth-status', 'vrchat'])

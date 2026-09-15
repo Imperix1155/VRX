@@ -1,4 +1,7 @@
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
+import { ExploreService } from './services/exploreService'
+import { JoinCoordinator } from './services/joinCoordinator'
+import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import {
   app,
   shell,
@@ -65,6 +68,7 @@ let quitting = false
 // it, so the tray must never capture a window instance (Codex, PR #118).
 let trayHandle: import('./tray').TrayHandle | null = null
 let currentWindow: import('electron').BrowserWindow | null = null
+let exploreWindowService: ExploreService | undefined
 let bootstrapReadyForFocus = false
 let secondInstanceFocusPending = false
 const rendererReadyWindows = new WeakSet<BrowserWindow>()
@@ -121,7 +125,10 @@ function createWindow(): BrowserWindow {
   })
   rendererHydrationGates.set(mainWindow.webContents, showGate)
   mainWindow.once('ready-to-show', () => showGate.ready())
+  mainWindow.on('hide', () => exploreWindowService?.setActive([]))
+  mainWindow.on('minimize', () => exploreWindowService?.setActive([]))
   mainWindow.once('closed', () => {
+    exploreWindowService?.setActive([])
     showGate.dispose()
   })
 
@@ -171,6 +178,7 @@ function createWindow(): BrowserWindow {
   const SILENT_REASONS: ReadonlySet<string> = new Set(['clean-exit', 'killed'])
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    exploreWindowService?.setActive([])
     // Expected exits (a clean shutdown, or our own forcefullyCrashRenderer →
     // 'killed') are silent — don't error-log or alarm on them (CodeRabbit).
     if (SILENT_REASONS.has(details.reason)) return
@@ -371,6 +379,7 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const exploreBoundary: { current?: ExploreService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -393,6 +402,7 @@ app
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
+        exploreBoundary.current?.clearPlatform('vrchat')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'vrchat' })
@@ -467,6 +477,7 @@ app
       onSessionBoundary: () => {
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
+        exploreBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -522,7 +533,32 @@ app
     avatarCache.setApiAdmission(vrcAdmission)
     avatarCache.setVrcSessionProvider(() => vrcAdapter.getAvatarRequestLease())
 
+    const joinCoordinator = new JoinCoordinator()
+    const explore = new ExploreService({
+      adapters: new Map<Platform, ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      accountSession,
+      admissions: new Map([
+        ['vrchat', vrcAdmission],
+        ['chilloutvr', cvrAdmission]
+      ]),
+      joinCoordinator,
+      isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
+      getImage: (url) => avatarCache.get(url),
+      openExternal: (url) => shell.openExternal(url),
+      onChanged: (platform) => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('explore-changed', { platform })
+        }
+      }
+    })
+    exploreBoundary.current = explore
+    exploreWindowService = explore
+
     registerIpcHandlers(adapters, {
+      explore,
       accountRegistry,
       accountSession,
       socialStore,
@@ -554,6 +590,7 @@ app
       locationAuthority,
       onRendererHydrated,
       instance: {
+        joinCoordinator,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)
@@ -565,6 +602,7 @@ app
     // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
     // platforms share one broadcaster; the renderer keys events by platform.
     const broadcast = (event: AdapterEvent): void => {
+      if (event.type === 'auth-invalidated') explore.clearPlatform(event.platform)
       for (const window of BrowserWindow.getAllWindows()) {
         // Guard a window torn down between enumeration and send.
         if (!window.isDestroyed()) window.webContents.send('friend-event', event)
@@ -578,6 +616,7 @@ app
       broadcast
     })
     app.on('before-quit', () => {
+      explore.dispose()
       // Renderer changes are handed to main immediately; force the latest
       // coalesced snapshot to disk before window teardown can discard it.
       flushPendingSettingsSave()

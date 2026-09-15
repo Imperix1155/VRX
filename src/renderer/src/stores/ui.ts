@@ -4,7 +4,7 @@ import { create } from 'zustand'
  * Top-level app surface. Full §8 nav set (VRX-168).
  * `activity`, `instances`, `groups` are stubs in v1; `friends` mounts FriendsList.
  */
-export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'instances' | 'groups' | 'settings'
+export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'explore' | 'groups' | 'settings'
 
 /**
  * Ephemeral UI view state (VRX-21). Holds only transient layout state — NOT

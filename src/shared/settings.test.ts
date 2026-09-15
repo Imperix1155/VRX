@@ -14,6 +14,8 @@ describe('settings schema', () => {
   it('DEFAULT_SETTINGS materializes every field with sane defaults', () => {
     expect(DEFAULT_SETTINGS).toEqual({
       version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       theme: 'system',
       language: 'en',
       density: 'comfortable',
@@ -247,7 +249,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v1)).toEqual({
       ...v1,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -277,7 +281,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v2)).toEqual({
       ...v2,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -308,7 +314,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v3)).toEqual({
       ...v3,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -339,7 +347,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v4)).toEqual({
       ...v4,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -370,7 +380,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v5)).toEqual({
       ...v5,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
@@ -402,7 +414,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v6)).toEqual({
       ...v6,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       autoUpdate: false,
       allowJoinInstances: true
     })
@@ -414,7 +428,9 @@ describe('migration runner', () => {
 
     expect(parseSettings(v7)).toEqual({
       ...v7,
-      version: 8,
+      version: SETTINGS_VERSION,
+      platformFilter: 'all',
+      exploreWorldsShown: 4,
       allowJoinInstances: true
     })
   })
@@ -594,5 +610,27 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.allowJoinInstances).toBe(false)
     expect(parseSettings(disk).allowJoinInstances).toBe(false)
+  })
+})
+
+describe('Explore settings migration', () => {
+  it('migrates v8 and preserves explicit filter/count while defaulting invalid values', () => {
+    expect(parseSettings({ version: 8 })).toMatchObject({
+      version: 9,
+      platformFilter: 'all',
+      exploreWorldsShown: 4
+    })
+    expect(
+      parseSettings({ version: 8, platformFilter: 'chilloutvr', exploreWorldsShown: 6 })
+    ).toMatchObject({ version: 9, platformFilter: 'chilloutvr', exploreWorldsShown: 6 })
+    for (const exploreWorldsShown of [0, 1, 3, 5, 7, '6', null]) {
+      expect(parseSettings({ exploreWorldsShown }).exploreWorldsShown).toBe(4)
+    }
+    expect(parseSettings({ platformFilter: 'steam' }).platformFilter).toBe('all')
+  })
+  it('makes an older v8 build refuse the newer choices without rewriting its file', () => {
+    const disk = { version: 9, platformFilter: 'vrchat', exploreWorldsShown: 2 }
+    expect(shouldPersistSettings(disk, 8)).toBe(false)
+    expect(parseSettings(disk)).toMatchObject(disk)
   })
 })

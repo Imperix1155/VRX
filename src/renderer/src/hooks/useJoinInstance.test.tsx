@@ -9,6 +9,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Friend, InstanceInfo } from '@shared/types'
+import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 import { queryClient } from '../queries/queryClient'
@@ -67,6 +68,85 @@ afterEach(() => {
 })
 
 describe('useJoinInstance', () => {
+  it('parks an explicit Explore source and invokes only its opaque selection reference', async () => {
+    const joinExploreRoom = vi.fn().mockResolvedValue({ ok: true })
+    window.vrx = { joinExploreRoom } as unknown as Window['vrx']
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: true },
+      dirty: false
+    })
+    const world: ExploreWorld = {
+      platform: 'vrchat',
+      worldId: 'wrld_1',
+      worldRef: 'world-ref',
+      name: 'World',
+      thumbnailUrl: null,
+      activity: { state: 'complete', value: 2, source: 'vrc-world-occupants' },
+      visibleRoomCount: { state: 'complete', value: 1, source: 'visible-rooms' },
+      popularity: null,
+      sourceOrder: 0
+    }
+    const room: ExploreRoom = {
+      platform: 'vrchat',
+      worldId: 'wrld_1',
+      roomId: 'room_1',
+      access: 'public',
+      region: null,
+      groupName: null,
+      occupancy: { state: 'complete', value: 2, source: 'vrc-room-n-users' },
+      capacity: 20,
+      full: false,
+      action: { state: 'available', selectionRef: 'selection-ref' }
+    }
+    const hook = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await hook.result.current.joinExplore(world, room)
+    })
+    expect(hook.result.current.pendingConfirm).toMatchObject({ source: 'explore', world, room })
+    await act(async () => {
+      await hook.result.current.confirmPending('desktop')
+    })
+    expect(joinExploreRoom).toHaveBeenCalledWith({
+      platform: 'vrchat',
+      selectionRef: 'selection-ref',
+      mode: 'desktop'
+    })
+  })
+  it('attributes a stale Explore room denial and clears it at that platform boundary', async () => {
+    const joinExploreRoom = vi.fn().mockResolvedValue({ ok: true })
+    window.vrx = { joinExploreRoom } as unknown as Window['vrx']
+    const world: ExploreWorld = {
+      platform: 'vrchat',
+      worldId: 'wrld_stale',
+      worldRef: 'stale-world-ref',
+      name: 'Stale World',
+      thumbnailUrl: null,
+      activity: { state: 'complete', value: 1, source: 'vrc-world-occupants' },
+      visibleRoomCount: { state: 'complete', value: 1, source: 'visible-rooms' },
+      popularity: null,
+      sourceOrder: 0
+    }
+    const room: ExploreRoom = {
+      platform: 'vrchat',
+      worldId: world.worldId,
+      roomId: 'stale-room',
+      access: 'public',
+      region: null,
+      groupName: null,
+      occupancy: { state: 'partial', value: null, source: 'unknown' },
+      capacity: null,
+      full: false,
+      action: { state: 'disabled', reason: 'stale' }
+    }
+    const hook = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await hook.result.current.joinExplore(world, room)
+    })
+    expect(joinExploreRoom).not.toHaveBeenCalled()
+    expect(hook.result.current.joinExploreFailureFor(world, room)).toBe('stale')
+    act(() => hook.result.current.invalidatePending('vrchat'))
+    expect(hook.result.current.joinExploreFailureFor(world, room)).toBeNull()
+  })
   it.each(['success', 'denial', 'exception'] as const)(
     'fences direct join %s after invalidation without clearing a newer join',
     async (outcome) => {
