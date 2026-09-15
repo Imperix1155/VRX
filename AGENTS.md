@@ -93,7 +93,7 @@ For every BrowserWindow or IPC change:
   reversible delivery steps. Never commit or push directly to protected `main`.
 - Merge only with explicit owner authority, applicable local gates and required
   final-head CI green, and `review-loop` coverage of the general review anchor plus validated
-  focused functional reviews and nonfunctional checks through the final head. Its tier-specific bot and bounded-wait
+  focused functional reviews and nonfunctional checks through the final head. Its advisory-bot and bounded-wait
   policy applies; known material defects or uncertainty block readiness,
   cosmetic preferences do not. Without merge authority, leave the PR open.
   An active grant permits merge only when all applicable gates are satisfied.
@@ -188,13 +188,20 @@ These rules apply to local review and Codex GitHub PR review:
   effort separately, with higher supported effort upfront when justified or
   one automatic escalation per named question. Obtain missing evidence first.
   Unresolved material uncertainty remains unresolved after the cap.
-- All ordinary T0/T1 PR bots are advisory, including CodeRabbit, Greptile, and
-  automatic Codex GitHub review. Repository CodeRabbit overrides live in
+- PR bots, including CodeRabbit, Greptile, and automatic Codex GitHub review,
+  are advisory at every risk tier, including T2. Repository CodeRabbit overrides live in
   [`.coderabbit.yaml`](.coderabbit.yaml). Inspect actual available feedback, including
-  collapsed summary findings, while other required work runs and before merge. Missing, running, skipped, or rate-limited
-  advisory bots do not block readiness. No minimum wait, ceremonial full-review
+  collapsed summary findings, while other required work runs and before merge.
+  Missing, running, skipped, rate-limited, or quota-exhausted bot output alone
+  does not block readiness. No minimum wait, ceremonial full-review
   request, or waiting solely for advisory output is required. Validate material
   findings and fix or refute them; cosmetic preferences are not gates.
+  Disclose unavailable independent review; never record it as a clean review.
+  A scoped explicit owner waiver of missing bot review is effective at every
+  risk tier. It does not authorize bypassing automatic approval review,
+  GitHub branch protections, or any other required gate.
+  This rule supersedes older bot-availability gates in plans and handoffs;
+  retain those historical review records without treating them as current policy.
 - T2 is top-level critical: credible risk of making the app unusable or putting
   a user's VRChat/ChilloutVR account in danger. Judge reachable behavioral
   consequences, not filenames or hypothetical "anything could break." Investigate
@@ -210,15 +217,14 @@ These rules apply to local review and Codex GitHub PR review:
   correction. Existing credential, security, irreversible-data, account,
   test/CI, and owner-permission safeguards remain mandatory outside T2 too.
 - T2 requires evidence for the actual critical consequences, applicable probes,
-  risk disclosure, owner review, and substantive CodeRabbit and Greptile output
-  for the initial PR head and every later functional head. One fresh general
+  risk disclosure, and owner risk/merge authority. One fresh general
   review remains the baseline, covering acceptance alignment and correctness.
   Add targeted Astra review only for a concrete critical risk or coverage gap;
   there is no fixed additional-reviewer count.
-  Preserve explicitly scoped workflow exceptions, including `dependabot-triage`'s
-  verified safe class, which excludes credible critical risk. Scores,
-  skipped/rate-limit messages, and bare green checks do not satisfy required
-  review. Same-lineage agreement does not waive critical merge gates.
+  Bot availability alone does not block readiness. Scores, skipped/rate-limit
+  messages, and bare green checks are not substantive review evidence.
+  Same-lineage agreement does not waive required local review, probes, CI,
+  material-finding resolution, or owner review and merge authority.
 - The general review head is the local anchor. Functional corrections normally
   get fresh focused review of the exact delta and affected behavior, callers,
   and contracts, relevant regression tests/probes, applicable required gates,
@@ -226,20 +232,23 @@ These rules apply to local review and Codex GitHub PR review:
   Assess the cumulative delta so combined coverage reaches the actual final
   head. Restart general review if design/security assumptions change, shared
   behavior is broadly affected, earlier conclusions fail, or effects cannot be
-  reliably bounded. Small line counts do not prove bounded impact. Critical
-  bots still require substantive coverage on every later functional head.
+  reliably bounded. Small line counts do not prove bounded impact. Inspect
+  available bot feedback for the head and behavior it actually reviewed;
+  missing bot output does not weaken required local final-head coverage.
 - A verified nonfunctional-only delta changes no app, build, test, release,
   security, workflow, or policy behavior. It gets focused format/link/consistency
   and `git diff --check` checks plus required final-head CI. It needs no new
   general review or bot wait solely for that correction. Preserve prior review
   coverage; mixed or uncertain corrections use the functional lane. This check
   is distinct from focused functional review and cannot verify changed behavior.
-- Required CI, local reviews, and genuinely required external reviews need
+- Required CI, local reviews, and any review explicitly required by an actual
+  branch-protection rule need
   bounded watchers with practical deadlines, sane polling, and distinct
   completion, failure, parse-failure, and timeout outcomes. Timeout requires
   investigation, a blocker, or a durable handoff, never success or a merge
-  waiver. Do not restart the same deadline or wait half a day for bot quota; a
-  known limit may justify immediate parking of a required review.
+  waiver. Do not restart the same deadline or wait half a day for bot quota.
+  Bot unavailability alone is advisory; an actual protection requirement
+  remains a blocker and cannot be bypassed under a bot waiver.
   Do not change GitHub protection or review settings to implement this
   policy; report any actual protection blocker.
 - Review the actual PR head and changed lines. Report only actionable findings
