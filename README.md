@@ -23,7 +23,10 @@ separate implemented behavior from synthetic, runtime and live-account evidence.
 
 ## Stack
 
-Electron 43 · React 19 · Vite 7 · TypeScript 6 strict · electron-vite
+Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite
+
+Electron 44 requires macOS 13 or later and provides only 64-bit x64 and arm64
+binaries. See the [upstream platform changes](https://www.electronjs.org/blog/electron-44-0#breaking-changes).
 
 ## Dev Setup
 

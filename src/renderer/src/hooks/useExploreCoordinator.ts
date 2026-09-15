@@ -168,6 +168,7 @@ export function useExploreCoordinator(): void {
     successful: undefined,
     pending: undefined
   })
+  const activationGenerations = useRef<Record<Platform, number>>({ vrchat: 0, chilloutvr: 0 })
   const statuses = useMemo(
     () => ({
       vrchat: effectiveStatus(vrc, vrcQuery.dataUpdatedAt ?? 0, retainedAccounts.vrchat),
@@ -181,6 +182,7 @@ export function useExploreCoordinator(): void {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.setExploreActive) return
     let cancelled = false
+    const capturedGenerations = { ...activationGenerations.current }
     const platforms = relevant ? active : []
     const key = activeDeclarationKey(relevant, active)
     const known = activeDeclaration.current
@@ -218,6 +220,7 @@ export function useExploreCoordinator(): void {
         if (cancelled || !relevant) return
         const now = Date.now()
         for (const platform of active) {
+          if (activationGenerations.current[platform] !== capturedGenerations[platform]) continue
           const auth = statuses[platform]
           const snapshot = queryClient.getQueryData<ExplorePlatformSnapshot>(
             exploreQueryKey(platform)
@@ -241,12 +244,14 @@ export function useExploreCoordinator(): void {
       void readExploreSnapshot(platform).catch(() => undefined)
     })
     const boundary = window.vrx.onIdentityBoundary?.(({ platform }) => {
+      activationGenerations.current[platform] += 1
       clearRetainedAccount(platform)
       clearExploreAutomaticGate(platform)
       clearExplorePlatform(platform)
     })
     const friend = window.vrx.onFriendEvent?.((event) => {
       if (event.type === 'auth-invalidated') {
+        activationGenerations.current[event.platform] += 1
         clearRetainedAccount(event.platform)
         clearExploreAutomaticGate(event.platform)
         clearExplorePlatform(event.platform)

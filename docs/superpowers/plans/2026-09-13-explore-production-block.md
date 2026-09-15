@@ -396,3 +396,30 @@ The visibility correction passes the full gate, ending
 `EXPLORE_SEP15_FULL_GATE_GREEN` in `sep15-audit/visibility/full-gate.log`, with
 181 files / 2,756 tests. Fallow still has the same eight dead-code findings and
 no new production clone; all 14 new clone fingerprints since `d0bebc9` are tests.
+
+The completed follow-up review covers `d0bebc9` through `ac3e3bb`, exact patch
+SHA-256 `7f223fcd0c98b392f429f3b2c65f65601350dffe8e918181b3cda0653a21a09d`,
+59,588 bytes / 957 lines / 14 files. Enforced read-only Astra High returned
+`REVIEW_COMPLETE`, retaining all earlier conclusions except one scoped pending
+activation/account-boundary gap, also reproduced at `d0bebc9`. Before React
+cleanup, an old activation reply could dispatch a new automatic request after
+the query generation reset. Main's leases and physical limits still applied.
+The correction uses synchronous per-platform activation generations, advanced
+for identity boundaries and auth invalidation and checked before dispatch.
+Both event regressions fail without it and all 17 coordinator tests pass with
+it, including fresh replacement proof and the unaffected platform.
+
+Verified main `9b8ae9b477031136af22f5ebac1a31fa1868227a` contributes the merged
+Electron 44.2.0 update. README and changelog conflicts preserve both sets of
+notes; the pending 0.20.0 changelog now includes the runtime update and uses the
+September 15 date. Lockfile resolutions match main except the existing 0.20.0
+release metadata. PR309 Vitest/coverage and PR312 remain unmerged in the separate
+dependency task due its automatic approval-review blocker; this task does not
+perform that rejected merge. A final focused account-fence/integration review,
+combined local gate and fresh CI/external review remain required.
+
+The combined Electron 44/account-generation tree passes uncached lint, format,
+both TypeScript checks, build/entry assertion, and all 181 files / 2,758 tests.
+`sep15-audit/account-boundary/full-gate.log` ends with
+`EXPLORE_SEP15_FULL_GATE_GREEN` and exit 0. Fallow dead-code output remains
+identical to `d0bebc9`; all 16 new clone fingerprints are test-only.

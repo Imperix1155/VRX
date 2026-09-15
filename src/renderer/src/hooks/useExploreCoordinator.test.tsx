@@ -59,6 +59,91 @@ afterEach(() => {
 })
 
 describe('Explore automatic eligibility', () => {
+  it.each(['identity-boundary', 'auth-invalidated'] as const)(
+    'fences the old account activation after %s while leaving the other platform eligible',
+    async (eventType) => {
+      let resolveActivation!: () => void
+      let boundary: ((event: { platform: 'vrchat' | 'chilloutvr' }) => void) | null = null
+      let friendEvent: ((event: AdapterEvent) => void) | null = null
+      const setExploreActive = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveActivation = resolve
+            })
+        )
+        .mockResolvedValue(undefined)
+      const getExplore = vi.fn(({ platform }: { platform: 'vrchat' | 'chilloutvr' }) =>
+        Promise.resolve({ ...snapshot, platform })
+      )
+      window.vrx = {
+        setExploreActive,
+        getExplore,
+        onExploreChanged: () => () => {},
+        onIdentityBoundary: (listener: (event: { platform: 'vrchat' | 'chilloutvr' }) => void) => {
+          boundary = listener
+          return () => {
+            boundary = null
+          }
+        },
+        onFriendEvent: (listener: (event: AdapterEvent) => void) => {
+          friendEvent = listener
+          return () => {
+            friendEvent = null
+          }
+        }
+      } as unknown as Window['vrx']
+      queryClient.setQueryData(exploreQueryKey('vrchat'), { ...snapshot, updatedAt: Date.now() })
+      render(
+        <QueryClientProvider client={queryClient}>
+          <Coordinator />
+        </QueryClientProvider>
+      )
+      await act(async () => undefined)
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+      queryClient.removeQueries({ queryKey: exploreQueryKey('vrchat') })
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+      expect(setExploreActive).toHaveBeenCalledTimes(3)
+
+      await act(async () => {
+        if (eventType === 'identity-boundary') boundary?.({ platform: 'vrchat' })
+        else friendEvent?.({ type: 'auth-invalidated', platform: 'vrchat' })
+        resolveActivation()
+        await Promise.resolve()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      expect(getExplore).not.toHaveBeenCalled()
+
+      queryClient.setQueryData(authStatusQueryKey('chilloutvr'), {
+        ...auth,
+        platform: 'chilloutvr',
+        accountId: 'account-c'
+      })
+      await act(async () => useFriendsStore.setState({ platformFilter: 'chilloutvr' }))
+      await act(async () => window.dispatchEvent(new Event('focus')))
+      await vi.waitFor(() => expect(getExplore).toHaveBeenCalledOnce())
+      expect(getExplore).toHaveBeenCalledWith({ platform: 'chilloutvr', reason: 'automatic' })
+
+      queryClient.setQueryData(
+        authStatusQueryKey('vrchat'),
+        { ...auth, accountId: 'account-b' },
+        { updatedAt: Date.now() + 1 }
+      )
+      await act(async () => {
+        useFriendsStore.setState({ platformFilter: 'vrchat' })
+        window.dispatchEvent(new Event('focus'))
+      })
+      await vi.waitFor(() => expect(getExplore).toHaveBeenCalledTimes(2))
+      expect(getExplore).toHaveBeenLastCalledWith({ platform: 'vrchat', reason: 'automatic' })
+    }
+  )
+
   it('restores active platforms after StrictMode cleanup before requesting discovery', async () => {
     let mainActive: readonly string[] = []
     const setExploreActive = vi.fn(async ({ platforms }: { platforms: string[] }) => {
