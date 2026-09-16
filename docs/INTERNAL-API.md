@@ -12,6 +12,23 @@
 
 ---
 
+## Design guide fixtures (VRX-273)
+
+`docs/guide` is a documentation-only browser build. It imports production
+components and pure helpers; none of its exports are application APIs.
+`docs/glass.html` runs scenes and `docs/design.html` embeds them for humans.
+
+| Surface                                                                                                             | Source                          | Contract                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createFixtureBridge(variant)`, `installFixtureBridge(window, variant)`                                             | `docs/guide/fixture-bridge.ts`  | Synthetic memory only; refuses an existing app bridge, seals the fake, denies launches, and never performs auth, network, URL, or update actions. |
+| `friends`, `worlds`, `worldImages`, `linkedSnapshot`, `instanceExamples`, `getPlatformSnapshot`, `getWorldSnapshot` | `docs/guide/fixtures.ts`        | Schema-checked sample data and local illustrations. Not platform evidence.                                                                        |
+| `mountScene(root, params)`                                                                                          | `docs/guide/scene-renderer.tsx` | Seeds a scene-local, nonpersistent query client and view stores before mounting production components.                                            |
+| `CatalogScene`                                                                                                      | `docs/guide/catalog-scenes.tsx` | Presentational component gallery with synthetic state transitions.                                                                                |
+
+The guide reuses `applyTheme`, `applyGlow`, `instancePillFor`, Explore selection,
+and the production components below. It adds no IPC, account capability, or
+application hook. Guide entries and output are excluded from app packages.
+
 ## Explore (VRX-270)
 
 Explore is a main-owned, session-memory public-world discovery flow. The
