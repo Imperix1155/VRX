@@ -466,3 +466,41 @@ real secure-store failure message through the synthetic bridge. The viewport
 was reset, and the guide tab remains available. The final approved screenshot
 is still unused. The personal design-iterate skill now records the demonstrated
 preview-watcher/rebase and lazy-frame observation traps; its validator passed.
+
+## Required material integration
+
+The documentation branch was published at `7caf179` in draft PR316, initially
+stacked on PR315. Linear VRX-273 is In Review. CI/CodeQL have no workflow_dispatch
+trigger and only run for pull requests targeting main; no run was created for
+that initial stack. CodeRabbit skipped the draft, which is not substantive review.
+The coordinator subsequently authorized retargeting the existing draft to main
+once both required fixes form one coherent source baseline, retaining explicit
+dependency and docs-only review references. Do not flip the base back merely to
+reuse checks from another state. Keep the candidate draft and unmerged.
+
+Required material fix VRX-276 is published in PR317 at
+`c77b867222ae50c85468aa1fee7a2e1881dc9313`, based on the heading fix d71f92b.
+The driver inspected its actual source diff. It adds the opaque neutral
+`--glass-information` base under informational gradients, preserves the platform
+image gradients, and applies the backing to the existing information containers.
+Source-owner PR evidence reports full tests, native computed-material probes
+across both themes/glow settings, mutation failure when made transparent, and
+fresh Astra/high review. Those are source-owner reports, not a new screenshot or
+installed-app acceptance by this task.
+
+The guide preview watcher was stopped before rebasing. Recovery branch
+`imperix/vrx-273-before-material-sync-20260916` retains the published head.
+Nine docs commits were rebased onto c77b867. The three expected old-design-page
+conflicts retained the rewritten Markdown and module HTML entries; all guide
+files were byte-identical after replay. Upstream changelog and renderer contract
+additions are preserved. The docs-only diff contains no production source edits.
+The driver then reconciled the new information-backing class/token and tint
+composition rule into the concise contract and human guide. Current-source prose
+replaces the earlier pending-fix note without claiming installed-app acceptance.
+
+Rebased mapping: 57de189→0d0030e, 9dafe8d→9677e64, 86ccfed→28f7af1,
+bb1e50d→0c280d8, ce9c6f4→2f83053, 3692502→912b4f1, 64492f6→3805cdc,
+668129c→479e9db, 7caf179→73361bb. Existing immutable review evidence remains
+valid for the unchanged guide code. Image recovery remains with its owning task;
+its worktree is now based on c77b867, providing the intended integration sequence.
+The reserved final screenshot will follow that required source integration.
