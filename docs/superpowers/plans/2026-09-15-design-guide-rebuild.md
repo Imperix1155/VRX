@@ -4,9 +4,10 @@
 
 Kickoff verified on September 15, 2026. Josh then explicitly authorized the
 complete rewrite in this task, superseding the kickoff-only stopping point.
-Implementation is now in progress. The human HTML guide will show real
-components; the agent-native Markdown will contain concise operational rules,
-source references, states, constraints, and verification guidance.
+Implementation and local verification are complete. The human HTML guide shows
+real components; the agent-native Markdown contains operational rules, source
+references, states, constraints, and verification guidance. Draft PR316 is being
+updated for final-head CI. Later dated entries supersede earlier checkpoints.
 It does not grant permission to merge, install an app, publish a release, or
 perform account actions.
 
@@ -528,3 +529,59 @@ which do not subscribe to edited. If no exact-head run appears after final
 integration and retargeting, close/reopen the same unchanged-head draft to send
 the supported reopened event. Preserve dependencies and the docs-only comparison;
 do not alter workflows/protections or merge. No extra PR is needed.
+
+## Final integrated candidate, September 16
+
+The guide now includes required source commits through
+`33a85aee15bde0ae728c0bc72e23d80ca89e4e91`, image recovery PR318, with material
+PR317 and visual fixes PR315 as predecessors. All remain separately owned app
+changes. The driver inspected the typed image-result contract and verified that
+the local fixture bridge still returns its compatible immediate success or
+terminal-null result. The guide does not simulate remote admission timing or
+claim that every image becomes available. Existing limits count admitted image
+operations, not raw HTTP requests. No additional guide scenario was required.
+
+The preview watcher was stopped before this final rebase. All files under
+`docs/guide`, plus DESIGN.md and both HTML entries, remained byte-identical.
+The docs-only comparison against 33a85ae contains no production application
+source changes; its `src` changes are owning contracts. Recovery branch
+`imperix/vrx-273-before-image-sync-20260916` preserves the earlier guide head.
+
+Image integration maps 0d0030e→234afc7, 9677e64→98bb218, 28f7af1→4506f04,
+0c280d8→212d8fe, 2f83053→7e4ff69, 912b4f1→e44a747, 3805cdc→145f13c,
+479e9db→5d9ab16, 73361bb→a9399cf, a9c381a→253a41d, 191e718→7402c65.
+Earlier immutable review artifacts remain applicable to the unchanged guide.
+The completed Sol/high material/control review verified artifact
+`596b2ace7b45bacf7d6b94694a76705d580a7d59629f04e949eda23a34aef1c8` and found
+no actionable defects. Its read-only, approval-never runtime was verified.
+The general anchor and focused reviews collectively cover the final guide code;
+the bounded source integration does not invalidate their conclusions. These
+remain same-lineage Codex reviews, not independent model confirmation.
+
+At clean head `7402c65d242f5105e241d6774f9256d198181d96`, uncached lint,
+formatting, app build with TypeScript and entry-chunk checks, guide build with
+TypeScript, full coverage tests, uncached post-coverage lint, and diff check
+passed. The explicit sentinel was `INTEGRATED_FINAL_GATE_GREEN`: 2,796 tests in
+185 files passed. Coverage was 90.46% statements, 86.96% branches, 89.61%
+functions, and 93.05% lines. Fallow's seven findings match the earlier baseline
+after ignoring source position metadata; no clone group contains guide code.
+No unrelated cleanup was added.
+
+The DOX pass preserves the synchronized root/guide contracts, agent design
+contract, both module entries, human guide, internal API catalog, README, and
+changelog. The source owners' API documentation remains intact. This final
+evidence entry changes no behavior and needs only focused formatting, reference,
+and diff checks. No new screenshot, account action, Mac package, installation,
+or merge is authorized. Installed-app owner acceptance remains separate from
+the guide's synthetic browser evidence.
+
+The final source review reported inherited CSS prefix-order examples in PR318.
+The driver and a read-only inventory counted all occurrences across DESIGN.md,
+both HTML entries, and the moved guide sources. The old source had nine reversed
+prefixed declarations, three in each legacy document. The rewrite removes all
+nine copied declarations. Its only prefixed mention is correct DESIGN.md prose
+requiring WebKit first and standard last. `docs/guide/production.css` imports
+the production stylesheet, whose three shared glass rules have that order.
+`PREFIX_AUDIT_GREEN` confirms no copied declarations survive. This addresses
+the inherited example mismatch on the docs branch only; the unmerged source
+PR318 still contains its historical examples.
