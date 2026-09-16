@@ -490,6 +490,24 @@ describe('ExploreRoute world sheet', () => {
       })
     )
   })
+
+  it('keeps Dashboard cards as the routine refresh feedback while retaining source errors', () => {
+    const { rerender } = render(<ExploreDashboardPreviewRoute />)
+    query.vrc = { ...source, status: 'loading', isStale: true }
+    query.cvr = {
+      ...source,
+      platform: 'chilloutvr',
+      worlds: [],
+      status: 'error',
+      problem: 'network'
+    }
+    rerender(<ExploreDashboardPreviewRoute />)
+
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.queryByText('VRChat worlds are loading…')).toBeNull()
+    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+  })
 })
 
 for (const [label, Route] of [

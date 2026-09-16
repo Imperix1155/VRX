@@ -134,6 +134,17 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Local Contracts
 
+- Explore and Dashboard discovery cards fill their grid cells with shared 16:7
+  artwork and aligned bottom actions. Cards label existing activity as People
+  and omit the visible-room count. Explore uses the TopBar heading only. Retained
+  usable cards suppress routine source loading/stale copy, while initial empty
+  loading and error/unavailable states remain. The room sheet uses the established
+  frosted material and keeps Close outside its scrolling content.
+- Shared glass declarations put `-webkit-backdrop-filter` before the standard
+  `backdrop-filter`. Tailwind optimization can otherwise emit only the obsolete
+  prefixed form; Electron 44 needs the standard property. The material regression
+  test exercises the optimizer, in addition to source-token and layer checks.
+
 - Friends queries merge a partial `get-friends` result with omitted cached
   entries read after IPC resolves. Partial results never imply a removal or
   offline transition. Complete arrays retain replacement semantics; account

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import ts from 'typescript'
+import { optimize } from '@tailwindcss/node'
 import { describe, expect, it } from 'vitest'
 
 const rendererRoot = join(process.cwd(), 'src/renderer')
@@ -460,4 +461,22 @@ describe('renderer design token contract', () => {
       )
     }
   })
+})
+
+describe('compiled glass material', () => {
+  it.each(['glass', 'glass-frosted', 'glass-frosted-heavy'])(
+    'preserves the standard backdrop-filter through Tailwind optimization for .%s',
+    (className) => {
+      const rules = [
+        ...css
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .matchAll(new RegExp(`\\.${className}\\s*\\{[^{}]*\\}`, 'g'))
+      ]
+      expect(rules).toHaveLength(1)
+      // Exercise the same optimizer as @tailwindcss/vite. Source declarations
+      // alone can pass while emitted CSS loses the only property Electron accepts.
+      const emitted = optimize(rules[0]![0], { minify: true }).code
+      expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur(?:-frosted)?\)/)
+    }
+  )
 })

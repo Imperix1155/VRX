@@ -625,7 +625,20 @@ Public/Group Public full rooms remain actionable; VRChat requires explicit
 eligibility. Stale access evidence disables Join. Unknown totals remain unknown,
 and incomplete coverage is distinct from verified empty results.
 
+World cards fill equal responsive columns with matching 16:7 images and aligned
+bottom edges on both pages. The activity label is **People** on either platform;
+card-level Visible rooms is omitted. Numeric provenance and unknown counts remain
+unchanged. Explore uses the shared TopBar page title, with its existing Refresh
+and Worlds shown controls below it.
+
+Room sheets use the Hot Instances frosted fill, gradient and blur tokens. Their
+content scrolls inside the panel so Close remains visible. The shared glass
+material keeps the standard `backdrop-filter` after its WebKit form so Tailwind
+preserves the property accepted by Electron, including Friends drawers.
+
 Named source states preserve the last good data during loading or failure.
+Routine loading/stale copy stays quiet while usable cards remain; initial loading
+without cards and meaningful error/unavailable states remain visible.
 Visible entry, focus and reconnect can request an eligible refresh; there is no
 periodic discovery scan. Images use the existing cache and only visible targets.
 The [production work receipt](superpowers/plans/2026-09-13-explore-production-block.md)

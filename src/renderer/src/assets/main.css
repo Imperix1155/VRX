@@ -645,11 +645,13 @@ body::after {
    is the DEFAULT skin, a utility is an explicit local decision. `position` must
    stay non-static for .glass::before (inset overlay); `fixed` satisfies that too. */
 @layer components {
+  /* Keep the standard filter last: Tailwind optimization otherwise emits only
+     the WebKit property, which Electron 44 no longer recognizes. */
   .glass {
     position: relative;
     background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-panel); /* §3 radius scale — one source of truth (audit W5) */
     box-shadow: var(--glass-shadow);
@@ -670,15 +672,15 @@ body::after {
      after .glass (source order carries the override). */
   .glass-frosted {
     background-color: var(--glass-frost);
-    backdrop-filter: var(--glass-blur-frosted);
     -webkit-backdrop-filter: var(--glass-blur-frosted);
+    backdrop-filter: var(--glass-blur-frosted);
   }
 
   /* Heavy frost modifier — true modals over busy live content (VRX-245). */
   .glass-frosted-heavy {
     background-color: var(--glass-frost-heavy);
-    backdrop-filter: var(--glass-blur-frosted);
     -webkit-backdrop-filter: var(--glass-blur-frosted);
+    backdrop-filter: var(--glass-blur-frosted);
   }
 }
 

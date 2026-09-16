@@ -35,7 +35,7 @@ export default function ExploreDashboardPreview({
         {t('explore.popularNow')}
       </h2>
       <div className="mt-[var(--space-2)]">
-        <ExploreSourceState sources={platformSnapshots} />
+        <ExploreSourceState sources={platformSnapshots} hasUsableCards={worlds.length > 0} />
       </div>
       {worlds.length > 0 ? (
         <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">

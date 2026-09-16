@@ -307,11 +307,18 @@
   .tw4 { font-weight: 400; } .tw5 { font-weight: 500; } .tw6 { font-weight: 600; } .tw7 { font-weight: 700; } .tw8 { font-weight: 800; }
   .vt-sample { font-family: var(--font-mono); }
 
-  /* trust */
-  .rank.muted { font-size: 10.5px; font-weight: 700; color: var(--text-faint); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); padding: 2px 9px; border-radius: 999px; }
-  .toggle { display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim); }
-  .toggle .tk { width: 34px; height: 19px; border-radius: 999px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.16); position: relative; }
-  .toggle .tk::after { content: ""; position: absolute; left: 2px; top: 1.5px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-faint); }
+  /* §5.5: FriendDrawer Notes + trust excerpt; utility values from main.css. */
+  .trust-example {
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --radius-control: 12px; --border: rgba(255,255,255,0.1); --control-fill: rgba(255,255,255,0.05);
+    width: 340px; max-width: 100%; display: flex; flex-direction: column; gap: var(--space-4);
+  }
+  .trust-example > div { display: flex; flex-direction: column; gap: var(--space-1); }
+  .trust-example h3 { font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; }
+  .trust-example textarea { width: 100%; resize: none; border-radius: var(--radius-control); border: 1px solid var(--border); background: var(--control-fill); padding: var(--space-2) var(--space-3); font-family: inherit; font-size: 13px; line-height: inherit; color: var(--text); }
+  .trust-example textarea:read-only { cursor: default; opacity: 0.5; }
+  .trust-example span { text-align: right; font-size: 11px; color: var(--text-faint); }
+  .trust-example > p { font-size: 12px; color: var(--text-dim); }
 
   /* person / linking card */
   .person { width: 340px; max-width: 100%; padding: 16px; }
@@ -515,7 +522,7 @@ body::after {  <span class="c">/* scanlines, z-index:-1 */</span>
             <tr><td><b>Openness</b></td><td>the instance <b>pill</b> (friend row) / icon badge</td><td>§6.1 tier color + VRChat-scheme label (VRX-182); hidden = neutral</td><td class="no">colored by platform; a hue for Private</td></tr>
             <tr><td><b>Policy space</b></td><td>join confirmation and hot-instance detail sheet</td><td>Rose Public space · Ice Private space · neutral Unknown</td><td class="no">putting policy context in the first friend drawer</td></tr>
             <tr><td><b>Joinability</b></td><td>right-side <b>affordance</b></td><td>Join / Ask / ⊘ (derived)</td><td class="no">reusing a platform hue</td></tr>
-            <tr><td><b>Trust</b></td><td>row: opt-in muted pill · drawer: quiet text below Notes</td><td><b>row pill off by default; drawer value shown when known; names neutral</b></td><td class="no">a name color, or a default-on row trust pill</td></tr>
+            <tr><td><b>Trust</b></td><td>friend drawer: plain text below Notes</td><td>known VRChat rank · 12px <code>--text-dim</code> · names neutral</td><td class="no">rank-colored names or a friend-row rank pill</td></tr>
           </table>
         </div>
 
@@ -595,15 +602,20 @@ state:  <span class="v">"online"</span>  <span class="c">// in-game (the dot, 5.
 
         <div class="el">
           <div class="el-name"><span class="ix">5.5</span> Trust — demoted by design</div>
-          <div class="el-sum">VRChat itself is phasing out trust ranks (an in-game "show as User" toggle; nametags no longer rank-colored). VRX mirrors that.</div>
+          <div class="el-sum">Trust is secondary information. VRX deliberately keeps it quiet: a known VRChat rank appears as plain, subdued text immediately below Notes in the friend drawer. Names stay neutral.</div>
           <div class="demo col" style="gap:13px;">
-            <div class="dotrow"><span class="toggle"><span class="tk"></span> Show trust ranks</span> <span style="color:var(--text-faint);font-size:12px">— off by default</span></div>
-            <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
-              <div class="fname" style="font-size:14px">Nova <span class="fglyph" style="background:rgba(43,124,232,.2);color:#bcd9fb;font-family:var(--font-mono)">V</span> <span style="color:var(--text-faint);font-size:11px">(default — name neutral)</span></div>
-              <div class="fname" style="font-size:14px">Nova <span class="rank muted">Known</span> <span style="color:var(--text-faint);font-size:11px">(opt-in pill, muted)</span></div>
+            <div class="why">Friend drawer excerpt · sample content, read-only here</div>
+            <div class="trust-example">
+              <div class="flex flex-col gap-[var(--space-1)]">
+                <h3 id="trust-example-notes-label" class="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase"><label for="trust-example-notes">Notes (yours, private)</label></h3>
+                <textarea id="trust-example-notes" rows="4" maxlength="500" readonly aria-labelledby="trust-example-notes-label" class="w-full resize-none rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)] read-only:cursor-default read-only:opacity-50">Met at game night.</textarea>
+                <span class="text-right text-[11px] text-[var(--text-faint)]">18/500</span>
+              </div>
+              <p class="text-[12px] text-[var(--text-dim)]">Trust: Known User</p>
             </div>
           </div>
-          <div class="why" style="margin-top:4px;">CVR has <b>no trust ranks at all</b> — we don't invent a fake equivalent. That asymmetry is honest. Names stay neutral so trust never becomes a 5th color competing with the four above.</div>
+          <div class="why" style="margin-top:4px;">The current app has no trust-display setting or friend-row rank pill. The drawer shows the rank when a displayed VRChat account has one, including the VRChat member of a linked person. CVR supplies no trust-rank value in VRX's model. If no known VRChat rank is available, the line is omitted.</div>
+          <div class="why">This restrained presentation is VRX's product decision. <a href="https://docs.vrchat.com/docs/vrchat-safety-and-trust-system">VRChat still uses trust ranks for content eligibility and Safety settings</a>; its optional “Show as User” setting does not establish that ranks are being retired.</div>
         </div>
       </section>
 
@@ -997,8 +1009,8 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
         <div class="secline"><span class="kick">Explore</span> <span class="hint">production integration · September 13, 2026</span></div>
         <div class="glass" style="padding: 18px 20px;">
           <p class="why">Explore replaces the Instances sidebar stub with liquid-glass world cards, a mixed grid and a contained non-modal room sheet. Dashboard order is stats → up to two Popular now cards → unchanged Hot Instances. Both views share cached discovery and ranking. The global platform filter and 2/4/6 world choice persist, with 4 the default. Home/End select the count bounds.</p>
-          <p class="why">The sheet keeps the sidebar accessible and restores focus when dismissed. Join uses the existing confirmation, permission and platform mode rules. Fresh CVR Public/Group Public full rooms stay actionable; VRChat requires explicit eligibility. Stale Join is disabled. Unknown totals remain unknown, and incomplete coverage is distinct from verified empty results.</p>
-          <p class="why">Named source states retain last-good data during loading and failure. Visible entry, focus and reconnect use bounded refresh eligibility; images load for visible targets through the existing cache. No periodic discovery scan is introduced. The production work receipt records runtime and visual evidence separately from these reference updates.</p>
+          <p class="why">The sheet keeps the sidebar accessible and restores focus when dismissed. Its frosted fill, gradient and blur follow Hot Instances, and Close remains outside the scrolling room content. Join uses the existing confirmation, permission and platform mode rules. Fresh CVR Public/Group Public full rooms stay actionable; VRChat requires explicit eligibility. Stale Join is disabled. Unknown totals remain unknown, and incomplete coverage is distinct from verified empty results.</p>
+          <p class="why">World cards fill equal responsive columns, keep their shared 16:7 imagery and align their bottom edges. Both platforms use People for the existing activity value, without a Visible rooms card metric. The shared TopBar supplies the single Explore page title. Named source states retain last-good data during loading and failure. Routine loading/stale copy stays quiet while cards remain; initial empty loading and meaningful errors remain visible. Visible entry, focus and reconnect use bounded refresh eligibility; images load for visible targets through the existing cache. No periodic discovery scan is introduced. The production work receipt records runtime and visual evidence separately from these reference updates.</p>
         </div>
       </section>
     </main>
