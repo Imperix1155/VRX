@@ -86,6 +86,12 @@ function setup(
 afterEach(cleanup)
 
 describe('ExploreView', () => {
+  it('uses the shared title as its accessible section label without rendering a second heading', () => {
+    setup()
+    expect(screen.getByRole('region', { name: 'Explore' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Explore' })).toBeNull()
+  })
+
   it('uses the compact controlled 2/4/6 stepper without owning the platform filter', () => {
     const props = setup()
     const spin = screen.getByRole('spinbutton', { name: 'Worlds shown' })
@@ -126,7 +132,7 @@ describe('ExploreView', () => {
     expect(screen.queryByRole('img')).toBeNull()
   })
 
-  it('shows unknown rather than zero for partial counts and reports stale sources', () => {
+  it('shows unknown rather than zero for partial counts and keeps routine refresh copy quiet', () => {
     const partial = {
       ...world('vrchat', 'partial'),
       activity: { state: 'partial' as const, value: null, source: 'unknown' as const }
@@ -135,17 +141,18 @@ describe('ExploreView', () => {
       worlds: [partial],
       platformSnapshots: [{ ...source('vrchat', [partial]), isStale: true }]
     })
-    expect(screen.getByText(/People in this world: Unknown/)).toBeTruthy()
-    expect(screen.getByText('VRChat is showing saved results while refreshing.')).toBeTruthy()
+    expect(screen.getByText(/People: Unknown/)).toBeTruthy()
+    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    expect(screen.queryByText('Visible rooms')).toBeNull()
   })
 
-  it('names independent source states and retains healthy cards without an ordinary empty result', () => {
+  it('retains meaningful errors but keeps routine loading copy quiet while cards remain', () => {
     const healthy = world('vrchat', 'healthy', 'Healthy World')
     setup({
       worlds: [healthy],
       platformSnapshots: [source('vrchat', [healthy], 'loading'), source('chilloutvr', [], 'error')]
     })
-    expect(screen.getByText('VRChat worlds are loading…')).toBeTruthy()
+    expect(screen.queryByText('VRChat worlds are loading…')).toBeNull()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
     expect(screen.getByText('Healthy World')).toBeTruthy()
     expect(screen.queryByText('No public worlds are available right now.')).toBeNull()
@@ -565,7 +572,7 @@ describe('ExploreDashboardPreview', () => {
     expect(screen.getAllByRole('button', { name: /open visible rooms/i })).toHaveLength(2)
   })
 
-  it('reuses named source truth for stale cards and empty loading/error/unavailable previews', () => {
+  it('keeps refresh copy quiet for cards and retains it for empty loading/error/unavailable previews', () => {
     const cached = world('vrchat', 'cached', 'Cached')
     const { rerender } = render(
       <ExploreDashboardPreview
@@ -574,7 +581,7 @@ describe('ExploreDashboardPreview', () => {
         onOpenWorld={vi.fn()}
       />
     )
-    expect(screen.getByText('VRChat is showing saved results while refreshing.')).toBeTruthy()
+    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
     expect(screen.getByText('Cached')).toBeTruthy()
     rerender(
       <ExploreDashboardPreview

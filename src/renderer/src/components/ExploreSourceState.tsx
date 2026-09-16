@@ -3,16 +3,21 @@ import type { ExplorePlatformSnapshot } from '@shared/explore'
 
 /** Shared named source truth for the Explore grid and Dashboard preview. */
 export default function ExploreSourceState({
-  sources
+  sources,
+  hasUsableCards = false
 }: {
   sources: readonly ExplorePlatformSnapshot[]
+  /** Existing cards are sufficient feedback during a routine background refresh. */
+  hasUsableCards?: boolean
 }): React.JSX.Element | null {
   const { t } = useTranslation()
   const statusKey = (source: ExplorePlatformSnapshot): string | null => {
-    if (source.status === 'loading') return 'explore.sourceState.loading'
+    if (source.status === 'loading') {
+      return hasUsableCards ? null : 'explore.sourceState.loading'
+    }
     if (source.status === 'error') return 'explore.sourceState.error'
     if (source.status === 'unavailable') return 'explore.sourceState.unavailable'
-    if (source.isStale) return 'explore.sourceState.stale'
+    if (source.isStale) return hasUsableCards ? null : 'explore.sourceState.stale'
     return null
   }
   const states = sources

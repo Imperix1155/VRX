@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Explore and Dashboard world cards fill equal columns, use a shared People
+  count, and stay quiet during routine background refreshes. Explore has one
+  page heading. (VRX-272)
+- Room sheets use readable frosted glass and keep Close visible while scrolling.
+  Restored the compiled glass blur used by Friends drawers and other glass
+  panels in Electron 44. (VRX-272)
+
 ## [0.20.0] - 2026-09-15
 
 ### Changed
