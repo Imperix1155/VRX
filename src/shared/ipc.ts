@@ -23,6 +23,7 @@ import type { Settings } from '@shared/settings'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type {
   ExplorePlatformSnapshot,
+  ExploreImageResult,
   ExploreWorldSnapshot,
   ExploreRefreshReason,
   ExploreWorldReason
@@ -76,7 +77,7 @@ export interface IpcInvoke {
   'cancel-explore-world': { req: { platform: Platform; worldRef: string }; res: void }
   'get-explore-image': {
     req: { platform: Platform; worldRef: string }
-    res: { ok: true; dataUrl: string } | null
+    res: ExploreImageResult
   }
   'join-explore-room': {
     req: { platform: Platform; selectionRef: string; mode: JoinMode }

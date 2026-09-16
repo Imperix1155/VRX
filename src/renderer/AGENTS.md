@@ -69,8 +69,13 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
   generation before dispatching, so an old account cannot replay against a new
   one. Image work begins only from a visible card or currently selected sheet,
   deduplicates a current opaque `worldRef`, and caches successful images and
-  null denials together within a 12-entry per-platform bound. A retained denial
-  suppresses another request until eviction or that platform boundary. Platform
+  terminal null results within a 12-entry per-platform bound. Shared visible
+  card/sheet observers may recover only typed main admission deferrals, at most
+  twice per retained reference/session, using a clamped delay and one timer.
+  Continuous intersection and document visibility checks cancel delayed dispatch
+  when no visible consumer remains. Hiding/remounting cannot reset the retained
+  attempt budget; session/ref changes fence callbacks and requests. Null/unknown
+  failures stay terminal, and inactive observer retention is bounded. Platform
   boundaries reset only that platform's image observers/cache. Reset disabled query observers at boundaries; removing
   a query alone leaves an already mounted observer holding old account data.
 

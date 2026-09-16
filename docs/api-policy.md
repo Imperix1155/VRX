@@ -46,9 +46,10 @@ VRX/<app version> (https://github.com/Imperix1155/VRX)
 
 ### Public-world discovery
 
-Explore is an on-demand, session-memory discovery feature. It has no polling
-timer, no saved discovery cache, no direct renderer transport, and no automatic
-continuation when a cooldown or budget window expires. Main coalesces the
+Explore is an on-demand, session-memory discovery feature. Discovery JSON has no
+polling timer, saved cache, direct renderer transport, or automatic continuation
+when a cooldown or budget window expires. Image admission recovery is the
+separate, finite exception described below. Main coalesces the
 visible platform work, cancels it when the view hides or the account changes,
 and preserves the last display snapshot when a refresh cannot finish. Identical
 world/room reads share pending work only inside one account session. Cancelling
@@ -67,7 +68,20 @@ Sharing never renews the original transport lease, deadline or attempt budget.
   coverage rather than crawling further.
 - Explore image work reuses the authenticated image cache: at most six new
   image operations per platform per 60 seconds and two outstanding. Cached
-  images do not consume a new operation; denied work remains a placeholder.
+  images do not consume a new operation. Main distinguishes only local image
+  admission deferral from terminal missing/invalid/stale/failed artwork. Current
+  visible card/sheet observers may make at most two later recovery attempts per
+  retained world reference/session, coalescing shared observers. Capacity hints
+  wait 2.0–2.75 seconds; rolling-window hints wait for the earliest retained start
+  to expire with bounded jitter. Hints are clamped to 250–60,000 ms on both sides.
+  Losing the last visible observer or document visibility cancels the timer;
+  returning visibility can use only the remaining retained budget. Identity and
+  reference changes fence dispatch and publication. Terminal null/unknown
+  transport failures never schedule recovery. This adds bounded later image
+  opportunities within the same hard ceilings, not a discovery or presence poll.
+  Adapter/server cooldown metadata and URL authority remain main-only. Exhausted
+  recovery stays a placeholder; no guaranteed eventual fetch or live-server
+  verification is claimed (VRX-275).
 - Discovery evidence is fresh for 60 seconds. Automatic candidate starts wait
   at least five minutes since the last candidate attempt; manual candidate and
   world refreshes wait at least 60 seconds. These are eligibility checks, not

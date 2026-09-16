@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Platform } from '@shared/types'
-import { requestExploreImage, useExploreResetGeneration } from '../queries/explore'
+import { observeExploreImage, useExploreResetGeneration } from '../queries/explore'
 
 /**
  * Resolves main-issued art only after its owning card becomes visible. The shared
@@ -18,45 +18,38 @@ export function useExploreImage(
   const resetGeneration = useExploreResetGeneration(platform)
   const elementRef = useRef<HTMLElement | null>(null)
   const key = `${resetGeneration}:${platform}:${worldRef}`
-  const [visibleKey, setVisibleKey] = useState(eager ? key : null)
+  const [visibleKey, setVisibleKey] = useState<string | null>(eager ? key : null)
   const [resolved, setResolved] = useState<{ key: string; data: string } | null>(null)
 
   useEffect(() => {
-    if (eager && visibleKey !== key) {
-      queueMicrotask(() => setVisibleKey(key))
-      return
-    }
-    if (visibleKey === key || typeof IntersectionObserver === 'undefined') return
+    if (eager || typeof IntersectionObserver === 'undefined') return
     const element = elementRef.current
     if (element === null) return
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) {
-        setVisibleKey(key)
-        observer.disconnect()
-      }
+      setVisibleKey(entry?.isIntersecting === true ? key : null)
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [eager, key, visibleKey])
+  }, [eager, key])
 
   useEffect(() => {
-    if (visibleKey !== key) return
-    let cancelled = false
-    void requestExploreImage(platform, worldRef)
-      .then((data) => {
-        if (!cancelled && data !== undefined) setResolved({ key, data })
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [key, platform, visibleKey, worldRef])
+    if (!eager && visibleKey !== key) return
+    return observeExploreImage(platform, worldRef, (data) => {
+      if (data !== undefined) setResolved({ key, data })
+    })
+  }, [eager, key, platform, visibleKey, worldRef])
+
+  const ref = useCallback(
+    (element: HTMLElement | null) => {
+      elementRef.current = element
+      if (element === null) setVisibleKey(null)
+      else if (typeof IntersectionObserver === 'undefined') setVisibleKey(key)
+    },
+    [key]
+  )
 
   return {
-    ref: (element) => {
-      elementRef.current = element
-      if (element !== null && typeof IntersectionObserver === 'undefined') setVisibleKey(key)
-    },
+    ref,
     image: resolved?.key === key ? resolved.data : undefined
   }
 }
