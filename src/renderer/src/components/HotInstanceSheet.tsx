@@ -144,7 +144,7 @@ export default function HotInstanceSheet({
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
-          backgroundColor: 'var(--glass-frost)',
+          backgroundColor: 'var(--glass-information)',
           backgroundImage: 'var(--glass-bg)',
           backdropFilter: 'var(--glass-blur-frosted)',
           WebkitBackdropFilter: 'var(--glass-blur-frosted)',

@@ -79,7 +79,9 @@ export default function AccountCard({ platform }: { platform: Platform }): React
   const isUnreachable = authStatus?.state === 'error'
 
   return (
-    <div className={`glass ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}>
+    <div
+      className={`glass glass-information ${config.tintClass} relative overflow-hidden p-[var(--space-6)]`}
+    >
       <div className="relative flex items-center gap-[var(--space-3)]">
         {/* Reserved for a future real platform logo; do not restore PlatformGlyph. */}
         <div className="w-[var(--space-6)] shrink-0" aria-hidden="true" />

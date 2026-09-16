@@ -29,7 +29,7 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
       }
     >
       <div
-        className={`glass relative w-full max-w-sm overflow-hidden ${
+        className={`glass glass-information relative w-full max-w-sm overflow-hidden ${
           isPanel ? 'p-[var(--space-6)]' : 'p-[var(--space-8)]'
         }`}
       >

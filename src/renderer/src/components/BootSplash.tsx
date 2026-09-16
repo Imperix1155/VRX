@@ -6,7 +6,7 @@ export default function BootSplash(): React.JSX.Element {
 
   return (
     <div className="grid min-h-screen place-items-center p-[var(--space-6)]">
-      <div className="glass px-[var(--space-8)] py-[var(--space-6)] text-center">
+      <div className="glass glass-information px-[var(--space-8)] py-[var(--space-6)] text-center">
         <div
           className="inline-block font-mono text-4xl leading-none tracking-wider"
           role="img"

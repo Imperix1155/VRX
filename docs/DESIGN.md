@@ -9,7 +9,7 @@
 ## RULES DIGEST — read before emitting any UI
 
 ```
-R1  Every floating surface = .glass (§3). NEVER opaque/solid card backgrounds.
+R1  Floating surfaces use .glass (§3). Information cards/panels add .glass-information: opaque neutral backing under their existing gradients. Decorative chrome may stay translucent.
 R2  Color == meaning, never decoration. Each meaning has ONE fixed location + a non-color glyph (§5).
 R3  Platform hues: --vrc(blue)=VRChat, --cvr(orange)=ChilloutVR. NEVER swap. NEVER reuse blue/orange for non-platform meaning.
 R4  STATE == the avatar DOT only: in-game=green, active=teal (online-not-in-game), offline=gray. NEVER color text/panels by state; NEVER make it blue. (Friend-row ring: a statusless in-game friend folds to the tier-2 Online ring, not the state palette — §5/VRX-207.)
@@ -88,6 +88,7 @@ LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interacti
   --glass-blur: blur(26px) saturate(165%);
   /* FROSTED variant (VRX-226) — panels floating OVER content */
   --glass-frost: rgba(13, 15, 22, 0.78);
+  --glass-information: rgb(13, 15, 22);
   --glass-blur-frosted: blur(34px) saturate(165%);
   /* HEAVY frost (VRX-245) — TRUE modals only; the drawer keeps the lighter --glass-frost. */
   --glass-frost-heavy: rgba(13, 15, 22, 0.94);
@@ -135,6 +136,7 @@ Light mode is NOT a new palette. It is the same VRX channel system remapped for 
   --policy-private-text: #17667a;
   --glass-blur: blur(24px) saturate(142%);
   --glass-frost: rgba(244, 247, 252, 0.84);
+  --glass-information: rgb(244, 247, 252);
   --glass-blur-frosted: blur(30px) saturate(142%);
   --glass-frost-heavy: rgba(244, 247, 252, 0.96);
 }
@@ -145,6 +147,15 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
 `--control-fill` and `--control-fill-hover` are neutral interactive-control surfaces. Use them as a paired idle/hover affordance for buttons and similar controls; they do not carry platform, state, or status meaning. Static spacing tokens live in `:root` because spacing does not theme-switch; use them for component spacing instead of raw scale utilities on touched surfaces.
 
 ## §3 Glass material
+
+Information cards and panels must not inherit background color (VRX-276). Add
+`.glass-information` to their existing material; its fully opaque neutral backing
+sits below the current neutral or platform gradient. Keep platform tints, images,
+semantic colors, sheen, borders, radii and shadows. Sidebar and decorative control
+tracks may remain translucent. The Friends list needs the same backing even
+though its regular frame is not a `.glass` panel. Hand-styled room sheets consume
+the information token directly. This supersedes the earlier blanket ban on opaque
+card backgrounds; it does not remove the aurora or change platform colors.
 
 ```css
 .glass {
@@ -177,12 +188,15 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
   backdrop-filter: var(--glass-blur-frosted);
   -webkit-backdrop-filter: var(--glass-blur-frosted);
 }
+.glass-information {
+  background-color: var(--glass-information);
+}
 .tint-vrc {
-  background: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
+  background-image: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
   border-color: rgba(43, 124, 232, 0.34);
 }
 .tint-cvr {
-  background: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
+  background-image: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   border-color: rgba(243, 113, 30, 0.36);
 }
 ```
@@ -192,7 +206,7 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
   - **The stack model (owner law, 2026-07-11 / VRX-206):** surfaces read as physical LAYERS stacked on top of each other — background → panel → card → pills/tabs on the card. An element placed onto a parent surface gets an EVEN inset on every attached side and a radius derived concentrically from the parent (inner = outer − border − gap; the friend-row platform tab: 13 − 1 − 3 = **9px**). Never butt an element flush on some sides and gapped on others — "stacked on, never slapped on".
   - **Carve-out (owner-ratified 2026-06; cascade note ↻ VRX-225):** the **segmented control track** uses the `20px` panel radius, not 12–13px — the owner chose the rounder look, and the track simply carries no `rounded-[..]` utility so `.glass`'s default radius applies. Its sliding bubble is then `16px` (= 20 − 4px inset) so it seats concentrically. NOTE the cascade REVERSED in VRX-225: `.glass` now lives in `@layer components`, so a Tailwind utility on the same element WINS over the glass defaults (that's what lets the drawer be `fixed`). Putting a control back on the 12–13px scale is now just `rounded-[13px]` — but the 20px track choice above still stands.
 - **Stripe containment rule (owner-ratified 2026-08-12; second shipped defect after join dialog):** platform stripes and accent lines render INSIDE their panel's border-radius and clip to the panel bounds — never full-bleed past a rounded corner, never outside the panel edge. The stripe must be a descendant of the overflow-clipping radius container.
-- Platform tint opacity ceiling = `0.22`. Above → reads as solid plastic (loses glass).
+- Platform tint opacity ceiling remains `0.22`; the information backing is independently opaque so the ambient color cannot override the platform hue.
 - `.tint-vrc`/`.tint-cvr` used ONLY where the surface belongs to one platform (e.g. hot-instance cards).
 
 ## §3A Light glass material
@@ -206,15 +220,18 @@ RULE: dark remains the baseline/default. Light overrides MUST live behind an exp
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
     inset 0 -1px 1px rgba(40, 48, 68, 0.08);
 }
+[data-theme='light'] .glass-information {
+  background-color: var(--glass-information);
+}
 [data-theme='light'] .glass::before {
   background: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
 }
 [data-theme='light'] .tint-vrc {
-  background: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
+  background-image: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
   border-color: rgba(31, 111, 211, 0.28);
 }
 [data-theme='light'] .tint-cvr {
-  background: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
+  background-image: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
   border-color: rgba(216, 95, 24, 0.3);
 }
 ```
@@ -654,7 +671,7 @@ visual acceptance or authorize live-account tests.
 Self-verify BEFORE emitting/PRing UI (all must pass):
 
 ```
-[ ] all floating surfaces use .glass; zero solid/opaque cards
+[ ] informational cards/panels have opaque neutral backing; decorative shell retains glass
 [ ] zero color/spacing literals outside §2 tokens
 [ ] light mode uses §2A–§4A overrides only; no light-only component grammar or rebrand
 [ ] light mode preserves blue top-left / orange bottom-right atmosphere and liquid-glass material

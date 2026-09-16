@@ -134,6 +134,16 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Local Contracts
 
+- Information-bearing foreground cards and panels use the fully opaque
+  `--glass-information` base, normally through `.glass-information`, beneath
+  their existing glass/platform gradients. Ambient background color must not
+  affect those surfaces in either theme or any glow level. Preserve images,
+  platform/status/access colors, neutral sheen, borders, depth and geometry.
+  Friends list backing and hand-styled sheets obey the same rule. Sidebar,
+  segmented tracks and stepper tracks remain translucent decorative chrome.
+  Tint classes set `background-image`, never reset the information base with
+  a `background` shorthand. This is the VRX-276 owner refinement.
+
 - Dashboard Hot Instances and Popular now headings share `--text-faint` and
   normal weight 400, retaining their existing sizes, tracking and `h2` semantics.
 - Explore and Dashboard discovery cards fill their grid cells with shared 16:7
