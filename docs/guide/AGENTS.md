@@ -23,9 +23,9 @@ by `src/renderer`. Import them rather than duplicating their markup or CSS.
 - Keep source revision and component references visible without cluttering
   examples. Known product defects remain defects, not design rules.
 - Information-bearing surfaces must keep their intended colors independent of
-  the ambient background. Until the production correction is verified, show
-  the known color-bleed gap faithfully and label it as pending. Never hide it
-  with guide-only styles. Decorative chrome may retain ambient color.
+  the ambient background. Import the production information backing and never
+  hide remaining gaps with guide-only styles. Decorative chrome may retain
+  ambient color. Source checks do not establish installed-app visual acceptance.
 - Preserve the app's 900×670 floor in embedded desktop examples and standalone
   scenes. Let the guide scroll around that window; never shrink away controls.
 - Open focus-taking overlays only after a reader gesture and restore focus to

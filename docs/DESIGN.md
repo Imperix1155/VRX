@@ -60,10 +60,11 @@ light/dark values into a second fixed palette. Use
 
 ## §3 Material and overlays
 
-Use `.glass` for base panels over the canvas. Use `.glass glass-frosted` for a
-sheet or drawer over readable content. True confirmation modals use
-`.glass glass-frosted-heavy`. Frost must prevent underlying text from competing
-with the foreground while retaining depth.
+Use `.glass glass-information` for information panels over the canvas. Add
+`.glass-frosted` for a sheet or drawer, and `.glass-frosted-heavy` for a true
+confirmation modal. The information modifier gives these surfaces an opaque
+neutral backing beneath their existing gradients. Decorative chrome may keep
+the translucent `.glass` material. Preserve neutral sheen, borders, and depth.
 
 Information-bearing foreground cards and panels must keep their intended colors
 independent of the ambient background. This includes statistics, Popular now,
@@ -73,11 +74,18 @@ surfaces. Neutral sheen and highlights may vary. Decorative chrome such as the
 sidebar may still take on ambient color. This rule does not remove intentional
 platform styling; it prevents the background from changing that styling.
 
+Use `--glass-information` for the backing in both themes. Tint classes must set
+`background-image`, not a `background` shorthand that clears that backing. The
+Friends list uses the same backing without requiring a `.glass` frame;
+hand-styled room sheets consume the token directly. Keep images, semantic colors,
+geometry, and existing platform gradients unchanged.
+
 Keep these classes in `@layer components`; utility positioning must still win
-for fixed overlays. Frost modifiers follow `.glass` so their underlay overrides
-its background shorthand. In compiled CSS, keep `-webkit-backdrop-filter` before
-standard `backdrop-filter`, with the standard property last. Verify the resulting
-computed material as well as source order.
+for fixed overlays. Frost modifiers follow `.glass`, and `.glass-information`
+follows the frost modifiers so its opaque backing wins without clearing the
+gradient. In compiled CSS, keep `-webkit-backdrop-filter` before standard
+`backdrop-filter`, with the standard property last. Verify the resulting computed
+material as well as source order.
 
 Use the existing overlay components rather than assembling a new scrim/focus
 pattern. A non-modal sheet must not claim `aria-modal` or trap focus. A true
@@ -328,10 +336,10 @@ versus Hidden wording remain separate work. Do not present them as approved
 rules or fix them incidentally in a documentation change. Proposed designs must
 be labeled as proposals and must not replace current examples before approval.
 
-Ambient color currently reaches some informational surfaces. The no-color-bleed
-rule in §3 is approved; its production correction is pending verification by the
-owning app task. Keep the guide faithful to current components, and do not hide
-the gap with preview-only styles or describe it as approved glass behavior.
+The VRX-276 information backing implements the approved no-color-bleed rule in
+§3. The guide imports that production material directly. A source or synthetic
+fixture check does not establish owner acceptance in an installed app. Never
+conceal a remaining product defect with preview-only styles.
 
 Preserve access to existing controls and workflows. Security, credential,
 account, API-rate, and merge rules remain in the root contract. No visual change
