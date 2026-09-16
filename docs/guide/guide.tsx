@@ -248,7 +248,8 @@ export default function Guide(): React.JSX.Element {
         <Section id="app" kicker="01 · current app" title="The app, assembled">
           <p className="design-guide__lead">
             Start here when checking hierarchy. Stats, Popular now, and Hot Instances each keep
-            their own state instead of collapsing into a single empty dashboard.
+            their own state instead of collapsing into a single empty dashboard. The section
+            headings share subdued gray text at normal weight, with their existing sizes.
           </p>
           <Scene
             name="dashboard"

@@ -177,6 +177,11 @@ and help. VT323 accents the VRX mark, section kickers, and prominent statistics.
 Technical identifiers may use the component's existing readable monospace face;
 the Hot Instance ID uses `ui-monospace`, not VT323.
 
+Dashboard section headings share `--text-faint` and normal weight 400 in both
+themes. Hot Instances keeps its 18px uppercase kicker; Popular now keeps its
+20px heading and existing tracking. Preserve their semantic `h2` elements and
+leave primary page headings unchanged.
+
 Load the licensed local WOFF2 files through `main.css`. Preserve the font
 provenance and license assets. Do not load remote fonts, add another display
 face, use negative letter spacing, or scale typography with viewport width.
