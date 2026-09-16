@@ -25,6 +25,9 @@ components and pure helpers; none of its exports are application APIs.
 | `mountScene(root, params)`                                                                                          | `docs/guide/scene-renderer.tsx` | Seeds a scene-local, nonpersistent query client and view stores before mounting production components.                                            |
 | `CatalogScene`                                                                                                      | `docs/guide/catalog-scenes.tsx` | Presentational component gallery with synthetic state transitions.                                                                                |
 
+`docs/guide/scenarios.ts` owns the source, room, and drawer scenario options,
+source-mode resolution, and desktop-scene list used by both entry controls.
+
 The guide reuses `applyTheme`, `applyGlow`, `instancePillFor`, Explore selection,
 and the production components below. It adds no IPC, account capability, or
 application hook. Guide entries and output are excluded from app packages.

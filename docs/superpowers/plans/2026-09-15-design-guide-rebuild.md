@@ -241,15 +241,52 @@ This source evidence is not visual verification.
 - Relative design links and `git diff --check` passed. Source review corrected
   the avatar state fold, Trust availability, and technical-ID font description.
 
-The localhost server serves `http://127.0.0.1:4173/design.html` on port 4173.
-No rendered verification has occurred. One-time approval for the first capture
-of that exact page in the Codex in-app browser is still pending. The preview
-open request was queued, which is not evidence of a visible or inspected page.
-No capture, real-account action, app installation, or merge occurred.
+The localhost server serves `http://127.0.0.1:4173/design.html`.
+Josh approved one screenshot through the originating voice task. The Codex
+in-app browser opened successfully, and that screenshot showed the dark guide
+introduction plus the top of the real Dashboard, including platform filter,
+statistics, and world-card artwork. No alternative browser was needed. The one
+image approval is consumed. Full visual verification remains incomplete.
+The next pending request is one light Dashboard screenshot at
+`glass.html?scene=dashboard&theme=light&render=1`, at the supported 900×670 floor.
+No installed app, other window, or real account was captured or operated.
 
-Josh specifically requires meticulous verification using the Codex in-app
-browser and computer use, across themes, widths, and interactive states. Do not
-substitute source tests, a served preview, another browser, or a successful build.
-The next required step is that consented browser inspection, followed by any
-corrections, final review coverage, and PR delivery. The docs branch remains
-based on PR315 head `154385f49a9154831ae9eab1179a7c58d8d3b3c6`.
+## Review and correction checkpoint
+
+Local checkpoint `d63af8bd8e3303f12292f1c295c6569f5ca775f8` contains the initial
+implementation. Fresh Astra/high general review ran with observed `read-only`
+sandbox and `approval: never`. It verified diff hash
+`fc8f3d2e2b1646f6cfb40f26eb063aa3ee6a5fb04d666d5f9df09d65d8193005`
+against base `154385f49a9154831ae9eab1179a7c58d8d3b3c6`. It found four P2 issues:
+short desktop frames clipping the updater, permanently expired room fixtures,
+unreachable CVR initial-load/retained-refresh samples, and missing note failures.
+
+The focused correction keeps the production components and isolation boundary:
+
+- Desktop examples preserve 900×670 inside a scrolling guide frame and in the
+  standalone runner. Overlays wait for a reader gesture, avoiding initial focus
+  theft. Guide headings follow fixed type sizes without negative tracking.
+- Successful room reads timestamp the current read. Explore and material Refresh
+  renew their snapshots after expiry. Source/room/drawer state options share one
+  registry with both entry controls, including CVR first load and quiet refresh.
+- Synthetic note-load/save failures reject the first operation per key, retain
+  the saved value, and recover through explicit retry. No data persists.
+
+Fifteen guide tests passed after these corrections. The driver reproduced the
+worker's note-retry mutation and separately removed the room timestamp and
+Refresh corrections: each mutation failed the intended tests; restoration passed.
+Guide typecheck/lint passed. Fallow still reports the same seven baseline findings
+and no guide clone groups. Focused review, SHA-bound final gates, complete browser
+inspection, and PR delivery remain outstanding. No branch push or merge occurred.
+
+Review artifacts and logs are under
+`/Users/imperix/.codex/visualizations/2026/09/16/01a0a80a-e6ef-7d52-ae0b-6b0b9b362758/review`.
+The general review is a same-lineage Codex check, not independent model confirmation.
+The driver inspected all delegated artifacts and reran their decisive checks;
+no implementation worker remains active.
+
+Josh specifically requires meticulous Codex in-app-browser verification across
+themes, widths, and interactive states. Complete the consented captures and
+interaction checks before claiming the guide finished. Source tests, a served
+preview, and builds do not replace that evidence. The docs branch remains based
+on PR315 head `154385f49a9154831ae9eab1179a7c58d8d3b3c6`; merging is not authorized.

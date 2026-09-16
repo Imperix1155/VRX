@@ -1,6 +1,6 @@
 .scene-frame-document {
   margin: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 .scene-frame {
   display: grid;
@@ -94,4 +94,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.scene-frame--desktop {
+  height: auto;
+  min-height: 100dvh;
+  grid-template-rows: auto minmax(670px, 1fr) auto;
+}
+.scene-frame--desktop .scene-viewport {
+  min-width: 900px;
+  min-height: 670px;
 }

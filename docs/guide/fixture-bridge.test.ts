@@ -73,6 +73,51 @@ describe('design guide account isolation', () => {
     expect((await createFixtureBridge('idle').getFriendNote(key)).note).toBe(baseline.note)
   })
 
+  it('fails the first synthetic note load, then lets an explicit retry recover', async () => {
+    const bridge = createFixtureBridge('note-load-error')
+    const key = { platform: 'vrchat' as const, friendId: 'fixture' }
+
+    await expect(bridge.getFriendNote(key)).rejects.toThrow('Synthetic note load failed')
+    await expect(bridge.getFriendNote(key)).resolves.toMatchObject({
+      note: 'Met at the observatory. Likes quiet worlds and long conversations.'
+    })
+  })
+
+  it('preserves a synthetic note after its first save fails, then commits the explicit retry', async () => {
+    const bridge = createFixtureBridge('note-save-error')
+    const key = { platform: 'vrchat' as const, friendId: 'fixture' }
+    const baseline = await bridge.getFriendNote(key)
+    if (!baseline.revision) throw new Error('Fixture requires account revision')
+
+    await expect(
+      bridge.setFriendNote({ ...key, note: 'failed synthetic update', revision: baseline.revision })
+    ).rejects.toThrow('Synthetic note save failed')
+    expect((await bridge.getFriendNote(key)).note).toBe(baseline.note)
+
+    await expect(
+      bridge.setFriendNote({
+        ...key,
+        note: 'retried synthetic update',
+        revision: baseline.revision
+      })
+    ).resolves.toEqual({ ok: true })
+    expect((await bridge.getFriendNote(key)).note).toBe('retried synthetic update')
+  })
+
+  it('keeps note load failure attempts isolated to each key and synthetic bridge', async () => {
+    const first = createFixtureBridge('note-load-error')
+    const second = createFixtureBridge('note-load-error')
+    const key = { platform: 'vrchat' as const, friendId: 'fixture' }
+    const otherKey = { platform: 'vrchat' as const, friendId: 'other-fixture' }
+
+    await expect(first.getFriendNote(key)).rejects.toThrow('Synthetic note load failed')
+    await expect(first.getFriendNote(otherKey)).rejects.toThrow('Synthetic note load failed')
+    await expect(second.getFriendNote(key)).rejects.toThrow('Synthetic note load failed')
+    await expect(first.getFriendNote(key)).resolves.toMatchObject({ note: expect.any(String) })
+    await expect(first.getFriendNote(otherKey)).resolves.toMatchObject({ note: expect.any(String) })
+    await expect(second.getFriendNote(key)).resolves.toMatchObject({ note: expect.any(String) })
+  })
+
   it('excludes guide runtime and output from application packages', () => {
     const builder = readFileSync('electron-builder.yml', 'utf8')
     for (const path of [

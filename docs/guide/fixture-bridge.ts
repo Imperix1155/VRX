@@ -26,6 +26,8 @@ export function fixtureAuth(platform: Platform): AuthStatus {
 /** All callbacks close over synthetic memory. No transport or real bridge is accepted. */
 export function createFixtureBridge(variant: string): FixtureBridge {
   const notes = new Map<string, string>()
+  const failedNoteLoads = new Set<string>()
+  const failedNoteSaves = new Set<string>()
   const updater: UpdaterSnapshot = {
     state:
       variant === 'downloading'
@@ -112,15 +114,25 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     checkForUpdates: () => Promise.resolve(),
     downloadUpdate: () => Promise.resolve(),
     installUpdate: () => Promise.resolve(),
-    getFriendNote: ({ platform, friendId }) =>
-      Promise.resolve({
+    getFriendNote: ({ platform, friendId }) => {
+      const key = `${platform}:${friendId}`
+      if (variant === 'note-load-error' && !failedNoteLoads.has(key)) {
+        failedNoteLoads.add(key)
+        return Promise.reject(new Error('Synthetic note load failed'))
+      }
+      return Promise.resolve({
         note:
-          notes.get(`${platform}:${friendId}`) ??
-          'Met at the observatory. Likes quiet worlds and long conversations.',
+          notes.get(key) ?? 'Met at the observatory. Likes quiet worlds and long conversations.',
         revision: { platformAccountId: fixtureAuth(platform).accountId ?? '', epoch: 1 }
-      }),
+      })
+    },
     setFriendNote: ({ platform, friendId, note }) => {
-      notes.set(`${platform}:${friendId}`, note)
+      const key = `${platform}:${friendId}`
+      if (variant === 'note-save-error' && !failedNoteSaves.has(key)) {
+        failedNoteSaves.add(key)
+        return Promise.reject(new Error('Synthetic note save failed'))
+      }
+      notes.set(key, note)
       return Promise.resolve({ ok: true })
     },
     notifyRendererHydrated: noop,

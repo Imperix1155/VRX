@@ -22,6 +22,11 @@ by `src/renderer`. Import them rather than duplicating their markup or CSS.
   documents so both themes and overlay behavior retain their root context.
 - Keep source revision and component references visible without cluttering
   examples. Known product defects remain defects, not design rules.
+- Preserve the app's 900×670 floor in embedded desktop examples and standalone
+  scenes. Let the guide scroll around that window; never shrink away controls.
+- Open focus-taking overlays only after a reader gesture. Keep loading, retained
+  refresh, room expiry/recovery, and note failure/retry selectable in the shared
+  scenario registry. Successful synthetic reads get fresh timestamps.
 - Keep this code and generated guide output out of packaged app artifacts.
 
 ## Work guidance

@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { useState } from 'react'
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import { installFixtureBridge } from './fixture-bridge'
+import { desktopScenes, drawerScenarios, exploreScenarios, sourceScenarios } from './scenarios'
 
 const params = new URLSearchParams(location.search)
 const scene = params.get('scene') ?? 'dashboard'
@@ -31,14 +32,14 @@ function SceneFrame(): React.JSX.Element {
     scene === 'updater'
       ? ['available', 'downloading', 'downloaded', 'idle']
       : scene === 'drawer'
-        ? ['vrchat', 'chilloutvr']
+        ? drawerScenarios.map(({ value }) => value)
         : scene === 'login'
           ? ['ready', 'totp', 'email']
           : scene === 'explore' || scene === 'feedback'
-            ? ['ready', 'loading', 'stale', 'error', 'empty', 'unavailable']
+            ? (scene === 'explore' ? exploreScenarios : sourceScenarios).map(({ value }) => value)
             : ['ready']
   return (
-    <div className="scene-frame">
+    <div className={`scene-frame${desktopScenes.includes(scene) ? ' scene-frame--desktop' : ''}`}>
       <div className="fixture-controls" aria-label="Example controls">
         <span className="fixture-label">Interactive fixture</span>
         <label>
