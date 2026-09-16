@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Dashboard Popular now headings use the same subdued color and normal weight
+  as Hot Instances in both themes. (VRX-272)
 - Explore and Dashboard world cards fill equal columns, use a shared People
   count, and stay quiet during routine background refreshes. Explore has one
   page heading. (VRX-272)
