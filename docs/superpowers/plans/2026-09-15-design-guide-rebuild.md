@@ -247,8 +247,12 @@ in-app browser opened successfully, and that screenshot showed the dark guide
 introduction plus the top of the real Dashboard, including platform filter,
 statistics, and world-card artwork. No alternative browser was needed. The one
 image approval is consumed. Full visual verification remains incomplete.
-The next pending request is one light Dashboard screenshot at
+On September 16, Josh approved the requested light Dashboard screenshot at
 `glass.html?scene=dashboard&theme=light&render=1`, at the supported 900×670 floor.
+The in-app browser capture showed the full sidebar, all six navigation controls,
+the updater icon, Dashboard heading, VRC/ALL/CVR filter, 13/12/3 statistics, and
+both popular-world cards. Main content extends into its expected scroll area.
+That second one-image approval is consumed, and the viewport override was reset.
 No installed app, other window, or real account was captured or operated.
 
 ## Review and correction checkpoint
@@ -302,8 +306,7 @@ was blocked from creating Vitest temporary files. Fallow retains exactly the
 seven baseline findings and no guide clone groups.
 
 Local source review is complete through that functional head. Complete browser
-inspection and PR delivery remain outstanding, pending the previously requested
-light Dashboard capture consent. No branch push or merge occurred. The current
+inspection and PR delivery remain outstanding. No branch push or merge occurred. The current
 coverage ledger is `review/coverage-ledger.md` under the artifact directory below.
 
 Review artifacts and logs are under
@@ -317,3 +320,29 @@ themes, widths, and interactive states. Complete the consented captures and
 interaction checks before claiming the guide finished. Source tests, a served
 preview, and builds do not replace that evidence. The docs branch remains based
 on PR315 head `154385f49a9154831ae9eab1179a7c58d8d3b3c6`; merging is not authorized.
+
+## September 16 visual checkpoint
+
+The consented light Dashboard capture exposed redundant synthetic-art labels
+behind the production platform badges. The fixture SVG now contains only the
+background artwork; production cards retain their own world titles and platform
+labels. All six SVGs parse, keep their dimensions/colors, and contain no text
+nodes. Uncached lint, guide typecheck/build, and all 21 guide tests pass.
+This correction still needs rendered reinspection and focused review with the
+remaining visual corrections before delivery. No production app source changed.
+DESIGN.md and other product/API contracts are intentionally unchanged because
+only decorative fixture content changed.
+
+The next pending request is the synthetic dark friend drawer at
+`glass.html?scene=drawer&theme=dark&render=1`, 1100×800 in Codex's in-app browser.
+Requested scope: Open/Close/Escape checks and one screenshot with the drawer open
+to inspect frost, readability, and keyboard focus. Wait for fresh approval.
+
+The coordinating VRX task also relayed a newly approved app consistency fix:
+Dashboard's Popular now and Hot Instances labels should use the subdued gray
+treatment of comparable secondary headings, with consistent weight. The owning
+Explore task will diagnose and correct the production source. This docs task
+must not duplicate that app patch or add preview-only CSS. Update the component
+dependency after the owning task supplies its verified patch/revision, then
+include the labels in the remaining browser inspection. The source correction
+is approved but not yet verified here.
