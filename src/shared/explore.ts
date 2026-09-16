@@ -8,6 +8,10 @@ export type ExploreFilter = 'all' | Platform
 export type ExploreRefreshReason = 'snapshot' | 'automatic' | 'manual'
 export type ExploreWorldReason = 'snapshot' | 'open' | 'manual'
 
+/** Main owns image admission. Only a typed admission deferral is recoverable. */
+export type ExploreImageResult =
+  { ok: true; dataUrl: string } | { ok: false; reason: 'deferred'; retryAfterMs: number } | null
+
 export type ExploreCountSource =
   | 'vrc-world-occupants'
   | 'vrc-world-tuple'

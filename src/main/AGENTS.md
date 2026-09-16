@@ -97,6 +97,12 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
 
 ## Local Contracts
 
+- Explore images retain two outstanding and six starts per platform per rolling
+  minute. Only those local admission refusals return a typed bounded recovery
+  delay. Missing/invalid/stale/inactive or failed artwork remains terminal null;
+  existing image cache, URL validation, transport pacing and account leases
+  remain authoritative. No discovery batch resumes on a timer (VRX-275).
+
 - Reconnect backoff survives brief open-close flaps and resets only after an
   open lasting at least the existing backoff cap. Rejected upgrades forward
   only status/Retry-After; factories dispose the response and terminate the

@@ -35,6 +35,11 @@ The common data model and constants shared across the main, preload, and rendere
 
 ## Local Contracts
 
+- `ExploreImageResult` preserves ready `{ ok: true, dataUrl }` and terminal
+  `null`, adding only `{ ok: false, reason: 'deferred', retryAfterMs }` for local
+  image admission refusal. The hint is bounded; it grants no URL/session authority
+  and does not expose server cooldown metadata. Main keeps all hard ceilings.
+
 - `get-friends` preserves the array shape for complete snapshots; partial snapshots
   return `{ friends, completeness: 'partial' }`. Only the completeness marker
   crosses IPC. Cooldown deadlines and rate-limit metadata remain main-only.

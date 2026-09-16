@@ -43,7 +43,7 @@ afterEach(() => {
 })
 
 describe('useExploreImage', () => {
-  it('does no offscreen image work and does not retry a budget denial', async () => {
+  it('does no offscreen image work and does not retry a terminal image result', async () => {
     render(<Card worldRef="world-ref" />)
     expect(getExploreImage).not.toHaveBeenCalled()
     await act(async () => observe({ isIntersecting: true }))
@@ -69,6 +69,27 @@ describe('useExploreImage', () => {
     await act(async () => observe({ isIntersecting: true }))
     expect(getByTestId('card').getAttribute('data-image')).toContain('data:image/png')
     act(() => clearExplorePlatform('chilloutvr'))
+    expect(getByTestId('card').getAttribute('data-image')).toContain('data:image/png')
+  })
+
+  it('cancels a card recovery while offscreen and resumes only after its retained delay', async () => {
+    vi.useFakeTimers()
+    getExploreImage
+      .mockResolvedValueOnce({ ok: false, reason: 'deferred', retryAfterMs: 2_000 })
+      .mockResolvedValueOnce({ ok: true, dataUrl: 'data:image/png;base64,recovered' })
+    const { getByTestId } = render(<Card worldRef="world-ref" />)
+    await act(async () => observe({ isIntersecting: true }))
+    expect(getExploreImage).toHaveBeenCalledOnce()
+
+    await act(async () => observe({ isIntersecting: false }))
+    await act(async () => vi.advanceTimersByTimeAsync(10_000))
+    expect(getExploreImage).toHaveBeenCalledOnce()
+
+    await act(async () => observe({ isIntersecting: true }))
+    await act(async () => vi.advanceTimersByTimeAsync(1_999))
+    expect(getExploreImage).toHaveBeenCalledOnce()
+    await act(async () => vi.advanceTimersByTimeAsync(1))
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
     expect(getByTestId('card').getAttribute('data-image')).toContain('data:image/png')
   })
 })

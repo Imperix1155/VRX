@@ -27,7 +27,16 @@ vi.mock('../queries/explore', () => ({
     platform === 'vrchat' ? query.vrc : query.cvr,
   requestExplore: query.requestExplore,
   readExploreSnapshot: query.readExploreSnapshot,
-  requestExploreImage: query.requestExploreImage
+  requestExploreImage: query.requestExploreImage,
+  observeExploreImage: (
+    platform: 'vrchat' | 'chilloutvr',
+    worldRef: string,
+    listener: (image: string | undefined) => void
+  ) => {
+    // Keep late callbacks possible so the stale-ref selection fence stays exercised.
+    void query.requestExploreImage(platform, worldRef).then(listener, () => listener(undefined))
+    return () => undefined
+  }
 }))
 
 const auth = vi.hoisted(() => ({
