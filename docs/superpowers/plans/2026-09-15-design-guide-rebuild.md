@@ -291,8 +291,20 @@ paths. The wrapper now restores its opener without scrolling, matching the
 production caller contract. Those six tests and the prior 15 tests pass.
 The local contract explicitly preserves caller-owned focus restoration.
 
-The focus correction needs its focused review and final gates. Complete browser
-inspection and PR delivery remain outstanding. No branch push or merge occurred.
+The focus correction is committed at
+`ea4cff30ad5b707cbe5dd2e535e42abd2b0e432d`. Its fresh read-only Sol/high focused
+review found no actionable issue and verified artifact hash
+`d7a2b2d8ef73f84f3bd6be07be548775b3b2778ac8e9a511faa82b66ca0e67a0`.
+The driver observed the SHA-bound full local gate finish with
+`FOCUS_HEAD_GATE_GREEN` in `/private/tmp/vrx-273-focus-head-gate.log`, including
+all 21 guide tests. This completed after the reviewer's read-only test attempt
+was blocked from creating Vitest temporary files. Fallow retains exactly the
+seven baseline findings and no guide clone groups.
+
+Local source review is complete through that functional head. Complete browser
+inspection and PR delivery remain outstanding, pending the previously requested
+light Dashboard capture consent. No branch push or merge occurred. The current
+coverage ledger is `review/coverage-ledger.md` under the artifact directory below.
 
 Review artifacts and logs are under
 `/Users/imperix/.codex/visualizations/2026/09/16/01a0a80a-e6ef-7d52-ae0b-6b0b9b362758/review`.
