@@ -19,8 +19,8 @@ export type PlatformMode =
   'ready' | 'loading' | 'refreshing' | 'error' | 'stale' | 'empty' | 'unavailable'
 type WorldMode = 'ready' | 'loading' | 'error' | 'stale'
 
-function illustration(title: string, first: string, second: string, detail: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560"><defs><linearGradient id="sky" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="28"/></filter></defs><rect width="1280" height="560" fill="url(#sky)"/><circle cx="1080" cy="106" r="172" fill="#fff" fill-opacity=".16" filter="url(#blur)"/><path d="M0 405 C190 300 280 475 470 365 S735 305 880 405 S1100 300 1280 390 V560 H0Z" fill="#060917" fill-opacity=".44"/><path d="M0 445 C245 355 370 515 585 405 S940 344 1280 445 V560 H0Z" fill="#02030a" fill-opacity=".4"/><rect x="56" y="54" width="410" height="120" rx="20" fill="#07101f" fill-opacity=".32"/><text x="82" y="108" fill="#fff" font-family="Arial, sans-serif" font-size="36" font-weight="700">${title}</text><text x="84" y="146" fill="#fff" fill-opacity=".78" font-family="Arial, sans-serif" font-size="19">${detail}</text><g fill="#fff" fill-opacity=".52"><circle cx="100" cy="274" r="5"/><circle cx="188" cy="231" r="3"/><circle cx="272" cy="284" r="4"/><circle cx="764" cy="181" r="4"/><circle cx="870" cy="242" r="3"/><circle cx="1130" cy="302" r="5"/></g></svg>`
+function illustration(first: string, second: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560"><defs><linearGradient id="sky" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="28"/></filter></defs><rect width="1280" height="560" fill="url(#sky)"/><circle cx="1080" cy="106" r="172" fill="#fff" fill-opacity=".16" filter="url(#blur)"/><path d="M0 405 C190 300 280 475 470 365 S735 305 880 405 S1100 300 1280 390 V560 H0Z" fill="#060917" fill-opacity=".44"/><path d="M0 445 C245 355 370 515 585 405 S940 344 1280 445 V560 H0Z" fill="#02030a" fill-opacity=".4"/><g fill="#fff" fill-opacity=".52"><circle cx="100" cy="274" r="5"/><circle cx="188" cy="231" r="3"/><circle cx="272" cy="284" r="4"/><circle cx="764" cy="181" r="4"/><circle cx="870" cy="242" r="3"/><circle cx="1130" cy="302" r="5"/></g></svg>`
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
@@ -279,42 +279,12 @@ export const worlds: Record<Platform, ExploreWorld[]> = {
 }
 
 export const worldImages: Record<string, string> = {
-  'guide-world-vrc-aurora': illustration(
-    'AURORA TRANSIT',
-    '#185ad4',
-    '#9f4ede',
-    'platform 07 · midnight service'
-  ),
-  'guide-world-vrc-garden': illustration(
-    'CONSERVATORY',
-    '#145e61',
-    '#3aa36d',
-    'glasshouse rain signal'
-  ),
-  'guide-world-vrc-night': illustration(
-    'RADIO TELESCOPE',
-    '#242557',
-    '#6d5cc8',
-    'receiver array · quiet hour'
-  ),
-  'guide-world-cvr-aurora': illustration(
-    'AURORA TRANSIT',
-    '#d85c1b',
-    '#c72474',
-    'platform 07 · night transfer'
-  ),
-  'guide-world-cvr-hall': illustration(
-    'SMALL WONDERS',
-    '#7b234d',
-    '#db8733',
-    'archive hall · gallery open'
-  ),
-  'guide-world-cvr-sand': illustration(
-    'LOW TIDE',
-    '#956625',
-    '#2f7181',
-    'coastal observatory · day shift'
-  )
+  'guide-world-vrc-aurora': illustration('#185ad4', '#9f4ede'),
+  'guide-world-vrc-garden': illustration('#145e61', '#3aa36d'),
+  'guide-world-vrc-night': illustration('#242557', '#6d5cc8'),
+  'guide-world-cvr-aurora': illustration('#d85c1b', '#c72474'),
+  'guide-world-cvr-hall': illustration('#7b234d', '#db8733'),
+  'guide-world-cvr-sand': illustration('#956625', '#2f7181')
 }
 
 const baseRoom = (world: ExploreWorld): ExploreRoom[] => [
