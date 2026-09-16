@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rebuilt the contributor design guide with real component examples, local
+  sample data, and dark/light comparisons. The synchronized agent design
+  contract points to production components and tokens. (VRX-273)
+
 ### Fixed
 
 - Information cards and panels keep their own colors over the aurora in both

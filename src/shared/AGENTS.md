@@ -56,7 +56,7 @@ The common data model and constants shared across the main, preload, and rendere
 - MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only. **Lint-enforced** since the 2026-07 audit W7: `no-restricted-imports` in `eslint.config.mjs` errors on `electron` and node builtins for `src/shared/**`.
 - String-literal unions, not `const enum` (esbuild-safe, Zod-friendly).
 - Imported via the `@shared` alias (wired in all three electron-vite builds + both tsconfigs).
-- Presence is two axes — `presence.state` (the state dot) vs `status` (the VRChat pill); never conflate (DESIGN.md §5). `Friend` is discriminated by `platform`; CVR friends must have `status`, `statusDescription`, and `trustRank` set to `null`.
+- Presence is two axes — `presence.state` vs VRChat `status`; the renderer's avatar ring folds them according to presence; never conflate (DESIGN.md §5). `Friend` is discriminated by `platform`; CVR friends must have `status`, `statusDescription`, and `trustRank` set to `null`.
 - `InstanceInfo.type` is the platform-true instance type; `InstanceInfo.openness` is the normalized shared openness tier. Optional `InstanceInfo.opennessUnknown` is true only when an adapter had to degrade an unrecognized raw privacy value; recognized values omit it so safety-copy consumers can distinguish a real restrictive tier from a cautious fallback (VRX-240).
 
 ## Work Guidance
