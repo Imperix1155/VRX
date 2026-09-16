@@ -389,6 +389,7 @@ NOTE: names above are verified UI/display names. When building each adapter, con
 - The renderer and both living design references load licensed local WOFF2 files from `src/renderer/src/assets/fonts/`. Inter uses the variable 400–800 face; VT323 uses its 400 face. `SOURCES.json` pins the upstream Fontsource packages and SHA-256 values; it and the SIL OFL 1.1 notices ship in `resources/licenses/fonts/` and are verified after packaging.
 - Inter (400–800): ALL body/UI — names, labels, copy, buttons, world titles, statuses, helper text, modal body.
 - VT323 (`--font-mono`): accent ONLY — VRX mark, big stat numbers, section kickers (uppercase, +tracking), `V`/`C` glyphs, technical IDs/versions. That is the complete allow-list.
+- Dashboard section headings use `--text-faint` and normal weight 400 in both themes. Hot Instances retains its 18px uppercase kicker; Popular now retains its 20px heading and existing tracking. Keep their semantic `h2` elements and leave primary page headings unchanged.
 - No third display face is part of the design. In particular, do not add Press Start 2P.
 - NEVER VT323 for body/helper/status/form-label/modal text. NEVER negative letter-spacing. NEVER scale font-size with viewport width. WHY: VT323 is a CRT terminal face — accent-legible, body-illegible.
 

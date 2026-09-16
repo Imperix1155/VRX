@@ -134,6 +134,8 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 
 ## Local Contracts
 
+- Dashboard Hot Instances and Popular now headings share `--text-faint` and
+  normal weight 400, retaining their existing sizes, tracking and `h2` semantics.
 - Explore and Dashboard discovery cards fill their grid cells with shared 16:7
   artwork and aligned bottom actions. Cards label existing activity as People
   and omit the visible-room count. Explore uses the TopBar heading only. Retained
