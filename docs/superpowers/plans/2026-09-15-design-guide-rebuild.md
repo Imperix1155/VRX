@@ -355,9 +355,10 @@ and attribute feedback to the originating friend control. The screenshot showed
 the heavy light panel and all controls within the supported window. That image
 permission is consumed and the viewport override was reset.
 
-The next pending request covers `design.html` at 760×900 and 1280×900: both
+Josh approved the remaining pass of `design.html` at 760×900 and 1280×900: both
 themes, scrolling, state selectors, note retries, and updater expansion, with one
-screenshot of the Dashboard section at 760×900. Wait for explicit consent.
+screenshot of the Dashboard section at 760×900. This approval is unconsumed at
+the source-integration checkpoint below. It permits no additional screenshots.
 
 The coordinating VRX task also relayed a newly approved app consistency fix:
 Dashboard's Popular now and Hot Instances labels should use the subdued gray
@@ -366,9 +367,19 @@ Explore task owns the production source. The driver inspected its correction at
 `d71f92b458b2f95e64429fa6a1f813176dcd5b59` and verified GitHub PR315 remains open
 at that exact head. Both Popular now renderers now use explicit normal weight
 and `--text-faint`; sizes, tracking, IDs, and semantics are preserved. Hot
-Instances already has the intended treatment and is unchanged. Integration into
-this docs branch and guide verification are next. Preserve the rewritten docs
-while reconciling the upstream contract additions; add no preview-only CSS.
+Instances already has the intended treatment and is unchanged. The docs branch
+was rebased onto that revision, with a recovery branch preserving the old local
+head. Three expected documentation conflicts retained the rewritten Markdown and
+module-entry HTML. The new heading rule is reconciled into DESIGN.md and the
+human guide's owning React prose; both HTML entries still use the real components.
+The rewritten guide implementation is otherwise byte-identical to the prior
+checkpoint. The upstream changelog and renderer-contract additions are preserved.
+The docs-only diff has no production application source edits.
+
+Rebased review provenance: `d63af8b` → `57de189`, `318eeea` → `9dafe8d`,
+`ea4cff3` → `86ccfed`, `d71e111` → `bb1e50d`, `c3f89a1` → `ce9c6f4`, and
+`7becd79` → `3692502`. Preserve the original immutable review artifacts; verify
+the integrated guide against the new dependency before delivery.
 
 Statistics → Hot Instances → Popular now and image-led Hot cards are a separate
 future proposal in Backlog VRX-274. They are not current app behavior. Missing
