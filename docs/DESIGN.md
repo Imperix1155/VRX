@@ -63,7 +63,15 @@ light/dark values into a second fixed palette. Use
 Use `.glass` for base panels over the canvas. Use `.glass glass-frosted` for a
 sheet or drawer over readable content. True confirmation modals use
 `.glass glass-frosted-heavy`. Frost must prevent underlying text from competing
-with the foreground while retaining the surrounding color and depth.
+with the foreground while retaining depth.
+
+Information-bearing foreground cards and panels must keep their intended colors
+independent of the ambient background. This includes statistics, Popular now,
+Explore, Hot Instances, and informational surfaces elsewhere in the app. Blue or
+orange background light must not tint them, especially platform-specific
+surfaces. Neutral sheen and highlights may vary. Decorative chrome such as the
+sidebar may still take on ambient color. This rule does not remove intentional
+platform styling; it prevents the background from changing that styling.
 
 Keep these classes in `@layer components`; utility positioning must still win
 for fixed overlays. Frost modifiers follow `.glass` so their underlay overrides
@@ -84,8 +92,8 @@ Sources: [`main.css`](../src/renderer/src/assets/main.css),
 
 The document body owns the aurora and scanline pseudo-elements. Keep the blue
 corner upper-left and orange corner lower-right in both themes. Background glow
-and the tint of a glass pane are separate controls; changing one must not invent
-a new opacity recipe for the other.
+and the intended tint of a glass pane are separate controls. Changing the glow
+must not change informational surface colors or invent a new opacity recipe.
 
 Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) and the production
 Muted, Standard, and Vivid settings. Standard has no `data-glow` attribute.
@@ -319,6 +327,11 @@ Known app findings about Join/access emphasis, Full below capacity, and Private
 versus Hidden wording remain separate work. Do not present them as approved
 rules or fix them incidentally in a documentation change. Proposed designs must
 be labeled as proposals and must not replace current examples before approval.
+
+Ambient color currently reaches some informational surfaces. The no-color-bleed
+rule in §3 is approved; its production correction is pending verification by the
+owning app task. Keep the guide faithful to current components, and do not hide
+the gap with preview-only styles or describe it as approved glass behavior.
 
 Preserve access to existing controls and workflows. Security, credential,
 account, API-rate, and merge rules remain in the root contract. No visual change

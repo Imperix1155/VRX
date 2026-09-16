@@ -54,6 +54,9 @@ fixture safety are owned by [`docs/guide/AGENTS.md`](docs/guide/AGENTS.md).
   location and a non-color label or glyph.
 - Platform identity is blue for VRChat and orange for ChilloutVR, expressed
   through tint, spine, and explicit platform text or glyph.
+- Ambient background color must not alter information-bearing card or panel
+  colors, including platform-specific surfaces. Neutral sheen may vary;
+  decorative chrome such as the sidebar may retain ambient color.
 - Presence has two independent axes, `state` and VRChat `status`. Never
   conflate them. Use the production avatar ring fold and written drawer status;
   do not restore the superseded separate row dot/status-pill recipe.
