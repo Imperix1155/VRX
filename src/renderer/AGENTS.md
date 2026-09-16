@@ -137,8 +137,9 @@ The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the ma
 - Explore and Dashboard discovery cards fill their grid cells with shared 16:7
   artwork and aligned bottom actions. Cards label existing activity as People
   and omit the visible-room count. Explore uses the TopBar heading only. Retained
-  usable cards suppress routine source loading/stale copy, while initial empty
-  loading and error/unavailable states remain. The room sheet uses the established
+  usable cards suppress routine source loading/stale copy. A platform with no
+  results keeps its initial loading message even when the other platform has
+  cards; error/unavailable states remain. The room sheet uses the established
   frosted material and keeps Close outside its scrolling content.
 - Shared glass declarations put `-webkit-backdrop-filter` before the standard
   `backdrop-filter`. Tailwind optimization can otherwise emit only the obsolete

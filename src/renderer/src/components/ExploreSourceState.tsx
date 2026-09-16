@@ -13,7 +13,7 @@ export default function ExploreSourceState({
   const { t } = useTranslation()
   const statusKey = (source: ExplorePlatformSnapshot): string | null => {
     if (source.status === 'loading') {
-      return hasUsableCards ? null : 'explore.sourceState.loading'
+      return hasUsableCards && source.worlds.length > 0 ? null : 'explore.sourceState.loading'
     }
     if (source.status === 'error') return 'explore.sourceState.error'
     if (source.status === 'unavailable') return 'explore.sourceState.unavailable'
