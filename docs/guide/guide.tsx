@@ -278,6 +278,13 @@ export default function Guide(): React.JSX.Element {
             Blue identifies VRChat. Orange identifies ChilloutVR. The corner glow and quiet
             scanlines make the shared space feel like VRX without competing with the information.
           </p>
+          <p>
+            Information cards and panels must keep their intended colors regardless of the
+            background glow. Neutral sheen may vary; decorative chrome such as the sidebar may pick
+            up ambient color. The current components still allow some background color bleed. Its
+            correction is approved and pending verification. These examples show the current code
+            without a preview-only workaround.
+          </p>
           <div className="design-guide__swatches" aria-label="Token swatches">
             {[
               '--bg-base',

@@ -118,7 +118,10 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
       retry: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: Infinity
+      staleTime: Infinity,
+      // Cache-only production readers have no Query observer. Keep seeded
+      // fixtures alive for this document without adding refreshes or polling.
+      gcTime: Infinity
     }
   })
   for (const platform of ['vrchat', 'chilloutvr'] as const) {

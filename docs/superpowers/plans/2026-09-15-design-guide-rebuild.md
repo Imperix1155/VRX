@@ -10,6 +10,14 @@ source references, states, constraints, and verification guidance.
 It does not grant permission to merge, install an app, publish a release, or
 perform account actions.
 
+On September 16 Josh authorized continuing this work overnight using bounded
+units and best judgment. Feature-branch commits, pushes, review, PR delivery,
+and tracker updates remain authorized. Do not merge, package another Mac app,
+or install anything. The existing guide interaction pass and its one narrow
+Dashboard capture remain authorized; no broader capture exception is active.
+Integrate verified required app fixes when available. The optional Hot Instances
+redesign is separate and must not block the guide or appear as current behavior.
+
 Approved direction: rebuild most of the guide from current React components,
 tokens, copy, and implemented behavior. Keep the liquid-glass material, aurora,
 retro accents, dark default, and full light support. Equivalent concepts must
@@ -384,3 +392,53 @@ the integrated guide against the new dependency before delivery.
 Statistics → Hot Instances → Popular now and image-led Hot cards are a separate
 future proposal in Backlog VRX-274. They are not current app behavior. Missing
 world artwork is under separate read-only diagnosis and has no source fix here.
+
+## Overnight browser and fixture checkpoint
+
+The approved `design.html` pass at 1280×900 confirmed both source first-load
+messages beside retained cards, quiet refreshing, source error/unavailable
+copy, and the intentionally absent empty Dashboard preview. Room loading,
+error, and stale variants are reachable; Refresh restores an eligible Join
+while full and unavailable rooms remain disabled. Note-load Retry restores the
+saved text. Note-save failure retains the edited draft; Retry clears the error
+and reopening preserves the new in-memory note. Updater available, downloading
+at 46%, downloaded, and idle are reachable; available and downloaded controls
+receive keyboard focus, and idle removes the control. The available button's
+bottom was 630.5px in a 670px frame. No updater action was invoked.
+
+ArrowRight moved the real segmented control to Per platform with its sole
+`tabindex=0`. The instance-label sample changed CVR terms to platform-native
+wording. Actual Appearance controls selected Light and Vivid. The linked Nyx
+drawer showed both platform identities, both Where cards, shared Notes, Trust,
+and Identities. These are DOM/accessibility and interaction observations, not
+additional screenshots. No captured image proves every state or reduced motion.
+
+At 760×900, the light guide's document scroll width was exactly 760px. Both
+Dashboard examples retained 900px width inside 676px horizontally scrolling
+wrappers. At 1280×900, they stacked at 932×670 without page overflow. Both
+Popular now and Hot Instances computed to weight 400 and the same faint color
+in each theme; their intended 20px/18px sizes remained distinct.
+
+The pass exposed a guide-only lifecycle defect: after five minutes TanStack
+Query garbage-collected the seeded Explore queries, which the Dashboard reads
+without a Query observer. Popular cards disappeared. A mounted Dashboard test
+reproduced both cards vanishing after 300001ms. The guide now sets `gcTime` to
+Infinity for its isolated query client, retaining sample data for the document
+lifetime without refresh polling. The test passed with the correction and the
+full guide suite passed all 22 tests (`CACHE_FIX_GREEN`). Production code is
+unchanged. Earlier successful room-expiry probes remain valid.
+
+Josh's revised material requirement is now recorded in the root contract,
+DESIGN.md, guide prose, and guide ownership: background colors must not alter
+information-bearing surface colors anywhere, including platform-specific cards.
+Neutral sheen may vary, and decorative chrome such as the sidebar may retain
+ambient color. This does not itself ban intentional platform styling. The
+current implementation gap is explicitly pending the owning app task's verified
+correction. No preview-only CSS conceals it. The one approved narrow Dashboard
+screenshot remains unused, reserved for the integrated required app fix.
+
+Current dependency remains PR315 at `d71f92b`; the app task is preparing separate
+required material and bounded image-recovery corrections. Its installed Mac
+receipt is coordinator-reported, not independently inspected by this task.
+No further app packaging or installation is authorized. Weekly Codex usage was
+31% used / 69% remaining at this checkpoint; usage is shared across tasks.
