@@ -32,7 +32,7 @@ export default function ExploreWorldCard({
       data-explore-sheet-opener
       onClick={(event) => onOpen(world, event.currentTarget)}
       aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
-      className={`glass ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
+      className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
     >
       <div
         aria-hidden="true"

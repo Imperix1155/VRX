@@ -186,7 +186,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
         aria-modal="true"
         aria-labelledby="explore-join-confirm-title"
         tabIndex={-1}
-        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
+        className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
         <span
           aria-hidden="true"
@@ -632,7 +632,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
         aria-modal="true"
         aria-labelledby="join-confirm-title"
         tabIndex={-1}
-        className="glass glass-frosted-heavy relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
+        className="glass glass-frosted-heavy glass-information relative flex w-[400px] max-w-full flex-col gap-[var(--space-3)] overflow-hidden p-[var(--space-6)] focus:outline-none"
       >
         {/* Platform top edge (hot-card recipe) — tint reinforces the PlatformPill
             word; neither carries platform alone (R12). */}

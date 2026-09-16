@@ -51,6 +51,7 @@
     --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 17%, transparent);
     --glass-blur: blur(26px) saturate(165%);
     --glass-frost: rgba(13,15,22,0.78);
+    --glass-information: rgb(13,15,22);
     --glass-blur-frosted: blur(34px) saturate(165%);
     --glass-frost-heavy: rgba(13,15,22,0.94);
     --font-mono: 'VT323', ui-monospace, monospace;
@@ -101,8 +102,8 @@
     backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
     -webkit-backdrop-filter: var(--glass-blur-frosted, blur(34px) saturate(165%));
   }
-  .tint-vrc { background: linear-gradient(135deg, rgba(43,124,232,0.22), rgba(43,124,232,0.05)); border-color: rgba(43,124,232,0.34); }
-  .tint-cvr { background: linear-gradient(135deg, rgba(243,113,30,0.22), rgba(243,113,30,0.05)); border-color: rgba(243,113,30,0.36); }
+  .tint-vrc { background-image: linear-gradient(135deg, rgba(43,124,232,0.22), rgba(43,124,232,0.05)); border-color: rgba(43,124,232,0.34); }
+  .tint-cvr { background-image: linear-gradient(135deg, rgba(243,113,30,0.22), rgba(243,113,30,0.05)); border-color: rgba(243,113,30,0.36); }
 
   /* ---------- styleguide chrome ---------- */
   .wrap { display: grid; grid-template-columns: 232px 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 22px; align-items: start; }
@@ -137,8 +138,8 @@
     box-shadow: 0 16px 46px rgba(59,72,93,0.22), inset 0 1px 0 rgba(255,255,255,0.88), inset 0 -1px 1px rgba(40,48,68,0.08);
   }
   .lightdemo .glass.lp::before { background: radial-gradient(125% 80% at 0% 0%, rgba(255,255,255,0.72), transparent 48%); }
-  .lightdemo .lp.tint-vrc { background: linear-gradient(135deg, rgba(31,111,211,0.18), rgba(255,255,255,0.34)); border-color: rgba(31,111,211,0.28); }
-  .lightdemo .lp.tint-cvr { background: linear-gradient(135deg, rgba(216,95,24,0.18), rgba(255,255,255,0.34)); border-color: rgba(216,95,24,0.30); }
+  .lightdemo .lp.tint-vrc { background-image: linear-gradient(135deg, rgba(31,111,211,0.18), rgba(255,255,255,0.34)); border-color: rgba(31,111,211,0.28); }
+  .lightdemo .lp.tint-cvr { background-image: linear-gradient(135deg, rgba(216,95,24,0.18), rgba(255,255,255,0.34)); border-color: rgba(216,95,24,0.30); }
   /* channel samples retuned for the light island */
   .lightdemo .dot.st-ingame { background:#0f9f6e; } .lightdemo .dot.st-active { background:#0d9488; } .lightdemo .dot.st-offline { background:#8a8d99; }
   .lightdemo .dot { border-color:#eef3f8; }
@@ -348,6 +349,9 @@
   .ubtn-demo-lbl { opacity: 0; white-space: nowrap; font-size: 11px; font-weight: 600; transition: opacity 150ms ease; }
   .ubtn-demo:hover .ubtn-demo-lbl, .ubtn-demo:focus-visible .ubtn-demo-lbl { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { .ubtn-demo, .ubtn-demo-lbl { transition: none; } }
+  /* VRX-276: information stays independent of ambient color; chrome retains glass. */
+  .glass.glass-information { background-color: var(--glass-information); }
+  .lightdemo .glass.glass-information { background-color: rgb(244,247,252); }
 </style>
 </head>
 <body>
@@ -436,6 +440,7 @@ background: <span class="v">var(--vrc)</span>;
 
       <!-- 03 GLASS -->
       <section class="panel glass" id="glass">
+        <p>Information cards and panels add <code>glass-information</code>: an opaque neutral backing under the existing tint and sheen. It prevents ambient blue/orange from changing informational colors. Sidebar and decorative control tracks remain translucent. The app stylesheet owns the exact themed token values (VRX-276).</p>
         <div class="kick">03 · Material</div>
         <div class="stitle">The glass surface</div>
         <p class="slead">The single most important element. Everything that "floats" — sidebar, cards, the segmented control, list containers — is built from one <code style="font-family:var(--code);color:var(--bridge)">.glass</code> recipe.</p>
@@ -469,12 +474,12 @@ background: <span class="v">var(--vrc)</span>;
           <div class="el-name"><span class="ix">3.2</span> Platform-tinted glass</div>
           <div class="el-sum">On surfaces that belong to one platform (hot-instance cards), the glass itself is tinted — so the material carries platform identity.</div>
           <div class="demo">
-            <div class="glass tint-vrc" style="width:200px;height:96px;display:grid;place-items:center;color:#bcd9fb;font-size:12.5px;">.tint-vrc</div>
-            <div class="glass tint-cvr" style="width:200px;height:96px;display:grid;place-items:center;color:#ffd9bc;font-size:12.5px;">.tint-cvr</div>
+            <div class="glass glass-information tint-vrc" style="width:200px;height:96px;display:grid;place-items:center;color:#bcd9fb;font-size:12.5px;">.tint-vrc</div>
+            <div class="glass glass-information tint-cvr" style="width:200px;height:96px;display:grid;place-items:center;color:#ffd9bc;font-size:12.5px;">.tint-cvr</div>
           </div>
           <div class="grid2">
             <div><div class="box-label how">How</div><div class="code">.tint-vrc {
-  background: linear-gradient(135deg,
+  background-image: linear-gradient(135deg,
     <span class="v">rgba(43,124,232,.22)</span>, <span class="v">rgba(43,124,232,.05)</span>);
   border-color: <span class="v">rgba(43,124,232,.34)</span>;
 }
@@ -774,9 +779,9 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           <div class="el-name"><span class="ix">9.2</span> Stat cards</div>
           <div class="el-sum">Glass + a big VT323 number, tinted by meaning.</div>
           <div class="demo">
-            <div class="stat glass s-online"><div class="n">47</div><div class="l">Friends online</div></div>
-            <div class="stat glass s-ingame"><div class="n">23</div><div class="l">In game right now</div></div>
-            <div class="stat glass s-hot"><div class="n">08</div><div class="l">Hot instances</div></div>
+            <div class="stat glass glass-information s-online"><div class="n">47</div><div class="l">Friends online</div></div>
+            <div class="stat glass glass-information s-ingame"><div class="n">23</div><div class="l">In game right now</div></div>
+            <div class="stat glass glass-information s-hot"><div class="n">08</div><div class="l">Hot instances</div></div>
           </div>
         </div>
 
@@ -784,8 +789,8 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           <div class="el-name"><span class="ix">9.3</span> Hot-instance card</div>
           <div class="el-sum">Platform-tinted glass · 4px top edge · world name (hero, 25px/1.5) · shared instance pill (= the card's Join target when a member is joinable, VRX-237 — same pill grammar as the friend row below) · who's-here names + "+N" · quiet platform pill. Grid: max 2 cols that fill the row, container-query responsive → 1 col on a narrow pane, lone card full-width (VRX-199). Trailing <code>(#…)</code> stripped from the face (numeric + custom tags).</div>
           <div class="demo">
-            <div class="gcard glass tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">The Great Pug</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Aria, Sam, Jules, Kai <b>+10</b></span><span class="ppill">VRChat</span></div></div>
-            <div class="gcard glass tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">Movie Night</div><span class="opill" style="--op: var(--op-friends)">Friends</span><span class="gnames">Bea, Pip, Quill, Rue <b>+1</b></span><span class="ppill">ChilloutVR</span></div></div>
+            <div class="gcard glass glass-information tint-vrc vrc"><div class="gtop"></div><div class="gbody"><div class="gworld">The Great Pug</div><span class="opill" style="--op: var(--op-public)">Public</span><span class="gnames">Aria, Sam, Jules, Kai <b>+10</b></span><span class="ppill">VRChat</span></div></div>
+            <div class="gcard glass glass-information tint-cvr cvr"><div class="gtop"></div><div class="gbody"><div class="gworld">Movie Night</div><span class="opill" style="--op: var(--op-friends)">Friends</span><span class="gnames">Bea, Pip, Quill, Rue <b>+1</b></span><span class="ppill">ChilloutVR</span></div></div>
           </div>
           <div class="why">Visual weight descends in order of what matters: world name → instance type (the shared Friends-tab pill) → who's here → platform. Platform rides the tint + edge for everyone, and the corner pill is its quiet non-color label for CVD/low-vision users — never decoration.</div>
         </div>
@@ -794,7 +799,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           <div class="el-name"><span class="ix">9.4</span> Friend row</div>
           <div class="el-sum">Virtualized list window · one roving avatar-opener Tab stop · unique-person counts. The saved link projects as a combined, mixed-section, or account-only row according to presence and the VRC / All / CVR filter.</div>
           <div class="demo col">
-            <div class="flist glass">
+            <div class="flist glass glass-information">
               <div class="frow vrx"><span class="ftab"><b>VRX</b></span><span class="rav merged" role="img" aria-label="Online" style="--ring: var(--st-online)"><span class="disc">R</span><span class="rb"></span></span><span><span class="fname">Rin</span><span class="worldpair"><span class="wg"><b class="wb v">VRC</b><span class="wn">The Great Pug</span></span><span class="wg"><b class="wb c">CVR</b><span class="wn">Long ChilloutVR world</span></span></span></span><span class="opill dual" style="--vop:var(--op-public);--cop:var(--op-group-plus)">2 locations</span></div>
               <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Join Me" style="--ring: var(--st-joinme)"><span class="disc">A</span><span class="rb"></span></span><span><span class="fname">AlexVR<span class="fcs">come thru</span></span><span class="fworld" style="display:block">The Great Pug</span></span><span class="opill" style="--op: var(--op-public)">Public</span></div>
               <div class="frow vrc"><span class="ftab">VRC</span><span class="rav" role="img" aria-label="Ask Me" style="--ring: var(--st-askme)"><span class="disc">S</span><span class="rb"></span></span><span><span class="fname">Sage<span class="fcs">taking commissions</span></span><span class="fworld" style="display:block"></span></span><span class="opill neutral">Private</span></div>
@@ -864,7 +869,7 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
         <p class="slead">A friend can exist on both platforms under different names, with no shared platform identity. Linking is explicit and local: the user chooses one account-qualified VRChat friend and one account-qualified ChilloutVR friend. VRX never auto-merges.</p>
         <div class="el" style="border:0;padding-top:8px;">
           <div class="demo">
-            <div class="person glass">
+            <div class="person glass glass-information">
               <div class="ptop"><div class="pav">R</div><div><div class="pname">Rin</div><div class="plink"><span class="ic"><svg style="width:13px;height:13px"><use href="#o-link"/></svg></span> linked across 2 platforms</div></div></div>
               <div class="prow"><span class="pg v">V</span><span class="pst">in <b style="color:var(--text)">The Great Pug</b> · <span class="ph">Public</span></span><span class="aff join2">Join</span></div>
               <div class="prow"><span class="pg c">C</span><span class="pst">Offline · <span class="ph">2h ago</span></span></div>
@@ -922,8 +927,8 @@ body  { overflow: hidden; }   <span class="c">/* shell is fixed */</span>
           <div class="el-sum">A live light-themed panel, rendered right here. Every glass "move" from §03 survives — pane, border, inset highlight, depth shadow, sheen — just inverted to bright.</div>
           <div class="demo lightdemo">
             <div class="glass lp" style="width:200px;height:120px;"></div>
-            <div class="glass lp tint-vrc" style="width:170px;height:120px;display:grid;place-items:center;color:#0f4f9c;font-size:12.5px;">.tint-vrc</div>
-            <div class="glass lp tint-cvr" style="width:170px;height:120px;display:grid;place-items:center;color:#a3410d;font-size:12.5px;">.tint-cvr</div>
+            <div class="glass glass-information lp tint-vrc" style="width:170px;height:120px;display:grid;place-items:center;color:#0f4f9c;font-size:12.5px;">.tint-vrc</div>
+            <div class="glass glass-information lp tint-cvr" style="width:170px;height:120px;display:grid;place-items:center;color:#a3410d;font-size:12.5px;">.tint-cvr</div>
           </div>
           <div class="grid2">
             <div><div class="box-label how">How (override layer)</div><div class="code"><span class="c">/* dark is default; light is an override */</span>

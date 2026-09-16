@@ -223,7 +223,7 @@ export default function SettingsView(): React.JSX.Element {
   const category = useUiStore((s) => s.settingsCategory)
 
   return (
-    <div className="glass p-[var(--space-8)]">
+    <div className="glass glass-information p-[var(--space-8)]">
       <div className="relative">
         {/* ── Appearance page ── */}
         {category === 'appearance' && (
