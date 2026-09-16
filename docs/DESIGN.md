@@ -637,8 +637,9 @@ material keeps the standard `backdrop-filter` after its WebKit form so Tailwind
 preserves the property accepted by Electron, including Friends drawers.
 
 Named source states preserve the last good data during loading or failure.
-Routine loading/stale copy stays quiet while usable cards remain; initial loading
-without cards and meaningful error/unavailable states remain visible.
+Routine loading/stale copy stays quiet while usable cards remain. Each platform
+keeps its initial loading message until it has results, including when the other
+platform already has cards. Meaningful error/unavailable states remain visible.
 Visible entry, focus and reconnect can request an eligible refresh; there is no
 periodic discovery scan. Images use the existing cache and only visible targets.
 The [production work receipt](superpowers/plans/2026-09-13-explore-production-block.md)

@@ -158,6 +158,26 @@ describe('ExploreView', () => {
     expect(screen.queryByText('No public worlds are available right now.')).toBeNull()
   })
 
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'keeps %s initial loading visible beside another platform’s retained cards',
+    (loadingPlatform) => {
+      const retainedPlatform = loadingPlatform === 'vrchat' ? 'chilloutvr' : 'vrchat'
+      const retained = world(retainedPlatform, 'retained', 'Retained world')
+      setup({
+        worlds: [retained],
+        platformSnapshots: [
+          source(retainedPlatform, [retained], 'loading'),
+          source(loadingPlatform, [], 'loading')
+        ]
+      })
+      const loadingName = loadingPlatform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+      const retainedName = retainedPlatform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
+      expect(screen.getByText(`${loadingName} worlds are loading…`)).toBeTruthy()
+      expect(screen.queryByText(`${retainedName} worlds are loading…`)).toBeNull()
+      expect(screen.getByText('Retained world')).toBeTruthy()
+    }
+  )
+
   it('does not present ordinary empty copy when every source is unavailable', () => {
     setup({
       worlds: [],

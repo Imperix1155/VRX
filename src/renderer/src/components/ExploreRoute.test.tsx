@@ -491,6 +491,21 @@ describe('ExploreRoute world sheet', () => {
     )
   })
 
+  it('keeps an empty platform’s first loading state visible beside Dashboard cached cards', () => {
+    query.vrc = { ...source, status: 'loading', isStale: true }
+    query.cvr = {
+      ...source,
+      platform: 'chilloutvr',
+      worlds: [],
+      status: 'loading'
+    }
+    render(<ExploreDashboardPreviewRoute />)
+
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.queryByText('VRChat worlds are loading…')).toBeNull()
+    expect(screen.getByText('ChilloutVR worlds are loading…')).toBeTruthy()
+  })
+
   it('keeps Dashboard cards as the routine refresh feedback while retaining source errors', () => {
     const { rerender } = render(<ExploreDashboardPreviewRoute />)
     query.vrc = { ...source, status: 'loading', isStale: true }
