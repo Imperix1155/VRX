@@ -276,8 +276,23 @@ Fifteen guide tests passed after these corrections. The driver reproduced the
 worker's note-retry mutation and separately removed the room timestamp and
 Refresh corrections: each mutation failed the intended tests; restoration passed.
 Guide typecheck/lint passed. Fallow still reports the same seven baseline findings
-and no guide clone groups. Focused review, SHA-bound final gates, complete browser
-inspection, and PR delivery remain outstanding. No branch push or merge occurred.
+and no guide clone groups. The SHA-bound gate at correction head
+`318eeea726b53a1818e5643fb6cb1b9c2e326efd` passed lint, format, application build,
+guide typecheck/build, and all 15 guide tests with `FINAL_LOCAL_GATE_GREEN` in
+`/private/tmp/vrx-273-final-head-gate.log`.
+
+Fresh read-only Sol/high focused review completed and confirmed all four fixes.
+Its exact delta hash was
+`be9cc2cd5aa99055f53bab0e94431b7b77f3d25f7a3332248720c0f6c4b38d02`.
+It found one additional P2: the guide-only friend drawer caller did not restore
+focus after close. Six regression cases reproduced focus remaining on the
+hidden Close button, across both platforms and Close/Escape/outside-pointer
+paths. The wrapper now restores its opener without scrolling, matching the
+production caller contract. Those six tests and the prior 15 tests pass.
+The local contract explicitly preserves caller-owned focus restoration.
+
+The focus correction needs its focused review and final gates. Complete browser
+inspection and PR delivery remain outstanding. No branch push or merge occurred.
 
 Review artifacts and logs are under
 `/Users/imperix/.codex/visualizations/2026/09/16/01a0a80a-e6ef-7d52-ae0b-6b0b9b362758/review`.

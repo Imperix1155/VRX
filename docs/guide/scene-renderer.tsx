@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
 import AppShell from '@renderer/components/AppShell'
@@ -31,11 +31,12 @@ function DrawerScene({
   variant: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const openerRef = useRef<HTMLButtonElement>(null)
   const friend = friends[platform][0] ?? null
   return (
     <main className="fixture-canvas" tabIndex={-1}>
       <div className="fixture-controls">
-        <button type="button" onClick={() => setOpen(true)}>
+        <button ref={openerRef} type="button" onClick={() => setOpen(true)}>
           Open {platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'} drawer
         </button>
         {variant === 'note-load-error' && (
@@ -49,7 +50,13 @@ function DrawerScene({
         )}
       </div>
       <DashboardView />
-      <FriendDrawer friend={open ? friend : null} onClose={() => setOpen(false)} />
+      <FriendDrawer
+        friend={open ? friend : null}
+        onClose={() => {
+          setOpen(false)
+          openerRef.current?.focus({ preventScroll: true })
+        }}
+      />
       <JoinConfirmDialog />
     </main>
   )
