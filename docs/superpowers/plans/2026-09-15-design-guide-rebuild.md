@@ -442,3 +442,27 @@ required material and bounded image-recovery corrections. Its installed Mac
 receipt is coordinator-reported, not independently inspected by this task.
 No further app packaging or installation is authorized. Weekly Codex usage was
 31% used / 69% remaining at this checkpoint; usage is shared across tasks.
+
+The cache correction is committed at `668129c`. Fresh Sol/high focused review
+completed inside its 180-second deadline with no actionable finding and verified
+artifact hash `bb8f2c0e411dbb9c2f3b2a5cc2631af11e98cf8e02ef512b9a450e7e582738e8`.
+Observed runtime metadata confirms read-only sandbox and approval never. It
+retains the earlier general conclusions for this bounded delta. The driver
+inspected the full result, matching hash, and empirical logs. This remains a
+same-lineage review, with no independent model confirmation claimed.
+The complete local gate passed `OVERNIGHT_GATE_GREEN`: uncached lint, formatting,
+application build/typechecks, guide build/typecheck, all 22 guide tests, and diff
+check. Fallow's seven findings exactly match the prior baseline, and there are
+no guide clone groups. No new callable API was added, so INTERNAL-API is
+intentionally unchanged for this correction; the existing VRX-273 changelog
+entry already covers the unreleased guide rebuild.
+
+A fresh in-app browser load had two Popular cards at 12:12:20 UTC and still had
+two after 12:17:24 UTC, with no error logs. The page was not reloaded between
+those observations. The narrow wrapper scrolled from 0 to 224px and back while
+the page stayed at horizontal scroll 0. Authenticator and email-code scenarios
+rendered their respective copy. Submitting invented credentials returned the
+real secure-store failure message through the synthetic bridge. The viewport
+was reset, and the guide tab remains available. The final approved screenshot
+is still unused. The personal design-iterate skill now records the demonstrated
+preview-watcher/rebase and lazy-frame observation traps; its validator passed.
