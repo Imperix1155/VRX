@@ -15,10 +15,9 @@ import type {
 } from '@shared/explore'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
 
-type PlatformMode = 'ready' | 'loading' | 'error' | 'stale' | 'empty' | 'unavailable'
-type WorldMode = 'ready' | 'loading' | 'error'
-
-const guideNow = Date.now()
+export type PlatformMode =
+  'ready' | 'loading' | 'refreshing' | 'error' | 'stale' | 'empty' | 'unavailable'
+type WorldMode = 'ready' | 'loading' | 'error' | 'stale'
 
 function illustration(title: string, first: string, second: string, detail: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560"><defs><linearGradient id="sky" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient><filter id="blur"><feGaussianBlur stdDeviation="28"/></filter></defs><rect width="1280" height="560" fill="url(#sky)"/><circle cx="1080" cy="106" r="172" fill="#fff" fill-opacity=".16" filter="url(#blur)"/><path d="M0 405 C190 300 280 475 470 365 S735 305 880 405 S1100 300 1280 390 V560 H0Z" fill="#060917" fill-opacity=".44"/><path d="M0 445 C245 355 370 515 585 405 S940 344 1280 445 V560 H0Z" fill="#02030a" fill-opacity=".4"/><rect x="56" y="54" width="410" height="120" rx="20" fill="#07101f" fill-opacity=".32"/><text x="82" y="108" fill="#fff" font-family="Arial, sans-serif" font-size="36" font-weight="700">${title}</text><text x="84" y="146" fill="#fff" fill-opacity=".78" font-family="Arial, sans-serif" font-size="19">${detail}</text><g fill="#fff" fill-opacity=".52"><circle cx="100" cy="274" r="5"/><circle cx="188" cy="231" r="3"/><circle cx="272" cy="284" r="4"/><circle cx="764" cy="181" r="4"/><circle cx="870" cy="242" r="3"/><circle cx="1130" cy="302" r="5"/></g></svg>`
@@ -372,6 +371,16 @@ export function getPlatformSnapshot(
       updatedAt: null
     }
   }
+  if (mode === 'refreshing') {
+    return {
+      platform,
+      worlds: sourceWorlds,
+      status: 'loading',
+      problem: null,
+      isStale: false,
+      updatedAt: Date.now()
+    }
+  }
   if (mode === 'error') {
     return {
       platform,
@@ -379,7 +388,7 @@ export function getPlatformSnapshot(
       status: 'error',
       problem: 'network',
       isStale: true,
-      updatedAt: guideNow - 90_000
+      updatedAt: Date.now() - 90_000
     }
   }
   if (mode === 'stale') {
@@ -389,7 +398,7 @@ export function getPlatformSnapshot(
       status: 'ready',
       problem: null,
       isStale: true,
-      updatedAt: guideNow - 90_000
+      updatedAt: Date.now() - 90_000
     }
   }
   if (mode === 'empty') {
@@ -399,7 +408,7 @@ export function getPlatformSnapshot(
       status: 'ready',
       problem: null,
       isStale: false,
-      updatedAt: guideNow
+      updatedAt: Date.now()
     }
   }
   if (mode === 'unavailable') {
@@ -418,7 +427,7 @@ export function getPlatformSnapshot(
     status: 'ready',
     problem: null,
     isStale: false,
-    updatedAt: guideNow
+    updatedAt: Date.now()
   }
 }
 
@@ -435,7 +444,7 @@ export function getWorldSnapshot(
       status: 'loading',
       problem: null,
       isStale: false,
-      updatedAt: guideNow
+      updatedAt: Date.now()
     }
   }
   if (mode === 'error') {
@@ -447,7 +456,7 @@ export function getWorldSnapshot(
       status: 'error',
       problem: 'network',
       isStale: true,
-      updatedAt: guideNow - 90_000
+      updatedAt: Date.now() - 90_000
     }
   }
   return {
@@ -457,8 +466,8 @@ export function getWorldSnapshot(
     roomsComplete: true,
     status: 'ready',
     problem: null,
-    isStale: false,
-    updatedAt: guideNow
+    isStale: mode === 'stale',
+    updatedAt: Date.now() - (mode === 'stale' ? 90_000 : 0)
   }
 }
 

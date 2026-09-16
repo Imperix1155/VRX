@@ -345,6 +345,9 @@ R6 refers to the location privacy rule in §5.
 
 The source-backed guide uses `guide/production.css` to include the renderer's
 Tailwind utilities explicitly. Its isolated documents preserve root theme,
-body background, portal, and fixed-position behavior. Each scene starts with
+body background, portal, and fixed-position behavior. Desktop samples preserve
+900×670 and scroll within a narrower guide. Focus-taking overlays wait for a
+reader gesture. Shared scenario controls include each platform's first load,
+quiet retained-card refresh, and note failure/retry. Each scene starts with
 synthetic memory, and reset reloads that scene. Do not replace real components
 with copied HTML to make a preview look right.

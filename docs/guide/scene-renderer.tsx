@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
 import AppShell from '@renderer/components/AppShell'
@@ -16,7 +16,6 @@ import { exploreQueryKey } from '@renderer/queries/explore'
 import { linkedProfilesKey } from '@renderer/queries/linkedProfiles'
 import { useSettingsStore } from '@renderer/stores/settings'
 import { useUiStore } from '@renderer/stores/ui'
-import { useProfileSelection } from '@renderer/stores/profileSelection'
 import { useApplyTheme } from '@renderer/hooks/useApplyTheme'
 import { useApplyGlow } from '@renderer/hooks/useApplyGlow'
 import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
@@ -24,8 +23,14 @@ import { fixtureAuth } from './fixture-bridge'
 import { friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
 import CatalogScene from './catalog-scenes'
 
-function DrawerScene({ platform }: { platform: 'vrchat' | 'chilloutvr' }): React.JSX.Element {
-  const [open, setOpen] = useState(true)
+function DrawerScene({
+  platform,
+  variant
+}: {
+  platform: 'vrchat' | 'chilloutvr'
+  variant: string
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
   const friend = friends[platform][0] ?? null
   return (
     <main className="fixture-canvas" tabIndex={-1}>
@@ -33,6 +38,15 @@ function DrawerScene({ platform }: { platform: 'vrchat' | 'chilloutvr' }): React
         <button type="button" onClick={() => setOpen(true)}>
           Open {platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'} drawer
         </button>
+        {variant === 'note-load-error' && (
+          <span>Open the drawer, then use Retry to recover the local note.</span>
+        )}
+        {variant === 'note-save-error' && (
+          <span>
+            Edit the synthetic note and leave its field. The first save fails; Retry saves the
+            retained draft locally.
+          </span>
+        )}
       </div>
       <DashboardView />
       <FriendDrawer friend={open ? friend : null} onClose={() => setOpen(false)} />
@@ -43,10 +57,6 @@ function DrawerScene({ platform }: { platform: 'vrchat' | 'chilloutvr' }): React
 
 function JoinScene(): React.JSX.Element {
   const { join } = useJoinInstance()
-  useEffect(() => {
-    const friend = friends.vrchat[0]
-    if (friend) void join(friend)
-  }, [join])
   return (
     <main className="fixture-canvas" tabIndex={-1}>
       <div className="fixture-controls">
@@ -75,7 +85,12 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
       <LoginScreen initialTwoFactor={variant === 'totp' || variant === 'email' ? variant : null} />
     )
   if (name === 'drawer')
-    return <DrawerScene platform={variant === 'chilloutvr' ? 'chilloutvr' : 'vrchat'} />
+    return (
+      <DrawerScene
+        variant={variant}
+        platform={variant === 'chilloutvr' ? 'chilloutvr' : 'vrchat'}
+      />
+    )
   if (name === 'join') return <JoinScene />
   if (['dashboard', 'friends', 'linked', 'settings', 'updater'].includes(name)) return <AppShell />
   return (
@@ -122,16 +137,6 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
           ? 'settings'
           : 'dashboard'
     )
-  if (name === 'linked') {
-    const person = linkedSnapshot.profiles[0]
-    const member = person?.members[0]
-    if (person && member)
-      useProfileSelection.getState().select({
-        kind: 'person',
-        personId: person.id,
-        anchor: { platform: member.platform, friendId: member.friendId }
-      })
-  }
   document.body.classList.add('fixture-document')
   createRoot(root).render(
     <QueryClientProvider client={queryClient}>

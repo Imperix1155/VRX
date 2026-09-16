@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ExploreWorld } from '@shared/explore'
+import type { ExploreWorldSnapshot } from '@shared/explore'
 import { rankExploreWorlds, selectExploreWorlds } from '@shared/exploreRanking'
-import type { LabelScheme, Platform } from '@shared/types'
+import type { LabelScheme } from '@shared/types'
 import { Avatar } from '@renderer/components/Avatar'
 import DashboardView from '@renderer/components/DashboardView'
 import ExploreDashboardPreview from '@renderer/components/ExploreDashboardPreview'
@@ -24,6 +24,7 @@ import {
   worlds
 } from './fixtures'
 import TypeInspector from './type-inspector'
+import { sourceModesFor } from './scenarios'
 
 export interface CatalogSceneProps {
   scene: string
@@ -48,22 +49,9 @@ function ExploreScene({ variant }: { variant: string }): React.JSX.Element {
   const [focusFallback, setFocusFallback] = useState<HTMLElement | null>(null)
   const [opener, setOpener] = useState<HTMLElement | null>(null)
   const [total, setTotal] = useState<2 | 4 | 6>(4)
-  const [selected, setSelected] = useState<ExploreWorld | null>(null)
+  const [sheet, setSheet] = useState<ExploreWorldSnapshot | null>(null)
   const [joinedRoom, setJoinedRoom] = useState<string | null>(null)
-  const modes: Record<
-    string,
-    readonly [
-      'ready' | 'loading' | 'error' | 'stale' | 'empty' | 'unavailable',
-      'ready' | 'loading' | 'error' | 'stale' | 'empty' | 'unavailable'
-    ]
-  > = {
-    loading: ['loading', 'ready'],
-    error: ['error', 'ready'],
-    unavailable: ['unavailable', 'ready'],
-    empty: ['empty', 'empty'],
-    stale: ['stale', 'ready']
-  }
-  const [vrcMode, cvrMode] = modes[variant] ?? ['ready', 'ready']
+  const [vrcMode, cvrMode] = sourceModesFor(variant)
   const vrcSnapshot = getPlatformSnapshot('vrchat', vrcMode)
   const cvrSnapshot = getPlatformSnapshot('chilloutvr', cvrMode)
   const snapshots = [vrcSnapshot, cvrSnapshot]
@@ -76,10 +64,6 @@ function ExploreScene({ variant }: { variant: string }): React.JSX.Element {
     total,
     listSeeds: { vrchat: 0, chilloutvr: 1 }
   })
-  const sheet =
-    selected === null
-      ? null
-      : getWorldSnapshot(selected, variant === 'sheet-error' ? 'error' : 'ready')
   return (
     <SceneFrame>
       <FixtureLabel>
@@ -98,11 +82,25 @@ function ExploreScene({ variant }: { variant: string }): React.JSX.Element {
           onTotalChange={setTotal}
           onOpenWorld={(world, trigger) => {
             setOpener(trigger)
-            setSelected(world)
+            setSheet(
+              getWorldSnapshot(
+                world,
+                variant === 'sheet-error'
+                  ? 'error'
+                  : variant === 'sheet-loading'
+                    ? 'loading'
+                    : variant === 'sheet-stale'
+                      ? 'stale'
+                      : 'ready'
+              )
+            )
           }}
-          onCloseSheet={() => setSelected(null)}
+          onCloseSheet={() => setSheet(null)}
           onJoinRoom={(room) => setJoinedRoom(room.roomId)}
-          onRefreshSheet={() => setJoinedRoom(null)}
+          onRefreshSheet={() => {
+            if (sheet) setSheet(getWorldSnapshot(sheet.world))
+            setJoinedRoom(null)
+          }}
         />
       </main>
       {joinedRoom !== null ? (
@@ -115,7 +113,7 @@ function ExploreScene({ variant }: { variant: string }): React.JSX.Element {
 function MaterialsScene(): React.JSX.Element {
   const [focusFallback, setFocusFallback] = useState<HTMLElement | null>(null)
   const [opener, setOpener] = useState<HTMLElement | null>(null)
-  const [opened, setOpened] = useState(false)
+  const [snapshot, setSnapshot] = useState<ExploreWorldSnapshot | null>(null)
   const world = worlds.vrchat[0]
   if (world === undefined)
     return (
@@ -144,16 +142,17 @@ function MaterialsScene(): React.JSX.Element {
             image={worldImages[world.worldRef]}
             onOpen={(_world, trigger) => {
               setOpener(trigger)
-              setOpened(true)
+              setSnapshot(getWorldSnapshot(world))
             }}
           />
         </div>
         <ExploreWorldSheet
-          snapshot={opened ? getWorldSnapshot(world) : null}
+          snapshot={snapshot}
           image={worldImages[world.worldRef]}
           opener={opener}
           focusFallback={focusFallback}
-          onClose={() => setOpened(false)}
+          onClose={() => setSnapshot(null)}
+          onRefresh={() => setSnapshot(getWorldSnapshot(world))}
           onJoin={() => undefined}
         />
       </main>
@@ -286,31 +285,14 @@ function ControlsScene(): React.JSX.Element {
 }
 
 function FeedbackScene({ variant }: { variant: string }): React.JSX.Element {
-  const platform: Platform = variant === 'unavailable' ? 'chilloutvr' : 'vrchat'
-  const mode =
-    variant === 'unavailable' ||
-    variant === 'loading' ||
-    variant === 'error' ||
-    variant === 'stale' ||
-    variant === 'empty'
-      ? variant
-      : 'ready'
-  const primarySnapshot = getPlatformSnapshot(platform, mode)
-  const secondaryPlatform = platform === 'vrchat' ? 'chilloutvr' : 'vrchat'
-  const secondarySnapshot = getPlatformSnapshot(secondaryPlatform)
-  const snapshots = [primarySnapshot, secondarySnapshot]
+  const [vrcMode, cvrMode] = sourceModesFor(variant)
+  const vrcSnapshot = getPlatformSnapshot('vrchat', vrcMode)
+  const cvrSnapshot = getPlatformSnapshot('chilloutvr', cvrMode)
+  const snapshots = [vrcSnapshot, cvrSnapshot]
   const availableWorlds = selectExploreWorlds({
     lists: {
-      vrchat: rankExploreWorlds(
-        'vrchat',
-        primarySnapshot.platform === 'vrchat' ? primarySnapshot.worlds : secondarySnapshot.worlds
-      ),
-      chilloutvr: rankExploreWorlds(
-        'chilloutvr',
-        primarySnapshot.platform === 'chilloutvr'
-          ? primarySnapshot.worlds
-          : secondarySnapshot.worlds
-      )
+      vrchat: rankExploreWorlds('vrchat', vrcSnapshot.worlds),
+      chilloutvr: rankExploreWorlds('chilloutvr', cvrSnapshot.worlds)
     },
     filter: 'all',
     total: 2,

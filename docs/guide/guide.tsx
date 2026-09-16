@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import './guide.css'
+import { desktopScenes, drawerScenarios, exploreScenarios, sourceScenarios } from './scenarios'
 
 declare const __APP_VERSION__: string
 declare const __GUIDE_REVISION__: string
@@ -57,9 +58,10 @@ function Scene({
   paired = false,
   variants
 }: SceneProps): React.JSX.Element {
+  const desktop = desktopScenes.includes(name)
   const [theme, setTheme] = useState<Theme>('dark')
   const [glow, setGlow] = useState<Glow>('standard')
-  const [selectedVariant, setSelectedVariant] = useState(variant)
+  const [selectedVariant, setSelectedVariant] = useState(variant ?? variants?.[0]?.value)
   const src = useMemo(() => {
     const params = new URLSearchParams({ scene: name, theme, glow })
     if (selectedVariant) params.set('variant', selectedVariant)
@@ -77,7 +79,7 @@ function Scene({
 
   return (
     <figure
-      className={`design-guide__scene design-guide__scene--${height}${paired ? ' design-guide__scene--paired' : ''}`}
+      className={`design-guide__scene design-guide__scene--${height}${paired ? ' design-guide__scene--paired' : ''}${desktop ? ' design-guide__scene--desktop' : ''}`}
     >
       <figcaption>
         <div>
@@ -120,6 +122,12 @@ function Scene({
           )}
         </div>
       </figcaption>
+      {desktop && (
+        <p className="design-guide__note">
+          Desktop sample at the minimum supported app window size. Scroll the frame sideways when
+          the guide is narrow, or open the scene.
+        </p>
+      )}
       <div className="design-guide__frame-grid">
         <div className="design-guide__frame-wrap">
           <span className="design-guide__frame-label">{theme}</span>
@@ -257,9 +265,7 @@ export default function Guide(): React.JSX.Element {
             source="ExploreView.tsx · ExploreWorldCard.tsx · ExploreWorldSheet.tsx"
             height="tall"
             variant="ready"
-            variants={['ready', 'loading', 'stale', 'error', 'empty', 'unavailable'].map(
-              (value) => ({ value, label: value })
-            )}
+            variants={exploreScenarios}
           />
         </Section>
 
@@ -425,13 +431,10 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="drawer"
             title="Friend drawer"
-            note="Interactive fixture. Compare both platforms, inspect Notes and quiet Trust, and close or reopen the real frosted drawer."
+            note="Interactive fixture. Compare both platforms, inspect Notes and quiet Trust, and open the real frosted drawer. Failure states recover through Retry."
             source="FriendDrawer.tsx · JoinConfirmDialog.tsx"
             variant="vrchat"
-            variants={[
-              { value: 'vrchat', label: 'VRChat' },
-              { value: 'chilloutvr', label: 'ChilloutVR' }
-            ]}
+            variants={drawerScenarios}
           />
           <Scene
             name="join"
@@ -461,7 +464,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="linked"
             title="Linked identities"
-            note="Interactive fixture. It uses synthetic local link data and preserves the original account labels."
+            note="Interactive fixture. Open the linked Nyx profile to inspect its account labels, shared note, Where cards, and Identities controls."
             source="FriendDrawer.tsx · LinkedDialog.tsx"
           />
         </Section>
@@ -482,9 +485,7 @@ export default function Guide(): React.JSX.Element {
             note="Interactive fixture. These states use real component copy and local retry affordances only."
             source="ExploreSourceState.tsx · ExploreDashboardPreview.tsx"
             variant="loading"
-            variants={['ready', 'loading', 'stale', 'error', 'empty', 'unavailable'].map(
-              (value) => ({ value, label: value })
-            )}
+            variants={sourceScenarios}
           />
           <Scene
             name="login"
