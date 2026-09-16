@@ -188,6 +188,7 @@ body[data-guide='true'] {
 }
 .design-guide__scene figcaption {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-4);
   margin-bottom: var(--space-3);
@@ -203,11 +204,15 @@ body[data-guide='true'] {
 }
 .design-guide__scene-controls {
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: start;
   gap: var(--space-2);
 }
 .design-guide__scene-controls label {
   display: grid;
+  flex: none;
   gap: 2px;
   color: var(--text-dim);
   font-size: 0.65rem;
@@ -233,7 +238,8 @@ body[data-guide='true'] {
   outline: none;
 }
 .design-guide__scene-controls select {
-  min-width: 76px;
+  width: max-content;
+  min-width: 96px;
   padding: 4px 7px;
   color: var(--text);
   background: var(--control-fill);

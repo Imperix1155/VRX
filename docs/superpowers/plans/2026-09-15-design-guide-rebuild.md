@@ -504,3 +504,27 @@ bb1e50d→0c280d8, ce9c6f4→2f83053, 3692502→912b4f1, 64492f6→3805cdc,
 valid for the unchanged guide code. Image recovery remains with its owning task;
 its worktree is now based on c77b867, providing the intended integration sequence.
 The reserved final screenshot will follow that required source integration.
+
+The integrated material guide build/typecheck and 65 focused tests across the
+four guide suites and designTokens passed `MATERIAL_INTEGRATION_GREEN`.
+The approved 760×900 Dashboard screenshot was taken against served revision
+`a9c381a`. It showed the actual `glass-information` cards, clear platform badges,
+subdued section headings, desktop navigation/updater, and the narrow guide's
+contained desktop frame. It is one view of the material correction, not proof
+of every surface, theme, glow level, or installed-app owner acceptance. That
+single capture permission is consumed; no additional image is authorized.
+
+The screenshot also showed the guide-only Glow select clipping Standard at
+76px. The controls now retain intrinsic widths with a 96px minimum and wrap
+with their caption. DOM geometry checks at 760×900 found 96px Theme/Glow controls,
+180px source State controls, zero overflowing control groups, and exactly 760px
+page scroll width. At 1280×900 in Light the page remained exactly 1280px with
+zero overflowing control groups. The viewport was reset. This correction has
+DOM/layout evidence but no new screenshot, respecting the exhausted capture grant.
+
+The coordinator authorized normal CI on the final main-target draft. It also
+reported that changing only the base may not trigger pull_request workflows,
+which do not subscribe to edited. If no exact-head run appears after final
+integration and retargeting, close/reopen the same unchanged-head draft to send
+the supported reopened event. Preserve dependencies and the docs-only comparison;
+do not alter workflows/protections or merge. No extra PR is needed.
