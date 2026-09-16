@@ -328,21 +328,48 @@ behind the production platform badges. The fixture SVG now contains only the
 background artwork; production cards retain their own world titles and platform
 labels. All six SVGs parse, keep their dimensions/colors, and contain no text
 nodes. Uncached lint, guide typecheck/build, and all 21 guide tests pass.
-This correction still needs rendered reinspection and focused review with the
-remaining visual corrections before delivery. No production app source changed.
+The subsequent approved dark-drawer capture showed clear platform badges over
+the corrected artwork. Fresh read-only Sol/high focused review of the correction
+found no actionable issue, verifying artifact hash
+`ca8a8ca7f6a6872268a0b147cc8bd2e543cd3e99e2fbc2f79428c4ebbe2e90b2`.
+The review classified it as guide-only T1 visual behavior and retained earlier
+coverage. No production app source changed.
 DESIGN.md and other product/API contracts are intentionally unchanged because
 only decorative fixture content changed.
 
-The next pending request is the synthetic dark friend drawer at
+Josh approved the synthetic dark friend drawer at
 `glass.html?scene=drawer&theme=dark&render=1`, 1100×800 in Codex's in-app browser.
-Requested scope: Open/Close/Escape checks and one screenshot with the drawer open
-to inspect frost, readability, and keyboard focus. Wait for fresh approval.
+Open focused Close. Both Escape and Close returned focus to the opener, outside
+the inert drawer. The single approved open screenshot showed the frosted panel,
+readable notes, quiet Trust below Notes, and visible Close/Join controls.
+That capture consent is consumed and the viewport override was reset.
+
+Josh approved the synthetic light Join dialog at
+`glass.html?scene=join&theme=light&render=1`, 900×670 in the same browser,
+including keyboard focus, Cancel/Escape, the synthetic Confirm failure, and one
+open-dialog screenshot. The browser check confirmed initial Cancel focus,
+forward/reverse Tab wrapping within the modal, and restoration to the opener
+after Cancel and Escape. Synthetic Confirm closed to the main region, with no
+inline alert in this fixture. Source confirms terminal failures close the modal
+and attribute feedback to the originating friend control. The screenshot showed
+the heavy light panel and all controls within the supported window. That image
+permission is consumed and the viewport override was reset.
+
+The next pending request covers `design.html` at 760×900 and 1280×900: both
+themes, scrolling, state selectors, note retries, and updater expansion, with one
+screenshot of the Dashboard section at 760×900. Wait for explicit consent.
 
 The coordinating VRX task also relayed a newly approved app consistency fix:
 Dashboard's Popular now and Hot Instances labels should use the subdued gray
 treatment of comparable secondary headings, with consistent weight. The owning
-Explore task will diagnose and correct the production source. This docs task
-must not duplicate that app patch or add preview-only CSS. Update the component
-dependency after the owning task supplies its verified patch/revision, then
-include the labels in the remaining browser inspection. The source correction
-is approved but not yet verified here.
+Explore task owns the production source. The driver inspected its correction at
+`d71f92b458b2f95e64429fa6a1f813176dcd5b59` and verified GitHub PR315 remains open
+at that exact head. Both Popular now renderers now use explicit normal weight
+and `--text-faint`; sizes, tracking, IDs, and semantics are preserved. Hot
+Instances already has the intended treatment and is unchanged. Integration into
+this docs branch and guide verification are next. Preserve the rewritten docs
+while reconciling the upstream contract additions; add no preview-only CSS.
+
+Statistics → Hot Instances → Popular now and image-led Hot cards are a separate
+future proposal in Backlog VRX-274. They are not current app behavior. Missing
+world artwork is under separate read-only diagnosis and has no source fix here.
