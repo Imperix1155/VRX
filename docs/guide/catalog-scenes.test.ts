@@ -18,7 +18,7 @@ describe('guide examples follow the production state contract', () => {
           onOpenWorld: () => undefined
         })
       )
-      expect(html).toContain('worlds are loading')
+      expect(html.match(/Worlds loading…/g)).toHaveLength(1)
       expect(html).toContain('People')
       expect(html).not.toContain('Visible rooms')
     }

@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Dashboard Popular now and Explore show one “Worlds loading…” message while
+  any selected platform initially loads, keeping available cards visible and
+  routine background refresh quiet. (VRX-277)
+
 - Information cards and panels keep their own colors over the aurora in both
   themes. Platform tints, neutral highlights and decorative glass remain. (VRX-276)
 - Visible Explore and Dashboard artwork can recover after a temporary image

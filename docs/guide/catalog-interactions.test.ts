@@ -12,20 +12,20 @@ afterEach(() => {
 })
 
 describe('selectable guide scenarios', () => {
-  it.each([
-    ['loading', 'VRChat'],
-    ['loading-cvr', 'ChilloutVR']
-  ])('renders the selectable %s state beside retained cards', (variant, platform) => {
-    expect(sourceScenarios.some((scenario) => scenario.value === variant)).toBe(true)
-    render(createElement(CatalogScene, { scene: 'feedback', variant }))
-    expect(screen.getByText(`${platform} worlds are loading…`)).toBeTruthy()
-    expect(screen.getAllByText(/People/).length).toBeGreaterThan(0)
-  })
+  it.each(['loading', 'loading-cvr'])(
+    'renders the selectable %s state beside retained cards',
+    (variant) => {
+      expect(sourceScenarios.some((scenario) => scenario.value === variant)).toBe(true)
+      render(createElement(CatalogScene, { scene: 'feedback', variant }))
+      expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+      expect(screen.getAllByText(/People/).length).toBeGreaterThan(0)
+    }
+  )
 
   it('keeps retained-card refresh quiet through the selectable fixture', () => {
     expect(sourceScenarios.some((scenario) => scenario.value === 'refreshing')).toBe(true)
     render(createElement(CatalogScene, { scene: 'feedback', variant: 'refreshing' }))
-    expect(screen.queryByText(/worlds are loading/)).toBeNull()
+    expect(screen.queryByText('Worlds loading…')).toBeNull()
     expect(screen.getAllByText(/People/).length).toBeGreaterThan(0)
   })
 

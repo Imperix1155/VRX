@@ -285,8 +285,11 @@ Explore and Dashboard Popular now import the same responsive full world card.
 Equivalent platform content has equal card treatment. Use People for occupancy;
 do not restore the removed Visible rooms metric or duplicate the top-bar heading.
 
-Initial loading is per platform, including beside cards from the other platform.
-Ordinary refresh with retained cards stays quiet. Preserve meaningful errors,
+Dashboard and Explore show one platform-neutral "Worlds loading…" message while
+any selected platform has initial loading without usable results, including beside
+cards already available from the other platform. Keep those cards visible. End the
+message once no selected source is initially loading; filtered-out or terminal
+sources do not keep it alive. Ordinary refresh with retained cards stays quiet. Preserve meaningful errors,
 unavailable sources, stale results, and verified empty states. Unknown or partial
 counts remain unknown, never zero. Sheet coverage and disabled actions must
 reflect the supplied snapshot. No documentation example may add polling.
