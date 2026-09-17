@@ -152,7 +152,7 @@ describe('ExploreView', () => {
       worlds: [healthy],
       platformSnapshots: [source('vrchat', [healthy], 'loading'), source('chilloutvr', [], 'error')]
     })
-    expect(screen.queryByText('VRChat worlds are loading…')).toBeNull()
+    expect(screen.queryByText('Worlds loading…')).toBeNull()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
     expect(screen.getByText('Healthy World')).toBeTruthy()
     expect(screen.queryByText('No public worlds are available right now.')).toBeNull()
@@ -170,10 +170,7 @@ describe('ExploreView', () => {
           source(loadingPlatform, [], 'loading')
         ]
       })
-      const loadingName = loadingPlatform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
-      const retainedName = retainedPlatform === 'vrchat' ? 'VRChat' : 'ChilloutVR'
-      expect(screen.getByText(`${loadingName} worlds are loading…`)).toBeTruthy()
-      expect(screen.queryByText(`${retainedName} worlds are loading…`)).toBeNull()
+      expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
       expect(screen.getByText('Retained world')).toBeTruthy()
     }
   )
@@ -610,7 +607,7 @@ describe('ExploreDashboardPreview', () => {
         onOpenWorld={vi.fn()}
       />
     )
-    expect(screen.getByText('VRChat worlds are loading…')).toBeTruthy()
+    expect(screen.getByText('Worlds loading…')).toBeTruthy()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
     rerender(
       <ExploreDashboardPreview

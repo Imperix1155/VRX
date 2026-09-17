@@ -262,7 +262,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="explore"
             title="Explore worlds and rooms"
-            note="Interactive fixture. Both platforms use the same card. Open View rooms, change Worlds shown, and inspect per-platform loading and failure states."
+            note="Interactive fixture. Both platforms use the same card. Open View rooms, change Worlds shown, and inspect shared initial loading and platform-specific failures."
             source="ExploreView.tsx · ExploreWorldCard.tsx · ExploreWorldSheet.tsx"
             height="tall"
             variant="ready"
@@ -484,8 +484,10 @@ export default function Guide(): React.JSX.Element {
         >
           <span id="login-persistence" className="design-guide__alias" />
           <p className="design-guide__lead">
-            A source can be loading, stale, empty, unavailable, or in error without hiding unrelated
-            content. Login uses the same app language and never places credentials in a fixture.
+            Explore and Popular now share one Worlds loading… message while any selected source is
+            initially loading, keeping available cards visible. Ordinary background refresh stays
+            quiet; failures and unavailable sources keep their platform labels. Login uses the same
+            app language and never places credentials in a fixture.
           </p>
           <Scene
             name="feedback"

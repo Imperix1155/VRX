@@ -472,7 +472,7 @@
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",
     "sourceState": {
-      "loading": "{{platform}} のワールドを読み込み中…",
+      "loading": "ワールドを読み込み中…",
       "error": "{{platform}} のワールドを読み込めませんでした。",
       "unavailable": "{{platform}} の探索は利用できません。",
       "stale": "{{platform}} は更新中のため、保存済みの結果を表示しています。"
