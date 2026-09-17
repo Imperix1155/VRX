@@ -262,3 +262,5 @@ account. Empty drawer names use the heading's localized accessible-name fallback
 ## Child DOX Index
 
 No children yet.
+
+Explore image observers dispatch only after the coordinator has a successful current active-platform declaration. Hide, activation replacement/rejection, teardown and account boundaries revoke that permission. Visibility alone must not resume images; paused admission timers retain their delay and finite recovery budget (VRX-278).

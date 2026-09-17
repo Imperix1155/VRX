@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearExplorePlatform } from '../queries/explore'
+import { clearExplorePlatform, setExploreImagePlatforms } from '../queries/explore'
 import { useExploreImage } from './useExploreImage'
 
 let observe!: (entry: { isIntersecting: boolean }) => void
@@ -19,6 +19,7 @@ function Card({
 }
 
 beforeEach(() => {
+  setExploreImagePlatforms(['vrchat', 'chilloutvr'])
   getExploreImage = vi.fn().mockResolvedValue(null)
   window.vrx = { getExploreImage } as unknown as Window['vrx']
   class Observer {
@@ -60,6 +61,8 @@ describe('useExploreImage', () => {
     rerender(<Card worldRef="world-ref" />)
     expect(getExploreImage).toHaveBeenCalledOnce()
     await act(async () => observe({ isIntersecting: true }))
+    expect(getExploreImage).toHaveBeenCalledOnce()
+    await act(async () => setExploreImagePlatforms(['vrchat']))
     expect(getExploreImage).toHaveBeenCalledTimes(2)
   })
 
