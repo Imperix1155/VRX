@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Explore artwork waits for platform reactivation when returning to the app, preventing a temporary inactive state from permanently hiding images (VRX-278).
+
 - Dashboard Popular now and Explore show one “Worlds loading…” message while
   any selected platform initially loads, keeping available cards visible and
   routine background refresh quiet. (VRX-277)

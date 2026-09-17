@@ -5,7 +5,8 @@ import {
   clearExplorePlatform,
   readExploreSnapshot,
   requestExplore,
-  exploreQueryKey
+  exploreQueryKey,
+  setExploreImagePlatforms
 } from '../queries/explore'
 import { useAuthStatus } from '../queries/auth'
 import { queryClient } from '../queries/queryClient'
@@ -180,6 +181,7 @@ export function useExploreCoordinator(): void {
   const relevant = (activeTab === 'dashboard' || activeTab === 'explore') && visible
 
   useEffect(() => {
+    setExploreImagePlatforms([])
     if (typeof window === 'undefined' || !window.vrx?.setExploreActive) return
     let cancelled = false
     const capturedGenerations = { ...activationGenerations.current }
@@ -217,7 +219,12 @@ export function useExploreCoordinator(): void {
     }
     void activation
       .then(() => {
-        if (cancelled || !relevant) return
+        if (cancelled || !relevant || activeDeclaration.current.successful !== key) return
+        setExploreImagePlatforms(
+          active.filter(
+            (platform) => activationGenerations.current[platform] === capturedGenerations[platform]
+          )
+        )
         const now = Date.now()
         for (const platform of active) {
           if (activationGenerations.current[platform] !== capturedGenerations[platform]) continue
@@ -235,6 +242,7 @@ export function useExploreCoordinator(): void {
       .catch(() => undefined)
     return () => {
       cancelled = true
+      setExploreImagePlatforms([])
     }
   }, [active, relevant, statuses, wake])
 

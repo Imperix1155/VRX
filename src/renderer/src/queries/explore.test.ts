@@ -7,6 +7,7 @@ import {
   clearExplorePlatform,
   exploreQueryKey,
   observeExploreImage,
+  setExploreImagePlatforms,
   requestExplore,
   requestExploreImage
 } from './explore'
@@ -25,6 +26,7 @@ describe('Explore renderer requests', () => {
     queryClient.clear()
     clearExplorePlatform('vrchat')
     clearExplorePlatform('chilloutvr')
+    setExploreImagePlatforms(['vrchat', 'chilloutvr'])
     window.vrx = { getExplore: vi.fn().mockResolvedValue(snapshot) } as unknown as Window['vrx']
   })
   afterEach(() => {
@@ -387,6 +389,8 @@ describe('Explore renderer requests', () => {
 
     visibility.mockReturnValue('visible')
     document.dispatchEvent(new Event('visibilitychange'))
+    expect(getExploreImage).not.toHaveBeenCalled()
+    setExploreImagePlatforms(['vrchat'])
     await vi.waitFor(() => expect(getExploreImage).toHaveBeenCalledOnce())
     stop()
     visibility.mockRestore()
@@ -400,5 +404,40 @@ describe('Explore renderer requests', () => {
     await vi.advanceTimersByTimeAsync(120_000)
     expect(getExploreImage).toHaveBeenCalledOnce()
     stop()
+  })
+  it('resumes only admitted platforms and retains a paused recovery budget', async () => {
+    vi.useFakeTimers()
+    setExploreImagePlatforms([])
+    const getExploreImage = vi
+      .fn<
+        (request: {
+          platform: string
+        }) => Promise<{ ok: false; reason: 'deferred'; retryAfterMs: number }>
+      >()
+      .mockResolvedValue({ ok: false, reason: 'deferred', retryAfterMs: 2_000 })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stopVrc = observeExploreImage('vrchat', 'admitted-vrc', () => undefined)
+    const stopCvr = observeExploreImage('chilloutvr', 'inactive-cvr', () => undefined)
+    expect(getExploreImage).not.toHaveBeenCalled()
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    setExploreImagePlatforms([])
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+    setExploreImagePlatforms([])
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    expect(getExploreImage.mock.calls.every(([request]) => request.platform === 'vrchat')).toBe(
+      true
+    )
+    stopVrc()
+    stopCvr()
   })
 })

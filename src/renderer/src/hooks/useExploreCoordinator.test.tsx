@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, AuthStatus } from '@shared/types'
 import type { ExplorePlatformSnapshot } from '@shared/explore'
 import { authStatusQueryKey } from '../queries/auth'
-import { exploreQueryKey, requestExplore } from '../queries/explore'
+import {
+  clearExplorePlatform,
+  exploreQueryKey,
+  observeExploreImage,
+  requestExplore
+} from '../queries/explore'
 import { queryClient } from '../queries/queryClient'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
@@ -37,6 +42,8 @@ function Coordinator(): React.JSX.Element {
 }
 
 beforeEach(() => {
+  clearExplorePlatform('vrchat')
+  clearExplorePlatform('chilloutvr')
   queryClient.clear()
   clearExploreAutomaticGate('vrchat')
   clearExploreAutomaticGate('chilloutvr')
@@ -581,4 +588,125 @@ describe('Explore automatic eligibility', () => {
     await act(async () => window.dispatchEvent(new Event('focus')))
     expect(getExplore).not.toHaveBeenCalled()
   })
+})
+
+describe('Explore artwork activation lifetime', () => {
+  it.each(['resolve', 'reject', 'unmount', 'boundary'] as const)(
+    'holds hidden artwork until resumed activation settles: %s',
+    async (outcome) => {
+      let active = false
+      let settle!: () => void
+      let reject!: () => void
+      let boundary!: (event: { platform: 'vrchat' }) => void
+      let delayed = false
+      const getExploreImage = vi.fn(async () =>
+        active ? { ok: true as const, dataUrl: 'data:image/png;base64,resumed' } : null
+      )
+      window.vrx = {
+        setExploreActive: vi.fn(({ platforms }: { platforms: string[] }) => {
+          if (delayed && platforms.length)
+            return new Promise<void>((resolve, fail) => {
+              settle = () => {
+                active = true
+                resolve()
+              }
+              reject = () => fail(new Error('activation rejected'))
+            })
+          active = platforms.length > 0
+          return Promise.resolve()
+        }),
+        getExplore: vi.fn().mockResolvedValue(snapshot),
+        getExploreImage,
+        onExploreChanged: () => () => {},
+        onIdentityBoundary: (listener: typeof boundary) => {
+          boundary = listener
+          return () => {}
+        },
+        onFriendEvent: () => () => {}
+      } as unknown as Window['vrx']
+      const rendered = render(
+        <QueryClientProvider client={queryClient}>
+          <Coordinator />
+        </QueryClientProvider>
+      )
+      await act(async () => undefined)
+      await act(async () => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(active).toBe(false)
+      const listener = vi.fn()
+      const stop = observeExploreImage('vrchat', 'hidden-new-world', listener)
+      delayed = true
+      await act(async () => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      expect(getExploreImage).not.toHaveBeenCalled()
+      if (outcome === 'unmount') rendered.unmount()
+      if (outcome === 'boundary') await act(async () => boundary({ platform: 'vrchat' }))
+      await act(async () => {
+        if (outcome === 'reject') reject()
+        else settle()
+      })
+      if (outcome === 'resolve') {
+        expect(getExploreImage).toHaveBeenCalledTimes(1)
+        expect(listener).toHaveBeenLastCalledWith('data:image/png;base64,resumed')
+      } else expect(getExploreImage).not.toHaveBeenCalled()
+      stop()
+    }
+  )
+})
+
+it('does not admit artwork from an old activation during a batched hide/show', async () => {
+  let active = false
+  let delayed = false
+  const pending: Array<() => void> = []
+  const getExploreImage = vi.fn(async () =>
+    active ? { ok: true as const, dataUrl: 'data:image/png;base64,current' } : null
+  )
+  window.vrx = {
+    setExploreActive: vi.fn(({ platforms }: { platforms: string[] }) => {
+      active = platforms.length > 0
+      return delayed && active
+        ? new Promise<void>((resolve) => pending.push(resolve))
+        : Promise.resolve()
+    }),
+    getExplore: vi.fn().mockResolvedValue(snapshot),
+    getExploreImage,
+    onExploreChanged: () => () => {},
+    onIdentityBoundary: () => () => {},
+    onFriendEvent: () => () => {}
+  } as unknown as Window['vrx']
+  const visibility = (value: string): void => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Coordinator />
+    </QueryClientProvider>
+  )
+  await act(async () => undefined)
+  await act(async () => visibility('hidden'))
+  delayed = true
+  const listener = vi.fn()
+  const stop = observeExploreImage('vrchat', 'batched-resume-world', listener)
+  await act(async () => visibility('visible'))
+  const old = pending.shift()!
+  await act(async () => {
+    // Main independently deactivates when its window hides, before renderer effects.
+    active = false
+    visibility('hidden')
+    visibility('visible')
+    old()
+    for (let turn = 0; turn < 8; turn += 1) await Promise.resolve()
+    expect(getExploreImage).not.toHaveBeenCalled()
+  })
+  await act(async () => {
+    for (const resolve of pending) resolve()
+  })
+  expect(getExploreImage).toHaveBeenCalledTimes(1)
+  expect(listener).toHaveBeenLastCalledWith('data:image/png;base64,current')
+  stop()
 })

@@ -42,6 +42,7 @@ interface ImageObserverEntry {
   timer: ReturnType<typeof setTimeout> | null
 }
 const imageObservers = new Map<string, ImageObserverEntry>()
+const activeImagePlatforms = new Set<Platform>()
 const resetGenerations: Record<Platform, number> = { vrchat: 0, chilloutvr: 0 }
 const resetListeners: Record<Platform, Set<() => void>> = {
   vrchat: new Set(),
@@ -198,6 +199,7 @@ export function readExploreSnapshot(platform: Platform): Promise<ExplorePlatform
 
 /** Fence old-account replies, clear all mounted snapshots, and drop image references. */
 export function clearExplorePlatform(platform: Platform): void {
+  activeImagePlatforms.delete(platform)
   generations[platform] += 1
   // The old main request may still settle, but its generation can no longer
   // publish. Remove its local coalescing slot so a newly authenticated account
@@ -293,7 +295,8 @@ function scheduleObservedImageRecovery(
     observer.timer !== null ||
     observer.listeners.size === 0 ||
     observer.deferredRetryAfterMs === null ||
-    !isDocumentVisible()
+    !isDocumentVisible() ||
+    !activeImagePlatforms.has(platform)
   )
     return
   observer.timer = setTimeout(() => {
@@ -315,7 +318,8 @@ function runObservedImageRequest(
     observer.pending !== null ||
     observer.timer !== null ||
     observer.listeners.size === 0 ||
-    !isDocumentVisible()
+    !isDocumentVisible() ||
+    !activeImagePlatforms.has(platform)
   )
     return
   const cached = cachedImage(platform, worldRef)
@@ -413,23 +417,26 @@ export function observeExploreImage(
   }
 }
 
+/** Only the coordinator grants image dispatch after main accepts the active declaration. */
+export function setExploreImagePlatforms(platforms: readonly Platform[]): void {
+  activeImagePlatforms.clear()
+  if (isDocumentVisible()) for (const platform of platforms) activeImagePlatforms.add(platform)
+  for (const [key, observer] of imageObservers) {
+    const separator = key.indexOf(':')
+    const platform = key.slice(0, separator) as Platform
+    if (!activeImagePlatforms.has(platform)) {
+      if (observer.timer !== null) clearTimeout(observer.timer)
+      observer.timer = null
+      continue
+    }
+    runObservedImageRequest(platform, key.slice(separator + 1), observer)
+  }
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (!isDocumentVisible()) {
-      for (const observer of imageObservers.values()) {
-        if (observer.timer !== null) {
-          clearTimeout(observer.timer)
-          observer.timer = null
-        }
-      }
-      return
-    }
-    for (const [key, observer] of imageObservers) {
-      const separator = key.indexOf(':')
-      const platform = key.slice(0, separator) as Platform
-      const worldRef = key.slice(separator + 1)
-      runObservedImageRequest(platform, worldRef, observer)
-    }
+    // Visibility is not proof that main has accepted the resumed platforms.
+    if (!isDocumentVisible()) setExploreImagePlatforms([])
   })
 }
 
