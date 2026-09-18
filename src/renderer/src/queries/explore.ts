@@ -1,11 +1,18 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
-import type { ExplorePlatformSnapshot, ExploreRefreshReason } from '@shared/explore'
+import type {
+  ExploreImageResult,
+  ExplorePlatformSnapshot,
+  ExploreRefreshReason
+} from '@shared/explore'
 import type { Platform } from '@shared/types'
 import { queryClient } from './queryClient'
 
 const FRESH_FOR_MS = 60_000
 const MAX_IMAGES_PER_PLATFORM = 12
+const MAX_IMAGE_RECOVERY_ATTEMPTS = 2
+const IMAGE_RETRY_MIN_MS = 250
+const IMAGE_RETRY_MAX_MS = 60_000
 
 export function exploreQueryKey(platform: Platform): readonly ['explore', Platform] {
   return ['explore', platform] as const
@@ -24,7 +31,18 @@ const freshnessTimers = new Map<Platform, ReturnType<typeof setTimeout>>()
 // A null value remembers a main denial without retaining any image data. It is
 // bounded and reset with the platform just like successful image entries.
 const images = new Map<string, string | null>()
-const imageFlights = new Map<string, Promise<string | undefined>>()
+const imageFlights = new Map<string, Promise<ExploreImageResult>>()
+interface ImageObserverEntry {
+  generation: number
+  listeners: Set<(image: string | undefined) => void>
+  recoveryAttempts: number
+  deferredRetryAfterMs: number | null
+  exhausted: boolean
+  pending: Promise<ExploreImageResult> | null
+  timer: ReturnType<typeof setTimeout> | null
+}
+const imageObservers = new Map<string, ImageObserverEntry>()
+const activeImagePlatforms = new Set<Platform>()
 const resetGenerations: Record<Platform, number> = { vrchat: 0, chilloutvr: 0 }
 const resetListeners: Record<Platform, Set<() => void>> = {
   vrchat: new Set(),
@@ -50,6 +68,36 @@ function cacheImage(platform: Platform, worldRef: string, dataUrl: string | null
       break
     }
   }
+  trimImageObservers(platform)
+}
+
+function trimImageObservers(platform: Platform): void {
+  let retained = 0
+  for (const key of imageObservers.keys()) if (key.startsWith(`${platform}:`)) retained += 1
+  while (retained > MAX_IMAGES_PER_PLATFORM) {
+    let removed = false
+    for (const [key, observer] of imageObservers) {
+      if (
+        !key.startsWith(`${platform}:`) ||
+        observer.listeners.size !== 0 ||
+        observer.pending !== null ||
+        observer.timer !== null
+      )
+        continue
+      imageObservers.delete(key)
+      retained -= 1
+      removed = true
+      break
+    }
+    if (!removed) return
+  }
+}
+
+function cachedImage(platform: Platform, worldRef: string): ExploreImageResult | undefined {
+  const key = imageKey(platform, worldRef)
+  if (!images.has(key)) return undefined
+  const dataUrl = images.get(key)
+  return dataUrl === null || dataUrl === undefined ? null : { ok: true, dataUrl }
 }
 
 function scheduleFreshness(
@@ -151,6 +199,7 @@ export function readExploreSnapshot(platform: Platform): Promise<ExplorePlatform
 
 /** Fence old-account replies, clear all mounted snapshots, and drop image references. */
 export function clearExplorePlatform(platform: Platform): void {
+  activeImagePlatforms.delete(platform)
   generations[platform] += 1
   // The old main request may still settle, but its generation can no longer
   // publish. Remove its local coalescing slot so a newly authenticated account
@@ -166,6 +215,11 @@ export function clearExplorePlatform(platform: Platform): void {
   for (const key of images.keys()) if (key.startsWith(`${platform}:`)) images.delete(key)
   for (const key of imageFlights.keys())
     if (key.startsWith(`${platform}:`)) imageFlights.delete(key)
+  for (const [key, observer] of imageObservers) {
+    if (!key.startsWith(`${platform}:`)) continue
+    if (observer.timer !== null) clearTimeout(observer.timer)
+    imageObservers.delete(key)
+  }
   resetGenerations[platform] += 1
   for (const listener of resetListeners[platform]) listener()
 }
@@ -181,26 +235,25 @@ export function useExploreResetGeneration(platform: Platform): number {
   )
 }
 
-/** Main-issued image references only; requests are coalesced and never retried automatically. */
-export function requestExploreImage(
+/** Main-issued image references only; one-off callers never retry automatically. */
+function requestExploreImageResult(
   platform: Platform,
   worldRef: string
-): Promise<string | undefined> {
+): Promise<ExploreImageResult> {
   const key = imageKey(platform, worldRef)
-  const cached = images.get(key)
-  if (cached !== undefined) return Promise.resolve(cached ?? undefined)
+  const cached = cachedImage(platform, worldRef)
+  if (cached !== undefined) return Promise.resolve(cached)
   const pending = imageFlights.get(key)
   if (pending !== undefined) return pending
   const generation = generations[platform]
   const request = (async () => {
-    if (typeof window === 'undefined' || !window.vrx?.getExploreImage) return undefined
+    if (typeof window === 'undefined' || !window.vrx?.getExploreImage) return null
     const response = await window.vrx.getExploreImage({ platform, worldRef })
-    const data = response?.ok ? response.dataUrl : undefined
     if (generations[platform] === generation) {
       if (response === null) cacheImage(platform, worldRef, null)
-      else if (data !== undefined) cacheImage(platform, worldRef, data)
+      else if (response.ok) cacheImage(platform, worldRef, response.dataUrl)
     }
-    return data
+    return response
   })()
   imageFlights.set(key, request)
   const cleanup = (): void => {
@@ -208,6 +261,183 @@ export function requestExploreImage(
   }
   void request.then(cleanup, cleanup)
   return request
+}
+
+/** Main-issued image references only; one-off callers never retry automatically. */
+export function requestExploreImage(
+  platform: Platform,
+  worldRef: string
+): Promise<string | undefined> {
+  return requestExploreImageResult(platform, worldRef).then((result) =>
+    result?.ok ? result.dataUrl : undefined
+  )
+}
+
+function notifyImage(observer: ImageObserverEntry, image: string | undefined): void {
+  for (const listener of observer.listeners) listener(image)
+}
+
+function isDocumentVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+}
+
+function clampImageRetryAfterMs(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, Math.floor(value)))
+}
+
+function scheduleObservedImageRecovery(
+  platform: Platform,
+  worldRef: string,
+  observer: ImageObserverEntry
+): void {
+  if (
+    observer.timer !== null ||
+    observer.listeners.size === 0 ||
+    observer.deferredRetryAfterMs === null ||
+    !isDocumentVisible() ||
+    !activeImagePlatforms.has(platform)
+  )
+    return
+  observer.timer = setTimeout(() => {
+    observer.timer = null
+    observer.deferredRetryAfterMs = null
+    runObservedImageRequest(platform, worldRef, observer)
+  }, observer.deferredRetryAfterMs)
+}
+
+function runObservedImageRequest(
+  platform: Platform,
+  worldRef: string,
+  observer: ImageObserverEntry
+): void {
+  const key = imageKey(platform, worldRef)
+  if (
+    imageObservers.get(key) !== observer ||
+    generations[platform] !== observer.generation ||
+    observer.pending !== null ||
+    observer.timer !== null ||
+    observer.listeners.size === 0 ||
+    !isDocumentVisible() ||
+    !activeImagePlatforms.has(platform)
+  )
+    return
+  const cached = cachedImage(platform, worldRef)
+  if (cached !== undefined) {
+    notifyImage(observer, cached?.ok ? cached.dataUrl : undefined)
+    return
+  }
+  if (observer.exhausted) {
+    notifyImage(observer, undefined)
+    return
+  }
+  if (observer.deferredRetryAfterMs !== null) {
+    scheduleObservedImageRecovery(platform, worldRef, observer)
+    return
+  }
+  const request = requestExploreImageResult(platform, worldRef)
+  observer.pending = request
+  void request.then(
+    (result) => {
+      if (imageObservers.get(key) !== observer || generations[platform] !== observer.generation)
+        return
+      observer.pending = null
+      const mayNotify = observer.listeners.size !== 0 && isDocumentVisible()
+      if (result?.ok) {
+        if (mayNotify) notifyImage(observer, result.dataUrl)
+        return
+      }
+      if (result === null) {
+        if (mayNotify) notifyImage(observer, undefined)
+        return
+      }
+      if (observer.recoveryAttempts >= MAX_IMAGE_RECOVERY_ATTEMPTS) {
+        observer.exhausted = true
+        cacheImage(platform, worldRef, null)
+        if (mayNotify) notifyImage(observer, undefined)
+        return
+      }
+      const retryAfterMs = clampImageRetryAfterMs(result.retryAfterMs)
+      if (retryAfterMs === null) {
+        cacheImage(platform, worldRef, null)
+        if (mayNotify) notifyImage(observer, undefined)
+        return
+      }
+      observer.recoveryAttempts += 1
+      observer.deferredRetryAfterMs = retryAfterMs
+      scheduleObservedImageRecovery(platform, worldRef, observer)
+    },
+    () => {
+      if (imageObservers.get(key) !== observer || generations[platform] !== observer.generation)
+        return
+      observer.pending = null
+      // Unknown bridge failures are terminal for this visible lifetime; no retry is scheduled.
+      cacheImage(platform, worldRef, null)
+      notifyImage(observer, undefined)
+    }
+  )
+}
+
+/**
+ * Shares one visible lifecycle between a card and its sheet. A typed main
+ * admission deferral may schedule at most two later attempts; removing the
+ * last visible subscriber cancels pending work without resetting that budget.
+ */
+export function observeExploreImage(
+  platform: Platform,
+  worldRef: string,
+  listener: (image: string | undefined) => void
+): () => void {
+  const key = imageKey(platform, worldRef)
+  let observer = imageObservers.get(key)
+  if (observer === undefined || observer.generation !== generations[platform]) {
+    observer = {
+      generation: generations[platform],
+      listeners: new Set(),
+      recoveryAttempts: 0,
+      deferredRetryAfterMs: null,
+      exhausted: false,
+      pending: null,
+      timer: null
+    }
+    imageObservers.set(key, observer)
+  }
+  observer.listeners.add(listener)
+  trimImageObservers(platform)
+  runObservedImageRequest(platform, worldRef, observer)
+  return () => {
+    const current = imageObservers.get(key)
+    if (current !== observer) return
+    current.listeners.delete(listener)
+    if (current.listeners.size === 0 && current.timer !== null) {
+      clearTimeout(current.timer)
+      current.timer = null
+    }
+    trimImageObservers(platform)
+  }
+}
+
+/** Only the coordinator grants image dispatch after main accepts the active declaration. */
+export function setExploreImagePlatforms(platforms: readonly Platform[]): void {
+  activeImagePlatforms.clear()
+  if (isDocumentVisible()) for (const platform of platforms) activeImagePlatforms.add(platform)
+  for (const [key, observer] of imageObservers) {
+    const separator = key.indexOf(':')
+    const platform = key.slice(0, separator) as Platform
+    if (!activeImagePlatforms.has(platform)) {
+      if (observer.timer !== null) clearTimeout(observer.timer)
+      observer.timer = null
+      continue
+    }
+    runObservedImageRequest(platform, key.slice(separator + 1), observer)
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    // Visibility is not proof that main has accepted the resumed platforms.
+    if (!isDocumentVisible()) setExploreImagePlatforms([])
+  })
 }
 
 export function useExploreSnapshot(

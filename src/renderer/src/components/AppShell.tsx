@@ -16,7 +16,7 @@ function ComingSoonStub({ labelKey }: { labelKey: string }): React.JSX.Element {
   const { t } = useTranslation()
   return (
     <div
-      className="glass flex flex-col items-center justify-center text-center p-[var(--space-10)]"
+      className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)]"
       style={{ minHeight: '240px' }}
     >
       <div className="relative">

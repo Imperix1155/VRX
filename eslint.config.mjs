@@ -66,6 +66,12 @@ export default defineConfig(
     }
   },
   {
+    // These standalone guide entries mount document roots. The docs Vite build
+    // uses ordinary module reloads rather than React Fast Refresh.
+    files: ['docs/guide/scene-entry.tsx', 'docs/guide/scene-renderer.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' }
+  },
+  {
     // Plain JS (build/release scripts like scripts/*.mjs) can't carry TypeScript
     // type annotations or participate in type-aware linting.
     files: ['**/*.{js,mjs,cjs}'],

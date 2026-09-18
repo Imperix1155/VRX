@@ -185,7 +185,10 @@ describe('ExploreService real transport accounting', () => {
     const oldOne = service.getImage('vrchat', worlds[0]!.worldRef)
     const oldTwo = service.getImage('vrchat', worlds[1]!.worldRef)
     await vi.advanceTimersByTimeAsync(60_000)
-    await expect(service.getImage('vrchat', worlds[2]!.worldRef)).resolves.toBeNull()
+    await expect(service.getImage('vrchat', worlds[2]!.worldRef)).resolves.toMatchObject({
+      ok: false,
+      reason: 'deferred'
+    })
     await vi.advanceTimersByTimeAsync(20_000)
     await blocked
     await Promise.all([oldOne, oldTwo])
@@ -194,7 +197,10 @@ describe('ExploreService real transport accounting', () => {
       await vi.advanceTimersByTimeAsync(4_000)
       await image
     }
-    await expect(service.getImage('vrchat', worlds[8]!.worldRef)).resolves.toBeNull()
+    await expect(service.getImage('vrchat', worlds[8]!.worldRef)).resolves.toMatchObject({
+      ok: false,
+      reason: 'deferred'
+    })
     const imageStarts = starts.filter(
       ({ url }) => url.includes('/image/') || url.includes('cdn.example.test')
     )

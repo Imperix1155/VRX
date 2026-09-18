@@ -378,6 +378,15 @@ traffic recorded in `api-policy.md`; normal CVR auth/friend traffic remains on
 
 ### Explore discovery (September 2026; bounded production integration)
 
+Image admission recovery (VRX-275) distinguishes local two-outstanding or
+six-start/minute refusal from unknown/unavailable upstream art. A typed bounded
+local delay allows at most two later attempts while the same reference/session
+has a visible observer. Terminal transport/null results stay placeholders.
+The main URL allowlist, image MIME/size validation, admission, account leases and
+request ceilings are unchanged. This is verified with synthetic clocks and
+transports; it is not a new claim about either platform's live image availability
+or server retry policy.
+
 Explore uses the existing authenticated transport, admission and session-lease
 boundaries. Its main-only adapter capability makes one no-retry request per
 method and rejects malformed outer envelopes or identity-mismatched world/room

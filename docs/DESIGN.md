@@ -1,658 +1,382 @@
-# VRX Design System — AGENT SPEC
+# VRX design contract
 
-<!-- AUDIENCE: AI coding/design agents. Human contributors read design.html (rendered guide) instead. -->
-<!-- ROLE: Authoritative, enforceable spec for every VRX UI surface. Comply with every MUST/NEVER. -->
-<!-- VISUAL REFERENCE (source of truth for exact rendering): glass.html -->
-<!-- CONFORMANCE: MUST / MUST NOT / NEVER / ALWAYS = hard gates. SHOULD = strong default. -->
-<!-- STABLE ANCHORS: §5, §6, §10 are cited by Linear issues (VRX-141, VRX-130, VRX-143). DO NOT renumber. -->
+Operational rules for agents changing the renderer. The human guide is
+[`design.html`](design.html); [`glass.html`](glass.html) runs its isolated scenes.
+Both import production React components, CSS, fonts, and translations through
+[`guide/`](guide/AGENTS.md). They are built previews, not standalone HTML mocks.
 
-## RULES DIGEST — read before emitting any UI
+Use current component source to establish implemented behavior. This document
+records the constraints that source must preserve. A mismatch requires investigation,
+not silently treating a defect or an old example as an approved design change.
+Read the root and applicable child `AGENTS.md` before editing.
 
-```
-R1  Every floating surface = .glass (§3). NEVER opaque/solid card backgrounds.
-R2  Color == meaning, never decoration. Each meaning has ONE fixed location + a non-color glyph (§5).
-R3  Platform hues: --vrc(blue)=VRChat, --cvr(orange)=ChilloutVR. NEVER swap. NEVER reuse blue/orange for non-platform meaning.
-R4  STATE == the avatar DOT only: in-game=green, active=teal (online-not-in-game), offline=gray. NEVER color text/panels by state; NEVER make it blue. (Friend-row ring: a statusless in-game friend folds to the tier-2 Online ring, not the state palette — §5/VRX-207.)
-R5  Openness == colored by its §6 LADDER TIER (owner-ratified 2026-07-01: friend ladder green→orange open→locked, groups purple by shade, hidden/offline-instance neutral) — NEVER by platform. The friend-row pill is the tier-colored form; icon badges elsewhere stay neutral gray until migrated (VRX-71).
-R6  STATUS (VRChat: Join Me/Online/Ask Me/DND + custom msg) renders as a LABELED colored pill, NEVER a bare dot. Joinability ACTION (Join/Ask/⊘) is separate + neutral. Ask Me/DND hide the world. CVR has NO status (§5). [Friend-row carve-out: ring + corner badge + aria-label replace the pill (the badge's svg glyph was RETIRED — owner 2026-07-17/VRX-69; the drawer's WRITTEN status band (§9.2) is the long-form signifier); openness pill IS the join target — §9.1.]
-R7  Trust == OFF by default, names neutral, opt-in muted pill only (§5). NEVER color a name by trust. NEVER default-on.
-R8  Type: Inter = all readable text. VT323 = accent ONLY (mark, big numbers, kickers, glyphs, IDs) (§7). NEVER VT323 for body/helper/status/labels.
-R9  NEVER hardcode color/spacing outside tokens (§2). NEVER auto-merge cross-platform identities (§10). NEVER write to VRCX/CVRX folders.
-R10 NEVER rely on color alone — always color + position + glyph/text. ALWAYS honor prefers-reduced-motion. (The friend-row color-only platform exception was REVERSED by VRX-206, owner 2026-07-11: the row's platform tab carries tint + position + sideways `VRC`/`CVR` text — §9.1.)
-R11 Light mode is a token/material shift only (§2A–§4A). SAME layout, typography, channel law, glyphs, and component grammar. NEVER make a separate-looking app.
-R12 EVERY new/changed component MUST pass the BLACK-AND-WHITE test (owner law, 2026-07-11 / VRX-206): rendered fully desaturated (`filter: grayscale(1)`, dark AND light), the user can still tell what platform it belongs to and what it means — via glyph, text, pill, or position. Verify on the render check BEFORE merge. Reference PASS: the dashboard hot-card platform pill; reference FAIL that created this rule: the color-only friend-row spine.
-```
+## §0 Direction and authority
 
-Conflict resolution: a more specific section overrides the digest only where it adds detail, never where it contradicts a NEVER.
+VRX is a dense desktop companion for VRChat and ChilloutVR. Give both platforms
+equal importance. Equivalent concepts use the same presentation and selected
+terminology; unsupported platform features stay absent.
 
----
+Keep liquid glass, the blue top-left and orange bottom-right aurora, restrained
+scanlines, and retro type accents. Dark is the CSS baseline. Light uses the same
+components, hierarchy, interactions, and semantic channels with token overrides.
+The stored Theme preference defaults to System; that resolves to the OS theme.
+Do not confuse the dark stylesheet baseline with the persisted preference.
 
-## §0 Identity
+Product changes, including visible wording and interaction changes, require the
+owner's approval unless the approved issue already specifies the outcome.
+Documentation work does not authorize redesigning the app.
 
-One-line model: _dark translucent liquid-glass companion for VRChat + ChilloutVR; frosted panels over a near-black canvas with blue + orange corner glows (no third hue); VT323 + faint CRT scanlines = "old-internet" accent._
-DIRECTIVE: operational + readable FIRST; unique via material (glass/aurora/VT323), not via decoration. Set apart from both platforms' own apps. Do not produce marketing/landing-page layouts.
-LIGHT MODE DIRECTIVE: light mode keeps the exact same VRX identity and interaction grammar; only the canvas, glass fill, token values, and contrast tuning shift lighter.
+## §1 Identity
 
-## §1 Brand mark
+Use the existing VRX mark and the subtitle "Social VR Companion". The mark uses
+VT323 with platform colors on V and X and the neutral bridge color on R. Keep
+page titles specific to the active view. Use official platform assets when a
+logo is needed; do not invent or trace a substitute.
 
-- MUST render per-letter spans: `V`=`--vrc`, `R`=`--bridge`, `X`=`--cvr`. NEVER a full-word gradient (orange vanishes at small sizes).
-- `<div class="brand"><span class="v">V</span><span class="r">R</span><span class="x">X</span></div>`, font `--font-mono` (VT323).
-- Subtitle = "Social VR Companion". Window/page title = current view name.
-- Platform logos: official assets ONLY, `<img>` + `object-fit:contain`. NEVER fabricate/trace/approximate; NEVER place in fake badges/frames.
+Sources: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
+[`LoginScreen.tsx`](../src/renderer/src/components/LoginScreen.tsx),
+[`viewTitles.ts`](../src/renderer/src/utils/viewTitles.ts).
 
-## §2 Tokens — AUTHORITATIVE (copy verbatim; Tailwind v4: static scale via `@theme`, THEMED colors stay raw CSS vars — VRX-4)
+## §2 Tokens and themes
 
-```css
-:root {
-  --bg-base: #08080b;
-  --text: #f3f1fb; /* near-black, neutral (no purple cast) */
-  --text-dim: rgba(231, 225, 250, 0.72);
-  --text-faint: rgba(216, 208, 242, 0.46);
-  --border: rgba(255, 255, 255, 0.1);
-  --surface-hover: rgba(255, 255, 255, 0.05);
-  --control-fill: rgba(255, 255, 255, 0.05);
-  --control-fill-hover: rgba(255, 255, 255, 0.1);
-  --error: #f87171;
-  --space-0-5: 2px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-2-5: 10px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-10: 40px;
-  --friend-status-description-width: 160px;
-  /* PLATFORM — deep + saturated (tab/pill/tint only) */
-  --vrc: #2b7ce8; /* VRChat / blue        rgb(43,124,232) */
-  --cvr: #f3711e; /* ChilloutVR / orange  rgb(243,113,30) */
-  --bridge: #e8e8f0; /* neutral merge accent (silver) — VRX mark "R", "hot" stat; user-customizable later */
-  /* STATE — avatar dot; in-game + offline match CVR */
-  --ingame: #34d399; /* state="online"  — in a world */
-  --active: #2dd4bf; /* state="active"  — online, NOT in game (web/app) */
-  --offline: #6b6480;
-  /* STATUS — VRChat user intent (labeled pills ONLY) */
-  --st-joinme: #3aa0ff; /* status="join me" */
-  --st-online: #43c95a; /* status="active" → displays "Online" */
-  --st-askme: #ff9a3d; /* status="ask me" */
-  --st-dnd: #e5484b; /* status="busy"   → displays "Do Not Disturb" */
-  --st-joinme-text: var(--st-joinme);
-  --st-online-text: var(--st-online);
-  --st-askme-text: var(--st-askme);
-  --st-dnd-text: var(--st-dnd);
-  /* POLICY SPACE — moderation context, separate from instance access */
-  --policy-public: #ed7ab6;
-  --policy-public-text: #ed7ab6;
-  --policy-private: #62d3e8;
-  --policy-private-text: #62d3e8;
-  --glass-blur: blur(26px) saturate(165%);
-  /* FROSTED variant (VRX-226) — panels floating OVER content */
-  --glass-frost: rgba(13, 15, 22, 0.78);
-  --glass-blur-frosted: blur(34px) saturate(165%);
-  /* HEAVY frost (VRX-245) — TRUE modals only; the drawer keeps the lighter --glass-frost. */
-  --glass-frost-heavy: rgba(13, 15, 22, 0.94);
-  --font-mono: 'VT323', ui-monospace, monospace; /* accent only */
-}
-```
+[`assets/main.css`](../src/renderer/src/assets/main.css) owns token values,
+font faces, the spacing scale, radii, material classes, background effects, and
+light overrides. Do not copy its values into another token table or stylesheet.
+Use the existing semantic variables and Tailwind scale; add a shared token only
+when an approved need cannot reuse them.
 
-RULE: platform values are deep/saturated, UI-tuned for dark glass. Deeper hero/login hues are a SEPARATE set; NEVER use hero hues in app chrome. Body/UI font = Inter (400–800).
+- Text: `--text`, `--text-dim`, `--text-faint`; do not use faint text for required
+  reading where it loses contrast.
+- Platform: `--vrc`, `--cvr`, and the platform companion/ghost tokens.
+- Friend state: `--ingame`, `--active`, `--offline`, `--st-*` and text companions.
+- Instance access: `--op-*` and their text companions. Policy: `--policy-*`.
+- Controls: `--control-fill`, `--control-fill-hover`, borders and focus treatment.
+- Material: `--glass-*`, scrim, shine, shadow, and radius tokens.
 
-## §2A Light mode tokens — AUTHORITATIVE (copy verbatim; → Tailwind v4 @theme, VRX-115)
+Keep themed colors as runtime CSS variables. A Tailwind build must not resolve
+light/dark values into a second fixed palette. Use
+[`applyTheme`](../src/renderer/src/hooks/useApplyTheme.ts): light sets
+`data-theme="light"` on the document root; dark removes the attribute.
 
-Light mode is NOT a new palette. It is the same VRX channel system remapped for readability on pale glass: VRChat remains blue, ChilloutVR remains orange, bridge remains neutral, presence/status keep their meanings.
+## §3 Material and overlays
 
-```css
-[data-theme='light'] {
-  --bg-base: #eef3f8;
-  --text: #14131c;
-  --text-dim: rgba(30, 28, 42, 0.72);
-  --text-faint: rgba(52, 49, 70, 0.48);
-  --border: rgba(40, 48, 68, 0.16);
-  --surface-hover: rgba(20, 19, 28, 0.045);
-  --control-fill: rgba(20, 19, 28, 0.045);
-  --control-fill-hover: rgba(20, 19, 28, 0.09);
-  --error: #b4232c;
-  /* PLATFORM — same meanings, tuned darker for light glass */
-  --vrc: #1f6fd3; /* VRChat / blue        rgb(31,111,211) */
-  --cvr: #d85f18; /* ChilloutVR / orange  rgb(216,95,24) */
-  --bridge: #30323b; /* neutral merge accent (ink/silver) */
-  /* STATE — avatar dot only */
-  --ingame: #0f9f6e;
-  --active: #0d9488;
-  --offline: #8a8d99;
-  /* STATUS — VRChat labeled pills ONLY */
-  --st-joinme: #1d78d8;
-  --st-online: #169a4a;
-  --st-askme: #cf6a18;
-  --st-dnd: #c9363a;
-  --st-joinme-text: #124e91;
-  --st-online-text: #0f6e35;
-  --st-askme-text: #91480e;
-  --st-dnd-text: #8d2428;
-  --policy-public: #c84f91;
-  --policy-public-text: #8b3265;
-  --policy-private: #228eaa;
-  --policy-private-text: #17667a;
-  --glass-blur: blur(24px) saturate(142%);
-  --glass-frost: rgba(244, 247, 252, 0.84);
-  --glass-blur-frosted: blur(30px) saturate(142%);
-  --glass-frost-heavy: rgba(244, 247, 252, 0.96);
-}
-```
+Use `.glass glass-information` for information panels over the canvas. Add
+`.glass-frosted` for a sheet or drawer, and `.glass-frosted-heavy` for a true
+confirmation modal. The information modifier gives these surfaces an opaque
+neutral backing beneath their existing gradients. Decorative chrome may keep
+the translucent `.glass` material. Preserve neutral sheen, borders, and depth.
 
-RULE: dark remains the baseline/default. Light overrides MUST live behind an explicit theme selector (`[data-theme="light"]`, `.theme-light`, or equivalent) and MUST reuse the same semantic token names. NEVER create parallel component classes just for light mode.
+Information-bearing foreground cards and panels must keep their intended colors
+independent of the ambient background. This includes statistics, Popular now,
+Explore, Hot Instances, and informational surfaces elsewhere in the app. Blue or
+orange background light must not tint them, especially platform-specific
+surfaces. Neutral sheen and highlights may vary. Decorative chrome such as the
+sidebar may still take on ambient color. This rule does not remove intentional
+platform styling; it prevents the background from changing that styling.
 
-`--control-fill` and `--control-fill-hover` are neutral interactive-control surfaces. Use them as a paired idle/hover affordance for buttons and similar controls; they do not carry platform, state, or status meaning. Static spacing tokens live in `:root` because spacing does not theme-switch; use them for component spacing instead of raw scale utilities on touched surfaces.
+Use `--glass-information` for the backing in both themes. Tint classes must set
+`background-image`, not a `background` shorthand that clears that backing. The
+Friends list uses the same backing without requiring a `.glass` frame;
+hand-styled room sheets consume the token directly. Keep images, semantic colors,
+geometry, and existing platform gradients unchanged.
 
-## §3 Glass material
+Keep these classes in `@layer components`; utility positioning must still win
+for fixed overlays. Frost modifiers follow `.glass`, and `.glass-information`
+follows the frost modifiers so its opaque backing wins without clearing the
+gradient. In compiled CSS, keep `-webkit-backdrop-filter` before standard
+`backdrop-filter`, with the standard property last. Verify the resulting computed
+material as well as source order.
 
-```css
-.glass {
-  position: relative;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.025));
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 20px;
-  box-shadow:
-    0 12px 44px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.05);
-}
-.glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.11), transparent 46%);
-}
-.glass-frosted {
-  background-color: var(--glass-frost);
-  backdrop-filter: var(--glass-blur-frosted);
-  -webkit-backdrop-filter: var(--glass-blur-frosted);
-}
-.glass-frosted-heavy {
-  background-color: var(--glass-frost-heavy);
-  backdrop-filter: var(--glass-blur-frosted);
-  -webkit-backdrop-filter: var(--glass-blur-frosted);
-}
-.tint-vrc {
-  background: linear-gradient(135deg, rgba(43, 124, 232, 0.22), rgba(43, 124, 232, 0.05));
-  border-color: rgba(43, 124, 232, 0.34);
-}
-.tint-cvr {
-  background: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
-  border-color: rgba(243, 113, 30, 0.36);
-}
-```
+Use the existing overlay components rather than assembling a new scrim/focus
+pattern. A non-modal sheet must not claim `aria-modal` or trap focus. A true
+modal must keep keyboard focus inside, including when actions are disabled.
 
-- MUST always include the inset top highlight WITH the depth shadow (else reads flat). WHY: simulates lit top edge + shadowed underside.
-- Radius scale: panels/cards `20px`; nav/segmented/buttons `12–13px`; pills/affordances `9–10px`.
-  - **The stack model (owner law, 2026-07-11 / VRX-206):** surfaces read as physical LAYERS stacked on top of each other — background → panel → card → pills/tabs on the card. An element placed onto a parent surface gets an EVEN inset on every attached side and a radius derived concentrically from the parent (inner = outer − border − gap; the friend-row platform tab: 13 − 1 − 3 = **9px**). Never butt an element flush on some sides and gapped on others — "stacked on, never slapped on".
-  - **Carve-out (owner-ratified 2026-06; cascade note ↻ VRX-225):** the **segmented control track** uses the `20px` panel radius, not 12–13px — the owner chose the rounder look, and the track simply carries no `rounded-[..]` utility so `.glass`'s default radius applies. Its sliding bubble is then `16px` (= 20 − 4px inset) so it seats concentrically. NOTE the cascade REVERSED in VRX-225: `.glass` now lives in `@layer components`, so a Tailwind utility on the same element WINS over the glass defaults (that's what lets the drawer be `fixed`). Putting a control back on the 12–13px scale is now just `rounded-[13px]` — but the 20px track choice above still stands.
-- **Stripe containment rule (owner-ratified 2026-08-12; second shipped defect after join dialog):** platform stripes and accent lines render INSIDE their panel's border-radius and clip to the panel bounds — never full-bleed past a rounded corner, never outside the panel edge. The stripe must be a descendant of the overflow-clipping radius container.
-- Platform tint opacity ceiling = `0.22`. Above → reads as solid plastic (loses glass).
-- `.tint-vrc`/`.tint-cvr` used ONLY where the surface belongs to one platform (e.g. hot-instance cards).
+Sources: [`main.css`](../src/renderer/src/assets/main.css),
+[`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
+[`ExploreWorldSheet.tsx`](../src/renderer/src/components/ExploreWorldSheet.tsx),
+[`JoinConfirmDialog.tsx`](../src/renderer/src/components/JoinConfirmDialog.tsx).
 
-## §3A Light glass material
+## §4 Canvas and glow
 
-```css
-[data-theme='light'] .glass {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.28));
-  border-color: rgba(40, 48, 68, 0.16);
-  box-shadow:
-    0 16px 46px rgba(59, 72, 93, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    inset 0 -1px 1px rgba(40, 48, 68, 0.08);
-}
-[data-theme='light'] .glass::before {
-  background: radial-gradient(125% 80% at 0% 0%, rgba(255, 255, 255, 0.72), transparent 48%);
-}
-[data-theme='light'] .tint-vrc {
-  background: linear-gradient(135deg, rgba(31, 111, 211, 0.18), rgba(255, 255, 255, 0.34));
-  border-color: rgba(31, 111, 211, 0.28);
-}
-[data-theme='light'] .tint-cvr {
-  background: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
-  border-color: rgba(216, 95, 24, 0.3);
-}
-```
+The document body owns the aurora and scanline pseudo-elements. Keep the blue
+corner upper-left and orange corner lower-right in both themes. Background glow
+and the intended tint of a glass pane are separate controls. Changing the glow
+must not change informational surface colors or invent a new opacity recipe.
 
-- Light glass MUST still read as frosted VRX glass: white pane, visible border, inset highlight, depth shadow, and top-left sheen all remain required.
-- Light platform tint opacity ceiling = `0.18`. Higher values overpower the white pane and make the app feel like a different product.
-- Component contrast overrides: hover/fills use low-alpha ink (`rgba(20,19,28,0.045)`); active glass controls use white fill + ink border; avatar state-dot border becomes `#eef3f8`; neutral openness badges use white/ink gray, never blue/orange.
-- Light status pill text MUST use darker readable companion colors: Join Me `#124e91`, Online `#0f6e35`, Ask Me `#91480e`, DND `#8d2428`, with low-alpha status backgrounds and borders.
+Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) and the production
+Muted, Standard, and Vivid settings. Standard has no `data-glow` attribute.
+In light mode Standard is intentionally stronger than Muted. The exact values
+live in `main.css`; do not make Standard a synonym for Muted in examples.
+Honor reduced motion and retain the same static composition when it is enabled.
 
-## §4 Background
+## §5 Color channel law
 
-The aurora is a USER SETTING since VRX-211 (owner-ratified live design round, 2026-07-17): **Background glow = Muted · Standard (default) · Vivid**. `body::before` consumes `--glow-*` custom properties (main.css §4 block); the level is applied as a `data-glow` attribute on the root by `useApplyGlow` — same mechanism family as the theme (DEFAULT **Standard** = attribute ABSENT; `data-glow="muted"|"vivid"` set explicitly). The gradient list is STATIC (4 layers — two corner glows + two wisps); levels change only var values, never layer structure.
+This section retains its number for issue and source references.
 
-| Level                                | Size x·y | Fade | Intensity× (on the §4/§4A base alphas) | Wisps |
-| ------------------------------------ | -------- | ---- | -------------------------------------- | ----- |
-| muted (the pre-VRX-211 shipped look) | 58% 50%  | 60%  | 1.00                                   | no    |
-| **standard (DEFAULT)**               | 95% 78%  | 74%  | 1.15                                   | no    |
-| vivid                                | 120% 95% | 82%  | 1.50                                   | yes   |
+`presence.state` and VRChat `status` are independent inputs. State is
+`in-game | active | offline`. VRChat status is `join-me | online | ask-me | dnd`.
+The upstream status string `active` normalizes to Online; it is not the same
+thing as presence state `active`, which means online outside the game.
+ChilloutVR has no VRChat status, custom status, or trust rank. Never fabricate them.
 
-Base alphas (×intensity): dark vrc .26 / cvr .20; light vrc .18 / cvr .15. Corner anchors stay 12% 6% / 92% 96% at every level. Wisps (vivid only; alpha-zeroed otherwise) = `34% 26% at 30% 22%` vrc ×.10 and `30% 24% at 74% 78%` cvr ×.085, fade 68% — organic texture, never a third hue.
+Use [`ringFor`](../src/renderer/src/utils/statusRing.ts) for the avatar fold:
 
-- Aurora = the two platforms as light: blue corner (top-left) + orange corner (bottom-right) over neutral near-black; NO third hue at ANY level. Static in v1. Animate ONLY behind a `prefers-reduced-motion` guard.
-- Scanlines stay ~2.2% white on overlay = texture, not a filter (glow-level independent). NEVER raise to a visible grid.
+- Active and offline friends use their presence ring.
+- In-game VRChat friends use their status tier.
+- In-game friends without a status system use Online, including ChilloutVR.
+- Row avatars have a glyphless corner marker and an accessible state label.
+  Drawer avatars omit the marker; the drawer includes the written status band.
 
-## §4A Light background
+Do not reintroduce a separate row status pill or infer raw presence from ring
+color alone. Platform identity remains readable through the VRC/CVR text tab or
+platform pill as well as tint. The linked-person rail says VRX. Color, position,
+and an appropriate label or glyph work together. The historical R12
+black-and-white check still applies; the row avatar's accessible label and
+written drawer status are the approved form for that compact state treatment.
 
-Light keeps the same var-driven structure; `[data-theme='light']` (and its `[data-glow]` compositions) override only the alpha vars per the ×intensity table in §4. Reference shape (standard level):
+The historical R6 privacy rule still applies. Ask Me and DND hide world and
+instance details. Active/offline friends never expose a stale cached instance.
+Use the shared hidden-location and membership predicates for rows, drawers,
+Hot Instances, and actions. Do not put hidden identifiers in gesture metadata.
 
-```css
-[data-theme='light'] body::before {
-  background:
-    radial-gradient(
-      var(--glow-size-x) var(--glow-size-y) at 12% 6%,
-      rgba(31, 111, 211, var(--glow-a-vrc)),
-      transparent var(--glow-fade)
-    ),
-    radial-gradient(
-      var(--glow-size-x) var(--glow-size-y) at 92% 96%,
-      rgba(216, 95, 24, var(--glow-a-cvr)),
-      transparent var(--glow-fade)
-    ),
-    linear-gradient(180deg, #fbfcff 0%, var(--bg-base) 48%, #e7edf4 100%);
-}
-[data-theme='light'] body::after {
-  background: repeating-linear-gradient(0deg, rgba(20, 19, 28, 0.026) 0 1px, transparent 1px 3px);
-  mix-blend-mode: multiply;
-  opacity: 0.42;
-}
-```
+Join eligibility is a separate decision. Use
+[`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join flow.
+There is no implemented Ask-to-join action. "Always ask" in launch preferences
+means choosing a launch mode, not requesting an invitation.
 
-- The same blue top-left / orange bottom-right composition is mandatory in light mode. The app should feel sunlit, not rebranded.
-- Scanlines remain subtle and functional as texture. In light mode they are dark ink at low opacity with multiply; never use white overlay scanlines.
+Keep names neutral. Any available VRChat trust rank appears as quiet 12px plain
+text below Notes in the drawer. A combined linked profile can use its VRChat
+member's rank. There is no row trust pill, trust-display toggle, or CVR equivalent.
+Do not claim VRChat trust is deprecated.
 
-## §5 COLOR CHANNEL LAW (core — cited by Linear)
+## §6 Instance labels and policy
 
-Each meaning owns a fixed LOCATION + a non-color GLYPH/LABEL so hues never collide. Status colors are allowed ONLY inside labeled pills in their own location — never as bare dots. Lookup:
+This section retains its number for issue and source references.
 
-| Channel          | Location (only here)                                               | Encoding                                                                                                       | NEVER                                                            |
-| ---------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Platform         | glass tint + left tab/stripe + `VRC`/`CVR`/`VRX` text label (§9.1) | `--vrc` blue / `--cvr` orange / blue-to-orange linked rail                                                     | a bare dot; color-only platform; non-platform use of blue/orange |
-| State (presence) | the avatar **dot**                                                 | in-game `--ingame` green · active `--active` teal · offline `--offline` gray                                   | color on text/panel; making it blue                              |
-| Status (VRChat)  | a **labeled pill**                                                 | Join Me / Online / Ask Me / DND (VRChat hues) + custom msg                                                     | a bare dot; reusing the dot; a CVR equivalent                    |
-| Openness         | right-side instance **pill** (friend row) / icon badge             | `--op-*` tier color + VRChat-scheme label (§6 ladder + label rule, VRX-182); hidden/offline-instance = neutral | color by platform; a hue for Private                             |
-| Policy space     | join confirmation and hot-instance detail sheet                    | Rose `Public space` · Ice `Private space` · neutral `Unknown` (§6.2)                                           | putting policy context in the first friend drawer                |
-| Joinability      | right-side **affordance**                                          | `Join` / `Ask` / `⊘` (neutral, derived)                                                                        | reusing a platform/status hue                                    |
-| Trust            | row: opt-in muted pill; drawer: quiet text below Notes             | row pill OFF by default; drawer value shown when known; names neutral                                          | name color; default-on row trust pill                            |
+Keep the underlying `InstanceInfo.type` platform-true. The model has eight
+VRChat types and nine ChilloutVR types, including CVR Offline Instance. Resolve
+all displayed access pills through
+[`instancePillFor`](../src/renderer/src/utils/instancePill.ts) and render
+[`InstancePill`](../src/renderer/src/components/InstancePill.tsx).
 
-### VRChat presence = TWO separate API fields (DO NOT conflate)
+The naming schemes are `vrchat`, `platform-native`, and `chilloutvr`; `vrchat` is
+the default on both platforms. The selector order is VRChat, Per-platform,
+ChilloutVR. Label maps live in
+[`instanceTypeLabels.ts`](../src/renderer/src/utils/instanceTypeLabels.ts).
+Do not copy a map into a component or derive labels from colors.
 
-`state` (system-assigned) → the DOT:
+Pills are word-only, using the shared height, radius, and tier recipe. Keep full
+Group labels. Friend-family tiers use the green-to-orange palette; group-family
+tiers use purple. The visible words remain required.
 
-```text
-"online"  → in VRChat / in a world           → --ingame (green)
-"active"  → online but NOT in game (web/app)  → --active (teal)
-"offline" → offline                           → --offline (gray)
-```
+`opennessUnknown: true` resolves to neutral Unknown under every scheme, even if
+the parser supplied a restrictive fallback type. Hidden in-game locations can
+show neutral Private. CVR Offline Instance is neutral and scheme-invariant.
+These states share a material treatment but retain distinct words. No pill
+appears for an active/offline person's stale location.
 
-`status` (user-chosen intent) → the PILL (+ `statusDescription` = custom text, ≤32 chars):
+Policy space is separate from access. Use
+[`policySpaceFor`](../src/renderer/src/utils/instancePolicySpace.ts) and
+[`PolicySpacePill`](../src/renderer/src/components/PolicySpacePill.tsx).
+Public space uses rose, Private space uses ice, and Unknown uses neutral tokens.
+Never infer access, membership, or join permission from this moderation label.
+Keep the current platform-specific explanatory copy in the translation files.
 
-```text
-"join me" → "Join Me"        --st-joinme blue  | location visible; join requests AUTO-accepted
-"active"  → "Online"         --st-online green | location visible; joinable if instance allows
-"ask me"  → "Ask Me"         --st-askme orange | location HIDDEN; invite requests allowed
-"busy"    → "Do Not Disturb" --st-dnd    red   | location HIDDEN; requests allowed, NO notifications
-```
-
-⚠️ `status:"active"` = **Online (green)**; `state:"active"` = **online-not-in-game**. Different fields, near-opposite meanings. Parse both.
-⚠️ Ask Me / DND HIDE the instance → show status + custom msg, NOT a world/openness.
-
-### Decision rules
-
-- State appears ONLY as the dot. `--active` is teal (not blue) so it never reads as platform.
-- Status appears ONLY as a labeled pill in VRChat hues. WHY allowed: a labeled pill in a fixed location can't be confused with the platform tab (left) or the state dot. NEVER render status as a bare colored dot.
-- **The status axis is an ordered PRIVACY TIER (owner-ratified 2026-07-11, VRX-208)** — least→most private: **Join Me (1) < Online (2) < Ask Me (3) < DND (4)**; `offline`/`active` are the OTHER axis (presence state), never tiers. The status hues (blue→green→orange→red) ARE the tier ramp — cool→warm = open→closed, the same shade grammar as the §6.1 openness ladder (person-side ↔ instance-side, one language). A platform without a status system maps its plain "online" onto **tier 2**: the friend-row ring for a statusless in-game friend takes the `--st-online` ring + check (VRX-207) — the state palette (`--ingame` + gamepad) never leaks into the ring as a platform difference. Future platform statuses map by MECHANICS, not name.
-- Joinability is a SEPARATE neutral action derived from status+instance: Join Me/Online→`Join`; Ask Me→`Ask`; DND→`⊘`; active/offline→none. NEVER tint it with a platform/status hue.
-- CVR: state online/offline ONLY (online↔`--ingame`, offline↔`--offline`, matching VRChat). NO status pill, NO custom status, NO `active` state. NEVER fabricate a CVR equivalent.
-- Trust: names neutral; trust only as an opt-in muted gray pill. WHY: VRChat is phasing out trust visibility; CVR has none.
-- A11y (hard): every channel = color **+** position **+** glyph/label. Color is NEVER the sole signal.
-- **Friend-row consolidation (§9.1 — owner-approved A11y carve-out):** in the _friends list row only_, the channel FORMS consolidate — STATE+STATUS fold into the avatar's color **ring + corner badge + `aria-label`** (replacing the separate dot + pill; the badge's svg glyph was retired 2026-07-17/VRX-69 — the aria-label plus the drawer's written status band carry the text); OPENNESS+JOINABILITY merge into ONE right-side **instance-type pill** that doubles as the join target; and PLATFORM is carried by the far-left **platform tab** — platform-tinted, with the sideways `VRC`/`CVR` acronym and a full-name `aria-label` (VRX-206; supersedes the 2026-06 color-only spine carve-out, which the owner reversed on seeing real mixed-platform data). The LAW's intent now holds everywhere in the row: no channel is color-alone. See §9.1 for the full row spec.
-
-## §6 OPENNESS LADDER (instance-type consistency — cited by Linear)
-
-VRChat has **8 instance types** and ChilloutVR has **9 instance types**; they map almost 1:1 onto ONE shared openness ladder + a `Group` modifier. Icon IDENTICAL across platforms; label stays platform-true.
-Scale (most open → most closed): `Public → Friends+ → Friends → Invite+ → Invite`. `Group` = chip MODIFIER on top of openness (a group instance is still public / friends-extended / members-only).
-
-**Access and policy are separate axes (VRX-245 follow-up, owner 2026-08-25):** the instance-type pill answers who can join using the platform-true §6 ladder. The separate policy-space pill answers which broad moderation context applies. Never derive access wording from the policy label, describe policy space as an access type, or remove the instance-type pill because the policy pill is present.
-Shared icon sprite: `#o-public`(globe) `#o-fof`(person+plus) `#o-friends`(person) `#o-invite`(envelope) `#o-group`(two people).
-
-### §6.1 Openness COLORS (owner-approved 2026-07-01 — replaces "badge always neutral gray")
-
-The instance pill is colored by TIER so the type reads by color alone (hue = family, shade = tier; label carries the last mile). Tokens `--op-<tier>` / `--op-<tier>-text` in main.css:
-
-| Tier                       | dark                                                                                  | dark text          | light     | light text |
-| -------------------------- | ------------------------------------------------------------------------------------- | ------------------ | --------- | ---------- |
-| Public                     | `#3ee36a`                                                                             | = hue              | `#1fae4e` | `#147a36`  |
-| Friends+                   | `#b7de4f`                                                                             | = hue              | `#7fa821` | `#5c7a16`  |
-| Friends                    | `#e6c353`                                                                             | = hue              | `#b28a1d` | `#82651a`  |
-| Invite+                    | `#ffc172`                                                                             | = hue              | `#d98324` | `#9a5c14`  |
-| Invite                     | `#ffa14e`                                                                             | = hue              | `#c96a20` | `#8f4c15`  |
-| Group Public               | `#bfa0ff`                                                                             | = hue              | `#7a5fd0` | `#5b429e`  |
-| Group+                     | `#9d80f6`                                                                             | = hue              | `#6d4fc9` | `#4f38a0`  |
-| Group                      | `#8d61f0`                                                                             | `#b795ff` (lifted) | `#5f3fc4` | `#452f96`  |
-| Private / Offline Instance | neutral: text `--text-dim`, bg `color-mix(--text 7%)`, border `color-mix(--text 16%)` |                    |           |            |
-| Unknown                    | neutral: text `--text-dim`, bg `color-mix(--text 7%)`, border `color-mix(--text 16%)` |                    |           |            |
-
-Pill treatment: text `--op-<tier>-text` · bg `color-mix(in srgb, var(--op-<tier>) 13%, transparent)` · border `36%` mix. Rules: friend ladder = green (open) → orange (locked), deliberately LIGHT oranges so Invite never reads as the CVR platform hue (`--cvr` stays deep red-orange); groups = purple family, lighter = more open; **Private/Offline-instance = hueless but readable** (they must recede behind joinable pills, never strain). CVR types color by their tier column above (FoF = Friends+, Everyone-Can-Invite = Invite+, Owner-Must-Invite = Invite, Friends-of-Members = Group+, Members-Only = Group).
-
-**Unknown pill (owner design round 2026-08-14, VRX-244):** when `parseCvrPrivacy` can't recognize a CVR privacy value it degrades to a safe `owner-must-invite`/`invite` fallback and flags `InstanceInfo.opennessUnknown: true` — defensive understatement, correct and unchanged by this rule. Resolving the pill from `instance.type` alone then painted that GUESSED tier as fact (e.g. "Invite" in the locked-orange tier) — a truthful-signals violation. Every pill surface (FriendsList, FriendDrawer, DashboardView hot card, JoinConfirmDialog, HotInstanceSheet) instead renders the EXISTING neutral treatment — `tier: null`, no new token, no glyph, no dashed border — with the scheme-INVARIANT label **"Unknown"** (same word under all three label schemes, like "Offline Instance"): neutral = outside the openness ladder, the word alone is the signifier. Chosen with the Private/Offline-instance no-reading collision explicitly flagged — Unknown and Private/Offline Instance share one neutral recipe but never one word, so the pill's TEXT still discriminates "hidden by privacy" from "couldn't be read." The one resolver is `instancePillFor` (`src/renderer/src/utils/instancePill.ts`) — every pill surface must call it instead of indexing `LABEL_KEYS_BY_SCHEME`/`OPENNESS_TIER` directly.
-
-### §6.2 Policy-space pill (moderation context, owner-approved 2026-08-25)
-
-This pill is a separate semantic channel from the access/type pill above. It uses the same `PILL_BASE` geometry — 28px high, 10px radius, 1px border, 12px horizontal padding, 12px/600 word-only label — with a 13% background tint and 36% border mix. The visible words are the required non-color signifier.
-
-| Policy space  | Dark base/text                        | Light base           | Light text | Meaning                                                          |
-| ------------- | ------------------------------------- | -------------------- | ---------- | ---------------------------------------------------------------- |
-| Public space  | Rose `#ed7ab6`                        | `#c84f91`            | `#8b3265`  | The platform's stricter public-space moderation context applies. |
-| Private space | Ice `#62d3e8`                         | `#228eaa`            | `#17667a`  | The platform's private-space moderation context applies.         |
-| Unknown       | neutral `--text-dim` / `--text` mixes | same semantic tokens | same       | VRX cannot confirm the context; never guess Rose or Ice.         |
-
-Classifier mapping (`policySpaceFor`), based on platform + platform-true `InstanceInfo.type`. Group membership, group join, and other group-level settings never participate. `opennessUnknown: true` is checked first and overrides the table to **Unknown**, even when the defensive fallback type is recognized:
-
-| Platform   | Public space                                                 | Private space                                                                   | Unknown                                                  |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| VRChat     | Public, Group Public                                         | Friends+, Friends, Invite+, Invite, Group+, Group                               | `opennessUnknown`, unexpected types, or impossible pairs |
-| ChilloutVR | Public, Group Public, Friends of Friends, Friends of Members | Friends, Everyone Can Invite, Owner Must Invite, Members Only, Offline Instance | `opennessUnknown`, unexpected types, or impossible pairs |
-
-The pill is an at-a-glance summary, not conduct advice or a promise about individual enforcement. Do not add behavior examples. Rose and Ice are reserved for this channel; Ice is distinguishable from active-state teal by its fixed location and always-visible label.
-
-**Pill presence rule (owner 2026-07-01):** a friend IN A WORLD always gets a pill — the tier label when visible, **"Private"** when the location is hidden (VRChat sends `location:"private"` for ANY friend in a private instance, regardless of status — `presence.state` is the in-world truth, never `status`). No pill ONLY when truly not in a world: offline, or online-on-web/app (`state:"active"`).
-
-**Pill label rule (owner 2026-07-03, VRX-182):** pills DEFAULT to the **VRChat naming scheme on BOTH platforms** — a CVR instance shows its tier's VRChat label ("Friends of Friends" → "Friends+", "Friends of Members" → "Group+", "Members Only" → "Group"). One vocabulary keeps merged friend lists consistent, and the short labels fit the pill column. The DATA stays platform-true (`InstanceInfo.type` is untouched). **The scheme is user-selectable (VRX-183): Settings → Instance labels** — VRChat (default) / ChilloutVR (the reverse mapping, VRChat types wear CVR terms) / Per platform (each platform's native terms). The ChilloutVR column below documents each platform's native term. CVR **"Offline Instance"** has no VRChat counterpart and renders the same under every scheme. Label maps: `src/renderer/src/utils/instanceTypeLabels.ts` (`LABEL_KEYS_BY_SCHEME`).
-
-Unified mapping — verified vs VRChat wiki + ChilloutVR docs (2026-05):
-
-| Openness tier                | icon                     | VRChat             | ChilloutVR (native term — pill shows the VRChat label, VRX-182) |
-| ---------------------------- | ------------------------ | ------------------ | --------------------------------------------------------------- |
-| Public                       | `#o-public`              | Public             | Public                                                          |
-| Friends+                     | `#o-fof`                 | Friends+           | Friends of Friends                                              |
-| Friends                      | `#o-friends`             | Friends            | Friends                                                         |
-| Invite+ (open invite)        | `#o-invite`              | Invite+            | Everyone Can Invite                                             |
-| Invite (closed)              | `#o-invite`              | Invite             | Owner Must Invite                                               |
-| **Group** · public           | `#o-public` + group chip | Group Public       | Group Public                                                    |
-| **Group** · friends-extended | `#o-fof` + group chip    | Group+ (groupPlus) | Friends of Members                                              |
-| **Group** · members only     | `#o-group`               | Group              | Members Only                                                    |
-| Offline _(not joinable)_     | `#o-offline`             | —                  | Offline Instance                                                |
-
-The group sub-track is near-identical (Group Public↔Group Public; Group+↔Friends of Members; Group↔Members Only). CVR classes Public / Group Public / Friends of Members / Friends of Friends as "public"; every other recognized CVR type is private. Group membership and join settings do not change that instance-type classification. CVR's taxonomy additionally defines an **Offline Instance** (`#o-offline` — local / non-networked: the friend is in-game but in a private offline world, not joinable; CVRX shows it), with NO VRChat privacy equivalent. VRX retains it as a valid shared/cache/UI value, but the current adapter has no verified raw value that emits it; see `api-volatility.md`. Do not invent a wire mapping without a live capture. CVR has NO trust ranks and NO JoinMe/AskMe/Busy. NEVER invent CVR concepts to force symmetry.
-NOTE: names above are verified UI/display names. When building each adapter, confirm the exact API enum STRINGS (VRChat location tags → VRX-45; CVR API field values → CVR adapter); ship NO guessed values.
+The guide demonstrates canonical model values. It does not prove every upstream
+CVR wire form. Read [`api-volatility.md`](api-volatility.md) before changing a
+mapping; do not invent a raw value for Offline Instance.
 
 ## §7 Typography
 
-- The renderer and both living design references load licensed local WOFF2 files from `src/renderer/src/assets/fonts/`. Inter uses the variable 400–800 face; VT323 uses its 400 face. `SOURCES.json` pins the upstream Fontsource packages and SHA-256 values; it and the SIL OFL 1.1 notices ship in `resources/licenses/fonts/` and are verified after packaging.
-- Inter (400–800): ALL body/UI — names, labels, copy, buttons, world titles, statuses, helper text, modal body.
-- VT323 (`--font-mono`): accent ONLY — VRX mark, big stat numbers, section kickers (uppercase, +tracking), `V`/`C` glyphs, technical IDs/versions. That is the complete allow-list.
-- No third display face is part of the design. In particular, do not add Press Start 2P.
-- NEVER VT323 for body/helper/status/form-label/modal text. NEVER negative letter-spacing. NEVER scale font-size with viewport width. WHY: VT323 is a CRT terminal face — accent-legible, body-illegible.
-
-## §8 App shell
-
-**No-scroll rule (owner, 2026-07-05, VRX-186):** control surfaces don't scroll — feeds do. The friends list and future activity feeds scroll; **Settings must never scroll**: it is split into category mini-pages (Appearance | Behavior | Notifications | Accounts, extending as sections are added). **The category nav renders in the TOP BAR's contextual slot** — the slot holds whichever control belongs to the active view: the platform filter on content views, the category nav on Settings (a platform filter is meaningless there; owner-decided). Same one-Tab-stop segmented dialect as every selector. The panel's section headings are sr-only (the nav is their visible label — no double-labeling). Active category is session state, not a persisted setting. Apply the same rule to any future control surface (wizards, dialogs): if it needs a scrollbar, it needs another page. **Mechanical floor (VRX-243):** the rule had no enforcement — `BrowserWindow` now pins `minWidth`/`minHeight` to the shipped 900×670 default, clamped to the primary display's work area (`src/main/app.ts`), so on ordinary displays the window can never shrink below the one configuration its layout arithmetic (and the tallest category, Behavior, 7 rows) is already sized against; on work areas smaller than the floor, the clamp yields to keep the window on-screen (the no-scroll guarantee then holds only at or above 900×670).
-
-**Center-neutral rule — CORE, applies to EVERY segmented control (owner, 2026-07-05):** the neutral / combined / mixed option always sits in the **CENTER**; the polar or single-scoped options flank it. This is the app-wide slider language — a user who learns one control has learned them all. Enshrined instances (the `as const` arrays in code are the display order):
-
-- Platform filter: **VRChat | All | ChilloutVR** (`SEG_ITEMS`, TopBar) — All mixes both platforms.
-- Theme: **Dark | System | Light** (`THEMES`, `@shared/types`) — System resolves to either neighbor. Default remains System.
-- Instance labels: **VRChat | Per-platform | ChilloutVR** (`LABEL_SCHEMES`, `@shared/types`) — Per-platform uses both platforms' terms.
-
-Any NEW segmented control MUST follow this before it ships: identify the option that spans/mixes/defers (the "both/auto" one) and seat it in the middle. If no option is neutral (a pure enum like Compact/Detail), the rule is silent — but check before assuming.
-
-```css
-.app {
-  display: grid;
-  grid-template-columns: 248px 1fr;
-  height: 100vh;
-  padding: 16px;
-  gap: 16px;
-}
-body {
-  overflow: hidden;
-}
-.main {
-  overflow-y: auto;
-} /* shell fixed; only main scrolls */
-```
-
-- Sidebar (248px `.glass`): brand+subtitle → nav (Dashboard / Activity / Friends·count / Explore / Groups / Settings) → footer (`VRX` / `Social VR Companion · vX.Y.Z` — the version is BUILD-INJECTED from package.json via `__APP_VERSION__`, never hardcoded). Active nav = glass-gradient fill + left spine that echoes the global platform filter: **All** keeps the existing `--vrc → --cvr` gradient; a single-platform filter (VRChat / ChilloutVR) makes the spine solid `--vrc` / `--cvr`. Position carries "active page"; color is a **reinforcing echo** of the filter — the segmented platform toggle remains the primary carrier (R10/R12: never rely on color alone). "Activity" carries an unread badge. **(Status 2026-07-01: the Friends·count suffix and the Activity unread badge are spec'd but NOT YET BUILT — the nav renders plain labels; no tracking issue yet.)**
-- Main: topbar (view title LEFT; the contextual control + online count share ONE RIGHT-ANCHORED dock — VRX-188: the title's width can never shift the control; count copy is "N online" with a reserved 3-digit tabular-nums cell, VRX-187's stability principle). The dock's status dot is REAL connection health (VRX-223): green = every signed-in platform live, amber = reconnecting (incl. boot dial), red = a signed-in platform down — text-labeled (R12), never decorative. **Login gate (VRX-217, owner-ruled two-tab):** when neither platform is connected, the gate card carries a VRChat | ChilloutVR segmented radiogroup (§8 segmented grammar; platform color on the WORD via AA-verified companion tokens incl. `--text-on-cvr`) over ONE shared credentials/2FA form; the card tint follows the selected platform; tabs freeze during submit. While auth checks are pending the app shows `BootSplash` (brand mark + Connecting…), never a blank window → stat row → titled sections (`.secline` = VT323 kicker + dim hint). **(↻ segmented control REVISED by §9.1 — order `VRChat | All | ChilloutVR`, text-only `VRC/ALL/CVR`; it filters the whole view + drives the sidebar accent. ↻ VRX-188 moved it to the right dock; on Settings the category nav occupies the same dock — owner-ratified 2026-07-11 after live use.)**
-- Dense desktop utility. No responsive collapse required for v1. Deadspace OK at view bottom, NOT between related cards.
-
-## §9 Components (compose §3–§7; exact markup in glass.html)
-
-**Login persistence feedback (VRX-34).** ErrorBanner layout, tokens, and glyphs
-remain unchanged. Direct sign-in and completed VRChat 2FA report success only
-after VRX saves the session securely. The literal
-`credential_persistence_failed` uses dedicated localized secure-store retry
-copy. After this failure, or generic `auth_identity_unavailable`, both login
-surfaces clear any submitted password and 2FA code, synchronously settle the
-local auth state to unauthenticated, and return to the credentials form;
-only the persistence failure retains dedicated copy. Every other 2FA failure
-stays on the retryable code prompt, and every other login failure keeps the
-generic message. If a restored VRChat session newly requires 2FA while the
-ChilloutVR tab is selected, the gate selects VRChat and brings its code prompt
-forward after any non-terminal active submit settles. A terminal result stays on
-the selected platform instead of remounting away its error, and the suppressed
-reprompt stays pending until a later non-terminal retry settles. Re-selecting
-the already-active platform is a no-op and cannot release that reprompt.
-Returning to credentials also keeps the outer gate mounted so that error
-remains visible.
-
-- Stat card: `.glass`, big VT323 number tinted by meaning (online→`--active`, in-game→`--ingame`, hot→`--bridge`), dim Inter label.
-- Hot-instance card **(↻ REVISED VRX-198, 2026-07-08; polished VRX-199, 2026-07-09 owner hands-on review)**: `.glass`+`.tint-vrc|cvr`; 4px top-edge gradient (platform→transparent). A **2×2 grid** — world name (**25px bold, line-height 1.5**, top-left; shares the line with the pill and lets descenders hang below — "lined paper"; truncates with ellipsis, full name in the `title` tooltip; **any trailing `(#…)` stripped display-only** — numeric instance ids AND custom tags like `(#teehee)`) + the shared **`InstancePill`** (the HERO, pinned top-right); who's-here (first 4 friend names then "+N", `--names-lift` brightness, bottom-left) + **`PlatformPill`** (bottom-right). The two pills share a `minmax(78px, max-content)` grid column → SAME width per card, edges aligned. **Visual-weight order (the card's law): world name → instance pill → who's-here → platform.** The platform pill is the **§5 non-color signifier** for CVD/low-vision users — a dim ghost outline (`--plat-<vrc|cvr>-ghost-text/border`, WCAG-AA in BOTH themes: dark 6.2/5.5, light 5.1/6.3): it recedes, but the LABEL stays readable — quietness lives in the pill, never the word. Whole-card click / Enter / Space opens the **hot-instance detail sheet** (VRX-250; see §9.5). The old `V`/`C` glyph box, icon openness badge, platform subtitle, and "N here" count are fully superseded.
-  - **Hot = EXACT INSTANCE (owner law, 2026-08-01 / VRX-237 — the truthful-social-signals ruling):** a hot card means ≥threshold friends in the SAME instance — exact `instanceId` equality, NEVER same-world, never same-type. The old world-grouping manufactured a false togetherness signal (it implied friends were hanging out who were in different instances of one world) and is superseded; the dashboard and the main-process alert engine share ONE key derivation (`@shared/hotInstanceKey`) so toast and cards can't disagree. The hero instance pill doubles as the card's **Join** affordance when a member is joinable (the VRX-166 row-pill pattern — shared `isFriendJoinable` gate, the one shared join flow, so the VRX-210 confirmation dialog intercepts identically). The card surface itself is NOT a join target — Join is its own explicit control; whole-card click / Enter / Space opens the detail sheet. **Hidden × hot (owner ruling, 2026-08-01 / VRX-237):** hidden-location friends (Ask Me / DND) are INVISIBLE to the entire hot system — they never count toward the threshold (cards/toasts fire on VISIBLE members only), never appear in who's-here names, members, or aria.
-  - **↻ VRX-199 — the two typography/layout calls from running it on real windows:** (1) VRX-198's "centre the name to the pill height so cap-top/baseline line up EXACTLY" forced 26px `line-height:1`, which **clipped descenders ~5.5px** (26px line box vs 31.5px glyph height — "Skyfall"'s y, "Night"'s g lost their tails); relaxed to **25px / `line-height:1.5`** (pill stays 28px, they just share the line). (2) The hot-instance **grid** is now max **2 columns that FILL the row**, **container-query** responsive (`.hotwrap` = query container — grid-only so its `contain:layout` never touches the heading/stepper; `.hot-grid` = tracks) → **1 column** on a narrow pane and a **lone card spans the full row** (`:only-child`); replaces the fixed 3-column grid that squished names to "Bo…/Sky…/Lun…". Owner chose _fill_ over a max-width cap. Top three stat cards unchanged (fixed 3-across). Suffix strip broadened to **any** trailing `(#…)` (was numeric-only) — a name-internal hashtag ("Room #5") is never touched.
-- Friend row: grid `14px | 42px | 1fr | auto` = platform tab · avatar (status ring + badge) · name + custom-status-beside / world subline · instance-type pill (= join target). Avatar click / Enter / Space on the avatar button opens the friend drawer (§9.2, VRX-69; ↻ VRX-225 avatar-only; ↻↻ VRX-228, owner ruling 2026-07-27: in the DEFAULT `drawerOpener='card'` setting the whole card surface also opens/switches it — the non-modal drawer made stray opens cheap; the Join pill always wins over opening; the avatar button remains the sole keyboard/semantic opener; a Settings toggle restores avatar-only). **Platform tab (VRX-206, owner design round 2026-07-11):** a vertical platform-tinted pill stacked onto the card's left end — `background: color-mix(platform 13%, transparent)`, `border: 1px solid color-mix(platform 36%, transparent)`, text `--plat-vrc/cvr-ghost-text`; even **3px** inset from the card's inner left/top/bottom edges (grid col 14px + `-ml-[7px]` / `-my-[5px]` through `pl-[10px]`/`py-[8px]`); radius **9px** = card 13 − 1 border − 3 gap (§3 stack model); sideways `VRC`/`CVR` at 10.5px/600/0.09em (`writing-mode: vertical-rl` + 180° rotation, reads bottom-to-top). **(↻ BUILT per §9.1 — the old dot + `V`/`C` glyph + status pill + openness-in-subline + separate affordance is fully superseded.)**
-- Activity feed row (the **Activity** view + a Dashboard preview): reverse-chronological log of friend events — world/instance change, online/active/offline, status change, incoming/accepted friend request, joined-your-instance, group events. Reuses the channel system (platform spine+glyph, state dot, status pill, openness badge on location events, join affordance when joinable) + a small **event-type glyph** + a dim **relative timestamp** (Inter, NOT VT323). MAX user control: scope = **All / Friends / Favorites** (+ specific favorite groups); per-event-type toggles; per-platform via the segmented control. Local/private (derived from polling, stored as local history). Models VRCX Feed/Friend Log; CVR-lighter. (Tracked: VRX-144 + VRX-53 instance history.)
-- Segmented control: glass track; active = glass-gradient bubble + inset highlight. React: animate bubble via transform/width; reduce-motion shortens. NEVER fake selection with per-button bg. Option order follows the §8 **center-neutral rule** (neutral/combined option in the middle).
-- Number stepper (`NumberStepper`, VRX-78/187): one `.glass` pill (20px), 4px padding; −/+ are 24×24 **CIRCLES** (§3 concentric: 20 − 4 = 16px ⇒ circle at 24px — same seating rule as the segmented bubble; owner-decided 2026-07-05). Value cell: **fixed 3-digit reservation** — `min-width: 36px`, `tabular-nums`, centered — the pill silhouette NEVER morphs as the value moves. One Tab stop (spinbutton + tabIndex −1 buttons); at a bound the button dims but stays in the DOM.
-- Badges/pills: openness = neutral gray; platform glyph = platform-tinted square; VRChat status pill = labeled (§5).
-
-## §9.1 Friends-UI redesign — owner real-data review (2026-06-25)
-
-Decisions from the FIRST real-data Windows review (running app, real friends, ultrawide + normal + TV), refined against rendered mocks (2026-06-26). These **REVISE** the friend row + hot-instance card (§9), the segmented control (§8), and parts of §5/§6 — and supersede the prior spec where they conflict. Items marked **OPEN** are still being explored or carry a rule tension to resolve before building. These feed the existing M3 — Friends UI issues (VRX-64/66/67/68/71/76/78), not new ones.
-
-**Build status (2026-08-23):** the **friend row**, **virtualized friend list** (VRX-63), and **segmented control** are BUILT, and the row's instance pill carries the **§6.1 openness colors** + the always-Private rule. Still pending their issues: the **hot-instance card REDESIGN** (VRX-71 — the pre-redesign §9 card is built and live on the Dashboard; the §9.1 image-left/"+N more" redesign is not), and Compact/Detail toggle and compact-row visual treatment (VRX-68). **(↻ 2026-07-12: real avatars VRX-48/202, click-to-join VRX-166, and the whole-view platform filter VRX-66 are BUILT.)**
-
-**Friend row (revises §9 — BUILT, mock-approved 2026-06-26, render-verified):**
-
-- **Faint, always-on card surface** (`color-mix(--text 4%)` + hairline) so rows read as separated cards. The 42px avatar plus padding and border sets the **60px minimum geometry**: comfortable/detail rows may grow and are measured by the virtualizer, while compact mode uses a fixed 60px row until VRX-68 supplies its smaller treatment.
-- **Avatar far-left** (real image, main-fetched as a CSP-safe `data:` URL — VRX-48; the letter placeholder holds during load/failure), **wrapped in a status-color ring with a corner status badge.** Ring + badge + the avatar's `aria-label` carry the privacy tier — VRChat's set status, or for a statusless in-game friend the tier-2 **Online** fold (VRX-207: the state palette never leaks into the ring as a platform difference) — color **+** text, never color-alone. **(↻ REVISED, owner-ratified 2026-07-17 / VRX-69: the badge's svg GLYPH is removed — the badge is an empty 16px status-color dot (`border-2` in `--bg-base`, same corner position; offline stays badge-less). The non-color signifiers are now the avatar's `aria-label` in the row plus the drawer's WRITTEN status band (§9.2). The old ✓/⇥/?/–/dot glyph set is fully retired.)**
-- **Name + custom status on ONE line** (name, then the custom status BESIDE it, dim) — **revises** the earlier "stacked under the name." **World name on the subline** beneath (the fixed-height slot keeps the two-line content block aligned). Ask Me/DND still hide the world; the custom status still shows beside the name.
-- **The platform tab carries the `VRC`/`CVR` acronym IN the row** (VRX-206) — reversing the earlier color-only spine rule after the owner's real-data review ("a horrible UI decision to have only one indicator and have that indicator be reliant on color only"). The acronym text is the R12 black-and-white-test signifier; tint chosen over the dashboard pill's ghost weight because the friend card, unlike the hot card, has no platform-tinted background to lean on (owner call, 2026-07-11).
-- **Right side: ONE instance-type pill** (text-only openness label, neutral, `min-width` + centered → a tidy right-aligned column) that **doubles as the join target** — merges the old subline openness badge **and** the separate Join/Ask/⊘ affordance into one element ("press the instance type to join"). Shows the accurate openness label — **tier-colored per §6.1** — when the instance is visible, or a neutral **"Private"** for ANY friend in a hidden world (revised 2026-07-01: any status, not just Ask Me/DND — `state === 'in-game'` is the gate); nothing only when truly not in a world (offline / web-active). **(↻ BUILT, VRX-166 2026-07-12):** when the shared joinability predicate passes, the pill IS a real `<button>` (same recipe at rest; hover/pressed = brightness filters — inline tier backgrounds defeat `hover:bg-*`; house `focus:ring-1` ring; in-flight disable against double-fires); typed denials announce via a separate `role="status"` blip. A central rate-limit denial uses dedicated honest copy: **“Too many attempts — try again shortly”** (ja mirrors), never the generic join failure. Non-joinable pills stay spans. The join affordance is non-color (role + cursor + ring — R12). **VRX-63:** avatar details-openers now use one roving Tab stop across intersecting friend rows; Up/Down moves that stop and scrolls the target row into view. Join pills remain separate native controls, but only fully visible rows expose them to sequential Tab navigation; overscan controls use `tabIndex=-1` until visible.
-  - **Label policy (RESOLVED 2026-07-03, VRX-182):** pills default to the short VRChat-scheme labels on both platforms (§6 label rule), so the verbose-CVR-overflow concern is moot — every default label fits the 78px column. The scheme is user-selectable (VRX-183, Settings → Instance labels); the verbose CVR terms only appear by explicit user choice, and the pill's `min-width` column simply widens for them.
-
-**Linked-person projection (BUILT 2026-09-05):** the platform filter projects the saved person instead of mutating the link. VRC and CVR show that account's row only. All combines both in-game accounts, one active account with an offline peer, both online-only accounts, or both offline accounts. If one account is in-game and the other is online-only, All shows account rows in their truthful sections but counts the person once overall. Search matches either account name and the custom VRX name.
-
-The combined row keeps the 60px grid. Its left rail reads **VRX** with a blue-to-orange platform treatment. The header picture follows the in-game → online-only → offline priority, with preferred platform breaking ties. The optional diagonal picture changes only the picture: VRChat occupies the upper-right triangle and ChilloutVR the lower-left inside one circular status ring. Ring, badge, and accessible status still come from the selected header account.
-
-When both accounts are in-world, the 16px subline attributes each world with a compact platform badge. Each name caps at **145px**, the pair at **370px**, with **8px** between account groups and **4px** between badge and name. Badges are **14px** high. Both names shrink and ellipsize independently. The **2 locations** action keeps its **28px height and 10px radius** and splits its actual instance-type colors diagonally, VRChat upper-right and ChilloutVR lower-left. It opens the shared destination chooser, then hands the chosen live target to the existing join-confirmation flow. It never chooses a platform automatically.
-
-Hover or keyboard focus may hold a row's placement for at most **5 seconds** so a live projection change does not move the target mid-interaction. This is presentation stability only. Destination eligibility updates immediately, and main-process target validation remains the safety boundary.
-
-**Compact / Detail (VRX-68):** Detail = full row; **Compact hides the custom status**, keeping name + icon + status + instance. The icon **scales down proportionally — "compact," NOT "crunched"** (never distorted/cropped).
-
-**List structure (VRX-63 / VRX-67):** sections — **In-Game / Online / Offline**, each with live counts. **(↻ BUILT 2026-07-10, VRX-67:** ALL three sections are individually collapsible — sticky header buttons (`aria-expanded`, chevron glyph, opaque `--bg-base` mix so rows don't bleed under), **Offline collapsed by default**; the collapsed set persists via `settings.collapsedFriendSections`. This supersedes the earlier "online stays expanded" sketch — the owner's issue AC made every section collapsible.**)** **(↻ BUILT 2026-08-23, VRX-63:** headers and friend rows share one `@tanstack/react-virtual` stream inside AppShell's existing `<main>` scroller — no nested scroll surface. Stable section/composite-friend keys preserve the scroll window across live rerenders; the active section header is retained as the sticky row; detail/comfortable rows are measured for variable height with TanStack's synchronous measurement commit, while compact rows use a fixed 60px stride until VRX-68 supplies their smaller visual treatment. Overscan keeps the mounted friend-row count near one viewport (about 20 at normal window sizes), including with 500–2,000-friend synthetic rosters. Offscreen overscan section toggles use `tabIndex=-1`; if scrolling carries a focused header away, focus moves to the newly active sticky header. Each mounted friend listitem exposes its logical `aria-posinset` and full virtual `aria-setsize`, so assistive technology retains the real collection size and position.**)** The linked-person projection above supersedes the old user-selectable split-by-platform proposal.
-
-**Hot-instance card (revises §9):** the BUILT card is §9's VRX-198 contract — a **2×2 grid**: world name hero + shared **`InstancePill`** (tier-colored openness; = the Join target, VRX-237) + who's-here + a text-labelled **`PlatformPill`** (the §5 NON-COLOR platform signifier — a quiet ghost-outline label, never color-only; the big `V`/`C` glyph box and icon-badge are superseded). Still deferred (VRX-71): the **world-image-LEFT** redesign (rectangular, rounded, glassy thumbnail — degrade cleanly without it), instance #/hash, and notes. **"Who's there?"** = a few names + **"+N more"** (NEVER all) + "N here". **≥2 friends** to be "hot" by default — in the SAME exact instance (VRX-237 law — never same-world) — the floor is **user-configurable 1–10** (BUILT, VRX-78: a `NumberStepper` on the hot-section header for quick access + a Settings → Behavior row; persisted via `settings.hotInstanceThreshold`, immediate effect. The AC's "Friends panel header" placement was deliberately moved to the Dashboard hot header — the control sits next to the grid it changes); **most→least** order (most friends top-left). Empty: **"No hot instances currently"** (done, VRX-171).
-
-**Segmented control (revises §8):** order **`VRChat | All | ChilloutVR`** — **All in the MIDDLE** (it mixes the platforms, so it sits between them; keep consistent with the mixed-"All" list order — **OPEN** until that list exists). Labels = **text-only acronyms `VRC | ALL | CVR`**, the platform color applied to **the word itself** (VRC blue, CVR orange; ALL neutral) — **no icons, no separate chip**. The bubble tracks the **active button's real width** (labels are unequal — done in VRX-171). The control **filters the WHOLE view** — friends list, online counts, AND dashboard hot instances: one platform → that platform only; All → both combined.
-
-**Sidebar nav accent follows the active platform filter (VRX-172):** the active item's left spine echoes the global platform filter — keep the existing `--vrc→--cvr` gradient for **All**; recolor to solid `--vrc` (VRChat) or `--cvr` (ChilloutVR) when a single platform is filtered. Position still means "active page"; color is a reinforcing "you're filtered, not seeing the full list" cue, not the sole carrier.
-
-**App opens on the Dashboard** (done, VRX-171).
-
-**Reference:** the owner's pre-rewrite app (v0.10.0) is a _visual target_ (NOT a revert) for: distinct stacked cards, `VRC`/`CVR` acronyms, All-in-middle, avatar+ring, instance line under the name. Adapt to the glass language, don't copy.
-
-## §9.2 Friend drawer (VRX-69 + linked profiles, updated 2026-09-05)
-
-Clicking a friend's **avatar** (or Enter/Space on it — the avatar is the row's details opener and its keyboard stop) opens the **friend-details drawer** — `FriendDrawer.tsx`. (↻ VRX-225, owner live session 2026-07-23: opener moved to the avatar — stray row clicks must not open the card. ↻↻ VRX-228, owner ruling 2026-07-27, KNOWING reversal: with the drawer non-modal, whole-card opening is the DEFAULT — the card surface is a pointer-target expansion that opens/switches; the Join pill (`data-join-pill`) is always excluded and keeps the VRX-225 close-then-join sequence; `settings.drawerOpener='avatar'` restores the inert row body. The avatar button stays the only semantic/keyboard opener in both modes.) The opener is a native `<button>` wrapping the avatar (the `<li>` stays purely structural; the Join pill remains an independent sibling control), whose accessible name COMPOSES from the visible name + status + world + platform (the tab label) — never an overriding `aria-label`, so screen readers keep every §9.1 signal. It carries `data-drawer-opener`, which the drawer's outside-close listener exempts: clicking another friend's avatar SWITCHES the open card in place. The drawer contains the header, written status, Where, Join, one note editor, quiet trust information, and Identities. Copy link / self-invite / favorite / pin / history remain separate issues — NO placeholder buttons.
-
-**Shell:** fixed right-side floating card — inset **14px** top/right/bottom, width **372px**, radius **20px** (panel scale — the §3 stack model; `.glass` supplies it), real `.glass glass-frosted` material (↻ VRX-226, owner 2026-07-26: panels floating OVER live content take a frosted underlay — `--glass-frost` for the drawer, `--glass-frost-heavy` for true modals (VRX-245) — so what's behind reads as glow, never as text; the old "NO solid underlay" law now scopes to base `.glass` on the background, where it still holds. `.glass-frosted` composes with `.glass`, lives in `@layer components` source-order AFTER it — the order carries the `background-color` override of the `.glass` shorthand and is pinned by a designTokens structural test); scrim `--scrim-soft` (`rgba(0,0,0,.14)`, one value both themes, **`pointer-events: none`** — pure stacked-card depth, never an input wall; ↻ VRX-225 owner decision: "slight gray-out is fine… like you're stacking cards"; the heavier `--scrim` is retained for future TRUE modals); open/close = `translateX` over **260ms `cubic-bezier(.32,.72,.29,1)`**, `motion-safe:` prefixed. The panel stays mounted while closed (translated off-screen, `inert` + `aria-hidden`) so the exit transition can play. Drawer CONTENT may scroll (it's content, not a control surface — the §8 no-scroll rule is silent here). NOTE: the drawer is the codebase's canonical `glass` + `fixed` combination — `.glass` lives in `@layer components` PRECISELY so position utilities beat its `position: relative` (the v0.10.0 in-flow-drawer bug); never move component classes out of that layer.
-
-**A11y (hard, ↻ NON-MODAL since VRX-225):** `role="dialog"` **without `aria-modal`** (the list behind the card is genuinely interactive — hover, scroll, join, and avatar-switch all work while the card is open; claiming modality to assistive tech would lie), `aria-label` = the friend's name; **NO focus trap** — Tab moves freely between card and list (trapping keyboard users while pointer users roam the list would split the interaction model); initial focus lands on ✕ when a friend is selected. Close paths: Esc, any pointerdown outside the panel that isn't a `[data-drawer-opener]` (opener surfaces — the avatar, and in card mode the row surface minus the Join pill — switch, never close), and the ✕ button (28px, radius 9px, ghost-button styling, top-right) — every close path through ONE handler; focus RETURNS to the opening avatar on close (falling back to the friends search input when the row no longer exists — focus never drops to `<body>`).
-
-**Content, top to bottom:**
-
-1. **Header** — the combined view chooses its source by in-game → online-only → offline, with preferred platform breaking ties. Its 64px avatar keeps that account's 2.5px ring and written status. The optional merged picture splits VRChat upper-right and ChilloutVR lower-left but never changes the status source. Both platform pills open their account views; each account view has **Back to combined profile**.
-2. **Status band** — words and descriptor come only from the selected account. VRChat status stays attributed to VRChat; VRX never borrows it for ChilloutVR.
-3. **Where** — the first drawer shows instance information only. It does not show policy-space pills or raw instance IDs. A single world uses a 12px-radius card with its instance pill **14px from the top-right corner on either platform** and the name beneath. Two worlds split from top-left to bottom-right: VRChat upper-right with its name below the pill, ChilloutVR lower-left with its name above. Both split anchors keep the 14px corner offset. Hidden locations use neutral artwork, say **Hidden**, and expose no stale details or Join action. Image captions use the soft fade and text shadow, never black boxes.
-4. **Actions** — a combined linked-person view always opens the shared chooser, even when only one destination is currently eligible, then passes the selected target into the existing `JoinConfirmDialog`. Explicit account and unlinked views use the normal direct Join flow. Rule context and final live-target validation stay in the existing confirmation.
-5. **Notes and identity** — the combined view edits the linked person's shared note. VRChat and ChilloutVR account views edit their original account notes. These are three separate records with one visible 500-character, save-on-blur editor. Draft and retry state stays keyed to its note owner. Quiet trust information sits at the bottom. The bottom-left **Identities** outline opens the native dialog for viewing accounts, preferred platform, picture mode, local name, link, replace, and unlink.
-
-The drawer selection stores a stable `{kind: person | account}` target. Live revisions may update visible availability, but they never change the open note owner or retarget an edit.
-
-### §9.3 Join confirmation modal (VRX-210 / VRX-239/241)
-
-A TRUE modal (`aria-modal="true"`) over a soft scrim. Renders from the LIVE friend in the TanStack cache: drift shows a review notice, unhealthy/missing data shows Cancel-only unavailable.
-
-- The platform and instance-type pills stay together in the heading area. A separate §6.2 policy-space pill appears below the friend/world context: Rose **Public space**, Ice **Private space**, or neutral **Unknown**.
-- **More info** expands one short policy explanation inline. Public: “Public spaces use stricter public-instance moderation rules. Conduct allowed in a private space may still be moderated here.” VRChat private and ChilloutVR private use their approved platform-specific copy from `policySpace.more`; Unknown states that VRX could not confirm the context and that platform-wide rules still apply. No behavior examples or 18+ subject matter belong here.
-
-- **Focus trap** stays active while the modal is open, including during an in-flight launch. Disabled, hidden, and `aria-disabled` controls are excluded from the trap. When every control is disabled in flight, focus anchors on the dialog panel itself so Tab can never escape to the background.
-- **State precedence is exclusive, highest first:** waiting for a cache update after a main-side `target-changed` (Confirm disabled, Cancel live) → unhealthy query / missing friend / non-joinable → unavailable (Cancel only) → drift/review, which only healthy live data may enter.
-- The modal is cleared by identity boundary, auth-invalidated, or unmount even while a launch is settling; late IPC completions for the invalidated session are ignored.
-
-**Join permission (VRX-39):** Settings → Behavior places a neutral `Toggle` row named **Allow joining friends** before the confirmation and launch-mode rows. It defaults ON to preserve existing behavior. OFF makes every Join surface receive the specific “Joining is disabled in Settings” denial; main enforces it before resolving a friend or building a game URL. VRChat self-invite and normal web links stay outside this switch. Knob position plus accessible switch state carries ON/OFF without relying on color.
-
-### §9.4 Update button (VRX-113)
-
-A consent-first, state-carrying update affordance that NEVER downloads or installs silently.
-It appears in two places: the **sidebar footer** (when an update is actionable) and **Settings → Behavior** (always visible, plus an `Automatic updates` toggle).
-
-- **Neutral control styling.** The button uses `--control-fill` / `--control-fill-hover` and `--text` / `--text-dim`. NEVER tint it by platform, state, or openness. Color must not be the only signal.
-- **State is carried by glyph + label:** idle/error → “Check for updates” with a download arrow; `checking` → spinner + “Checking…” (disabled); `update-available` → target version label with a download arrow; `downloading` → progress text + spinner (or “Downloading…” at 0%); `downloaded` → “Restart to update” with a restart icon; portable/unsupported → “Open releases page” with an external-link glyph + explanatory helper text. Failures use localized, actionable copy for checking/network, download/write, or staged-install problems. Raw operating-system codes, paths, and updater detail never render.
-- **Sidebar footer button** is anchored a fixed 10px off the footer block's right edge, a 36px collapsed circle whose top and bottom edges align to the footer text block (wordmark top → version-line bottom — the button reads as the footer grid's right cell, owner ruling 2026-08-08, VRX-255), expanding to a ~104px pill on `:hover` / `:focus-visible`. The expanded label shows the current action (“Update”, “Updating…”, or “Restart”); the glyph communicates the state even when the label is collapsed. Motion-safe transition; `prefers-reduced-motion` instant swap.
-- **Settings row** pairs a Toggle for `settings.autoUpdate` with the stateful update button. The toggle default is OFF (settings v7). When ON, an available update auto-downloads; a consented download applies when VRX next closes, and **Restart to update** applies it immediately. Nothing downloads or installs without the user's download consent.
-- **Black-and-white test:** desaturated, the glyph and label must still read as “update action” and the current state must still be distinguishable.
-
-### §9.5 Hot-instance sheet (VRX-250)
-
-Owner-ratified "Banner" design, 2026-08-08; layout polish round owner-ratified 2026-08-12. Clicking anywhere on a Dashboard hot-instance card opens a bottom sheet for that instance. The card's Join pill keeps winning over open (the existing `stopPropagation` containment is extended to the card-level click). The card becomes an interactive opener: `role="button"`, `tabIndex={0}`, keyboard Enter/Space handling, and `cursor-pointer`.
-
-**Sheet shell:**
-
-- Bottom-anchored, `max-h-[34vh]`, `min-h-[360px]`, fixed left/right/bottom.
-- Contained to the **main content area**: the sheet and its scrim start at `var(--content-inset-left)` (= shell padding `var(--space-4)` + sidebar `248px` + `var(--space-4)` gap — flush with the main panel's left edge) and end at `var(--content-inset-right)` (= `var(--space-4)` gap), so the sidebar, wordmark, version line, and update button stay fully visible when the sheet is open. The inner horizontal padding matches the main pane's own padding (`var(--space-2)`).
-- Slides up over **220ms** `cubic-bezier(.32,.72,.29,1)`; instant under `prefers-reduced-motion`.
-- Material: `background-color: var(--glass-frost)` + `background-image: var(--glass-bg)` + `backdrop-filter: var(--glass-blur-frosted)`, top corners `var(--radius-panel)`, top border `var(--glass-border)`, upward shadow `var(--hot-sheet-shadow)`.
-- 4px platform-gradient top stripe (`linear-gradient(90deg, var(--vrc|--cvr), transparent)` per instance platform). The stripe is a child of an inner `overflow-hidden rounded-t-[var(--radius-panel)]` wrapper so it follows the panel's rounded top corners and never spans past them (§3 stripe containment rule; fixes the second shipped occurrence of this defect, 2026-08-12).
-- Grab bar: 44×4px, `var(--border)`, centered, `aria-hidden`.
-- ✕ close: 28px, radius 9px, ghost-button styling matching the friend drawer ✕; rendered as a sibling of the clip wrapper so it is never clipped by the corner radius.
-- **Non-modal** (mirrors FriendDrawer, VRX-225/228): soft scrim `var(--scrim-soft)` closes on outside `pointerdown` but is `pointer-events-none`; `role="dialog"` **without** `aria-modal`; no focus trap; `aria-label` = world name; initial focus on ✕; Esc closes; opening another card switches content in place; focus returns to the opener card on close.
-
-**Banner:**
-
-- Full-width world-image strip, **150px** tall, `var(--radius-control)`.
-- Image `filter: brightness(0.66)`; when no thumbnail is known → quiet gradient placeholder (matches Avatar's absence pattern — never a guessed image).
-- Overlaid, bottom-aligned: world name 21px/700 with `var(--hot-sheet-banner-title-shadow)` + the **shared `InstancePill`** (tier-colored openness label, same component as the card/row) and the **shared `PlatformPill`** (the §5 non-color platform signifier from DashboardView) clustered in a row under the name. They reuse the banner's subtitle text-shadow so they stay legible over imagery.
-- Join button on the banner's right edge, bottom-aligned — routed through the ONE shared `useJoinInstance` flow + first joinable member, identical to the card pill. Disabled/absent when no member is joinable, with the existing denial blip pattern.
-
-**Below the banner:**
-
-- Left: the §6.2 policy-space pill sits **directly above** the "FRIENDS HERE — {N}" heading, separate from the banner's instance-type/access pill. Its value is reconciled across every visible member in the aggregate; any transient policy-classification disagreement widens to neutral **Unknown**, so friend arrival order can never produce a confident moderation claim. Heading: 10.5px, letter-spacing 1.4px, uppercase, `var(--text-faint)`. Friend CHIPS follow. Chip: 1px `var(--border)`, `var(--control-fill)` bg, radius 999px, padding 5px 12px 5px 6px; inside: 24px `Avatar` (with its presence ring/dot) + name 12.5px. ALL members — the sheet never truncates; wrap freely.
-- Right: meta stack, right-aligned, justified to the bottom.
-  - **Group card (VRX-260 / VRX-263):** rendered ONLY when `isGroup && groupId != null && groupName != null` on both VRChat and ChilloutVR group instances. Rectangular frame **200×80px**, `var(--radius-control)` overflow-hidden, above the instance ID. Image layer: loaded through the existing `useAvatar` pipeline (`window.vrx.getAvatar`) so only `data:` URLs enter the DOM; `object-cover`, `brightness(0.6)`. When no `groupImageUrl` is known → quiet gradient placeholder (`color-mix(in srgb, var(--text) 14%, transparent)` to `5%`). Group name overlaid bottom-left in **12.5px/600** with `var(--hot-sheet-banner-title-shadow)`; full name in `title=`. `aria-label` / sr-only text reads "Hosted by {groupName}" (`hotSheet.hostedBy`). A failed group image degrades to the gradient placeholder; a nameless group frame is forbidden.
-  - Instance ID in `ui-monospace` **10.5px** `var(--text-faint)` at the bottom of the zone (display the real `instanceId`; long values end-truncate via `truncate`, full value in `title=`). This is the demoted identity anchor. The policy-space pill lives in the left zone, never this stack.
-
-**Color law:** platform via the top stripe + `PlatformPill`; access via `InstancePill`; moderation context via the fixed-location, visibly labeled `PolicySpacePill`. Must pass the §12 black-and-white test.
-
-## §10 Cross-platform friend linking (cited by Linear — VRX-143)
-
-Linked rows with no joinable destination retain the header's informational
-instance pill: neutral **Private** for an in-game unavailable location, or the
-canonical label for a known non-joinable in-game instance. The pill is not a button.
-Offline/web-only linked rows never display a stale cached instance pill.
-Joinable destinations still supply their own label; Hidden world captions and
-privacy rules are unchanged. The initial unlinked Identities footer keeps its
-button and position but says **Close**, not Done. Linked management retains Done;
-the top X and all dismissal behavior remain unchanged.
-
-Destructive confirmation starts with saved shared notes expanded. Any affected
-person's unsaved or in-flight local draft blocks submission and offers a return
-to that profile for the existing save/retry flow. A saved revision changing
-during review still requires a fresh review. Preferred-name fallbacks refresh
-from fresh account-scoped main data; custom names remain unchanged. Friends'
-top-bar online count uses unique people; Dashboard statistics remain account-based.
-Once a chooser observes destination drift, that choice stays invalid until reopened.
-The single eligible destination supplies its own openness label, independently of
-the header account's hidden state. Join failures from either account appear in
-the combined row and drawer through the existing short-lived failure message.
-Attribution uses saved member references when a joining account leaves the roster;
-explicit account views never inherit the counterpart's error. Hidden world and
-instance identifiers are also omitted from row gesture metadata.
-Saved-member feedback requires the current platform account to match its owner.
-Identity/auth changes clear that platform's pending join and failure state;
-late replies cannot restore it or clear a newer attempt. This also applies when
-the user has turned off join confirmation. Other platforms remain usable.
-
-- Linking is user-driven. VRX never infers identity from names or presence. Each person has exactly one account-qualified VRChat member and one account-qualified ChilloutVR member: `{platform, platformAccountId, friendId}`. Bare upstream IDs never identify a saved member.
-- The main-owned link document stores preferred platform, picture mode, stable default or custom name, revision, and shared note. Account notes remain in their original account stores. All three notes are private local data under app `userData`; VRX never writes VRCX or CVRX files.
-- **Identities** is a native modal over the drawer. Search includes offline friends from the other platform. Link confirmation shows the selected pair, preferred platform, and combined-name preview. A new link starts with a blank shared note and leaves both account notes unchanged.
-- Replace and unlink are destructive only to reviewed shared notes. Confirmation enumerates every old pair, exact shared note, new pair, and account left unlinked, then requires acknowledgement. One compare-and-swap command carries the reviewed revisions. Stale state returns the user to review; storage failure changes nothing and allows an explicit retry. There is no automatic retry or partial relationship update.
-- Disconnect and logout do not silently relink, unlink, or expose another account scope. The healthy side remains usable, and unavailable identities are labeled without treating missing data as offline. Replace is disabled when the account to keep has a different saved owner or is absent from the roster; replacing the missing member through its healthy counterpart remains available. Empty account names use the same localized fallback for the drawer heading and accessible name.
-
-## §11 NEVER (hard gates — restated)
-
-- NEVER color an openness badge by platform/type. - NEVER use blue/orange for non-platform meaning. - NEVER render status as a bare dot, or make the state dot blue. - NEVER conflate status:"active"(Online) with state:"active"(not-in-game).
-- NEVER default trust on or color names by trust. - NEVER set body/helper/status in VT323. - NEVER auto-merge identities.
-- NEVER invent CVR features for symmetry. - NEVER fake/approximate platform logos. - NEVER rely on color alone. - NEVER hardcode outside tokens. - NEVER write to VRCX/CVRX folders.
-
-## §12 Implementation mapping + GENERATION CHECKLIST
-
-### Explore production integration (September 13, 2026)
-
-The approved [cross-platform Explore specification](superpowers/specs/2026-09-04-cross-platform-explore-design.md)
-and [integration continuation](superpowers/plans/2026-09-09-explore-integration-continuation.md)
-define world-first liquid-glass cards, a mixed grid and a contained non-modal
-room sheet. Explore replaces the Instances sidebar stub. Dashboard order is
-stats → up to two Popular now cards → unchanged Hot Instances. Both views use
-the same session cache and ranking. The global platform filter and Worlds shown
-choice persist; the count defaults to 4 and offers only 2/4/6. Home/End select
-the count bounds. Platform ranking stays native, with symmetric mixed selection.
-
-The sheet keeps the sidebar usable, restores focus to its opener or a connected
-fallback and retains count/filter state. Room Join uses the shared confirmation,
-permission and platform mode rules without inventing a friend. Fresh CVR
-Public/Group Public full rooms remain actionable; VRChat requires explicit
-eligibility. Stale access evidence disables Join. Unknown totals remain unknown,
-and incomplete coverage is distinct from verified empty results.
-
-Named source states preserve the last good data during loading or failure.
-Visible entry, focus and reconnect can request an eligible refresh; there is no
-periodic discovery scan. Images use the existing cache and only visible targets.
-The [production work receipt](superpowers/plans/2026-09-13-explore-production-block.md)
-records verification separately. Updating these references does not establish
-visual acceptance or authorize live-account tests.
-
-- Tokens (§2) → Tailwind v4 `@theme` (VRX-4). No UI issue hardcodes outside tokens. Inter + VT323 are self-hosted WOFF2 assets (VRX-32); no renderer or design-reference font request may leave the local app/repository.
-- `glass.html` = living visual reference (the dashboard); keep in sync with this file — it carries BOTH themes (dark default; add `data-theme="light"` to `<html>` to preview light per §2A–§4A). `design.html` = human contributor guide (served at root `/`; embeds glass.html live). `platform-colors.html` = retired early explainer (superseded by design.html). On repo creation, this file → repo root / `docs/DESIGN.md`.
-- Light theme: dark is the DEFAULT baseline (§2–§4); light is specified by the `[data-theme="light"]` token/material/background overrides in §2A–§4A (VRX-115). Light MUST NOT fork layout, components, typography, or channel meanings — overrides only.
-
-Self-verify BEFORE emitting/PRing UI (all must pass):
-
-```
-[ ] all floating surfaces use .glass; zero solid/opaque cards
-[ ] zero color/spacing literals outside §2 tokens
-[ ] light mode uses §2A–§4A overrides only; no light-only component grammar or rebrand
-[ ] light mode preserves blue top-left / orange bottom-right atmosphere and liquid-glass material
-[ ] platform shown via tint + the row tab / card pill with a VRC/CVR text label (blue=VRC, orange=CVR); passes R12 in B&W
-[ ] state colors reserved for state surfaces (stat cards, future feed dots — in-game green / active teal / offline gray); never blue; the ROW ring shows the privacy tier — statusless in-game folds to Online (VRX-207)
-[ ] openness badge neutral gray + correct shared icon (§6 lookup)
-[ ] VRChat status as a labeled colored pill (never a bare dot); custom status kept; Ask Me/DND hide the world
-[ ] joinability is a separate neutral action (Join/Ask/⊘), never tinted; status:"active"≠state:"active" (parse both)
-[ ] CVR: online/offline only — no status pill, no fabricated equivalent
-[ ] friend names neutral; trust only as opt-in muted pill
-[ ] VT323 confined to mark / big numbers / kickers / glyphs / IDs
-[ ] no signal carried by color alone (always + position + glyph/text)
-[ ] prefers-reduced-motion honored; no viewport-scaled font sizes
-[ ] no fabricated logos; no auto-merge; no writes to VRCX/CVRX
-[ ] CVR openness values verified vs live API (or flagged, not guessed)
-```
+Inter is the UI face for names, headings, labels, controls, body text, status,
+and help. VT323 accents the VRX mark, section kickers, and prominent statistics.
+Technical identifiers may use the component's existing readable monospace face;
+the Hot Instance ID uses `ui-monospace`, not VT323.
+
+Dashboard section headings share `--text-faint` and normal weight 400 in both
+themes. Hot Instances keeps its 18px uppercase kicker; Popular now keeps its
+20px heading and existing tracking. Preserve their semantic `h2` elements and
+leave primary page headings unchanged.
+
+Load the licensed local WOFF2 files through `main.css`. Preserve the font
+provenance and license assets. Do not load remote fonts, add another display
+face, use negative letter spacing, or scale typography with viewport width.
+Keep legitimate role differences such as Dashboard statistics and world titles.
+Inspect the real component hierarchy and the guide's computed typography table
+instead of copying a specimen's appearance into app code.
+
+## §8 Shell and controls
+
+Use [`AppShell`](../src/renderer/src/components/AppShell.tsx),
+[`Sidebar`](../src/renderer/src/components/Sidebar.tsx), and
+[`TopBar`](../src/renderer/src/components/TopBar.tsx). The sidebar stays fixed;
+the main content owns feed scrolling. Settings uses category mini-pages and a
+contextual top-bar selector, with no scroll at the supported 900×670 app floor.
+On smaller work areas, the window floor yields so the app stays recoverable.
+Do not invent a mobile app layout from a narrow documentation viewport.
+
+The top bar owns the page's single heading. Its social selector reads
+VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
+echoes that filter. Connection-health copy is real state, not decoration.
+Settings replaces the social selector with its category control.
+
+Use [`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx)
+and [`useSegmentedBubble`](../src/renderer/src/hooks/useSegmentedBubble.ts).
+The glass track is 20px; its inset bubble is 16px and measures the active label.
+Radiogroups have one sequential tab stop, arrow-key movement, and visible focus.
+Combined/neutral options sit between the two scoped options. Preserve reduced
+motion. Toggles communicate state with position and accessible switch state.
+
+The updater uses the actual sidebar footer control. Idle is absent; available,
+downloading, and downloaded have distinct actions and labels. The collapsed
+icon wrapper must not shrink, and the hidden label has zero width. Hover/focus
+may reveal the label without clipping the icon. Use neutral control tokens.
+The guide's updater callbacks are inert and never download or install anything.
+
+## §9 Component behavior
+
+### §9.1 Friends and Dashboard
+
+Reuse the existing Friends list's virtual rows and sticky collapsible sections:
+In-Game, Online, Offline. Offline starts collapsed. Search exposes matches
+without mutating saved collapse settings. Preserve roving avatar focus and
+exclude offscreen overscan actions from sequential Tab navigation.
+
+The avatar is the semantic details opener. Default whole-card pointer opening
+extends that target while excluding Join and text-selection gestures. The Avatar
+only preference keeps the row body inert. Instance-pill Join remains a separate
+control using the existing confirmation and denial behavior.
+
+Dashboard statistics count accounts. Hot Instances group by exact platform
+instance identity, never merely world name or world ID. Preserve the configurable
+threshold, readable world/name hierarchy, instance action, and platform label.
+The actual Hot Instance sheet supplies details; do not add placeholder actions.
+
+### §9.2 Friend drawer
+
+The drawer is a non-modal frosted panel. Its soft scrim does not block input.
+Escape, outside pointerdown, and Close use the same dismissal path; another
+opener switches the profile. Restore focus to a connected opener or the existing
+search fallback. Keep closed content inert and hidden from assistive technology.
+While a confirmation modal is open, the drawer defers its dismissal listeners.
+
+Keep header, written status, Where, actions, Notes, quiet Trust, and Identities
+in the implemented order. Where cards preserve privacy, neutral missing art,
+and instance labels; they do not show raw IDs or policy pills. Split cards
+attribute each platform. A note load without a valid account revision stays
+read-only with explicit Retry. Failed saves retain the local draft and warning;
+ordinary successful saves stay quiet. Do not retarget a draft on presence change.
+
+### §9.3 Confirmation and sheets
+
+Join confirmation is a true heavy-frosted modal. Preserve focus containment,
+Cancel, permission denials, live-target review, session boundaries, and disabled
+in-flight behavior. Main remains the final authority. Confirmation preferences
+must not bypass the shared permission or target checks.
+
+Explore and Hot Instance sheets stay contained and non-modal. Close remains
+reachable outside the scrolling room/details area. Escape/outside/Close restore
+their opener or a stable fallback. A confirmation modal owns dismissal while
+open. Dashboard's two sheet types remain mutually exclusive.
+
+### §9.4 Explore and feedback
+
+Explore and Dashboard Popular now import the same responsive full world card.
+Equivalent platform content has equal card treatment. Use People for occupancy;
+do not restore the removed Visible rooms metric or duplicate the top-bar heading.
+
+Dashboard and Explore show one platform-neutral "Worlds loading…" message while
+any selected platform has initial loading without usable results, including beside
+cards already available from the other platform. Keep those cards visible. End the
+message once no selected source is initially loading; filtered-out or terminal
+sources do not keep it alive. Ordinary refresh with retained cards stays quiet. Preserve meaningful errors,
+unavailable sources, stale results, and verified empty states. Unknown or partial
+counts remain unknown, never zero. Sheet coverage and disabled actions must
+reflect the supplied snapshot. No documentation example may add polling.
+
+Auth examples use the actual credentials and method-specific 2FA forms. Secure
+storage failure keeps the dedicated production error copy. Fixtures accept only
+invented sample input and never authenticate or persist it.
+
+## §10 Cross-platform friend linking
+
+This section retains its number for issue and source references.
+
+Linking is explicit and local. Each person has one account-qualified VRChat
+member and one ChilloutVR member. Preserve original account names and notes;
+a new link begins with a separate blank shared note. Never infer a link from
+similar names or presence, or read/write VRCX or CVRX data.
+
+The platform filter projects the saved person without modifying the link.
+All may combine the accounts; a single-platform view shows its account. Header
+selection prioritizes in-game, then active, then offline, with preferred platform
+breaking ties. A merged picture changes artwork only, not the source of status.
+The two-location treatment uses a hard centered 45-degree split, VRChat
+upper-right and CVR lower-left. Its chooser never silently picks a destination.
+
+Combined Join opens the shared destination chooser even with one eligible
+choice. Explicit account views use the normal direct flow. A choice invalidated
+by observed drift stays invalid until reopened. Hidden or stale location data
+must not become an action or leak through metadata. Friends' online count uses
+unique people; Dashboard statistics remain account-based.
+
+Identities uses native modal dialogs for link management. Replacement/unlink
+reviews disclose affected pairs and shared-note loss with explicit acknowledgement.
+Unsaved/in-flight drafts block destructive submission and offer return to their
+editor. Reviewed revisions must still match. Preserve account ownership checks,
+all-or-nothing writes, explicit retry, and account-boundary invalidation.
+
+Sources: [`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFriends.ts),
+[`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
+[`IdentitiesDialog.tsx`](../src/renderer/src/components/IdentitiesDialog.tsx),
+[`LinkedDialog.tsx`](../src/renderer/src/components/LinkedDialog.tsx), and the
+[renderer contract](../src/renderer/AGENTS.md).
+
+## §11 Scope limits
+
+Known app findings about Join/access emphasis, Full below capacity, and Private
+versus Hidden wording remain separate work. Do not present them as approved
+rules or fix them incidentally in a documentation change. Proposed designs must
+be labeled as proposals and must not replace current examples before approval.
+
+The VRX-276 information backing implements the approved no-color-bleed rule in
+§3. The guide imports that production material directly. A source or synthetic
+fixture check does not establish owner acceptance in an installed app. Never
+conceal a remaining product defect with preview-only styles.
+
+Preserve access to existing controls and workflows. Security, credential,
+account, API-rate, and merge rules remain in the root contract. No visual change
+waives them. Historical R2/R10/R12 references require a non-color signifier;
+R6 refers to the location privacy rule in §5.
+
+## §12 Workflow and verification
+
+1. Read the owning source and [`INTERNAL-API.md`](INTERNAL-API.md). Reuse the
+   existing component, resolver, hook, store, and translation before adding one.
+2. Run `npm run guide:dev`, then open
+   `http://127.0.0.1:4173/design.html`. Use `glass.html?scene=dashboard` for a
+   standalone scene. Guide controls stay outside the production examples.
+3. Verify representative widths, both themes, glow settings, real typography,
+   material over busy content, overflow, keyboard focus, reduced motion, and
+   reachable loading/error/disabled states. Screen capture requires the owner's
+   explicit one-time consent for each capture and target. Use the requested
+   browser surface; report an actual capability limit before substituting.
+4. A served page or successful build is not an observed render. Synthetic scenes
+   prove only their fixture behavior, not live platform/account behavior or a
+   packaged Electron installation.
+5. Run `npm run guide:build` and the guide fixture tests. For app/build changes,
+   also run the root gate and relevant behavior tests. Keep guide code and output
+   excluded from packaged app artifacts. Do not mount the normal app bootstrap,
+   reuse a live preload bridge, load remote art, or forward fixture actions.
+6. Settle the human guide and examples, then synchronize this contract and the
+   owning DOX/index/changelog files. Preserve numbered sections referenced by
+   source and issues. Use the review and delivery rules in the root contract.
+
+The source-backed guide uses `guide/production.css` to include the renderer's
+Tailwind utilities explicitly. Its isolated documents preserve root theme,
+body background, portal, and fixed-position behavior. Desktop samples preserve
+900×670 and scroll within a narrower guide. Focus-taking overlays wait for a
+reader gesture. Shared scenario controls include each platform's first load,
+quiet retained-card refresh, and note failure/retry. Each scene starts with
+synthetic memory, and reset reloads that scene. Do not replace real components
+with copied HTML to make a preview look right.

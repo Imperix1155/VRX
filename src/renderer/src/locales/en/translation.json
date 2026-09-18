@@ -463,7 +463,6 @@
   },
   "explore": {
     "heading": "Explore",
-    "description": "Popular public worlds across VRChat and ChilloutVR",
     "popularNow": "Popular now",
     "worldsShown": "Worlds shown",
     "worldsShownAria": "Worlds shown",
@@ -472,13 +471,11 @@
     "confirmAria": "Confirm joining {{world}}",
     "refresh": "Refresh",
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
-    "peopleInWorld": "People in this world",
-    "peopleInPublicRooms": "People in public rooms",
-    "visibleRooms": "Visible rooms",
+    "people": "People",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",
     "sourceState": {
-      "loading": "{{platform}} worlds are loading…",
+      "loading": "Worlds loading…",
       "error": "{{platform}} worlds could not load.",
       "unavailable": "{{platform}} discovery is unavailable.",
       "stale": "{{platform}} is showing saved results while refreshing."

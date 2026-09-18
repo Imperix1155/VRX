@@ -57,7 +57,7 @@ function ResolvedCard({
 }): React.JSX.Element {
   const { ref, image } = useExploreImage(world.platform, world.worldRef)
   return (
-    <div ref={ref}>
+    <div ref={ref} className="h-full w-full">
       <ExploreWorldCard world={world} image={image} onOpen={onOpen} />
     </div>
   )
@@ -234,12 +234,12 @@ export function ExploreDashboardPreviewRoute({
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
         id="dashboard-popular-heading"
-        className="font-[family-name:var(--font-mono)] text-[20px] tracking-[0.08em] text-[var(--text)]"
+        className="font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-faint)]"
       >
         {t('explore.popularNow')}
       </h2>
       <div className="mt-[var(--space-2)]">
-        <ExploreSourceState sources={snapshots} />
+        <ExploreSourceState sources={snapshots} hasUsableCards={worlds.length > 0} />
       </div>
       <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
         {worlds.map((world) => (

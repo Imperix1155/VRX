@@ -27,7 +27,16 @@ vi.mock('../queries/explore', () => ({
     platform === 'vrchat' ? query.vrc : query.cvr,
   requestExplore: query.requestExplore,
   readExploreSnapshot: query.readExploreSnapshot,
-  requestExploreImage: query.requestExploreImage
+  requestExploreImage: query.requestExploreImage,
+  observeExploreImage: (
+    platform: 'vrchat' | 'chilloutvr',
+    worldRef: string,
+    listener: (image: string | undefined) => void
+  ) => {
+    // Keep late callbacks possible so the stale-ref selection fence stays exercised.
+    void query.requestExploreImage(platform, worldRef).then(listener, () => listener(undefined))
+    return () => undefined
+  }
 }))
 
 const auth = vi.hoisted(() => ({
@@ -490,7 +499,133 @@ describe('ExploreRoute world sheet', () => {
       })
     )
   })
+
+  it('keeps an empty platform’s first loading state visible beside Dashboard cached cards', () => {
+    query.vrc = { ...source, status: 'loading', isStale: true }
+    query.cvr = {
+      ...source,
+      platform: 'chilloutvr',
+      worlds: [],
+      status: 'loading'
+    }
+    render(<ExploreDashboardPreviewRoute />)
+
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+  })
+
+  it('keeps Dashboard cards as the routine refresh feedback while retaining source errors', () => {
+    const { rerender } = render(<ExploreDashboardPreviewRoute />)
+    query.vrc = { ...source, status: 'loading', isStale: true }
+    query.cvr = {
+      ...source,
+      platform: 'chilloutvr',
+      worlds: [],
+      status: 'error',
+      problem: 'network'
+    }
+    rerender(<ExploreDashboardPreviewRoute />)
+
+    expect(screen.getByText('A world')).toBeTruthy()
+    expect(screen.queryByText('Worlds loading…')).toBeNull()
+    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+  })
 })
+
+for (const [label, Route] of [
+  ['Explore', ExploreRoute],
+  ['Dashboard', ExploreDashboardPreviewRoute]
+] as const) {
+  describe(`${label} shared initial world loading`, () => {
+    const initial = (platform: 'vrchat' | 'chilloutvr'): ExplorePlatformSnapshot => ({
+      ...source,
+      platform,
+      worlds: [],
+      status: 'loading',
+      updatedAt: null
+    })
+
+    it.each(['vrchat', 'chilloutvr'] as const)(
+      'keeps one message and available cards when %s finishes first',
+      (first) => {
+        query.vrc = initial('vrchat')
+        query.cvr = initial('chilloutvr')
+        const { rerender } = render(<Route />)
+        expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+
+        const readySource = { ...source, platform: first, worlds: [{ ...world, platform: first }] }
+        if (first === 'vrchat') query.vrc = readySource
+        else query.cvr = readySource
+        rerender(<Route />)
+        expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+        expect(screen.getByText('A world')).toBeTruthy()
+
+        if (first === 'vrchat') query.cvr = { ...initial('chilloutvr'), status: 'ready' }
+        else query.vrc = { ...initial('vrchat'), status: 'ready' }
+        rerender(<Route />)
+        expect(screen.queryByText('Worlds loading…')).toBeNull()
+        expect(screen.getByText('A world')).toBeTruthy()
+        expect(query.requestExplore).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['vrchat', 'chilloutvr'] as const)(
+      'waits only for the selected %s source',
+      (platform) => {
+        useFriendsStore.setState({ platformFilter: platform })
+        query.vrc = initial('vrchat')
+        query.cvr = initial('chilloutvr')
+        const { rerender } = render(<Route />)
+        expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+        const complete = { ...source, platform, worlds: [{ ...world, platform }] }
+        if (platform === 'vrchat') query.vrc = complete
+        else query.cvr = complete
+        rerender(<Route />)
+        expect(screen.queryByText('Worlds loading…')).toBeNull()
+        expect(screen.getByText('A world')).toBeTruthy()
+      }
+    )
+
+    it.each(['error', 'unavailable', 'idle'] as const)(
+      'stops waiting for a %s source without hiding its sibling cards',
+      (status) => {
+        query.cvr = initial('chilloutvr')
+        const { rerender } = render(<Route />)
+        expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+        query.cvr = { ...initial('chilloutvr'), status }
+        rerender(<Route />)
+        expect(screen.queryByText('Worlds loading…')).toBeNull()
+        expect(screen.getByText('A world')).toBeTruthy()
+        if (status === 'error')
+          expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
+        if (status === 'unavailable')
+          expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+      }
+    )
+
+    it('does not wait for a source removed at logout or not yet enabled', async () => {
+      query.cvr = initial('chilloutvr')
+      const { rerender } = render(<Route />)
+      expect(screen.getAllByText('Worlds loading…')).toHaveLength(1)
+      query.cvr = undefined
+      await act(() =>
+        queryClient.setQueryData(['auth-status', 'chilloutvr'], {
+          platform: 'chilloutvr',
+          state: 'unauthenticated'
+        })
+      )
+      rerender(<Route />)
+      expect(screen.queryByText('Worlds loading…')).toBeNull()
+      expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+      expect(screen.getByText('A world')).toBeTruthy()
+      await act(() => queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr))
+      rerender(<Route />)
+      expect(screen.queryByText('Worlds loading…')).toBeNull()
+      expect(query.requestExplore).not.toHaveBeenCalled()
+    })
+  })
+}
 
 for (const [label, Route] of [
   ['Explore', ExploreRoute],

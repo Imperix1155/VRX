@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rebuilt the contributor design guide with real component examples, local
+  sample data, and dark/light comparisons. The synchronized agent design
+  contract points to production components and tokens. (VRX-273)
+
+### Fixed
+
+- Explore artwork waits for platform reactivation when returning to the app, preventing a temporary inactive state from permanently hiding images (VRX-278).
+
+- Dashboard Popular now and Explore show one “Worlds loading…” message while
+  any selected platform initially loads, keeping available cards visible and
+  routine background refresh quiet. (VRX-277)
+
+- Information cards and panels keep their own colors over the aurora in both
+  themes. Platform tints, neutral highlights and decorative glass remain. (VRX-276)
+- Visible Explore and Dashboard artwork can recover after a temporary image
+  admission delay, within the existing request limits. Hidden or replaced
+  selections stop recovery; unavailable artwork keeps its placeholder. (VRX-275)
+
+- Dashboard Popular now headings use the same subdued color and normal weight
+  as Hot Instances in both themes. (VRX-272)
+- Explore and Dashboard world cards fill equal columns, use a shared People
+  count, and stay quiet during routine background refreshes. Explore has one
+  page heading. (VRX-272)
+- Room sheets use readable frosted glass and keep Close visible while scrolling.
+  Restored the compiled glass blur used by Friends drawers and other glass
+  panels in Electron 44. (VRX-272)
+
 ## [0.20.0] - 2026-09-15
 
 ### Changed

@@ -49,12 +49,23 @@ npm run build:linux  # Linux (AppImage + deb)
 
 ## Docs
 
-The design system lives in [`docs/`](docs/) — `DESIGN.md` (spec) plus the rendered
-`design.html` and `glass.html` references. The app's internal callable surface
+[`docs/design.html`](docs/design.html) is the human visual guide. Run
+`npm run guide:dev`, then open `http://127.0.0.1:4173/design.html`. Its examples
+import real renderer components, tokens, fonts, and translations with synthetic
+local data. `glass.html` runs those same scenes independently. Both themes,
+glow levels, and representative states can be inspected without an account.
+Account, game-launch, and updater actions never reach Electron.
+
+`npm run guide:build` typechecks and builds the guide into `dist/design-guide`.
+`npm run guide:preview` serves that build at
+`http://127.0.0.1:4174/design.html`. These module-based entries need the preview
+server; opening the source HTML directly from disk is not supported.
+
+[`docs/DESIGN.md`](docs/DESIGN.md) is the agent-native design contract. The app's internal callable surface
 (every IPC channel, live event, hook, store, parser, and constant) is catalogued
 in [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md) — check it before building.
-Architecture decisions and agent guidelines live in `CLAUDE.md` and the
-`AGENTS.md` files. For AI agents: read `CLAUDE.md` first.
+Architecture decisions and agent guidelines live in the `AGENTS.md` files.
+Read the root contract and each nearer contract before editing.
 
 VRX's stance on unofficial API use, rate-limit etiquette, and risk is in
 [`docs/api-policy.md`](docs/api-policy.md).

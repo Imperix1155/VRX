@@ -193,112 +193,123 @@ export default function ExploreWorldSheet({
           world: world.name,
           platform: t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
         })}
-        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 max-h-[55vh] overflow-y-auto rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] bg-[var(--glass-frost)] p-[var(--space-4)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[55vh] flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{
+          backgroundColor: 'var(--glass-information)',
+          backgroundImage: 'var(--glass-bg)',
+          backdropFilter: 'var(--glass-blur-frosted)',
+          WebkitBackdropFilter: 'var(--glass-blur-frosted)'
+        }}
       >
-        <div
-          className="absolute inset-x-0 top-0 h-[4px]"
-          style={{
-            background: isVrc
-              ? 'linear-gradient(90deg, var(--vrc), transparent)'
-              : 'linear-gradient(90deg, var(--cvr), transparent)'
-          }}
-        />
         <button
           ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label={t('drawer.close')}
-          className="absolute right-[var(--space-3)] top-[var(--space-3)] grid h-[28px] w-[28px] place-items-center rounded-[9px] text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
+          className="absolute right-[var(--space-3)] top-[var(--space-3)] z-10 grid h-[28px] w-[28px] place-items-center rounded-[9px] text-[var(--text-dim)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]"
         >
           ✕
         </button>
-        {image && failedImage !== image ? (
-          <img
-            src={image}
-            alt=""
-            className="h-[120px] w-full rounded-[13px] object-cover"
-            onError={() => setFailedImage(image)}
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[var(--radius-panel)]">
+          <div
+            aria-hidden="true"
+            className="h-[4px] w-full shrink-0"
+            style={{
+              background: isVrc
+                ? 'linear-gradient(90deg, var(--vrc), transparent)'
+                : 'linear-gradient(90deg, var(--cvr), transparent)'
+            }}
           />
-        ) : null}
-        <div className="mt-[var(--space-3)] pr-[var(--space-8)]">
-          <h2 className="truncate text-xl font-bold text-[var(--text)]" title={world.name}>
-            {world.name}
-          </h2>
-          <div className="mt-[var(--space-1)]">
-            <PlatformPill platform={world.platform} />
-          </div>
-          {isStale ? (
-            <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
-              <p className="text-xs text-[var(--text-dim)]">{t('explore.stale')}</p>
-              {onRefresh ? (
-                <button
-                  type="button"
-                  onClick={onRefresh}
-                  className="text-xs text-[var(--text)] underline"
-                >
-                  {t('explore.refresh')}
-                </button>
+          <div className="min-h-0 overflow-y-auto p-[var(--space-4)]">
+            {image && failedImage !== image ? (
+              <img
+                src={image}
+                alt=""
+                className="h-[120px] w-full rounded-[13px] object-cover"
+                onError={() => setFailedImage(image)}
+              />
+            ) : null}
+            <div className="mt-[var(--space-3)] pr-[var(--space-8)]">
+              <h2 className="truncate text-xl font-bold text-[var(--text)]" title={world.name}>
+                {world.name}
+              </h2>
+              <div className="mt-[var(--space-1)]">
+                <PlatformPill platform={world.platform} />
+              </div>
+              {isStale ? (
+                <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
+                  <p className="text-xs text-[var(--text-dim)]">{t('explore.stale')}</p>
+                  {onRefresh ? (
+                    <button
+                      type="button"
+                      onClick={onRefresh}
+                      className="text-xs text-[var(--text)] underline"
+                    >
+                      {t('explore.refresh')}
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
-          ) : null}
+            <h3 className="mt-[var(--space-4)] text-sm font-semibold text-[var(--text)]">
+              {t('explore.visiblePublicRooms')}
+            </h3>
+            {shown.status === 'loading' ? (
+              <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
+                {t('explore.loadingRooms')}
+              </p>
+            ) : null}
+            {shown.status === 'error' ? (
+              <p className="mt-[var(--space-2)] text-sm text-[var(--error)]">
+                {t('explore.roomsError')}
+              </p>
+            ) : null}
+            {shown.status === 'unavailable' ? (
+              <p className="mt-[var(--space-2)] text-sm text-[var(--error)]">
+                {t('explore.roomsUnavailable')}
+              </p>
+            ) : null}
+            {shown.rooms.length === 0 && shown.status === 'ready' && shown.roomsComplete ? (
+              <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
+                {t('explore.noVisibleRooms')}
+              </p>
+            ) : null}
+            {shown.rooms.length === 0 && shown.status === 'ready' && !shown.roomsComplete ? (
+              <p className="mt-[var(--space-2)] text-sm text-[var(--text-faint)]">
+                {t('explore.incompleteRooms')}
+              </p>
+            ) : null}
+            {shown.rooms.length > 0 ? (
+              <ul className="mt-[var(--space-2)] grid gap-[var(--space-2)]">
+                {shown.rooms.map((room) => (
+                  <RoomRow
+                    key={room.roomId}
+                    room={room}
+                    onJoin={onJoin}
+                    actionAllowed={
+                      shown.status === 'ready' &&
+                      !isStale &&
+                      !joining &&
+                      room.platform === world.platform &&
+                      room.worldId === world.worldId
+                    }
+                    joining={joining}
+                  />
+                ))}
+              </ul>
+            ) : null}
+            {shown.rooms.some((room) => joinFailureFor?.(room)) ? (
+              <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
+                {t('explore.joinFailed')}
+              </p>
+            ) : null}
+            {!shown.roomsComplete && shown.rooms.length > 0 ? (
+              <p className="mt-[var(--space-2)] text-xs text-[var(--text-faint)]">
+                {t('explore.partialRooms')}
+              </p>
+            ) : null}
+          </div>
         </div>
-        <h3 className="mt-[var(--space-4)] text-sm font-semibold text-[var(--text)]">
-          {t('explore.visiblePublicRooms')}
-        </h3>
-        {shown.status === 'loading' ? (
-          <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
-            {t('explore.loadingRooms')}
-          </p>
-        ) : null}
-        {shown.status === 'error' ? (
-          <p className="mt-[var(--space-2)] text-sm text-[var(--error)]">
-            {t('explore.roomsError')}
-          </p>
-        ) : null}
-        {shown.status === 'unavailable' ? (
-          <p className="mt-[var(--space-2)] text-sm text-[var(--error)]">
-            {t('explore.roomsUnavailable')}
-          </p>
-        ) : null}
-        {shown.rooms.length === 0 && shown.status === 'ready' && shown.roomsComplete ? (
-          <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
-            {t('explore.noVisibleRooms')}
-          </p>
-        ) : null}
-        {shown.rooms.length === 0 && shown.status === 'ready' && !shown.roomsComplete ? (
-          <p className="mt-[var(--space-2)] text-sm text-[var(--text-faint)]">
-            {t('explore.incompleteRooms')}
-          </p>
-        ) : null}
-        {shown.rooms.length > 0 ? (
-          <ul className="mt-[var(--space-2)] grid gap-[var(--space-2)]">
-            {shown.rooms.map((room) => (
-              <RoomRow
-                key={room.roomId}
-                room={room}
-                onJoin={onJoin}
-                actionAllowed={
-                  shown.status === 'ready' &&
-                  !isStale &&
-                  !joining &&
-                  room.platform === world.platform &&
-                  room.worldId === world.worldId
-                }
-                joining={joining}
-              />
-            ))}
-          </ul>
-        ) : null}
-        {shown.rooms.some((room) => joinFailureFor?.(room)) ? (
-          <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
-            {t('explore.joinFailed')}
-          </p>
-        ) : null}
-        {!shown.roomsComplete && shown.rooms.length > 0 ? (
-          <p className="mt-[var(--space-2)] text-xs text-[var(--text-faint)]">
-            {t('explore.partialRooms')}
-          </p>
-        ) : null}
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import ts from 'typescript'
+import { optimize } from '@tailwindcss/node'
 import { describe, expect, it } from 'vitest'
 
 const rendererRoot = join(process.cwd(), 'src/renderer')
@@ -460,4 +461,55 @@ describe('renderer design token contract', () => {
       )
     }
   })
+
+  it('keeps the explicit information material opaque and composable with platform tint (VRX-276)', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const spans = componentsLayerSpans(code)
+    const rule = /\.glass-information\s*{([^{}]*)}/g
+    const declarations = [...code.matchAll(rule)]
+    expect(declarations).toHaveLength(1)
+    const declaration = declarations[0]
+    if (declaration === undefined) throw new Error('glass-information declaration is missing')
+    expect(spans.some(([start, end]) => declaration.index > start && declaration.index < end)).toBe(
+      true
+    )
+    expect(declaration[1]).toMatch(/background-color:\s*var\(--glass-information\)\s*;/)
+
+    // Tint must override only the image. Its old shorthand cleared the opaque
+    // information backing after the modifier had applied it.
+    for (const selector of ['tint-vrc', 'tint-cvr']) {
+      const tint = new RegExp(`\\.${selector}\\s*{([^{}]*)}`).exec(code)?.[1] ?? ''
+      expect(tint).toMatch(/background-image:\s*var\(--tint-(?:vrc|cvr)-bg\)\s*;/)
+      expect(tint).not.toMatch(/background:\s*/)
+    }
+
+    const root = css.match(/:root\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    const light = css.match(/\[data-theme=['"]light['"]\]\s*{[\s\S]*?\n}/)?.[0] ?? ''
+    for (const [name, block, value] of [
+      [':root', root, ['rgb', '(13, 15, 22)'].join('')],
+      ["[data-theme='light']", light, ['rgb', '(244, 247, 252)'].join('')]
+    ] as const) {
+      expect(block, `${name} is missing opaque information material`).toContain(
+        `--glass-information: ${value};`
+      )
+    }
+  })
+})
+
+describe('compiled glass material', () => {
+  it.each(['glass', 'glass-frosted', 'glass-frosted-heavy'])(
+    'preserves the standard backdrop-filter through Tailwind optimization for .%s',
+    (className) => {
+      const rules = [
+        ...css
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .matchAll(new RegExp(`\\.${className}\\s*\\{[^{}]*\\}`, 'g'))
+      ]
+      expect(rules).toHaveLength(1)
+      // Exercise the same optimizer as @tailwindcss/vite. Source declarations
+      // alone can pass while emitted CSS loses the only property Electron accepts.
+      const emitted = optimize(rules[0]![0], { minify: true }).code
+      expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur(?:-frosted)?\)/)
+    }
+  )
 })

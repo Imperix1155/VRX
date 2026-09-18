@@ -5,7 +5,7 @@ import type {
   ExploreWorldReason,
   ExploreWorldSnapshot
 } from '@shared/explore'
-import { readExploreSnapshot, requestExploreImage } from '../queries/explore'
+import { observeExploreImage, readExploreSnapshot } from '../queries/explore'
 
 interface Selection {
   world: ExploreWorld
@@ -16,10 +16,13 @@ interface Selection {
   recoveredExpiredRef: boolean
   recovering: boolean
   manualPending: boolean
+  stopImage: (() => void) | null
 }
 
 function cancel(selection: Selection | null): void {
   if (selection === null) return
+  selection.stopImage?.()
+  selection.stopImage = null
   void window.vrx
     ?.cancelExploreWorld?.({
       platform: selection.world.platform,
@@ -54,7 +57,7 @@ async function readChanges(
 
 /** Dashboard and Explore share one selected-world lifetime. Every reply belongs
  * to that selection and a request order; an older loading read cannot replace
- * a newer completed snapshot. No timer starts bridge work here. */
+ * a newer completed snapshot. Shared visible image recovery owns its bounded timer. */
 export function useExploreWorldSelection(filter: ExploreFilter): {
   selected: Selection | null
   sheet: ExploreWorldSnapshot | null
@@ -85,7 +88,8 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
       dirty: false,
       recoveredExpiredRef: false,
       recovering: false,
-      manualPending: false
+      manualPending: false,
+      stopImage: null
     }
     current.current = next
     setSelected(next)
@@ -94,12 +98,11 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
   }, [])
 
   const readImage = useCallback((selection: Selection) => {
+    selection.stopImage?.()
     const ref = selection.world.worldRef
-    void requestExploreImage(selection.world.platform, ref)
-      .then((value) => {
-        if (current.current === selection && selection.world.worldRef === ref) setImage(value)
-      })
-      .catch(() => undefined)
+    selection.stopImage = observeExploreImage(selection.world.platform, ref, (image) => {
+      if (current.current === selection && selection.world.worldRef === ref) setImage(image)
+    })
   }, [])
 
   const read = useCallback(
