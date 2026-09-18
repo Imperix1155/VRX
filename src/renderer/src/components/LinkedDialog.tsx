@@ -78,7 +78,7 @@ export default function LinkedDialog({
         if (!busy) onClose()
       }}
     >
-      <div className="glass glass-frosted p-[calc(var(--space-4)+var(--space-1))]">
+      <div className="glass glass-frosted glass-information p-[calc(var(--space-4)+var(--space-1))]">
         <div className="mb-[var(--space-2)] flex items-start justify-between gap-[var(--space-3)]">
           <h2 id={headingId} className="text-[18px] font-bold">
             {title}

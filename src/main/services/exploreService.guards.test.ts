@@ -626,7 +626,10 @@ describe('ExploreService guard rails', () => {
     const newRefs = (await h.service.getSnapshot('vrchat', 'snapshot')).worlds.map(
       (entry) => entry.worldRef
     )
-    await expect(h.service.getImage('vrchat', newRefs[2]!)).resolves.toBeNull()
+    await expect(h.service.getImage('vrchat', newRefs[2]!)).resolves.toMatchObject({
+      ok: false,
+      reason: 'deferred'
+    })
     pending[0]!.resolve('data:image/png;base64,a')
     pending[1]!.resolve('data:image/png;base64,b')
     await Promise.all([first, second])
@@ -635,6 +638,9 @@ describe('ExploreService guard rails', () => {
       await h.service.getImage('vrchat', newRefs[index]!)
     }
     expect(h.images).toHaveBeenCalledTimes(6)
-    await expect(h.service.getImage('vrchat', newRefs[6]!)).resolves.toBeNull()
+    await expect(h.service.getImage('vrchat', newRefs[6]!)).resolves.toMatchObject({
+      ok: false,
+      reason: 'deferred'
+    })
   })
 })

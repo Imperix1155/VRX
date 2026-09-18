@@ -460,7 +460,6 @@
   },
   "explore": {
     "heading": "探索",
-    "description": "VRChat と ChilloutVR の人気パブリックワールド",
     "popularNow": "人気のワールド",
     "worldsShown": "表示するワールド",
     "worldsShownAria": "表示するワールド数",
@@ -469,13 +468,11 @@
     "confirmAria": "{{world}} への参加を確認",
     "refresh": "更新",
     "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
-    "peopleInWorld": "このワールドの人数",
-    "peopleInPublicRooms": "パブリックルームの人数",
-    "visibleRooms": "表示可能なルーム",
+    "people": "人数",
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",
     "sourceState": {
-      "loading": "{{platform}} のワールドを読み込み中…",
+      "loading": "ワールドを読み込み中…",
       "error": "{{platform}} のワールドを読み込めませんでした。",
       "unavailable": "{{platform}} の探索は利用できません。",
       "stale": "{{platform}} は更新中のため、保存済みの結果を表示しています。"

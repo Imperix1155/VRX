@@ -41,14 +41,25 @@ Do not rely on remembered instructions from another task.
 Before UI work, read [`docs/DESIGN.md`](docs/DESIGN.md), the rendered guide at
 `docs/design.html`, and the living reference at `docs/glass.html`.
 
+The renderer components and `src/renderer/src/assets/main.css` define current
+implementation. `docs/design.html` is the human visual guide;
+`docs/glass.html` runs the same guide's isolated, synthetic component scenes.
+`docs/DESIGN.md` is the concise agent contract. Do not treat copied historical
+examples or known app defects as design requirements. Guide implementation and
+fixture safety are owned by [`docs/guide/AGENTS.md`](docs/guide/AGENTS.md).
+
 - Liquid glass is the material language. Dark is default; light is a
   `[data-theme="light"]` parity override, not a fork.
 - Color communicates meaning, never decoration. Each meaning needs one fixed
-  location and a non-color glyph.
+  location and a non-color label or glyph.
 - Platform identity is blue for VRChat and orange for ChilloutVR, expressed
-  only through tint, spine, and glyph.
-- Presence has two independent axes: `state` drives the dot; `status` drives
-  the VRChat pill. Never conflate them.
+  through tint, spine, and explicit platform text or glyph.
+- Ambient background color must not alter information-bearing card or panel
+  colors, including platform-specific surfaces. Neutral sheen may vary;
+  decorative chrome such as the sidebar may retain ambient color.
+- Presence has two independent axes, `state` and VRChat `status`. Never
+  conflate them. Use the production avatar ring fold and written drawer status;
+  do not restore the superseded separate row dot/status-pill recipe.
 - Use design tokens for color and spacing; do not introduce stray hex values.
 
 ## Security Non-Negotiables
@@ -318,6 +329,8 @@ milestones.
   logging, credential redaction, and the small preload bridge contract.
 - [`src/renderer/AGENTS.md`](src/renderer/AGENTS.md): React UI, Tailwind v4,
   design-token-only styling, and populated renderer subtrees.
+- [`docs/guide/AGENTS.md`](docs/guide/AGENTS.md): human guide, real-component
+  fixtures, isolated preview build, and agent-contract synchronization.
 
 `src/preload` remains owned by `src/main/AGENTS.md`. The `.gitkeep`-only
 `src/main/platform` and `src/renderer/src/routes` directories do not yet need

@@ -74,16 +74,8 @@ export default function ExploreView({
     if (next !== undefined) onTotalChange(next)
   }
   return (
-    <section aria-labelledby="explore-heading">
-      <div className="flex flex-wrap items-center justify-between gap-[var(--space-4)]">
-        <div>
-          <h1 id="explore-heading" className="text-2xl font-bold text-[var(--text)]">
-            {t('explore.heading')}
-          </h1>
-          <p className="mt-[var(--space-1)] text-sm text-[var(--text-dim)]">
-            {t('explore.description')}
-          </p>
-        </div>
+    <section aria-label={t('explore.heading')}>
+      <div className="flex flex-wrap items-center justify-end gap-[var(--space-4)]">
         <div className="flex items-center gap-[var(--space-2)]">
           <span className="text-sm text-[var(--text-dim)]">{t('explore.worldsShown')}</span>
           <NumberStepper
@@ -96,7 +88,7 @@ export default function ExploreView({
         </div>
       </div>
       <div className="mt-[var(--space-4)]">
-        <ExploreSourceState sources={shownSources} />
+        <ExploreSourceState sources={shownSources} hasUsableCards={worlds.length > 0} />
       </div>
       {worlds.length === 0 &&
       !shownSources.some((source) => source.status === 'loading') &&

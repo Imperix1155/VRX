@@ -458,7 +458,11 @@ describe('ExploreService integration bounds', () => {
     void h.service.getImage('vrchat', worlds[0]!.worldRef)
     void h.service.getImage('vrchat', worlds[1]!.worldRef)
     await vi.waitFor(() => expect(h.images).toHaveBeenCalledTimes(2))
-    await expect(h.service.getImage('vrchat', worlds[2]!.worldRef)).resolves.toBeNull()
+    await expect(h.service.getImage('vrchat', worlds[2]!.worldRef)).resolves.toEqual({
+      ok: false,
+      reason: 'deferred',
+      retryAfterMs: expect.any(Number)
+    })
     imageA.resolve('data:image/png;base64,a')
     imageB.resolve('data:image/png;base64,b')
   })

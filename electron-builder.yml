@@ -3,6 +3,10 @@ productName: VRX
 directories:
   buildResources: build
 files:
+  - '!docs/guide/**'
+  - '!docs/design.html'
+  - '!docs/glass.html'
+  - '!dist/design-guide/**'
   - '!**/.vscode/*'
   - '!src/*'
   - '!out/credential-probe/**'

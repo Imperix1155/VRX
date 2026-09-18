@@ -24,7 +24,7 @@ export default function ExploreWorldCard({
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const isVrc = world.platform === 'vrchat'
   const platformLabel = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
-  const activityLabel = t(isVrc ? 'explore.peopleInWorld' : 'explore.peopleInPublicRooms')
+  const activityLabel = t('explore.people')
 
   return (
     <button
@@ -32,7 +32,7 @@ export default function ExploreWorldCard({
       data-explore-sheet-opener
       onClick={(event) => onOpen(world, event.currentTarget)}
       aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
-      className={`glass ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative min-w-0 overflow-hidden p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
+      className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
     >
       <div
         aria-hidden="true"
@@ -64,7 +64,7 @@ export default function ExploreWorldCard({
           {isVrc ? 'VRC' : 'CVR'}
         </span>
       </div>
-      <div className="relative grid gap-[var(--space-2)] p-[var(--space-3)]">
+      <div className="relative flex flex-1 flex-col gap-[var(--space-2)] p-[var(--space-3)]">
         <h3
           className="truncate text-[18px] font-bold leading-[1.35] text-[var(--text)]"
           title={world.name}
@@ -75,11 +75,10 @@ export default function ExploreWorldCard({
           <span>
             {activityLabel}: <Count count={world.activity} />
           </span>
-          <span>
-            {t('explore.visibleRooms')}: <Count count={world.visibleRoomCount} />
-          </span>
         </div>
-        <span className="text-xs font-semibold text-[var(--text)]">{t('explore.viewRooms')}</span>
+        <span className="mt-auto text-xs font-semibold text-[var(--text)]">
+          {t('explore.viewRooms')}
+        </span>
       </div>
     </button>
   )

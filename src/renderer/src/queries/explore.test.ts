@@ -6,6 +6,8 @@ import { queryClient } from './queryClient'
 import {
   clearExplorePlatform,
   exploreQueryKey,
+  observeExploreImage,
+  setExploreImagePlatforms,
   requestExplore,
   requestExploreImage
 } from './explore'
@@ -24,6 +26,7 @@ describe('Explore renderer requests', () => {
     queryClient.clear()
     clearExplorePlatform('vrchat')
     clearExplorePlatform('chilloutvr')
+    setExploreImagePlatforms(['vrchat', 'chilloutvr'])
     window.vrx = { getExplore: vi.fn().mockResolvedValue(snapshot) } as unknown as Window['vrx']
   })
   afterEach(() => {
@@ -241,5 +244,200 @@ describe('Explore renderer requests', () => {
       'data:image/png;base64,new-account'
     )
     expect(getExploreImage).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries one typed window deferral once at main’s bounded delay', async () => {
+    vi.useFakeTimers()
+    const getExploreImage = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false as const,
+        reason: 'deferred' as const,
+        retryAfterMs: 60_000
+      })
+      .mockResolvedValueOnce({ ok: true as const, dataUrl: 'data:image/png;base64,recovered' })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const listener = vi.fn()
+    const stop = observeExploreImage('vrchat', 'window-ref', listener)
+
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(getExploreImage).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+    expect(listener).toHaveBeenCalledWith('data:image/png;base64,recovered')
+    stop()
+  })
+
+  it('keeps six visible refs under two concurrent starts and six physical image starts', async () => {
+    vi.useFakeTimers()
+    let outstanding = 0
+    let maximumOutstanding = 0
+    let physicalStarts = 0
+    const pending: Array<() => void> = []
+    const delivered = new Map<string, string | undefined>()
+    const getExploreImage = vi.fn(({ worldRef }: { worldRef: string }) => {
+      if (outstanding >= 2)
+        return Promise.resolve({
+          ok: false as const,
+          reason: 'deferred' as const,
+          retryAfterMs: 2_000
+        })
+      outstanding += 1
+      physicalStarts += 1
+      maximumOutstanding = Math.max(maximumOutstanding, outstanding)
+      return new Promise<{ ok: true; dataUrl: string }>((resolve) => {
+        pending.push(() => {
+          outstanding -= 1
+          resolve({ ok: true, dataUrl: `data:image/png;base64,${worldRef}` })
+        })
+      })
+    })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stops = Array.from({ length: 6 }, (_, index) => {
+      const ref = `visible-${index}`
+      return observeExploreImage('vrchat', ref, (image) => delivered.set(ref, image))
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(physicalStarts).toBe(2)
+    expect(maximumOutstanding).toBe(2)
+
+    pending.splice(0, 2).forEach((resolve) => resolve())
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(physicalStarts).toBe(4)
+    expect(maximumOutstanding).toBe(2)
+
+    pending.splice(0, 2).forEach((resolve) => resolve())
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(physicalStarts).toBe(6)
+    expect(maximumOutstanding).toBe(2)
+
+    pending.splice(0, 2).forEach((resolve) => resolve())
+    await vi.advanceTimersByTimeAsync(0)
+    expect([...delivered.values()]).toHaveLength(6)
+    expect([...delivered.values()].every((image) => image?.startsWith('data:image/png'))).toBe(true)
+    for (const stop of stops) stop()
+  })
+
+  it('cancels a hidden recovery timer without resetting its shared finite budget', async () => {
+    vi.useFakeTimers()
+    const getExploreImage = vi
+      .fn()
+      .mockResolvedValue({ ok: false as const, reason: 'deferred' as const, retryAfterMs: 2_000 })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stopFirst = observeExploreImage('vrchat', 'hidden-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(0)
+    stopFirst()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(getExploreImage).toHaveBeenCalledOnce()
+
+    const stopSecond = observeExploreImage('vrchat', 'hidden-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+    const stopThird = observeExploreImage('vrchat', 'hidden-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    stopSecond()
+    stopThird()
+  })
+
+  it('retains a late hidden deferral before allowing the remaining shared recovery turns', async () => {
+    vi.useFakeTimers()
+    let resolveFirst!: (result: { ok: false; reason: 'deferred'; retryAfterMs: number }) => void
+    const getExploreImage = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ ok: false; reason: 'deferred'; retryAfterMs: number }>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValue({ ok: false as const, reason: 'deferred' as const, retryAfterMs: 2_000 })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+
+    const stopFirst = observeExploreImage('vrchat', 'late-hidden-ref', () => undefined)
+    stopFirst()
+    resolveFirst({ ok: false, reason: 'deferred', retryAfterMs: 2_000 })
+    await vi.advanceTimersByTimeAsync(0)
+
+    const stopSecond = observeExploreImage('vrchat', 'late-hidden-ref', () => undefined)
+    expect(getExploreImage).toHaveBeenCalledOnce()
+    stopSecond()
+    const stopThird = observeExploreImage('vrchat', 'late-hidden-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+    stopThird()
+    const stopFourth = observeExploreImage('vrchat', 'late-hidden-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    stopFourth()
+  })
+
+  it('does not dispatch visible subscribers while the Electron document is hidden', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    const getExploreImage = vi.fn().mockResolvedValue({
+      ok: true as const,
+      dataUrl: 'data:image/png;base64,visible'
+    })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stop = observeExploreImage('vrchat', 'document-hidden-ref', () => undefined)
+    await Promise.resolve()
+    expect(getExploreImage).not.toHaveBeenCalled()
+
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(getExploreImage).not.toHaveBeenCalled()
+    setExploreImagePlatforms(['vrchat'])
+    await vi.waitFor(() => expect(getExploreImage).toHaveBeenCalledOnce())
+    stop()
+    visibility.mockRestore()
+  })
+
+  it('does not retry a null or bridge failure through the visible recovery path', async () => {
+    vi.useFakeTimers()
+    const getExploreImage = vi.fn().mockResolvedValue(null)
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stop = observeExploreImage('vrchat', 'terminal-ref', () => undefined)
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(getExploreImage).toHaveBeenCalledOnce()
+    stop()
+  })
+  it('resumes only admitted platforms and retains a paused recovery budget', async () => {
+    vi.useFakeTimers()
+    setExploreImagePlatforms([])
+    const getExploreImage = vi
+      .fn<
+        (request: {
+          platform: string
+        }) => Promise<{ ok: false; reason: 'deferred'; retryAfterMs: number }>
+      >()
+      .mockResolvedValue({ ok: false, reason: 'deferred', retryAfterMs: 2_000 })
+    window.vrx = { getExploreImage } as unknown as Window['vrx']
+    const stopVrc = observeExploreImage('vrchat', 'admitted-vrc', () => undefined)
+    const stopCvr = observeExploreImage('chilloutvr', 'inactive-cvr', () => undefined)
+    expect(getExploreImage).not.toHaveBeenCalled()
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    setExploreImagePlatforms([])
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(1_999)
+    expect(getExploreImage).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getExploreImage).toHaveBeenCalledTimes(2)
+    setExploreImagePlatforms([])
+    setExploreImagePlatforms(['vrchat'])
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(getExploreImage).toHaveBeenCalledTimes(3)
+    expect(getExploreImage.mock.calls.every(([request]) => request.platform === 'vrchat')).toBe(
+      true
+    )
+    stopVrc()
+    stopCvr()
   })
 })

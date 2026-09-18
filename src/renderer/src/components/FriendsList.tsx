@@ -1189,7 +1189,7 @@ export default function FriendsList(): React.JSX.Element {
           event.stopPropagation()
         }
       }}
-      className="rounded-panel border border-[var(--border)] p-[var(--space-4)]"
+      className="glass-information rounded-panel border border-[var(--border)] p-[var(--space-4)]"
     >
       <div className="mb-[var(--space-3)] flex items-center justify-between gap-[var(--space-2)]">
         <h2
@@ -1238,7 +1238,7 @@ export default function FriendsList(): React.JSX.Element {
       {isAuthStatusPending ? (
         <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>
       ) : isNotConnected ? (
-        <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
+        <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
             {notConnectedKey === null ? null : t(notConnectedKey)}
           </p>

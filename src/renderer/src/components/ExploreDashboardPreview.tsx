@@ -30,12 +30,12 @@ export default function ExploreDashboardPreview({
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
         id="dashboard-popular-heading"
-        className="font-[family-name:var(--font-mono)] text-[20px] tracking-[0.08em] text-[var(--text)]"
+        className="font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-faint)]"
       >
         {t('explore.popularNow')}
       </h2>
       <div className="mt-[var(--space-2)]">
-        <ExploreSourceState sources={platformSnapshots} />
+        <ExploreSourceState sources={platformSnapshots} hasUsableCards={worlds.length > 0} />
       </div>
       {worlds.length > 0 ? (
         <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   ExplorePlatformSnapshot,
+  ExploreImageResult,
   ExploreRefreshReason,
   ExploreRoom,
   ExploreWorld,
@@ -35,6 +36,10 @@ import { isAllowedLaunchUrl } from '../ipc/url-allowlist'
 const FRESH_MS = 60_000
 const RETAIN_MS = 300_000
 const DEADLINE_MS = 45_000
+const IMAGE_CAPACITY_RETRY_MS = 2_000
+const IMAGE_RETRY_JITTER_MS = 750
+const IMAGE_RETRY_MIN_MS = 250
+const IMAGE_RETRY_MAX_MS = 60_000
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
 type MainAdapter = ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>
 type LoadStatus = ExplorePlatformSnapshot['status']
@@ -189,10 +194,7 @@ export class ExploreService {
     }
   }
 
-  async getImage(
-    platform: Platform,
-    worldRef: string
-  ): Promise<{ ok: true; dataUrl: string } | null> {
+  async getImage(platform: Platform, worldRef: string): Promise<ExploreImageResult> {
     const state = this.state(platform)
     const world = this.findWorld(state, worldRef)
     if (this.disposed || !this.active.has(platform) || !world || !state.session) return null
@@ -202,8 +204,10 @@ export class ExploreService {
     if (cached) return { ok: true, dataUrl: cached }
     let pending = state.imagePending.get(url)
     if (!pending) {
-      if ((this.imageOutstanding.get(platform) ?? 0) >= 2) return null
-      if (!this.take(this.imageStarts, platform, 6)) return null
+      if ((this.imageOutstanding.get(platform) ?? 0) >= 2)
+        return this.imageDeferral(platform, worldRef, 'capacity')
+      if (!this.take(this.imageStarts, platform, 6))
+        return this.imageDeferral(platform, worldRef, 'window')
       this.imageOutstanding.set(platform, (this.imageOutstanding.get(platform) ?? 0) + 1)
       pending = Promise.resolve()
         .then(() => this.options.getImage(url))
@@ -934,6 +938,30 @@ export class ExploreService {
 
   private fresh(time: number): boolean {
     return this.clock() - time < FRESH_MS
+  }
+  private imageDeferral(
+    platform: Platform,
+    worldRef: string,
+    reason: 'capacity' | 'window'
+  ): Extract<ExploreImageResult, { ok: false }> {
+    const jitter = this.imageRetryJitter(worldRef)
+    const now = this.clock()
+    const starts = this.imageStarts.get(platform) ?? []
+    const delay =
+      reason === 'capacity'
+        ? IMAGE_CAPACITY_RETRY_MS + jitter
+        : Math.max(IMAGE_RETRY_MIN_MS, (starts[0] ?? now) + FRESH_MS - now + jitter)
+    return {
+      ok: false,
+      reason: 'deferred',
+      retryAfterMs: Math.max(IMAGE_RETRY_MIN_MS, Math.min(IMAGE_RETRY_MAX_MS, delay))
+    }
+  }
+  private imageRetryJitter(worldRef: string): number {
+    let hash = 0
+    for (let index = 0; index < worldRef.length; index += 1)
+      hash = (hash * 31 + worldRef.charCodeAt(index)) >>> 0
+    return hash % (IMAGE_RETRY_JITTER_MS + 1)
   }
   private take(ledger: Map<Platform, number[]>, platform: Platform, limit: number): boolean {
     const now = this.clock()

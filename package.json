@@ -28,7 +28,11 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "guide:dev": "vite --config docs/guide/vite.config.ts",
+    "guide:typecheck": "tsc -p docs/guide/tsconfig.json --noEmit",
+    "guide:build": "npm run guide:typecheck && vite build --config docs/guide/vite.config.ts",
+    "guide:preview": "vite preview --config docs/guide/vite.config.ts"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -53,6 +57,7 @@
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/asar": "^4.3.0",
     "@noble/hashes": "2.4.0",
+    "@tailwindcss/node": "4.3.3",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.5.1",

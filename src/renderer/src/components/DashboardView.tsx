@@ -56,7 +56,7 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
         : 'text-[var(--bridge)]'
 
   return (
-    <div className="glass p-[16px_18px]">
+    <div className="glass glass-information p-[16px_18px]">
       <div
         className={`font-[family-name:var(--font-mono)] text-[38px] leading-none ${numberColor}`}
         aria-live="polite"
@@ -168,7 +168,7 @@ function HotInstanceCard({
       aria-label={t('hotSheet.ariaLabel', { world: worldName })}
       onClick={openSheet}
       onKeyDown={onKeyDown}
-      className={`glass ${tintClass} cursor-pointer overflow-hidden hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      className={`glass glass-information ${tintClass} cursor-pointer overflow-hidden hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
     >
       {/* 4px top-edge platform stripe */}
       <div aria-hidden="true" className="h-[4px]" style={topEdgeStyle} />
@@ -265,7 +265,7 @@ function HotInstanceCard({
 function DashboardEmpty({ threshold }: { threshold: number }): React.JSX.Element {
   const { t } = useTranslation()
   return (
-    <div className="glass flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
+    <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
       <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
       <p className="text-[var(--text-faint)] text-xs mt-[var(--space-1)]">
         {/* `threshold` (not `count`) — interpolation only, no plural-suffix lookup. */}
@@ -370,7 +370,7 @@ export default function DashboardView(): React.JSX.Element {
   }
   if (isNotConnected) {
     return (
-      <div className="glass flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
         <p className="text-sm font-semibold text-[var(--text-dim)]">
           {notConnectedKey === null ? null : t(notConnectedKey)}
         </p>

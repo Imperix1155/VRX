@@ -1,0 +1,5 @@
+/* Compile the actual stylesheet and every imported renderer utility. Vite's
+   docs root alone would omit classes found only in production components. */
+@import '../../src/renderer/src/assets/main.css';
+@source '../../src/renderer/src';
+@source '.';
