@@ -315,7 +315,9 @@ describe('verifyLinuxUpdateMetadata', () => {
   it('rejects an empty packaged updater configuration', async () => {
     const fixture = await createFixture({ appUpdate: '' })
 
-    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow('AppImage updater provider')
+    await expect(verifyLinuxUpdateMetadata(fixture)).rejects.toThrow(
+      'AppImage app-update.yml must be readable valid YAML'
+    )
   })
 
   it('rejects an updater cache directory that does not match electron-builder', async () => {
