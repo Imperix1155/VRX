@@ -7,68 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Rebuilt the contributor design guide with real component examples, local
-  sample data, and dark/light comparisons. The synchronized agent design
-  contract points to production components and tokens. (VRX-273)
-
-### Fixed
-
-- Explore artwork waits for platform reactivation when returning to the app, preventing a temporary inactive state from permanently hiding images (VRX-278).
-
-- Dashboard Popular now and Explore show one “Worlds loading…” message while
-  any selected platform initially loads, keeping available cards visible and
-  routine background refresh quiet. (VRX-277)
-
-- Information cards and panels keep their own colors over the aurora in both
-  themes. Platform tints, neutral highlights and decorative glass remain. (VRX-276)
-- Visible Explore and Dashboard artwork can recover after a temporary image
-  admission delay, within the existing request limits. Hidden or replaced
-  selections stop recovery; unavailable artwork keeps its placeholder. (VRX-275)
-
-- Dashboard Popular now headings use the same subdued color and normal weight
-  as Hot Instances in both themes. (VRX-272)
-- Explore and Dashboard world cards fill equal columns, use a shared People
-  count, and stay quiet during routine background refreshes. Explore has one
-  page heading. (VRX-272)
-- Room sheets use readable frosted glass and keep Close visible while scrolling.
-  Restored the compiled glass blur used by Friends drawers and other glass
-  panels in Electron 44. (VRX-272)
-
-## [0.20.0] - 2026-09-15
-
-### Changed
-
-- Updated the Electron runtime to 44.2.0. Upstream now requires macOS 13 or later
-  and provides only 64-bit x64 and arm64 binaries.
-
-### Fixed
-
-- Brief socket connections no longer reset reconnect backoff. Rejected upgrades
-  honor server cooldowns across the affected platform's API traffic. (VRX-218)
-
-- Concurrent friend refreshes and CVR name warming share one request per session.
-  Reconnect and roster-event bursts coalesce into one follow-up refresh. (VRX-218)
-
-- Friend refreshes and background metadata stop when the platform rate-limits
-  them. Partial refreshes retain omitted cached friends, and repeated refresh
-  triggers cannot bypass the cooldown. Queued and active batches stop launching
-  further work even when another request's 429 supplies an immediate retry time. (VRX-218)
-
-- Logout, account switching and newer login attempts cancel obsolete queued
-  requests. Images retain their original account lease, and stale responses
-  cannot repopulate the replacement session's cache. (VRX-218)
-
-- API-backed images and normal API requests now share each platform's pacing
-  and cooldown. A rate-limit response holds affected API traffic across both
-  paths, and CDN images respect their own host cooldowns. Other platforms stay
-  independent. (VRX-218)
-
-- Linked friends retain a neutral Private instance pill when their in-game
-  location is unavailable, without enabling Join. Known non-joinable instances
-  retain their existing labels. The initial Identities dialog now says Close
-  instead of Done. (VRX-143)
+## [0.21.0] - 2026-09-17
 
 ### Added
 
@@ -101,6 +40,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Temporary connection errors preserve linked rows, open profiles and people counts
   while the account session remains valid.
   (VRX-143)
+
+### Changed
+
+- Rebuilt the contributor design guide with real component examples, local
+  sample data, and dark/light comparisons. The synchronized agent design
+  contract points to production components and tokens. (VRX-273)
+
+- Updated the Electron runtime to 44.3.0. Upstream now requires macOS 13 or later
+  and provides only 64-bit x64 and arm64 binaries.
+
+### Fixed
+
+- Explore artwork waits for platform reactivation when returning to the app, preventing a temporary inactive state from permanently hiding images (VRX-278).
+
+- Dashboard Popular now and Explore show one “Worlds loading…” message while
+  any selected platform initially loads, keeping available cards visible and
+  routine background refresh quiet. (VRX-277)
+
+- Information cards and panels keep their own colors over the aurora in both
+  themes. Platform tints, neutral highlights and decorative glass remain. (VRX-276)
+- Visible Explore and Dashboard artwork can recover after a temporary image
+  admission delay, within the existing request limits. Hidden or replaced
+  selections stop recovery; unavailable artwork keeps its placeholder. (VRX-275)
+
+- Dashboard Popular now headings use the same subdued color and normal weight
+  as Hot Instances in both themes. (VRX-272)
+- Explore and Dashboard world cards fill equal columns, use a shared People
+  count, and stay quiet during routine background refreshes. Explore has one
+  page heading. (VRX-272)
+- Room sheets use readable frosted glass and keep Close visible while scrolling.
+  Restored the compiled glass blur used by Friends drawers and other glass
+  panels in Electron 44. (VRX-272)
+
+- Brief socket connections no longer reset reconnect backoff. Rejected upgrades
+  honor server cooldowns across the affected platform's API traffic. (VRX-218)
+
+- Concurrent friend refreshes and CVR name warming share one request per session.
+  Reconnect and roster-event bursts coalesce into one follow-up refresh. (VRX-218)
+
+- Friend refreshes and background metadata stop when the platform rate-limits
+  them. Partial refreshes retain omitted cached friends, and repeated refresh
+  triggers cannot bypass the cooldown. Queued and active batches stop launching
+  further work even when another request's 429 supplies an immediate retry time. (VRX-218)
+
+- Logout, account switching and newer login attempts cancel obsolete queued
+  requests. Images retain their original account lease, and stale responses
+  cannot repopulate the replacement session's cache. (VRX-218)
+
+- API-backed images and normal API requests now share each platform's pacing
+  and cooldown. A rate-limit response holds affected API traffic across both
+  paths, and CDN images respect their own host cooldowns. Other platforms stay
+  independent. (VRX-218)
+
+- Linked friends retain a neutral Private instance pill when their in-game
+  location is unavailable, without enabling Join. Known non-joinable instances
+  retain their existing labels. The initial Identities dialog now says Close
+  instead of Done. (VRX-143)
 
 ## [0.19.2] - 2026-09-04
 
