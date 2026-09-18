@@ -42,7 +42,7 @@ npm run build      # production build
 ## Build
 
 ```bash
-npm run build:win    # Windows (NSIS installer)
+npm run build:win    # Windows (NSIS installer + portable)
 npm run build:mac    # macOS (DMG)
 npm run build:linux  # Linux (AppImage + deb)
 ```
