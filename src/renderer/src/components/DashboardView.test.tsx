@@ -1289,3 +1289,38 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
     expect(within(screen.getByRole('dialog', { name: rawName })).getByText(rawName)).toBeTruthy()
   })
 })
+
+describe('Dashboard feature visibility', () => {
+  it.each([true, false])(
+    'removes all Hot Instances UI independently of Popular now=%s',
+    (popular) => {
+      stubQueries(
+        { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+        { data: [], isPending: false }
+      )
+      useSettingsStore.setState({
+        settings: { ...DEFAULT_SETTINGS, hotInstancesEnabled: false, dashboardPopularNow: popular }
+      })
+      render(<DashboardView />)
+      expect(screen.getByText(msg('dashboard.statOnlineLabel'))).toBeTruthy()
+      expect(screen.getByText(msg('dashboard.statInGameLabel'))).toBeTruthy()
+      expect(screen.queryByText(msg('dashboard.statHotLabel'))).toBeNull()
+      expect(
+        screen.queryByRole('region', { name: msg('dashboard.sectionHotInstances') })
+      ).toBeNull()
+      expect(screen.queryByRole('spinbutton')).toBeNull()
+      expect(screen.queryByText('SunDown')).toBeNull()
+    }
+  )
+  it('removes the Popular now preview while keeping Hot Instances', () => {
+    stubQueries(
+      { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false } })
+    render(<DashboardView />)
+    expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
+    expect(screen.getByRole('spinbutton')).toBeTruthy()
+    expect(screen.queryByText('Popular now')).toBeNull()
+  })
+})

@@ -13,7 +13,13 @@ export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'explore' | 'grou
  */
 /** Settings category mini-pages (VRX-186). Extend as sections are added —
  *  the array order is the nav's display order (THEMES pattern). */
-export const SETTINGS_CATEGORIES = ['appearance', 'behavior', 'notifications', 'accounts'] as const
+export const SETTINGS_CATEGORIES = [
+  'appearance',
+  'dashboard',
+  'behavior',
+  'notifications',
+  'accounts'
+] as const
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]
 
 interface UiState {

@@ -52,3 +52,5 @@ when build configuration or production code changes.
 ## Child DOX index
 
 No children.
+
+Settings scenes import the production compact cards, On/Off controls, and dependent disclosure. Use the Dashboard shortcut and feature controls to verify reflow with the shared synthetic query data.

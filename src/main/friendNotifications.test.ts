@@ -1,3 +1,5 @@
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import { isFriendAlertEnabled } from './friendNotifications'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FriendAlert } from './services/friendAlerts'
 
@@ -241,5 +243,31 @@ describe('createFriendNotificationNotifier', () => {
     expect(vi.getTimerCount()).toBe(20)
     electron.MockNotification.instances[1]?.emit('close')
     expect(vi.getTimerCount()).toBe(19)
+  })
+})
+
+describe('feature-aware alert consent', () => {
+  it('suppresses hot alerts while off and retains independent friend preferences', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      notifyHotInstance: true,
+      notifyFriendOnline: true,
+      hotInstancesEnabled: false
+    }
+    expect(isFriendAlertEnabled('hot-instance', settings)).toBe(false)
+    expect(isFriendAlertEnabled('online', settings)).toBe(true)
+    expect(isFriendAlertEnabled('offline', settings)).toBe(false)
+    expect(isFriendAlertEnabled('in-game', settings)).toBe(false)
+    expect(settings.notifyHotInstance).toBe(true)
+    expect(isFriendAlertEnabled('hot-instance', { ...settings, hotInstancesEnabled: true })).toBe(
+      true
+    )
+    expect(
+      isFriendAlertEnabled('hot-instance', {
+        ...settings,
+        hotInstancesEnabled: true,
+        notifyHotInstance: false
+      })
+    ).toBe(false)
   })
 })

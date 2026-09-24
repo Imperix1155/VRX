@@ -30,6 +30,7 @@ const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }
 // concept (the sections' h2s are sr-only; this nav is their visible label).
 const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   appearance: 'settings.appearance.heading',
+  dashboard: 'settings.dashboard.heading',
   behavior: 'settings.behavior.heading',
   notifications: 'settings.notifications.heading',
   accounts: 'settings.accounts.heading'
@@ -237,7 +238,9 @@ export default function TopBar(): React.JSX.Element {
         ).length
 
   return (
-    <div className="flex items-center mb-[22px]">
+    <div
+      className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
+    >
       {/* View title */}
       <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
@@ -263,6 +266,18 @@ export default function TopBar(): React.JSX.Element {
             <PlatformFilter platform={platform} onChange={setPlatform} />
           )}
         </div>
+        {activeTab === 'dashboard' && (
+          <button
+            type="button"
+            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)]"
+            onClick={() => {
+              setSettingsCategory('dashboard')
+              useUiStore.getState().setActiveTab('settings')
+            }}
+          >
+            {t('settings.dashboard.shortcut')}
+          </button>
+        )}
         {/* Reserve a three-digit cell so the contextual dock stays fixed as the
             live count changes. Tabular figures and right alignment mirror the
             NumberStepper's stable value cell. */}
