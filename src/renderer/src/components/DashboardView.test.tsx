@@ -994,12 +994,18 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
       ).toBeTruthy()
     )
     expect(screen.queryByRole('dialog', { name: 'SunDown' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    // The asynchronous room response commits the dialog before its passive
+    // focus effect. Wait for focus itself, not only the dialog's presence.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     exploreCard.focus()
     fireEvent.click(exploreCard, { detail: 0 })
-    await screen.findByRole('dialog', { name: /Visible public rooms for Preview world/ })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    )
 
     hotCard.focus()
     fireEvent.keyDown(hotCard, { key: 'Enter' })
@@ -1014,7 +1020,9 @@ describe('HotInstanceCard keyboard (VRX-250 review)', () => {
 
     exploreCard.focus()
     fireEvent.click(exploreCard, { detail: 0 })
-    await screen.findByRole('dialog', { name: /Visible public rooms for Preview world/ })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(document.activeElement).toBe(exploreCard)
   })
