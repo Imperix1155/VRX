@@ -3,7 +3,7 @@
  * Sidebar nav indicator + update button tests (VRX-172 / VRX-113).
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
@@ -47,6 +47,24 @@ afterEach(() => {
   updaterState.check.mockReset()
   updaterState.download.mockReset()
   updaterState.install.mockReset()
+})
+
+describe('Sidebar destinations (VRX-281)', () => {
+  it('offers only the four implemented views and activates each destination', () => {
+    render(<Sidebar />)
+    const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
+    const tabs = ['dashboard', 'friends', 'explore', 'settings'] as const
+    const buttons = within(nav).getAllByRole('button')
+    expect(buttons.map((button) => button.textContent)).toEqual(
+      tabs.map((tab) => i18n.t(`shell.nav.${tab}`))
+    )
+    for (const tab of tabs) {
+      const button = within(nav).getByRole('button', { name: i18n.t(`shell.nav.${tab}`) })
+      fireEvent.click(button)
+      expect(useUiStore.getState().activeTab).toBe(tab)
+      expect(within(nav).getByRole('button', { current: 'page' })).toBe(button)
+    }
+  })
 })
 
 describe('Sidebar active indicator (VRX-172)', () => {

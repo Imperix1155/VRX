@@ -21,6 +21,9 @@ confirmation and permission settings. The
 and [production work receipt](docs/superpowers/plans/2026-09-13-explore-production-block.md)
 separate implemented behavior from synthetic, runtime and live-account evidence.
 
+Navigation contains Dashboard, Friends, Explore, and Settings. Activity and
+Groups are deferred concepts and do not appear as unfinished tabs.
+
 ## Stack
 
 Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite

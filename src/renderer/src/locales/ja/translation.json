@@ -106,10 +106,8 @@
     "nav": {
       "aria": "メインナビゲーション",
       "dashboard": "ダッシュボード",
-      "activity": "アクティビティ",
       "friends": "フレンド",
       "explore": "探索",
-      "groups": "グループ",
       "settings": "設定"
     },
     "seg": {
@@ -125,8 +123,7 @@
       "reconnecting": "再接続中",
       "down": "切断",
       "signedOut": "サインアウト"
-    },
-    "comingSoon": "近日公開"
+    }
   },
   "settings": {
     "appearance": {

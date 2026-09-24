@@ -107,10 +107,8 @@
     "nav": {
       "aria": "Main navigation",
       "dashboard": "Dashboard",
-      "activity": "Activity",
       "friends": "Friends",
       "explore": "Explore",
-      "groups": "Groups",
       "settings": "Settings"
     },
     "seg": {
@@ -127,8 +125,7 @@
       "reconnecting": "Reconnecting",
       "down": "Down",
       "signedOut": "Signed out"
-    },
-    "comingSoon": "Coming soon"
+    }
   },
   "settings": {
     "appearance": {
