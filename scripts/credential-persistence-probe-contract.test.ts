@@ -87,6 +87,17 @@ describe('Linux credential persistence probe contract', () => {
     expect(command).toContain('[ ! -f "$1/.vrx-credential-persistence-probe" ]')
   })
 
+  it('exercises the no-wallet fallback across separate Electron processes in CI', () => {
+    const command = packageJson.scripts['test:credential-persistence-local']
+    if (!command) throw new Error('missing local credential probe')
+    expect(command.match(/VRX_CREDENTIAL_PROBE_STORAGE=local/g)).toHaveLength(2)
+    expect(command.match(/--password-store=basic/g)).toHaveLength(2)
+    expect(command).not.toContain('--no-sandbox')
+    expect(ciWorkflow).toContain('npm --silent run test:credential-persistence-local')
+    expect(probeSource).toContain("'ASSERT_LOCAL_BACKEND'")
+    expect(probeSource).toContain("'ASSERT_LOCAL_RECORD'")
+  })
+
   it('attests the explicitly selected GNOME libsecret backend', () => {
     expect(probeSource).toContain("const MARKER_NAME = '.vrx-credential-persistence-probe'")
     expect(probeSource).toMatch(/safeStorage\.getSelectedStorageBackend\(\) === 'gnome_libsecret'/)
@@ -145,7 +156,7 @@ describe('Linux credential persistence probe contract', () => {
       'sudo rm -f -- "$profile_path" >/dev/null 2>&1 || cleanup_status=1'
     )
     expect(credentialProbeStep).toContain(
-      'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1'
+      'rm -rf -- "$runtime_dir" "$user_data_dir" "$local_user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1'
     )
     expect(credentialProbeStep).toContain('return "$cleanup_status"')
     for (const label of [
@@ -211,9 +222,11 @@ describe('Linux credential persistence probe contract', () => {
     expect(credentialProbeStep).not.toContain('chmod 4755')
     expect(credentialProbeStep).not.toContain('chrome-sandbox')
     expect(credentialProbeStep).toContain(
-      'rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file"'
+      'rm -rf -- "$runtime_dir" "$user_data_dir" "$local_user_data_dir" "$keyring_data_dir" "$diagnostic_file"'
     )
-    expect(credentialProbeStep).toContain('"$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?')
+    expect(credentialProbeStep).toContain(
+      '"$diagnostic_file" "$local_user_data_dir" >/dev/null 2>&1 || probe_exit=$?'
+    )
     expect(credentialProbeStep).toContain('bash -euo pipefail -c')
     expect(credentialProbeStep).toContain('2>\\"\\$2\\"')
     expect(credentialProbeStep).toContain('bash "$1" "$probe_stage_file"')

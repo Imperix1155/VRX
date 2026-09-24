@@ -96,16 +96,34 @@ async function run(): Promise<void> {
   const { CREDENTIAL_KEYS, clearCredential, loadCredential, saveCredential } =
     await import('../src/main/services/credentials')
 
-  assertProbe(safeStorage.isEncryptionAvailable(), 'ASSERT_ENCRYPTION_AVAILABLE')
-  assertProbe(
-    safeStorage.getSelectedStorageBackend() === 'gnome_libsecret',
-    'ASSERT_SECURE_BACKEND'
-  )
+  const local = process.env.VRX_CREDENTIAL_PROBE_STORAGE === 'local'
+  if (local) {
+    assertProbe(safeStorage.getSelectedStorageBackend() === 'basic_text', 'ASSERT_LOCAL_BACKEND')
+  } else {
+    assertProbe(safeStorage.isEncryptionAvailable(), 'ASSERT_ENCRYPTION_AVAILABLE')
+    assertProbe(
+      safeStorage.getSelectedStorageBackend() === 'gnome_libsecret',
+      'ASSERT_SECURE_BACKEND'
+    )
+  }
 
   if (mode === 'write') {
     try {
       saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, FIXTURE)
-    } catch {
+      saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, FIXTURE)
+      const stored = JSON.parse(
+        readFileSync(join(userDataRoot, 'credentials.json'), 'utf8')
+      ) as Record<string, unknown>
+      for (const key of Object.values(CREDENTIAL_KEYS)) {
+        const value = stored[key]
+        assertProbe(typeof value === 'string', 'ASSERT_CREDENTIAL_SAVE')
+        assertProbe(
+          local ? value.startsWith('!vrx-local-v1!') : !value.startsWith('!'),
+          local ? 'ASSERT_LOCAL_RECORD' : 'ASSERT_SECURE_RECORD'
+        )
+      }
+    } catch (error) {
+      if (error instanceof ProbeAssertionError) throw error
       throw new ProbeAssertionError('ASSERT_CREDENTIAL_SAVE')
     }
 
@@ -120,7 +138,7 @@ async function run(): Promise<void> {
 
   try {
     assertProbe(
-      loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY) === FIXTURE,
+      Object.values(CREDENTIAL_KEYS).every((key) => loadCredential(key) === FIXTURE),
       'ASSERT_CREDENTIAL_READ'
     )
   } catch (error) {
@@ -129,9 +147,9 @@ async function run(): Promise<void> {
   }
 
   try {
-    clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
+    for (const key of Object.values(CREDENTIAL_KEYS)) clearCredential(key)
     assertProbe(
-      loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY) === undefined,
+      Object.values(CREDENTIAL_KEYS).every((key) => loadCredential(key) === undefined),
       'ASSERT_CREDENTIAL_CLEAR'
     )
   } catch (error) {
