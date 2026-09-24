@@ -199,13 +199,15 @@ describe('TopBar connection health (VRX-223)', () => {
   })
 })
 
-it('opens the Dashboard category from the Dashboard shortcut', () => {
-  stubFriends([], [])
-  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
-  render(<TopBar />)
-  fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.dashboard.shortcut') }))
-  expect(useUiStore.getState()).toMatchObject({
-    activeTab: 'settings',
-    settingsCategory: 'dashboard'
-  })
-})
+it.each(['dashboard', 'friends', 'explore'] as const)(
+  'keeps the platform dock directly beside status on %s',
+  (activeTab) => {
+    stubFriends([], [])
+    useUiStore.setState({ activeTab })
+    render(<TopBar />)
+    expect(screen.queryByRole('button', { name: i18n.t('settings.dashboard.shortcut') })).toBeNull()
+    expect(screen.getByTestId('topbar-contextual-dock').nextElementSibling).toBe(
+      screen.getByRole('status')
+    )
+  }
+)
