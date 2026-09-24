@@ -311,6 +311,8 @@ export default function DashboardView(): React.JSX.Element {
   const cvrQuery = useFriends('chilloutvr')
   // Hot-grid threshold (VRX-78): live from the store — changes apply
   // immediately and persist via useSettingsPersistence (VRX-184).
+  const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
+  const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Hot-instance sheet selection (VRX-250): store the composite key, derive the
@@ -348,7 +350,7 @@ export default function DashboardView(): React.JSX.Element {
   // Compute hot instances BEFORE any early return so the self-close effect can
   // run on every render without breaking hook order.
   const friends = scoped.flatMap((q) => q.data ?? [])
-  const hotInstances = getHotInstances(friends, hotThreshold)
+  const hotInstances = hotEnabled ? getHotInstances(friends, hotThreshold) : []
   const stats = getDashboardStats(friends, hotInstances.length)
 
   // Derive the live selected instance from the current hot list so the sheet
@@ -392,7 +394,9 @@ export default function DashboardView(): React.JSX.Element {
       return (
         <>
           <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
-          <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
+          {popularNow && (
+            <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
+          )}
         </>
       )
     }
@@ -412,7 +416,9 @@ export default function DashboardView(): React.JSX.Element {
             {t('dashboard.retry')}
           </button>
         </div>
-        <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
+        {popularNow && (
+          <ExploreDashboardPreviewRoute onSheetOpen={() => setSelectedGroupKey(null)} />
+        )}
       </>
     )
   }
@@ -423,54 +429,60 @@ export default function DashboardView(): React.JSX.Element {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: `repeat(${hotEnabled ? 3 : 2}, minmax(0, 1fr))`,
           gap: '14px',
           marginBottom: '26px'
         }}
       >
         <StatCard value={stats.onlineCount} labelKey="dashboard.statOnlineLabel" tint="active" />
         <StatCard value={stats.inGameCount} labelKey="dashboard.statInGameLabel" tint="ingame" />
-        <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
+        {hotEnabled && (
+          <StatCard value={stats.hotCount} labelKey="dashboard.statHotLabel" tint="bridge" />
+        )}
       </div>
 
-      <ExploreDashboardPreviewRoute
-        onSheetOpen={() => setSelectedGroupKey(null)}
-        dismissSignal={exploreDismissSignal}
-      />
+      {popularNow && (
+        <ExploreDashboardPreviewRoute
+          onSheetOpen={() => setSelectedGroupKey(null)}
+          dismissSignal={exploreDismissSignal}
+        />
+      )}
 
       {/* Hot instances section — a labelled landmark (audit W5). */}
-      <section aria-labelledby="dashboard-hot-heading">
-        {/* Header row: heading + the quick-access threshold stepper (VRX-78).
+      {hotEnabled && (
+        <section aria-labelledby="dashboard-hot-heading">
+          {/* Header row: heading + the quick-access threshold stepper (VRX-78).
             The issue AC said "Friends panel header", but the control belongs
             next to the grid it changes — deviation flagged in the PR. */}
-        <div className="flex items-center justify-between gap-[var(--space-4)]">
-          <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
-          <NumberStepper
-            ref={fallbackFocusRef}
-            value={hotThreshold}
-            min={HOT_INSTANCE_THRESHOLD_MIN}
-            max={HOT_INSTANCE_THRESHOLD_MAX}
-            onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
-            ariaLabel={t('dashboard.hotThresholdAria')}
-          />
-        </div>
-
-        {hotInstances.length === 0 ? (
-          <DashboardEmpty threshold={hotThreshold} />
-        ) : (
-          // `.hotwrap` = the container-query context (grid-only, so its `contain:
-          // layout` never touches the heading/stepper); `.hot-grid` = max 2 columns
-          // that fill the row → 1 column on a narrow pane, a lone card full-width.
-          // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
-          <div className="hotwrap">
-            <div className="hot-grid">
-              {hotInstances.map((inst) => (
-                <HotInstanceCard key={inst.groupKey} instance={inst} onOpen={openSheet} />
-              ))}
-            </div>
+          <div className="flex items-center justify-between gap-[var(--space-4)]">
+            <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
+            <NumberStepper
+              ref={fallbackFocusRef}
+              value={hotThreshold}
+              min={HOT_INSTANCE_THRESHOLD_MIN}
+              max={HOT_INSTANCE_THRESHOLD_MAX}
+              onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+              ariaLabel={t('dashboard.hotThresholdAria')}
+            />
           </div>
-        )}
-      </section>
+
+          {hotInstances.length === 0 ? (
+            <DashboardEmpty threshold={hotThreshold} />
+          ) : (
+            // `.hotwrap` = the container-query context (grid-only, so its `contain:
+            // layout` never touches the heading/stepper); `.hot-grid` = max 2 columns
+            // that fill the row → 1 column on a narrow pane, a lone card full-width.
+            // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
+            <div className="hotwrap">
+              <div className="hot-grid">
+                {hotInstances.map((inst) => (
+                  <HotInstanceCard key={inst.groupKey} instance={inst} onOpen={openSheet} />
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
     </div>

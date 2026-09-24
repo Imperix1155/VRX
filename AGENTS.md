@@ -69,8 +69,11 @@ For every BrowserWindow or IPC change:
 - Keep `contextIsolation: true`, `sandbox: true`, and
   `nodeIntegration: false`.
 - Guard every IPC handler with `isTrustedIpcSender`.
-- Store credentials with `safeStorage`; never expose raw tokens to the
-  renderer.
+- Prefer OS-backed `safeStorage` for credentials. When OS encryption is
+  unavailable or fails, VRX-282 permits automatic authenticated local encryption
+  with a random installation key in private app files. This owner-approved
+  fallback is weaker: access to both key and ciphertext permits session recovery.
+  Never use Electron `basic_text`, hardcoded keys, or expose tokens to the renderer.
 - Apply a URL allowlist before `shell.openExternal`.
 - Do not permit `unsafe-inline` in CSP.
 - Never log credentials, tokens, or PII; use `electron-log` with redaction.
@@ -158,7 +161,10 @@ Secret Service session. Both test-only processes explicitly select
 `--password-store=gnome-libsecret`, then attest Electron reports
 `gnome_libsecret`. The first securely writes a synthetic fixture, the second
 reads and clears it, and the probe rejects any fixture plaintext found in the
-disposable `userData` tree.
+disposable `userData` tree. A second pair explicitly selects `basic_text` to
+prove production local fallback, attests versioned local records for both
+platforms, and checks restart, plaintext absence and logout. The production
+credential service never encrypts using `basic_text`.
 Its bundle, source, config, and contract test are test-only and must remain
 explicitly excluded from Electron Builder packages; the probe contract test
 pins that boundary.

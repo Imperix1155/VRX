@@ -49,12 +49,15 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 9 as const
+export const SETTINGS_VERSION = 10 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
   platformFilter: z.enum(['all', 'vrchat', 'chilloutvr']).catch('all'),
   exploreWorldsShown: z.union([z.literal(2), z.literal(4), z.literal(6)]).catch(4),
+  /** Dashboard features default on; child preferences survive disabling. */
+  dashboardPopularNow: z.boolean().catch(true),
+  hotInstancesEnabled: z.boolean().catch(true),
   /** Schema version of the persisted object; drives {@link runMigrations}. */
   version: z.number().int().nonnegative().catch(SETTINGS_VERSION),
   /** UI theme; `system` follows the OS. Values sourced from `@shared/types` THEMES. */
@@ -117,7 +120,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v8 → v9 are deliberately
+ * v1 → v2 through v9 → v10 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -129,7 +132,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   5: (prev) => ({ ...prev }),
   6: (prev) => ({ ...prev }),
   7: (prev) => ({ ...prev }),
-  8: (prev) => ({ ...prev })
+  8: (prev) => ({ ...prev }),
+  9: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

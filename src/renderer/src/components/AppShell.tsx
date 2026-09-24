@@ -11,22 +11,6 @@ import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
-/** Glass "coming soon" stub for views not yet implemented. */
-function ComingSoonStub({ labelKey }: { labelKey: string }): React.JSX.Element {
-  const { t } = useTranslation()
-  return (
-    <div
-      className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)]"
-      style={{ minHeight: '240px' }}
-    >
-      <div className="relative">
-        <p className="text-[var(--text-dim)] text-sm">{t('shell.comingSoon')}</p>
-        <p className="text-[var(--text-faint)] text-xs mt-[var(--space-1)]">{t(labelKey)}</p>
-      </div>
-    </div>
-  )
-}
-
 function MainContent(): React.JSX.Element {
   const activeTab = useUiStore((s) => s.activeTab)
 
@@ -43,16 +27,12 @@ function MainContent(): React.JSX.Element {
           <DashboardView />
         </ErrorBoundary>
       )
-    case 'activity':
-      return <ComingSoonStub labelKey="shell.nav.activity" />
     case 'explore':
       return (
         <ErrorBoundary variant="panel">
           <ExploreRoute />
         </ErrorBoundary>
       )
-    case 'groups':
-      return <ComingSoonStub labelKey="shell.nav.groups" />
     case 'settings':
       return (
         <ErrorBoundary variant="panel">
@@ -92,7 +72,13 @@ export default function AppShell(): React.JSX.Element {
         // tabIndex -1: programmatically focusable so the join dialog's
         // focus-restore has a stable container fallback (VRX-210).
         tabIndex={-1}
-        style={{ overflowY: 'auto', padding: 'var(--space-2) var(--space-2) var(--space-10)' }}
+        style={{
+          overflowY: 'auto',
+          padding:
+            activeTab === 'settings'
+              ? 'var(--space-2)'
+              : 'var(--space-2) var(--space-2) var(--space-10)'
+        }}
         className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />

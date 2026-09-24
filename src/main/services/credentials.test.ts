@@ -69,12 +69,30 @@ const mocks = vi.hoisted(() => {
     deleteErrors,
     constructorErrors,
     StoreMock,
+    localEncrypt: vi.fn(
+      (slot: string, value: string) =>
+        '!vrx-local-v1!' + Buffer.from(JSON.stringify([slot, value])).toString('base64')
+    ),
+    localDecrypt: vi.fn(
+      (_slot: string, value: string) =>
+        (
+          JSON.parse(
+            Buffer.from(value.slice('!vrx-local-v1!'.length), 'base64').toString()
+          ) as string[]
+        )[1]
+    ),
     isEncryptionAvailable: vi.fn(() => true),
     getSelectedStorageBackend: vi.fn(() => 'gnome_libsecret'),
     encryptString: vi.fn((value: string) => Buffer.from(`encrypted:${value}`)),
     decryptString: vi.fn((value: Buffer) => value.toString().replace('encrypted:', ''))
   }
 })
+
+vi.mock('./localCredentialEncryption', () => ({
+  LOCAL_CREDENTIAL_PREFIX: '!vrx-local-v1!',
+  encryptLocalCredential: mocks.localEncrypt,
+  decryptLocalCredential: mocks.localDecrypt
+}))
 
 vi.mock('electron-store', () => ({ default: mocks.StoreMock }))
 vi.mock('electron', () => ({
@@ -111,6 +129,8 @@ describe('credential storage', () => {
     mocks.getSelectedStorageBackend.mockClear()
     mocks.encryptString.mockClear()
     mocks.decryptString.mockClear()
+    mocks.localEncrypt.mockClear()
+    mocks.localDecrypt.mockClear()
   })
 
   afterAll(() => {
@@ -232,7 +252,7 @@ describe('credential storage', () => {
     expect(mocks.decryptString).not.toHaveBeenCalled()
   })
 
-  it('cannot restore an old credential when replacement encryption and cleanup deletion fail', () => {
+  it('cannot restore an old credential when both encryption paths and cleanup deletion fail', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
     recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
@@ -240,8 +260,11 @@ describe('credential storage', () => {
       throw new Error('encryption failed')
     })
 
+    mocks.localEncrypt.mockImplementationOnce(() => {
+      throw new Error('local encryption failed')
+    })
     expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')).toThrow(
-      'encryption failed'
+      'local encryption failed'
     )
 
     mocks.deleteErrors.set('credentials', new Error('credential deletion failed'))
@@ -296,16 +319,21 @@ describe('credential storage', () => {
     expect(mocks.decryptString).not.toHaveBeenCalled()
   })
 
-  it('fails without persisting plaintext when encryption is unavailable', () => {
-    mocks.isEncryptionAvailable.mockReturnValue(false)
-
-    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')).toThrow(
-      CredentialEncryptionUnavailableError
-    )
-    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
-    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
-    expect(mocks.encryptString).not.toHaveBeenCalled()
-  })
+  it.each(['linux', 'darwin', 'win32'])(
+    'uses local persistence when OS encryption is unavailable on %s',
+    (platform) => {
+      Object.defineProperty(process, 'platform', { value: platform })
+      mocks.isEncryptionAvailable.mockReturnValue(false)
+      saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
+      expect(mocks.localEncrypt).toHaveBeenCalledWith(
+        CREDENTIAL_KEYS.VRCHAT_PRIMARY,
+        'raw-auth-token'
+      )
+      expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
+      expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBe('raw-auth-token')
+      expect(mocks.encryptString).not.toHaveBeenCalled()
+    }
+  )
 
   it('fails explicitly when decryption is unavailable', () => {
     mocks.stores.set('credentials', {
@@ -328,16 +356,13 @@ describe('credential storage', () => {
     expect(mocks.stores.get('credentials')).toEqual({})
   })
 
-  it('rejects the Linux basic_text backend even when encryption reports available', () => {
+  it('uses local encryption instead of Linux basic_text even when available reports true', () => {
     Object.defineProperty(process, 'platform', { value: 'linux' })
     mocks.getSelectedStorageBackend.mockReturnValue('basic_text')
-
-    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')).toThrow(
-      CredentialEncryptionUnavailableError
-    )
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
     expect(mocks.encryptString).not.toHaveBeenCalled()
-    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
-    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.localEncrypt).toHaveBeenCalledOnce()
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBe('raw-auth-token')
   })
 
   it('allows supported Linux storage backends', () => {
@@ -355,16 +380,76 @@ describe('credential storage', () => {
     expect(mocks.getSelectedStorageBackend).not.toHaveBeenCalled()
   })
 
-  it('leaves a non-restorable slot when encryption throws', () => {
+  it('falls back when the native encrypt call throws after reporting available', () => {
     mocks.encryptString.mockImplementationOnce(() => {
-      throw new Error('encryption failed')
+      throw new Error('native failure')
     })
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
+    expect(mocks.localEncrypt).toHaveBeenCalledOnce()
+    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBe('raw-auth-token')
+  })
 
-    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')).toThrow(
-      'encryption failed'
+  it.each(Object.values(CREDENTIAL_KEYS))(
+    'upgrades a local session on the next validated save for %s',
+    (key) => {
+      mocks.isEncryptionAvailable.mockReturnValue(false)
+      saveCredential(key, 'synthetic-session')
+      recordCredentialOwner(key, 'usr_account_a')
+      const local = mocks.stores.get('credentials')?.[key]
+      mocks.isEncryptionAvailable.mockReturnValue(true)
+      expect(loadCredential(key)).toBe('synthetic-session')
+      expect(mocks.stores.get('credentials')?.[key]).toBe(local)
+      saveCredential(key, 'synthetic-session')
+      recordCredentialOwner(key, 'usr_account_a')
+      expect(mocks.stores.get('credentials')?.[key]).toBe(
+        Buffer.from('encrypted:synthetic-session').toString('base64')
+      )
+      expect(loadCredential(key)).toBe('synthetic-session')
+      clearCredential(key)
+      expect(loadCredential(key)).toBeUndefined()
+      expect(mocks.stores.get('credential-owners')).toEqual({})
+    }
+  )
+
+  it('keeps local replacement and logout fenced when physical deletion fails', () => {
+    mocks.isEncryptionAvailable.mockReturnValue(false)
+    const key = CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY
+    saveCredential(key, 'synthetic-account-a-session')
+    recordCredentialOwner(key, 'account_a')
+    saveCredential(key, 'synthetic-account-b-session')
+    recordCredentialOwner(key, 'account_b')
+    expect(loadCredential(key)).toBe('synthetic-account-b-session')
+    expect(mocks.stores.get('credential-owners')?.[key]).toMatchObject({
+      platformAccountId: 'account_b'
+    })
+    mocks.deleteErrors.set('credentials', new Error('delete failed'))
+    mocks.deleteErrors.set('credential-owners', new Error('delete failed'))
+    clearCredential(key)
+    expect(loadCredential(key)).toBeUndefined()
+    mocks.localDecrypt.mockClear()
+    expect(loadCredential(key)).toBeUndefined()
+    expect(mocks.localDecrypt).not.toHaveBeenCalled()
+  })
+
+  it('does not select local fallback when a ciphertext write fails', () => {
+    mocks.delayedSetErrors.set('credentials', {
+      successfulWritesRemaining: 1,
+      error: new Error('disk full')
+    })
+    expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'synthetic-session')).toThrow(
+      'disk full'
     )
-    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('raw-auth-token')
-    expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
+    expect(mocks.localEncrypt).not.toHaveBeenCalled()
+  })
+
+  it('does not reinterpret an unreadable OS record as a local record', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'synthetic-session')
+    mocks.decryptString.mockImplementationOnce(() => {
+      throw new Error('locked')
+    })
+    expect(() => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toThrow('locked')
+    expect(mocks.localEncrypt).not.toHaveBeenCalled()
+    expect(mocks.localDecrypt).not.toHaveBeenCalled()
   })
 
   it.each(['vrchat.primary', 'unsupported'])('rejects unsupported key %s', (key) => {
