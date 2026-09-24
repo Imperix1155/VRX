@@ -266,18 +266,6 @@ export default function TopBar(): React.JSX.Element {
             <PlatformFilter platform={platform} onChange={setPlatform} />
           )}
         </div>
-        {activeTab === 'dashboard' && (
-          <button
-            type="button"
-            className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)]"
-            onClick={() => {
-              setSettingsCategory('dashboard')
-              useUiStore.getState().setActiveTab('settings')
-            }}
-          >
-            {t('settings.dashboard.shortcut')}
-          </button>
-        )}
         {/* Reserve a three-digit cell so the contextual dock stays fixed as the
             live count changes. Tabular figures and right alignment mirror the
             NumberStepper's stable value cell. */}

@@ -18,6 +18,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
 import { useFriendsStore } from '../stores/friends'
+import { useUiStore } from '../stores/ui'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { queryClient } from '../queries/queryClient'
 import { exploreQueryKey } from '../queries/explore'
@@ -131,6 +132,7 @@ function PendingProbe(): React.JSX.Element {
 
 afterEach(() => {
   cleanup()
+  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useFriendsMock.mockReset()
   avatarData.current = null
   useFriendsStore.setState({ platformFilter: 'all' }) // reset the global filter
@@ -1330,5 +1332,65 @@ describe('Dashboard feature visibility', () => {
     expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
     expect(screen.getByRole('spinbutton')).toBeTruthy()
     expect(screen.queryByText('Popular now')).toBeNull()
+  })
+})
+
+describe('Dashboard secondary controls (VRX-285)', () => {
+  it.each(['ready', 'loading', 'error', 'features-off'] as const)(
+    'keeps Settings below the content and opens its Dashboard category in %s state',
+    (state) => {
+      const data = state === 'loading' || state === 'error' ? undefined : []
+      stubQueries(
+        { data, isPending: state === 'loading' },
+        { data, isPending: state === 'loading' }
+      )
+      if (state === 'features-off') {
+        useSettingsStore.setState({
+          settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false, hotInstancesEnabled: false }
+        })
+      }
+      useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+      const { container } = render(<DashboardView />)
+      const shortcut = screen.getByRole('button', { name: msg('settings.dashboard.shortcut') })
+      expect(container.lastElementChild?.contains(shortcut)).toBe(true)
+      fireEvent.click(shortcut)
+      expect(useUiStore.getState()).toMatchObject({
+        activeTab: 'settings',
+        settingsCategory: 'dashboard'
+      })
+    }
+  )
+
+  it('reveals Hot Instances help only on request without changing the threshold or cards', () => {
+    stubQueries(
+      { data: [publicWorld('one', 'One'), publicWorld('two', 'Two')], isPending: false },
+      { data: [], isPending: false }
+    )
+    render(<DashboardView />)
+    const help = screen.getByRole('button', { name: msg('dashboard.hotHelp.label') })
+    const panel = document.getElementById(help.getAttribute('aria-controls') ?? '')
+    expect(panel).not.toBeNull()
+    expect(panel?.hidden).toBe(true)
+    expect(help.getAttribute('aria-expanded')).toBe('false')
+    expect(help.textContent).toBe('?')
+    expect(screen.getAllByRole('button', { name: /hot instance details/ })).toHaveLength(1)
+    fireEvent.click(help)
+    expect(panel?.hidden).toBe(false)
+    expect(panel?.textContent).toContain(msg('dashboard.hotHelp.description'))
+    expect(panel?.textContent).toContain(msg('dashboard.hotHelp.threshold', { min: 1, max: 10 }))
+    expect(help.getAttribute('aria-expanded')).toBe('true')
+    expect(useSettingsStore.getState().settings.hotInstanceThreshold).toBe(
+      DEFAULT_SETTINGS.hotInstanceThreshold
+    )
+    expect(screen.getAllByRole('button', { name: /hot instance details/ })).toHaveLength(1)
+    fireEvent.click(help)
+    expect(panel?.hidden).toBe(true)
+  })
+
+  it('removes category help along with Hot Instances when the feature is off', () => {
+    stubQueries({ data: [], isPending: false }, { data: [], isPending: false })
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstancesEnabled: false } })
+    render(<DashboardView />)
+    expect(screen.queryByRole('button', { name: msg('dashboard.hotHelp.label') })).toBeNull()
   })
 })

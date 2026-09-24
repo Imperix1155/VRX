@@ -266,7 +266,7 @@
     },
     "dashboard": {
       "heading": "Dashboard",
-      "shortcut": "Dashboard settings",
+      "shortcut": "Settings",
       "popular": {
         "label": "Popular now",
         "description": "Show the Dashboard preview. Explore stays available."
@@ -442,7 +442,12 @@
     "joinInstance": "Join",
     "emptyHeading": "No hot instances currently",
     "emptyHint": "When {{threshold}} or more friends gather in the same instance, it'll show up here.",
-    "hotThresholdAria": "Hot instance threshold"
+    "hotThresholdAria": "Hot instance threshold",
+    "hotHelp": {
+      "label": "About Hot Instances",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. Up to six instances are shown, with the most friends first.",
+      "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you enable them in Settings."
+    }
   },
   "login": {
     "subtitle": "Social VR Companion",
