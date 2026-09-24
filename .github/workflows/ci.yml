@@ -52,6 +52,7 @@ jobs:
         run: |
           runtime_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-runtime.XXXXXX")
           user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
+          local_user_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-credential-probe.XXXXXX")
           keyring_data_dir=$(mktemp -d "${RUNNER_TEMP}/vrx-keyring-data.XXXXXX")
           diagnostic_file=$(mktemp "${RUNNER_TEMP}/vrx-credential-probe-diagnostic.XXXXXX")
           chmod 700 "$runtime_dir" "$keyring_data_dir"
@@ -65,7 +66,7 @@ jobs:
               sudo apparmor_parser -R "$profile_path" >/dev/null 2>&1 || cleanup_status=1
               sudo rm -f -- "$profile_path" >/dev/null 2>&1 || cleanup_status=1
             fi
-            rm -rf -- "$runtime_dir" "$user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1
+            rm -rf -- "$runtime_dir" "$user_data_dir" "$local_user_data_dir" "$keyring_data_dir" "$diagnostic_file" >/dev/null 2>&1 || cleanup_status=1
             return "$cleanup_status"
           }
           trap 'cleanup || true' EXIT
@@ -144,7 +145,14 @@ jobs:
                 "npm --silent run test:credential-persistence-linux -- \"\$1\" >/dev/null 2>\"\$2\"" \
                 bash "$1" "$probe_stage_file" \
               >/dev/null 2>&1
-          ' bash "$user_data_dir" "$diagnostic_file" >/dev/null 2>&1 || probe_exit=$?
+            # Exercise the real production fallback, not a mocked wallet, in two
+            # further processes. The probe attests basic_text but never uses it.
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+              bash -euo pipefail -c \
+                "npm --silent run test:credential-persistence-local -- \"\$1\" >/dev/null 2>\"\$2\"" \
+                bash "$3" "$probe_stage_file" \
+              >/dev/null 2>&1
+          ' bash "$user_data_dir" "$diagnostic_file" "$local_user_data_dir" >/dev/null 2>&1 || probe_exit=$?
 
           if [ "$probe_exit" -ne 0 ]; then
             failure_label=ASSERT_LINUX_CREDENTIAL_PROBE
@@ -165,6 +173,9 @@ jobs:
                   ASSERT_PROBE_MARKER \
                   ASSERT_ENCRYPTION_AVAILABLE \
                   ASSERT_SECURE_BACKEND \
+                  ASSERT_LOCAL_BACKEND \
+                  ASSERT_LOCAL_RECORD \
+                  ASSERT_SECURE_RECORD \
                   ASSERT_CREDENTIAL_SAVE \
                   ASSERT_PLAINTEXT_ABSENT \
                   ASSERT_CREDENTIAL_READ \
