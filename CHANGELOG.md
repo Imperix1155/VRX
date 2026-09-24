@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dashboard settings with independent Popular now and Hot Instances controls and a Dashboard shortcut. Hot Instances off hides its Dashboard content and suppresses its alerts while retaining the saved notification preference and threshold.
+
+### Changed
+
+- Settings uses compact individual cards and labeled On/Off glass controls. Hot Instances and Joining expand their dependent settings with smooth height changes, keyboard-safe collapse, and reduced-motion support. Existing preferences and Explore remain available.
+
 ## [0.21.0] - 2026-09-17
 
 ### Added

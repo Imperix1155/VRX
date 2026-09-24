@@ -1,7 +1,9 @@
 {
   "appName": "VRX",
   "linking": {
-    "chooser": { "none": "現在参加できる場所はありません。" },
+    "chooser": {
+      "none": "現在参加できる場所はありません。"
+    },
     "confirm": {
       "replace": {
         "question": "この2つのアカウントは同じ人のものですか？",
@@ -257,6 +259,22 @@
       },
       "chilloutvr": {
         "label": "ChilloutVR"
+      }
+    },
+    "boolean": {
+      "on": "オン",
+      "off": "オフ"
+    },
+    "dashboard": {
+      "heading": "ダッシュボード",
+      "shortcut": "ダッシュボード設定",
+      "popular": {
+        "label": "いま人気",
+        "description": "ダッシュボードにプレビューを表示します。探索は引き続き利用できます。"
+      },
+      "hot": {
+        "label": "ホットインスタンス",
+        "description": "フレンドが集まる場所を表示し、ホットインスタンスの通知を許可します。"
       }
     }
   },

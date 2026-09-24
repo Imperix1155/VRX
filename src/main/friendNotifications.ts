@@ -1,5 +1,6 @@
 import { Notification as NativeNotification } from 'electron'
-import type { FriendAlert } from './services/friendAlerts'
+import type { Settings } from '@shared/settings'
+import type { FriendAlert, FriendAlertType } from './services/friendAlerts'
 
 const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
@@ -93,5 +94,19 @@ export function createFriendNotificationNotifier({
     } catch {
       logFailure()
     }
+  }
+}
+
+/** Read the current snapshot at dispatch; disabling a feature preserves its preference. */
+export function isFriendAlertEnabled(type: FriendAlertType, settings: Settings): boolean {
+  switch (type) {
+    case 'online':
+      return settings.notifyFriendOnline
+    case 'in-game':
+      return settings.notifyFriendInGame
+    case 'offline':
+      return settings.notifyFriendOffline
+    case 'hot-instance':
+      return settings.hotInstancesEnabled && settings.notifyHotInstance
   }
 }
