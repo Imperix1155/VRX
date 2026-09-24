@@ -92,6 +92,38 @@ const USER = {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('VrcPipeline', () => {
+  it.each(['friend-online', 'friend-active', 'friend-update', 'friend-add'])(
+    'retains the current profile icon on %s events',
+    async (eventType) => {
+      const r = rig()
+      r.pipeline.start()
+      await tick()
+      try {
+        r.sockets[0]!.fire('open')
+        r.sockets[0]!.fire(
+          'message',
+          frame(eventType, {
+            userId: 'usr_current',
+            user: {
+              id: 'usr_current',
+              displayName: 'Current profile',
+              iconUrl:
+                'https://api.vrchat.cloud/api/1/file/file_00000000-0000-0000-0000-000000000001/2/file'
+            }
+          })
+        )
+        expect(r.events.at(-1)).toMatchObject({
+          friend: {
+            avatarUrl:
+              'https://api.vrchat.cloud/api/1/image/file_00000000-0000-0000-0000-000000000001/2/256'
+          }
+        })
+      } finally {
+        r.pipeline.stop()
+      }
+    }
+  )
+
   it('emits reconnecting when a session-backed dial starts, then live on open', async () => {
     const r = rig()
     r.pipeline.start()
