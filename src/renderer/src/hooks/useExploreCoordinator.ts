@@ -11,6 +11,7 @@ import {
 import { useAuthStatus } from '../queries/auth'
 import { queryClient } from '../queries/queryClient'
 import { useFriendsStore } from '../stores/friends'
+import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
@@ -178,7 +179,8 @@ export function useExploreCoordinator(): void {
     [vrc, cvr, vrcQuery.dataUpdatedAt, cvrQuery.dataUpdatedAt, retainedAccounts]
   )
   const active = useMemo(() => selectedPlatforms(filter, statuses), [filter, statuses])
-  const relevant = (activeTab === 'dashboard' || activeTab === 'explore') && visible
+  const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
+  const relevant = ((activeTab === 'dashboard' && popularNow) || activeTab === 'explore') && visible
 
   useEffect(() => {
     setExploreImagePlatforms([])

@@ -32,7 +32,8 @@
     "guide:dev": "vite --config docs/guide/vite.config.ts",
     "guide:typecheck": "tsc -p docs/guide/tsconfig.json --noEmit",
     "guide:build": "npm run guide:typecheck && vite build --config docs/guide/vite.config.ts",
-    "guide:preview": "vite preview --config docs/guide/vite.config.ts"
+    "guide:preview": "vite preview --config docs/guide/vite.config.ts",
+    "test:credential-persistence-local": "sh -c 'if [ \"$#\" -ne 1 ]; then printf \"%s\\n\" ASSERT_ARGUMENTS >&2; exit 1; fi; if ! npm --silent run build:credential-persistence-probe >/dev/null 2>&1; then printf \"%s\\n\" ASSERT_PROBE_BUILD >&2; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js write \"$1\" >/dev/null; then if [ ! -f \"$1/.vrx-credential-persistence-probe\" ]; then printf \"%s\\n\" ASSERT_PROBE_EXECUTION >&2; else printf \"%s\\n\" ASSERT_PROBE_WRITE >&2; fi; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js read \"$1\" >/dev/null; then printf \"%s\\n\" ASSERT_PROBE_READ >&2; exit 1; fi' --"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

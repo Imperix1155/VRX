@@ -2,6 +2,11 @@ import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { createHash } from 'node:crypto'
 import { isPlatformAccountId } from './accountSession'
+import {
+  LOCAL_CREDENTIAL_PREFIX,
+  encryptLocalCredential,
+  decryptLocalCredential
+} from './localCredentialEncryption'
 
 const ENCRYPTION_UNAVAILABLE_MESSAGE = 'Credential encryption is unavailable'
 const MALFORMED_CREDENTIAL_MESSAGE = 'Stored credential is malformed'
@@ -84,8 +89,15 @@ export function saveCredential(key: CredentialKey, plaintext: string): void {
   credentials.set(key, INVALIDATED_CREDENTIAL)
   const owners = getOwnerStore()
   owners.delete(key)
-  requireEncryption()
-  const encrypted = safeStorage.encryptString(plaintext).toString('base64')
+  let encrypted: string
+  try {
+    requireEncryption()
+    encrypted = safeStorage.encryptString(plaintext).toString('base64')
+  } catch {
+    // Only OS encryption failure selects the approved local fallback. Store,
+    // invalidation and owner-write failures must still fail the login.
+    encrypted = encryptLocalCredential(key, plaintext)
+  }
   credentials.set(key, encrypted)
 }
 
@@ -95,7 +107,10 @@ export function loadCredential(key: CredentialKey): string | undefined {
   if (encrypted === undefined) return undefined
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
   if (encrypted === INVALIDATED_CREDENTIAL) return undefined
+  if (encrypted.startsWith(LOCAL_CREDENTIAL_PREFIX)) return decryptLocalCredential(key, encrypted)
 
+  // Old OS-protected sessions remain OS-protected. Failure to unlock one must
+  // never create a new local key or reinterpret its ciphertext.
   requireEncryption()
   return safeStorage.decryptString(decodeCredential(encrypted))
 }

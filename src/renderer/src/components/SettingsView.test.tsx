@@ -7,7 +7,7 @@
  * VRX-37 added the Accounts category (ChilloutVrAccountCard uses `useAuthStatus`,
  * a TanStack Query hook — SettingsView now needs a QueryClientProvider ancestor).
  */
-import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, within, render, screen, cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -102,7 +102,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
 
     // The category nav renders in the TopBar (contextual slot — see
     // TopBar.test); the view reacts to the store it writes.
-    act(() => useUiStore.setState({ settingsCategory: 'behavior' }))
+    act(() => useUiStore.setState({ settingsCategory: 'dashboard' }))
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
@@ -110,6 +110,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
   it('the category list reads appearance/behavior/notifications/accounts (VRX-231)', () => {
     expect([...SETTINGS_CATEGORIES]).toEqual([
       'appearance',
+      'dashboard',
       'behavior',
       'notifications',
       'accounts'
@@ -292,7 +293,7 @@ describe('SettingsView updater failures (VRX-268)', () => {
 describe('SettingsView — Behavior section (VRX-78/231)', () => {
   it('renders the hot-threshold row with the store value', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 7 } })
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'dashboard' })
     renderSettings()
     expect(screen.getByText(msg('settings.hotThreshold.label'))).toBeTruthy()
     const spin = screen.getByRole('spinbutton', { name: msg('settings.hotThreshold.aria') })
@@ -300,7 +301,7 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
   })
 
   it('the stepper writes hotInstanceThreshold through updateSettings (marks dirty)', () => {
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'dashboard' })
     renderSettings()
     const [increase] = screen.getAllByRole('button', { name: msg('stepper.increase') })
     fireEvent.click(increase!)
@@ -311,12 +312,14 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
   it('renders joining enabled by default and persists the disabled choice (VRX-39)', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
-    const toggle = screen.getByRole('switch', {
+    const toggle = screen.getByRole('radiogroup', {
       name: msg('settings.allowJoinInstances.aria')
     })
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(toggle.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.boolean.on')
+    )
 
-    fireEvent.click(toggle)
+    fireEvent.click(toggle.querySelector('[aria-checked="false"]')!)
     expect(useSettingsStore.getState().settings.allowJoinInstances).toBe(false)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
@@ -362,34 +365,33 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
 })
 
 describe('SettingsView — Notifications section (VRX-84/85)', () => {
-  it('renders all four accessible toggles and writes changes to the settings store', () => {
+  it('renders three friend notification controls and writes changes to the settings store', () => {
     useUiStore.setState({ settingsCategory: 'notifications' })
     renderSettings()
 
-    const online = screen.getByRole('switch', {
+    const online = screen.getByRole('radiogroup', {
       name: msg('settings.notifications.online.aria')
     })
-    const inGame = screen.getByRole('switch', {
+    const inGame = screen.getByRole('radiogroup', {
       name: msg('settings.notifications.inGame.aria')
     })
-    const offline = screen.getByRole('switch', {
+    const offline = screen.getByRole('radiogroup', {
       name: msg('settings.notifications.offline.aria')
     })
-    const hotInstance = screen.getByRole('switch', {
-      name: msg('settings.notifications.hotInstance.aria')
-    })
-    // VRX-205 quiet defaults: every switch ships OFF.
-    expect(online.getAttribute('aria-checked')).toBe('false')
-    expect(inGame.getAttribute('aria-checked')).toBe('false')
-    expect(offline.getAttribute('aria-checked')).toBe('false')
-    expect(hotInstance.getAttribute('aria-checked')).toBe('false')
-
-    fireEvent.click(online)
-    fireEvent.click(offline)
-    fireEvent.click(hotInstance)
+    expect(
+      screen.queryByRole('radiogroup', { name: msg('settings.notifications.hotInstance.aria') })
+    ).toBeNull()
+    for (const group of [online, inGame, offline]) {
+      expect(
+        within(group)
+          .getByRole('radio', { name: msg('settings.boolean.off') })
+          .getAttribute('aria-checked')
+      ).toBe('true')
+    }
+    fireEvent.click(within(online).getByRole('radio', { name: msg('settings.boolean.on') }))
+    fireEvent.click(within(offline).getByRole('radio', { name: msg('settings.boolean.on') }))
     expect(useSettingsStore.getState().settings.notifyFriendOnline).toBe(true)
     expect(useSettingsStore.getState().settings.notifyFriendOffline).toBe(true)
-    expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(true)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 })
@@ -425,10 +427,12 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(screen.getByText(msg('updater.settings.label'))).toBeTruthy()
     expect(screen.getByText(msg('updater.settings.description'))).toBeTruthy()
 
-    const toggle = screen.getByRole('switch', { name: msg('updater.settings.label') })
-    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    const toggle = screen.getByRole('radiogroup', { name: msg('updater.settings.label') })
+    expect(toggle.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('settings.boolean.off')
+    )
 
-    fireEvent.click(toggle)
+    fireEvent.click(toggle.querySelector('[aria-checked="false"]')!)
     expect(useSettingsStore.getState().settings.autoUpdate).toBe(true)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
@@ -563,6 +567,62 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     fireEvent.click(button)
     expect(openUrl).toHaveBeenCalledWith({
       url: 'https://github.com/Imperix1155/VRX/releases/latest'
+    })
+  })
+})
+
+describe('Settings dependency cards', () => {
+  it('keeps Dashboard child choices while collapsed and excludes hidden controls', () => {
+    useUiStore.setState({ settingsCategory: 'dashboard' })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 7, notifyHotInstance: true }
+    })
+    renderSettings()
+    const parent = screen.getByRole('radiogroup', { name: msg('settings.dashboard.hot.label') })
+    fireEvent.click(within(parent).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(
+      screen.queryByRole('radiogroup', { name: msg('settings.notifications.hotInstance.aria') })
+    ).toBeNull()
+    expect(document.querySelector('.setting-disclosure[inert]')).toBeTruthy()
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      hotInstancesEnabled: false,
+      hotInstanceThreshold: 7,
+      notifyHotInstance: true,
+      dashboardPopularNow: true
+    })
+    fireEvent.click(within(parent).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(screen.getByRole('spinbutton').getAttribute('aria-valuenow')).toBe('7')
+    const alerts = screen.getByRole('radiogroup', {
+      name: msg('settings.notifications.hotInstance.aria')
+    })
+    expect(
+      within(alerts)
+        .getByRole('radio', { name: msg('settings.boolean.on') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
+  it('retains joining choices and returns child focus to the disabled parent', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, confirmJoin: false, joinMode: 'desktop' }
+    })
+    renderSettings()
+    const confirmation = screen.getByRole('radiogroup', { name: msg('settings.confirmJoin.aria') })
+    within(confirmation)
+      .getByRole('radio', { name: msg('settings.boolean.off') })
+      .focus()
+    act(() => useSettingsStore.getState().updateSettings({ allowJoinInstances: false }))
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.confirmJoin.aria') })).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: msg('settings.joinMode.aria') })).toBeNull()
+    const parent = screen.getByRole('radiogroup', { name: msg('settings.allowJoinInstances.aria') })
+    expect(document.activeElement).toBe(
+      within(parent).getByRole('radio', { name: msg('settings.boolean.off') })
+    )
+    fireEvent.click(within(parent).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      confirmJoin: false,
+      joinMode: 'desktop'
     })
   })
 })
