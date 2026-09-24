@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-09-23
+
 ### Added
 
 - Dashboard settings with independent Popular now and Hot Instances controls and a Dashboard shortcut. Hot Instances off hides its Dashboard content and suppresses its alerts while retaining the saved notification preference and threshold.
