@@ -105,10 +105,8 @@
     "nav": {
       "aria": "Main navigation",
       "dashboard": "Dashboard",
-      "activity": "Activity",
       "friends": "Friends",
       "explore": "Explore",
-      "groups": "Groups",
       "settings": "Settings"
     },
     "seg": {

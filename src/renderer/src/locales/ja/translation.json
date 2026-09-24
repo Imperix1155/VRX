@@ -104,10 +104,8 @@
     "nav": {
       "aria": "メインナビゲーション",
       "dashboard": "ダッシュボード",
-      "activity": "アクティビティ",
       "friends": "フレンド",
       "explore": "探索",
-      "groups": "グループ",
       "settings": "設定"
     },
     "seg": {

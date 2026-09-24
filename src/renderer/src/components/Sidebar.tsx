@@ -23,21 +23,6 @@ function IconDashboard(): React.JSX.Element {
   )
 }
 
-function IconActivity(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      className="w-[18px] h-[18px] flex-none"
-    >
-      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-    </svg>
-  )
-}
-
 function IconFriends(): React.JSX.Element {
   return (
     <svg
@@ -69,24 +54,6 @@ function IconExplore(): React.JSX.Element {
       <circle cx="12" cy="12" r="8.5" />
       <path d="M3.5 12h17" />
       <path d="M12 3.5c2.6 2.4 2.6 14.6 0 17M12 3.5c-2.6 2.4-2.6 14.6 0 17" />
-    </svg>
-  )
-}
-
-function IconGroups(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      aria-hidden="true"
-      className="w-[18px] h-[18px] flex-none"
-    >
-      <circle cx="8.5" cy="9" r="2.7" />
-      <circle cx="16" cy="9.5" r="2.2" />
-      <path d="M3.5 18c0-2.7 2.2-4.4 5-4.4 1 0 1.9.2 2.7.6" />
-      <path d="M13.5 14.4c.7-.3 1.5-.5 2.5-.5 2.5 0 4.5 1.5 4.5 3.6" />
     </svg>
   )
 }
@@ -209,10 +176,8 @@ function indicatorBackground(filter: PlatformFilter): string {
 
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
-  { id: 'activity', icon: IconActivity },
   { id: 'friends', icon: IconFriends },
   { id: 'explore', icon: IconExplore },
-  { id: 'groups', icon: IconGroups },
   { id: 'settings', icon: IconSettings }
 ]
 
