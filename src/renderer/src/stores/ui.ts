@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 
 /**
- * Top-level app surface. Full §8 nav set (VRX-168).
- * `activity`, `instances`, `groups` are stubs in v1; `friends` mounts FriendsList.
+ * Implemented top-level app views. Activity and Groups are deferred (VRX-281).
+ * Session-only state, so retired destinations need no persisted-state migration.
  */
-export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'explore' | 'groups' | 'settings'
+export type ActiveTab = 'dashboard' | 'friends' | 'explore' | 'settings'
 
 /**
  * Ephemeral UI view state (VRX-21). Holds only transient layout state — NOT
@@ -13,7 +13,13 @@ export type ActiveTab = 'dashboard' | 'activity' | 'friends' | 'explore' | 'grou
  */
 /** Settings category mini-pages (VRX-186). Extend as sections are added —
  *  the array order is the nav's display order (THEMES pattern). */
-export const SETTINGS_CATEGORIES = ['appearance', 'behavior', 'notifications', 'accounts'] as const
+export const SETTINGS_CATEGORIES = [
+  'appearance',
+  'dashboard',
+  'behavior',
+  'notifications',
+  'accounts'
+] as const
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]
 
 interface UiState {

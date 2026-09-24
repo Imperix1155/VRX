@@ -316,8 +316,8 @@ export default function Guide(): React.JSX.Element {
           />
           <Scene
             name="settings"
-            title="Appearance and glow"
-            note="Interactive fixture. Change Theme or Background glow in the actual appearance controls. These choices last only in this sample."
+            title="Settings cards and Dashboard controls"
+            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. Appearance controls change the actual theme and glow. All choices last only in this sample."
             source="assets/main.css · SettingsView.tsx"
             height="short"
           />
@@ -405,7 +405,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="dashboard"
             title="App shell"
-            note="Interactive fixture. The sidebar holds navigation while the content area owns scrolling."
+            note="Interactive fixture. Dashboard, Friends, Explore, and Settings are the four navigation destinations. The sidebar stays fixed while content owns scrolling."
             source="AppShell.tsx · Sidebar.tsx · TopBar.tsx"
             height="short"
           />
