@@ -223,7 +223,10 @@ remain available through their implemented features.
 The top bar owns the page's single heading. Its social selector reads
 VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
 echoes that filter. Connection-health copy is real state, not decoration.
-Settings replaces the social selector with its category control.
+Settings replaces the social selector with its category control. Keep the platform
+filter in the same horizontal position across Dashboard, Friends, and Explore,
+including when a scrollbar appears or disappears. No page-specific shortcut may
+enter that dock or displace the filter.
 
 Use [`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx)
 and [`useSegmentedBubble`](../src/renderer/src/hooks/useSegmentedBubble.ts).
@@ -242,7 +245,9 @@ siblings with it; reduced motion is immediate. Hidden children are inert and
 excluded from accessibility, with focus returned to the selected parent control
 when needed. Saved child choices survive collapse and restart.
 
-Dashboard has a shortcut to its Settings category. Popular now controls only
+Dashboard has a compact “Settings” button below its content, opening its Settings
+category. It stays outside the header and the summary-card row, including when
+both Dashboard features are off. Popular now controls only
 its Dashboard preview; Explore remains available. Hot Instances off removes its
 statistic, heading, threshold, cards, and details, leaving the ordinary friend
 statistics in two equal columns. It also suppresses Hot Instances alerts without
@@ -275,7 +280,14 @@ control using the existing confirmation and denial behavior.
 Dashboard statistics count accounts. Hot Instances group by exact platform
 instance identity, never merely world name or world ID. Preserve the configurable
 threshold, readable world/name hierarchy, instance action, and platform label.
-The actual Hot Instance sheet supplies details; do not add placeholder actions.
+The threshold stays compact without an inline explanation. A quiet neutral glass
+circle marked “?” sits immediately to its right and toggles an inline explanation
+of exact-instance grouping, visible in-game friends, platform filtering, ranking,
+and the minimum-friend selector. It starts closed and exposes its expanded state
+to assistive technology. The existing Hot card design is intentional. Its access
+pill is an intentional discreet Join shortcut; do not turn it into a prominent
+Join label or redesign the card. The actual Hot Instance sheet supplies details;
+do not add placeholder actions.
 
 ### §9.2 Friend drawer
 
@@ -359,8 +371,9 @@ Sources: [`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFrie
 
 ## §11 Scope limits
 
-Known app findings about Join/access emphasis, Full below capacity, and Private
-versus Hidden wording remain separate work. Do not present them as approved
+Known app findings about Full below capacity and Private versus Hidden wording
+remain separate work. The access pill’s discreet Join shortcut is owner-approved,
+not an unresolved call-to-action defect. Do not present them as approved
 rules or fix them incidentally in a documentation change. Proposed designs must
 be labeled as proposals and must not replace current examples before approval.
 

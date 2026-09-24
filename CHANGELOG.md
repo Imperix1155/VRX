@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the platform filter in the same position across social tabs. Move the
+  Dashboard’s compact Settings shortcut below its content. (VRX-285)
+
+### Added
+
+- A quiet circular question-mark button beside the Hot Instances selector
+  explains how instances qualify and what the threshold controls. (VRX-285)
+
 ## [0.22.0] - 2026-09-23
 
 ### Added

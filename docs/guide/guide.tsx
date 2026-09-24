@@ -317,7 +317,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="settings"
             title="Settings cards and Dashboard controls"
-            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. Appearance controls change the actual theme and glow. All choices last only in this sample."
+            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow. All choices last only in this sample."
             source="assets/main.css · SettingsView.tsx"
             height="short"
           />

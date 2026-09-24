@@ -74,6 +74,8 @@ export default function AppShell(): React.JSX.Element {
         tabIndex={-1}
         style={{
           overflowY: 'auto',
+          // Keep the social filter fixed when a view gains or loses its scrollbar.
+          scrollbarGutter: 'stable',
           padding:
             activeTab === 'settings'
               ? 'var(--space-2)'

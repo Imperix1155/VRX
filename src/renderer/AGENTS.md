@@ -273,5 +273,13 @@ child focus to the selected parent, animates height/reflow for 220ms, and respec
 reduced motion. Toggle reuses SegmentedControl's visible On/Off radiogroup.
 Dashboard removes disabled feature content and closes its Hot Instance sheet;
 ordinary friend statistics stay unchanged and fill two columns when Hot is off.
-Notifications contains only friend-event preferences. TopBar has the Dashboard
-shortcut; its Settings category dock may wrap at the supported window floor.
+Notifications contains only friend-event preferences. The compact Dashboard
+“Settings” shortcut follows its content, never entering TopBar or the summary
+card row. TopBar keeps the platform filter beside the fixed status cell; main
+reserves scrollbar space so social views cannot shift the dock. Its Settings
+category dock may wrap at the supported window floor.
+
+VRX-285: a neutral circular “?” immediately right of the Hot threshold toggles
+inline category help; the selector needs no always-visible explanation. Preserve
+the existing Hot Instance cards and their intentionally discreet access-pill Join
+shortcut. Do not promote that shortcut or redesign the cards as incidental cleanup.

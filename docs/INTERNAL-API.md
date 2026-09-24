@@ -708,3 +708,8 @@ discarded auth state and renderer caches must become unauthenticated) · `TwoFac
 - `isFriendAlertEnabled(type, settings)` in `main/friendNotifications.ts` is the fire-time consent predicate. Hot alerts require both the feature and saved notification preference; friend alerts keep their individual preferences.
 - `useExploreCoordinator` considers Dashboard relevant only while `dashboardPopularNow` is on; Explore relevance and all existing admission/automatic gates are unchanged.
 - SettingsView's private `SettingCard` retains dependent controls inside an inert, aria-hidden, animated grid while collapsed. It restores focused children to the selected parent radio on collapse. Dashboard and Joining use this local component; no new IPC or persisted category state.
+
+VRX-285: DashboardView keeps its Settings-category navigation below all content states.
+Its local Hot Instances disclosure uses existing aggregation/threshold settings and
+adds no IPC, requests, or persisted state. TopBar contains no Dashboard shortcut;
+AppShell reserves scrollbar space to keep its social filter dock stable.
