@@ -363,7 +363,7 @@ app
       optimizer.watchWindowShortcuts(window)
     })
 
-    // The VRChat session cookie persists via safeStorage (VRX-34); the store is
+    // The VRChat session cookie uses OS-first credential storage (VRX-34/282); it is
     // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
     const vrcCredentials: VrcCredentialStore = {
       load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
@@ -413,7 +413,7 @@ app
         avatarCache.clearNegativeEntries()
       }
     })
-    // CVR session = { username, accessKey } persisted as ONE safeStorage blob
+    // CVR session = { username, accessKey } persisted as ONE encrypted credential
     // (VRX-37/174/56). With no valid stored session, the read-only importer checks the
     // game profile first and CVRX second. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.

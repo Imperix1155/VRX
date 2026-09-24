@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Friends, Explore, and Settings remain available; the removed concepts are
   deferred for a future design decision. (VRX-281)
 
+### Fixed
+
+- Sign-in can stay remembered when an OS credential wallet is disabled or
+  unavailable. VRX prefers OS protection and otherwise encrypts the session with
+  a local installation key automatically. Local protection is weaker: copying
+  both the key and session files allows session recovery. Existing OS-protected
+  sessions and logout remain supported. (VRX-282)
+
 ## [0.21.0] - 2026-09-17
 
 ### Added
