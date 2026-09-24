@@ -254,6 +254,110 @@ describe('fetchFriends', () => {
       expect(result.friends[2]!.avatarUrl).toBe('https://example.com/avatar3.png')
     })
 
+    it('loads current friend-list icons when all retired picture fields are absent', async () => {
+      const iconUrl =
+        'https://api.vrchat.cloud/api/1/file/file_00000000-0000-0000-0000-000000000001/2/file'
+      const result = await fetchFriends(
+        buildFetcher(
+          [
+            [
+              {
+                id: 'usr_current',
+                displayName: 'Current profile',
+                iconUrl,
+                currentAvatarImageUrl: 'https://assets.vrchat.com/fallback.png'
+              }
+            ]
+          ],
+          []
+        )
+      )
+
+      expect(result.completeness).toBe('complete')
+      expect(result.friends[0]?.avatarUrl).toBe(
+        'https://api.vrchat.cloud/api/1/image/file_00000000-0000-0000-0000-000000000001/2/256'
+      )
+    })
+
+    it.each([undefined, null, '', 42, {}])(
+      'falls back from an unavailable current icon (%j)',
+      async (iconUrl) => {
+        const result = await fetchFriends(
+          buildFetcher(
+            [
+              [
+                {
+                  id: 'usr_fallback',
+                  displayName: 'Fallback profile',
+                  iconUrl,
+                  currentAvatarImageUrl:
+                    'https://api.vrchat.cloud/api/1/file/file_00000000-0000-0000-0000-000000000002/1/file'
+                }
+              ]
+            ],
+            []
+          )
+        )
+        expect(result.skippedRecords).toBe(0)
+        expect(result.friends[0]?.avatarUrl).toBe(
+          'https://api.vrchat.cloud/api/1/image/file_00000000-0000-0000-0000-000000000002/1/256'
+        )
+      }
+    )
+
+    it('prefers the current icon over legacy fields and preserves legacy fallback order', async () => {
+      const result = await fetchFriends(
+        buildFetcher(
+          [
+            [
+              {
+                ...makeFriend(1),
+                iconUrl: 'https://assets.vrchat.com/current.png',
+                userIcon: 'https://assets.vrchat.com/legacy.png'
+              },
+              {
+                ...makeFriend(2),
+                iconUrl: '',
+                userIcon: 'https://assets.vrchat.com/legacy.png',
+                currentAvatarImageUrl: 'https://assets.vrchat.com/full.png'
+              },
+              { ...makeFriend(3), iconUrl: null, currentAvatarImageUrl: 42 }
+            ]
+          ],
+          []
+        )
+      )
+      expect(result.friends.map((friend) => friend.avatarUrl)).toEqual([
+        'https://assets.vrchat.com/current.png',
+        'https://assets.vrchat.com/legacy.png',
+        'https://example.com/avatar3.png'
+      ])
+    })
+
+    it.each([
+      'https://files.vrchat.cloud/profile.png',
+      'https://api.vrchat.cloud/api/1/image/file_00000000-0000-0000-0000-000000000001/2/256',
+      'https://api.vrchat.cloud.evil.test/api/1/file/file_00000000-0000-0000-0000-000000000001/2/file',
+      'https://api.vrchat.cloud:8443/api/1/file/file_00000000-0000-0000-0000-000000000001/2/file',
+      'https://user:password@api.vrchat.cloud/api/1/file/file_00000000-0000-0000-0000-000000000001/2/file'
+    ])('leaves other icon URLs unchanged for the image cache to validate: %s', async (iconUrl) => {
+      const result = await fetchFriends(
+        buildFetcher(
+          [
+            [
+              {
+                id: 'usr_url',
+                displayName: 'URL profile',
+                iconUrl
+              }
+            ]
+          ],
+          []
+        )
+      )
+      expect(result.friends[0]?.avatarUrl).toBe(iconUrl)
+    })
+
     it('coerces missing optional fields to null', async () => {
       const fetcher = buildFetcher(
         [

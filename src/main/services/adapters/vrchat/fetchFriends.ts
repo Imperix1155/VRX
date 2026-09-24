@@ -50,6 +50,10 @@ const currentUserBucketsSchema = z.object({
 export const rawFriendSchema = z.object({
   id: z.string(),
   displayName: z.string(),
+  // Current friend/profile responses use iconUrl (VRX-283). These optional
+  // image fields must not drop an otherwise usable friend on schema drift.
+  iconUrl: z.string().nullable().optional().catch(null),
+  currentAvatarImageUrl: z.string().nullable().optional().catch(null),
   // Profile-picture fields (VRX-62): userIcon is the user-set circular profile
   // icon (VRC+); profilePicOverrideThumbnail is the BOUNDED rendition of the
   // user-set profile picture (the raw profilePicOverride can approach 10 MB —
@@ -92,6 +96,15 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | nu
   return null
 }
 
+/** Request a bounded rendition of recognized VRChat file URLs. All other URLs
+ * remain subject to AvatarCache's existing host, MIME and body-size checks. */
+function profileThumbnail(value: string | null | undefined): string | null | undefined {
+  return value?.replace(
+    /^https:\/\/api\.vrchat\.cloud\/api\/1\/file\/(file_[a-f0-9-]+)\/(\d+)(?:\/file)?\/?$/,
+    'https://api.vrchat.cloud/api/1/image/$1/$2/256'
+  )
+}
+
 export function normalize(raw: RawFriend, buckets: VrcCurrentUserBucketSets): VrcFriend {
   const { state, status, statusDescription } = parsePresence(
     { id: raw.id, status: raw.status, statusDescription: raw.statusDescription },
@@ -102,15 +115,19 @@ export function normalize(raw: RawFriend, buckets: VrcCurrentUserBucketSets): Vr
     platform: 'vrchat',
     platformUserId: raw.id,
     displayName: raw.displayName,
+    // Prefer the current icon, retaining the legacy profile-picture order for
+    // older payloads. Current friends no longer carry those legacy fields.
     // Prefer the user's explicit profile pictures over the avatar thumbnail —
     // the thumbnail renders as the default gray robot for private/fallback
     // avatars even when the user has a real profile pic set (VRX-62). Residual
     // (accepted): an oversized userIcon (no thumbnail rendition exists) can
     // still exceed the cache's body cap and fall back to initials.
     avatarUrl: firstNonEmpty(
+      profileThumbnail(raw.iconUrl),
       raw.userIcon,
       raw.profilePicOverrideThumbnail,
-      raw.currentAvatarThumbnailImageUrl
+      raw.currentAvatarThumbnailImageUrl,
+      profileThumbnail(raw.currentAvatarImageUrl)
     ),
     presence: { state },
     status,

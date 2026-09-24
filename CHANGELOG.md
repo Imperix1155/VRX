@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both the key and session files allows session recovery. Existing OS-protected
   sessions and logout remain supported. (VRX-282)
 
+- Restore VRChat profile pictures from the current friend and live-event image
+  fields. Recognized full-size file URLs use thumbnails; older responses keep
+  their existing image fallback order. (VRX-283)
+
 ## [0.21.0] - 2026-09-17
 
 ### Added

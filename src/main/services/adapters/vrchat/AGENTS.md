@@ -39,6 +39,14 @@ typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
 
 ## Local Contracts
 
+- Profile images prefer current `iconUrl`, then legacy `userIcon`,
+  `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`, and finally
+  current `currentAvatarImageUrl`. The two current fields tolerate malformed
+  optional values independently. Recognized HTTPS `api.vrchat.cloud` file URLs
+  from current fields become 256px image URLs; other URLs pass unchanged to
+  AvatarCache validation. REST and Pipeline share this normalizer. Never add
+  per-friend profile requests to recover image fields. (VRX-283)
+
 - Reconnect backoff survives brief open-close flaps and resets only after an
   open lasting at least the existing backoff cap. Rejected upgrades forward
   only status/Retry-After; factories dispose the response and terminate the
