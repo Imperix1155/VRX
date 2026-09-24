@@ -16,6 +16,8 @@ describe('settings schema', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       theme: 'system',
       language: 'en',
       density: 'comfortable',
@@ -252,6 +254,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -284,6 +288,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -317,6 +323,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -350,6 +358,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -383,6 +393,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
@@ -417,6 +429,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       autoUpdate: false,
       allowJoinInstances: true
     })
@@ -431,6 +445,8 @@ describe('migration runner', () => {
       version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
       allowJoinInstances: true
     })
   })
@@ -616,13 +632,17 @@ describe('shouldPersistSettings (rollback safety)', () => {
 describe('Explore settings migration', () => {
   it('migrates v8 and preserves explicit filter/count while defaulting invalid values', () => {
     expect(parseSettings({ version: 8 })).toMatchObject({
-      version: 9,
+      version: SETTINGS_VERSION,
       platformFilter: 'all',
       exploreWorldsShown: 4
     })
     expect(
       parseSettings({ version: 8, platformFilter: 'chilloutvr', exploreWorldsShown: 6 })
-    ).toMatchObject({ version: 9, platformFilter: 'chilloutvr', exploreWorldsShown: 6 })
+    ).toMatchObject({
+      version: SETTINGS_VERSION,
+      platformFilter: 'chilloutvr',
+      exploreWorldsShown: 6
+    })
     for (const exploreWorldsShown of [0, 1, 3, 5, 7, '6', null]) {
       expect(parseSettings({ exploreWorldsShown }).exploreWorldsShown).toBe(4)
     }
@@ -631,6 +651,44 @@ describe('Explore settings migration', () => {
   it('makes an older v8 build refuse the newer choices without rewriting its file', () => {
     const disk = { version: 9, platformFilter: 'vrchat', exploreWorldsShown: 2 }
     expect(shouldPersistSettings(disk, 8)).toBe(false)
-    expect(parseSettings(disk)).toMatchObject(disk)
+    expect(parseSettings(disk)).toMatchObject({ ...disk, version: SETTINGS_VERSION })
+  })
+})
+
+describe('Dashboard feature settings', () => {
+  it('migrates v9 with existing behavior and retains explicit child preferences', () => {
+    expect(
+      parseSettings({ version: 9, notifyHotInstance: true, hotInstanceThreshold: 8 })
+    ).toMatchObject({
+      version: 10,
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true,
+      notifyHotInstance: true,
+      hotInstanceThreshold: 8
+    })
+    for (const invalid of [undefined, null, 'false', 0]) {
+      expect(
+        parseSettings({ dashboardPopularNow: invalid, hotInstancesEnabled: invalid })
+      ).toMatchObject({ dashboardPopularNow: true, hotInstancesEnabled: true })
+    }
+  })
+  it('persists independent off choices and protects them through a v9 downgrade', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      dashboardPopularNow: false,
+      hotInstancesEnabled: false,
+      notifyHotInstance: true,
+      hotInstanceThreshold: 8
+    }
+    const oldNormalized = { ...disk }
+    delete oldNormalized.dashboardPopularNow
+    delete oldNormalized.hotInstancesEnabled
+    if (shouldPersistSettings(disk, 9)) disk = oldNormalized
+    expect(parseSettings(disk)).toMatchObject({
+      dashboardPopularNow: false,
+      hotInstancesEnabled: false,
+      notifyHotInstance: true,
+      hotInstanceThreshold: 8
+    })
   })
 })

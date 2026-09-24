@@ -1,7 +1,9 @@
 {
   "appName": "VRX",
   "linking": {
-    "chooser": { "none": "No joinable locations are currently available." },
+    "chooser": {
+      "none": "No joinable locations are currently available."
+    },
     "confirm": {
       "replace": {
         "question": "Do these accounts belong to the same person?",
@@ -256,6 +258,22 @@
       },
       "chilloutvr": {
         "label": "ChilloutVR"
+      }
+    },
+    "boolean": {
+      "on": "On",
+      "off": "Off"
+    },
+    "dashboard": {
+      "heading": "Dashboard",
+      "shortcut": "Dashboard settings",
+      "popular": {
+        "label": "Popular now",
+        "description": "Show the Dashboard preview. Explore stays available."
+      },
+      "hot": {
+        "label": "Hot Instances",
+        "description": "Show where friends gather and allow Hot Instances alerts."
       }
     }
   },
