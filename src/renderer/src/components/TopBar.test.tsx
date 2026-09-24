@@ -198,3 +198,14 @@ describe('TopBar connection health (VRX-223)', () => {
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
 })
+
+it('opens the Dashboard category from the Dashboard shortcut', () => {
+  stubFriends([], [])
+  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  render(<TopBar />)
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.dashboard.shortcut') }))
+  expect(useUiStore.getState()).toMatchObject({
+    activeTab: 'settings',
+    settingsCategory: 'dashboard'
+  })
+})

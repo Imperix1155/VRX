@@ -223,3 +223,8 @@ The Electron main process: app lifecycle, windows, IPC handlers, platform adapte
   child doc yet for the cross-platform adapter root.
 - [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md) — CVR parsers + the CvrPipeline WS client consumed by the registered concrete `CvrAdapter`.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md) — VRChat parsers/builders + fetchers: presence, instance-type + openness, trust-rank, join-URL (VRX-44/45/49/50), `parseLocation` (VRX-162), `fetchFriends` (VRX-43), `WorldResolver` (VRX-46), `fetchWorldMetadata` (VRX-47).
+
+`friendNotifications.isFriendAlertEnabled` reads the supplied current settings
+snapshot at dispatch. Hot Instances requires both `hotInstancesEnabled` and
+`notifyHotInstance`; disabling the feature never overwrites the saved preference.
+Friend-event preferences and alert baselining/rate limits stay independent.

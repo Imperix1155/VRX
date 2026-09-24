@@ -72,7 +72,13 @@ export default function AppShell(): React.JSX.Element {
         // tabIndex -1: programmatically focusable so the join dialog's
         // focus-restore has a stable container fallback (VRX-210).
         tabIndex={-1}
-        style={{ overflowY: 'auto', padding: 'var(--space-2) var(--space-2) var(--space-10)' }}
+        style={{
+          overflowY: 'auto',
+          padding:
+            activeTab === 'settings'
+              ? 'var(--space-2)'
+              : 'var(--space-2) var(--space-2) var(--space-10)'
+        }}
         className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />

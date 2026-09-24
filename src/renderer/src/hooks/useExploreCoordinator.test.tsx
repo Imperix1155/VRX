@@ -1,3 +1,5 @@
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import { useSettingsStore } from '../stores/settings'
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -42,6 +44,7 @@ function Coordinator(): React.JSX.Element {
 }
 
 beforeEach(() => {
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
   clearExplorePlatform('vrchat')
   clearExplorePlatform('chilloutvr')
   queryClient.clear()
@@ -709,4 +712,48 @@ it('does not admit artwork from an old activation during a batched hide/show', a
   expect(getExploreImage).toHaveBeenCalledTimes(1)
   expect(listener).toHaveBeenLastCalledWith('data:image/png;base64,current')
   stop()
+})
+
+it('does no discovery for a disabled Dashboard preview but preserves Explore and its automatic gate', async () => {
+  useUiStore.setState({ activeTab: 'dashboard' })
+  useSettingsStore.getState().updateSettings({ dashboardPopularNow: false })
+  const getExplore = vi.fn().mockResolvedValue({ ...snapshot, updatedAt: Date.now() })
+  const setExploreActive = vi.fn().mockResolvedValue(undefined)
+  window.vrx = {
+    setExploreActive,
+    getExplore,
+    onExploreChanged: () => () => {},
+    onIdentityBoundary: () => () => {},
+    onFriendEvent: () => () => {}
+  } as unknown as Window['vrx']
+  render(
+    <QueryClientProvider client={queryClient}>
+      <Coordinator />
+    </QueryClientProvider>
+  )
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'))
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: [] })
+  expect(getExplore.mock.calls.filter(([request]) => request.reason === 'automatic')).toHaveLength(
+    0
+  )
+  await act(async () => {
+    useUiStore.getState().setActiveTab('explore')
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: ['vrchat'] })
+  expect(getExplore.mock.calls.filter(([request]) => request.reason === 'automatic')).toHaveLength(
+    1
+  )
+  await act(async () => {
+    useUiStore.getState().setActiveTab('dashboard')
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: [] })
+  await act(async () => {
+    useSettingsStore.getState().updateSettings({ dashboardPopularNow: true })
+  })
+  expect(setExploreActive).toHaveBeenLastCalledWith({ platforms: ['vrchat'] })
+  expect(getExplore.mock.calls.filter(([request]) => request.reason === 'automatic')).toHaveLength(
+    1
+  )
 })
