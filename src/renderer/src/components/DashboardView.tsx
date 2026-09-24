@@ -9,7 +9,7 @@
  *    pill doubles as the Join affordance when a member is joinable (VRX-237).
  *  - Empty state when no friends are online.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isFriendJoinable } from '@shared/joinability'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
@@ -26,6 +26,7 @@ import {
   type HotInstance
 } from '../utils/dashboardAggregations'
 import { useSettingsStore } from '../stores/settings'
+import { useUiStore } from '../stores/ui'
 import { stripInstanceSuffix } from '../utils/worldName'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
@@ -305,7 +306,7 @@ function SectionHeading({ labelKey, id }: { labelKey: string; id: string }): Rea
  * Once either platform has data, partial results render (a background refetch
  * failure or one platform erroring keeps the last good numbers).
  */
-export default function DashboardView(): React.JSX.Element {
+function DashboardContent(): React.JSX.Element {
   const { t } = useTranslation()
   const vrcQuery = useFriends('vrchat')
   const cvrQuery = useFriends('chilloutvr')
@@ -313,6 +314,8 @@ export default function DashboardView(): React.JSX.Element {
   // immediately and persist via useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
+  const [hotHelpOpen, setHotHelpOpen] = useState(false)
+  const hotHelpId = useId()
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Hot-instance sheet selection (VRX-250): store the composite key, derive the
@@ -456,14 +459,40 @@ export default function DashboardView(): React.JSX.Element {
             next to the grid it changes — deviation flagged in the PR. */}
           <div className="flex items-center justify-between gap-[var(--space-4)]">
             <SectionHeading labelKey="dashboard.sectionHotInstances" id="dashboard-hot-heading" />
-            <NumberStepper
-              ref={fallbackFocusRef}
-              value={hotThreshold}
-              min={HOT_INSTANCE_THRESHOLD_MIN}
-              max={HOT_INSTANCE_THRESHOLD_MAX}
-              onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
-              ariaLabel={t('dashboard.hotThresholdAria')}
-            />
+            <div className="flex shrink-0 items-center gap-[var(--space-2)]">
+              <NumberStepper
+                ref={fallbackFocusRef}
+                value={hotThreshold}
+                min={HOT_INSTANCE_THRESHOLD_MIN}
+                max={HOT_INSTANCE_THRESHOLD_MAX}
+                onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+                ariaLabel={t('dashboard.hotThresholdAria')}
+              />
+              <button
+                type="button"
+                aria-label={t('dashboard.hotHelp.label')}
+                title={t('dashboard.hotHelp.label')}
+                aria-expanded={hotHelpOpen}
+                aria-controls={hotHelpId}
+                onClick={() => setHotHelpOpen((open) => !open)}
+                className="glass grid h-[var(--space-8)] w-[var(--space-8)] shrink-0 place-items-center rounded-full text-sm font-semibold text-[var(--text-dim)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]"
+              >
+                <span aria-hidden="true">?</span>
+              </button>
+            </div>
+          </div>
+          <div
+            id={hotHelpId}
+            hidden={!hotHelpOpen}
+            className="glass glass-information mb-[var(--space-3)] p-[var(--space-4)] text-sm leading-relaxed text-[var(--text-dim)]"
+          >
+            <p>{t('dashboard.hotHelp.description')}</p>
+            <p className="mt-[var(--space-2)]">
+              {t('dashboard.hotHelp.threshold', {
+                min: HOT_INSTANCE_THRESHOLD_MIN,
+                max: HOT_INSTANCE_THRESHOLD_MAX
+              })}
+            </p>
           </div>
 
           {hotInstances.length === 0 ? (
@@ -486,5 +515,28 @@ export default function DashboardView(): React.JSX.Element {
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
     </div>
+  )
+}
+
+/** Secondary navigation follows the content in every loading/feature state. */
+export default function DashboardView(): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <>
+      <DashboardContent />
+      <div className="mt-[var(--space-4)] flex justify-end">
+        <button
+          type="button"
+          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)]"
+          onClick={() => {
+            const { setSettingsCategory, setActiveTab } = useUiStore.getState()
+            setSettingsCategory('dashboard')
+            setActiveTab('settings')
+          }}
+        >
+          {t('settings.dashboard.shortcut')}
+        </button>
+      </div>
+    </>
   )
 }
