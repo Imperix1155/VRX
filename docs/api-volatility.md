@@ -117,12 +117,26 @@ traffic recorded in `api-policy.md`; normal CVR auth/friend traffic remains on
 
 - Friend ID: `id: string` (used as platform identifier and for membership in presence buckets)
 - Display name: `displayName: string` (shown in friend row)
-- Avatar thumbnail: `currentAvatarThumbnailImageUrl: string | null | undefined` (friend avatar in list)
+- Profile icon: `iconUrl: string | null | undefined`, falling back to legacy
+  `userIcon`, `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`,
+  then `currentAvatarImageUrl`. Recognized current-field VRChat file URLs are
+  converted to `/api/1/image/{fileId}/{version}/256`; other URLs retain the
+  existing image-cache validation and 3 MiB limit. No extra profile requests.
 - Status string: `status: string | null | undefined` (e.g., `"join me"`, `"active"`, `"busy"`, `"offline"`)
 - Status description: `statusDescription: string | null | undefined` (custom status text ≤32 chars)
 - Trust tags: `tags: string[]` (e.g., `["system_trust_known"]`, `["system_probable_troll"]`, empty → no tag)
 
 **Verification:** 🟡 Endpoint verified; field drift observed in past updates (e.g., avatar field handling). Community confirms pagination, offline flag, and tag semantics.
+
+VRX-283, 2026-09-24: the current [friend schema](https://github.com/vrchatapi/specification/blob/c5f467d17087fc56f4f3dbc4e7f5b11d941ecd9a/openapi/components/schemas/LimitedUserFriend.yaml)
+contains `iconUrl` and `currentAvatarImageUrl`. The specification
+[removed the three legacy picture fields on September 16](https://github.com/vrchatapi/specification/commit/2a62f547e7e1b407ca04efc826ba6b4e1b78a421)
+and restored `currentAvatarImageUrl` on September 20. VRX's old schema discarded
+the current fields, yielding null images. A read-only local 0.21.0 cache check
+found all 194 VRChat avatar URLs null while all 163 CVR URLs were populated.
+Synthetic REST, Pipeline and image-cache tests reproduce and cover this mismatch.
+This is source/schema evidence plus local persisted output, not a fresh live
+response capture or proof of rendered pictures on either affected machine.
 
 **Degradation if changed:**
 

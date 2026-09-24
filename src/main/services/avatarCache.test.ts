@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AvatarRequestLease } from './adapters/RequestLease'
+import { normalize, rawFriendSchema } from './adapters/vrchat/fetchFriends'
+import { toBucketSets } from './adapters/vrchat/parsePresence'
 import {
   AVATAR_CACHE_MAX_ENTRIES,
   AVATAR_FETCH_MAX_CONCURRENCY,
@@ -47,6 +49,38 @@ describe('AvatarCache', () => {
   function redirectResponse(location: string): Response {
     return new Response(null, { status: 302, headers: { Location: location } })
   }
+
+  it.each(['iconUrl', 'currentAvatarImageUrl'])(
+    'loads a current profile %s through normalization, authenticated thumbnail and CDN',
+    async (field) => {
+      const fileId = 'file_00000000-0000-0000-0000-000000000001'
+      const friend = normalize(
+        rawFriendSchema.parse({
+          id: 'usr_profile',
+          displayName: 'Synthetic profile',
+          [field]: `https://api.vrchat.cloud/api/1/file/${fileId}/2/file`
+        }),
+        toBucketSets({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
+      )
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(redirectResponse(CDN_URL))
+        .mockResolvedValueOnce(imageResponse())
+      const cache = new AvatarCache({
+        fetchFn,
+        vrcSessionProvider: () => imageLease('auth=authcookie_test')
+      })
+
+      expect(friend.avatarUrl).not.toBeNull()
+      await expect(cache.get(friend.avatarUrl!)).resolves.toBe('data:image/png;base64,YXZhdGFy')
+      expect(fetchFn.mock.calls[0]?.[0]).toBe(
+        `https://api.vrchat.cloud/api/1/image/${fileId}/2/256`
+      )
+      expect(fetchFn.mock.calls[0]?.[1]?.headers).toMatchObject({ Cookie: 'auth=authcookie_test' })
+      expect(fetchFn.mock.calls[1]?.[1]?.headers).not.toHaveProperty('Cookie')
+      expect(fetchFn).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('sends the auth cookie to api.vrchat.cloud, follows the 302, and never forwards the cookie', async () => {
     const fetchFn = vi
