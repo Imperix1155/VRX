@@ -405,7 +405,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="dashboard"
             title="App shell"
-            note="Interactive fixture. The sidebar holds navigation while the content area owns scrolling."
+            note="Interactive fixture. Dashboard, Friends, Explore, and Settings are the four navigation destinations. The sidebar stays fixed while content owns scrolling."
             source="AppShell.tsx · Sidebar.tsx · TopBar.tsx"
             height="short"
           />

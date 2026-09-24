@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Settings uses compact individual cards and labeled On/Off glass controls. Hot Instances and Joining expand their dependent settings with smooth height changes, keyboard-safe collapse, and reduced-motion support. Existing preferences and Explore remain available.
 
+- Remove the unfinished Activity and Groups tabs from navigation. Dashboard,
+  Friends, Explore, and Settings remain available; the removed concepts are
+  deferred for a future design decision. (VRX-281)
+
 ## [0.21.0] - 2026-09-17
 
 ### Added

@@ -215,6 +215,11 @@ contextual top-bar selector, with no scroll at the supported 900×670 app floor.
 On smaller work areas, the window floor yields so the app stays recoverable.
 Do not invent a mobile app layout from a narrow documentation viewport.
 
+Primary navigation contains Dashboard, Friends, Explore, and Settings, in that
+order. Activity and Groups are deferred concepts, not visible placeholders or
+current release commitments. Existing notifications and group-instance metadata
+remain available through their implemented features.
+
 The top bar owns the page's single heading. Its social selector reads
 VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
 echoes that filter. Connection-health copy is real state, not decoration.
