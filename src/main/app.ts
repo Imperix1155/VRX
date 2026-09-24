@@ -37,7 +37,7 @@ import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
-import { FriendAlerts, type FriendAlertType } from './services/friendAlerts'
+import { FriendAlerts } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
@@ -48,7 +48,7 @@ import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
-import { createFriendNotificationNotifier } from './friendNotifications'
+import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
 import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
 
@@ -501,27 +501,11 @@ app
       logFailure: () => log.warn('friend notification failed')
     })
 
-    const alertSettingEnabled = (type: FriendAlertType): boolean => {
-      // The settings service updates this in-memory snapshot synchronously on
-      // save, so fire-time decisions stay current without store I/O in the WS path.
-      const current = getSettingsSnapshot()
-      switch (type) {
-        case 'online':
-          return current.notifyFriendOnline
-        case 'in-game':
-          return current.notifyFriendInGame
-        case 'offline':
-          return current.notifyFriendOffline
-        case 'hot-instance':
-          return current.notifyHotInstance
-      }
-    }
-
     const friendAlerts = new FriendAlerts({
       notify: showFriendAlert,
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
-      isEnabled: alertSettingEnabled,
+      isEnabled: (type) => isFriendAlertEnabled(type, getSettingsSnapshot()),
       hotInstanceThreshold: () => getSettingsSnapshot().hotInstanceThreshold,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null

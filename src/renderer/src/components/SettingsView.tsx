@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
@@ -56,15 +57,6 @@ const OPENER_LABEL_KEYS: Record<DrawerOpener, string> = {
   avatar: 'settings.drawerOpener.avatar'
 }
 
-// Confirm-before-joining (VRX-210) as an On/Off segmented row (owner-ruled —
-// the house row pattern, not a Toggle).
-const CONFIRM_JOIN_VALUES = ['on', 'off'] as const
-type ConfirmJoinValue = (typeof CONFIRM_JOIN_VALUES)[number]
-const CONFIRM_JOIN_LABEL_KEYS: Record<ConfirmJoinValue, string> = {
-  on: 'settings.confirmJoin.on',
-  off: 'settings.confirmJoin.off'
-}
-
 // §8 center-neutral rule: 'ask' DEFERS the mode choice to join time, so it
 // sits in the middle and the two polar modes flank it. JOIN_MODE_PREFERENCES
 // (@shared/types) remains the enum's source of truth — this is display order.
@@ -79,6 +71,42 @@ const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
   'check-network': 'updater.settings.failure.checkNetwork',
   'download-write': 'updater.settings.failure.downloadWrite',
   'staged-install': 'updater.settings.failure.stagedInstall'
+}
+
+/** Keep children mounted for reversible height transitions and saved controls.
+ * inert removes every hidden descendant from interaction immediately. */
+function SettingCard({
+  parent,
+  expanded,
+  children
+}: {
+  parent: React.ReactNode
+  expanded: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  const card = useRef<HTMLDivElement>(null)
+  const content = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!expanded && content.current?.contains(document.activeElement)) {
+      card.current?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus()
+    }
+  }, [expanded])
+  return (
+    <div ref={card} className="setting-card">
+      {parent}
+      <div
+        ref={content}
+        className="setting-disclosure"
+        data-expanded={expanded}
+        inert={!expanded}
+        aria-hidden={!expanded}
+      >
+        <div className="setting-disclosure-clip">
+          <div className="setting-children">{children}</div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function UpdaterSettingsRow(): React.JSX.Element {
@@ -136,7 +164,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const buttonDisabled = isChecking || isDownloading
 
   return (
-    <div className="mt-[var(--space-6)] flex items-start justify-between gap-[var(--space-6)]">
+    <div className="setting-card setting-row">
       <div>
         <p className="text-sm font-medium text-[var(--text)]">{t('updater.settings.label')}</p>
         <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
@@ -156,7 +184,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
           {t('updater.settings.currentVersion', { version: state.currentVersion })}
         </p>
       </div>
-      <div className="flex items-center gap-[var(--space-3)] shrink-0">
+      <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
         <Toggle
           checked={autoUpdate}
           ariaLabel={t('updater.settings.label')}
@@ -185,21 +213,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
   )
 }
 
-/**
- * Settings view (VRX-170). Glass surface hosting per-category rows.
- * Theme row: 3-way segmented control (Dark / System / Light — §8 center-neutral rule).
- * Instance-labels row (VRX-183): pill naming scheme — VRChat terms everywhere
- * (default, the VRX-182 baseline) / ChilloutVR terms everywhere / per-platform
- * native terms. Presentation only: the data stays platform-true.
- * Drawer-opener row (VRX-228): whole-card pointer opener (default) vs the
- * VRX-225 avatar-only opener. Behavior category (VRX-231, renamed from
- * 'dashboard'): hot-instance threshold, friend-details opener, background
- * re-sync, and the VRX-210 join rows; Appearance keeps theme, background
- * glow, and instance labels.
- *
- * Settings persist across restarts (VRX-184): `useSettingsPersistence` in
- * App.tsx loads them on boot and saves every change through the settings IPC.
- */
+/** Category pages with compact cards and retained dependent preferences. */
 export default function SettingsView(): React.JSX.Element {
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
@@ -207,6 +221,8 @@ export default function SettingsView(): React.JSX.Element {
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
+  const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
+  const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
@@ -223,11 +239,11 @@ export default function SettingsView(): React.JSX.Element {
   const category = useUiStore((s) => s.settingsCategory)
 
   return (
-    <div className="glass glass-information p-[var(--space-8)]">
+    <div className="glass glass-information settings-panel p-[var(--space-2)]">
       <div className="relative">
         {/* ── Appearance page ── */}
         {category === 'appearance' && (
-          <section aria-labelledby="settings-appearance-heading">
+          <section className="settings-cards" aria-labelledby="settings-appearance-heading">
             {/* sr-only: the TopBar category nav shows this label visually — a
                 visible duplicate reads twice (owner + advisor, VRX-186); the
                 heading stays for the section landmark/outline. */}
@@ -236,7 +252,7 @@ export default function SettingsView(): React.JSX.Element {
             </h2>
 
             {/* Theme row */}
-            <div className="flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.theme.label')}
@@ -255,7 +271,7 @@ export default function SettingsView(): React.JSX.Element {
             </div>
 
             {/* Background-glow row (owner-ratified 2026-07-17) */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.backgroundGlow.label')}
@@ -274,7 +290,7 @@ export default function SettingsView(): React.JSX.Element {
             </div>
 
             {/* Instance-labels row (VRX-183) */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.labelScheme.label')}
@@ -294,39 +310,98 @@ export default function SettingsView(): React.JSX.Element {
           </section>
         )}
 
+        {category === 'dashboard' && (
+          <section className="settings-cards" aria-labelledby="settings-dashboard-heading">
+            <h2 id="settings-dashboard-heading" className="sr-only">
+              {t('settings.dashboard.heading')}
+            </h2>
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.popular.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.popular.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={popularNow}
+                ariaLabel={t('settings.dashboard.popular.label')}
+                onChange={(checked) => updateSettings({ dashboardPopularNow: checked })}
+              />
+            </div>
+            <SettingCard
+              expanded={hotEnabled}
+              parent={
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.dashboard.hot.label')}
+                    </p>
+                    <p className="text-xs text-[var(--text-dim)]">
+                      {t('settings.dashboard.hot.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={hotEnabled}
+                    ariaLabel={t('settings.dashboard.hot.label')}
+                    onChange={(checked) => updateSettings({ hotInstancesEnabled: checked })}
+                  />
+                </div>
+              }
+            >
+              {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
+              Dashboard's hot-instances header; both write the same setting. */}
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.hotThreshold.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.hotThreshold.description')}
+                  </p>
+                </div>
+                <NumberStepper
+                  value={hotThreshold}
+                  min={HOT_INSTANCE_THRESHOLD_MIN}
+                  max={HOT_INSTANCE_THRESHOLD_MAX}
+                  onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+                  ariaLabel={t('settings.hotThreshold.aria')}
+                />
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.notifications.hotInstance.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.notifications.hotInstance.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={notifyHotInstance}
+                  ariaLabel={t('settings.notifications.hotInstance.aria')}
+                  onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+                />
+              </div>
+            </SettingCard>
+          </section>
+        )}
+
         {/* ── Behavior page (VRX-231: renamed from the 'dashboard' category;
             session-only key, nothing persisted) ── */}
         {category === 'behavior' && (
-          <section aria-labelledby="settings-behavior-heading">
+          <section className="settings-cards" aria-labelledby="settings-behavior-heading">
             <h2 id="settings-behavior-heading" className="sr-only">
               {t('settings.behavior.heading')}
             </h2>
-
-            {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
-              Dashboard's hot-instances header; both write the same setting. */}
-            <div className="flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.hotThreshold.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.hotThreshold.description')}
-                </p>
-              </div>
-              <NumberStepper
-                value={hotThreshold}
-                min={HOT_INSTANCE_THRESHOLD_MIN}
-                max={HOT_INSTANCE_THRESHOLD_MAX}
-                onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
-                ariaLabel={t('settings.hotThreshold.aria')}
-              />
-            </div>
 
             {/* Drawer-opener row (VRX-228, moved here from Appearance in
                 VRX-231): whole-card pointer opener (default, owner ruling
                 2026-07-27) vs the VRX-225 avatar-only behavior. The avatar
                 button stays the semantic/keyboard opener either way. */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.drawerOpener.label')}
@@ -346,7 +421,7 @@ export default function SettingsView(): React.JSX.Element {
 
             {/* Friends background-reconcile row (VRX-77, moved here from
                 Appearance in VRX-231) */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.reconcileInterval.label')}
@@ -364,59 +439,60 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            {/* Join rows (VRX-210) — permanently homed on the Behavior page
-                (VRX-231; their earlier 'dashboard' placement was temporary). */}
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.allowJoinInstances.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.allowJoinInstances.description')}
-                </p>
+            <SettingCard
+              expanded={allowJoinInstances}
+              parent={
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.allowJoinInstances.label')}
+                    </p>
+                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                      {t('settings.allowJoinInstances.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={allowJoinInstances}
+                    ariaLabel={t('settings.allowJoinInstances.aria')}
+                    onChange={(checked) => updateSettings({ allowJoinInstances: checked })}
+                  />
+                </div>
+              }
+            >
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.confirmJoin.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.confirmJoin.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={confirmJoin}
+                  ariaLabel={t('settings.confirmJoin.aria')}
+                  onChange={(checked) => updateSettings({ confirmJoin: checked })}
+                />
               </div>
-              <Toggle
-                checked={allowJoinInstances}
-                ariaLabel={t('settings.allowJoinInstances.aria')}
-                onChange={(checked) => updateSettings({ allowJoinInstances: checked })}
-              />
-            </div>
 
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.confirmJoin.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.confirmJoin.description')}
-                </p>
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.joinMode.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.joinMode.description')}
+                  </p>
+                </div>
+                <SegmentedControl
+                  values={JOIN_MODE_DISPLAY}
+                  active={joinMode}
+                  labelKeys={JOIN_MODE_LABEL_KEYS}
+                  ariaLabel={t('settings.joinMode.aria')}
+                  onChange={(value) => updateSettings({ joinMode: value })}
+                />
               </div>
-              <SegmentedControl
-                values={CONFIRM_JOIN_VALUES}
-                active={confirmJoin ? 'on' : 'off'}
-                labelKeys={CONFIRM_JOIN_LABEL_KEYS}
-                ariaLabel={t('settings.confirmJoin.aria')}
-                onChange={(value) => updateSettings({ confirmJoin: value === 'on' })}
-              />
-            </div>
-
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.joinMode.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.joinMode.description')}
-                </p>
-              </div>
-              <SegmentedControl
-                values={JOIN_MODE_DISPLAY}
-                active={joinMode}
-                labelKeys={JOIN_MODE_LABEL_KEYS}
-                ariaLabel={t('settings.joinMode.aria')}
-                onChange={(value) => updateSettings({ joinMode: value })}
-              />
-            </div>
+            </SettingCard>
 
             {/* Automatic updates row (VRX-113) */}
             <UpdaterSettingsRow />
@@ -425,12 +501,12 @@ export default function SettingsView(): React.JSX.Element {
 
         {/* ── Notifications page (VRX-84) ── */}
         {category === 'notifications' && (
-          <section aria-labelledby="settings-notifications-heading">
+          <section className="settings-cards" aria-labelledby="settings-notifications-heading">
             <h2 id="settings-notifications-heading" className="sr-only">
               {t('settings.notifications.heading')}
             </h2>
 
-            <div className="flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.notifications.online.label')}
@@ -446,7 +522,7 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.notifications.inGame.label')}
@@ -462,7 +538,7 @@ export default function SettingsView(): React.JSX.Element {
               />
             </div>
 
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
+            <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
                   {t('settings.notifications.offline.label')}
@@ -477,28 +553,12 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
               />
             </div>
-
-            <div className="mt-[var(--space-6)] flex items-center justify-between gap-[var(--space-6)]">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.hotInstance.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.hotInstance.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyHotInstance}
-                ariaLabel={t('settings.notifications.hotInstance.aria')}
-                onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
-              />
-            </div>
           </section>
         )}
 
         {/* ── Accounts page (VRX-37) ── */}
         {category === 'accounts' && (
-          <section aria-labelledby="settings-accounts-heading">
+          <section className="settings-cards" aria-labelledby="settings-accounts-heading">
             <h2 id="settings-accounts-heading" className="sr-only">
               {t('settings.accounts.heading')}
             </h2>
