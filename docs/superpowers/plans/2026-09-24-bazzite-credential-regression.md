@@ -193,12 +193,23 @@ passed. Latest observed weekly usage was 12% used. No real platform requests.
   are skipped there. Windows relies on inherited profile ACLs, synced key-file
   writes and atomic rename because Node cannot fsync directory handles there.
   Interrupted key-publication fault injection remains additional future coverage.
-- DOX: root/main contracts, internal API and changelog updated. README, API
-  etiquette/volatility and visual-design docs intentionally unchanged because
-  platform requests, project stack and UI are unchanged. Earlier approved
+- DOX: root/main contracts, internal API and changelog updated. The credential-storage description in API volatility is also updated; platform
+  API assumptions are unchanged. README, API etiquette and visual-design docs
+  are intentionally unchanged because project stack, platform requests and UI
+  are unchanged. Earlier approved
   safeStorage-only design remains historical, superseded for fallback by this
   explicitly approved scope.
 
 Next: publish feature PR, inspect required final-head CI and available bot
 feedback. Merge and release remain unauthorized. The user approved the disclosed
 local-key security tradeoff, not those delivery steps.
+
+### PR checkpoint
+
+PR #328 publishes commit d49c1fa. GitHub Codex review found only remaining
+safeStorage-only prose in the main contract and API-volatility document. Those
+statements are corrected in a nonfunctional follow-up: no runtime, test or build
+behavior changes. Exact prose diff, formatting and diff checks cover the delta;
+the earlier general review remains the code anchor. CodeRabbit skipped automatic
+review, so it supplies no substantive coverage. Required final-head CI is watched
+with a bounded deadline. The synthetic Linux VM has been stopped.
