@@ -1,53 +1,85 @@
-# src/main/ipc — IPC handler layer
+# src/main/ipc
 
 ## Purpose
 
-Maps every `IpcInvoke` channel (defined in `@shared/ipc`) to a main-process
-handler. One file per domain. All handlers call `isTrustedIpcSender` first.
+Implement the narrow, typed renderer-to-main boundary. `index.ts` registers
+handlers; domain files validate requests and call main-owned services.
 
 ## Ownership
 
-- `links.ts` / `links.test.ts` expose `get-linked-profiles` and `change-linked-profile`. Main qualifies friend refs with current account ownership. A bounded current-session lease fences account/epoch changes. Every read/write snapshot includes main-owned ready `accountIds`, captured synchronously with the lease and used to filter its profiles; transient auth-status errors do not erase a retained session's ownership. Reads expose only people with at least one healthy matching anchor; creating/replacing needs both selected platforms ready. Updates/unlinks retain one healthy anchor and require reviewed person revisions. Successful writes return the committed snapshot and broadcast `linked-profiles-changed`; no platform API requests are added. Local budgets are 90 reads/minute and 60 changes/minute with typed denials.
-- `security.ts` — `isTrustedIpcSender()`: dev=origin-exact, prod=file://+top-frame (VRX-25).
-- `explore.ts` — `set-explore-active`, `get-explore`, `get-explore-world`,
-  `cancel-explore-world`, `get-explore-image` and `join-explore-room`: every
-  handler sender-guards first, then accepts only closed platform/reason values
-  and bounded opaque references. It delegates all cache, session, admission,
-  refresh and launch decisions to `ExploreService`; a renderer cannot choose a
-  host, upstream ID or game URL.
-- `friends.ts` / `friends.test.ts` — `get-friends`: unwraps the adapter-internal `FriendRoster` and applies its per-physical-read LocationAuthority revisions in chronological order; unwired adapters retain a pre-delegation fallback revision. Joining an older shared read never gives it a newer publication fence. Retained first-read omissions keep their original partial fence; a complete final read replaces earlier seed batches. Complete snapshots reconcile absences; partial snapshots seed positive entries without tombstoning omissions. Failed responses never seed. Complete responses remain `Friend[]`; partial responses carry only `{ friends, completeness: 'partial' }` so the renderer retains omitted cached entries. Adapter rate limits and admission overflow map to the existing sanitized `rate_limited` IPC error; deadlines remain in main (VRX-166/222/218).
-- `avatar.ts` / `avatar.test.ts` — `get-avatar`: shape-validates the URL request and rejects strings over 2,048 characters after the sender guard, delegates to the main-process avatar cache, and returns a CSP-safe `data:` URL result or `null` (VRX-48).
-- `auth.ts` — `get-auth-status`, `login`, `verify-2fa`, `logout`: delegates to adapter. `login` shape-validates the payload before use — `username`/`password` must be strings and `twoFactorCode`, when present, must be a string (audit W3) — and is never logged (VRX-20); `verify-2fa` (VRX-159) takes only `{code}` and routes to `adapter.verify2fa`, so the renderer completes the 2FA leg via the session cookie without resending/holding the password. `logout` (VRX-191) sender-guards first, validates the platform, then calls `adapter.clearSession()`. `registerAuthHandlers` retains optional `onLoginSuccess(platform)` and settled `onAuthStatus(status)` callbacks; production passes authenticated `status.accountId` plus a captured AccountSession epoch into guarded AccountRegistry adoption, and callback failure never changes the renderer result.
-- `accounts.ts` / `accounts.test.ts` — `get-accounts`: sender-guarded read of `AccountRegistry.listAccounts()`, filtered to platforms with a currently ready AccountSession; a fully logged-out app returns no historical metadata. Active/known accounts are returned and explicit-remove tombstones remain excluded. Logged-out picker projection is deferred to VRX-89.
-- `notes.ts` / `notes.test.ts` — `get-friend-note` / `set-friend-note`: account-scoped private friend notes backed by `SocialStore` (VRX-72). Sender-guarded and platform-validated; reads/writes are keyed by `{platform, platformUserId}` (never display name). Reads issue an ACCOUNT LEASE (`revision` = the resolving account+epoch); writes must echo it and main re-verifies against the CURRENT resolution before touching the store — an account switch between read and write returns `stale`, never a cross-account write. Empty-string notes delete the key; over-long notes (over 500 characters after trailing-whitespace trim) and proto-key/unsafe ids return `invalid`; stale account epochs return `stale` without throwing.
-- `instance.ts` / `instance.test.ts` — `join-instance` (friendId + renderer `expectedTarget`) and VRChat-only `self-invite` (VRX-166/239/241). Both sender-guard and shape-validate first. `join-instance` then checks the required main-owned `isJoinAllowed` policy (VRX-39) and returns `joining-disabled` before authority resolution or URL construction when off; this policy deliberately does not gate `self-invite`. When allowed, it resolves through LocationAuthority, compares the current hot instance against `expectedTarget`, builds only from main-owned data, final-validates via `isAllowedLaunchUrl`, and launches. Friend Join and Explore share one JoinCoordinator; self-invite retains its independent lock/cooldown. Denial logs contain platform + reason only, never locations or errors.
-- `app-status.ts` — `get-app-status`: stub returning all-'ok' until VRX-79/146/147 wire WS health (VRX-20).
-- `launch.ts` / `launch.test.ts` — renderer-facing `open-url` is HTTPS-only through `isAllowedUrl`; custom game schemes are unreachable from this path (VRX-166).
-- `settings.ts` — `get-settings`, `save-settings` (VRX-184): thin wiring over `services/settings.ts`. The save patch is shape-validated (plain object only — a spread string/array would smear indices); field validation is `parseSettings`' job downstream. `save-settings` returns the main-owned coalesced disk-write promise; newer-version refusal or write failure rejects it so the renderer stays dirty.
-- `settings.test.ts` — handler boundary tests (VRX-184): guard rejection on both channels, the patch shape table, delegation, and the newer-version refusal propagating.
-- `url-allowlist.ts` — pure predicates, no electron imports. `isAllowedUrl()` is the HTTPS+known-host renderer/web-link gate. `isAllowedLaunchUrl()` is called by main-owned friend Join and Explore Join and exact-validates the VRChat `vrchat://launch` or CVR `chilloutvr://instance/join` grammar: lowercase scheme/host/path, no userinfo/port/fragment, exact parameter-name allowlists, bounded strict values (VRX-166).
-- `url-allowlist.test.ts` — unit tests for the allowlist predicate (VRX-20; W6 added Cyrillic-homoglyph + protocol-relative denials).
-- `security.test.ts` — unit tests for `isTrustedIpcSender` (audit W6 — the guard on every channel finally has coverage): dev exact-origin incl. the `localhost:5173.evil.com` prefix-spoof, port/scheme mismatch, unset-env fail-closed, malformed URLs; prod top-frame-file:// incl. the subframe rejection. Mocks `@electron-toolkit/utils` (`is.dev` is read per call).
-- `auth.test.ts` — handler boundary tests (audit W6): captures handlers via a mocked `ipcMain.handle`, then drives them with hostile payloads — untrusted sender, bad platform, non-string credentials/twoFactorCode (the W3 pin), no-adapter platform — plus happy-path delegation. Uses `stubPlatformAdapter` from the adapters' `__testutils__/adapterTestKit`.
-- `updater.ts` / `updater.test.ts` — `updater:get-state`, `updater:check`, `updater:download`, `updater:install`: sender-guarded wrappers around `UpdaterService`. Download/install are no-ops unless the service is in the correct state; never allow silent downloads (VRX-113).
-- `index.ts` — `registerIpcHandlers(adapters, options)`: the single registration point for typed invoke channels, including Explore, and `renderer-hydrated`; first removes electron-store's unused `electron-store-get-data` listener, then its registration shells validate sender trust BEFORE calling each per-channel limiter. `index.test.ts` enumerates the complete allowed `ipcMain.handle`/`on` set and asserts no `handleOnce` registration. Options carry the required AccountRegistry, AccountSession, LocationAuthority, `SocialStore`, LinkGraphStore, AppStatusService, ExploreService, hydration callback, instance clock/logger, optional auth callbacks, and test-only limiter clock/logger seams (VRX-24/28/72/84/143/166); imported once in `src/main/app.ts`.
-- `rate-limit.ts` / `rate-limit.test.ts` — VRX-28 pure per-channel sliding-window limiter, source budget table, structured/query/notify denial policy, per-process/per-channel warning suppression, monotonic injected clock tests, and the 600-avatar burst regression. Production closures live for the main-process lifetime and denials do not return `retryAfterMs`.
-- **Push channel `'friend-event'`** (typed in `@shared/ipc` `IpcEvents`) is LIVE as of VRX-146: main broadcasts normalized `AdapterEvent`s via `webContents.send`; the preload exposes `onFriendEvent(cb) → unsubscribe`; the renderer applies them to the TanStack cache. Push-only — no sender guard applies (main → renderer direction).
-- **Push channel `'updater:state-changed'`** (VRX-113): `UpdaterService` broadcasts its snapshot on every state transition to every non-destroyed window; consumed by `useUpdater` in the renderer.
-- **Push channel `'explore-changed'`** (VRX-270): `ExploreService` broadcasts only `{ platform }` after a snapshot changes; the renderer re-reads the typed snapshot. No raw discovery payload or URL is pushed.
+- [`@shared/ipc`](../../../src/shared/ipc.ts) is the source of truth for invoke,
+  notification, and push types. [`docs/INTERNAL-API.md` sections 1-3](../../../docs/INTERNAL-API.md)
+  list callable contracts and event meanings.
+- `index.ts` is the only registration point. It owns the trust-first,
+  per-channel limiter shell and removes unused third-party listener bootstrap.
+- Domain modules own handler-specific request validation. `security.ts` owns
+  sender admission; `url-allowlist.ts` owns pure renderer-link and main-built
+  launch URL validation.
+- Preload exposes only typed bridge methods and subscriptions. It may normalize
+  the documented `rate_limited` error but must not add authority or policy.
 
 ## Local Contracts
 
-- Linked snapshot reads refresh preferred-name fallbacks only from the injected
-  main `LocationAuthority` and the member's healthy matching account. Changed
-  names commit together and publish invalidation; this adds no platform request.
-  Refresh is best-effort: a failed write preserves the readable saved snapshot,
-  and a notification failure does not turn a committed refresh into a read error.
+- Every handler calls `isTrustedIpcSender` first. Register it through the
+  `index.ts` shell before its limiter. Deny malformed, oversized, unknown, and
+  stale requests without logging sensitive request data.
+- Keep push channels main-to-renderer only. Do not make a push event callable
+  from the renderer, and unsubscribe listeners in preload.
+- Main owns account identity, session epoch, location authority, settings,
+  action policy, opaque references, and final URL construction. A renderer may
+  submit `expectedTarget` world and instance IDs only for comparison with the
+  current main-owned location. It never supplies URL authority.
+- `join-instance` checks the main-owned allow-join setting before lookup or URL
+  building, compares `expectedTarget`, checks joinability, validates the
+  main-built URL, then launches under the shared coordinator. `self-invite` has
+  its own lock and cooldown. Keep denial logs to platform and reason.
+- `open-url` accepts only allowlisted HTTPS web links. Custom game schemes are
+  reachable only from main-owned join paths after strict URL validation.
+- `get-avatar` admits only a bounded URL string and delegates to `AvatarCache`.
+  Return its CSP-safe `data:` result or `null`; do not expose fetch, cookies,
+  redirects, or vendor image URLs to the renderer as an authority.
+- Authentication handlers never log or return credentials. Complete 2FA with
+  the adapter's pending session, not a resent password. Failure paths that
+  clear auth must preserve the typed session-cleared result contract.
+- Route `login` and `verify-2fa` by the validated request platform. A direct
+  CVR login is a normal authentication path; do not hardcode VRChat at this
+  boundary or require the app's initial screen to choose the platform.
+- `get-app-status` returns `AppStatusService.snapshot()`. Do not replace this
+  live connection and reconcile status with a fixed success value.
+- Account-scoped reads and writes capture a main-owned lease and recheck it
+  before mutation. A stale account or epoch returns the documented stale result,
+  never writes across accounts.
+- Rate limits are timer-free sliding windows with a monotonic clock. Keep the
+  per-channel policy table, warning suppression, and error mapping in one
+  place. Do not return retry timing or request payloads to the renderer.
 
-- `isTrustedIpcSender` must be the FIRST call in every `ipcMain.handle` callback.
-- Every renderer→main channel is registered through `index.ts`'s trust-first shell and per-channel limiter, in that order. Keep domain handler callbacks intact so their sender guard remains first inside the handler; limiter state/log suppression is per channel, timer-free, and contains no request payloads or PII.
-- `url-allowlist.ts` must stay pure (no electron imports) — it is unit-tested in isolation.
-- `isAllowedLaunchUrl` is private to main-owned friend and Explore join paths; never re-expose custom schemes through `open-url`.
-- `app-status.ts` is an explicit stub: do not expand it without the owning issue (VRX-79).
-- Deferred channels (`get-notifications`, `launch-app`) have no handler yet — add them when their owning issue ships (M3 notifications, VRX-98).
-- `login` credentials are never logged or echoed back — the electron-log redaction hook (VRX-15) covers the adapter layer, but the handler must not introduce new log points.
+## Work Guidance
+
+- Add a channel only when no catalogued channel fits. Change `@shared/ipc`,
+  preload types, registration, handler tests, and `docs/INTERNAL-API.md`
+  together.
+- Keep URL predicates pure and test them without Electron. Keep IPC handlers
+  thin; put persistence, network, cache, and account-transition policy in
+  services.
+- Preserve roster completeness and location revisions through `get-friends`.
+  Only a complete roster may reconcile missing friends. Partial results preserve
+  cached omissions; failed reads do not seed authority.
+- Settings reads migrate and validate in main. A save must reject a newer-file
+  overwrite or durable-write failure so the renderer does not report an
+  unsaved preference as durable.
+- Explore accepts only bounded main-issued opaque references. It delegates
+  discovery, admission, caching, and launch decisions to `ExploreService`.
+
+## Verification
+
+- Follow `docs/DEVELOPMENT.md` and `docs/REVIEW.md`. Run focused handler tests
+  and `ipc/index.test.ts` when registration changes.
+- Exercise trusted and untrusted senders, invalid request shapes, stale account
+  leases, rate limits, and denial paths that apply to the changed handler.
+  URL or launch changes need exact allowlist and target-mismatch tests.
+- Confirm registration enumerates only the typed expected channels and no
+  handler leaks credentials, raw errors, locations, or URLs in logs.
+
+## Child DOX Index
+
+No child contracts. Each handler file is one domain under this contract.

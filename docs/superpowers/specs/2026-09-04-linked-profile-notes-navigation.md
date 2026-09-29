@@ -1,5 +1,7 @@
 # Linked profile notes and navigation
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: owner-approved design decision, September 4, 2026. Implementation is deferred.
 
 ## Interactive mock approval

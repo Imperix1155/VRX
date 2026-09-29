@@ -1,285 +1,99 @@
-# src/renderer — React UI
+# Renderer
 
 ## Purpose
 
-The renderer process: the React + Tailwind v4 UI. Runs sandboxed; reaches the main process only through the preload bridge.
+`src/renderer` is VRX's sandboxed React and Tailwind UI. It presents main-process
+data and calls the typed preload bridge. It never gains direct Electron, Node,
+credential, network, or launch authority.
 
 ## Ownership
 
-- `src/components/ExploreRoute.tsx` is the production Explore route.
-  `src/hooks/useExploreWorldSelection.ts` owns the shared route/Dashboard sheet
-  lifetime, cancels obsolete work and orders every asynchronous read so an older
-  loading response cannot replace a newer completed snapshot. `ExploreView.tsx`, `ExploreWorldCard.tsx`,
-  `ExploreWorldSheet.tsx`, `ExploreDashboardPreview.tsx`, and
-  `ExploreSourceState.tsx` remain presentational: data, selection state, resolved
-  images, and callbacks are injected. The route and the Dashboard preview use the
-  same ranking/selection and contained non-modal sheet; the preview adds at most
-  two cards and leaves Dashboard statistics and Hot Instances unchanged. Its
-  contained sheet and the Hot Instance sheet are mutually exclusive for pointer
-  and keyboard activation. Handoffs suppress outgoing Explore focus restoration
-  once so the incoming Close button retains focus; ordinary closure still
-  restores its connected opener or main fallback. Starting a new selection
-  clears any unconsumed handoff left by an empty preview unmounting the old sheet.
-  The global social platform
-  filter is shared with Friends/Dashboard, while the persisted 2/4/6 world count
-  is owned by settings. Sheets identify their platform in text, distinguish
-  incomplete coverage from verified empty results, retain a connected opener
-  fallback, and close through Escape/outside/Close unless a confirmation modal
-  owns dismissal. A stale sheet offers explicit refresh; stale, mismatched, busy,
-  and denied room actions are honestly disabled. World openings may first return
-  a loading snapshot; `onExploreChanged` then reads cache-only room data rather
-  than closing the sheet or retrying discovery. When an explicit card open or
-  manual Refresh finds an expired opaque reference, that gesture may make one
-  fenced cache-only
-  snapshot read and recover only the same platform/world ID under its replacement
-  ref, retaining the original open/manual reason. Close, reselect, and identity fences prevent that recovery from publishing
-  later. A disconnected selected platform renders the existing unavailable source
-  state without discovery work, while a healthy platform remains visible. Failed
-  images stay neutral. Duplicate manual refreshes coalesce while pending.
-  Same-platform invalidations wait behind an active manual refresh or ref
-  recovery, then read the renewed ref while retaining account/close fences. Sheet art is fenced by the selected opaque ref, independently
-  of later room-snapshot request ordering.
-
-- `src/hooks/useExploreCoordinator.ts` is the sole renderer trigger for Explore
-  work. It sets active platforms for a relevant visible Dashboard/Explore view,
-  coalescing identical pending or successful declarations. Rejected declarations
-  can retry on a later wake; cleanup clears the remembered declaration before
-  deactivation so a remount restores active platforms. Visibility loss clears
-  declarations synchronously so batched hide/show events still reactivate main.
-  Pending activation captures per-platform boundary generations. Identity and
-  auth-invalidation callbacks advance them synchronously, before React cleanup,
-  so an old continuation cannot dispatch under replacement-account proof. It
-  then accepts only eligible entry, focus, online, or `connection: 'live'` wakes:
-  selected authenticated (or proven retained transient-error) account, missing or
-  60-second-stale cache, and a five-minute account/platform automatic gate. It
-  records before IPC and has no interval, retry, or timer-driven request. The
-  query layer's one-shot freshness expiry changes cached presentation only; the
-  next eligible wake may act. Identity/auth boundaries clear mounted Explore
-  snapshots, images, automatic gates, sheets, and retained identity proof. An
-  error status may reuse only an instance-scoped account proven by a later
-  authenticated auth-query update; a boundary quarantines its older cached auth
-  result. Dashboard-to-Explore keeps the same active work/cache; AppShell
-  unmount deactivates Explore. Disabling `dashboardPopularNow` also deactivates discovery on Dashboard, preserving Explore and automatic request gates.
-
-- `src/queries/explore.ts` owns renderer-only Explore cache reads,
-  generation fences, per-platform in-flight coalescing, and main-issued image
-  data. Snapshot reasons are cache-only. An Explore change arriving while work
-  or a snapshot read is pending causes serial cache-only reads until the latest
-  read is quiet. A queued manual/automatic request checks its original
-  generation before dispatching, so an old account cannot replay against a new
-  one. Image work begins only from a visible card or currently selected sheet,
-  deduplicates a current opaque `worldRef`, and caches successful images and
-  terminal null results within a 12-entry per-platform bound. Shared visible
-  card/sheet observers may recover only typed main admission deferrals, at most
-  twice per retained reference/session, using a clamped delay and one timer.
-  Continuous intersection and document visibility checks cancel delayed dispatch
-  when no visible consumer remains. Hiding/remounting cannot reset the retained
-  attempt budget; session/ref changes fence callbacks and requests. Null/unknown
-  failures stay terminal, and inactive observer retention is bounded. Platform
-  boundaries reset only that platform's image observers/cache. Reset disabled query observers at boundaries; removing
-  a query alone leaves an already mounted observer holding old account data.
-
-- `src/components/IdentitiesDialog.tsx`, `LinkConfirmDialog.tsx`, and `LinkedDialog.tsx` own manual local identity management. Dialog reviews capture exact pairs, account-qualified labels, shared notes and revisions; replacement is one request, never sequential unlink operations. New links start a blank shared note; unlink/replacement requires explicit loss acknowledgement and preserves original account notes. A stale review must be reopened. Native modality owns keyboard trapping and background inertness; the underlying drawer stays non-modal. A session boundary invalidates the open review.
-
-- `src/utils/projectLinkedFriends.ts` projects account-qualified linked people without changing raw caches. `src/stores/profileSelection.ts` owns durable person/account navigation, independently of roster placement. `src/hooks/usePersonNote.ts` owns session-only shared drafts and serialized explicit-retry writers; original account notes remain separate. Same-person presence updates retain the editor and caret. Owner changes flush the previous committed editor. Only the app linked-profile subscription cancels/reloads the query at boundaries; the note coordinator clears drafts without racing that reload. All link publications retain the highest document revision within the current lease.
-
-- `src/queries/linkedProfiles.ts` owns the local linked-profile query and session lease. FriendsList and TopBar use its main-owned `accountIds` for linked projection, not nullable auth-status IDs, so transient status errors preserve linked rows and counts. App subscribes once to link invalidations and identity boundaries. Boundaries cancel reads and clear mounted snapshots including the account map before reload; old read/write replies cannot restore previous-account data. Shared notes are excluded from persisted friends caches, and destructive mutations never retry automatically.
-- `src/components/SettingsView.tsx`, `src/hooks/useJoinInstance.ts` — Settings → Behavior includes the neutral `allowJoinInstances` On/Off control (VRX-39, default ON); it persists the user's choice while main remains the enforcement boundary. A main denial uses typed `joining-disabled` with specific en/ja copy.
-
-- `src/components/JoinConfirmDialog.tsx` + `hooks/useJoinInstance.ts` own one
-  shared, externally stored join flow for friend, drawer, hot-instance, and
-  Explore actions. `PendingConfirm` is discriminated (`source: 'friend'` or
-  `'explore'`); Explore never fabricates a Friend and sends only its opaque
-  `selectionRef` through `joinExploreRoom`. The shared busy latch, permission
-  gate, typed denial state, boundary fences, and mode resolution apply to every
-  surface. Explore uses the same modal shell, focus trap, Escape/outside rules,
-  mode controls, public policy context, and "don't ask again" persistence as
-  friend confirmation; its contained Explore sheet suppresses own dismissal
-  while confirmation is open. Friend confirmations retain their live-cache
-  drift, waiting, review, availability, and main-side target-CAS behavior.
-- `src/components/FriendDrawer.tsx` — the friend-details non-modal panel (VRX-69 + VRX-251 + VRX-269). Header (avatar, name, custom status, platform), status band, single/split Where cards for in-game instances passing `isHotInstanceMember`, neutral hidden/image-failure layers, the shared instance pill without raw IDs or policy badges, the existing Join flow, independently owned notes, and quiet trust below Notes. A rejected initial note load or a settled load without an account revision keeps the editor visibly read-only and offers an explicit Retry. Rejected note saves leave the newest draft locally visible, explain that closing VRX loses it, and offer one explicit serialized Retry; rejection cancels queued auto-saves and ordinary later blurs, normal saves/successes stay quiet, and stale completions cannot clear a newer draft or error. The renderer-lifetime note coordinator survives route remounts and Vite hot replacement with one boundary listener/writer: async HMR disposal keeps the old boundary listener alive, then successful replacement evaluation swaps it synchronously even when Friends is unmounted. A failed replacement import therefore cannot create a listener-free privacy gap. Drafts are never persisted. Ask Me / DND / hidden-world friends show NONE of the enrichment fields; a stale populated instance on a non-in-game friend renders nothing. Non-modal: no focus trap, no aria-modal, pointer-events-none scrim; closes via Esc / outside pointerdown / ✕, with focus returning to the opener.
-- `index.html`, `src/main.tsx` — React entry (`main.tsx` also initializes i18next). `installDocumentDropGuard.ts` registers document-level capture listeners that cancel every `dragover` and `drop`, preventing a local file or HTML drop from replacing the sandboxed renderer document; its returned cleanup is used by isolated tests.
-- `src/assets/fonts/` — local OFL-licensed WOFF2 typography (VRX-32): Inter variable weight 400–800 for readable UI and VT323 weight 400 for the DESIGN.md accent allow-list. Keep each license beside its font and pin provenance/checksums in `SOURCES.json`; electron-builder copies that evidence to `resources/licenses/fonts/` and its `afterPack` hook verifies the ASAR fonts and packaged notices. Press Start 2P is not part of the binding design.
-- `src/components/ErrorBoundary.tsx` — React error boundary (VRX-127). Wraps `<App/>` in `main.tsx` (inside `PersistQueryClientProvider`) AND each panel (e.g. `FriendsList` in `App.tsx`). Catches render-phase errors from its subtree and shows a glass-styled fallback (`--error` token + non-color glyph + Reload + Copy-diagnostics, all copy i18n'd). A `variant` prop (VRX-165) controls the fallback: `'app'` (default) is full-screen with the brand mark; `'panel'` is compact (no `min-h-screen`, no brand mark) so a single panel's error doesn't blank the whole window. Diagnostics remain local for explicit copy; the renderer imports no electron-log transport because main logging exposes no renderer IPC. Tested via `@testing-library/react` + `// @vitest-environment jsdom`.
-- `src/components/Sidebar.tsx` — §8 sidebar nav (VRX-172) plus the consent-based update button (VRX-113/268). Active-item left spine reads the global `platformFilter` from `useFriendsStore` and echoes it: **All** keeps the existing `--vrc → --cvr` gradient; **VRChat** / **ChilloutVR** make the spine solid `--vrc` / `--cvr`. Position carries "active page"; color is a reinforcing echo — the segmented platform toggle remains the primary carrier, satisfying R10/R12. The update button only appears when an update is actionable, shows a collapsed 36px circle on the footer grid (edges aligned to the wordmark and version lines, VRX-255) that expands on hover/focus, and surfaces a localized retry suffix via `title`/`aria-label` when the closed `failure` category is set. Renderer copy never receives exception text.
-- `src/components/DashboardView.tsx` + `src/components/HotInstanceSheet.tsx` — §9 Dashboard and its hot-instance detail sheet. Dashboard also mounts `ExploreDashboardPreviewRoute` for up to two shared cached Explore cards; social loading/empty/error states remain inside their own sections and never suppress discovery. Hot Instances retain exact-instance grouping, the existing 1–10 threshold/persistence behavior, six-card cap, linked actions, and shared friend-join semantics.
-- `src/App.tsx`, `src/components/` — UI components. `App.tsx` is the **auth gate** (VRX-191): reads both platform `useAuthStatus` queries and renders the **§8 `AppShell`** while either is authenticated OR in `error` (VRX-201 — an unreachable/unreadable platform may still have a live session; LoginScreen would invite a duplicate login, so the error is presented in-shell by `AccountCard`); it renders `LoginScreen` only when neither is connected (`BootSplash` — brand mark + Connecting…, VRX-223 — while either check is pending, so an already-signed-in session doesn't flash the form and slow auth checks never show a blank window). A `needs-2fa` status (VRX-173: auth cookie alive, second factor expired) passes `initialTwoFactor` so LoginScreen opens DIRECTLY on the method-aware code prompt — no password re-entry; Back remains the escape hatch to a full login. Gate routing pinned by `App.test.tsx`. `LoginScreen.tsx` (VRX-158; TWO-TAB since VRX-217) — a VRChat | ChilloutVR segmented radiogroup (shared `SegmentedControl` + AA word tokens; tabs FREEZE while a login is in flight so a switch can't orphan results or run concurrent platform logins) above ONE shared form from `useAuthFlow(platform)` + `components/auth/*` (VRX-221 extraction; LoginScreen 240→~176 lines, AccountCard 331→~174): credentials → login, method-aware 2FA prompt → verify2fa (password dropped from state once 2FA is requested, VRX-159; VRChat-only — CVR has no 2FA and any hypothetical needs2fa falls back to the generic error, never a dead prompt). Tab switch = keyed remount, guaranteed-fresh form; autofill is platform-partitioned (per-platform ids + `section-*` autocomplete groups — password managers can't cross-fill). The card retints per platform; CVR submit uses `--text-on-cvr` (AA-measured). Typed credential_persistence_failed maps to dedicated secure-store retry copy in both login surfaces; all other adapter codes and no-code bridge/thrown failures use generic i18n copy. Failures are surfaced, never silent. **App shell (VRX-168, §8):** `AppShell.tsx` (248px sidebar | 1fr main; only `.main` scrolls; the `<main>` landmark is `aria-label`led by the active view's title — audit W5), `Sidebar.tsx` (tri-color VRX brand + four-item Dashboard/Friends/Explore/Settings nav with active glass fill + `--vrc→--cvr` spine + footer), `TopBar.tsx` (view title + a CONTEXTUAL control slot — the platform filter (glass segmented All/V/C) on content views, the settings CATEGORY nav on Settings (VRX-186: a platform filter is meaningless there) — + a real online count derived from the friends queries — VRX-168; the count key uses i18next `_one`/`_other` plurals, and the sliding bubble re-measures on `i18n.language` changes; the status dot is REAL since VRX-223 — polls `get-app-status` (local IPC, 7.5s) and renders green all-live / amber reconnecting / red down for SIGNED-IN platforms only, text-labeled per R12 — no longer the decorative always-green pulse). Both segmented controls (TopBar platform filter + SettingsView theme) are **radiogroups with roving tabindex** (audit W5): `role="radiogroup"`/`role="radio"` + `aria-checked`, one Tab stop, arrow keys move selection with wrap — keyboard helpers shared from `utils/segmented.ts`. The view-title key map lives in `utils/viewTitles.ts` (component files export only components — react-refresh rule). View switching via the `ui` store: **Friends** mounts `FriendsList`; **Dashboard** is `DashboardView.tsx` (VRX-169, §9 stat cards + hot-instance cards, via `utils/dashboardAggregations.ts`; load/error states mirror FriendsList's SWR pattern — with no cached data an initial load shows "loading" and a total outage shows an error + a Retry button (refetches both platforms), never a misleading "0/0/0"; partial data renders; the hot-instances block is a `section` labelled by a real `h2`; state contract pinned by `DashboardView.test.tsx` — audit W5. Hot grouping is by EXACT INSTANCE (VRX-237, owner law 2026-08-01: exact instanceId equality via the shared `@shared/hotInstanceKey` key + `isHotInstanceMember` membership predicate — in-game, visible, non-hidden — one source with the alert engine; hidden-location friends never count); the hot floor is `settings.hotInstanceThreshold` — live from the store, quick-adjustable via the header `NumberStepper`, VRX-78); **Settings** is `SettingsView.tsx` (VRX-170; VRX-186 split it into **category mini-pages** — the segmented category nav renders in the TOP BAR's contextual slot (Appearance | Dashboard | Behavior | Notifications | Accounts, `SETTINGS_CATEGORIES` in the ui store, session-only state; section h2s are sr-only so the nav is the single visible label), one page rendered at a time per the §8 no-scroll rule (control surfaces don't scroll — feeds do); the theme control renders **Dark | System | Light** (System center — THEMES order in @shared/types IS the display order), applied by the `hooks/useApplyTheme` hook mounted in `App.tsx`; VRX-280 places the hot-instance threshold under the Dashboard category’s Hot Instances parent (a `NumberStepper`, 1–10, mirrored by the quick-access stepper on the Dashboard hot header; both write `settings.hotInstanceThreshold`); VRX-183 added the **Instance labels** row — VRChat / ChilloutVR / Per platform scheme for the pill vocabulary — and extracted the shared local `SegmentedControl`, which uses the MEASURED sliding bubble from `hooks/useSegmentedBubble.ts` (shared with TopBar) instead of the old fixed 1/N-width CSS calc: labels are unequal widths, so the calc bubble misaligned — measured 10.5px off on the active "System" — and the measured one seats sub-pixel on all options); all five Settings categories render their implemented controls. Explore mounts `ExploreRoute`; Activity and Groups are deferred and have no navigation entries or placeholder routes (VRX-281). (The throwaway `TokenPreview`/`LocaleProbe` were deleted here.) The Notifications page contains three persisted friend-event preferences. `notifyHotInstance` lives under Dashboard’s Hot Instances parent. The shared neutral `Toggle` uses an On/Off `radiogroup`, one Tab stop, arrow-key selection, and a measured sliding indicator. Disabling a parent hides and inerts its children while retaining their saved values. **`FriendsList.tsx`** (VRX-19/21/164/166/63, §9.1 redesign; the panel `section` is `aria-labelledby` its h2; headers and friend rows share one `@tanstack/react-virtual` stream inside AppShell's existing `<main>` scroller, with stable keys, an active sticky header, measured detail rows, fixed compact-row sizing, and a bounded overscanned DOM window) renders the friend row: `PlatformTab` (VRX-206 — a vertical platform-tinted pill stacked onto the card's left end per the §3 stack model: 14px grid column, even 3px inset via `-ml-[7px]`/`-my-[5px]`, 9px concentric radius, sideways `VRC`/`CVR` acronym + full-platform-name `aria-label`; the row's platform signal in BOTH color and text — replaces the color-only `PlatformSpine`), an **avatar** (VRX-48: main-fetched, CSP-safe `data:` image loaded near-viewport for BOTH platforms, with the initial placeholder retained during loading/failure — extracted to `components/Avatar.tsx` in VRX-69, with a `'row'`/`'drawer'` variant, to break a FriendsList ⇄ FriendDrawer cycle) wrapped in the **status-color ring + empty corner badge dot + `aria-label`** (folds the old state dot + status pill; the badge's svg GLYPH was retired — owner 2026-07-17/VRX-69 — the aria-label plus the drawer's written status band are the non-color signifiers; `ringFor` — now in `utils/statusRing.ts` — evaluates PRESENCE FIRST (VRX-69 review fix of a pre-existing latent bug: the WS offline path retains cached status, which must never paint the ring), then folds VRChat status for in-world friends; a statusless in-game friend folds onto the status-online ring per the VRX-208 privacy-tier model — CVR online = tier 2, VRX-207; web-active/offline always take the presence palette; offline = no badge), the **name with the custom status beside it**, a **world subline** (Ask-Me/DND hide the world — `isWorldHidden`), and a right-side **instance-type pill** — the openness label (scheme-aware via `settings.labelScheme` + `utils/instanceTypeLabels.ts`: VRChat default per VRX-182, ChilloutVR/per-platform selectable per VRX-183) **tier-colored via the `--op-*` tokens** (§6.1 ladder: green→orange open→locked, purple = groups; `OPENNESS_TIER` map, inline-style var lookup since Tailwind can't emit runtime-constructed classes), or a neutral readable "Private" for ANY friend in a hidden world (`presence.state === 'in-game'` is the gate — VRChat hides location for any friend in a private instance, regardless of status); no pill only when truly not in a world (offline / web-active). VRX-166 makes the pill a real button only when shared `isFriendJoinable(friend)` passes; clicking routes through `useJoinInstance.join(friend)` — since VRX-210 that parks a confirmation (`pendingConfirm`) when `settings.confirmJoin` is on, and the eventual `window.vrx.joinInstance` carries the mode from `resolveWireMode(friend, settings.joinMode)` (CVR honors it via startInVR; VRChat ignores mode by platform design; card mode restores stopPropagation so Join never also opens the drawer (with the row handler's `data-join-pill` guard as a second containment layer)). Any typed denial swaps the visible label to localized failure copy for 2.5s in a polite live region, with timer cleanup; no toast or console. VRX-63 gives intersecting avatar openers one roving Tab stop; Up/Down moves focus across virtual-window boundaries, and a pointer scroll hands real focus and the stop to a visible opener only after the focused row is evicted. Mounted friend rows publish logical `aria-posinset`/`aria-setsize`; Join buttons remain separate native controls, but overscan rows hold them at `tabIndex=-1` until fully visible (per duel F17). Every new/changed component must pass the DESIGN.md **R12 black-and-white test**; the platform tab carries the row's platform in tint AND text (VRX-206). **Presence-section grouping (VRX-67):** the row list is grouped into three collapsible sections — In-Game → Online → Offline (`utils/groupFriendsBySection.ts`'s pure `groupFriendsBySection`, alphabetical within each section — supersedes the old flat online-first sort) — via a local `SectionHeader` (a real `<button>` inside the sticky virtual-row wrapper, `aria-expanded`, a rotating chevron glyph as the non-color signifier) whose collapsed state is `settings.collapsedFriendSections` (Offline collapsed by default); toggling calls `updateSettings` so it persists like any other setting. Each header's background is an opaque `--bg-base` color-mix (not the translucent `.glass` recipe) so scrolled rows don't bleed through while it's stuck. **Debounced friends search (VRX-65):** the glass input is controlled by the existing `friends.search` view state; filtering applies after `SEARCH_DEBOUNCE_MS`, matches `displayName` case/diacritic-insensitively, highlights matches, and `/` focuses it outside editable controls. Clearing is immediate. Active search renders filtered section counts and ignores (without mutating) persisted section collapse so every match stays visible. **The instance-type pill is the shared `InstancePill` component (VRX-198)** — used by BOTH this row and the dashboard so it's identical everywhere; the row passes `min-w-[78px]`. `OPENNESS_TIER` + the shared `PILL_BASE` geometry live in `utils/instancePill` (kept out of the component file per the react-refresh rule). **`instancePillFor(instance, labelScheme)` (also in `utils/instancePill.ts`, VRX-244) is the MANDATORY pill-resolution path** — every pill surface (this row, FriendDrawer, DashboardView hot card, JoinConfirmDialog, HotInstanceSheet) must call it instead of indexing `LABEL_KEYS_BY_SCHEME`/`OPENNESS_TIER` directly: `instance.opennessUnknown === true` returns the existing neutral treatment (`tier: null`) with the scheme-invariant "Unknown" label, never the guessed typed label the degraded CVR privacy value fell back to. Available VRChat trust rank is quiet plain text below Notes in the drawer; no row pill or trust-display setting is implemented. **Friend drawer (VRX-69 + VRX-225 non-modal restructure, DESIGN.md §9.2):** the row's details opener is the **avatar `<button>`** (a normal grid item — the old stretched whole-row overlay was retired 2026-07-23, owner decision: stray row clicks must not open the card; the `<li>` stays purely structural and the Join pill is an independent sibling needing no z-stacking). The opener carries `data-drawer-opener` (exempts it from the drawer's outside-close listener → clicking another avatar SWITCHES the card) and its accessible name COMPOSES name + status + world + platform via `aria-labelledby`. **VRX-228:** in the default `settings.drawerOpener='card'` mode the WHOLE card surface is additionally a pointer-target for open/switch (the `<li>` click delegates; `data-drawer-opener` covers the card so another card's surface switches in place; the Join pill — `data-join-pill` — always wins over opening, preserving the VRX-225 close-then-join sequence; a selection-drag intersecting the row suppresses the open) — the avatar button remains the ONLY semantic/keyboard opener in both modes; `'avatar'` restores the inert row body. It opens `FriendDrawer.tsx` — a right-side floating `.glass glass-frosted fixed` card (14px inset / 372px / 260ms `motion-safe:` slide; the frosted modifier is VRX-226 — opaque `--glass-frost` underlay + `--glass-blur-frosted` so list text can't read through a panel floating OVER content, both themes, order-and-layer pinned by designTokens tests; **`.glass` MUST stay in `@layer components`** or its `position: relative` beats the `fixed` utility and the drawer lands in-flow at the list bottom — the v0.10.0 bug) over the **`--scrim-soft`** backdrop (`pointer-events: none` — the list behind stays fully interactive). **NON-MODAL:** no `aria-modal`, no focus trap; initial focus → ✕; close = Esc / outside pointerdown (non-opener) / ✕. Content: the 64px badge-less ringed avatar, the STATUS-IN-WORDS band (reuses `ringFor`; word in the `--st-*-text` companion token per §2A), the single/split world card with canonical `InstancePill` and privacy-safe Hidden layers, owner-scoped Notes followed by quiet VRChat trust, and a Join button using the shared destination chooser for linked people or the existing direct flow for accounts. Selection = `profileSelection.target`, a stable person or account target resolved independently of roster placement; the drawer stays mounted while closed (`inert` + aria-hidden, translated off-screen) so the exit transition plays; EVERY close path (Esc/outside/✕/stale-selection cleanup) routes through the one `closeDrawer`, which restores a connected opener or a matching stable-identity avatar, then falls back to Search; identity boundaries go directly to Search; the non-modal contract is pinned by `FriendDrawer.test.tsx`. **VRX-210 coexistence:** while a join confirmation is pending (`useJoinInstance().pendingConfirm`), the drawer's Esc and outside-pointerdown listeners STAND DOWN — the modal dialog mounts as an AppShell sibling, so without this an interaction inside the dialog also dismissed the drawer beneath it (unanimous tri-lineage finding; the old tests missed it because `fireEvent.click` never dispatches pointerdown). Initial-focus lives in its OWN `[open]` effect, deliberately separate from the listener effect — combining them made every dialog open/close re-focus ✕ and stole the dialog's own focus-restore. The drawer renders no placeholder actions; favorites and history remain separate issues. **Dashboard hot-instance card (VRX-198 redesign; VRX-199 polish):** `DashboardView`'s `HotInstanceCard` is a 2×2 grid — world name (25px/line-height 1.5 — VRX-199 relaxed the 26px/line-height-1 that clipped descenders ~5.5px; `utils/worldName.stripInstanceSuffix` drops ANY trailing `(#…)` for display, numeric instance ids + custom tags like `(#teehee)`, keeping name-internal hashtags) + shared `InstancePill` (hero, pinned top-right — VRX-237: when a member is joinable the hero pill IS the card's Join affordance, the VRX-166 row-pill pattern through the one shared `useJoinInstance` flow; the card surface itself is NOT a join target); who's-here (first 4 `HotInstance.friendNames` + "+N", `--names-lift`) + `PlatformPill` (bottom-right). Both pills sit in a shared `minmax(78px,max-content)` column so they match width; `PlatformPill` is the §5 non-color platform signifier — a dim ghost outline (`--plat-*-ghost-*` tokens, WCAG-AA both themes). Visual-weight order: world → instance pill → who's-here → platform. The card GRID is `.hot-grid` inside `.hotwrap` (main.css; `.hotwrap` = the container-query context, grid-only so its `contain:layout` never affects the heading/stepper): max 2 columns that FILL the row, container-query responsive → 1 column on a narrow pane, a lone card full-width (`:only-child`) — VRX-199 (inline styles can't express `@container`/`:only-child`). Card click → detail panel deferred (VRX-59); `OpennessIcon` + the old `V`/`C` `HotCardGlyph` were removed.
-- `src/App.tsx`, `src/components/` (VRX-191/192/85 supplement) — the auth gate renders `AppShell` while **either** platform is authenticated and reaches the full `LoginScreen` only when neither is connected; `AccountCard` replaces `ChilloutVrAccountCard` with a platform-parameterized VRChat/CVR card, VRChat's method-aware 2FA leg, and durable Disconnect (settle auth, set that platform's mounted friends roster to `[]`, and synchronously persist the corrected cache so a quit inside the persister's throttle window can't leave the old account's roster on disk); an `error` auth status renders a quiet unreachable banner (platform-interpolated copy, `--text-dim` + ⚠ glyph) with Retry (invalidates that platform's auth-status query) and Sign out (the existing logout action) instead of the Connect form — identical for both platforms (VRX-201). `PlatformGlyph` was removed. `useNotConnectedGate` is the shared settled-success auth discriminator used by the inline FriendsList/Dashboard not-connected glass Connect CTA, which routes to Settings → Accounts; `useFriends(platform)` is enabled for that platform's `authenticated` OR `error` auth status (VRX-201: on drift the session usually still works — a dead session's 401 converges auth to `unauthenticated`, which stays disabled, so no doom loop). Dashboard’s Hot Instances card owns the `notifyHotInstance` preference. `App.tsx` subscribes once to `onNavigateToDashboard` and selects Dashboard after a hot-instance toast click (VRX-85).
-- `src/i18n/` — i18next + react-i18next setup (VRX-14): bundled resources, OS-locale detection via `navigator.language`, English fallback. `parity.test.ts` (audit W6/VRX-222) enforces en↔ja base-key parity (plural suffixes collapsed — ja legitimately lacks `_one`) and scans renderer source for referenced-but-missing keys. Dynamic template families are also scanned and must be mirrored through a quoted-literal key map so every member remains statically visible.
-- `src/locales/<lng>/translation.json` — translation resources (`en`, `ja`). All user-visible strings must be keyed here.
-- `src/assets/main.css` — Tailwind import + the VRX design tokens (§2 dark `:root`, §2A light `[data-theme="light"]`).
-- `src/stores/` — Zustand stores, one per domain; each independently testable, and **no store imports another** (compose at the view layer). Guard `window.vrx` (undefined in Preview/test) in any IPC-backed fetch. (VRX-19/21)
-  - `friends.ts` — **view state only**: `search` / `platformFilter`; drawer ownership lives separately in `profileSelection.target`. `platformFilter` is a **GLOBAL social filter** (VRX-66): TopBar's slider writes it; every social surface reads it and filters to the selected platform(s) — `FriendsList` (via `combineFriendQueries`), `DashboardView` (stats + hot instances), and TopBar's online count (both via `scopeByPlatformFilter` — the single filter→platforms mapping in `queries/friends.ts`). Settings is the only social-exempt surface (the slider is hidden there, VRX-186). Single platform = that list; `all` = VRChat-then-CVR concat. Server friends data lives in the TanStack Query cache (`queries/friends.ts`), NOT here (VRX-22).
-  - `settings.ts` — `Settings` seeded from `@shared/settings` `DEFAULT_SETTINGS` + a `dirty` flag; persisted by `useSettingsPersistence` over the `get-settings` / `save-settings` IPC. Explore persists `platformFilter` (`all`/`vrchat`/`chilloutvr`) and `exploreWorldsShown` (2/4/6, default 4) through hydration/sync hooks rather than cross-store imports.
-  - `accounts.ts` — durable non-removed `accounts[]` via `get-accounts`; `activeAccount(platform)` derived from `Account.isActive` (no separate active-id state). Account identity is `platformAccountId` (VRX-24).
-  - `ui.ts` — ephemeral view state ONLY: `activeTab` drives the **§8 shell nav / active view** (Dashboard/Friends/Explore/Settings), plus `drawerOpen` and the session-only `settingsCategory` (`appearance` / `dashboard` / `behavior` / `notifications` / `accounts`). Persisted prefs like Explore count and filter live in `settings.ts`, never here.
-  - notifications store deferred — no `Notification` type or IPC channel exists yet (M3).
-- `src/queries/` — TanStack Query layer (VRX-22/155): the source of truth for server state; Zustand stores hold only view state. `queryClient.ts` disables query focus refetch; Explore queries explicitly disable retry/focus/reconnect and are excluded from `cache.ts` localStorage persistence. Friends/auth retain their documented behavior and caches.
-- `src/utils/` — `loginError.ts` (VRX-34: mapLoginError(code) actively maps LoginScreen's typed credential_persistence_failed to dedicated secure-store retry copy and defaults every other or missing code to generic; accountLoginErrorKey(platform, code) does the same for AccountCard's namespace); `dashboardAggregations.ts` (pure `getDashboardStats` + `getHotInstances(friends, threshold?)` — friend presence counts + friends grouped by EXACT INSTANCE (VRX-237, owner law 2026-08-01: exact instanceId equality via the shared `@shared/hotInstanceKey` — never same-world, never same-type; supersedes the old deliberate `worldId` grouping and its stale §6.1 citation). `HotInstance` carries `instanceId`, `isGroup`, `groupId`, `groupName`, `groupImageUrl`, `thumbnailUrl` + `members` (alphabetical — the card Join routes through the first JOINABLE member; deduped by `platform:platformUserId`, first occurrence wins, so a duplicated row never counts one person twice) + the composite `groupKey` (tiebreak + React key); the threshold param is the user setting, defaulting to `@shared/constants` `HOT_INSTANCE_THRESHOLD`; VRX-169/78/260); `segmented.ts` (radiogroup keyboard helpers — `segArrowTarget` + `focusRadioSibling`, shared by both segmented controls; audit W5); `viewTitles.ts` (`VIEW_TITLE_KEYS` — view-title i18n keys for TopBar's H1 + AppShell's `<main>` label); `instanceTypeLabels.ts` (`LABEL_KEYS_BY_SCHEME` — `LabelScheme` → (`InstanceType` → pill-label i18n key); §6 label rule: `vrchat` default (VRX-182 — CVR types resolve to their tier's VRChat label), `chilloutvr` reverse, `platform-native` identity; keyed off `settings.labelScheme` (VRX-183), data stays platform-true; indexed through `instancePill.ts`'s `instancePillFor` by every pill surface, not directly, VRX-244); `groupFriendsBySection.ts` (pure `groupFriendsBySection(friends)` — buckets by `presence.state` into the three `@shared/types` `FriendSection`s (`in-game`/`online`/`offline`; `active` maps to `online`), alphabetical within each, returned in the shared `FRIEND_SECTIONS` order; FriendsList's presence-section grouping, VRX-67); `splitByMatch.ts` (pure case/diacritic-insensitive display-name splitting that preserves original text and offsets for search highlighting, VRX-65); `statusRing.ts` (the §5/§9.1 status-ring fold — `Ring`/`STATUS_RING`/`PRESENCE_RING`/`ringFor`/`isWorldHidden`, moved out of FriendsList in VRX-69 so `Avatar` and `FriendDrawer` share ONE fold; `isWorldHidden` re-exports the ONE `@shared/hotInstanceKey` source since VRX-237 so the row and the hot system can't disagree; `Ring.glyph` keys badge presence only — the svg glyphs are retired); `mergeKnownWorldMetadata.ts` (cold-start roster merge helper — fills null `instance.worldName`/`thumbnailUrl` from cached data when the REST refetch arrives before the world resolver is warm, VRX-258).
-- `src/hooks/useLiveFriendEvents.ts` — the live + account-boundary bridge (VRX-146/24/155): mounted once in App.tsx, it subscribes once each to `window.vrx.onFriendEvent` and `window.vrx.onIdentityBoundary`. Friend deltas update the TanStack cache via `utils/applyFriendEvent`; `connection: 'live'` and `roster-changed` invalidate for REST reconcile. A per-platform identity boundary clears the buffered presence snapshot, cancels the old roster fetch, sets the mounted friends observer to `[]`, invalidates for the new account, and synchronously persists that corrected cache without touching the other platform. Auth settling to a state that disables `useFriends` also quarantines that platform without dispatching a friends request — clearing to `[]` (and persisting) only when its query already holds data; a never-signed-in platform stays absent (absent ≠ empty). Guards `window.vrx` absence and unsubscribes both channels on unmount.
-- `src/hooks/useAvatar.ts` — near-viewport avatar loader (VRX-48): observes the avatar wrapper with a 200px `IntersectionObserver` margin before invoking `window.vrx.getAvatar(url)`, guards a missing bridge/observer, deduplicates only currently pending requests, and retains successful data URLs in a 200-entry LRU. Null/rejected results are never retained, so the main process's 30-second negative TTL remains the retry authority.
-- `src/utils/applyFriendEvent.ts` — PURE cache transition (VRX-146 / VRX-260), fully unit-tested: upsert on presence/added, offline/removed deltas, profile-merge on `friend-updated` (preserves cached presence/instance/local fields), snapshot scopes ('all' replace; 'online' flips absentees offline), `presence-snapshot` (VRX-147: patch presence+instance by id — the CVR wire carries no profiles; absent same-platform friends flip offline; other platforms untouched), `world-metadata` (VRX-214: conditional patch of `instance.worldName`/`thumbnailUrl` ONLY where a friend's CURRENT `instance.worldId` + platform match the event), and `group-metadata` (VRX-260: conditional patch of `instance.groupName`/`groupImageUrl` ONLY where a friend's CURRENT `instance.groupId` + platform match the event). Both metadata events never insert, never touch presence/status/profile (the stale-replay guard for VRChat's background enrichment). Its all-field `InstanceInfo` equality includes `groupId`, `groupImageUrl`, `groupName`, and optional `opennessUnknown`, so an otherwise identical restrictive fallback still reaches the safety-copy consumer (VRX-240). New array only when changed; untouched entries keep identity so the memo'd rows skip re-rendering.
-- `src/utils/notConnectedKeys.ts` — `NOT_CONNECTED_KEY`, the quoted-literal per-surface (`friends` / `dashboard`) and per-platform map shared by FriendsList and Dashboard. Each surface stays in its own locale namespace even when copy matches. Do not replace it with a template key; parity scanning depends on literal family members.
-- `src/hooks/useFriendNote.ts` — friend-note bridge methods are captured only when each property passes a `typeof window.vrx?.method === 'function'` guard. A missing preload, method, friend id, or current revision disables edits/saves and exposes `isWritable: false` so the editor is read-only; it must never become an unguarded optional-global access or accept text without a save lease. Its public editor interface is `{ value, isWritable, loadFailed, retryLoad, setValue, onBlur, saveFailed, retry }`: a renderer-lifetime, memory-only external store retains every pending or failed draft and its actionable state per platform/friend/account/epoch across drawer and route remounts, updates it on every post-failure edit, and clears it on success, equivalence to persisted state, or any identity boundary (which wipes every retained entry).
-
-- `src/hooks/` — renderer hook inventory. `useApplyTheme.ts` applies the stored
-  theme before first paint and follows System color-scheme changes;
-  `useSegmentedBubble.ts` measures the active option and remeasures after font,
-  resize, and language changes. `useSettingsPersistence.ts` retries a normalized
-  `rate_limited` load twice after 250ms/500ms, sends dirty snapshots immediately,
-  ignores stale completions, and leaves terminal failures dirty; main owns the
-  250ms disk coalescing and `before-quit` flush. `useAvatar.ts` is the lazy,
-  pending-deduped, success-only bounded avatar bridge hook. `useExploreImage.ts`
-  is visible-card lazy loading for opaque main-issued Explore art. `usePlatformFilterSettings.ts`
-  hydrates/synchronizes the global Explore filter. `useJoinInstance.ts` is the
-  single typed friend/Explore join flow. `useFriendNote.ts` follows the dedicated
-  contract above.
-- `src/routes/` remains an unused placeholder; production Explore lives in
-  `components/ExploreRoute.tsx`.
+- `src/App.tsx` owns the auth gate and mounts the live-event bridge once. Auth errors
+  keep the shell available until main proves the account is signed out. Boot must
+  not flash the login form over a restored session. Login keeps platform input
+  separate, freezes its selector during a submit, and maps only the typed
+  credential-persistence failure to dedicated copy.
+- TanStack Query owns server and cache state. Zustand owns view state only. Do not
+  put server data in a store, have stores import each other, or create a second
+  subscription for an app-wide event.
+- Friend, linked-profile, Explore, and note queries own account-bound data. On an
+  identity or auth boundary they cancel old work, clear mounted data and fences,
+  and prevent an old reply from publishing under the replacement account. An
+  absent cache differs from a known empty roster.
+- `projectLinkedFriends` only projects qualified people. Raw friend caches stay
+  account-scoped. Linked snapshots retain the newest `storeRevision` within a
+  lease; their main-owned `accountIds` preserve ownership through transient auth
+  status errors. Shared person notes are installation-global, drafts stay in
+  memory, writes are serialized and explicitly retried, and renderer requests
+  never choose note or account ownership. A partial roster preserves omitted
+  cached friends; only a complete roster can make an absence authoritative.
+- `useJoinInstance` and `JoinConfirmDialog` own one join flow for friends, hot
+  instances, and Explore. The renderer may give main a reviewed friend ID or an
+  opaque Explore `selectionRef` and expected target. Main alone decides
+  joinability, builds the allowlisted URL, enforces settings, and launches.
+- Explore route and Dashboard preview share ranking, selection, and the
+  non-modal sheet. `useExploreCoordinator` is the sole renderer trigger for
+  discovery: it reacts to eligible visibility, focus, and connectivity wakes,
+  has no polling or timer-driven discovery, and gates automatic work by account
+  and platform. Cache reads, selection, images, and recovery remain fenced by
+  generation, account, close, and opaque-reference identity. A loading world
+  snapshot stays open until `onExploreChanged` performs a cache-only reread; it
+  must not close the sheet or retry discovery. A manual open or refresh may
+  recover one expired reference for the same world. Visible
+  consumers may retry only typed image-admission deferrals within the bounded
+  per-reference budget; terminal failures stay neutral.
+- `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
+  metadata only when the current instance keeps the same world or group identity;
+  fresh values win. Do not restore the obsolete `mergeKnownWorldMetadata` name.
+- Error boundaries, document-drop prevention, localized copy, and local licensed
+  fonts are renderer responsibilities. Keep diagnostics local to explicit copy,
+  preserve font licenses and provenance, and never load remote fonts.
 
 ## Local Contracts
 
-- Information-bearing foreground cards and panels use the fully opaque
-  `--glass-information` base, normally through `.glass-information`, beneath
-  their existing glass/platform gradients. Ambient background color must not
-  affect those surfaces in either theme or any glow level. Preserve images,
-  platform/status/access colors, neutral sheen, borders, depth and geometry.
-  Friends list backing and hand-styled sheets obey the same rule. Sidebar,
-  segmented tracks and stepper tracks remain translucent decorative chrome.
-  Tint classes set `background-image`, never reset the information base with
-  a `background` shorthand. This is the VRX-276 owner refinement.
-
-- Dashboard Hot Instances and Popular now headings share `--text-faint` and
-  normal weight 400, retaining their existing sizes, tracking and `h2` semantics.
-- Explore and Dashboard discovery cards fill their grid cells with shared 16:7
-  artwork and aligned bottom actions. Cards label existing activity as People
-  and omit the visible-room count. Explore uses the TopBar heading only. Retained
-  usable cards suppress routine source loading/stale copy. A platform with no
-  results keeps one shared, platform-neutral "Worlds loading…" message visible
-  even when the other selected platform has cards. Dashboard and Explore aggregate
-  only selected sources; completion, failure or unavailability ends that source's
-  contribution. Cards remain visible; named error/unavailable states remain. The room sheet uses the established
-  frosted material and keeps Close outside its scrolling content.
-- Shared glass declarations put `-webkit-backdrop-filter` before the standard
-  `backdrop-filter`. Tailwind optimization can otherwise emit only the obsolete
-  prefixed form; Electron 44 needs the standard property. The material regression
-  test exercises the optimizer, in addition to source-token and layer checks.
-
-- Friends queries merge a partial `get-friends` result with omitted cached
-  entries read after IPC resolves. Partial results never imply a removal or
-  offline transition. Complete arrays retain replacement semantics; account
-  boundaries still clear the cache. The existing `rate_limited` error remains
-  excluded from query retries.
-
-- Linked roster rows keep a neutral, non-actionable Private pill when an in-game
-  header has an unavailable location and neither account is joinable. Otherwise,
-  a known non-joinable in-game header instance keeps its canonical label.
-  Offline/web-only linked rows never revive a stale cached instance pill. A joinable
-  destination still supplies its own pill; this fallback never enables Join.
-  The initial unlinked Identities footer says Close; linked management retains
-  Done. The top X and dismissal semantics are unchanged.
-
-- Combined linked rows derive a single destination's openness from that account,
-  never the priority-selected header. Row and drawer failure feedback includes
-  either linked account by saved member reference, including a member removed
-  from the roster during an in-flight join. Explicit account views remain
-  account-attributed. Saved-member lookups require the current platform account
-  ID to match their owner. Direct and confirmed joins both fence late results at
-  identity/auth boundaries; unrelated platform changes leave healthy joins alone.
-  Hidden locations stay out of DOM gesture metadata as well
-  as visible labels; state/status changes still invalidate the gesture.
-
-- Destructive link confirmations show saved notes expanded and use
-  `usePersonNoteGuard` for every affected person. Dirty, failed or in-flight
-  local text blocks submission synchronously, with a return-to-profile action.
-  No automatic retry or draft discard is allowed. First-load Identities waits
-  for a lease; later lease changes still close it. Automatic names follow the
-  preferred account without overwriting an explicitly typed name draft.
-- Friends' TopBar online total uses unique projected people, independent of
-  search. Dashboard and other views retain their account-based statistics.
-  A chooser choice stays invalid after any observed move/unavailability until
-  the chooser is reopened, even if the same destination later returns.
-
-- `LinkedWorlds` owns compact attributed world text and the single/split drawer
-  image. Only visible in-game data may supply images, names or instance pills.
-  The first drawer shows no policy-space badge or raw instance ID. The existing
-  Join flow retains policy context. `Avatar.mergedWith` changes pictures only;
-  status, badge and accessible status still derive from the header account.
-- `useStableLinkedRows(rows, heldKey)` holds one interacted linked row for at most
-  five seconds from its first structural change. Current safe payloads continue
-  immediately. Unlink/replacement, deliberate search/filter changes and account
-  boundaries release the hold. Pointer gestures cannot activate a replacement
-  target or cross an identity boundary without a fresh pointerdown.
-- Linked native dialogs restore a connected opener, then the same person's
-  replacement avatar or drawer Close, then Search. Identity boundaries always
-  return to Search, never outgoing-account content. Chooser candidates are cloned
-  on open and revalidated on activation before the existing Join flow takes over.
-
-- `credential_persistence_failed` is the one adapter failure mapped to dedicated
-  secure-store retry copy on both login surfaces. Every other adapter code,
-  bridge failure, and thrown login error stays on the generic copy.
-- A terminal persistence/owner failure clears every submitted secret still in
-  renderer state (password and 2FA code) and returns both LoginScreen and
-  AccountCard to credentials, overriding a stale external `needs-2fa` status.
-  Other 2FA failures remain on the code prompt.
-- Any failed `LoginResult` with `sessionCleared: true` is terminal: synchronously
-  replace that platform's auth query with known unauthenticated state (no
-  invalidation or network) before returning to credentials, so keyed tab/card
-  remounts cannot reseed stale 2FA. This includes completed-2FA persistence or
-  owner failures and malformed responses after a replacement cookie was installed.
-- App-level `LoginScreen` stays mounted while VRChat auth moves between
-  `needs-2fa` and unauthenticated; its legacy-named `initialTwoFactor` prop feeds
-  `useAuthFlow.externalTwoFactor` reactively. This preserves a terminal error
-  banner while the cache settles, and the hook drops any typed password when a
-  restored session newly enters 2FA. That new reprompt selects the VRChat tab
-  after any non-terminal active submit settles; it never remounts away a terminal
-  error from the selected platform. A reprompt suppressed by a terminal result
-  stays pending and is reconsidered after a later non-terminal retry settles.
-  Re-selecting the already-active platform tab is a no-op and cannot release
-  that pending reprompt or hide the terminal error.
-  The terminal transition back to credentials likewise does not switch tabs or
-  remount the outer screen. User-driven platform tab switches still remount the
-  inner form and clear all cross-platform input.
-- Design tokens are the single source of truth (DESIGN.md §2/§2A, defined in `assets/main.css`). NEVER hardcode color/spacing outside tokens.
-- Themed colors are raw CSS vars consumed via arbitrary utilities (`bg-[var(--vrc)]`) so they flip under `[data-theme="light"]`; only the static scale (radius/fonts) lives in `@theme`.
-- Tailwind v4 drops opacity modifiers on arbitrary vars (`bg-[var(--x)]/N` → solid) — use `color-mix()` or theme colors for tints.
-- Dark is the default; light is a `[data-theme="light"]` override (parity, not a fork).
-- Honor `prefers-reduced-motion` via Tailwind `motion-safe:`. No `!important`.
-- Sandboxed: no node/electron access; reach main only through the preload-exposed API.
-- User-facing strings go through i18next (`useTranslation`/`t('key')`) — never hardcode copy. Add keys to `locales/en/translation.json` (and peer locales). Resources are bundled (synchronous, no Suspense); initial language is the OS locale (`navigator.language`), fallback English.
-- **VRX-63 virtual-list invariant:** keep TanStack Virtual's default synchronous React commit for variable-height measurements; disabling `useFlushSync` can paint one frame with a corrected scroll offset and stale row positions. Only intersecting/sticky section toggles and fully visible Join buttons enter sequential focus. Any focused control inside a friend row makes that row own the roving avatar stop, so a live update that removes the control hands focus to its connected avatar. Track retained section focus by stable `FriendSection` identity (derive its current virtual index; never retain a raw index across roster changes) until focus transfers to the newly active sticky header, so live updates or virtual eviction cannot crash the list or strand focus on `<body>`.
+- Use `window.vrx` and the `@shared/ipc` types. Do not duplicate channel types,
+  bypass the bridge, treat opaque references as IDs or URLs, or expose main-only
+  cooldown, session, or error detail. See `docs/INTERNAL-API.md` sections 1, 2,
+  and 5 for the current callable contracts and limits.
+- Preserve the privacy and presentation model in `docs/DESIGN.md` sections 2-10:
+  token-only styles, dark/light parity, information-panel backing independent of
+  ambient glow, platform text or glyphs, and separate presence state and VRChat
+  status. Hidden locations never leak into labels, images, gesture metadata, or
+  actions. Use the shared hot-instance membership/key and joinability predicates
+  instead of local copies.
+- Keep established accessibility behavior. Reuse overlay primitives; sheets are
+  non-modal and restore their opener, confirmation dialogs trap focus, controls
+  keep their radiogroup keyboard behavior, and existing workflows stay reachable
+  at the 900x670 desktop floor. Virtualized friend rows retain stable section
+  identity and recover focus when live updates remove a focused control. Keep
+  TanStack Virtual's synchronous commit for variable-height measurement.
+- User-facing copy goes through i18next and every supported locale receives the
+  matching key. Do not hardcode renderer copy.
+- Settings changes use `@shared/settings`. Every additive persisted field bumps
+  `SETTINGS_VERSION` and adds an identity migration, so an older build cannot
+  erase it during a downgrade round trip. Preserve independent child preferences
+  when a parent control is off.
+- Images supplied to the DOM are main-issued `data:` URLs. Failed images use
+  neutral fallbacks. Explore and room sheets distinguish incomplete coverage,
+  verified emptiness, stale data, and typed denials without pretending success.
 
 ## Work Guidance
 
-Linked identity replacement requires the retained account to match its saved owner
-and be present in the current roster; its missing counterpart can still be replaced through that healthy
-account. Empty drawer names use the heading's localized accessible-name fallback.
+Read `docs/DESIGN.md`, `docs/design.html`, and `docs/glass.html` before UI
+work. Read the relevant entries in `docs/INTERNAL-API.md` before adding or
+changing a query, hook, store, utility, bridge call, or shared type. Use current
+source as the implementation record; examples and old audit notes do not
+authorize a behavior change. Update `CHANGELOG.md` for user-visible behavior
+and the API or design references named by the root contract when they change.
 
 ## Verification
 
-`npm run typecheck && npm run lint && npm test`
+Run focused tests for changed queries, hooks, components, accessibility behavior,
+or boundary fencing. For UI changes, inspect the affected production component or
+isolated guide scene in both themes and at the supported desktop floor. Run the
+canonical gate in `docs/DEVELOPMENT.md` for application changes, then inspect
+the diff and applicable API/design documentation for sync.
 
 ## Child DOX Index
 
-No children yet.
-
-Explore image observers dispatch only after the coordinator has a successful current active-platform declaration. Hide, activation replacement/rejection, teardown and account boundaries revoke that permission. Visibility alone must not resume images; paused admission timers retain their delay and finite recovery budget (VRX-278).
-
-Settings cards and feature visibility (VRX-280): Settings → Dashboard owns
-`dashboardPopularNow` and `hotInstancesEnabled`. Both default on. Hot Instances
-contains threshold/notification controls; Behavior nests confirmation/mode beneath
-Allow joining. Collapse preserves children, makes them inert/aria-hidden, restores
-child focus to the selected parent, animates height/reflow for 220ms, and respects
-reduced motion. Toggle reuses SegmentedControl's visible On/Off radiogroup.
-Dashboard removes disabled feature content and closes its Hot Instance sheet;
-ordinary friend statistics stay unchanged and fill two columns when Hot is off.
-Notifications contains only friend-event preferences. The compact Dashboard
-“Settings” shortcut follows its content, never entering TopBar or the summary
-card row. TopBar keeps the platform filter beside the fixed status cell; main
-reserves scrollbar space so social views cannot shift the dock. Its Settings
-category dock may wrap at the supported window floor.
-
-VRX-285: a neutral circular “?” immediately right of the Hot threshold toggles
-inline category help; the selector needs no always-visible explanation. Preserve
-the existing Hot Instance cards and their intentionally discreet access-pill Join
-shortcut. Do not promote that shortcut or redesign the cards as incidental cleanup.
+No children.

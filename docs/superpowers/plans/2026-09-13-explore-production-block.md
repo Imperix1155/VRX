@@ -1,5 +1,7 @@
 # Explore production work block
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 ## Authority and baseline
 
 Josh requested a working Explore feature he can test in the live app on

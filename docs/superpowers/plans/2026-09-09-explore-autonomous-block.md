@@ -1,5 +1,7 @@
 # Explore autonomous work block
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Latest continuation: Josh authorized merging this isolated foundation. The
 [merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness)
 records exact API integration, combined checks and the merge boundary. It

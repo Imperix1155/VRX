@@ -1,5 +1,7 @@
 # Linked friends design brief
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: consolidated review copy, September 5, 2026. The interactions listed as
 approved below come from the owner's reviewed mock and decisions. Production
 implementation and an overnight run have not been authorized.

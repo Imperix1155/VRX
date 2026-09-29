@@ -1,5 +1,7 @@
 # VRX-283 profile image investigation
 
+> Historical record. This handoff preserves its investigation and review evidence. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control.
+
 ## Scope and authority
 
 Restore missing VRChat profile pictures reported in 0.21.0 on macOS and Linux.

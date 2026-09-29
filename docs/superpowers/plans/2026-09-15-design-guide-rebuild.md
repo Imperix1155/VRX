@@ -1,5 +1,7 @@
 # VRX-273 design-guide rebuild
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 ## Status and authority
 
 Kickoff verified on September 15, 2026. Josh then explicitly authorized the
@@ -26,10 +28,9 @@ remain understandable on either platform. Show useful rendered examples with
 synthetic data. Settle HTML and its examples first, then synchronize Markdown.
 Do not turn known app defects or old documentation into new design rules.
 
-The primary decision record is the coordinator-owned
-[/Users/imperix/.codex/visualizations/2026/09/15/01a0a40b-84d5-7312-b070-def970948176/vrx-testing-notes.md](/Users/imperix/.codex/visualizations/2026/09/15/01a0a40b-84d5-7312-b070-def970948176/vrx-testing-notes.md).
-It is readable from this checkout and remains untouched. Later entries supersede
-earlier delivery status in that chronological ledger. The originating task is
+The primary decision record was coordinator-owned original-machine evidence,
+which is unavailable outside that machine. Later entries supersede earlier
+delivery status in that chronological ledger. The originating task is
 `01a0a40b-84d5-7312-b070-def970948176`, VRX 1.0 Progress, on host `local`.
 
 ## Verified baseline and dependency

@@ -1,5 +1,7 @@
 # Cross-Platform Explore Design
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 September 8 handoff note: this is the preserved September 4 approval. The
 [implementation plan](../plans/2026-09-08-explore-implementation-plan.md)
 contains the later approved CVR clarification and completed feasibility checks.

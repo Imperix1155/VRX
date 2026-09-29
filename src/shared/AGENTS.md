@@ -1,72 +1,84 @@
-# src/shared — Shared cross-process layer
+# Shared model
 
 ## Purpose
 
-The common data model and constants shared across the main, preload, and renderer processes — the contract the whole app normalizes into.
+`src/shared` contains pure types, schemas, constants, and helpers used across
+main, preload, and renderer. It is the vocabulary at the process boundary.
 
 ## Ownership
 
-- `explore.ts` defines display-only discovery worlds, rooms, count provenance,
-  load states, typed refresh reasons and the 2/4/6 world-total options (default
-  4). Partial/unknown counts have a null value. World and selection references
-  are opaque values issued by main; shared DTOs carry display identifiers, never credentials or launch URLs.
-  Initial discovery accepts only a platform and typed refresh reason. World details,
-  images, cancellation and Join require opaque main-issued references. Synthetic
-  references belong only in tests.
-  `exploreRanking.ts` ranks bounded platform lists separately,
-  then selects equal shares with alternating pair leaders and symmetric
-  backfill. Compare UUID material without platform prefixes; tied lists use a fair session
-  coin flip to assign distinct seeds; keep seeds
-  with their list identities. Dashboard selects total 2 from the same lists.
-  Main `ExploreService` produces the snapshots; renderer selectors consume the pure ranking helpers (VRX-270).
-- `linkedProfiles.ts` defines the v2 `LinkedProfile`, transactional revision-checked changes, renderer friend references, and account-session snapshot leases. Snapshots include the atomically read document `storeRevision`, independent of individual profile revisions, and main-owned ready `accountIds` captured with the lease. Transient auth-status errors retain session ownership; identity boundaries clear the map. Shared notes belong to the installation-global person, never an account cache. Renderer requests cannot supply account ownership; main qualifies references.
-- `types.ts` — the `Friend` model and all enums (platform, presence state, status, openness, trust, linking, `THEMES`/`Theme`, `LABEL_SCHEMES`/`LabelScheme` — the instance-pill naming scheme, VRX-183; `FRIEND_SECTIONS`/`FriendSection` — the friends-list presence-grouping section id, `'in-game' | 'online' | 'offline'`, VRX-67) + the VRX-143 `LinkedPerson` graph types (members are fully qualified `{platform, platformAccountId, friendId}` references, never bare upstream IDs) + multi-account records (`Account.platformAccountId` is the canonical platform user id; `AccountScoped<T>` is the versioned `{schemaVersion, platform, platformAccountId, data}` persistence envelope and deliberately has no person id, VRX-24) + auth (`Credentials`/`AuthStatus`/`LoginResult` — `AuthStatus.twoFactorMethod` accompanies the `needs-2fa` state for the reprompt flow, VRX-173; required `AuthStatus.accountId` is the signed-in platform identity, null unless authenticated, and never a credential-storage key, VRX-24), `JoinMode`, and the live `AdapterEvent` union — extended in VRX-146 with the `friend-offline` (userId-only — the wire carries no user object) and `friend-updated` (profile merge; consumers preserve cached presence/instance) deltas, and in VRX-147 with `presence-snapshot` (CVR's ONLINE_FRIENDS: ids+instances only, no profiles — patch-by-id, absent ⇒ offline) and `roster-changed` (trigger-only refetch).
-- `ipc.ts` — the typed IPC channel contract (`IpcInvoke` request/response + `IpcEvents` push); main↔preload↔renderer derive their types from it so a bad channel/payload is a compile error (VRX-18). VRX-113 adds `updater:get-state`, `updater:check`, `updater:download`, `updater:install` and the push event `updater:state-changed`; VRX-268 makes `UpdaterSnapshot.failure` a closed renderer-safe union rather than exception text. `identity-boundary` carries `{ platform }` from each adapter's session boundary so the renderer can reset that account-owned friends cache — it empties the mounted query (`setQueryData([])`) and invalidates it, and clears that platform's buffered presence-snapshot, rather than removing the query (removal would leave a mounted observer showing the old account) (VRX-24). Friend instance actions accept friend IDs as authority (never renderer-supplied locations) and return typed expected-denial reasons; `InstanceActionResult` and `set-friend-note` include `rate-limited` for the central IPC limiter's structured denial path (VRX-28/166).
-- `ipc.ts` — Explore exposes only `set-explore-active`, snapshot/world/image
-  requests, world cancellation and `join-explore-room`, plus the
-  `explore-changed { platform }` push event. The renderer supplies closed
-  platform/reason values and bounded opaque references only; `worldRef` and
-  `selectionRef` never become an upstream identifier or launch URL.
-- `ipc.ts` — the typed IPC channel contract (`IpcInvoke` request/response + `IpcEvents` push); main↔preload↔renderer derive their types from it so a bad channel/payload is a compile error (VRX-18). `identity-boundary` carries `{ platform }` from each adapter's session boundary so the renderer can reset that account-owned friends cache — it empties the mounted query (`setQueryData([])`) and invalidates it, and clears that platform's buffered presence-snapshot, rather than removing the query (removal would leave a mounted observer showing the old account) (VRX-24). Friend instance actions accept friend IDs as the launch authority; VRX-239/241 adds a bounded `expectedTarget: { worldId, instanceId }` to `join-instance` as a comparison-only CAS precondition that main validates and compares before building any URL. The renderer-supplied identifiers never become launch input (VRX-166 / VRX-239/241).
-- `joinability.ts` — pure `isFriendJoinable(friend)` predicate shared by main now and renderer later: requires in-game + visible non-sentinel instance, rejects VRChat `ask-me`/`dnd` authorization statuses, and rejects CVR offline instances (VRX-166).
-- `hotInstanceKey.ts` — pure hot-instance identity + membership (VRX-237): `hotInstanceKey(platform, instanceId, worldId)` is THE one grouping key (owner law 2026-08-01: togetherness = exact `instanceId` equality, never same-world/same-type): VRChat `[worldId, instanceId]` (NUL-separated — the suffix is unique only inside a world), CVR the instance id alone (globally unique, stable across async world-metadata enrichment), null instanceId → null. `isHotInstanceMember(view)` is THE one MEMBERSHIP predicate — in-game + instance non-null + NOT hidden-location (owner privacy law 2026-08-01: Ask Me/DND friends are invisible to the entire hot system, toast included) — taking the structural `HotMembershipView` so the alert engine's Friend-less snapshot path supplies it without a cast. `isWorldHidden` (the §5/R6 gate) is THE one source — the renderer's `utils/statusRing` re-export delegates here. Both engine (`FriendAlerts`) and dashboard (`getHotInstances`) consume predicate + key so toast and cards count exactly the same people; each consumer namespaces by platform.
-- `constants.ts` — API bases, WebSocket URLs, timeouts, cache TTLs, limits. `RELEASES_URL` is the exact GitHub releases page opened by the updater's unsupported/portable path (VRX-113).
-- `settings.ts` — the user-settings Zod schema (`Settings`, `DEFAULT_SETTINGS`, `SETTINGS_VERSION`=10), versioned `runMigrations` runner, and `parseSettings` — the safe load path: migrate → strip unknown keys → fall back to defaults on missing/invalid (`.catch`), never throws (VRX-23). **Every additive persisted field gets a version bump and identity migration** (VRX-85): an older build otherwise strips its unknown field and rewrites the same-version file during a downgrade round-trip, losing the user's choice; the bumped version makes that older build refuse persistence, preserving it. v1→v2 is identity-only for `notifyHotInstance` (added default-on; ALL notify* defaults later flipped OFF by VRX-205 — a default-VALUE change, no bump: persisted explicit values win); v2→v3 is identity-only for `backgroundGlow` (VRX-211, default `'standard'`; the enum's single source is `BACKGROUND_GLOWS` in `@shared/types`); v3→v4 is identity-only for `reconcileInterval` (VRX-77, default `'5m'`; single source `RECONCILE_INTERVALS` in `@shared/types`, ms map `RECONCILE_INTERVAL_MS` in `@shared/constants`); v4→v5 is identity-only for `drawerOpener` (VRX-228, default `'card'`; v5→v6 is identity-only for `confirmJoin` (default `true`) and `joinMode` (default `'ask'` — the enum's single source is `JOIN_MODE_PREFERENCES` in `@shared/types`, deliberately distinct from the wire-level `JoinMode`, VRX-210); single source `DRAWER_OPENERS` in `@shared/types`). **v6→v7 is identity-only for `autoUpdate`** (VRX-113, default `false`); **v7→v8 is identity-only for `allowJoinInstances`** (VRX-39, default `true`; main-process Join permission); **v8→v9 is identity-only for `platformFilter`** (default `'all'`) **and `exploreWorldsShown`** (default `4`; allowed `2/4/6`). Persistence lives in main (`services/settings.ts`).
+- `ipc.ts` defines the typed invoke and push contract used by main, preload, and
+  renderer. Keep request and response values renderer-safe. Main owns sender
+  trust checks, validation, credentials, rate limits, sessions, URLs, and launch
+  authority.
+- `explore.ts` owns display-only discovery values, opaque main-issued world and
+  selection references, typed refresh reasons, and 2/4/6 display totals.
+  Ranking stays pure and balanced across platform lists. Synthetic references
+  belong only in tests.
+- `types.ts` owns platform, friend, auth, account, presence, linking, settings
+  choice, and event vocabulary. Use string-literal unions, not `const enum`.
+  Account-qualified identities include platform and platform account ID; never
+  reduce them to a bare upstream ID.
+- `settings.ts` owns the schema, defaults, version, migrations, and safe parse.
+  `parseSettings` migrates, strips unknown keys, and falls back to defaults
+  without throwing. `SETTINGS_VERSION` is 10. Every additive persisted field
+  requires a version bump and identity migration. Preserve the v1-v10 migration
+  chain. A missing released migration throws rather than stamping an old shape
+  as current. A newer-version file stays read-only and is never down-leveled or
+  rewritten by an older build. The v9-v10 identity migration adds default-on
+  `dashboardPopularNow` and `hotInstancesEnabled`; dashboard, alert, and join
+  preferences remain retained when their parent feature is disabled.
+- `linkedProfiles.ts` owns versioned linked-person values. Snapshots carry a
+  document `storeRevision` and main-owned ready `accountIds`; readers retain the
+  newest revision within an identity lease. Shared notes belong to the
+  installation-global person, while account notes remain account-scoped.
+- `joinability.ts` and `hotInstanceKey.ts` own the shared privacy and grouping
+  predicates. Exact instance identity, not world or type, groups hot instances.
+  Hidden Ask Me and DND locations are excluded everywhere, including actions and
+  alerts. `InstanceInfo.type` remains platform-true; `openness` is the normalized
+  tier and `opennessUnknown` marks an unrecognized raw privacy value.
 
 ## Local Contracts
 
-- `ExploreImageResult` preserves ready `{ ok: true, dataUrl }` and terminal
-  `null`, adding only `{ ok: false, reason: 'deferred', retryAfterMs }` for local
-  image admission refusal. The hint is bounded; it grants no URL/session authority
-  and does not expose server cooldown metadata. Main keeps all hard ceilings.
-
-- `get-friends` preserves the array shape for complete snapshots; partial snapshots
-  return `{ friends, completeness: 'partial' }`. Only the completeness marker
-  crosses IPC. Cooldown deadlines and rate-limit metadata remain main-only.
-
-- `CREDENTIAL_PERSISTENCE_FAILED` is the literal `LoginResult.error` when a
-  direct login or completed VRChat 2FA cannot save its new session securely.
-  It is the sole login failure with dedicated renderer copy.
-- `AUTH_IDENTITY_UNAVAILABLE` is the literal `LoginResult.error` when completed
-  VRChat 2FA cannot validate a non-null account owner. It is terminal like a
-  persistence failure, but deliberately maps to generic renderer copy.
-- A failed `LoginResult` sets `sessionCleared: true` only when main discarded
-  local auth state; renderer consumers must then replace cached auth status
-  with known unauthenticated state. The error string still owns user-facing copy.
-- MUST stay PURE: no `electron` or `node` imports. This layer bundles into the sandboxed renderer — types and plain values only. **Lint-enforced** since the 2026-07 audit W7: `no-restricted-imports` in `eslint.config.mjs` errors on `electron` and node builtins for `src/shared/**`.
-- String-literal unions, not `const enum` (esbuild-safe, Zod-friendly).
-- Imported via the `@shared` alias (wired in all three electron-vite builds + both tsconfigs).
-- Presence is two axes — `presence.state` vs VRChat `status`; the renderer's avatar ring folds them according to presence; never conflate (DESIGN.md §5). `Friend` is discriminated by `platform`; CVR friends must have `status`, `statusDescription`, and `trustRank` set to `null`.
-- `InstanceInfo.type` is the platform-true instance type; `InstanceInfo.openness` is the normalized shared openness tier. Optional `InstanceInfo.opennessUnknown` is true only when an adapter had to degrade an unrecognized raw privacy value; recognized values omit it so safety-copy consumers can distinguish a real restrictive tier from a cautious fallback (VRX-240).
+- Keep this directory pure. It imports neither Electron nor Node and contains no
+  file, network, credential, logging, or renderer-global access. ESLint enforces
+  the import boundary.
+- The renderer sends friend IDs as requests and opaque Explore references as
+  capabilities. It never supplies a launch URL or authoritative location. Typed
+  denials remain structured and renderer-safe; do not pass exception text,
+  tokens, cooldowns, or session data across IPC.
+- `ExploreImageResult` permits ready `data:` data, terminal `null`, or a typed
+  bounded local-admission deferral. It grants no URL or session authority.
+  Complete friend snapshots remain arrays; partial snapshots add only their
+  completeness marker.
+- `CREDENTIAL_PERSISTENCE_FAILED` is the sole login error with dedicated renderer
+  copy. `AUTH_IDENTITY_UNAVAILABLE` remains terminal but uses generic copy.
+  `sessionCleared` means main discarded local auth state and consumers must set
+  known unauthenticated state.
+- `Friend` keeps presence state separate from VRChat status. ChilloutVR fields
+  with no equivalent remain `null`. Unknown upstream enums degrade safely.
+  `AccountScoped<T>` remains a versioned persistence envelope with no person ID.
+  Do not mix linked-person data, account cache data, and installation-global
+  shared notes.
+- Keep constants as the single source for limits and API values. Any changed
+  unofficial API assumption belongs in `docs/api-volatility.md`; policy or
+  etiquette changes also update `docs/api-policy.md`.
 
 ## Work Guidance
 
+Read `docs/INTERNAL-API.md` sections 1-3 and 7-8 before changing a shared
+contract. Reuse the existing type, constant, predicate, or channel where it
+fits. Update that catalog with any callable or cross-process change and update
+all affected main, preload, renderer, and guide callers in the same change.
+
 ## Verification
 
-`npm run typecheck && npm run lint && npm test`
+Run focused schema, migration, predicate, and IPC contract tests for the changed
+model. Test a migration from its immediately preceding version and an invalid
+settings load when settings change. Run the canonical gate in
+`docs/DEVELOPMENT.md` when application code changes, and inspect the diff for
+forbidden imports and stale callers.
 
 ## Child DOX Index
 
 No children.
-
-Settings v9→v10 adds default-on `dashboardPopularNow` and `hotInstancesEnabled` with an identity migration. Child alert/threshold and joining preferences remain independent and retained while their parent is off.

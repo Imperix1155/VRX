@@ -1,90 +1,74 @@
-# src/main/services/adapters/vrchat — VRChat parsers & builders
+# src/main/services/adapters/vrchat
 
 ## Purpose
 
-VRChat-specific transforms and fetchers that `VrcAdapter` composes. Two flavors,
-both electron-free and unit-testable in isolation: (1) **pure parsers/builders**
-(presence/instance-type/openness/trust-rank/join-URL/location, VRX-44/45/49/50/162) — raw API shape →
-typed VRX value, no I/O; (2) **dependency-injected fetchers** (`fetchFriends`,
-`WorldResolver`, `fetchWorldMetadata`) — take an injected `get`/fetch fn or resolver
-(never import HTTP/electron directly), so they stay testable while doing real data work.
+Own VRChat-specific parsing, friend retrieval, metadata resolution, join URL
+building, discovery parsing, and the Pipeline client. This code stays pure and
+dependency-injected; `VrcAdapter` owns session state and publishes adapter
+events.
 
 ## Ownership
 
-- `parseExplore.ts` owns pure discovery candidate/world/room
-  parsers and strict Public/Group Public identifier classification (VRX-270).
-  Canonical IDs and response identity must agree. Known region/nonce/ageGate
-  modifiers do not weaken access. Recognized non-public rooms are excluded;
-  malformed or unknown identifiers make enumeration partial with a null count.
-  Missing or contradictory eligibility disables
-  joining; inherited flags cannot supply evidence. Missing closure fields stay
-  unknown rather than proving unavailability. World `occupants` remain
-  separate from tuple counts; room detail prefers valid `n_users`, then
-  `userCount`, retaining provenance. No member payloads, I/O or issued action references leave these parsers.
-  `VrcAdapter` consumes them through its bounded Explore capability; main
-  `ExploreService` owns references and Join authority.
-
-- `parsePresence.ts` — `parsePresence(friend, buckets)` → `{ state, status, statusDescription }` (VRX-44). `state` is DERIVED from the current-user friend buckets as **Sets** — `VrcCurrentUserBucketSets`, built ONCE per fetch via the exported `toBucketSets(arrays)` (O(1) membership per friend instead of O(bucket) array scans, VRX-218 audit) — (`onlineFriends`→`'in-game'`, `activeFriends`→`'active'`, else `'offline'`), NOT a field. `status` maps the VRChat status string; unknown → `'online'`. DESIGN.md §5 — never conflate presence state with VRChat status; their current presentation is owned by the renderer's avatar ring and drawer status band.
-- `parseInstanceType.ts` — `parseInstanceType(instanceId)` → the 8-type VRChat taxonomy (`public`/`friends-plus`/`friends`/`invite`/`invite-plus`/`group-public`/`group-plus`/`group`); also exports `opennessFor(type) → OpennessTier` — the canonical type-to-openness table (VRX-45/162). Never throws — malformed/empty → `'public'`.
-- `parseLocation.ts` — `parseLocation(location) → InstanceInfo | null` (VRX-162 / VRX-260). Pure parser. Returns `null` for sentinel values (`''`, `'private'`, `'offline'`, `'traveling'`) and any string without a colon (the reliable gate for real instances). For real locations splits on the first `:` into `worldId` / `instanceId`, derives `type` via `parseInstanceType`, `openness` via `opennessFor`, `isGroup` from the group-type set, `groupId` from the `~group(grp_x)` tag, and `region` from the `~region(..)` tag. `worldName`, `thumbnailUrl`, `groupName`, `groupImageUrl`, and `userCount` are left `null` — enrichment via `WorldResolver` / `GroupResolver` is a separate step. Never throws.
-- `parseTrustRank.ts` — `parseTrustRank(tags[])` → `TrustRank` (VRX-49). Offset tag→rank map (`system_trust_veteran`→`'trusted'`, …), highest wins, `system_probable_troll`→`'nuisance'` wins, no tag → `'visitor'`.
-- `buildJoinUrl.ts` — `buildJoinUrl(worldId, instanceId, region?)` → `vrchat://launch?...` URL or `null` (VRX-50/166). Built by string concat (NOT `URL()`) so the instanceId's `~()` tags aren't percent-encoded. `VrcAdapter.buildJoinUrl(instance, mode)` delegates here; mode is deliberately ignored because the VRChat URI cannot select desktop/VR. Trusted friend Join and Explore Join final-validate and launch it; renderer `open-url` is HTTPS-only.
-- `fetchFriends.ts` — `fetchFriends(fetcher)` → `{ friends: VrcFriend[], presence, completeness, failedPages, skippedRecords }` (VRX-43/222; resilience hardened in the 2026-07 audit W4). Dependency-injected (the `fetcher` is `VrcApiClient.get`, passed by `VrcAdapter`). Fetches `/auth/user` once for the presence buckets; a non-auth probe failure returns explicit `presence:'degraded'` + `completeness:'partial'` without fetching friend pages, and `VrcAdapter.getFriends` rejects it so known presence is retained instead of fabricating an all-offline roster. Otherwise it paginates online + offline passes (`offline=true|false`, `n=100`, capped at `MAX_FRIENDS` from `@shared/constants`), normalizing each raw friend via `parsePresence` + `parseTrustRank`; the raw `location` field is read (defensive Zod, nullable/optional) and passed to `parseLocation`. **Degrades per-unit, never per-pass (W4):** the transport page schema is `z.array(z.unknown())` and each record is `safeParse`d individually — a malformed record is skipped+counted, the other records survive, and data drift never records a circuit-breaker failure in `request<T>`; a failed page is counted, its window skipped, and the pass continues, giving up only after `MAX_CONSECUTIVE_PAGE_FAILURES=3` in a row. Rate limits stop both pagination passes immediately, return useful pages with main-only `rateLimit` metadata, or throw when no usable records exist. They never advance pagination or enter ordinary transient-page recovery. Any failed page, skipped record, or reached safety cap marks the roster `partial`, so downstream absence reconciliation is forbidden. Never uses `console.*` (logging is the caller's job). `VrcAdapter.getFriends` also throws when nothing was fetched and anything failed or schema-drifted — total drift must not look like "no friends".
-- `WorldResolver.ts` — `new WorldResolver(fetcher, clock?, negativeTtlMs?)` with `resolve(worldId) → WorldMeta | null`, `peek(worldId)`, and `clear()` (VRX-46; VRX-254 added a 60 s negative cache). In-memory TTL cache (`WORLD_CACHE_TTL_MS` from `@shared/constants` — the former local copy was deduped in VRX-221); injected fetcher + clock for testability. Defensive — null worldId / unknown / garbage / non-auth fetch throw → `null` (never throws). `AuthError` propagates so the adapter can emit `auth-invalidated`. Rate limits, cancellation and admission overflow also propagate without negative caching. Failed resolves (including garbage responses) are negative-cached for `WORLD_NEGATIVE_CACHE_TTL_MS = 60_000` so live events don't hammer the rate limiter; successes cache for the full `WORLD_CACHE_TTL_MS`. `clear()` drops both positive and negative account-scoped entries and advances a write generation, so responses launched before an account boundary cannot repopulate or overwrite the replacement account's cache. Per-world write epochs also make the newest launched response own same-generation cache state when overlapping callers settle out of order. Maps the API's `thumbnailImageUrl` → `WorldMeta.thumbnailUrl`. **Only `name` is a critical field (2026-07 audit W4):** the enrichment fields (`capacity` — now `number | null` — plus `thumbnailImageUrl`/`shortName`) each degrade independently to `null` via `.catch(null)` when missing or wrong-typed; previously a REQUIRED `capacity` meant one missing unused field nulled the entire world, falsifying api-volatility.md's "missing capacity → unknown". `WorldMeta` now includes `shortName: string | null` (the `worldShortLink` companion export was removed in the VRX-221 sweep — nothing consumed it). **Wired into `VrcAdapter`** as a single adapter-owned field (VRX-163) — the TTL cache persists across calls within one account and is cleared at every session boundary.
-- `VrcPipeline.ts` — the Pipeline WebSocket client (VRX-146): receive-only, dependency-injected (socketFactory/tokenProvider/sleepFn/log — electron-free like everything here). Lifecycle (reconnect/backoff/generation/settle discipline) lives in the shared `../ReconnectingPipeline` base since VRX-147; this class owns only the VRChat wire specifics. Double-decodes the `{type, content}` envelope (content is a stringified-JSON payload), Zod-validates per event, and maps to normalized `AdapterEvent`s: friend-online/location → `friend-presence` (state `in-game`), friend-active → `friend-presence` (state `active`), friend-offline/delete → userId-only deltas, friend-add → `friend-added`, friend-update → `friend-updated` (profile merge — the consumer preserves cached presence/instance). Presence state comes from the EVENT TYPE via synthetic buckets through the same `normalize()` as REST; the event-level `location` wins over `user.location` (`'traveling'` → null instance = the documented "Private" approximation). Notification/self/group events are decoded + logged but deliberately unrouted until VRX-84/86/87. Reconnect: exponential backoff + jitter (PIPELINE_BACKOFF_* constants), token re-fetched per attempt, generation counter kills stale loops; every successful open emits `connection: live` — the renderer's reconcile trigger. Unknown/malformed wire data is logged and dropped, never thrown. The pipeline itself is world-name-agnostic (`parseLocation` hardcodes `worldName: null`); `VrcAdapter.createPipeline` adds the world-name boundary before emitting (VRX-254). Live-event world-name enrichment fans out one fetch per unseen world per event with no cross-event concurrency cap — bounded in practice by event volume, the 1 req/s dispatcher, and the shared circuit breaker.
-- `VrcPipeline.test.ts` — full lifecycle against a fake socket: URL/token, per-event mapping, malformed-frame tolerance (incl. Buffer frames), reconnect with fresh token + growing backoff, null-token wait (never dials), stop(), throwing-consumer isolation, start() idempotence.
-- `fetchWorldMetadata.ts` — `fetchWorldMetadata(worldIds, resolver, limit=CONCURRENCY_LIMIT, onResolved?, canContinue?)` → `Map<worldId, WorldMeta>` (VRX-47; VRX-214 added `onResolved(worldId, meta)` — fired per world AS EACH resolves, non-null meta only, so callers can stream results instead of waiting for the batch). Concurrency-limited batch over `WorldResolver.resolve`: dedupes ids, drops null/empty, runs at most `CONCURRENCY_LIMIT=10` resolves in flight (index-cursor promise-pool, no dependency), checks the optional `canContinue` account-generation guard before each queued resolve, and omits null (private/unknown) results. The resolver's TTL cache handles cross-call repeats; the dedupe here handles within-batch repeats. **Consumed** by `VrcAdapter` BACKGROUND enrichment (VRX-214 — `getFriends` no longer awaits it; `kickWorldMetadata` streams `world-metadata` events via `onResolved`).
-- `GroupResolver.ts` — `createGroupResolver({ fetcher, clock?, ttlMs?, negativeTtlMs?, maxEntries? }) → GroupResolver` (VRX-260). Bounded TTL cache around VRChat `GET /groups/{groupId}`. `resolve(groupId) → GroupMeta | null`; `peek(groupId)` tri-state (`undefined`/`null`/`GroupMeta`). 24 h success TTL, 60 s negative TTL, 512-entry cap. `AuthError` propagates; other failures negative-cache to null. Only `name` is critical; `iconUrl` degrades to null. Injected fetcher + clock for testability.
-- `fetchGroupMetadata.ts` — `fetchGroupMetadata(groupIds, resolver, limit=CONCURRENCY_LIMIT, onResolved?, canContinue?)` → `Map<groupId, GroupMeta>` (VRX-260). Mirrors `fetchWorldMetadata`: concurrency-limited batch over `GroupResolver.resolve`, dedupes ids, drops null/empty, checks the optional `canContinue` account-generation guard before each queued resolve, omits null results, and streams `onResolved`. **Consumed** by `VrcAdapter` background group enrichment (`kickGroupMetadata`) and pipeline boundary enrichment.
+- [`docs/INTERNAL-API.md` sections 3, 4, and 6](../../../../../docs/INTERNAL-API.md)
+  define adapter events, the platform adapter contract, and registered parsers.
+- `fetchFriends.ts` owns REST roster collection and normalization.
+  `VrcPipeline.ts` owns live Pipeline messages. `WorldResolver` and
+  `GroupResolver` own bounded metadata caches. Location, presence, trust, and
+  instance-type parsers own vendor-to-shared conversion.
 
 ## Local Contracts
 
-- Profile images prefer current `iconUrl`, then legacy `userIcon`,
-  `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`, and finally
-  current `currentAvatarImageUrl`. The two current fields tolerate malformed
-  optional values independently. Recognized HTTPS `api.vrchat.cloud` file URLs
-  from current fields become 256px image URLs; other URLs pass unchanged to
-  AvatarCache validation. REST and Pipeline share this normalizer. Never add
-  per-friend profile requests to recover image fields. (VRX-283)
+- Do not import Electron, storage, UI code, or Node process APIs. Inject HTTP,
+  socket, time, and logging dependencies. Shared base classes own request
+  admission, retries, timeout, circuit behavior, and reconnection.
+- Treat every API value as untrusted. Validate page envelopes and individual
+  records. Skip malformed records without discarding valid siblings. A partial
+  roster must never claim completeness or remove absent cached friends.
+- VRChat presence has two axes. Derive `state` from the current user's bucket
+  membership and `status` from each friend's status field. Keep them separate.
+  Unknown values degrade safely and do not crash an update.
+- Parse locations into structured data only. Empty, private, malformed, or
+  unknown locations produce no launchable instance. World and instance IDs
+  flow to launch policy only through main-owned `LocationAuthority`.
+- The Pipeline is live state, not a polling replacement. Reconnect through the
+  shared base, reject malformed messages safely, and emit normalized events.
+  Account or auth boundaries fence stale events and metadata work.
+- Reconnect waits honor a shared 429 cooldown, recheck it before token work and
+  dialing, and cancel on stop or session replacement. Do not add a heartbeat.
+- Metadata caches are bounded and account-safe. A cache miss or failed world or
+  group lookup degrades to null and never rejects a roster already returned.
+  Background enrichment emits metadata only for the current matching entity;
+  it must not replay stale friends or cross an identity boundary.
+- Cancellation, admission overflow, and a tentative session are control flow.
+  Propagate them, stop later pagination or batch work, and do not turn them into
+  circuit failures or negative cache entries. A later request never borrows a
+  replacement account's credentials.
+- Build only strict official VRChat launch URLs from main-owned instance data.
+  The URI cannot choose desktop or VR mode. Return null for malformed pieces;
+  final allowlist validation and `shell.openExternal` stay in IPC.
+- Discovery parsers accept only internally consistent public candidates and do
+  not expose raw responses, host choices, or action URLs to the renderer.
 
-- Reconnect backoff survives brief open-close flaps and resets only after an
-  open lasting at least the existing backoff cap. Rejected upgrades forward
-  only status/Retry-After; factories dispose the response and terminate the
-  failed handshake. A 429 extends platform admission and socket cooldown;
-  waits recheck extensions before credential preparation and dialing, split
-  long timers safely, and cancel on stop/session replacement. No new heartbeat.
+## Work Guidance
 
-- `RosterRefresh` shares one pending roster result per session across ordinary
-  callers and CVR name warming. Main marks an active first read dirty before
-  broadcasting a live/roster trigger; all callers then receive at most one final
-  read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work. Any
-  shared 429 during a run also discards its follow-up, even with no remaining wait.
-  Partial final data retains first-read omissions. Identity-checked cleanup
-  cannot erase a replacement account's operation; session boundaries clear it.
-  Main injects a LocationAuthority revision capture before each physical read,
-  including warming. Partial aggregation retains each read's original seed
-  provenance; later joiners cannot re-date old entries or clear live fences with
-  pre-reconnect data. These revisions stay in main.
-
-- Request cancellation and admission overflow are control flow: propagate
-  `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
-  Never continue a page batch or negative-cache these outcomes. Account-owned
-  operations cannot resume under a replacement session.
-
-- Pure parsers/builders: no electron/node imports, no side effects, no I/O. Importable + testable in isolation.
-- Fetchers (`fetchFriends`/`WorldResolver`/`fetchWorldMetadata`): never import HTTP/electron directly — take an injected fetcher/resolver; stay electron-free + unit-testable (mock the fetcher).
-- Resolver/fetcher catches must propagate `AuthError` subclasses, including
-  `AuthSessionPendingError`; tentative-session quarantine is control flow, not
-  a negative-cacheable metadata miss.
-- Multi-request fetchers must let the adapter bind every later request/resolve
-  launch to the session generation that started the operation; an older batch
-  must not continue with a newer durable account's credentials. A captured
-  admission rate-limit revision also prevents later pages, pool workers or
-  post-roster enrichment from continuing after any shared 429, even with zero wait.
-- Defensive parsing — unknown enum/tag/suffix/shape values degrade gracefully, never throw (root `AGENTS.md` API etiquette).
-- Read shared types from `@shared/types`; do not redefine the canonical model here.
+- Record changed vendor assumptions and observed shapes in
+  `docs/api-volatility.md`. Do not widen a parser merely because a value looks
+  plausible; preserve the safe degraded result until the format is known.
+- Preserve the separation between friend REST reads, Pipeline presence, and
+  metadata enrichment. Do not add per-friend polling or a parallel retry loop.
+- Keep resolvers cache-only for synchronous callers and bound background work
+  through the existing admission controller.
 
 ## Verification
 
-`npm run typecheck && npm run lint && npm test`
+- Follow `docs/DEVELOPMENT.md` and `docs/REVIEW.md`. Run targeted parser,
+  paginator, resolver, Pipeline, and adapter tests for the changed behavior.
+- Cover malformed and unknown data, partial page failure, presence-axis
+  independence, location rejection, cache expiry and identity fencing, and
+  strict URL construction when those paths change.
+- Confirm there are no Electron imports, browser launches, social polling, or
+  raw API payloads in emitted events or logs.
+
+## Child DOX Index
+
+No child contracts. Files in this directory are one VRChat integration boundary.

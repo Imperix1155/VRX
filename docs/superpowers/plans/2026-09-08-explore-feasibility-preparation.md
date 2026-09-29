@@ -1,5 +1,7 @@
 # Explore feasibility preparation
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: planning checkpoint, September 8, 2026. Josh authorized preparing the
 feasibility and safe-joining plan, then approved the bounded read-only check
 subject to API rules. He then explicitly approved a temporary diagnostic build,

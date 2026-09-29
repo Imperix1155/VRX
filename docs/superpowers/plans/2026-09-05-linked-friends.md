@@ -1,6 +1,8 @@
 # Linked friends implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
+> Historical workflow note. This plan originally named Superpowers execution skills and checkbox tracking. Current repository contracts define the workflow.
 
 **Goal:** Ship the approved two-account linked-person roster, drawer, notes and identity-management flow without changing real platform accounts.
 

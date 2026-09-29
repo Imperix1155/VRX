@@ -5,7 +5,7 @@
  * Usage: node scripts/extract-changelog.mjs 0.1.0
  * Prints the body of the `## [0.1.0] ...` heading up to the next `## [` heading.
  * Prints nothing (exit 0) if the section is absent, so the release pipeline can
- * fall back to GitHub's auto-generated notes rather than ship an empty release.
+ * leave an existing release body unchanged. The release operator must verify notes.
  *
  * Fenced code blocks are tracked, so a `## [...]` line inside a ``` example is
  * not mistaken for the next section boundary.

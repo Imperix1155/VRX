@@ -1,5 +1,7 @@
 # Explore session receipt and phase-A readiness
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Latest status: the API dependency is integrated and combined checks pass. Josh
 authorized merging the isolated foundation, with current evidence in the
 [merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness).

@@ -1,24 +1,24 @@
 # API-safety handoff receipt
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Prepared September 9, 2026. Historical receipt before implementation started.
 Current execution state is in the [progress ledger](2026-09-09-api-safety-progress.md).
 This receipt does not open Explore's live-integration gate.
 
 ## Documents and provenance
 
-At receipt, copied with `apply_patch` and verified byte for byte against
-`/Users/imperix/.codex/worktrees/8ca7/vrx/docs/superpowers/plans`:
+At receipt, these files were copied and verified byte for byte against an
+original-machine checkout that is unavailable outside that machine:
 
 - [Traffic-hardening plan](2026-09-09-api-traffic-hardening-plan.md), 22,761 bytes.
   SHA-256 `8a723c2777dca9b92de4b9108b6abcc906d28ff904bad74d1d8106cfd892fb6e`.
 - [API etiquette audit](2026-09-08-api-etiquette-audit.md), 17,610 bytes.
   SHA-256 `6f423e63197e241a1b71c3212fa53e4c5dc1588b1e1e9e34956d5f3d5606af0e`.
 
-Read the [original Explore plan](/Users/imperix/.codex/worktrees/8ca7/vrx/docs/superpowers/plans/2026-09-08-explore-implementation-plan.md),
-including its September 9 split and dependency gate. That file remains in its
-owning checkout, unchanged by this task. The copied hardening plan's relative
-Explore link therefore refers to a document not copied here; use the absolute
-source link above until the Explore documents are reachable through shared Git.
+Read the repository [Explore implementation plan](2026-09-08-explore-implementation-plan.md),
+including its September 9 split and dependency gate. The original checkout is
+historical provenance only; this sibling file is the portable repository copy.
 
 The hashes record the original receipt snapshots. Later repository formatting
 may change whitespace in the local copies without changing the approved scope.

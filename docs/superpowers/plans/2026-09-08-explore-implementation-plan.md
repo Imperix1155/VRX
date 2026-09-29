@@ -1,5 +1,7 @@
 # Explore implementation plan
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Current continuation, September 9 Central: the API-safety dependency has merged
 and Josh delegated remaining refresh, caching and discovery-volume choices to
 the driver's judgment. Follow the

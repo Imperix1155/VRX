@@ -1,5 +1,7 @@
 # Explore phase-A review coverage
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Current merge readiness and authority are recorded in the final section below.
 Earlier draft-only verdicts and missing-authority statements are historical.
 
