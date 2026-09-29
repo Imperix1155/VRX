@@ -27,9 +27,13 @@ events.
 - VRChat presence has two axes. Derive `state` from the current user's bucket
   membership and `status` from each friend's status field. Keep them separate.
   Unknown values degrade safely and do not crash an update.
-- Parse locations into structured data only. Empty, private, malformed, or
-  unknown locations produce no launchable instance. World and instance IDs
-  flow to launch policy only through main-owned `LocationAuthority`.
+- `parseLocation` returns no instance for non-instance/sentinel values or a
+  missing world/instance part. Do not reject an otherwise parseable location
+  merely for an unrecognized access tag. `parseInstanceType` retains its public
+  fallback for unknown non-group tags and restrictive `group` fallback for
+  unknown group access. Parsed IDs still pass through main-owned
+  `LocationAuthority` and strict launch validation; parsing alone never
+  authorizes a join.
 - The Pipeline is live state, not a polling replacement. Reconnect through the
   shared base, reject malformed messages safely, and emit normalized events.
   Account or auth boundaries fence stale events and metadata work.
