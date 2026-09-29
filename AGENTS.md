@@ -111,8 +111,9 @@ For every BrowserWindow or IPC change:
   policy applies; known material defects or uncertainty block readiness,
   cosmetic preferences do not. Without merge authority, leave the PR open.
   An active grant permits merge only when all applicable gates are satisfied.
-- Branch names are exactly `imperix/vrx-XX-slug`; commit messages reference
-  `vrx-XX`.
+- Branch names use `imperix/vrx-XX-slug` and commit messages reference
+  `vrx-XX` when the work has a Linear issue. A Linear issue is optional: small
+  changes may use `imperix/<slug>` with no issue reference.
 - Pin third-party GitHub Actions to full commit SHAs with exact version
   comments. Set `actions/checkout` credential persistence to false unless a job
   intentionally pushes commits or tags.
@@ -316,9 +317,10 @@ but the DOX pass still happens and intentionally unchanged docs are reported.
 
 ## Linear
 
-Work is tracked on Linear team **VRX**. Issues use `VRX-N`. The `v1.0` label
+Linear team **VRX** tracks larger work. Issues use `VRX-N`. The `v1.0` label
 means ships in 1.0; `v1.x` is deferred. M1 (Foundation) precedes later
-milestones.
+milestones. An issue is optional; small changes need not create one. When work
+has an issue:
 
 - Starting an issue: set it to **In Progress**.
 - Opening a PR: set it to **In Review**.
