@@ -18,10 +18,10 @@ repository's evidence and safety requirements remain the same.
 3. Obtain a fresh-context general review before opening the PR. Give a reviewer
    the requirements, applicable contracts, exact diff, and source, without the
    builder's conclusions. Use a separate agent/session or human reviewer. If
-   unavailable, perform a distinct self-review pass against the requirements,
-   disclose the lack of a fresh reviewer, and identify any unresolved gap.
-   That fallback is not independent confirmation or permission to ship with
-   material uncertainty.
+   unavailable, self-review can prepare the change but cannot replace the
+   required fresh-context coverage. Record that gap and leave merge readiness
+   pending until a separate session or human supplies the review. No specific
+   provider, model, paid bot, or personal skill is required.
 4. Cover acceptance, correctness, security, lifecycle/session behavior, tests,
    and documentation sync. Use [root review rules](../AGENTS.md#code-review-rules).
    Policy-only changes need scenarios exercising the new instructions, not

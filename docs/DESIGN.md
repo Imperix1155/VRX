@@ -396,9 +396,10 @@ R6 refers to the location privacy rule in §5.
    standalone scene. Guide controls stay outside the production examples.
 3. Verify representative widths, both themes, glow settings, real typography,
    material over busy content, overflow, keyboard focus, reduced motion, and
-   reachable loading/error/disabled states. Screen capture requires the owner's
-   explicit one-time consent for each capture and target. Use the requested
-   browser surface; report an actual capability limit before substituting.
+   reachable loading/error/disabled states. Device access and capture
+   authorization follow the local environment's policy and the task's scope;
+   this design contract grants neither. Use the requested browser or app test
+   tool, and report a capability limit before substituting.
 4. A served page or successful build is not an observed render. Synthetic scenes
    prove only their fixture behavior, not live platform/account behavior or a
    packaged Electron installation.

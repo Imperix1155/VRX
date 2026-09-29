@@ -122,8 +122,11 @@ ranges. Fix viable updates, or document why an update is unsuitable. Queue
 mutation or merging still needs the owner's applicable task authority.
 
 The audit job blocks high/critical advisories outside its explicit allowlist.
-Any exception needs a verified rationale and revisit tracking. Never weaken
-the audit threshold or disable the gate to make an update green. Use
+An exception is eligible only for a dev-only advisory with no forward fix.
+Verify both conditions, allowlist the exact advisory, and record the rationale
+and revisit tracking. Production exposure or an available forward fix is not
+eligible under this exception. Never weaken the audit threshold or disable the
+gate to make an update green. Use
 [SECURITY.md](../SECURITY.md) for private vulnerability reporting.
 
 Secrets belong in main-process credential storage. OS encryption is preferred;
