@@ -19,13 +19,13 @@ npm run dev        # dev mode with HMR
 
 ## Branch naming
 
-Branch off `main` using exactly:
+Branch off `main`. When the work has a Linear issue, use:
 
 ```
 imperix/vrx-XX-slug
 ```
 
-where `vrx-XX` is the Linear issue number and `slug` is a short kebab-case description (e.g. `imperix/vrx-14-set-up-i18next-infrastructure`).
+where `vrx-XX` is the Linear issue number and `slug` is a short kebab-case description (e.g. `imperix/vrx-14-set-up-i18next-infrastructure`). A Linear issue is optional; small changes may use `imperix/<slug>` (e.g. `imperix/ci-link-storage-test-timeout`).
 
 ## Commit messages
 
@@ -52,11 +52,11 @@ npm test
 
 Then:
 
-- [ ] Branch named `imperix/vrx-XX-slug`
+- [ ] Branch named `imperix/vrx-XX-slug` (with an issue) or `imperix/<slug>`
 - [ ] Commits follow the convention above
 - [ ] `typecheck`, `lint`, `format:check`, and `test` all pass
 - [ ] No credentials, tokens, or PII logged; no hardcoded paths
-- [ ] PR description explains what changed and links the issue
+- [ ] PR description explains what changed and links the issue, if any
 
 ## Review & merge
 
