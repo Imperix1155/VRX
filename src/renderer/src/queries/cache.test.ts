@@ -370,6 +370,16 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
     expect(restored.clientState.queries).toHaveLength(1)
     expect(restored.clientState.queries[0]!.queryKey).toEqual(['friends', 'chilloutvr'])
   })
+
+  it('restores a query that omits dehydratedAt, normalized to 0 for TanStack Query 5.103', () => {
+    const envelope = JSON.parse(
+      buildPersistedClientEnvelope([{ platform: 'vrchat', dataUpdatedAt: now - 1000 }])
+    ) as { clientState: { queries: Array<{ dehydratedAt?: number }> } }
+    delete envelope.clientState.queries[0]!.dehydratedAt
+    const restored = deserializePersistedQueryCache(JSON.stringify(envelope))
+    expect(restored.clientState.queries).toHaveLength(1)
+    expect(restored.clientState.queries[0]!.dehydratedAt).toBe(0)
+  })
 })
 
 describe('createQueryCachePersister', () => {
