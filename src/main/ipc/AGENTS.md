@@ -30,7 +30,7 @@ handlers; domain files validate requests and call main-owned services.
   submit `expectedTarget` world and instance IDs only for comparison with the
   current main-owned location. It never supplies URL authority.
 - `join-instance` checks the main-owned allow-join setting before lookup or URL
-  building, compares `expectedTarget`, checks joinability, validates the
+  building, checks joinability, compares `expectedTarget`, validates the
   main-built URL, then launches under the shared coordinator. `self-invite` has
   its own lock and cooldown. Keep denial logs to platform and reason.
 - `open-url` accepts only allowlisted HTTPS web links. Custom game schemes are

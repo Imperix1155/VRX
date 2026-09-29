@@ -9,8 +9,8 @@ need a new issue just to begin.
 
 - Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md).
-- VRX authenticates on the user's own machine. Botting, mass invites, and
-  polling social presence are outside the app's purpose.
+- VRX authenticates on the user's own machine. Contributions that add botting,
+  mass invites, or social-presence polling will be rejected.
 - Read [AGENTS.md](AGENTS.md) and the contracts on the path to your edits.
   Project requirements apply to every contributor. Personal agent skills and
   integrations are optional, and device permissions remain local.

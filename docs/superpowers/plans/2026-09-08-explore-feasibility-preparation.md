@@ -399,7 +399,7 @@ CVR's observed count matched one explicitly public room in this sample, but that
 does not prove public-only semantics across other categories or room sets.
 Neither global default ordering nor a positive account-specific join predicate
 was established. VRChat room detail remains unsampled, not unavailable.
-The [API volatility registry](../../api-volatility.md#explore-discovery-feasibility-september-8-2026)
+The [API volatility registry](../../api-volatility.md)
 now records these observations separately from shipped behavior.
 
 ## Authorized VRChat room-detail follow-up

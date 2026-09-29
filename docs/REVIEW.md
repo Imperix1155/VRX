@@ -9,19 +9,31 @@ repository's evidence and safety requirements remain the same.
 1. Record the requirements, base commit, review head, changed files, and exact
    diff. A saved patch with a SHA-256 makes delegated review reproducible.
 2. Run the applicable [development checks](DEVELOPMENT.md#verification).
-   For application JavaScript/TypeScript changes, run `fallow dead-code` and
-   `fallow dupes` when available. Compare findings with the base: existing
-   findings are not proof this change introduced them. If Fallow is unavailable,
-   report the limitation and use TypeScript, ESLint, and targeted inspection of
-   changed code for unused exports and duplicated logic. Do not install an
-   unreviewed latest tool or alter dependencies just to satisfy a tool name.
+   For application JavaScript/TypeScript changes, use the pinned command
+   `npx --yes fallow@3.30.0 audit --changed-since BASE_SHA --no-css`, replacing
+   `BASE_SHA` with the recorded PR base commit. This uses Node 22+ and downloads
+   the pinned tool if needed; it does not add a project dependency. The audit
+   checks dead code, complexity, and duplication, with only introduced findings
+   affecting its verdict by default. Pin the base explicitly so a feature
+   branch's upstream cannot make the audit compare against itself. Inspect the
+   verdict and findings; do not use `--brief`, which always exits zero.
+   If the tool cannot run under the local environment's access policy, report
+   the limitation and use TypeScript, ESLint, and targeted inspection of changed
+   code for unused exports and duplicated logic. Do not use an unpinned tool or
+   change dependencies merely to satisfy a tool name.
 3. Obtain a fresh-context general review before opening the PR. Give a reviewer
    the requirements, applicable contracts, exact diff, and source, without the
    builder's conclusions. Use a separate agent/session or human reviewer. If
    unavailable, self-review can prepare the change but cannot replace the
    required fresh-context coverage. Record that gap and leave merge readiness
    pending until a separate session or human supplies the review. No specific
-   provider, model, paid bot, or personal skill is required.
+   provider, model, paid bot, or personal skill is required. Scale that review
+   to the change: a purely nonfunctional documentation PR needs a brief fresh
+   read and the documented format/link checks, not an application review.
+   Instructions that change workflow, security, or release behavior are policy
+   changes and need scenario checks. Dependency updates retain compatibility,
+   security, applicable tests, and fresh review; the PR author or label alone
+   never makes a change low risk.
 4. Cover acceptance, correctness, security, lifecycle/session behavior, tests,
    and documentation sync. Use [root review rules](../AGENTS.md#code-review-rules).
    Policy-only changes need scenarios exercising the new instructions, not
@@ -93,10 +105,6 @@ repository protection or review settings as part of ordinary delivery.
 - Preserve the PR record and update a linked issue when one exists and access is
   available. Missing optional tracker access is a handoff item, not a merge gate.
 
-Josh is the sole human maintainer. His explicit merge grant permits an admin
-bypass solely for an otherwise-unsatisfiable additional-human-approval rule,
-when that is the only remaining protection blocker. Verify all evidence above
-and the exact head first. This does not authorize bypassing failed or pending
-checks, unresolved findings, a required bot check, missing local review, or any
-other protection. If admin access is absent, report the blocker. Do not disable
-protections. This standing rule defines a merge grant; it grants no merge by itself.
+Do not disable branch protections. This repository grants no admin bypass.
+If an authorized maintainer's separate instructions permit an exception, verify
+its exact scope and all remaining requirements; otherwise report the blocker.

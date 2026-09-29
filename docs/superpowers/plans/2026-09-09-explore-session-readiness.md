@@ -58,7 +58,7 @@ with source/destination registry hashes and an exact excerpt. The current
 [API registry](../../api-volatility.md) was not overwritten. Historical links
 from the copied documents to its Explore heading refer to the source registry;
 use the separate evidence handoff for that historical heading. The later
-[phase-A parsing section](../../api-volatility.md#explore-phase-a-parsing-september-9-2026-not-wired)
+[API volatility registry](../../api-volatility.md)
 records implemented assumptions without replacing this original evidence.
 
 ## State checked at receipt

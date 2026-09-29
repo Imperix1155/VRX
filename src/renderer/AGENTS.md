@@ -44,7 +44,7 @@ credential, network, or launch authority.
   per-reference budget; terminal failures stay neutral.
 - `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
   metadata only when the current instance keeps the same world or group identity;
-  fresh values win. Do not restore the obsolete `mergeKnownWorldMetadata` name.
+  fresh values win.
 - Error boundaries, document-drop prevention, localized copy, and local licensed
   fonts are renderer responsibilities. Keep diagnostics local to explicit copy,
   preserve font licenses and provenance, and never load remote fonts.
@@ -66,7 +66,7 @@ credential, network, or launch authority.
   keep their radiogroup keyboard behavior, and existing workflows stay reachable
   at the 900x670 desktop floor. Virtualized friend rows retain stable section
   identity and recover focus when live updates remove a focused control. Keep
-  TanStack Virtual's synchronous commit for variable-height measurement.
+  TanStack Virtual's default `useFlushSync` commit for variable-height rows.
 - User-facing copy goes through i18next and every supported locale receives the
   matching key. Do not hardcode renderer copy.
 - Settings changes use `@shared/settings`. Every additive persisted field bumps
