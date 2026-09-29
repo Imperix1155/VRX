@@ -157,7 +157,10 @@ void _friendSchemaDriftGuard
 
 const persistedQuerySchema = z
   .object({
-    dehydratedAt: z.number().finite().nonnegative().optional(),
+    // TanStack Query 5.103 types `dehydratedAt` as required. VRX always writes
+    // it; an older envelope without it stays restorable (0 only affects
+    // promise/pending hydration paths, which persisted success entries never use).
+    dehydratedAt: z.number().finite().nonnegative().default(0),
     queryHash: z.string(),
     queryKey: z.tuple([z.literal('friends'), platformSchema]),
     state: z
