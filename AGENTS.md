@@ -1,345 +1,192 @@
-# VRX Agent Contract
+# VRX agent contract
+
+VRX is a local Electron companion for VRChat and ChilloutVR. It authenticates
+as the user on their machine and presents their friends, presence, worlds,
+instances, and invites. It is not a bot, server, or content uploader.
+
+## Start here
 
 This repository uses the [DOX framework](https://github.com/agent0ai/dox).
-`AGENTS.md` files are binding work contracts for their subtrees. Read this file,
-then every `AGENTS.md` on the path to each file you touch. The closest contract
-controls local details, but no child may weaken DOX.
+Read this contract and every nearer `AGENTS.md` on the path to each file you
+edit. The closest contract owns local details; no child weakens DOX or the
+security rules below. Inspect current source instead of relying on another
+session's memory.
 
-## What VRX Is
+A fresh clone contains the project instructions needed by any coding agent or
+human contributor. Personal skills, model choices, device permissions, account
+integrations, and orchestration belong to the contributor's local setup. They
+are optional tools, not prerequisites for building, reviewing, or releasing VRX.
+Repository instructions do not grant access to a device or external account.
 
-VRX is a local Electron companion for **VRChat** and **ChilloutVR**. It
-authenticates as the user on their machine and reads only that user's social
-data: friends, presence, instances, and invites. It is not a bot, server, or
-content uploader.
+- [Development](docs/DEVELOPMENT.md): install, develop, test, diagnose CI.
+- [Review](docs/REVIEW.md): review coverage and merge readiness.
+- [Releasing](docs/RELEASING.md): version, package, publish, verify.
+- [Contributing](CONTRIBUTING.md): branch and contribution conventions.
+- [Design](docs/DESIGN.md), [visual guide](docs/design.html), and
+  [component scenes](docs/glass.html): UI rules and examples.
+- [Internal API](docs/INTERNAL-API.md): look up the relevant symbol and process
+  section before adding a channel, event, hook, store, parser, service, or constant.
+- [API policy](docs/api-policy.md) and [volatility](docs/api-volatility.md):
+  platform behavior, limits, and uncertain assumptions.
 
-## Before Editing
-
-1. Identify every file or folder the task may touch.
-2. Walk from the repository root to each path and read every `AGENTS.md` found.
-3. Read the owning technical documentation named by this contract.
-4. Establish a verified baseline, confirm constraints and compatibility, then
-   make incremental changes with verification between meaningful steps.
-
-Do not rely on remembered instructions from another task.
+Historical plans and receipts describe past work. They do not override current
+contracts or require access to the author's machine, skills, or old artifacts.
 
 ## Architecture
 
-- electron-vite + React 19 + strict TypeScript.
-- Processes: `src/main`, `src/preload`, and `src/renderer`.
-- Cross-process types and plain values live in `src/shared`, imported through
-  `@shared`. Shared code must remain pure: no Electron or Node imports.
-- Platform integrations use adapters. State uses Zustand; server/cache state
-  uses TanStack Query.
+- electron-vite, React 19, strict TypeScript. Main is `src/main`, the restricted
+  bridge is `src/preload`, and UI is `src/renderer`.
+- `src/shared`, imported through `@shared`, contains pure cross-process types
+  and values. No Node or Electron imports.
+- Platform integrations use adapters. Zustand owns view state; TanStack Query
+  owns server/cache state. Reuse existing interfaces before introducing another.
 - Prefer string-literal unions over `const enum` for esbuild and Zod safety.
-- Before adding a channel, event, hook, store, parser, service, utility, or
-  shared constant, consult [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md).
-  Reuse an existing surface when possible and update the catalog in the same PR
-  whenever the callable surface changes.
+- Use `app.getPath()` for app storage and `electron-log` with redaction for
+  logging. Do not add `any` or `@ts-ignore` without an explanation comment.
 
-## Design Contract
+## Design contract
 
-Before UI work, read [`docs/DESIGN.md`](docs/DESIGN.md), the rendered guide at
-`docs/design.html`, and the living reference at `docs/glass.html`.
+Read the three design documents before UI work. Renderer components and
+`src/renderer/src/assets/main.css` define the current implementation. The guide
+uses those components with synthetic data; known defects are not design rules.
 
-The renderer components and `src/renderer/src/assets/main.css` define current
-implementation. `docs/design.html` is the human visual guide;
-`docs/glass.html` runs the same guide's isolated, synthetic component scenes.
-`docs/DESIGN.md` is the concise agent contract. Do not treat copied historical
-examples or known app defects as design requirements. Guide implementation and
-fixture safety are owned by [`docs/guide/AGENTS.md`](docs/guide/AGENTS.md).
+- Liquid glass is the material. Dark is the stylesheet baseline; the Theme
+  preference defaults to System. Light uses `[data-theme="light"]` parity
+  overrides.
+- Color communicates meaning in a consistent location, with a non-color label
+  or glyph. VRChat is blue; ChilloutVR is orange. Treat both platforms equally.
+- Background color must not alter information-bearing cards or panels. Neutral
+  sheen can vary; decorative chrome such as the sidebar may retain ambient color.
+- Presence `state` and VRChat `status` are separate axes. Use the avatar ring
+  fold and written drawer status, not the old row dot/status-pill examples.
+- Use tokens for color and spacing. Preserve access to existing controls and
+  workflows unless removal was approved. Observe changed UI in both themes and
+  relevant window sizes; compilation alone does not prove rendering.
 
-- Liquid glass is the material language. Dark is default; light is a
-  `[data-theme="light"]` parity override, not a fork.
-- Color communicates meaning, never decoration. Each meaning needs one fixed
-  location and a non-color label or glyph.
-- Platform identity is blue for VRChat and orange for ChilloutVR, expressed
-  through tint, spine, and explicit platform text or glyph.
-- Ambient background color must not alter information-bearing card or panel
-  colors, including platform-specific surfaces. Neutral sheen may vary;
-  decorative chrome such as the sidebar may retain ambient color.
-- Presence has two independent axes, `state` and VRChat `status`. Never
-  conflate them. Use the production avatar ring fold and written drawer status;
-  do not restore the superseded separate row dot/status-pill recipe.
-- Use design tokens for color and spacing; do not introduce stray hex values.
+## Security non-negotiables
 
-## Security Non-Negotiables
+- Keep BrowserWindows at `contextIsolation: true`, `sandbox: true`, and
+  `nodeIntegration: false`. Guard every IPC handler with `isTrustedIpcSender`.
+- Prefer OS-backed `safeStorage` for credentials. The existing local fallback
+  uses authenticated encryption and a random installation key in private app
+  files when OS encryption is unavailable or fails. It is weaker: possession of
+  both key and ciphertext permits session recovery. Never encrypt with Electron
+  `basic_text`, hardcode a key, or expose tokens to the renderer.
+- Allowlist URLs before `shell.openExternal`. Do not permit `unsafe-inline` in CSP.
+- Never log credentials, tokens, or PII. Never write to VRCX or CVRX folders.
+- Never commit secrets. Keep gitleaks and dependency/security CI gates. Allowlist
+  only confirmed fake fixture values, never whole paths.
 
-For every BrowserWindow or IPC change:
+## External API etiquette
 
-- Keep `contextIsolation: true`, `sandbox: true`, and
-  `nodeIntegration: false`.
-- Guard every IPC handler with `isTrustedIpcSender`.
-- Prefer OS-backed `safeStorage` for credentials. When OS encryption is
-  unavailable or fails, VRX-282 permits automatic authenticated local encryption
-  with a random installation key in private app files. This owner-approved
-  fallback is weaker: access to both key and ciphertext permits session recovery.
-  Never use Electron `basic_text`, hardcoded keys, or expose tokens to the renderer.
-- Apply a URL allowlist before `shell.openExternal`.
-- Do not permit `unsafe-inline` in CSP.
-- Never log credentials, tokens, or PII; use `electron-log` with redaction.
-- Never write to VRCX or CVRX folders.
-- Never commit secrets. The CI `secret-scan` job and local pre-commit hook use
-  gitleaks. Allowlist only confirmed fake fixture values, never whole paths.
+- Use VRChat Pipeline and CVR `/users/ws` for live presence. Do not poll friend
+  status or implement mass invites or other bot-like behavior.
+- Respect the shared per-platform request queue and one-request-per-second
+  ceiling, exponential backoff, jitter, cooldowns, and a proper User-Agent.
+- Cancel obsolete work across session/account changes. Parse unknown values
+  defensively; missing data is not permission to invent a status or join target.
+- Update API volatility documentation when observed shapes or assumptions
+  change, and API policy when etiquette or policy changes.
 
-## External API Etiquette
+## Work and delivery
 
-- Prefer WebSockets (VRChat Pipeline and CVR `/users/ws`) for real-time data.
-  Do not poll friend status.
-- Treat one request per second as the safe ceiling. Use exponential backoff,
-  jittered intervals, and a proper User-Agent.
-- Do not implement mass invites or other bot-like behavior.
-- Parse defensively: unknown enum values must degrade gracefully.
-- Record changed assumptions about unofficial API shapes or behavior in
-  `docs/api-volatility.md`; update `docs/api-policy.md` when etiquette or policy
-  changes.
+Establish a baseline and inspect branch, dirty files, active PRs, and worktrees.
+Preserve others' work. Make the smallest coherent change that meets the request;
+state material assumptions and tradeoffs. Independent workers may use separate
+worktrees, but the integrating contributor owns the combined result.
 
-## Work and Git Rules
+Use a feature branch and PR. Never commit or push directly to protected `main`.
+An authorized implementation task includes ordinary branch commits, pushes,
+PRs, and review fixes unless restricted to local work. Merge, public release,
+and replacement of an installed app require an explicit owner grant covering
+those actions. Carry an existing scoped grant forward without repeated approval.
+Local tools and branch protection remain separate enforcement boundaries.
 
-- Solve the requested problem with the smallest coherent change. State
-  assumptions and important tradeoffs before coding.
-- Same-lineage Codex subagents may handle independent, bounded work in separate
-  worktrees. Their output is fresh context, not independent model-lineage
-  review; the driver remains responsible for verification and integration.
-- For any user-authorized implementation or delivery task not explicitly
-  restricted to local-only work, the driver may commit only on a non-protected
-  feature branch, push that branch, open or update a PR, push review fixes, and
-  keep Linear current without a separate permission prompt. These are normal,
-  reversible delivery steps. Never commit or push directly to protected `main`.
-- Merge only with explicit owner authority, applicable local gates and required
-  final-head CI green, and `review-loop` coverage of the general review anchor plus validated
-  focused functional reviews and nonfunctional checks through the final head. Its advisory-bot and bounded-wait
-  policy applies; known material defects or uncertainty block readiness,
-  cosmetic preferences do not. Without merge authority, leave the PR open.
-  An active grant permits merge only when all applicable gates are satisfied.
-- Branch names use `imperix/vrx-XX-slug` and commit messages reference
-  `vrx-XX` when the work has a Linear issue. A Linear issue is optional: small
-  changes may use `imperix/<slug>` with no issue reference.
-- Pin third-party GitHub Actions to full commit SHAs with exact version
-  comments. Set `actions/checkout` credential persistence to false unless a job
-  intentionally pushes commits or tags.
-- Use `app.getPath()` rather than hardcoded `C:\\`, `%APPDATA%`, or `~` paths.
-- Use `electron-log`, not `console.log`.
-- Do not add `any` or `@ts-ignore` without an explanation comment.
+Use `imperix/vrx-XX-slug` with a Linear issue or `imperix/<slug>` without one,
+and Conventional Commits with the issue reference when applicable. A tracker
+is optional. Link existing GitHub or Linear issues and update them when access
+is available; missing tracker access does not prevent repository work.
 
-## Verification and Done
+Before a PR, follow [Review](docs/REVIEW.md). Merge only with owner authority,
+review coverage through the exact final head, passing applicable local and
+required CI checks, and no unresolved material defect or uncertainty. Review
+feedback is not merge authority. Publish through [Releasing](docs/RELEASING.md).
 
-Before declaring application implementation complete, run:
+Pin third-party GitHub Actions to full SHAs with exact version comments.
+Keep checkout credential persistence off unless the job intentionally pushes.
+
+## Verification and done
+
+The canonical application/build/CI gate is:
 
 ```bash
-npm run lint && npm run format:check && npm run build
+npm run lint && npm run format:check && npm test && npm run build
 ```
 
-`npm run build` includes both TypeScript checks and the entry-chunk assertion;
-do not run the same typecheck again solely to complete this gate.
+`build` includes both TypeScript checks and the entry-chunk assertion. Add
+focused behavioral and runtime/UI evidence for the changed feature. For fixes,
+show that the regression test fails without the fix when practical. Read exit
+statuses; silence or a worker's claim is not proof.
 
-Generated reports under `coverage/` are excluded from ESLint. When changing test
-or coverage tooling, verify `npm run test:coverage` followed by `npm run lint`
-so generated assets do not break source linting.
-
-For changes only to review-policy instructions or reviewer-role configuration,
-use focused format/configuration/reference and policy-scenario checks. Changes
-to app, build, runtime, release, or CI configuration still need their applicable
-project gates. Required CI still applies to a published PR.
-
-Run focused tests for changed application behavior as well. Read the final
-sentinel or exit status; silence is not proof. For bug fixes, demonstrate that the new test
-fails without the fix when practical.
-
-Before every PR, invoke the available `review-loop` skill over the actual
-PR diff. Its deterministic pass includes `fallow dead-code` and `fallow dupes`
-for application JavaScript/TypeScript changes. Functional fixes use focused
-behavioral review by default, with broader review under the criteria below.
-Nonfunctional-only corrections use a separate focused check.
-
-Linux release builds must keep the AppImage and deb launcher identity, desktop
-metadata, 512px RGBA icon, architecture-qualified AppImage name, updater files,
-and release asset allowlist in sync. The tag workflow extracts both packages
-and checks those contents before it may make the draft release public.
-
-Ubuntu CI also proves credential persistence across a real Electron restart: two
-probe processes share a disposable `userData` directory inside a temporary
-Secret Service session. Both test-only processes explicitly select
-`--password-store=gnome-libsecret`, then attest Electron reports
-`gnome_libsecret`. The first securely writes a synthetic fixture, the second
-reads and clears it, and the probe rejects any fixture plaintext found in the
-disposable `userData` tree. A second pair explicitly selects `basic_text` to
-prove production local fallback, attests versioned local records for both
-platforms, and checks restart, plaintext absence and logout. The production
-credential service never encrypts using `basic_text`.
-Its bundle, source, config, and contract test are test-only and must remain
-explicitly excluded from Electron Builder packages; the probe contract test
-pins that boundary.
-
-If the personal `review-loop` skill is unavailable, use this repository-portable
-fallback: use the reviewer routing and tier rules below to inspect the final PR
-diff from a fresh context; run the applicable documented gate; for application
-JavaScript/TypeScript changes, run `fallow dead-code` and `fallow dupes` when Fallow is
-installed. If it is unavailable, record that limitation and use the repository
-TypeScript and ESLint results plus a targeted diff inspection for unused
-exports and duplicated logic. Check security, correctness, tests, and
-documentation sync; resolve or refute material findings; use focused behavioral
-review after functional fixes and broaden under the criteria below. Inspect
-nonfunctional-only deltas with the separate focused checks below.
-Record that this fallback is a same-lineage Codex review, not independent model
-confirmation.
+Documentation-only work uses the focused checks in
+[Development](docs/DEVELOPMENT.md#verification). Policy edits also need realistic
+workflow scenarios. Required PR CI still applies. Record checks that could not
+run and their effect on confidence; do not label unavailable evidence as passing.
 
 ## Code Review Rules
 
-These rules apply to local review and Codex GitHub PR review:
+- Review the actual diff and final head for acceptance, correctness, security,
+  tests, and documentation sync. Give actionable file/line findings with a
+  concrete failure mode and evidence. Do not repeat formatting preferences.
+- Block credential exposure, wrong-account actions, unsafe IPC/window settings,
+  unallowlisted URLs, presence polling, request amplification, data loss,
+  crashes, and writes to VRCX/CVRX data.
+- Critical risk means a credible path to an unusable app or a user's platform
+  account being endangered. Classify consequences, not filenames. Essential
+  controls disappearing can be critical even when the process still launches.
+- Check main/preload/renderer boundaries, strict types, both VR platforms,
+  session ownership, dark/light parity, and relevant behavioral tests.
+- Check reuse/catalog entries for new interfaces and the documentation matrix
+  below. Known app defects must not become design requirements.
+- Automated PR reviewers are advisory at every risk level. Inspect available
+  findings and resolve or refute material ones. Absent or quota-limited output
+  is unavailable evidence, not a clean review or a reason to wait by itself.
+- [Review](docs/REVIEW.md) defines review coverage, critical-risk evidence,
+  correction review, and merge checks without requiring a particular agent.
 
-- GitHub automatic Codex review was configured for every push with exhaustive
-  review. This policy does not change that account setting. Push coherent
-  checkpoints rather than tiny incremental updates, and
-  check Codex usage during long work blocks and after unusually review-heavy
-  PRs. If review usage becomes disproportionate, surface it to the owner and
-  revisit the trigger or depth instead of silently exhausting the allowance.
-- Starting 2026-08-18, re-evaluate exhaustive auto-review after one week or
-  the first three VRX PRs opened after that date, whichever comes first.
-  Compare usage consumed, actionable findings found, false-positive burden,
-  and whether the findings escaped the local `review-loop`; keep or change the
-  setting from that evidence.
-- `review-loop` is the primary workflow authority. Meaningful ordinary changes
-  get one fresh Astra at High general review covering requirement/acceptance
-  alignment and correctness/quality. Sol at High handles additional
-  bounded checks only for a concrete risk, coverage gap, or unresolved question;
-  use Astra for critical or unusually difficult questions. Choose model and
-  effort separately, with higher supported effort upfront when justified or
-  one automatic escalation per named question. Obtain missing evidence first.
-  Unresolved material uncertainty remains unresolved after the cap.
-- PR bots, including CodeRabbit, Greptile, and automatic Codex GitHub review,
-  are advisory at every risk tier, including T2. Repository CodeRabbit overrides live in
-  [`.coderabbit.yaml`](.coderabbit.yaml). Inspect actual available feedback, including
-  collapsed summary findings, while other required work runs and before merge.
-  Missing, running, skipped, rate-limited, or quota-exhausted bot output alone
-  does not block readiness. No minimum wait, ceremonial full-review
-  request, or waiting solely for advisory output is required. Validate material
-  findings and fix or refute them; cosmetic preferences are not gates.
-  Disclose unavailable independent review; never record it as a clean review.
-  A scoped explicit owner waiver of missing bot review is effective at every
-  risk tier. It does not authorize bypassing automatic approval review,
-  GitHub branch protections, or any other required gate.
-  This rule supersedes older bot-availability gates in plans and handoffs;
-  retain those historical review records without treating them as current policy.
-- T2 is top-level critical: credible risk of making the app unusable or putting
-  a user's VRChat/ChilloutVR account in danger. Judge reachable behavioral
-  consequences, not filenames or hypothetical "anything could break." Investigate
-  startup/core-process failure, updates that prevent launch, credential exposure
-  or wrong-account access/actions, and API request amplification, frequency,
-  rate-limit/backoff/retry faults, or forbidden actions/policy violations that
-  could cause an account ban. Certainty of failure is not required.
-- UI changes must preserve access to previously exposed controls and workflows
-  unless removal was explicitly approved. Observe the affected UI using the
-  applicable verification skill and capture consent. Credible loss of essential
-  workflows/app usability is T2 even when processes still run. Styling alone
-  does not make a change critical; accidental smaller regressions still require
-  correction. Existing credential, security, irreversible-data, account,
-  test/CI, and owner-permission safeguards remain mandatory outside T2 too.
-- T2 requires evidence for the actual critical consequences, applicable probes,
-  risk disclosure, and owner risk/merge authority. One fresh general
-  review remains the baseline, covering acceptance alignment and correctness.
-  Add targeted Astra review only for a concrete critical risk or coverage gap;
-  there is no fixed additional-reviewer count.
-  Bot availability alone does not block readiness. Scores, skipped/rate-limit
-  messages, and bare green checks are not substantive review evidence.
-  Same-lineage agreement does not waive required local review, probes, CI,
-  material-finding resolution, or owner review and merge authority.
-- The general review head is the local anchor. Functional corrections normally
-  get fresh focused review of the exact delta and affected behavior, callers,
-  and contracts, relevant regression tests/probes, applicable required gates,
-  and current-head CI. Record which prior conclusions remain valid and why.
-  Assess the cumulative delta so combined coverage reaches the actual final
-  head. Restart general review if design/security assumptions change, shared
-  behavior is broadly affected, earlier conclusions fail, or effects cannot be
-  reliably bounded. Small line counts do not prove bounded impact. Inspect
-  available bot feedback for the head and behavior it actually reviewed;
-  missing bot output does not weaken required local final-head coverage.
-- A verified nonfunctional-only delta changes no app, build, test, release,
-  security, workflow, or policy behavior. It gets focused format/link/consistency
-  and `git diff --check` checks plus required final-head CI. It needs no new
-  general review or bot wait solely for that correction. Preserve prior review
-  coverage; mixed or uncertain corrections use the functional lane. This check
-  is distinct from focused functional review and cannot verify changed behavior.
-- Required CI, local reviews, and any review explicitly required by an actual
-  branch-protection rule need
-  bounded watchers with practical deadlines, sane polling, and distinct
-  completion, failure, parse-failure, and timeout outcomes. Timeout requires
-  investigation, a blocker, or a durable handoff, never success or a merge
-  waiver. Do not restart the same deadline or wait half a day for bot quota.
-  Bot unavailability alone is advisory; an actual protection requirement
-  remains a blocker and cannot be bypassed under a bot waiver.
-  Do not change GitHub protection or review settings to implement this
-  policy; report any actual protection blocker.
-- Review the actual PR head and changed lines. Report only actionable findings
-  introduced or exposed by the diff.
-- Prioritize data loss, credential exposure, authentication mistakes, unsafe
-  IPC or BrowserWindow settings, renderer trust-boundary violations, API
-  etiquette/rate-limit regressions, crashes, and user-visible correctness.
-- Treat missing `isTrustedIpcSender` guards, renderer-visible raw tokens,
-  unallowlisted external URLs, polling of social presence, or writes to
-  VRCX/CVRX data as blocking findings.
-- Check that new callable surfaces reuse or update
-  `docs/INTERNAL-API.md`, design changes update all three design artifacts,
-  external-API assumptions update API docs, and user-visible behavior updates
-  `CHANGELOG.md`.
-- Check for focused tests and for compatibility with strict TypeScript, the
-  Electron process boundary, both supported platforms, and dark/light parity
-  where applicable.
-- Do not report formatting-only preferences already enforced by repository
-  tooling. Give a file/line reference, concrete failure mode, and evidence for
-  every finding. If no material finding exists, say so plainly.
-- Review feedback never authorizes a merge.
+## Documentation sync
 
-## Documentation Sync
+After every meaningful change, perform a DOX pass. Update the closest owning
+contract when purpose, structure, constraints, or workflow changes. Refresh
+parent/child indexes and delete stale or contradictory instructions. Create a
+child contract only for a durable ownership boundary; use Purpose, Ownership,
+Local Contracts, Work Guidance, Verification, Child DOX Index where applicable.
+Keep contracts concise and current; detailed API entries belong in the catalog,
+and historical reasoning belongs in records and version control.
 
-Every meaningful change requires a DOX pass before closeout. Update the closest
-owning `AGENTS.md` when purpose, structure, contracts, workflows, permissions,
-constraints, or durable user preferences change. Update parent and child
-indexes when their boundaries change. Delete stale or contradictory text.
+Update in the same PR:
 
-Create a child `AGENTS.md` when a directory becomes a durable boundary with
-its own purpose, rules, responsibilities, workflow, materials, or quality
-standards. When parent changes alter local behavior, update the affected child
-contracts too. New child contracts use this concise section order when the
-sections apply: Purpose, Ownership, Local Contracts, Work Guidance,
-Verification, Child DOX Index.
+- IPC, bridge, events, hooks, stores, parsers, services, shared constants:
+  `docs/INTERNAL-API.md`.
+- Visual or interaction design: `docs/DESIGN.md`, `docs/design.html`,
+  `docs/glass.html`, and their shared guide implementation.
+- Platform API assumptions: `docs/api-volatility.md`; policy changes also update
+  `docs/api-policy.md`.
+- User-visible app behavior: `CHANGELOG.md`.
+- Directory purpose, contracts, workflows: nearest `AGENTS.md` and indexes.
+- Project facts, setup, stack, feature status, links: `README.md` and owning
+  development documentation.
 
-| If the change touches…                                                              | Update in the same PR                                                   |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| IPC, `window.vrx`, `AdapterEvent`, hook, store, parser, service, or shared constant | `docs/INTERNAL-API.md`                                                  |
-| Visual or interaction design                                                        | `docs/DESIGN.md`, `docs/glass.html`, and `docs/design.html`             |
-| VRChat/CVR API assumptions                                                          | `docs/api-volatility.md` and, when policy changes, `docs/api-policy.md` |
-| User-visible behavior                                                               | `CHANGELOG.md`                                                          |
-| Directory purpose, structure, contracts, or workflows                               | Nearest owning `AGENTS.md`                                              |
-| Project facts, stack versions, feature status, or doc links                         | `README.md`                                                             |
-
-Small edits that do not alter behavior or contracts may leave docs unchanged,
-but the DOX pass still happens and intentionally unchanged docs are reported.
-
-## Linear
-
-Linear team **VRX** tracks larger work. Issues use `VRX-N`. The `v1.0` label
-means ships in 1.0; `v1.x` is deferred. M1 (Foundation) precedes later
-milestones. An issue is optional; small changes need not create one. When work
-has an issue:
-
-- Starting an issue: set it to **In Progress**.
-- Opening a PR: set it to **In Review**.
-- After required verification and merge: set it to **Done** and record a brief
-  build/verification summary.
-- Keep the board current during the work. Use the Linear integration directly;
-  ask the owner only when a state change requires their authorization.
+Report intentionally unchanged docs. Avoid duplicating a procedure across files;
+link its owner. Keep every root-to-leaf contract chain comfortably below 32 KiB
+so agents with bounded instruction loading receive the complete rules.
 
 ## Child DOX Index
 
-- [`src/shared/AGENTS.md`](src/shared/AGENTS.md): pure cross-process types and
-  constants.
-- [`src/main/AGENTS.md`](src/main/AGENTS.md): Electron main-process security,
-  logging, credential redaction, and the small preload bridge contract.
-- [`src/renderer/AGENTS.md`](src/renderer/AGENTS.md): React UI, Tailwind v4,
-  design-token-only styling, and populated renderer subtrees.
-- [`docs/guide/AGENTS.md`](docs/guide/AGENTS.md): human guide, real-component
-  fixtures, isolated preview build, and agent-contract synchronization.
+- [Shared](src/shared/AGENTS.md): pure cross-process contracts and constants.
+- [Main](src/main/AGENTS.md): main process and preload, security, services, adapters.
+- [Renderer](src/renderer/AGENTS.md): UI, state, design tokens, interactions.
+- [Design guide](docs/guide/AGENTS.md): synthetic real-component examples and isolation.
 
-`src/preload` remains owned by `src/main/AGENTS.md`. The `.gitkeep`-only
-`src/main/platform` and `src/renderer/src/routes` directories do not yet need
-child contracts.
+`src/preload` is owned by the main contract. The placeholder `src/main/platform`
+and `src/renderer/src/routes` directories do not need separate contracts.

@@ -1,5 +1,7 @@
 # API-safety implementation progress
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 September 9, 2026. Josh authorized starting the approved changes after receipt.
 Scope remains [the six-unit hardening plan](2026-09-09-api-traffic-hardening-plan.md).
 The API-safety PR is open. Its six units and first review corrections were verified and pushed. The authorized follow-up now integrates the merged dependency repair and corrects the zero-delay 429 finding. Refreshed review/CI remain; no API merge has occurred.

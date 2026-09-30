@@ -1,10 +1,12 @@
 # Explore API evidence handoff
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Saved September 9, 2026 for the separate Explore preparation task.
 This is preserved planning evidence, not a new live observation or a runtime
 API contract. No diagnostic authority from the original task carries forward.
 
-Source: `/Users/imperix/.codex/worktrees/8ca7/vrx/docs/api-volatility.md`.
+Original source evidence was on the original machine and is unavailable outside it.
 Source checkout head: `f910da981567d6d324af4fa67c0fa3a9e7c279ec`;
 the source file includes local planning edits.
 Full source file SHA-256: `dede7231262a70f62b9c25e1f452ae231511855e4b14e7650f451ed82031788a`.
@@ -34,9 +36,9 @@ A bounded, owner-approved diagnostic observed the following responses using
 VRX's saved sessions. This is planning evidence, not shipped Explore behavior.
 The completed sample used five discovery requests and two saved-session
 validations, all HTTP 200, with no retries or joining. The original app was
-restored. See the [probe record](./superpowers/plans/2026-09-08-explore-feasibility-preparation.md)
+restored. See the [probe record](2026-09-08-explore-feasibility-preparation.md)
 for authority, temporary artifacts, earlier diagnostic failures and limits.
-The [implementation plan](./superpowers/plans/2026-09-08-explore-implementation-plan.md)
+The [implementation plan](2026-09-08-explore-implementation-plan.md)
 records count precedence, access parsing, the proposed production request budget
 and the approved CVR Public/Group Public rule. These remain planned, not shipped.
 
@@ -72,7 +74,7 @@ are not CVR display filters or required preflight probes; the game handles a
 user-initiated join attempt. Keep unknown access excluded, main-process action
 safeguards intact, and loading bounded. This is an approved design clarification,
 not implemented behavior or new live API evidence. See the
-[follow-up disposition](./superpowers/plans/2026-09-08-explore-feasibility-preparation.md#cvr-follow-up-september-8-2026).
+[follow-up disposition](2026-09-08-explore-feasibility-preparation.md#cvr-follow-up-september-8-2026).
 
 ### VRChat room-detail follow-up, September 8, 2026
 
@@ -97,6 +99,6 @@ exposes both without explaining the discrepancy. Preserve field provenance and
 define display precedence in implementation planning. The active-world list
 still lacked rooms; world detail supplied 11 tuples, with ten identifier-based
 Public candidates and one Group Public candidate. Only the Group Public room's
-detail was fetched. See the [full follow-up record](./superpowers/plans/2026-09-08-explore-feasibility-preparation.md#vrchat-follow-up-result).
+detail was fetched. See the [full follow-up record](2026-09-08-explore-feasibility-preparation.md#vrchat-follow-up-result).
 
 <!-- END PRESERVED EXPLORE API EVIDENCE -->

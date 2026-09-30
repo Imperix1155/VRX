@@ -16,10 +16,8 @@ these safeguards.
 Explore adds public-world discovery to the sidebar and Dashboard. Both views
 share a session cache, with bounded visible-view refreshes and room details.
 The platform filter and 2/4/6 world choice persist; Join uses the existing
-confirmation and permission settings. The
-[integration contract](docs/superpowers/plans/2026-09-09-explore-integration-continuation.md)
-and [production work receipt](docs/superpowers/plans/2026-09-13-explore-production-block.md)
-separate implemented behavior from synthetic, runtime and live-account evidence.
+confirmation and permission settings. Current behavior is documented in the
+[design contract](docs/DESIGN.md) and [API catalog](docs/INTERNAL-API.md).
 
 Navigation contains Dashboard, Friends, Explore, and Settings. Activity and
 Groups are deferred concepts and do not appear as unfinished tabs.
@@ -31,18 +29,26 @@ Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite
 Electron 44 requires macOS 13 or later and provides only 64-bit x64 and arm64
 binaries. See the [upstream platform changes](https://www.electronjs.org/blog/electron-44-0#breaking-changes).
 
-## Dev Setup
+## Development setup
+
+Use Node.js **22.22.2 or a later 22.x patch** with npm. `.nvmrc` selects the
+supported line; with nvm, run `nvm install` and `nvm use` first.
 
 ```bash
-npm install
-npm run dev        # dev mode with HMR
-npm run typecheck  # type-check all three processes
-npm run lint       # ESLint
-npm run format:check # Prettier formatting gate
-npm run build      # production build
+npm ci
+npm run dev
 ```
 
+Read [Development](docs/DEVELOPMENT.md) for prerequisites and verification,
+[Review](docs/REVIEW.md) for PR readiness, and [Releasing](docs/RELEASING.md)
+for versioning and publication. These procedures work without personal agent
+skills or a Linear integration. Device permissions and agent-specific tools
+remain part of your local setup.
+
 ## Build
+
+Run the [development gate](docs/DEVELOPMENT.md#verification) first, then choose
+the packaging command for your operating system:
 
 ```bash
 npm run build:win    # Windows (NSIS installer + portable)
@@ -67,7 +73,8 @@ server; opening the source HTML directly from disk is not supported.
 [`docs/DESIGN.md`](docs/DESIGN.md) is the agent-native design contract. The app's internal callable surface
 (every IPC channel, live event, hook, store, parser, and constant) is catalogued
 in [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md) — check it before building.
-Architecture decisions and agent guidelines live in the `AGENTS.md` files.
+Current directory contracts live in the `AGENTS.md` files. Historical plans
+under `docs/superpowers/` are records, not setup or workflow prerequisites.
 Read the root contract and each nearer contract before editing.
 
 VRX's stance on unofficial API use, rate-limit etiquette, and risk is in

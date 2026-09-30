@@ -1,5 +1,7 @@
 # Explore integration continuation
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Current execution authority: Josh started the production implementation on
 September 13. The [production work receipt](2026-09-13-explore-production-block.md)
 supersedes preparation-only stops below and tracks implementation and evidence.

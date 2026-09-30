@@ -1,5 +1,7 @@
 # App-wide API traffic hardening plan
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Prepared September 9, 2026. **Scope approved; implementation not started.**
 This is the next prerequisite for Explore, not an Explore implementation run.
 

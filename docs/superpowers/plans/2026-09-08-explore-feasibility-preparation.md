@@ -1,5 +1,7 @@
 # Explore feasibility preparation
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: planning checkpoint, September 8, 2026. Josh authorized preparing the
 feasibility and safe-joining plan, then approved the bounded read-only check
 subject to API rules. He then explicitly approved a temporary diagnostic build,
@@ -397,7 +399,7 @@ CVR's observed count matched one explicitly public room in this sample, but that
 does not prove public-only semantics across other categories or room sets.
 Neither global default ordering nor a positive account-specific join predicate
 was established. VRChat room detail remains unsampled, not unavailable.
-The [API volatility registry](../../api-volatility.md#explore-discovery-feasibility-september-8-2026)
+The [API volatility registry](../../api-volatility.md)
 now records these observations separately from shipped behavior.
 
 ## Authorized VRChat room-detail follow-up

@@ -1,5 +1,7 @@
 # Explore planning handoff
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Historical checkpoint. Continued by the
 [September 8 implementation plan](../plans/2026-09-08-explore-implementation-plan.md).
 Its source baseline, feasibility results, CVR clarification and remaining

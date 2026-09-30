@@ -1,5 +1,7 @@
 # Explore session receipt and phase-A readiness
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Latest status: the API dependency is integrated and combined checks pass. Josh
 authorized merging the isolated foundation, with current evidence in the
 [merge-readiness receipt](2026-09-09-explore-phase-a-review.md#foundation-merge-readiness).
@@ -56,7 +58,7 @@ with source/destination registry hashes and an exact excerpt. The current
 [API registry](../../api-volatility.md) was not overwritten. Historical links
 from the copied documents to its Explore heading refer to the source registry;
 use the separate evidence handoff for that historical heading. The later
-[phase-A parsing section](../../api-volatility.md#explore-phase-a-parsing-september-9-2026-not-wired)
+[API volatility registry](../../api-volatility.md)
 records implemented assumptions without replacing this original evidence.
 
 ## State checked at receipt
