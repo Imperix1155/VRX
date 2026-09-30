@@ -1,5 +1,7 @@
 # API-safety verification and review ledger
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Scope: [approved six-unit plan](2026-09-09-api-traffic-hardening-plan.md), tracked
 by VRX-218. Base `9dbac8b569efb27e03ef06882d96b89d8a45c969`. Feature branch
 `imperix/vrx-218-api-traffic-hardening`. This is T2 because incorrect admission,

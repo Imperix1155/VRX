@@ -1,6 +1,8 @@
 # Linux Login Persistence Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
+> Historical workflow note. This plan originally named Superpowers execution skills and checkbox tracking. Current repository contracts define the workflow.
 
 **Goal:** Make VRChat and ChilloutVR login success contingent on durable encrypted credential persistence, with actionable UI feedback and real Linux restart verification.
 

@@ -1,5 +1,7 @@
 # Linked friends execution ledger
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Post-build feedback: [September 6 smoke-test log](2026-09-06-linked-friends-smoke-test.md).
 The owner authorized the two-item fix round on September 7. Both fixes are locally
 verified on a separate follow-up branch; review and delivery remain pending.

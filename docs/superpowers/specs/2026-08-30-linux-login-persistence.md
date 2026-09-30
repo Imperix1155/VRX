@@ -1,5 +1,7 @@
 # Linux Login Persistence Design
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 **Status:** Approved by the owner on 2026-08-30 under VRX-34.
 
 ## Problem

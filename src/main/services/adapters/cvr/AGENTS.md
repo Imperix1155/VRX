@@ -1,85 +1,84 @@
-# src/main/services/adapters/cvr — ChilloutVR parsers & pipeline
+# src/main/services/adapters/cvr
 
 ## Purpose
 
-CVR-specific transforms, the friend fetcher/id extractor, and the real-time
-WebSocket client, mirroring the `vrchat/` directory's contract: electron-free,
-dependency-injected, unit-testable in isolation. Consumed by the concrete
-`CvrAdapter` (`../CvrAdapter.ts`), now registered alongside VRChat (VRX-37/58).
-A data-path 401 in `getFriends` clears the session AND emits an `auth-invalidated`
-`AdapterEvent` (VRX-195) — the renderer's only signal that auth changed out of
-band, so the Accounts card stops showing a stale "connected"; the shared `emit()`
-fans out to `subscribers` (reused by the pipeline). A 5xx does NOT clear/emit.
-The renderer auth GATE stays VRChat-first by design — CVR sign-in lives in
-Settings → Accounts (owner's decision; VRX-110 wizard unifies later).
+Own ChilloutVR-specific parsers, REST transforms, instance resolution,
+discovery parsing, and the real-time pipeline. This directory stays pure and
+dependency-injected; `CvrAdapter` composes it with shared transport policy.
 
 ## Ownership
 
-- `parseExplore.ts` owns pure discovery parsers (VRX-270), separate
-  from the permissive friend-privacy parser. Category `entries` are candidates
-  only; `instances` enumerate unqualified room IDs. Room details bind their own
-  ID and nested `world.id` to the expected canonical IDs. Only exact Public or
-  GroupPublic strings qualify, case-insensitively; both supplied privacy fields
-  must agree. Full qualifying rooms stay eligible without an admission probe.
-  `aggregateCvrExploreQualifiedRooms` binds one expected world, deduplicates
-  qualified rooms and sums safe room-detail counts only with complete coverage;
-  incomplete totals are null. No I/O, raw members or issued action references leave these parsers.
-  `CvrAdapter` consumes them through its fixed Explore discovery routes; main
-  `ExploreService` stages qualification before publishing candidate worlds.
-
-- `buildCvrJoinUrl.ts` — pure strict builder for the documented `chilloutvr://instance/join?instanceId=<encoded>&startInVR=<bool>` contract (VRX-166). Accepts only the official `i+` 16-6-6-8 hex id shape, percent-encodes `+` as `%2B`, maps desktop→false / vr→true, and returns null for malformed input.
-- `fetchCvrFriends.ts` — `fetchCvrFriends(fetcher)` → `{ friends: CvrFriend[], skippedRecords }` (VRX-57). Pure, DI'd: ONE flat `GET /friends` (never paginated, never per-friend polled), per-entry defensive parse (a drifted entry is skipped + counted, never sinks the roster), total failure throws (no misleading `[]`). Presence initialized offline — real presence is the pipeline's job. Never logs.
-- `cvrPlatformUserId.ts` — `extractCvrPlatformUserId(id)` → stable lowercased `platformUserId` from the CVR GUID (VRX-61): survives display-name changes; validates GUID shape, rejects malformed. Pure.
-- `parseCvrPrivacy.ts` — `parseCvrPrivacy(privacy: string | number | null | undefined)` → `{ type, openness, isGroup, opennessUnknown? }` (VRX-147/240/263). Pure parser for CVR's instance `Privacy`. The **live WS wire is a NUMERIC enum** (`PRIVACY_MAP_NUMERIC`, 0–7; `0`/`2`/`7` live-confirmed 2026-07-08, the rest from the owner's prior working app, understating on doubt); the **`GET /instances/{id}` wire sends PascalCase strings** (`Public`, `Friends`, `GroupPlus` observed live 2026-08-12) and the CVRX-documented string form is also mapped, case/punctuation-insensitive. Unknown number/string, `null`, or `undefined` → MOST RESTRICTIVE (`owner-must-invite`, the api-volatility convention) **and `opennessUnknown:true`**; every recognized value omits the flag. Never throws.
-- `CvrPipeline.ts` — the CVR WebSocket client (VRX-147): extends the shared `ReconnectingPipeline` base (lifecycle/backoff/generation live there). CVR specifics: auth = `Username`/`AccessKey` (+ UA/Platform) headers on the UPGRADE handshake via the injected `headersProvider` (null with no session → wait+retry); clean JSON (NOT double-encoded); envelope accepted in BOTH casings (`ResponseType`/`responseType`). Routing: `10` **ONLINE_FRIENDS → `presence-snapshot`. LIVE-VERIFIED shape 2026-07-08: a FULL online set only on connect, then 1-entry DELTAS** — so entries **merge into a running `onlineSet`** (`IsOnline:false` evicts; cleared on reconnect via `prepareConnection`) and the FULL merged set is emitted every time (the renderer's absent-⇒-offline rule stays correct). Entries are **PascalCase** (`Id`/`IsOnline`/`Instance{Id,Name,Privacy}`, `Privacy` numeric; camelCase also accepted); ids are normalized via `extractCvrPlatformUserId` (lowercase + GUID-validate) so they **match the REST roster's ids** — non-GUID/id-less skipped, id-less `Instance` → null instance; per-entry validated (one bad entry skipped, rest survive); NO status/trust fabricated (§5). `11` FRIEND_LIST_UPDATED → `roster-changed` (trigger-only refetch); invites/requests/notifications (0/1/2/15/20/25/30/50) decoded + logged, deliberately unrouted until their features exist. BIDIRECTIONAL: `sendFriendRequest`/`acceptFriendRequest`/`declineFriendRequest`/`unfriend`/`sendInvite`/`requestInvite`/`block`/`unblock` send `{RequestType, Data}` (🟡 Data shapes mock-verified vs CVRX notes); sends while disconnected return false, never queue. No app-level keepalive (server pings ~60s; `ws` auto-pongs).
-- `CvrPipeline.test.ts` — full lifecycle against a fake socket: header-auth dial, both envelope casings, snapshot mapping (real PascalCase + numeric privacy), **delta-merge (full-then-delta, set not replaced)**, `IsOnline:false` eviction, non-GUID/id-less skip, malformed-instance→null, roster trigger, unrouted/unknown/malformed tolerance, RequestType payloads, disconnected sends, null-headers wait, inherited reconnect.
-- `parseCvrPrivacy.test.ts` — the verified value table + casing drift + most-restrictive tagged unknown, with every recognized numeric/string value pinned to omit `opennessUnknown`.
-- `resolveCvrInstance.ts` — `createCvrInstanceResolver({fetcher, clock?, ttlMs?, negativeTtlMs?})` → `{ resolve(id, options?), peek(id), clear() }` (VRX-59; `options.priority` added VRX-210). Pure, DI'd instance-details resolver over `GET /instances/{id}` (id URI-encoded — VRX-51 path-injection class): returns `{instanceId, instanceName, worldId, worldName, worldImageUrl, groupId, groupName, groupImageUrl, playerCount, privacy}` — the response's **`world:{id,name,imageUrl}` object is the TRUE world identity** and **`group:{id,name,image}` object is the TRUE group identity** the WS wire lacks (shape confirmed vs CVRX source + the owner's prior app, 2026-07-10; group identity live-verified 2026-08-12). Success TTL 5 min (`CVR_INSTANCE_TTL_MS`); **non-auth failures resolve null** + negative-cache 60 s (`CVR_INSTANCE_NEGATIVE_TTL_MS`); in-flight dedupe — **EXCEPT `priority:'interactive'` callers, which BYPASS the pending default-priority promise** (VRX-210: a dialog fetch that joined an in-flight background resolve inherited default priority and waited out the default queue; the bypass request is never registered in `inFlight`, so the original keeps sole identity-guarded cleanup — at most one duplicate wire call, still inside the 1 req/s ceiling; same-id regression test pins the dispatch timeline). NOTE: the negative cache is consulted BEFORE the priority branch, so a dialog opened within the 60s window after a failed background resolve reuses the cached null and never dispatches at all; `peek` = sync cache-only (`undefined` = never-resolved/expired, `null` = cached failure). Rate limiting/auth/typed errors ride the injected fetcher (`CvrApiClient.get`). **Consumed by `../CvrAdapter.ts`** (VRX-59): presence snapshots emit immediately with cache-only enrichment, then RE-EMIT enriched as resolutions land — worldId ← `world.id` (card-face world identity only — CVR hot identity keys on the globally-unique instanceId, deliberately UNLIKE VRChat's `[worldId, instanceId]`: worldId enriches asynchronously and must never enter the CVR key, VRX-237), worldName ← `world.name` (no display-side suffix strip needed on resolved instances), groupId/groupName/groupImageUrl ← `group.*` when the group name is usable (empty/whitespace name → all three null — VRX-260 nameless-frame law), thumbnail + userCount filled; WS `Privacy` stays authoritative for type/openness (fresher than a cached REST read). VRX-265 adds an adapter-owned last-known layer keyed by the same `instanceId`: it preserves those enrichment fields only while a TTL refresh is pending, drops them and re-emits wire values on refresh failure, prunes entries absent from the current full snapshot, and clears on account boundaries. `getInstanceDetails(instanceId)` runs on the same resolver (REJECTS when unresolvable — the interface carries no null) ↻ VRX-215: **auth errors (`AuthError` subclasses) RETHROW and are NEVER negative-cached** — only genuine unavailable/private results and non-auth transient failures resolve null with the 60s negative TTL; the CvrAdapter routes rethrown auth errors through the generation-fenced session invalidation (`auth-invalidated`).
-- `resolveCvrInstance.test.ts` — field mapping (clean world name/id/image/count/privacy), defensive world-less degrade, TTL + negative-TTL clock tests, in-flight dedupe, null-not-throw for NON-AUTH failures + auth-error propagation (VRX-215), URI-encoded path, peek's tri-state.
+- [`docs/INTERNAL-API.md` sections 3, 4, and 6](../../../../../docs/INTERNAL-API.md)
+  define normalized events, the adapter contract, and registered parsers.
+- `fetchCvrFriends.ts` maps the one flat `/friends` roster. `CvrPipeline.ts`
+  maps the authenticated `/users/ws` presence stream. REST roster and WebSocket
+  presence remain separate inputs.
+- `parseCvrPrivacy.ts`, `cvrPlatformUserId.ts`, and join/discovery parsers own
+  platform conversions. `resolveCvrInstance.ts` owns instance-detail caching.
+  `CvrAdapter` owns account/session transitions and published events.
 
 ## Local Contracts
 
-- Reconnect backoff survives brief open-close flaps and resets only after an
-  open lasting at least the existing backoff cap. Rejected upgrades forward
-  only status/Retry-After; factories dispose the response and terminate the
-  failed handshake. A 429 extends platform admission and socket cooldown;
-  waits recheck extensions before credential preparation and dialing, split
-  long timers safely, and cancel on stop/session replacement. No new heartbeat.
-
-- `RosterRefresh` shares one pending roster result per session across ordinary
-  callers and CVR name warming. Main marks an active first read dirty before
-  broadcasting a live/roster trigger; all callers then receive at most one final
-  read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work. Any
-  shared 429 during a run also discards its follow-up, even with no remaining wait.
-  Partial final data retains first-read omissions. Identity-checked cleanup
-  cannot erase a replacement account's operation; session boundaries clear it.
-  Main injects a LocationAuthority revision capture before each physical read,
-  including warming. Partial aggregation retains each read's original seed
-  provenance; later joiners cannot re-date old entries or clear live fences with
-  pre-reconnect data. These revisions stay in main.
-
-- Roster and background instance enrichment use no-retry requests. Rate limits
-  end the active batch, suppress subsequent background launches during cooldown,
-  and propagate without negative caching. No timer replays dropped batches;
-  later valid refreshes can resolve again. Interactive request policy is retained.
-
-- Request cancellation and admission overflow are control flow: propagate
-  `RequestCancelledError` and `RequestQueueFullError` from every fetcher/resolver.
-  Never continue a page batch or negative-cache these outcomes. Account-owned
-  operations cannot resume under a replacement session.
-
-- Same as `vrchat/`: no electron imports; injected socketFactory/headers/log; defensive parsing — unknown values degrade, never throw; CVR has NO status/trust (§5) — never fabricate them.
-- The shared lifecycle machinery lives in `../ReconnectingPipeline.ts` — don't fork it; extend it.
+- No Electron, Node process, storage, or UI imports. Accept network, clock,
+  socket, and logger dependencies explicitly so modules stay deterministic in
+  unit tests.
+- Make one `/friends` request per roster refresh. Do not poll each friend.
+  Start every REST friend offline with no instance; the pipeline supplies live
+  presence.
+- Parse envelopes and records defensively. Skip invalid individual records,
+  count them where the return contract allows, and preserve valid siblings.
+  A total fetch failure throws. Unknown privacy values map to the most
+  restrictive access and carry `opennessUnknown`.
+- CVR's `ONLINE_FRIENDS` first provides a full online set, then deltas. Merge
+  deltas into the running set and emit the complete result; clear the set on
+  reconnect. Accept documented casing variants, normalize only valid GUID IDs,
+  and tolerate malformed or unrelated messages.
+- Pipeline authentication belongs on the WebSocket handshake. It waits and
+  retries without credentials, never queues a social action while disconnected,
+  and relies on shared reconnect and backoff policy. A data-path auth failure
+  reaches the adapter's fenced invalidation path; ordinary 5xx failures do not
+  clear a session.
+- Reconnect waits honor a shared 429 cooldown, recheck it before a dial, and
+  cancel on stop or session replacement. Do not add a heartbeat or queue
+  disconnected friend actions.
+- Resolve instance details with URI-encoded IDs. `world.id` is the resolved
+  world identity, while CVR hot-location identity stays the globally unique
+  instance ID. Preserve the WebSocket privacy value because it is fresher than
+  cached REST details. Do not use a world ID in the CVR hot key.
+- Instance success uses `INSTANCE_CACHE_TTL_MS`; non-auth unavailable or
+  transient failures use the short negative TTL. Auth, admission, and
+  cancellation errors propagate and are never negative-cached. Cache clearing
+  fences in-flight results. An interactive request may bypass a pending
+  background request, but it still goes through shared admission.
+- Admission overflow and cancellation propagate as control flow. They do not
+  become a negative cache entry or a session invalidation. Later account-bound
+  requests must not resume with replacement credentials.
+- Build join URLs only from the strict official CVR instance ID grammar. Return
+  no URL for malformed IDs and keep browser launch outside this directory.
+- Discovery parsing emits only qualifying, internally consistent candidates.
+  Do not issue references, actions, URLs, or raw vendor objects from parsers.
 
 ## Work Guidance
 
-None beyond the Local Contracts above.
+- Treat vendor formats as volatile. Update `docs/api-volatility.md` with new
+  observed shapes or changed certainty before broadening accepted values.
+- Keep network paths, retry policy, and session persistence in the adapter and
+  shared base classes. These modules may select request priority but must not
+  make a second limiter or retry loop.
+- Maintain null-safe enrichment: cache misses, malformed enrichment, and
+  unavailable rooms degrade without erasing a valid roster or crashing the
+  pipeline.
 
 ## Verification
 
-`npm run typecheck && npm run lint && npm test`
+- Follow `docs/DEVELOPMENT.md` and `docs/REVIEW.md`. Run affected parser,
+  resolver, pipeline, and adapter tests.
+- Test malformed records, casing variants, unknown privacy, full-set plus delta
+  merging, reconnect clearing, ID encoding, cache expiry and clearing, auth
+  propagation, and strict join URL rejection where relevant.
+- Confirm changes still make no per-friend polling, no Electron imports, and no
+  direct browser launches.
 
 ## Child DOX Index
 
-No children.
+No child contracts. Files in this directory are one CVR integration boundary.

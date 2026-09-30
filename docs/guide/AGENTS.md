@@ -1,60 +1,58 @@
-# Design-guide implementation
+# Design guide
 
 ## Purpose
 
-Provide human-readable design documentation with actual renderer components
-and synthetic local data. `../design.html` is the guide; `../glass.html` runs
-isolated component scenes. `../DESIGN.md` is the synchronized agent contract.
+`docs/guide` builds the human design guide and isolated component scenes from
+production renderer code, CSS, fonts, translations, and synthetic data.
+`docs/design.html` is the guide, `docs/glass.html` hosts scenes, and
+`docs/DESIGN.md` states the design rules.
 
 ## Ownership
 
-This directory owns guide-only React, fixtures, styles, and build configuration.
-Production components, tokens, translations, fonts, and behavior remain owned
-by `src/renderer`. Import them rather than duplicating their markup or CSS.
+- This directory owns guide-only React, fixtures, scene styling, and Vite setup.
+  Production components, tokens, translations, fonts, and behavior stay in
+  `src/renderer`; import them rather than copying markup or CSS.
+- `fixture-bridge.ts` owns a sealed synthetic bridge. It refuses an existing app
+  bridge and never accesses real accounts, credentials, persistence, network,
+  external images, game launches, or updater actions. Fixture callbacks mutate
+  synthetic memory only.
+- `fixtures.ts` owns schema-valid sample data and local illustrations. It is not
+  evidence about live platform behavior. `scenarios.ts` keeps source, room,
+  drawer, loading, retained refresh, expiry/recovery, and note failure/retry
+  states selectable. Keep seeded query data for a scene document's lifetime and
+  do not add polling.
 
-## Local contracts
+## Local Contracts
 
-- No real accounts, credentials, platform requests, persistence, external
-  images, game launches, or updater actions. A scene must refuse a live bridge.
-- Fixture actions change only synthetic memory. Keep guide controls outside
-  the app examples and label static samples, interactive fixtures, and proposals.
-- Dark is default. Use production theme/glow applicators and CSS in scene
-  documents so both themes and overlay behavior retain their root context.
-- Keep source revision and component references visible without cluttering
-  examples. Known product defects remain defects, not design rules.
-- Information-bearing surfaces must keep their intended colors independent of
-  the ambient background. Import the production information backing and never
-  hide remaining gaps with guide-only styles. Decorative chrome may retain
-  ambient color. Source checks do not establish installed-app visual acceptance.
-- Preserve the app's 900×670 floor in embedded desktop examples and standalone
-  scenes. Let the guide scroll around that window; never shrink away controls.
-- Open focus-taking overlays only after a reader gesture and restore focus to
-  the opener when the guide owns the close path. Keep loading, retained
-  refresh, room expiry/recovery, and note failure/retry selectable in the shared
-  scenario registry. Successful synthetic reads get fresh timestamps.
-- Keep seeded query data for the scene document's lifetime. Cache-only readers
-  must not lose the default examples to garbage collection; do not add polling.
-- Keep this code and generated guide output out of packaged app artifacts.
+- Label static samples, interactive fixtures, and proposals. Keep guide controls
+  outside app examples. Do not redesign production UI to make a scene easier to
+  build, or turn a known defect into a design rule.
+- Keep source revision and component references visible without cluttering the
+  examples.
+- Reuse production theme and glow applicators. Dark is the default scene; verify
+  light parity and root overlay context. Information-bearing surfaces must use
+  the production backing so ambient color cannot alter their meaning.
+- Preserve the 900x670 desktop floor in embedded and standalone examples. Let
+  the guide scroll around the window instead of hiding controls.
+- A guide-owned focus-taking overlay opens only after reader input and restores
+  focus to its opener. Keep synthetic reads fresh where a scene claims success.
+- Keep guide source and generated output out of packaged application artifacts.
+  Do not claim a source or build check proves installed-app visual fidelity.
 
-## Work guidance
+## Work Guidance
 
-Read the root and renderer contracts before changing imported behavior. Prefer
-whole production parents for private subcomponents. Never silently redesign the
-app to make a documentation example easier to construct.
+Read the root, renderer contract, `docs/DESIGN.md`, and the guide entries in
+`docs/INTERNAL-API.md` before changing imported behavior or fixtures. Prefer a
+whole production parent when a private child cannot stand alone. Keep guide
+fixtures isolated when production bridge types evolve.
 
 ## Verification
 
-Run the documented guide typecheck/build and fixture-boundary checks, then
-inspect actual browser examples with the owner's capture consent. Source and
-build checks do not establish rendered fidelity. Run applicable project gates
-when build configuration or production code changes.
+Run `npm run guide:typecheck`, relevant fixture or catalog tests, and
+`npm run guide:build` for guide changes. Inspect affected scenes in both themes
+when the result changes visually. Run the canonical gate in
+`docs/DEVELOPMENT.md` if production code or build configuration changes.
 
-## Child DOX index
+## Child DOX Index
 
 No children.
-
-Settings scenes import the production compact cards, On/Off controls, and dependent disclosure. Use the Dashboard shortcut and feature controls to verify reflow with the shared synthetic query data.
-
-Dashboard scenes also verify the stable social filter dock, bottom Settings shortcut,
-and circular Hot Instances help disclosure. Keep the existing cards and access-pill
-Join behavior intact.

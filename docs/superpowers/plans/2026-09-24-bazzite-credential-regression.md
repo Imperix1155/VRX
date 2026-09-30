@@ -1,5 +1,7 @@
 # VRX-282 Linux credential regression investigation
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: tester reports enabling KDE Wallet fixed login. Automatic local fallback
 implemented and locally verified; PR delivery in progress, not released.
 

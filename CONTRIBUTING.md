@@ -1,92 +1,78 @@
 # Contributing to VRX
 
-Thanks for your interest in VRX — a local desktop social companion for VRChat and ChilloutVR.
-
-VRX is currently in early development and maintained by a single owner. Contributions are welcome, but please open an issue to discuss anything substantial before opening a PR.
+VRX is a local desktop social companion for VRChat and ChilloutVR, maintained
+by one owner. Discuss substantial unsolicited changes in an issue before
+opening a PR. An owner-assigned task already supplies its scope; it does not
+need a new issue just to begin.
 
 ## Ground rules
 
-- Be respectful — this project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
-- Found a security issue? **Do not** open a public issue — see [SECURITY.md](SECURITY.md).
-- VRX authenticates as the user on their own machine. It is **not** a bot, server, or content uploader. Contributions that add botting, mass-invite, or polling behavior will be rejected.
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Report suspected vulnerabilities privately through [SECURITY.md](SECURITY.md).
+- VRX authenticates on the user's own machine. Contributions that add botting,
+  mass invites, or social-presence polling will be rejected.
+- Read [AGENTS.md](AGENTS.md) and the contracts on the path to your edits.
+  Project requirements apply to every contributor. Personal agent skills and
+  integrations are optional, and device permissions remain local.
 
-## Development setup
+## Setup and verification
+
+Use Node.js **22.22.2 or a later 22.x patch** and npm. `.nvmrc` selects the
+supported line. Start with `npm ci`, then `npm run dev`.
+[Development](docs/DEVELOPMENT.md) owns setup, focused checks, CI diagnostics,
+UI verification, and the documentation-only exception. The application gate is:
 
 ```bash
-npm install
-npm run dev        # dev mode with HMR
+npm run lint && npm run format:check && npm test && npm run build
 ```
 
-## Branch naming
+`build` includes typechecks. Install gitleaks for local secret scanning; the
+pre-commit hook is configured during dependency installation. CI scanning
+remains required when local gitleaks is unavailable.
 
-Branch off `main`. When the work has a Linear issue, use:
+## Branches and commits
 
-```
-imperix/vrx-XX-slug
-```
+Branch from current `main`. Use `imperix/vrx-XX-slug` when work has a Linear
+issue, or `imperix/<slug>` otherwise. A GitHub or Linear issue is optional.
+Use [Conventional Commits](https://www.conventionalcommits.org/), including an
+issue scope when applicable:
 
-where `vrx-XX` is the Linear issue number and `slug` is a short kebab-case description (e.g. `imperix/vrx-14-set-up-i18next-infrastructure`). A Linear issue is optional; small changes may use `imperix/<slug>` (e.g. `imperix/ci-link-storage-test-timeout`).
-
-## Commit messages
-
-Use [Conventional Commits](https://www.conventionalcommits.org/) and reference the issue in the scope when the work maps to one:
-
-```
-feat(vrx-14): wire i18next with OS-locale detection
-fix(vrx-20): guard IPC sender on the friends channel
+```text
+feat(vrx-14): wire locale detection
+fix: preserve the selected platform
 chore: bump dependencies
 ```
 
-Common types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `ci`.
+## Pull requests and merge
 
-## Before opening a PR
+Follow [Review](docs/REVIEW.md) before opening a PR. Describe the concrete
+problem and resulting behavior, relevant checks, review evidence, limitations,
+and linked issue when one exists. Complete the DOX pass and explain intentionally
+unchanged docs. Keep commits coherent and preserve others' work.
 
-All four checks must pass locally:
+All changes enter protected `main` through a PR. Human contributors do not
+self-merge. An owner-operated agent can merge only under explicit owner authority
+and the final-head checks in the review guide. An active scoped grant does not
+need to be repeated, but it never replaces required evidence or tool access.
 
-```bash
-npm run typecheck
-npm run lint
-npm run format:check
-npm test
-```
+## Dependencies and security
 
-Then:
+Dependabot proposes grouped minor/patch and separate major updates for npm and
+GitHub Actions. Evaluate compatibility and upstream changes, verify useful
+updates, and document unsuitable ones. [Development](docs/DEVELOPMENT.md#dependency-and-security-changes)
+owns advisory handling and narrow exceptions. Do not relax security gates to
+clear a queue. Reporting a vulnerability in VRX uses the private security policy.
 
-- [ ] Branch named `imperix/vrx-XX-slug` (with an issue) or `imperix/<slug>`
-- [ ] Commits follow the convention above
-- [ ] `typecheck`, `lint`, `format:check`, and `test` all pass
-- [ ] No credentials, tokens, or PII logged; no hardcoded paths
-- [ ] PR description explains what changed and links the issue, if any
+CI and secret scanning run on PRs targeting main and pushes to main. CodeQL
+also runs weekly. Secrets use main-process credential storage, with OS encryption
+preferred and the documented authenticated local fallback when unavailable.
+Never log or commit real credentials, tokens, or personal data.
 
-## Review & merge
+## Releases
 
-The project owner controls review policy and merge authority. Human contributors never self-merge. An owner-operated agent may author and merge a PR only under an active, explicit owner grant after every required review and CI gate is green on the final PR head. The grant supplies merge authorization, not review evidence. `main` is branch-protected; all changes land through a PR.
-
-## Dependency & advisory triage
-
-VRX handles user credentials, so supply-chain scanning is automated and treated as non-optional:
-
-- **Dependabot** opens weekly grouped PRs for npm + GitHub Actions updates (minor/patch grouped; majors separate). Review the changelog and follow the Review & merge requirements above. Give majors a deliberate look.
-- **`npm audit`** runs in CI and **fails the build on high/critical advisories**. To clear one: bump the dependency (or its parent), or — if it's a dev-only advisory with no forward fix — add its GHSA URL to the per-advisory allowlist in the `audit` job of [`ci.yml`](.github/workflows/ci.yml), with a comment explaining why and a tracking issue to remove it once upstream ships a fix. Never relax `--audit-level` or disable the gate globally.
-- **CodeQL** scans JS/TS on every push and PR; results appear under **Security → Code scanning**. Fix true positives; dismiss false positives with a stated reason.
-- **Secret scanning (gitleaks)** runs in CI on every push and PR and **fails the build if a credential, token, or key is committed**. A local pre-commit hook catches secrets before they leave your machine — it's wired up automatically by `npm install` (via `core.hooksPath`), so install [gitleaks](https://github.com/gitleaks/gitleaks#installing) to have it run locally. If gitleaks flags a value that is a _confirmed_ false positive (e.g. a fake fixture in a test), allowlist its **exact value — never a whole path** — in [`.gitleaks.toml`](.gitleaks.toml) with a comment explaining why. Real secrets never belong in the repo; credentials go through the OS keychain (`safeStorage`).
-
-A suspected exploitable vulnerability _in VRX itself_ goes through [SECURITY.md](SECURITY.md) (private reporting), never a public issue.
-
-## Versioning & releases
-
-VRX follows [Semantic Versioning](https://semver.org) — `MAJOR.MINOR.PATCH`:
-
-- **MAJOR** — changes a user would notice break (removed features, incompatible data).
-- **MINOR** — backwards-compatible features.
-- **PATCH** — backwards-compatible fixes.
-
-Pre-1.0, breaking changes may still land in a MINOR bump.
-
-Notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md) ([Keep a Changelog](https://keepachangelog.com/) format) under `[Unreleased]` as PRs merge. To cut a release:
-
-1. Move the `[Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section.
-2. Bump `version` in `package.json` to `X.Y.Z` (the release pipeline fails fast if the tag and `package.json` disagree).
-3. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-
-The release pipeline builds the installers and publishes the GitHub Release, using that version's `CHANGELOG.md` section as the release notes (falling back to auto-generated notes if the section is missing).
+[Releasing](docs/RELEASING.md) is the complete procedure: select a version,
+synchronize package and lockfile metadata and changelog, review and merge the
+version PR, tag the merged commit, then verify publication and assets.
+A nonempty changelog section is required preparation; automatic notes are not
+a fallback. The current workflow publishes Windows and Linux pre-releases.
+Local Mac packaging and installation are separate, explicitly requested steps.

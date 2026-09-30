@@ -1,5 +1,7 @@
 # Whole-app API etiquette audit
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 September 8, 2026. Audited commit `f910da981567d6d324af4fa67c0fa3a9e7c279ec`;
 application source is unchanged from main `9dbac8b`. This is a source and
 mock-transport audit, not a live traffic capture or a legal compliance opinion.

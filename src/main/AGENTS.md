@@ -1,239 +1,139 @@
-# src/main — Electron main process
+# src/main
 
 ## Purpose
 
-The Electron main process: app lifecycle, windows, IPC handlers, platform adapters, and node-privileged services.
+Own Electron's privileged process: startup, windows, IPC registration, local
+services, credentials, platform adapters, and external launches. Keep privileged state
+and Node/Electron access on this side of the process boundary.
 
 ## Ownership
 
-- `app.ts` supplies `registerIpcHandlers` with a live `isJoinAllowed` callback backed by the in-memory settings snapshot (VRX-39), so direct Join permission is enforced in main at action time without disk I/O; VRChat self-invite and allowlisted web links are separate paths.
-- `app.ts` constructs one `ExploreService` with the existing platform admissions,
-  `AccountSession`, shared `JoinCoordinator`, image cache and settings callback.
-  It clears the affected platform on account boundaries, stops visible work when
-  the window hides or the renderer dies, broadcasts `explore-changed`, and
-  disposes the service before shutdown.
-
-- `index.ts` — thin single-instance ENTRY module (VRX-230), deliberately importing nothing but electron: takes the `app.requestSingleInstanceLock()` verdict, a lock-losing duplicate `app.exit(0)`s immediately having loaded NOTHING (no logger, no safeStorage/keychain reads, no sockets, no window), and only the lock holder dynamic-imports the app chunk (`import('./app')`; load failure → `dialog.showErrorBox` + exit 1). The entry/app split is load-bearing, not style — a static import would make every duplicate evaluate the full app chunk (incl. keychain-prompting safeStorage reads) before the verdict. Never add another static import here. **Known platform behavior** (probed live + scratch-profile timing matrix, 2026-07-31): the duplicate's synchronous lock call WAITS while the holder's main thread is blocked and resolves the moment it unblocks — unbounded only if the holder is unboundedly blocked (e.g. an unanswered macOS keychain prompt in dev). No in-process deadman can bound a synchronous call; the wait is windowless and self-heals, so it is documented rather than watchdogged.
-- `app.ts` — app bootstrap + main window (the former `index.ts`, split in VRX-230; loaded only while holding the single-instance lock). `createWindow()`'s `BrowserWindow` pins `minWidth`/`minHeight` to the shipped 900×670 default, each clamped via `Math.min` to the primary display's work area (VRX-243, DESIGN.md §8 no-scroll rule) — on ordinary displays the default doubles as the floor so the window can never shrink below the size Settings' tallest category (Behavior) needs to stay scroll-free; on smaller/DPI-scaled work areas the floor yields so the window stays fully on-screen and recoverable. Registers the `second-instance` handler at module scope — foregrounds the existing window via `focusMainWindow()` (restore→show→focus, also the tray-hidden recovery path), guarded by `app.isReady()` because pre-ready BrowserWindow creation throws. On `app.whenReady` wires the adapter registry (the real `VrcAdapter`, given an OS-first `VrcCredentialStore` with the approved local fallback built from `services/credentials.ts`), IPC handlers, and a `SocialStore` (VRX-72) constructed next to the `AccountSession`, and loads persisted settings at startup (the renderer then fetches/saves them over the `get-settings`/`save-settings` channels, VRX-184). Also registers main-process crash handlers at module scope (before `whenReady`) so early-boot errors are captured: `process.on('uncaughtException', …)` logs via electron-log then terminates via `app.exit(1)` behind a re-entry guard — because registering the listener at all suppresses Node's default print-and-exit, a log-only handler would leave the app limping in an undefined state (electron-log's file transport is synchronous, so the crash log flushes before exit); `process.on('unhandledRejection', …)` logs as a warning without exiting (VRX-127; hardened in the 2026-07 baseline audit W3). On `whenReady` it also wires the live pipeline (VRX-146/166): the real `ws` socket factories plus injected main-only logger callbacks go into both adapters; their account-boundary hooks reset `FriendAlerts`, clear the same-platform `LocationAuthority`, and broadcast `identity-boundary { platform }` to every non-destroyed renderer so the account-owned friends cache is reset — the renderer empties + invalidates the mounted query and clears that platform's snapshot buffer, not a bare removal (VRX-24); every accepted `AdapterEvent` is consumed synchronously by LocationAuthority before alert and renderer fan-out. CVR alone performs a generation-fenced, retryable roster-name warm on `connection:'live'`; VRChat does not warm because name resolution does not use the REST roster. `before-quit` synchronously flushes any coalesced settings write, invokes the disposer returned by `wireAdapterEvents` to unsubscribe both sockets, and sets the close-to-tray `quitting` flag before window teardown. Alert toggles read the settings service's in-memory snapshot at decision time, and the production limiter clock is monotonic (`performance.now`). `friendNotifications.ts` owns native notification copy, packaged icon, bounded retention/eviction, PII-safe failure logging, and trailing CVR `(#…)` label stripping (empty results use worldless copy); `app.ts` supplies the focus/click window-recreation callbacks and keeps Windows `Notification.handleActivation`. On `whenReady`, the default session's permission surface is locked down (`setPermissionRequestHandler`/`setPermissionCheckHandler` allow only `clipboard-sanitized-write` for ErrorBoundary's copy button; every other request/check — camera, mic, geolocation, notifications, … — is denied) as defense-in-depth (audit W3). The main window routes external links through `setWindowOpenHandler` → `isAllowedUrl` (only allowlisted `https:` reaches `shell.openExternal`; anything else is denied and logged by protocol/host, VRX-161), and `will-frame-navigate` blocks renderer main/subframe navigation outside the exact loaded dev/prod entry origin (VRX-166). It also registers window-level `render-process-gone`/`unresponsive` handlers (log + offer a Reload dialog; the benign reasons `clean-exit`/`killed` are silent; an unresponsive renderer is force-crashed before reload so the stuck process is killed first without a double dialog — VRX-127 follow-up). `createWindow()` now returns the `BrowserWindow` and wires close-to-tray (VRX-112): on Windows/Linux the window's `close` handler calls `event.preventDefault()` + `hide()` unless a module-level `quitting` flag is set; macOS keeps default close behavior. `before-quit` remains the single source of truth for `quitting`, and `whenReady` calls `createTray(() => currentWindow)` once after `createWindow()` and rewires recreated windows.
-- `tray.ts` — system tray (VRX-112): `buildTrayMenuTemplate({isVisible, onShow, onHide, onQuit})` is a pure, electron-free function returning a `MenuItemConstructorOptions[]` (single-toggle Show/Hide VRX label reflecting `isVisible`, separator, Quit VRX) — unit-tested directly. `createTray(getWindow: () => BrowserWindow | null)` does the electron wiring (getter-based so tray closures always resolve the CURRENT window, never a destroyed one): builds the Tray from `resources/icon.png` via `nativeImage`, resized to 16x16 on macOS only (other platforms use the source size); rebuilds the context menu on the window's `show`/`hide` events so the toggle label never goes stale; double-click shows+focuses the window (guarded by `isDestroyed()`); `onQuit` calls `app.quit()` (not `mainWindow.close()`) so `before-quit` fires and sets `quitting` before the window's own `close` handler runs.
-- `tray.test.ts` — unit tests for `buildTrayMenuTemplate` (VRX-112): label per visibility state + click wiring, separator, Quit VRX item present. electron is neutralized with a bare `vi.mock('electron', () => ({}))` since only the pure builder is exercised.
-- `logger.ts` — electron-log setup (file transport, level, redaction hook).
-- `redact.ts` — pure credential scrubber for ordinary log arguments. Regex work is limited to a 2,048-character output window plus 64 characters of lookahead; a trailing base64url candidate is masked when the source continues, so an unbounded JWT segment cannot leak across the cap. Projection allows at most 20 traversal candidates, rejects keys longer than 128 characters before normalization/output, and reads only fixed Error fields plus bounded enumerable extras. Circular detection is recursion-path scoped: true cycles become `[Circular]`, but repeated references in an acyclic DAG are each traversed and redacted. JavaScript may materialize an already-created object's enumerable key list before the loop can stop; arbitrary in-process Proxy traps also cannot be time-bounded.
-- `navigationGuards.ts` / `navigationGuards.test.ts` — dependency-injected main-window navigation boundary (VRX-30): every `window.open` stays denied, only the existing `isAllowedUrl` HTTPS policy may reach the system browser, and off-entry frame navigations are prevented. Block logs contain scheme + host only, never a path or query.
-- `socketFactory.ts` / `socketFactory.test.ts` — the production VRChat/CVR `ws` constructors. They preserve platform-specific headers, pass `handshakeTimeout: API_TIMEOUT_MS`, sanitize rejected upgrades and dispose the response/request; reconnect lifecycle stays owned by `ReconnectingPipeline`.
-- `adapterWiring.ts` / `adapterWiring.test.ts` — dependency-injected live-event fan-out: connection status first, then LocationAuthority → FriendAlerts → renderer broadcast; every consumer (including the status recorder) runs inside its own try/catch, so one consumer's synchronous throw is logged (consumer name + event type + error string, never the payload) and cannot block the others or the broadcast (VRX-248); the returned disposer unsubscribes every source.
-- `friendNotifications.ts` / `friendNotifications.test.ts` — pure `notificationPresenter` copy plus Electron notifier lifecycle: unsupported guard, icon/click routing, 20-entry timed retention, eviction/cleanup, and PII-safe failure logging.
-- `logger.ts` — main-only `electron-log/node` setup (file transport, level, redaction hook). It never calls `initialize()` and exposes no electron-log renderer preload or IPC listeners.
-- `updater.ts` — consent-based auto-update service (VRX-113/268). `UpdaterService` exposes a state machine (`idle`/`checking`/`update-available`/`downloading`/`downloaded`/`error`/`unsupported`) that never downloads silently: `autoDownload=false`, `autoInstallOnAppQuit=true`, periodic jittered re-check (~4 h + up to 30 min), and auto-download only when `settings.autoUpdate` is true. Packaged builds only; portable NSIS builds enter `unsupported`. Renderer snapshots carry only the closed `UpdaterFailure` union (`check-network`/`download-write`/`staged-install`), never exception text. The electron-updater logger is a no-op and all third-party event/rejection payloads are discarded; direct warnings send only fixed local context through a contained sink. An event-plus-rejection from one updater operation is logged and handled once. After a staged-install failure, repeated native errors are unscoped and quarantined. On macOS, electron-updater's early wrapper event arms a native Electron gate that claims the attempt's unique non-default loopback origin. Restart remains disabled until a native `update-downloaded` URL matches that scope; malformed or reused scopes fail closed. A stale global native error may also reject the retry's electron-updater promise, so an armed retry defers that unscoped rejection to matching success or a five-minute deadline. Every success, failure, timeout, and cancellation removes listeners and the deadline. Transient re-check and staged-install failures preserve `update-available` for retry.
-- `updater.test.ts` — unit tests for state transitions, consent-first download, portable→unsupported, jittered scheduling, broadcast, and error handling (VRX-113), plus closed failure categories, payload-free diagnostics, event/rejection deduplication, scoped macOS native staging, timeout handling, and listener cleanup (VRX-268).
-- `services/adapters/IPlatformAdapter.ts` — the platform adapter interface (VRX-16/166/222): the contract VRChat/CVR adapters implement; stream-aware via `subscribe()`. `getFriends()` returns `FriendRoster { friends, completeness, rateLimit? }`, where only `complete` snapshots authorize absent-means-removed reconciliation. Instance launching is not an adapter side effect: `buildJoinUrl(instance, mode)` is pure and main IPC owns final validation + `shell.openExternal`.
-- `services/adapters/errors.ts` — structured error types (VRX-17/55): generic `AuthError`, `RateLimitError`, `NetworkError`, the `AuthSessionPendingError` subtype used to quarantine not-yet-durable VRChat and ChilloutVR requests without invalidating the session, plus CVR-specific subclasses. Main-process only; no electron imports.
-- `services/adapters/BaseAdapter.ts` owns HTTP attempts, bounded 429 replay, timeout, response validation and circuit failures. Main injects the same `ApiAdmissionController` into the platform adapter and its API image path. `AdapterRequestOptions` supports priority, cancellation, a pre-dispatch check and bounded/no-retry policy; headers may be built lazily from a `RequestInitSource`. Every retry re-enters admission and every physical fetch rechecks shared cooldown; no-retry attempts also reject a permit resolved before a newer 429. Cancel unused response bodies. Cancellation does not count as a circuit failure.
-- `services/adapters/credentialValidation.ts` / `.test.ts` — pure main-only authentication boundary guards (VRX-38): direct credentials reject C0/DEL exactly as entered before any wire call (Unicode remains valid), while platform-issued values that will become VRChat Cookie or CVR Username/AccessKey headers must be printable ASCII before use or persistence.
-- `services/adapters/BaseAdapter.test.ts` — unit tests for `BaseAdapter` infrastructure (VRX-17): rate limiting, 429 backoff, circuit breaker (incl. the W6 time-reset pin under fake timers and the rawRequest-401s-never-trip pin), error classification, Zod validation.
-- `services/adapters/__testutils__/adapterTestKit.ts` — shared TEST-ONLY fixtures (audit W6): `noopSleep`, `jsonResponse` (a REAL `Response`, dual signature: bare status or `{status, setCookies}`), `markVrcSessionEstablished` (models an already owner-validated durable cookie only in tests unrelated to restore), and `stubPlatformAdapter` (full `IPlatformAdapter` of `vi.fn()`s for IPC/registry tests). Replaces the per-file copies that had drifted across the adapter + ipc test files; never import from production code.
-- `services/adapters/VrcApiClient.ts` — low-level VRChat HTTP client (VRX-41): abstract subclass of `BaseAdapter` adding `protected get`/`post` against `VRC_API_BASE` with the auth cookie (in-memory, set after login — VRX-157) + VRChat `User-Agent` (exported as `VRC_USER_AGENT`). The chain is `BaseAdapter → VrcApiClient → VrcAdapter` (the concrete IPlatformAdapter impl — now landed, VRX-157). Reuses the generic `errors.ts` types (not VRC-prefixed).
-- `services/adapters/VrcApiClient.test.ts` — unit tests for the client delta (VRX-41): URL = base+path, cookie/User-Agent headers, POST JSON body, 401→`AuthError`.
-- `services/adapters/VrcAdapter.ts` — concrete VRChat adapter (VRX-157): `extends VrcApiClient`, implements `IPlatformAdapter`. Direct login (`GET /auth/user`, Basic auth) + 2FA routed BY CODE TYPE (`totp/verify` for authenticator codes, `emailotp/verify` for emailed codes — NEVER `otp/verify`, the recovery-code route; the endpoint table + probe recipe live in docs/api-volatility.md, VRX-229) + session restore. Auth calls use the inherited `rawRequest` (NOT `request<T>`/`get`/`post`) so a wrong password is a clean 401 result, not an `AuthError` + circuit-breaker lockout. Every interactive auth await is operation-fenced: a later login wins, explicit logout cancels active/queued auth, and automatic invalidation clears only the rejected old session without cancelling a newer login. While a replacement cookie is awaiting owner validation or persistence, `getAuthStatus` waits and authenticated REST entry points reject without using it; a first-leg `needs-2fa` cookie remains visible only as the code prompt. An account-changing Basic login must receive a replacement `auth` cookie; VRX never binds an already-proven cookie to a different response identity. The `auth`/`twoFactorAuth` cookies live in memory and persist via an **injected** `VrcCredentialStore` (OS-first with the approved local fallback at the call site) — keeping this file electron-free and unit-testable. `getAuthStatus` distinguishes THREE outcomes on a live cookie (VRX-173): the current-user body → `authenticated`; a 200 `requiresTwoFactorAuth` body → `needs-2fa` + `twoFactorMethod` (the auth cookie is alive, only the second factor expired — the method is remembered so a reprompt `verify2fa` routes to the right endpoint, and the session is NEVER cleared); a 200 body that fails Zod parse (schema drift/API outage) → `error` without clearing — the cookie was accepted, only the reply was unreadable, so this must never read as `unauthenticated` and trigger the login gate (VRX-201). `verifyTwoFactor` rebuilds the persisted cookie from the auth PART of the current cookie (`cookiePart`) — falling back to the whole restored combined string would persist duplicate `twoFactorAuth` parts with the stale one winning → endless reprompt loop (VRX-173 fix). A `getAuthStatus` 401 means the persisted cookie was rejected server-side, so `clearSession()` tears the dead session down in all three places it lives — the in-memory `cookie`, the `VrcApiClient` mirror it feeds onto every request, and the persisted blob (via the store's new best-effort `delete()`) — so session restore can't re-adopt a dead cookie and 401 forever (audit W3). The store interface therefore now carries `delete()` alongside `load`/`save`. `getFriends` is implemented (VRX-43) — delegates to `vrchat/fetchFriends.ts`; populates each friend's `instance` field via `parseLocation` (VRX-162), so `instance` is no longer always null; throws `NetworkError` when nothing was collected AND anything failed or schema-drifted (audit W4; the error message carries both counters) rather than returning a misleading empty list. `getFriends` returns IMMEDIATELY with cache-peek world names (`null` when unresolved) and kicks background enrichment (`kickWorldMetadata`, VRX-214): each resolved world emits ONE `world-metadata` event ({platform, worldId, worldName, thumbnailUrl} — deliberately no `Friend` payload, so stale roster state can never replay through presence consumers; the renderer patches only friends whose CURRENT worldId matches), generation-fenced, via the single adapter-owned `WorldResolver` (VRX-163 — TTL cache persists across calls); enrichment failures degrade to null and can never reject the returned roster, and a background 401 routes through the same generation-fenced `auth-invalidated` boundary. Because enrichment begins after `getFriends` returns, a 401 leaves a residual window where LocationAuthority may resolve the just-seeded roster before that async boundary is consumed (documented in `docs/api-volatility.md`). LocationAuthority otherwise seeds immediately (possibly-null world names are fine — nothing join-critical reads `worldName`), unblocking the join loop during enrichment. `buildJoinUrl(instance, mode)` is pure (VRX-166): delegates to the existing VRChat builder and deliberately ignores mode because the URI cannot select desktop/VR. `verify2fa(code)` (VRX-159) completes the second 2FA leg via the session cookie, so the renderer needn't resend or hold the password. `selfInvite(instanceId)` is now implemented (VRX-51): validates the location string via `isInstanceLocation` (regex that rejects URL-structural characters — `/`, `?`, `#`, `\`, whitespace — preventing path injection in the `POST /invite/myself/to/<location>` call) before a separate guard rejects public instances (`parseInstanceType` returning `'public'`); the two guards run in that order (structural safety first, then semantics); its authenticated POST routes a dead-session `AuthError` through the same generation-fenced single-emit `auth-invalidated` boundary as `getFriends` — every authenticated call path must, so a dead cookie is never swallowed as a generic operation failure (VRX-42). `subscribe(handler)` is LIVE (VRX-146): one shared `VrcPipeline` for all subscribers (started on the first, stopped when the last leaves); the pipeline's token comes from `pipelineToken()` — the GET /auth exchange via `rawRequest` (validates the session, the VRCX pattern) falling back to the raw authcookie value, null with no session (the pipeline waits and retries, so a fresh login is picked up automatically). An adapter-wide session generation advances on restored-session adoption, successful login, successful 2FA, dead-session clear, and data-path auth invalidation; the injected boundary hook resets account-scoped consumers, active pipelines are replaced, and each pipeline callback drops events stamped with an older generation. The injected live wiring also publishes the generation-guarded platform identity through optional `onIdentity(accountId|null)` after state settles (VRX-24). The remaining stub is `getInstanceDetails`. **This is the registered VRChat adapter** (wired in `app.ts`).
-  Durable-session invariant (VRX-34): a replacement first-leg 2FA cookie revokes
-  the prior stored account before the prompt is exposed, and revocation failure
-  fails closed. Fresh login/2FA persistence establishes a one-shot latch so
-  ordinary status checks do not destructively rewrite the same credential;
-  restored adoption leaves the latch unset until validated owner backfill.
-  Avatar, authenticated REST, and pipeline consumers all require that latch;
-  a subscriber that arrived during restore is started only after the backfill
-  succeeds, and remains stopped when it fails.
-- `services/adapters/VrcAdapter.test.ts` — unit tests (VRX-157): login success / 2FA TOTP / email-OTP routing / rejected-code / session-restore, Basic-auth url-encoding, the circuit-breaker regression (repeated wrong passwords never lock out), and the password-never-persisted invariant. Mocks `fetch` with real `Response`s to exercise `getSetCookie()`. Also tests world enrichment (VRX-163): friends-in-world get `worldName`/`thumbnailUrl` filled; no-instance friends untouched; unresolvable worlds keep null; resolver cache verified by asserting `/worlds/:id` hit only once across two `getFriends` calls. Group enrichment (VRX-260): `GroupResolver` / `fetchGroupMetadata` fill `groupName`/`groupImageUrl` on group instances via snapshot peek-patch, background `kickGroupMetadata`, and live pipeline boundary enrichment; group-metadata events are generation-fenced and deduplicated like world enrichment. Group-enrichment coverage (kick dedupe/sweep, session clear, generation fencing, 403/negative-cache) lives in the sibling `services/adapters/VrcAdapter.group.test.ts`.
-- `services/adapters/ReconnectingPipeline.ts` — the shared reconnecting-WS base (extracted in VRX-147 when the second consumer arrived, now hardened by the VRX-218 reconnect probes). Owns the lifecycle discipline: generation-counter loop, expo backoff + jitter, socket-identity-guarded settle, consumer-exception isolation. Socket construction and runtime errors log only their class/name because third-party messages may echo auth URLs or headers. Subclasses (`vrchat/VrcPipeline`, `cvr/CvrPipeline`) supply `prepareConnection`/`openSocket`/`handleMessage`.
-- `services/adapters/CvrApiClient.ts` — low-level ChilloutVR HTTP client (VRX-55): abstract `BaseAdapter` subclass with clearable in-memory `Username`/`AccessKey` credentials, CVR headers, an optional per-call `{priority}` option mirroring `VrcApiClient.get` (VRX-210 — `getInstanceDetails` dispatches `interactive`; background/pipeline reads stay `default`), validated `{ message, data }` envelope unwrapping, typed CVR errors, and separate password-login/access-key re-auth helpers. Does not persist credentials.
-- `services/adapters/ExploreAdapter.ts` — narrow main-only Explore capability:
-  adapters capture the existing durable session lease and accept the service's
-  original lease, signal, priority and pre-dispatch admission check for each
-  one-request/no-retry operation. Evidence has no issued action references;
-  `ExploreDataError` marks malformed outer data or world/room identity failures.
-- `services/adapters/CvrApiClient.ts` additionally owns the closed typed Explore
-  discovery routes on `https://api.chilloutvr.net`; IDs are validated before
-  path construction and lazy authenticated headers plus existing request/error
-  mapping are reused. Normal CVR auth/friend traffic remains
-  `https://api.abinteractive.net/1`; no renderer value selects a discovery host.
-- `services/adapters/CvrApiClient.test.ts` — unit tests for CVR headers, envelope validation, auth flows, typed errors, and 429 retry behavior (VRX-55).
-- `services/adapters/CvrAdapter.ts` — concrete ChilloutVR adapter; its latest successful REST roster owns the main-only id→display-name cache used by native friend alerts. An adapter-wide session generation fences roster writes, pipeline events, instance resolutions, and detail results. Direct-login request/body awaits use a last-started-wins operation fence: explicit logout cancels held login work, while automatic invalidation of an older restored session cannot cancel a newer interactive login. Session adoption/removal clears all account-scoped state, resets the alert engine through injected wiring, publishes the generation-guarded CVR `userId` through optional `onIdentity(accountId|null)` after state settles (VRX-24), and replaces any running pipeline with a freshly stamped instance; late old-socket and old-resolution work is dropped. Restored/imported credentials cannot reach authenticated REST or the live pipeline until the existing one-shot ACCESS_KEY validation and owner-bound secure save both succeed; validation restarts the waiting loop without another auth request. Connection boundaries clear pending resolution re-emits, and the CVR-only roster-name warm is generation-fenced and retryable after failure (VRX-84). Both live snapshots and `getInstanceDetails` are enriched from `GET /instances/{id}` (world identity and, live-verified 2026-08-12, hosting group identity for group instances) and preserve `parseCvrPrivacy`'s optional `opennessUnknown` tag through their `InstanceInfo` construction/enrichment paths (VRX-240/263). Live snapshots also retain the last successful enrichment for the same `instanceId` while an expired resolver entry refreshes (VRX-265); a failed refresh clears it and re-emits the wire fallback. That account-scoped map is pruned to the current full snapshot and cleared at every session boundary, while WebSocket presence/privacy remain authoritative.
-- `services/exploreService.ts` — main-only, per-account session-memory Explore
-  orchestrator. It owns bounded candidate/world jobs, current snapshots, short
-  evidence freshness, opaque world/selection references, cancellation and
-  publication. Identical world/room reads share account-scoped pending work.
-  Each consumer can cancel independently; the last cancellation aborts transport.
-  Shared transport retains its first consumer's lease, deadline and attempt budget.
-  Existing platform admission remains its only queue; it does not
-  add polling, retries or a new authentication flow. It applies the settled
-  JSON/image limits and stale-evidence join guards from `docs/api-policy.md`.
-- `services/joinCoordinator.ts` — one shared exact-instance lock/cooldown for
-  friend and Explore joins. Explore supplies only a main-qualified target and
-  uses the same final allowlisted launch path.
-- `services/accountSession.ts` — VRX-24 main-only current-identity primitive. `setIdentity` is fed only by adapter `onIdentity` callbacks; actual identity changes advance an independent monotonic epoch per platform, clear-to-null enters typed `resolving`, and post-auth capture makes `resolve(platform)` return a frozen `{accountKey, epoch, ready:true}`. Initial absence is typed `no-active`. `isPlatformAccountId` is the single strict identity validator (ASCII alphanumeric/underscore/hyphen, 1–128 chars); `setIdentity` and pure `accountKey(platform, platformAccountId)` reject anything else.
-- `services/accountRegistry.ts` — VRX-24 durable `accounts.json` registry and source of truth for known accounts. A settled authenticated auth status supplies its explicit account id plus a captured AccountSession epoch; adoption proceeds only while both still match the ready session, demotes the prior same-platform active account to `known`, restores tombstones on re-auth, and skips byte-identical persistence. A valid future root version remains read-only even when its payload is incompatible. Only explicit `remove(platform, platformAccountId)` creates `removed` tombstones; session boundaries, logout, auth failure, 2FA churn, and `onIdentity(null)` never mutate registry state. `listAccounts()` excludes tombstones.
-- `services/socialStore.ts` — VRX-24 hardened `social.json` store for small account overlays. Root and namespace versions, independently parsed future-version write refusal (including incompatible future payloads), dot-notation disabled, shared strict account-id validation, and runtime-bounded Zod schemas protect `favorites`, `notes`, `tags`, `socialPrefs`, and `perFriendOptOuts`. `notes` is the first consumed namespace, driven by the `get-friend-note` / `set-friend-note` IPC handlers (VRX-72). Every write carries its issuing AccountSession epoch and stale/account-mismatched writes are rejected. `instanceHistory`/`activityHistory` expose a 200-entry ring type but refuse writes until their consumers land.
-- `services/linkGraphStore.ts` owns VRX-143 installation-global v2 linked profiles in `link-graph.json`. Each person contains two fully account-qualified references, stable default/custom names, preferred platform, picture mode, shared note and revision. Account notes, tags, favorites and raw rosters are untouched. `apply` owns user mutations: replace verifies every affected person's reviewed revision before one write, update/unlink use person CAS, and an identical pair is a no-op. Its snapshot overload returns committed data without a fallible post-commit disk read. Every operation reloads durable state under a module-global reentrancy guard; descriptor-first validation rejects hostile data and preserves safe prototype-named IDs. `services/linkProfileStorage.ts` uses exclusive same-directory temporary files, file sync and atomic rename with no truncate fallback. Valid v1 records migrate once with an exact-byte backup; failed migration stays readable, corrupt/future files stay untouched. Ambiguous rename results are read back before returning failure; post-commit cleanup cannot turn success into a replayable error. Reads and serialized writes share a 32 MiB ceiling; an oversized write fails before creating a temporary file or replacing saved data.
-- `services/settings.ts` — electron-store-backed settings persistence (VRX-23): `loadSettings()` (migrate + validate on read, then persist the normalized form back), cheap `getSettingsSnapshot()` for event hot paths, and `saveSettings(patch)` (applies the validated value to the in-memory snapshot before synchronous persistence, so a write failure still rethrows while the session remains internally consistent). Schema/migration/defaults live in `@shared/settings`; this is the thin wiring. electron-store@11 is ESM-only, so it is **bundled** into the main process (not externalized) via `externalizeDepsPlugin({ exclude: ['electron-store'] })` in `electron.vite.config.ts` — a CJS `require()` of it would throw at runtime.
-- `services/locationAuthority.ts` — main-owned per-platform friend-location authority (VRX-166/222): revision-captured roster seeds cannot clobber newer synchronous live deltas, and once a newer captured seed lands its platform watermark rejects every older seed wholesale. Complete seeds reconcile absent friends as removed, while partial seeds update only positive entries and never tombstone omissions. A partial seed that clears a post-reconnect fence authorizes only locations refreshed at or after the live transition; older positive entries and tombstones remain stale until a later location-bearing event or seed covers them. Entry revisions order all changes, while a separate location revision prevents profile-only updates from making cached locations fresh. Profile-only deltas received before the first seed are held pending or merged into an already-live friend, then combined with live presence/location and REST-owned favorite/linkage fields when the seed lands. Every `connection:'live'` transition remains stale until a seed captured after that transition lands; pre-seed/down/reconnecting states reject as stale; adapter session-boundary hooks clear per-platform state and seed watermarks. Clock/logger are injected and logs never contain locations.
-- `services/settings.ts` — electron-store-backed settings persistence (VRX-23): `loadSettings()` migrates/validates on read, `getSettingsSnapshot()` serves event hot paths, and `saveSettings(patch)` applies the validated snapshot in memory immediately while main coalesces disk writes for 250ms. All pending save invokes settle from that one write; `flushPendingSettingsSave()` synchronously drains it from `app.ts`'s `before-quit` listener. Schema/migration/defaults live in `@shared/settings`. electron-store@11 is ESM-only, so it is **bundled** into main via `externalizeDepsPlugin({ exclude: ['electron-store'] })`; its constructor's unused `electron-store-get-data` renderer listener is removed by central IPC wiring.
-- `services/locationAuthority.ts` — main-owned per-platform friend-location authority (VRX-166): revision-captured roster seeds cannot clobber newer synchronous live deltas; every `connection:'live'` transition remains stale until a seed captured after that transition lands; pre-seed/down/reconnecting states reject as stale; adapter session-boundary hooks clear per-platform state and seed watermarks. Clock/logger are injected and logs never contain locations.
-- `services/appStatus.ts` — the real `get-app-status` source (VRX-223): pure, electron-free `AppStatusService` holding per-platform `ConnectionHealth` (written from `handleAdapterEvent`'s `connection` events; unknown values degrade to `'down'`; pipelines emit `'reconnecting'` at DIAL start with a session so boot/account-switch never read falsely red or green) + `lastReconcileAt` per platform stamped on `get-friends` success (injected clock). Snapshot consumed by `ipc/app-status.ts` → TopBar's status dock.
-- `services/processDetection.ts` — main-only VRChat, ChilloutVR, and SteamVR process detection (VRX-98). `getRunningVrProcesses()` enumerates the current user's processes once through dynamically imported `ps-list`; the pure `detectVrProcesses(snapshot)` matcher checks exact Windows, native-style Linux, and Proton/Wine executable identities across process name, path, and command line without partial-name false positives. Keep `ps-list` externalized: bundling its ESM module would strand the `vendor/fastlist-*.exe` binaries that Windows needs, while a native dynamic import loads ESM and preserves its package-relative assets. VRX owns no platform command or output parser. `ps-list` supports macOS enumeration but VRX does not validate these applications there, and upstream does not support Windows ARM64.
-- `services/friendAlerts.ts` — pure, electron-free transition engine (VRX-84/85): per-platform/per-friend baselines, public account-boundary reset (presence + names + instance counts), CVR full-snapshot diffing where every never-seen id baselines silently and known absences become offline, fire-time toggle/threshold injection, readable-name resolution, traveling-safe movement detection, and independent online/in-game/offline/hot-instance 3-per-10-second drop limiters with exposed drop counts. Hot-instance detection atomically diffs aggregate pre/post counts and fires only on a threshold crossing; keys are VRChat `[worldId, instanceId]` and CVR instance id (derived via the shared `@shared/hotInstanceKey`, VRX-237 — one derivation with the dashboard, so CVR metadata enrichment remains stable and toast/cards can't disagree); membership (who counts) is the shared `isHotInstanceMember` verdict computed once at intake into `KnownPresence.hot` (in-game + visible instance + NOT hidden-location — the owner privacy law makes Ask Me/DND friends invisible to the hot system, toast included). Presence/name/instance maps are HARD-capped at 2,048 per platform: eviction prefers offline tombstones, then the oldest live entry; any in-game eviction suppresses hot alerts until the next boundary reset (missed is safer than fabricated). `friendNotifications.ts` owns native Electron `Notification` copy/presentation, packaged icon (VRX-82), bounded retention, eviction/cleanup, and PII-safe failure logging; `app.ts` retains `Notification.handleActivation` plus the focus/click window-recreation callbacks, including hot-toast → Dashboard navigation.
-- `pendingNavigation.ts` — pure one-slot intent queue (VRX-85): a navigation sends immediately once its renderer is ready or is retained and replayed exactly once after `rendererReady`; `app.ts` uses it for hot-instance notification clicks across window creation and reload.
-- `services/credentials.ts` — main-only credential persistence (VRX-34/24): prefers Electron `safeStorage`, falls back to `localCredentialEncryption.ts` on OS encryption failure, and stores versioned local or legacy base64 encrypted blobs in the `credentials` electron-store, and exposes save/load/delete operations for main-process auth and logout flows. Save and clear first overwrite an occupied slot with one exact non-base64, non-secret invalidation marker; load treats only that marker as absent, so a later keychain/write/delete failure cannot resurrect the prior credential after restart. The lazy `credential-owners` sidecar binds each slot's strictly validated platform account id to SHA-256 of the exact stored ciphertext; each replacement clears that sidecar before the ciphertext write, `recordCredentialOwner` no-ops without usable ciphertext, and successful deletion removes both entries.
-  Save initializes the credential store and writes that marker before even
-  initializing the owner sidecar, so a sidecar-construction failure cannot
-  leave the prior ciphertext loadable.
-- `services/localCredentialEncryption.ts` owns only the approved OS-unavailable
-  fallback: a random installation key in private `userData` files and versioned
-  AES-256-GCM records bound to their credential slot. It is main-only, never logs
-  plaintext/key material, and never creates keys while decrypting. Existing OS
-  blobs retain their format and require their original OS key. On successful
-  restored-session validation, the ordinary save upgrades local ciphertext when
-  OS encryption works. No weaker duplicate of an upgraded session is retained.
-  The local key may remain for other local records. Someone with both local key
-  and ciphertext can recover sessions; this is not equivalent to an OS wallet.
-- `services/cvrSessionImport.ts` — read-only ChilloutVR session discovery (VRX-56): when VRX has no valid readable stored CVR session, checks game `autologin*.profile` XML first and CVRX `CVRConfigs/credentials.json` second. Paths come from Electron `app.getPath` roots, CVRX's configured executable, and bounded Steam library metadata; Windows UNC/device paths are never probed, and case-alias environment entries cannot repeat the same Steam-root read. The importer has a one-second global deadline, fixed candidate/profile budgets, 513-entry-stop directory streams, device/inode/change-time directory guards, and verified-handle capped reads, rejects unsafe or ambiguous credentials, strictly parses XML/JSON, and extracts only username plus access key. Steam discovery overlaps CVRX config/fallback reads so a stalled source cannot consume another source's deadline, while Source A still wins selection. Missing, stalled, malformed, or over-budget inputs are ignored; null means neither source produced a safe unambiguous pair. A unique Source A profile wins even when CVRX names another active account; CVRX metadata disambiguates Source A only when several valid game profiles remain. `app.ts` queues second-instance focus until bootstrap finishes, persists a new import through `credentials.ts` before `CvrAdapter` can adopt it, and leaves validation to the adapter's existing one-shot ACCESS_KEY re-auth without adding a second request path. Never write to either source.
-- `services/vrcxSessionImport.ts` — read-only VRCX session importer boundary (VRX-54): resolves `VRCX/VRCX.sqlite3` from Electron's `appData` path, rejects symlinked or hard-linked main and sidecar entries before open, accepts the upstream WAL-format main database only when no nonempty WAL, shared-memory lock, or rollback journal is active, and snapshots that checkpointed main file below an atomically created, randomly named, owner-only `app.getPath('temp')` root. The resolved temp and VRCX trees must be disjoint before any temp enumeration or write. `vrcxSnapshotCopy.ts` creates the destination exclusively and copies from the same generation-bound source handle used for header validation; platforms exposing `O_NOFOLLOW` and `O_NONBLOCK` receive those flags as an additional guard. The destination handle remains open through SQLite parsing, and the checkpointed private copy is switched from WAL to rollback-header mode so SQLite ignores snapshot sidecars. Active source sidecars receive the one allowed transient retry, then fail closed to direct login. Source handle/path, VRCX directory, app-data directory, and source-sidecar generations are checked around the copy; destination handle/path and snapshot directory/root generations are checked around parsing. These prevent path aliases/swaps, planted or substituted destinations, and stale-generation adoption while SQLite-created files stay outside VRCX. The main copy is capped at 512 MiB. Crash scavenging removes only owner-matching directories with the exact generated-name form, VRX's private marker, and a recorded process that is no longer running. Prefix collisions and active roots never authorize recursive deletion. The snapshot is removed before credential persistence. Before materializing external values, the importer proves `cookies` is an ordinary rowid table with stored `key`/`value` columns, caps the table at 64 rows, and uses SQLite's metadata-only `octet_length()` to bound candidate keys and the 256 KiB value; this rejects computed views/generated columns and oversized non-target keys before their contents can allocate. Absent, malformed, oversized, ambiguous, non-VRChat, invalid-UTF-8, or unsafe cookie data is rejected. The importer accepts only one `auth` plus at most one `twoFactorAuth` cookie for `vrchat.cloud`, requires RFC cookie-octets plus the shared printable-ASCII validator, and returns only `imported`/`null`; the raw header goes straight to `saveCredential`. VRX-35 owns UI/startup invocation, so this boundary is not wired into `app.ts` yet.
-- `services/avatarCache.ts` owns the session-memory image LRU, deduplication, URL/MIME/size validation and redirect handling. API hops share the VRChat admission controller; images retain a one-body API semaphore and CDN transfers retain four body slots. CDN hosts have independent 429 cooldowns; waits occur outside body slots and active host controllers cannot be evicted. Pending images and retained host controllers are bounded. API cookies go only to `api.vrchat.cloud`, never CDN targets; only API responses may delegate a redirect, with existing HTTPS/public-name/no-port/no-credentials restrictions. The 2,048-character URL, 3 MiB body, 200-entry LRU and positive/negative TTL limits remain. Account/session leases cancel obsolete waits and fence image body/cache publication; API redirects retain the original lease.
-- `ipc/` — all `IpcInvoke` channel handlers; see [`ipc/AGENTS.md`](ipc/AGENTS.md) for the full index (VRX-19/20/25).
-- `platform/` — placeholder until real platform adapters land.
-- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers and push subscriptions via `contextBridge`, including `getAvatar(url)` (VRX-48) and unsubscribe-safe `onIdentityBoundary(callback)` (VRX-24); instance actions accept friend IDs only so renderer-supplied instance identifiers never cross the bridge (VRX-166). `index.d.ts` declares `vrx?: VrxBridge` because Preview/tests legitimately omit preload installation; every renderer consumer must guard absence. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19/222).
-- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers and push subscriptions via `contextBridge`, including `getAvatar(url)` (VRX-48) and unsubscribe-safe `onIdentityBoundary(callback)` (VRX-24); its invoke wrapper converts Electron's exact wrapped `Error: rate_limited` rejection into the renderer-local `Error('rate_limited')` contract. Instance actions accept friend IDs only so renderer-supplied instance identifiers never cross the bridge (VRX-166). `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
-- `src/preload/index.ts`, `src/preload/index.d.ts` — `window.vrx` bridge: exposes typed IPC invoke helpers and push subscriptions via `contextBridge`, including `getAvatar(url)` (VRX-48) and unsubscribe-safe `onIdentityBoundary(callback)` (VRX-24); instance actions accept friend IDs only as the launch authority, and VRX-239/241 adds a bounded `expectedTarget: { worldId, instanceId }` to `join-instance` as a comparison-only CAS precondition that main validates before URL construction. The renderer-supplied identifiers never become launch input (VRX-166 / VRX-239/241). `index.d.ts` declares the global so the renderer sees types without any import. Owned here because the preload is a main-process artifact and its contract is defined by the IPC channels in this directory (VRX-19).
+- `index.ts` obtains the single-instance lock before importing `app.ts`. Keep it
+  Electron-only: a losing duplicate must exit before loading credentials,
+  logging, sockets, or a window.
+- `app.ts` wires live adapters, services, IPC, the window, tray, updater, and
+  shutdown disposal. It is the composition root, not a second implementation
+  of adapter or IPC policy.
+- `ipc/` owns renderer-facing handlers. [`docs/INTERNAL-API.md` sections 1-3](../../docs/INTERNAL-API.md)
+  define the bridge, typed channels, and live events.
+- `services/` owns main-only state, persistence, policy, and coordination.
+  `services/adapters/` owns platform HTTP and WebSocket integration. Its
+  contracts are in [`docs/INTERNAL-API.md` sections 3, 4, and 6](../../docs/INTERNAL-API.md).
+- [`../preload/index.ts`](../preload/index.ts) is part of this boundary. Its
+  public bridge must remain a narrow, typed projection of `@shared/ipc`; see
+  the IPC child contract.
 
 ## Local Contracts
 
-- Explore images retain two outstanding and six starts per platform per rolling
-  minute. Only those local admission refusals return a typed bounded recovery
-  delay. Missing/invalid/stale/inactive or failed artwork remains terminal null;
-  existing image cache, URL validation, transport pacing and account leases
-  remain authoritative. No discovery batch resumes on a timer (VRX-275).
-
-- Reconnect backoff survives brief open-close flaps and resets only after an
-  open lasting at least the existing backoff cap. Rejected upgrades forward
-  only status/Retry-After; factories dispose the response and terminate the
-  failed handshake. A 429 extends platform admission and socket cooldown;
-  waits recheck extensions before credential preparation and dialing, split
-  long timers safely, and cancel on stop/session replacement. No new heartbeat.
-
-- `RosterRefresh` shares one pending roster result per session across ordinary
-  callers and CVR name warming. Main marks an active first read dirty before
-  broadcasting a live/roster trigger; all callers then receive at most one final
-  read. Events during that final read join it; later triggers remain eligible.
-  Cooldown, cancellation and failed reads discard pending follow-up work. Any
-  shared 429 during a run also discards its follow-up, even with no remaining wait.
-  Partial final data retains first-read omissions. Identity-checked cleanup
-  cannot erase a replacement account's operation; session boundaries clear it.
-  Main injects a LocationAuthority revision capture before each physical read,
-  including warming. Partial aggregation retains each read's original seed
-  provenance; later joiners cannot re-date old entries or clear live fences with
-  pre-reconnect data. These revisions stay in main.
-
-- Roster and background metadata batches use no-retry admission. A 429 ends
-  pagination/enrichment and removes queued batch attempts even when the parsed
-  Retry-After deadline and jitter are immediate. The controller's monotonic
-  `rateLimitRevision` fences resolved permits, later pages, active metadata pool
-  workers and roster-triggered enrichment against any newer shared 429;
-  successful in-flight data may still publish. Fresh later operations capture
-  the new revision. Background triggers
-  during cooldown send nothing and are not replayed at expiry. Useful roster
-  pages may publish as partial; only complete rosters reconcile omissions.
-  World/group pools permanently latch failures and retain pending IDs until
-  active workers settle. Every resolver failure is reported immediately so a
-  later 401 still invalidates the session; cooldown expiry never resumes a
-  failed batch's remaining IDs.
-
-- `services/adapters/ApiAdmissionController.ts` is main-only, credential-free
-  shared admission. One controller per platform covers every API attempt;
-  another platform never inherits its cooldown. `acquire`, `deferUntil` and
-  `rateLimited` preserve pacing, monotonic server waits, growing jittered
-  fallback and cancellation. Long waits are split below the Node timer limit
-  and rechecked after every wake. Pending admission is capped at 256 with 16
-  entries reserved for interactive work; overflow fails once. CDN controllers
-  use zero pacing only behind the existing bounded body semaphore.
-- `services/adapters/RequestLease.ts` owns main-only request/image leases.
-  Session boundaries abort old account work; interactive auth owns a separate
-  cancellation lifetime so automatic invalidation cannot cancel a newer login.
-  Both API clients build headers after lease validation at admission. Typed
-  reads, auth, retries, pipeline token exchange and API image redirects retain
-  their originating lease. Old rosters/details reject instead of borrowing a
-  replacement account; fresh reads capture fresh leases. Images discard stale
-  body/cache results and use identity-checked pending cleanup. Cancellation and
-  overflow propagate through fetchers/resolvers without negative caching.
-- Adapter constructors accept an admission controller instead of a sleep
-  callback. Timing regressions use a paired injected clock and sleep; other
-  adapter tests use the test-only `instantAdmission` virtual clock. No test
-  transport or clock bypass is selected by production configuration.
-
-- Linked-profile reads may refresh changed preferred-name fallbacks from fresh,
-  account-matching `LocationAuthority` data. `refreshDefaultNames` batches these
-  observations into one revision-checked write without changing custom names,
-  notes or membership. Stale/unavailable authority never supplies a name.
-
-- A direct VRChat or ChilloutVR login, and completed VRChat 2FA, cannot report
-  success until the injected credential store saves the new session. On a save
-  failure, clear the in-memory session, attempt best-effort deletion, log only
-  a fixed platform/stage warning, and return `credential_persistence_failed`
-  with `sessionCleared: true` before identity publication or pipeline startup.
-  Every validated restored session must also persist its owner binding before
-  identity publication or pipeline startup. Failure clears memory, durably
-  invalidates the old credential slot, and returns unauthenticated; a
-  server-rotated restored ChilloutVR key follows the same gate.
-- Completed VRChat 2FA must also establish a non-null validated account id
-  before saving or succeeding. If that refresh fails, clear the tentative
-  session, best-effort delete any prior stored credential, log only a fixed
-  warning, and return `auth_identity_unavailable` with `sessionCleared: true`;
-  never retain an unowned credential or start a pipeline. A direct-login
-  response that installed a replacement cookie and then proves unreadable or
-  malformed also clears the tentative/prior session and sets the same marker.
-- Interactive VRChat auth ownership is assigned when `login()` or `verify2fa()`
-  is requested, before its serialized body begins. A later request supersedes a
-  held earlier response at its next await fence, so the earlier account cannot
-  persist or publish even when the later request is rejected. Explicit logout
-  still cancels active and queued operations.
-- A direct-login `needs-2fa` response is usable only when that same response
-  issues a valid replacement `auth` cookie; never submit one account's code
-  with a retained cookie from another account. While any replacement cookie is
-  tentative, `getAuthStatus` waits, every typed VRChat GET/POST throws
-  `AuthSessionPendingError` before dispatch (including paginator and metadata
-  continuation work), and `getAuthCookieHeader()` returns `null` so queued
-  avatar work cannot attach it. Every multi-request roster or metadata operation
-  also captures its starting session generation and checks it before each later
-  page or queued resolve; old-account work stops instead of borrowing a newer
-  durable account's cookie. Session boundaries also clear both VRChat metadata
-  resolver caches, and late world/group responses are write-fenced so one
-  account's access-controlled metadata cannot populate the next account's
-  cache. Pending-resolution cleanup is generation-owned, and the newest
-  same-generation world request owns the cache write. The first-leg 2FA prompt
-  itself remains visible.
-- Security trinity on every BrowserWindow / IPC surface: `contextIsolation:true`, `sandbox:true`, `nodeIntegration:false`; `isTrustedIpcSender` guard on every handler; `credentials.ts` OS-first encryption with the approved local fallback for creds; URL allowlist before `shell.openExternal`; no `unsafe-inline` CSP; renderer never sees raw tokens (full rules in the root `AGENTS.md`). Trinity applied in VRX-25.
-- NO `console.*` — log through the `logger.ts` electron-log instance; everything routes through the redaction hook. Never log credentials/tokens/PII.
-- No hardcoded paths — use `app.getPath()`.
-- `redact.ts` MUST stay pure (no electron imports) so it remains unit-testable in isolation.
-- `app.ts` owns the per-window renderer-hydration `ShowGate` map and its defense-in-depth trust guard; `ipc/index.ts` owns the single lifetime registration and validates sender trust before the `renderer-hydrated` limiter can touch its budget.
-- Never write to VRCX/CVRX folders.
-- `services/linkGraphStore.ts` serializes every synchronous public graph operation with one module-global main-process-realm guard, including storage callbacks. It must reject reentry and recover in `finally`; this does not provide atomicity across separate JavaScript realms or OS processes.
-- Credential values must enter and leave persistence only through `services/credentials.ts`; never expose `loadCredential()` or credential-owner proofs through IPC or log their inputs/outputs. Credential keys are runtime-allowlisted and dot notation stays disabled. OS encryption unavailability/failure selects authenticated local encryption, never Electron's `basic_text` even when `isEncryptionAvailable()` is true. Filesystem, local-key, integrity and owner-binding failures still fail closed; replacement and deletion write the exact non-secret invalidation marker first so an older ciphertext cannot return after a later failure. Each adapter must pass its validated account id into the injected credential `save`; the main save closure records ownership only after `saveCredential` successfully writes the ciphertext. `onIdentity` drives `AccountSession`/registry state only. A write failure or digest mismatch means unknown ownership and must fail closed to null.
+- Keep `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`,
+  web security enabled, and untrusted renderer navigation blocked. Allow
+  external URLs only through the allowlist. Do not expose game schemes through
+  renderer `open-url`.
+- Keep the renderer CSP and default-session permission policy restrictive. Do
+  not broaden network sources or add `unsafe-inline`; deny permission requests
+  except the existing sanitized clipboard write needed for local diagnostics.
+- Use `isTrustedIpcSender` at every renderer-to-main entry. Validate untrusted
+  shapes before use and keep all IPC types in `@shared/ipc`. New or changed
+  callable channels require the matching catalog update.
+- Main owns account identity, sessions, current friend locations, action
+  policy, game URL construction, and `shell.openExternal`. Renderer values may
+  request an action and compare an expected target, but never authorize an
+  instance, URL, account, or host.
+- Credentials use OS-backed `safeStorage` when available. If it is not, use
+  the approved authenticated local fallback with a random installation key.
+  Never use Electron `basic_text`, hardcoded keys, plaintext storage, or
+  renderer-visible tokens. Clear memory and durable state when a session is
+  invalidated.
+- Credential persistence stays behind `services/credentials.ts`: allowlist
+  credential keys, validate the authenticated owner before recording it, and
+  write an invalidation marker before replacement or deletion. A failed write,
+  digest mismatch, or owner mismatch fails closed and cannot revive old auth.
+- Log through `electron-log` and redaction. Do not log credentials, tokens,
+  friend data, URLs containing identifiers, or raw upstream payloads. Use
+  `app.getPath()` for application files. Do not write VRCX or CVRX paths.
+- `AvatarCache` is the only renderer image proxy. Keep HTTPS host, redirect,
+  MIME, URL-length, body-size, LRU, and TTL validation; API hops share platform
+  admission while CDN body work stays bounded. Send a VRChat cookie only to
+  `api.vrchat.cloud`, fence cache publication to the account lease, and never
+  make the renderer fetch a vendor image directly.
+- Settings load through migration and validation, coalesce writes, flush before
+  quit, and refuse to overwrite a newer-version file. Account, social, and
+  linked-profile stores validate bounded data and account/epoch ownership before
+  mutation. They write cloned, revision-checked snapshots; link-graph public
+  operations reject same-realm reentry. Failed or stale writes must not corrupt
+  or cross account data.
+- Session importers are read-only. Bound path discovery, directory traversal,
+  file size, parsing time, and accepted credential shape; reject aliases,
+  symlinks, changing sources, ambiguity, and active database sidecars. Persist
+  only a validated import through `services/credentials.ts` and never write a
+  source directory.
+- Feed each accepted adapter event to `LocationAuthority` before alerts and
+  renderer fan-out. Identity boundaries clear the affected account-scoped
+  authority and renderer data. One failing event consumer must not block the
+  other consumers.
+- Platform requests use shared admission, backoff, timeout, and circuit rules.
+  One request per second is the ceiling. Prefer VRChat Pipeline and CVR
+  `/users/ws`; never poll social presence or add mass actions. Unknown upstream
+  values must degrade safely. Record changed API assumptions in
+  [`docs/api-volatility.md`](../../docs/api-volatility.md) and policy changes in
+  [`docs/api-policy.md`](../../docs/api-policy.md).
+- Every physical retry reacquires admission and observes the latest shared 429
+  cooldown. Cancellation, queue overflow, and a tentative session are control
+  flow: stop later pages or enrichment, do not count them as circuit failures,
+  and do not negative-cache them.
+- Shared code stays pure. Do not add Electron or Node imports under `src/shared`.
+  Avoid `any` and `@ts-ignore`; an unavoidable exception needs an explanation.
+- Keep window visibility recoverable. The window must stay within its display's
+  work area, tray and second-instance actions must focus the current window,
+  and renderer failure recovery must not create duplicate recovery dialogs. On
+  Windows and Linux, close hides to the tray until `before-quit` sets the sole
+  quit flag; macOS keeps its native close behavior.
+- Native friend alerts are settings-gated at dispatch and bounded in memory and
+  rate. A disabled hot-instance feature suppresses hot alerts without erasing
+  its saved notification preference. Alert payloads and failure logs stay free
+  of private location data.
+- Updates remain consent-based: no silent download, no raw updater error passed
+  to the renderer, and a restart only installs a verified staged update.
 
 ## Work Guidance
 
+- Check [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md) before adding a
+  service, event, channel, parser, or shared constant. Reuse a documented
+  boundary when one exists and update its entry in the same change.
+- Keep adapter transport code Electron-free and dependency-injected. Auth,
+  HTTP retries, request admission, and WebSocket reconnection have one owner;
+  do not duplicate them in feature code.
+- Fence interactive authentication at every await. A later login supersedes an
+  earlier one, logout cancels active and queued work, and tentative replacement
+  credentials cannot serve data, persist an identity, or borrow an old account.
+- Treat API data as hostile. Validate envelopes and individual records, preserve
+  usable partial rosters where their completeness contract permits it, and do
+  not turn schema drift into a crash or an absent-means-removed deletion.
+- Keep game launching two-step: resolve current main-owned data, then validate
+  the main-built URL immediately before launch. Do not trust a renderer-supplied
+  location or URL.
+- Keep lifecycle cleanup explicit: unsubscribe sockets and event wiring, stop
+  visible discovery work when the window is hidden or destroyed, flush pending
+  settings, and dispose owned timers and listeners on quit.
+
 ## Verification
 
-`npm run typecheck && npm run lint && npm test`
+- Follow the canonical project gate in `docs/DEVELOPMENT.md` and the
+  repository review procedure in `docs/REVIEW.md`.
+- Run focused unit tests for the changed boundary. IPC changes need trust,
+  validation, rate-limit, and allowlist coverage as applicable. Lifecycle or
+  event changes need a probe that proves ordering, cleanup, and failure
+  isolation. Credential changes need persistence, invalidation, and plaintext
+  absence coverage.
+- Inspect the diff for exposed secrets, raw IPC additions, `console` use, and
+  new Electron imports in shared code. Perform the DOX pass; update the API,
+  volatility, policy, or user-visible documentation when the change requires it.
 
 ## Child DOX Index
 
-- [`ipc/AGENTS.md`](ipc/AGENTS.md) — all IPC handler files (VRX-19/20/25/48/72 — see the child index; counts drift, the index doesn't)
-- `services/adapters/` — adapter interface, shared HTTP base, Explore capability,
-  VRChat/CVR API clients, errors, and concrete `VrcAdapter` / `CvrAdapter`; no
-  child doc yet for the cross-platform adapter root.
-- [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md) — CVR parsers + the CvrPipeline WS client consumed by the registered concrete `CvrAdapter`.
-- [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md) — VRChat parsers/builders + fetchers: presence, instance-type + openness, trust-rank, join-URL (VRX-44/45/49/50), `parseLocation` (VRX-162), `fetchFriends` (VRX-43), `WorldResolver` (VRX-46), `fetchWorldMetadata` (VRX-47).
-
-`friendNotifications.isFriendAlertEnabled` reads the supplied current settings
-snapshot at dispatch. Hot Instances requires both `hotInstancesEnabled` and
-`notifyHotInstance`; disabling the feature never overwrites the saved preference.
-Friend-event preferences and alert baselining/rate limits stay independent.
+- [`ipc/AGENTS.md`](ipc/AGENTS.md): typed renderer-to-main handlers and URL
+  policy.
+- [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md):
+  ChilloutVR parsing, discovery, and pipeline code.
+- [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md):
+  VRChat parsing, metadata, and pipeline code.

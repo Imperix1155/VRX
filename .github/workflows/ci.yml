@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       # `npm ci` runs the postinstall hook (electron-builder install-app-deps) —
@@ -76,7 +76,7 @@ jobs:
           # Ubuntu 24.04 restricts user namespaces for unprofiled binaries.
           # Permit only this exact Electron binary to create Chromium's sandbox.
           expected_electron_binary="$GITHUB_WORKSPACE/node_modules/electron/dist/electron"
-          # Electron 43 resolves its checksum-verified binary lazily through
+          # Electron resolves its checksum-verified binary lazily through
           # the package getter used by its CLI, so run that getter before the
           # AppArmor profile needs the executable to exist.
           if ! node -e 'if (require("electron") !== process.argv[1]) process.exit(1)' \
@@ -248,7 +248,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       # Fails on any high/critical advisory EXCEPT two temporarily-allowlisted esbuild
       # advisories. Both are dev-tooling only (esbuild is a transitive build dependency

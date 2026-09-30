@@ -1,5 +1,7 @@
 # Linked friends smoke-test findings
 
+> Historical record. This file preserves decisions and evidence from its dated work. It does not set current workflow, prerequisites, or authority. Current source and repository contracts control; product decisions still in force are recorded in their current owning contracts.
+
 Status: owner authorized the two-item fix round on September 7, 2026. Both fixes
 are implemented and locally verified; review and delivery are pending. The
 installed app has not been updated by this round. No new merge or release grant.
