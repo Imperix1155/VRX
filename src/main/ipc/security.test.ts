@@ -7,7 +7,9 @@
  * flips dev/prod per test without module resets.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { WebFrameMain } from 'electron'
+import { app, type WebFrameMain } from 'electron'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 vi.mock('electron', () => ({ app: { getAppPath: () => '/app' } }))
 import { isTrustedIpcSender } from './security'
 
@@ -95,7 +97,7 @@ describe('isTrustedIpcSender — dev (Vite renderer origin)', () => {
 })
 
 describe('built local preview', () => {
-  const entry = 'file:///app/out/renderer/index.html'
+  const entry = pathToFileURL(join(app.getAppPath(), 'out/renderer/index.html')).href
   it('admits only the built top-level renderer when the dev server is absent', () => {
     mockState.dev = true
     setDevServer(null)
