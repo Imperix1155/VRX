@@ -92,6 +92,8 @@ and Node/Electron access on this side of the process boundary.
   rate. A disabled hot-instance feature suppresses hot alerts without erasing
   its saved notification preference. Alert payloads and failure logs stay free
   of private location data.
+- Stable builds exclude prereleases; beta/rc builds retain the locked updater
+  channel selection. No implicit channel selector or rc-to-stable promotion.
 - Updates remain consent-based: no silent download, no raw updater error passed
   to the renderer, and a restart only installs a verified staged update.
 

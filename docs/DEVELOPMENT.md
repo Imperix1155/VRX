@@ -31,6 +31,10 @@ fresh machine. Each checkout used for packaging needs its own dependencies;
 do not replace the whole `node_modules` directory with a symlink to another
 checkout. That can omit production modules from the packaged app.
 
+After `npm run build`, `npm start` previews the built renderer without a Vite
+server. Its IPC admission accepts only the exact built renderer entry as a
+top-level local document. It does not enable packaged-only updates.
+
 The development app can use real accounts. Prefer test fixtures when checking
 UI or isolated behavior. Device access, screenshots, accounts, and permission
 prompts follow the local environment and the owner's task authorization.

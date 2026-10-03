@@ -20,6 +20,9 @@ handlers; domain files validate requests and call main-owned services.
 
 ## Local Contracts
 
+- Unpackaged built preview admits only the exact `out/renderer/index.html`
+  top-level document when no Vite server is configured; never admit arbitrary
+  local files as a preview workaround.
 - Every handler calls `isTrustedIpcSender` first. Register it through the
   `index.ts` shell before its limiter. Deny malformed, oversized, unknown, and
   stale requests without logging sensitive request data.
