@@ -118,7 +118,7 @@ export interface IpcInvoke {
   }
   'get-app-status': { req: void; res: AppStatus }
   'open-url': { req: { url: string }; res: void }
-  'get-settings': { req: void; res: Settings }
+  'get-settings': { req: void; res: Settings & { unsaved?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
   'updater:check': { req: void; res: void }

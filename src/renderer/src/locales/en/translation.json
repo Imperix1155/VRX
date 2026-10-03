@@ -285,6 +285,12 @@
         "label": "Hot Instances",
         "description": "Show where friends gather and allow Hot Instances alerts."
       }
+    },
+    "persistence": {
+      "error": "Settings could not be saved. Your changes are still applied here, but may be lost on restart.",
+      "unsaved": "Settings have unsaved changes.",
+      "retry": "Retry saving settings",
+      "saving": "Saving…"
     }
   },
   "error": {

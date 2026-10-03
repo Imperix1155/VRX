@@ -236,6 +236,13 @@ Combined/neutral options sit between the two scoped options. Preserve reduced
 motion. Boolean settings use visible On/Off labels and the same sliding glass
 indicator, radiogroup semantics, and arrow-key navigation.
 
+Unsaved settings stay visibly marked in the shell. A failed save retains the
+latest edits with an explicit Retry control; the warning remains until a save
+succeeds. Initial auth IPC failures show a platform-specific recovery message
+and Retry, never a signed-out credentials form. A healthy platform may reveal
+the shell while the other is pending. Panel failures are scoped to the active
+tab; navigating to a healthy tab recovers without concealing repeated faults.
+
 Settings has Appearance, Dashboard, Behavior, Notifications, and Accounts
 categories. Each top-level setting has a compact neutral information card over
 the backing panel. Hot Instances contains its minimum-friend threshold and

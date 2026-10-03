@@ -301,11 +301,12 @@ export class SocialStore {
     const existing = this.file.accounts[key]
     const account = isRecord(existing) ? { ...existing } : {}
     account[smallNamespace] = envelope
-    this.file = {
+    const next: SocialStoreFile = {
       storeFormatVersion: SOCIAL_STORE_FORMAT_VERSION,
       accounts: { ...this.file.accounts, [key]: account }
     }
-    this.storage.write(structuredClone(this.file))
+    this.storage.write(structuredClone(next))
+    this.file = next
     return structuredClone(envelope)
   }
 }
