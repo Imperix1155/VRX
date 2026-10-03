@@ -52,6 +52,8 @@ import {
 beforeEach(() => {
   storeState.throwOnRead = false
   storeState.throwOnWrite = false
+  storeState.data = {}
+  flushPendingSettingsSave()
   storeState.reads = 0
   storeState.data = {}
   storeState.written = []
@@ -249,4 +251,35 @@ describe('loadSettings (W7 M1)', () => {
     expect(storeState.written).toHaveLength(0)
     vi.useRealTimers()
   })
+})
+
+it('retains a failed snapshot for explicit flush retry', async () => {
+  loadSettings()
+  storeState.throwOnWrite = true
+  const failed = saveSettings({ theme: 'light' })
+  const rejection = expect(failed).rejects.toThrow('disk full')
+  flushPendingSettingsSave()
+  await rejection
+  expect(loadSettings().theme).toBe('light')
+  storeState.throwOnWrite = false
+  storeState.written = []
+  flushPendingSettingsSave()
+  expect(storeState.written).toEqual([expect.objectContaining({ theme: 'light' })])
+})
+
+it('replaces a failed pending snapshot with the latest edit before retrying disk', async () => {
+  loadSettings()
+  storeState.throwOnWrite = true
+  const first = saveSettings({ theme: 'light' })
+  const rejection = expect(first).rejects.toThrow('disk full')
+  flushPendingSettingsSave()
+  await rejection
+  const latest = saveSettings({ theme: 'dark', density: 'compact' })
+  storeState.throwOnWrite = false
+  storeState.written = []
+  flushPendingSettingsSave()
+  await expect(latest).resolves.toMatchObject({ theme: 'dark', density: 'compact' })
+  expect(storeState.written).toEqual([
+    expect.objectContaining({ theme: 'dark', density: 'compact' })
+  ])
 })

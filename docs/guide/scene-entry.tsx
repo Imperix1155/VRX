@@ -14,6 +14,15 @@ applyTheme(initialTheme, false)
 const root = document.getElementById('root')
 if (root === null) throw new Error('Missing scene root')
 
+const SCENE_VARIANTS: Record<string, string[]> = {
+  updater: ['available', 'downloading', 'downloaded', 'idle'],
+  settings: ['ready', 'save-error'],
+  drawer: drawerScenarios.map(({ value }) => value),
+  login: ['ready', 'totp', 'email'],
+  explore: exploreScenarios.map(({ value }) => value),
+  feedback: sourceScenarios.map(({ value }) => value)
+}
+
 function SceneFrame(): React.JSX.Element {
   const [theme, setTheme] = useState(initialTheme)
   const [glow, setGlow] = useState(params.get('glow') ?? 'standard')
@@ -28,16 +37,7 @@ function SceneFrame(): React.JSX.Element {
     render: '1',
     reset: String(reset)
   })
-  const variants =
-    scene === 'updater'
-      ? ['available', 'downloading', 'downloaded', 'idle']
-      : scene === 'drawer'
-        ? drawerScenarios.map(({ value }) => value)
-        : scene === 'login'
-          ? ['ready', 'totp', 'email']
-          : scene === 'explore' || scene === 'feedback'
-            ? (scene === 'explore' ? exploreScenarios : sourceScenarios).map(({ value }) => value)
-            : ['ready']
+  const variants = SCENE_VARIANTS[scene] ?? ['ready']
   return (
     <div className={`scene-frame${desktopScenes.includes(scene) ? ' scene-frame--desktop' : ''}`}>
       <div className="fixture-controls" aria-label="Example controls">
