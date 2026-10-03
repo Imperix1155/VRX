@@ -3,7 +3,7 @@ productName: VRX
 directories:
   buildResources: build
 files:
-  - '!{coverage,test-results,playwright-report,blob-report,.codex,.superpowers}/**'
+  - '!{coverage,test-results,playwright-report,blob-report,.codex,.superpowers,.fallow}/**'
   - '!**/*.{test,spec}.{ts,tsx,js,mjs,cjs}'
   - '!docs/guide/**'
   - '!docs/design.html'

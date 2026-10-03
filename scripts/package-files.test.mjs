@@ -19,7 +19,10 @@ describe('packaged application file boundary', () => {
     'scripts/example.test.mjs',
     'out/credential-probe/index.js',
     '.codex/session.json',
-    '.superpowers/notes.md'
+    '.superpowers/notes.md',
+    '.fallow/cache.bin',
+    '.fallow/graph-cache.bin',
+    '.fallow/cache/audit-base-v9/base.bin'
   ])('excludes %s', (file) => {
     expect(filter(resolve(root, file), fileStat)).toBe(false)
   })
