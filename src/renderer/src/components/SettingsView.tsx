@@ -18,6 +18,7 @@ import {
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useUpdater } from '../hooks/useUpdater'
+import type { Settings } from '@shared/settings'
 import { RELEASES_URL } from '@shared/constants'
 import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
@@ -231,6 +232,8 @@ export default function SettingsView(): React.JSX.Element {
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
+  const cvrSessionImportChoice = useSettingsStore((s) => s.settings.cvrSessionImportChoice)
+  const settingsDirty = useSettingsStore((s) => s.dirty)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -566,6 +569,32 @@ export default function SettingsView(): React.JSX.Element {
             <div className="grid grid-cols-2 gap-[var(--space-6)]">
               <AccountCard platform="vrchat" />
               <AccountCard platform="chilloutvr" />
+            </div>
+            <div className="setting-card">
+              <div className="setting-row">
+                <span className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.accounts.sessionImport.label')}
+                </span>
+                <SegmentedControl<Settings['cvrSessionImportChoice']>
+                  values={['skip', 'ask', 'import']}
+                  active={cvrSessionImportChoice}
+                  onChange={(value) => updateSettings({ cvrSessionImportChoice: value })}
+                  labelKeys={{
+                    skip: 'settings.accounts.sessionImport.skip',
+                    ask: 'settings.accounts.sessionImport.ask',
+                    import: 'settings.accounts.sessionImport.import'
+                  }}
+                  ariaLabel={t('settings.accounts.sessionImport.label')}
+                />
+              </div>
+              <p className="text-xs text-[var(--text-dim)]">
+                {t('settings.accounts.sessionImport.description')}
+              </p>
+              {settingsDirty && (
+                <p role="status" className="text-xs text-[var(--text-dim)]">
+                  {t('settings.accounts.sessionImport.unsaved')}
+                </p>
+              )}
             </div>
           </section>
         )}

@@ -30,6 +30,25 @@ are experimental. macOS builds are for local development and are not published
 by the release workflow. See [Install and support](docs/INSTALL.md) for choosing
 an artifact, update channels, limitations, and reporting problems.
 
+## Sessions and privacy
+
+VRX signs in to each platform on your behalf. Saved sessions use Electron
+`safeStorage` with OS-backed encryption when available. If that is unavailable
+or fails, VRX uses authenticated local encryption with a random per-installation
+key in private app files. This fallback is weaker: access to both that key and
+the encrypted data permits session recovery. Passwords are not saved.
+
+With no valid saved VRX ChilloutVR session, VRX asks before discovering or
+copying a session from local ChilloutVR game profiles or CVRX files. Direct
+sign-in is the default choice. Settings → Accounts → External ChilloutVR session
+lets you choose Never, Ask, or Allow; changes apply on the next app launch.
+Existing VRX sessions are unaffected. Source files are never changed. If the
+choice cannot be saved, no external session is read and VRX explains the failure.
+
+Desktop friend notifications default off. When enabled, Ask Me/DND locations
+remain hidden even when a cached world name or parseable location is available;
+online notifications and generic world-entry notifications remain available.
+
 ## Stack
 
 Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite
