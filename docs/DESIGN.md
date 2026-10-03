@@ -271,6 +271,9 @@ Reuse the existing Friends list's virtual rows and sticky collapsible sections:
 In-Game, Online, Offline. Offline starts collapsed. Search exposes matches
 without mutating saved collapse settings. Preserve roving avatar focus and
 exclude offscreen overscan actions from sequential Tab navigation.
+Join failures wrap below row controls, remain until another attempt or account
+boundary, and describe the next step. Retrying uses the existing Join control and
+its confirmation, busy, and main admission checks; never retry joins automatically.
 
 The avatar is the semantic details opener. Default whole-card pointer opening
 extends that target while excluding Join and text-selection gestures. The Avatar
@@ -369,6 +372,9 @@ reviews disclose affected pairs and shared-note loss with explicit acknowledgeme
 Unsaved/in-flight drafts block destructive submission and offer return to their
 editor. Reviewed revisions must still match. Preserve account ownership checks,
 all-or-nothing writes, explicit retry, and account-boundary invalidation.
+Linked-profile load/reload failures show a local-read Retry in Friends and
+Identities. A retry coalesces with an active read and cannot restore an outgoing
+account's snapshot. Name-save/reset completions clear only an unchanged draft.
 
 Sources: [`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFriends.ts),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),
