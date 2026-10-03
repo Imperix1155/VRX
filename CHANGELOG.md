@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid a duplicate VRChat presence-bucket request immediately after successful
+  session validation when fresh, account-bound bucket data is already available.
+
 ## [0.23.0] - 2026-09-24
 
 ### Fixed
