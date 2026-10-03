@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Avoid a duplicate VRChat presence-bucket request immediately after successful
   session validation when fresh, account-bound bucket data is already available.
+- Stable installations no longer opt into prerelease updates; beta and rc builds
+  retain their existing updater channel behavior.
+- Built local previews can use IPC from their exact renderer entry without a
+  development server.
+- Release tags select stable, beta, or rc metadata and artifact validation;
+  generated coverage and test reports are excluded from application packages.
 
 ## [0.23.0] - 2026-09-24
 
