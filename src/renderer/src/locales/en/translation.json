@@ -258,6 +258,14 @@
       },
       "chilloutvr": {
         "label": "ChilloutVR"
+      },
+      "sessionImport": {
+        "label": "External ChilloutVR session",
+        "skip": "Never",
+        "ask": "Ask",
+        "import": "Allow",
+        "description": "When VRX has no saved ChilloutVR session, allow reading local game profiles and CVRX files to copy a session and sign in on your behalf. Source files are unchanged. Takes effect on the next app launch; existing VRX sessions and direct sign-in are unaffected.",
+        "unsaved": "Settings changes are not yet saved."
       }
     },
     "boolean": {
@@ -458,7 +466,7 @@
     "passwordPlaceholder": "••••••••",
     "signIn": "Sign In",
     "signingIn": "Signing in…",
-    "disclaimer": "Connects to VRChat on your behalf. Your credentials are stored securely on this device.",
+    "disclaimer": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
       "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
       "unknown": "Sign-in failed. Check your details and connection, then try again."
@@ -475,7 +483,7 @@
       "aria": "Sign-in platform"
     },
     "formAria": "{{platform}} sign-in",
-    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Your credentials are stored securely on this device."
+    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."
   },
   "stepper": {
     "decrease": "Decrease",

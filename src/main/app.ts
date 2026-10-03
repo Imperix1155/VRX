@@ -19,7 +19,12 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
-import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
+import {
+  flushPendingSettingsSave,
+  getSettingsSnapshot,
+  loadSettings,
+  saveSettings
+} from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -50,6 +55,7 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
+import { requestCvrImportConsent } from './services/cvrImportConsent'
 import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
 
 // Set true by the before-quit handler below — the single source of truth for
@@ -414,8 +420,8 @@ app
       }
     })
     // CVR session = { username, accessKey } persisted as ONE encrypted credential
-    // (VRX-37/174/56). With no valid stored session, the read-only importer checks the
-    // game profile first and CVRX second. Imported material is printable-ASCII
+    // (VRX-37/174/56). With no valid stored session, explicit remembered consent
+    // precedes discovery of game profiles or CVRX sessions. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
       const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
@@ -439,6 +445,39 @@ app
     try {
       initialCvrCredentials = await loadStoredOrImportedCvrSession({
         loadStored: loadStoredCvrCredentials,
+        requestImportConsent: () =>
+          requestCvrImportConsent({
+            choice: getSettingsSnapshot().cvrSessionImportChoice,
+            prompt: async () => {
+              const result = await dialog.showMessageBox({
+                type: 'question',
+                title: 'ChilloutVR session import',
+                message: 'Allow VRX to find and use an existing ChilloutVR session?',
+                detail:
+                  'VRX will read local ChilloutVR game profiles and CVRX files, copy a session into VRX, and sign in on your behalf. Source files are never changed. Sessions use OS-backed encryption when available; otherwise a weaker local installation key is stored alongside the encrypted data. Access to both permits session recovery. VRX remembers your choice. You can change it in Settings → Accounts; direct sign-in remains available.',
+                buttons: ['Use direct sign-in', 'Allow session import'],
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true
+              })
+              return result.response === 1
+            },
+            saveChoice: async (cvrSessionImportChoice) => {
+              try {
+                await saveSettings({ cvrSessionImportChoice })
+              } catch (error) {
+                await dialog.showMessageBox({
+                  type: 'warning',
+                  title: 'ChilloutVR session import',
+                  message: 'Your session import choice could not be saved.',
+                  detail:
+                    'No external session was read. You can sign in directly. VRX may ask again on the next launch.',
+                  buttons: ['Continue to sign-in']
+                })
+                throw error
+              }
+            }
+          }),
         importSession: () =>
           importCvrSession({
             appDataPath: app.getPath('appData'),

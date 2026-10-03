@@ -487,7 +487,9 @@ export default function Guide(): React.JSX.Element {
             Explore and Popular now share one Worlds loading… message while any selected source is
             initially loading, keeping available cards visible. Ordinary background refresh stays
             quiet; failures and unavailable sources keep their platform labels. Login uses the same
-            app language and never places credentials in a fixture.
+            app language and never places credentials in a fixture. Sign-in copy explains OS-backed
+            encryption and the weaker local-key fallback; Accounts shows the remembered, revocable
+            external ChilloutVR import choice.
           </p>
           <Scene
             name="feedback"
