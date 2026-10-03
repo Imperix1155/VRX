@@ -114,6 +114,17 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'vrx')
 })
 describe('linked roster integration', () => {
+  it('keeps the roster available and offers a local linked-profile read retry', () => {
+    const refetch = vi.fn()
+    mocks.links.mockReturnValue({ data: undefined, isError: true, isFetching: false, refetch })
+    // The component awaits refetch just as the real query does.
+    refetch.mockReturnValue(new Promise(() => {}))
+    render(<FriendsList />)
+    expect(screen.getByText('VRC alias')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry linked profiles' }))
+    expect(refetch).toHaveBeenCalledExactlyOnceWith({ cancelRefetch: false })
+  })
+
   it.each([
     ['VRChat missing location', { ...vrc, instance: null }, cvr],
     ['CVR missing location', { ...cvr, instance: null }, vrc],

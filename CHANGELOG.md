@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metadata, while preserving online alerts and default-off notification settings.
 - Explain OS-backed session encryption and the weaker per-installation local
   encryption fallback in sign-in copy and the user documentation.
+- Preserve newly typed VRX names when an earlier platform-name reset completes.
+- Match Greek Sigma consistently in friend search and preserve original Hangul
+  spelling when highlighting decomposed matches.
+- Offer an explicit local-read retry when linked profiles cannot load or reload.
+- Keep actionable join failures readable until another attempt or account boundary;
+  friend rows wrap feedback below their controls without covering Join.
 
 ## [0.23.0] - 2026-09-24
 

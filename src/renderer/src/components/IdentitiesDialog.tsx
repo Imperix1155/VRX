@@ -1,3 +1,4 @@
+import LinkedProfilesLoadError from './LinkedProfilesLoadError'
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -63,6 +64,7 @@ export default function IdentitiesDialog({
   const [flow, setFlow] = useState<Flow>({ kind: 'identities' })
   const [search, setSearch] = useState('')
   const [nameDraft, setNameDraft] = useState<string | null>(null)
+  const nameEditVersion = useRef(0)
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -122,12 +124,14 @@ export default function IdentitiesDialog({
     })
   }
   async function saveName(value: string): Promise<void> {
+    const editVersion = nameEditVersion.current
     const result = await update({ customName: value })
-    if (result?.ok) setNameDraft((current) => (current?.trim() === value ? null : current))
+    if (result?.ok && nameEditVersion.current === editVersion) setNameDraft(null)
   }
   async function resetName(defaultName: string): Promise<void> {
+    const editVersion = nameEditVersion.current
     const result = await update({ customName: null, defaultName })
-    if (result?.ok) setNameDraft(null)
+    if (result?.ok && nameEditVersion.current === editVersion) setNameDraft(null)
   }
   function openAccount(ref: FriendRef): void {
     onNavigate({
@@ -255,6 +259,7 @@ export default function IdentitiesDialog({
 
   return (
     <LinkedDialog title={title} busy={busy} onClose={onClose}>
+      <LinkedProfilesLoadError query={query} />
       {flow.kind === 'review' ? (
         <LinkConfirmDialog
           review={flow.review}
@@ -423,7 +428,10 @@ export default function IdentitiesDialog({
                       maxLength={256}
                       className={inputClass}
                       value={customName}
-                      onChange={(event) => setNameDraft(event.target.value)}
+                      onChange={(event) => {
+                        nameEditVersion.current += 1
+                        setNameDraft(event.target.value)
+                      }}
                     />
                   </label>
                   <div className="flex gap-[var(--space-2)]">

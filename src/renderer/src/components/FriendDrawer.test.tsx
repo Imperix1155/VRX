@@ -488,12 +488,16 @@ describe('FriendDrawer (VRX-69)', () => {
       fireEvent.click(scoped.getByRole('button', { name: 'Join' }))
       await Promise.resolve()
     })
-    expect(scoped.getByRole('status').textContent).toBe("Couldn't join")
+    expect(scoped.getByRole('status').textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_500)
+      await vi.advanceTimersByTimeAsync(30_000)
     })
-    expect(scoped.getByRole('status').textContent).toBe('')
+    expect(scoped.getByRole('status').textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
   })
 
   it.each([

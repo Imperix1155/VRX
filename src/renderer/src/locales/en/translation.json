@@ -96,7 +96,9 @@
     "chooseDestination": "Choose a destination",
     "joinOn": "Join on {{platform}}",
     "activityChanged": "Activity changed. Review the current location.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "loadFailed": "Could not load linked profiles. Retry to restore identity management.",
+    "retryLoad": "Retry linked profiles"
   },
   "boot": {
     "connecting": "Connecting…"
@@ -302,7 +304,7 @@
     "refresh": "Refresh",
     "error": "Could not load friends",
     "joinAria": "Join {{name}} in {{world}}",
-    "joinFailed": "Couldn't join",
+    "joinFailed": "Couldn't join. Check the game and connection, then use Join to try again.",
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
       "cooldown": "One moment — just launched a join",

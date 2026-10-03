@@ -486,8 +486,11 @@ export default function Guide(): React.JSX.Element {
           <p className="design-guide__lead">
             Explore and Popular now share one Worlds loading… message while any selected source is
             initially loading, keeping available cards visible. Ordinary background refresh stays
-            quiet; failures and unavailable sources keep their platform labels. Login uses the same
-            app language and never places credentials in a fixture. Sign-in copy explains OS-backed
+            quiet; failures and unavailable sources keep their platform labels. Linked-profile load
+            failures offer an explicit local-read retry in Friends and Identities. Join failures
+            remain readable below row controls until another attempt or account boundary; use the
+            existing Join control to retry through the same safety checks. Login uses the same app
+            language and never places credentials in a fixture. Sign-in copy explains OS-backed
             encryption and the weaker local-key fallback; Accounts shows the remembered, revocable
             external ChilloutVR import choice.
           </p>
