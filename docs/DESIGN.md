@@ -278,7 +278,9 @@ Reuse the existing Friends list's virtual rows and sticky collapsible sections:
 In-Game, Online, Offline. Offline starts collapsed. Search exposes matches
 without mutating saved collapse settings. Preserve roving avatar focus and
 exclude offscreen overscan actions from sequential Tab navigation.
-Join failures wrap below row controls, remain until another attempt or account
+Join failures wrap below row controls. Compact rows keep a 60 px minimum and
+are measured as feedback expands or clears, preserving the gap to following rows.
+Failures remain until another attempt or account
 boundary, and describe the next step. Retrying uses the existing Join control and
 its confirmation, busy, and main admission checks; never retry joins automatically.
 

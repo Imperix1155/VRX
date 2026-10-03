@@ -1327,7 +1327,7 @@ export default function FriendsList(): React.JSX.Element {
                       data-index={virtualItem.index}
                       data-virtual-kind="friend"
                       data-friend-key={row.key}
-                      style={{ ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }}
+                      style={{ ...virtualStyle, minHeight: COMPACT_FRIEND_ROW_ESTIMATE }}
                       className="rounded-control border border-[var(--border)] px-[var(--space-3)] text-[var(--text-dim)]"
                       onPointerLeave={() => setHoveredRowKey(null)}
                     >
@@ -1368,12 +1368,10 @@ export default function FriendsList(): React.JSX.Element {
                     virtualIndex={virtualItem.index}
                     virtualStyle={
                       density === 'compact'
-                        ? { ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }
+                        ? { ...virtualStyle, minHeight: COMPACT_FRIEND_ROW_ESTIMATE }
                         : virtualStyle
                     }
-                    measureElement={
-                      density === 'compact' ? undefined : rowVirtualizer.measureElement
-                    }
+                    measureElement={rowVirtualizer.measureElement}
                   />
                 )
               })}
