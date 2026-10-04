@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import type { FriendRosterResponse } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
 import { RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
@@ -28,15 +29,23 @@ export async function fetchFriends(
   platform: Platform,
   getCached?: () => Friend[] | undefined
 ): Promise<Friend[]> {
+  return (await fetchFriendRoster(platform, getCached)).friends
+}
+
+export async function fetchFriendRoster(
+  platform: Platform,
+  getCached?: () => Friend[] | undefined
+): Promise<FriendRosterResponse> {
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   const result = await window.vrx.getFriends({ platform })
-  if (Array.isArray(result)) return result
+  if (Array.isArray(result)) return { friends: result, completeness: 'complete' }
+  if (result.completeness === 'complete') return result
   const seen = new Set(result.friends.map((friend) => friend.platformUserId))
   // Read after the await: live updates and account-boundary cache clears win.
   const omitted = (getCached?.() ?? []).filter(
     (friend) => friend.platform === platform && !seen.has(friend.platformUserId)
   )
-  return omitted.length ? [...result.friends, ...omitted] : result.friends
+  return { ...result, friends: omitted.length ? [...result.friends, ...omitted] : result.friends }
 }
 
 /**
@@ -70,18 +79,21 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // AFTER the fetch resolves so any live world-metadata enrichment that lands
     // mid-flight survives the REST write.
     queryFn: (context) => {
-      const load = async (): Promise<Friend[]> => {
-        const fresh = await fetchFriends(platform, () =>
+      const load = async (): Promise<FriendRosterResponse> => {
+        const fresh = await fetchFriendRoster(platform, () =>
           queryClient.getQueryData(friendsQueryKey(platform))
         )
-        return mergeKnownInstanceMetadata(
-          queryClient.getQueryData(friendsQueryKey(platform)),
-          fresh
-        )
+        return {
+          ...fresh,
+          friends: mergeKnownInstanceMetadata(
+            queryClient.getQueryData(friendsQueryKey(platform)),
+            fresh.friends
+          )
+        }
       }
       return platform === 'vrchat'
         ? withFriendEventReplay(queryClient, context.signal, load)
-        : load()
+        : load().then((roster) => roster.friends)
     },
     structuralSharing: platform === 'vrchat' ? shareFriendReplayResult : undefined,
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,

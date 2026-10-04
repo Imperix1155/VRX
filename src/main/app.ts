@@ -578,9 +578,10 @@ app
     // platforms share one broadcaster; the renderer keys events by platform.
     const broadcast = (event: AdapterEvent): void => {
       if (event.type === 'auth-invalidated') explore.clearPlatform(event.platform)
+      const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {
         // Guard a window torn down between enumeration and send.
-        if (!window.isDestroyed()) window.webContents.send('friend-event', event)
+        if (!window.isDestroyed()) window.webContents.send('friend-event', published)
       }
     }
     const teardownAdapterEvents = wireAdapterEvents({

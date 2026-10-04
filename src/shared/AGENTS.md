@@ -51,8 +51,10 @@ main, preload, and renderer. It is the vocabulary at the process boundary.
   tokens, cooldowns, or session data across IPC.
 - `ExploreImageResult` permits ready `data:` data, terminal `null`, or a typed
   bounded local-admission deferral. It grants no URL or session authority.
-  Complete friend snapshots remain arrays; partial snapshots add only their
-  completeness marker.
+  VRChat friend responses carry completeness and physical-read provenance;
+  partial follow-ups retain the earlier revision for omitted rows. CVR complete
+  snapshots remain arrays. Friend events carry a main-owned ordering revision,
+  never a timestamp or renderer-supplied authority.
 - `CREDENTIAL_PERSISTENCE_FAILED` is the sole login error with dedicated renderer
   copy. `AUTH_IDENTITY_UNAVAILABLE` remains terminal but uses generic copy.
   `sessionCleared` means main discarded local auth state and consumers must set

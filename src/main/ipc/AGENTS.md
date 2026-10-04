@@ -66,7 +66,9 @@ handlers; domain files validate requests and call main-owned services.
   services.
 - Preserve roster completeness and location revisions through `get-friends`.
   Only a complete roster may reconcile missing friends. Partial results preserve
-  cached omissions; failed reads do not seed authority.
+  cached omissions; failed reads do not seed authority. VRChat responses expose
+  seed revisions plus IDs replaced by a partial follow-up, without duplicating
+  friend payloads or leaking rate-limit timing.
 - Settings reads migrate and validate in main. A save must reject a newer-file
   overwrite or durable-write failure so the renderer does not report an
   unsaved preference as durable.

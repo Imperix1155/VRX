@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Reconnect roster freshness:** a newer VRChat follow-up roster now supersedes older live deltas, while partial results and events received after that read retain their correct order.
+
 ### Fixed
 
 - Reduce time spent validating large linked-profile lists.
