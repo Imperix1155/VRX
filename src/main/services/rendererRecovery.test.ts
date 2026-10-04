@@ -81,3 +81,20 @@ it('ignores intentional exits and suppresses the crash caused by its own hang re
   expect(x.window.reload).toHaveBeenCalledOnce()
   expect(x.showDialog).toHaveBeenCalledOnce()
 })
+
+it('dismisses a crash dialog without reloading or terminating the renderer', async () => {
+  const x = new RecoveryHarness()
+  x.recovery.crashed('oom', 1)
+  expect(x.showDialog.mock.calls[0]?.[0]).toMatchObject({
+    buttons: ['Reload', 'Dismiss'],
+    cancelId: 1
+  })
+  x.resolve(1)
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(x.window.reload).not.toHaveBeenCalled()
+  expect(x.window.webContents.forcefullyCrashRenderer).not.toHaveBeenCalled()
+  expect(x.onError).not.toHaveBeenCalled()
+  x.recovery.crashed('oom', 1)
+  expect(x.showDialog).toHaveBeenCalledTimes(2)
+})

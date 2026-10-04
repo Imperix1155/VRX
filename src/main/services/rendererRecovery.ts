@@ -33,7 +33,7 @@ export function createRendererRecovery({ window, showDialog, onError }: Recovery
               title: 'VRX — Renderer Crashed',
               message: 'The window has stopped responding due to an unexpected error.',
               detail: `Reason: ${crash?.reason} (exit code ${crash?.exitCode})`,
-              buttons: ['Reload', 'Close'],
+              buttons: ['Reload', 'Dismiss'],
               defaultId: 0,
               cancelId: 1
             }
