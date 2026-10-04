@@ -1,5 +1,6 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
+import { RosterRefresh } from '../../../main/services/adapters/RosterRefresh'
 import { MAX_FRIENDS } from '@shared/constants'
 import type { AdapterEvent, Friend } from '@shared/types'
 import { fullFriend } from '../test-utils/friendFixture'
@@ -8,6 +9,8 @@ import { friendsQueryKey } from './friends'
 import { queryClient } from './queryClient'
 import {
   FriendEventReplayOverflowError,
+  clearFriendEventReplay,
+  shareFriendReplayResult,
   recordFriendEventForReplay,
   withFriendEventReplay
 } from './friendEventReplay'
@@ -35,6 +38,7 @@ function deferred(): {
 function start(client: QueryClient, response: Promise<Friend[]>): Promise<Friend[]> {
   return client.fetchQuery({
     queryKey: key,
+    structuralSharing: shareFriendReplayResult,
     queryFn: ({ signal }) => withFriendEventReplay(client, signal, () => response)
   })
 }
@@ -45,39 +49,25 @@ function deliver(client: QueryClient, event: AdapterEvent): void {
   )
 }
 
-describe('request-local friend event replay', () => {
-  it('releases request subscriptions on ordinary failures, cancellation, overflow, and success', async () => {
+describe('transport-owned friend event replay', () => {
+  it('releases failed and abandoned reads before a genuinely fresh read', async () => {
     const client = new QueryClient()
-    const cache = client.getQueryCache()
-    const subscribe = cache.subscribe.bind(cache)
-    let active = 0
-    const spy = vi.spyOn(cache, 'subscribe').mockImplementation((listener) => {
-      active++
-      const stop = subscribe(listener)
-      return () => {
-        active--
-        stop()
-      }
-    })
     const failed = deferred()
     const failedRequest = start(client, failed.promise)
-    expect(active).toBe(1)
+    deliver(client, removed)
     failed.reject(new Error('network failed'))
     await expect(failedRequest).rejects.toThrow('network failed')
-    expect(active).toBe(0)
+    await start(client, Promise.resolve([alice]))
+    expect(client.getQueryData(key)).toEqual([alice])
     const cancelled = deferred()
     const cancelledRequest = start(client, cancelled.promise).catch(() => undefined)
+    deliver(client, removed)
     await client.cancelQueries({ queryKey: key })
     await cancelledRequest
-    expect(active).toBe(0)
-    const overloaded = deferred()
-    const overloadedRequest = start(client, overloaded.promise)
-    for (let count = 0; count <= MAX_FRIENDS; count++) deliver(client, removed)
-    await expect(overloadedRequest).rejects.toBeInstanceOf(FriendEventReplayOverflowError)
-    expect(active).toBe(0)
+    cancelled.resolve([alice])
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
     await start(client, Promise.resolve([alice]))
-    expect(active).toBe(0)
-    spy.mockRestore()
+    expect(client.getQueryData(key)).toEqual([alice])
     client.clear()
   })
 
@@ -157,12 +147,13 @@ describe('request-local friend event replay', () => {
     secondClient.clear()
   })
 
-  it('disposes cancelled attempts without losing the replacement attempt events', async () => {
+  it('discards old-account transport without losing replacement-account events', async () => {
     const client = new QueryClient()
     client.setQueryData(key, [alice])
     const old = deferred()
     const oldRequest = start(client, old.promise).catch(() => undefined)
     deliver(client, removed)
+    clearFriendEventReplay(client)
     await client.cancelQueries({ queryKey: key })
     const fresh = deferred()
     const freshRequest = start(client, fresh.promise)
@@ -192,7 +183,7 @@ describe('request-local friend event replay', () => {
       expect(client.getQueryData(key)).toEqual(warm ? [] : undefined)
       // Releasing the abandoned IPC result must not publish its old roster.
       response.resolve([alice])
-      await Promise.resolve()
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
       await start(client, Promise.resolve([alice]))
       expect(client.getQueryData(key)).toEqual([alice])
       client.clear()
@@ -219,3 +210,154 @@ describe('request-local friend event replay', () => {
     client.clear()
   })
 })
+
+describe('roster transport publication', () => {
+  it.each(['friend-removed', 'friend-offline'] as const)(
+    'preserves %s across replacement queries sharing a main read',
+    async (type) => {
+      const client = new QueryClient()
+      client.setQueryData(key, [alice])
+      const physical = deferred()
+      const read = vi.fn(async () => ({
+        friends: await physical.promise,
+        completeness: 'complete' as const
+      }))
+      const main = new RosterRefresh(read, () => 0)
+      const lease = { generation: 0, signal: new AbortController().signal, isCurrent: () => true }
+      const bridge = vi.fn(async () => (await main.get(lease)).friends)
+      const request = client.fetchQuery({
+        queryKey: key,
+        structuralSharing: shareFriendReplayResult,
+        queryFn: ({ signal }) => withFriendEventReplay(client, signal, bridge)
+      })
+      deliver(client, { type, platform: 'vrchat', platformUserId: alice.platformUserId })
+      const replacement = client.refetchQueries({ queryKey: key })
+      physical.resolve([alice])
+      await Promise.allSettled([request, replacement])
+      const result = client.getQueryData<Friend[]>(key)!
+      if (type === 'friend-removed') expect(result).toEqual([])
+      else expect(result[0]?.presence.state).toBe('offline')
+      expect(read).toHaveBeenCalledOnce()
+      expect(bridge).toHaveBeenCalledOnce()
+      client.clear()
+    }
+  )
+
+  it('owns publication when a success listener starts a reentrant request', async () => {
+    const client = new QueryClient()
+    const next = deferred()
+    let second: Promise<Friend[]> | undefined
+    const stop = client.getQueryCache().subscribe((event) => {
+      if (
+        event.type === 'updated' &&
+        event.action.type === 'success' &&
+        !event.action.manual &&
+        !second
+      ) {
+        second = start(client, next.promise)
+      }
+    })
+    await start(client, Promise.resolve([alice]))
+    deliver(client, removed)
+    next.resolve([alice])
+    await second
+    expect(client.getQueryData(key)).toEqual([])
+    stop()
+    client.clear()
+  })
+
+  it('never publishes a stale intermediate roster to cache subscribers', async () => {
+    const client = new QueryClient()
+    const seen: Friend[][] = []
+    const observed: Friend[][] = []
+    const observer = new QueryObserver<Friend[]>(client, { queryKey: key, enabled: false })
+    const stopObserver = observer.subscribe((result) => {
+      if (result.data) observed.push(result.data)
+    })
+    const stop = client.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'success')
+        seen.push(event.query.state.data as Friend[])
+    })
+    const response = deferred()
+    const request = start(client, response.promise)
+    deliver(client, removed)
+    response.resolve([alice])
+    await request
+    expect(seen).toEqual([[]])
+    expect(observed).toEqual([[]])
+    stopObserver()
+    stop()
+    client.clear()
+  })
+})
+
+it('keeps events received in the promise-to-publication gap without a stale notification', async () => {
+  const client = new QueryClient()
+  const seen: Friend[][] = []
+  const stop = client.getQueryCache().subscribe((event) => {
+    if (event.type === 'updated' && event.action.type === 'success')
+      seen.push(event.query.state.data as Friend[])
+  })
+  await client.fetchQuery({
+    queryKey: key,
+    structuralSharing: shareFriendReplayResult,
+    queryFn: ({ signal }) => {
+      const result = withFriendEventReplay(client, signal, async () => [alice])
+      void result.then(() => deliver(client, removed))
+      return result
+    }
+  })
+  expect(seen).toEqual([[]])
+  stop()
+  client.clear()
+})
+
+it('does not reopen an overflowed transport before it settles', async () => {
+  const client = new QueryClient({ defaultOptions: queryClient.getDefaultOptions() })
+  const response = deferred()
+  const load = vi.fn(() => response.promise)
+  const fetch = (): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) => withFriendEventReplay(client, signal, load)
+    })
+  const first = fetch()
+  for (let i = 0; i <= MAX_FRIENDS; i++) deliver(client, removed)
+  await expect(first).rejects.toBeInstanceOf(FriendEventReplayOverflowError)
+  await expect(fetch()).rejects.toBeInstanceOf(FriendEventReplayOverflowError)
+  expect(load).toHaveBeenCalledOnce()
+  response.resolve([alice])
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  await fetch()
+  expect(load).toHaveBeenCalledTimes(2)
+  expect(client.getQueryData(key)).toEqual([alice])
+  client.clear()
+})
+
+it.each(['success', 'failure', 'abort', 'overflow', 'boundary'] as const)(
+  'releases abort listeners on %s and permits a later fresh read',
+  async (outcome) => {
+    const client = new QueryClient()
+    const controller = new AbortController()
+    const add = vi.spyOn(controller.signal, 'addEventListener')
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    const response = deferred()
+    const result = withFriendEventReplay(client, controller.signal, () => response.promise)
+    const settled = result.catch(() => undefined)
+    expect(add).toHaveBeenCalledOnce()
+    if (outcome === 'failure') response.reject(new Error('failed'))
+    if (outcome === 'abort') controller.abort()
+    if (outcome === 'boundary') clearFriendEventReplay(client)
+    if (outcome === 'overflow')
+      for (let i = 0; i <= MAX_FRIENDS; i++) recordFriendEventForReplay(client, removed)
+    if (outcome !== 'failure') response.resolve([alice])
+    const value = await settled
+    if (outcome === 'success') shareFriendReplayResult(undefined, value)
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(remove).toHaveBeenCalledOnce()
+    await start(client, Promise.resolve([alice]))
+    expect(client.getQueryData(key)).toEqual([alice])
+    client.clear()
+  }
+)

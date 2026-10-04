@@ -32,7 +32,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
-import { recordFriendEventForReplay } from '../queries/friendEventReplay'
+import { clearFriendEventReplay, recordFriendEventForReplay } from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -110,6 +110,7 @@ export function useLiveFriendEvents(): void {
         // roster to [] rather than removing the query, so a mounted observer
         // doesn't immediately refetch (→ another 401 → loop); a real reconnect
         // repopulates it.
+        if (event.platform === 'vrchat') clearFriendEventReplay(queryClient)
         quarantined.add(event.platform)
         latestSnapshot.delete(event.platform)
         // Cancel any in-flight friends fetch so it can't resolve and write a
@@ -142,6 +143,7 @@ export function useLiveFriendEvents(): void {
     })
 
     const unsubscribeIdentityBoundary = window.vrx.onIdentityBoundary(({ platform }) => {
+      if (platform === 'vrchat') clearFriendEventReplay(queryClient)
       // Account identity and buffered live state share one boundary. Clearing the
       // snapshot here prevents account A presence from being re-applied when the
       // account B roster fetch resolves before B's connection reaches 'live'.

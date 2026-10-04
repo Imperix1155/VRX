@@ -591,16 +591,18 @@ The friends IPC boundary exposes only a partial marker, never the deadline;
 after the bridge resolves. Unavailable rate-limited rosters and admission
 overflow use the existing `rate_limited` error with no outer query retry.
 
-`withFriendEventReplay(client, signal, load)` and
-`recordFriendEventForReplay(client, event)` in renderer
-`queries/friendEventReplay.ts` coordinate one active VRChat roster attempt with
-the existing app-wide event subscription. Accepted deltas received after request
-start replay when the non-manual roster success reaches the cache, including the
-promise-to-publication gap. Each attempt releases its journal on success, failure,
-or abort; account boundaries cancel it through the existing query fence. A
-`MAX_FRIENDS`-sized event limit raises `FriendEventReplayOverflowError`, preserves
-current live data, and reports a query error without automatic retry; a later
-explicit refresh starts a fresh attempt.
+`withFriendEventReplay(client, signal, load)`, `shareFriendReplayResult`,
+`recordFriendEventForReplay(client, event)`, and `clearFriendEventReplay(client)`
+in renderer `queries/friendEventReplay.ts` coordinate a VRChat IPC roster read
+with accepted live deltas. Replacement queries share the pending transport and
+journal because renderer cancellation cannot cancel main's coalesced read.
+The response's unique array identity owns its merge: query structural sharing
+replays deltas before any cache/observer publication, without a success listener.
+Transport failure, abandoned settlement, or successful publication releases events
+and abort listeners. Identity/auth boundaries explicitly discard old transports.
+A `MAX_FRIENDS` event cap rejects without retry and preserves live cache; the failed
+pending transport remains a tombstone until IPC settles so refresh cannot reuse
+that old main read with an empty journal. A later explicit refresh is fresh.
 CVR snapshot replay, request cadence, partial-roster merging, and metadata merging
 keep their existing owners.
 
