@@ -56,12 +56,16 @@ and Node/Electron access on this side of the process boundary.
   admission while CDN body work stays bounded. Send a VRChat cookie only to
   `api.vrchat.cloud`, fence cache publication to the account lease, and never
   make the renderer fetch a vendor image directly.
-- Settings load through migration and validation, coalesce writes, flush before
-  quit, and refuse to overwrite a newer-version file. Account, social, and
-  linked-profile stores validate bounded data and account/epoch ownership before
+- Settings load through migration and validation, retain valid parsed choices if
+  normalization persistence fails, coalesce writes, flush before quit, and refuse
+  to overwrite a newer-version file. Failed normalization remains visibly unsaved
+  and retryable; it must not replace parsed settings with defaults. Account, social,
+  and linked-profile stores validate bounded data and account/epoch ownership before
   mutation. They write cloned, revision-checked snapshots; link-graph public
-  operations reject same-realm reentry. Failed or stale writes must not corrupt
-  or cross account data.
+  operations reject same-realm reentry. Account registry writes publish memory only
+  after persistence succeeds, so an identical retry after failure still attempts
+  the durable write. Failed or stale
+  writes must not corrupt or cross account data.
 - External CVR session discovery requires explicit remembered consent before any
   source I/O. Valid VRX sessions bypass import; declined consent preserves direct
   login. A failed consent write fails closed and is disclosed to the user.

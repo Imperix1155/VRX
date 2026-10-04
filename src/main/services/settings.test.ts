@@ -6,7 +6,7 @@
  * would exit-loop the app on every launch until the user hand-deleted the file.
  * Pins: a throwing store read falls back to in-memory defaults.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { FriendAlerts } from './friendAlerts'
 
@@ -45,6 +45,7 @@ vi.mock('../logger', () => ({ default: { warn: vi.fn(), info: vi.fn(), error: vi
 import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
+  hasPendingSettingsSave,
   loadSettings,
   saveSettings
 } from './settings'
@@ -59,6 +60,8 @@ beforeEach(() => {
   storeState.written = []
 })
 
+afterEach(() => vi.useRealTimers())
+
 describe('loadSettings (W7 M1)', () => {
   it('falls back to defaults instead of throwing when the store read throws (corrupted file)', () => {
     storeState.throwOnRead = true
@@ -69,6 +72,69 @@ describe('loadSettings (W7 M1)', () => {
   it('parses a valid persisted file', () => {
     storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
     expect(loadSettings().theme).toBe('light')
+  })
+
+  it.each([
+    ['current', { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }],
+    ['legacy', { theme: 'light', allowJoinInstances: false }]
+  ])(
+    'preserves %s settings when normalization cannot be written, with an explicit flush retry',
+    (_label, raw) => {
+      vi.useFakeTimers()
+      storeState.data = raw
+      storeState.throwOnWrite = true
+
+      const loaded = loadSettings()
+
+      expect(loaded).toMatchObject({ theme: 'light', allowJoinInstances: false })
+      expect(getSettingsSnapshot()).toEqual(loaded)
+      expect(hasPendingSettingsSave()).toBe(true)
+      expect(storeState.written).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+      const readsAfterLoad = storeState.reads
+      expect(loadSettings()).toEqual(loaded)
+      expect(storeState.reads).toBe(readsAfterLoad)
+
+      storeState.throwOnWrite = false
+      flushPendingSettingsSave()
+
+      expect(storeState.written).toEqual([loaded])
+      expect(hasPendingSettingsSave()).toBe(false)
+    }
+  )
+
+  it('preserves loaded preferences when a later unrelated edit retries failed normalization', async () => {
+    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }
+    storeState.throwOnWrite = true
+    loadSettings()
+    storeState.throwOnWrite = false
+
+    const pending = saveSettings({ density: 'compact' })
+    flushPendingSettingsSave()
+
+    await expect(pending).resolves.toMatchObject({
+      theme: 'light',
+      allowJoinInstances: false,
+      density: 'compact'
+    })
+    expect(storeState.written).toEqual([
+      expect.objectContaining({ theme: 'light', allowJoinInstances: false, density: 'compact' })
+    ])
+    expect(hasPendingSettingsSave()).toBe(false)
+  })
+
+  it('does not let a failed normalization retry overwrite a newer-version file', () => {
+    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
+    storeState.throwOnWrite = true
+    loadSettings()
+    storeState.throwOnWrite = false
+    storeState.data = { ...DEFAULT_SETTINGS, version: 9999, futureField: 'keep-me' }
+
+    flushPendingSettingsSave()
+
+    expect(storeState.written).toEqual([])
+    expect(hasPendingSettingsSave()).toBe(true)
+    expect(getSettingsSnapshot().theme).toBe('light')
   })
 
   it('persists the normalized form back for a legacy (version-less) file', () => {

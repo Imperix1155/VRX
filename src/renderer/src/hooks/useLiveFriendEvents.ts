@@ -6,8 +6,9 @@
  * just keeps it fresh in real time instead of waiting for the slow reconcile.
  *
  * - Friend deltas → applyFriendEvent over the cached list for that platform.
- *   Events arriving before the first fetch (no cached list yet) are dropped —
- *   the in-flight/upcoming fetch supersedes them.
+ *   VRChat deltas received during a roster request are also replayed at cache
+ *   publication, including on the first load. Events before any request/cache
+ *   have no roster to update; a later fresh request supplies that baseline.
  * - connection 'live' → invalidate the friends queries: the refetch IS the
  *   on-(re)connect REST reconcile the issue requires.
  * - CVR presence-snapshot → buffered per platform and re-applied when the roster
@@ -31,6 +32,7 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import { recordFriendEventForReplay } from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -135,6 +137,7 @@ export function useLiveFriendEvents(): void {
         return
       }
       if (event.type === 'presence-snapshot') latestSnapshot.set(event.platform, event)
+      recordFriendEventForReplay(queryClient, event)
       applyToCache(event.platform, event)
     })
 

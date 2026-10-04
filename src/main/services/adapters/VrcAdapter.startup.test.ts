@@ -98,6 +98,23 @@ describe('VRChat synthetic cold-start milestones', () => {
     expect(requests.filter((r) => r.path === '/auth/user')).toHaveLength(2)
   })
 
+  it.each([
+    { id: 'owner', displayName: 'Synthetic owner' },
+    { ...user, activeFriends: null }
+  ])(
+    'rejects a roster without invalidating identity when fallback evidence is unavailable',
+    async (body) => {
+      const { adapter, binding, requests } = setup(body)
+      expect((await settle(adapter.getAuthStatus())).state).toBe('authenticated')
+
+      const failure = expect(adapter.getFriends()).rejects.toThrow('presence=degraded')
+      await settle(failure)
+      expect(requests.map((request) => request.path)).toEqual(['/auth/user', '/auth/user'])
+      expect(binding.getOwner()).toBe('owner')
+      expect((await settle(adapter.getAuthStatus())).state).toBe('authenticated')
+    }
+  )
+
   it('does not reuse buckets after their five-second freshness window', async () => {
     const { adapter, requests } = setup()
     await settle(adapter.getAuthStatus())

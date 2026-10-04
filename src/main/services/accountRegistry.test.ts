@@ -12,6 +12,7 @@ vi.mock('electron-store', () => ({ default: class {} }))
 class MemoryRegistryStorage implements AccountRegistryStorage {
   value: unknown = {}
   readError: Error | null = null
+  writeError: Error | null = null
   writes: AccountRegistryFile[] = []
 
   read(): unknown {
@@ -20,6 +21,7 @@ class MemoryRegistryStorage implements AccountRegistryStorage {
   }
 
   write(value: AccountRegistryFile): void {
+    if (this.writeError) throw this.writeError
     this.value = structuredClone(value)
     this.writes.push(structuredClone(value))
   }
@@ -207,4 +209,48 @@ describe('AccountRegistry', () => {
 
     expect(storage.writes).toHaveLength(1)
   })
+
+  it('keeps a failed new account write out of memory and retries the identical adoption', () => {
+    session.setIdentity('vrchat', 'usr_a')
+    storage.writeError = new Error('disk full')
+
+    expect(() => recordCurrent('vrchat', 'Alice')).toThrow('disk full')
+    expect(registry.listAccounts()).toEqual([])
+
+    storage.writeError = null
+    recordCurrent('vrchat', 'Alice')
+
+    expect(storage.writes).toHaveLength(1)
+    expect(new AccountRegistry(session, storage).listAccounts()).toEqual([
+      { platform: 'vrchat', platformAccountId: 'usr_a', displayName: 'Alice', isActive: true }
+    ])
+  })
+
+  it.each([
+    ['display name change', 'usr_a'],
+    ['account replacement', 'usr_b']
+  ])(
+    'keeps the committed registry after a failed %s until an identical retry succeeds',
+    (_label, accountId) => {
+      session.setIdentity('vrchat', 'usr_a')
+      recordCurrent('vrchat', 'Alice')
+      const committed = registry.listAccounts()
+      session.setIdentity('vrchat', accountId)
+      storage.writeError = new Error('disk full')
+
+      expect(() => recordCurrent('vrchat', 'Updated')).toThrow('disk full')
+      expect(registry.listAccounts()).toEqual(committed)
+      expect(new AccountRegistry(session, storage).listAccounts()).toEqual(committed)
+
+      storage.writeError = null
+      recordCurrent('vrchat', 'Updated')
+
+      expect(storage.writes).toHaveLength(2)
+      const reloaded = new AccountRegistry(session, storage).listAccounts()
+      expect(reloaded).toEqual(registry.listAccounts())
+      expect(reloaded.filter((account) => account.isActive)).toEqual([
+        { platform: 'vrchat', platformAccountId: accountId, displayName: 'Updated', isActive: true }
+      ])
+    }
+  )
 })

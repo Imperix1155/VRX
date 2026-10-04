@@ -30,7 +30,7 @@ interface SettingsSaveWaiter {
 
 interface PendingSettingsSave {
   settings: Settings
-  timer: ReturnType<typeof setTimeout>
+  timer?: ReturnType<typeof setTimeout>
   waiters: SettingsSaveWaiter[]
 }
 
@@ -47,25 +47,23 @@ function getStore(): Store<Record<string, unknown>> {
  * files by writing the normalized form back — but NEVER overwrites a file written
  * by a newer build (that would strip its forward fields and lose data on a
  * rollback). Never throws — falls back to in-memory defaults if the store or a
- * migration fails, leaving the on-disk file intact.
+ * migration fails, leaving the on-disk file intact. A normalization write failure
+ * retains the loaded settings as unsaved for an explicit retry or quit flush.
  */
 export function loadSettings(): Settings {
   // A queued snapshot is newer than disk until the coalesced write completes.
   // Serve it directly so renderer reloads cannot clobber the in-memory truth.
   if (pendingSettingsSave) return pendingSettingsSave.settings
 
+  let raw: unknown
+  let settings: Settings
   try {
     // Inside the try (audit W7 review): conf's `store` getter RETHROWS on a
     // corrupted JSON file — outside the try, that throw escaped the "never
     // throws" contract and (post-W7 bootstrap .catch) would exit-loop the app
     // on every launch until the file was hand-deleted.
-    const raw = getStore().store
-    const settings = parseSettings(raw)
-    if (shouldPersistSettings(raw)) {
-      getStore().store = settings
-    }
-    settingsSnapshot = settings
-    return settings
+    raw = getStore().store
+    settings = parseSettings(raw)
   } catch (err) {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
     // redaction hook's object-walk can't see inside an Error (house pattern).
@@ -76,6 +74,23 @@ export function loadSettings(): Settings {
     settingsSnapshot = { ...DEFAULT_SETTINGS }
     return settingsSnapshot
   }
+
+  settingsSnapshot = settings
+  if (shouldPersistSettings(raw)) {
+    try {
+      getStore().store = settings
+    } catch (err) {
+      // The read succeeded: never substitute defaults for the user's settings
+      // just because normalization could not be committed. Reuse the existing
+      // pending snapshot and retry metadata without scheduling a timer loop.
+      pendingSettingsSave = { settings, waiters: [] }
+      log.warn(
+        'settings: normalization write failed; retaining loaded settings for retry',
+        err instanceof Error ? err.message : String(err)
+      )
+    }
+  }
+  return settings
 }
 
 /** Transient durability metadata for renderer hydration; never stored on disk. */

@@ -6,6 +6,7 @@ import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 import { mergeKnownInstanceMetadata } from '../utils/mergeKnownInstanceMetadata'
+import { withFriendEventReplay } from './friendEventReplay'
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -68,11 +69,19 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // (VRX-254), covering the REST roster path (VRX-258). The cache is read
     // AFTER the fetch resolves so any live world-metadata enrichment that lands
     // mid-flight survives the REST write.
-    queryFn: async () => {
-      const fresh = await fetchFriends(platform, () =>
-        queryClient.getQueryData(friendsQueryKey(platform))
-      )
-      return mergeKnownInstanceMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
+    queryFn: (context) => {
+      const load = async (): Promise<Friend[]> => {
+        const fresh = await fetchFriends(platform, () =>
+          queryClient.getQueryData(friendsQueryKey(platform))
+        )
+        return mergeKnownInstanceMetadata(
+          queryClient.getQueryData(friendsQueryKey(platform)),
+          fresh
+        )
+      }
+      return platform === 'vrchat'
+        ? withFriendEventReplay(queryClient, context.signal, load)
+        : load()
     },
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:

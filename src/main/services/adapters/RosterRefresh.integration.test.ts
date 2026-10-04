@@ -64,7 +64,8 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s roster event coalescing', (
             { id: 'a1b2c3d4-0000-0000-0000-000000000001', name, imageUrl: null, categories: [] }
           ]
         })
-      if (url.endsWith('/auth/user')) return jsonResponse({ onlineFriends: [] })
+      if (url.endsWith('/auth/user'))
+        return jsonResponse({ onlineFriends: [], activeFriends: [], offlineFriends: [] })
       return jsonResponse(
         url.includes('offline=true') ? [] : [{ id: 'usr_fixture', displayName: name }]
       )
