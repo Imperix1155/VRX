@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve loaded preferences when settings normalization cannot be saved, and retain
   the unsaved snapshot for retry instead of replacing choices with defaults.
 - Retry failed account-history writes without publishing uncommitted account entries.
-- Keep newer live friend updates when an older VRChat roster response finishes.
+- Keep newer live friend updates when an older VRChat roster response finishes,
+  including cancelled/replaced queries, without publishing an intermediate stale roster.
 - Treat missing VRChat presence buckets as unavailable data instead of marking
   every friend offline.
 

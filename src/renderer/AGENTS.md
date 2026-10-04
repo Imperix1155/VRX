@@ -47,12 +47,13 @@ credential, network, or launch authority.
   recover one expired reference for the same world. Visible
   consumers may retry only typed image-admission deferrals within the bounded
   per-reference budget; terminal failures stay neutral.
-- VRChat roster reads retain only accepted live deltas received during that
-  active query attempt and replay them when its response reaches the cache.
-  Cancelled, failed, completed, or account-invalidated attempts release retained
-  events. Bounded overflow preserves live cache, reports a query error, and never
-  schedules an automatic retry or additional request. CVR snapshot
-  replay remains separate.
+- VRChat roster deltas belong to the pending IPC transport, shared across query
+  cancellation/replacement because main coalesces reads. Replay by response identity
+  in structural sharing before publication, never by a key-only success listener.
+  Account boundaries explicitly discard old transports. Failure, abandoned
+  settlement, and publication release journals/listeners. Overflow bounds events,
+  rejects without retry, and fences reuse until the old transport settles. CVR
+  snapshot replay remains separate.
 - `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
   metadata only when the current instance keeps the same world or group identity;
   fresh values win.

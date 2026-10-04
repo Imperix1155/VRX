@@ -738,3 +738,62 @@ describe('all-platform FriendsList recovery with one signed-out platform', () =>
     }
   )
 })
+
+it.each(['identity', 'auth-invalidated'] as const)(
+  'abandons pending VRChat transport at %s boundary without publishing old data',
+  async (boundary) => {
+    const old = vrcFriend('Old account')
+    const next = vrcFriend('Next account')
+    let resolveOld!: (friends: Friend[]) => void
+    let resolveNext!: (friends: Friend[]) => void
+    const getFriends = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Friend[]>((resolve) => {
+            resolveOld = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<Friend[]>((resolve) => {
+            resolveNext = resolve
+          })
+      )
+    stubBridge({
+      getFriends,
+      getAuthStatus: vi
+        .fn()
+        .mockResolvedValue({ state: boundary === 'identity' ? 'authenticated' : 'unauthenticated' })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated' })
+    const mounted = mountFriends(client, () => {})
+    await waitFor(() => expect(resolveOld).toBeTypeOf('function'))
+    await act(async () => {
+      if (boundary === 'identity') fireIdentityBoundary!({ platform: 'vrchat' })
+      else fireFriendEvent!({ type: 'auth-invalidated', platform: 'vrchat' })
+    })
+    if (boundary === 'identity') await waitFor(() => expect(resolveNext).toBeTypeOf('function'))
+    act(() =>
+      fireFriendEvent!({
+        type: 'friend-offline',
+        platform: 'vrchat',
+        platformUserId: next.platformUserId
+      })
+    )
+    await act(async () => resolveOld([old]))
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([])
+    if (boundary === 'identity') {
+      await act(async () => resolveNext([next]))
+      await waitFor(() =>
+        expect(client.getQueryData<Friend[]>(friendsQueryKey('vrchat'))?.[0]?.presence.state).toBe(
+          'offline'
+        )
+      )
+      expect(getFriends).toHaveBeenCalledTimes(2)
+    } else expect(getFriends).toHaveBeenCalledOnce()
+    mounted.unmount()
+    client.clear()
+  }
+)

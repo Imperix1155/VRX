@@ -6,7 +6,7 @@ import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 import { mergeKnownInstanceMetadata } from '../utils/mergeKnownInstanceMetadata'
-import { withFriendEventReplay } from './friendEventReplay'
+import { shareFriendReplayResult, withFriendEventReplay } from './friendEventReplay'
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -83,6 +83,7 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
         ? withFriendEventReplay(queryClient, context.signal, load)
         : load()
     },
+    structuralSharing: platform === 'vrchat' ? shareFriendReplayResult : undefined,
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
       reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),

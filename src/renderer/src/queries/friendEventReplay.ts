@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/react-query'
+import { replaceEqualDeep, type QueryClient } from '@tanstack/react-query'
 import { MAX_FRIENDS } from '@shared/constants'
 import type { AdapterEvent, Friend } from '@shared/types'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -17,14 +17,22 @@ type LiveDelta = Extract<
   }
 >
 
-interface Replay {
+interface Transport {
   events: LiveDelta[]
-  overflow: () => void
+  promise: Promise<Friend[]>
+  settled: boolean
+  consumers: Set<() => void>
+  failure?: Error
+  reject: (error: unknown) => void
+  dispose: () => void
 }
 
-// Only active VRChat roster attempts retain events, scoped to their query client.
-// One roster-sized burst is ample headroom without an unbounded event history.
-const activeReplays = new WeakMap<QueryClient, Set<Replay>>()
+// Renderer cancellation cannot cancel main's coalesced roster read. Replacement
+// queries share this IPC operation and its journal until the transport settles.
+const pending = new WeakMap<QueryClient, Transport>()
+const journals = new WeakMap<QueryClient, Set<Transport>>()
+const results = new WeakMap<object, Transport>()
+
 export class FriendEventReplayOverflowError extends Error {
   constructor() {
     super('Friends changed too often during refresh')
@@ -32,7 +40,7 @@ export class FriendEventReplayOverflowError extends Error {
   }
 }
 
-/** Called by the existing app-wide subscription, after its auth quarantine guard. */
+/** Called after auth quarantine; only active transports retain accepted deltas. */
 export function recordFriendEventForReplay(client: QueryClient, event: AdapterEvent): void {
   if (
     event.platform !== 'vrchat' ||
@@ -43,67 +51,101 @@ export function recordFriendEventForReplay(client: QueryClient, event: AdapterEv
     event.type === 'friends-snapshot'
   )
     return
-  for (const replay of activeReplays.get(client) ?? []) {
-    if (replay.events.length === MAX_FRIENDS) replay.overflow()
-    else replay.events.push(event)
+  for (const transport of journals.get(client) ?? []) {
+    if (transport.events.length < MAX_FRIENDS) transport.events.push(event)
+    else {
+      transport.failure = new FriendEventReplayOverflowError()
+      transport.reject(transport.failure)
+      transport.dispose()
+      // Keep pending's failed tombstone until the underlying IPC settles. A
+      // retry must not reopen the same main read with an empty journal.
+    }
   }
 }
 
-/**
- * Protect one roster from deltas received after its request starts. Keep the
- * journal until Query publishes success, including the promise-to-cache gap.
- * Cancellation (including account boundaries) releases it immediately. CVR's
- * full presence snapshots keep their existing separately owned replay path.
- */
-export async function withFriendEventReplay(
+/** Account boundaries abandon the transport; ordinary query cancellation does not. */
+export function clearFriendEventReplay(client: QueryClient): void {
+  pending.delete(client)
+  for (const transport of journals.get(client) ?? []) {
+    transport.failure = new Error('Friends account changed')
+    transport.reject(transport.failure)
+    transport.dispose()
+  }
+}
+
+/** Query structural sharing runs before data reaches observers or cache subscribers. */
+export function shareFriendReplayResult(previous: unknown, incoming: unknown): unknown {
+  const transport = Array.isArray(incoming) ? results.get(incoming) : undefined
+  if (!transport) return replaceEqualDeep(previous, incoming)
+  results.delete(incoming as Friend[])
+  const events = transport.events
+  transport.dispose()
+  if (transport.failure) throw transport.failure
+  return replaceEqualDeep(previous, events.reduce(applyFriendEvent, incoming as Friend[]))
+}
+
+export function withFriendEventReplay(
   client: QueryClient,
   signal: AbortSignal,
   load: () => Promise<Friend[]>
 ): Promise<Friend[]> {
-  let rejectOverflow!: (error: Error) => void
-  const overflow = new Promise<never>((_resolve, reject) => {
-    rejectOverflow = reject
-  })
-  const replays = activeReplays.get(client) ?? new Set<Replay>()
-  activeReplays.set(client, replays)
-  const replay: Replay = {
-    events: [],
-    overflow: () => {
-      dispose()
-      // Reject rather than cancel/revert: retain live cached data, and let a
-      // first load enter an error state instead of staying pending.
-      rejectOverflow(new FriendEventReplayOverflowError())
+  signal.throwIfAborted()
+  let transport = pending.get(client)
+  if (!transport) {
+    let resolve!: (roster: Friend[]) => void
+    let reject!: (error: unknown) => void
+    const promise = new Promise<Friend[]>((done, fail) => {
+      resolve = done
+      reject = fail
+    })
+    const active = journals.get(client) ?? new Set<Transport>()
+    journals.set(client, active)
+    const created: Transport = {
+      events: [],
+      promise,
+      settled: false,
+      consumers: new Set(),
+      reject,
+      dispose: () => {
+        created.events = []
+        active.delete(created)
+        if (active.size === 0 && journals.get(client) === active) journals.delete(client)
+        for (const stop of created.consumers) stop()
+        created.consumers.clear()
+      }
     }
-  }
-  let disposed = false
-  const unsubscribe = client.getQueryCache().subscribe((event) => {
-    if (event.type !== 'updated') return
-    const key = event.query.queryKey as readonly unknown[]
-    if (key.length !== 2 || key[0] !== 'friends' || key[1] !== 'vrchat') return
-    if (event.action.type !== 'success' || event.action.manual) return
-    const events = replay.events
-    dispose()
-    if (events.length === 0) return
-    client.setQueryData<Friend[]>(key, (roster) =>
-      roster === undefined ? undefined : events.reduce(applyFriendEvent, roster)
+    transport = created
+    active.add(created)
+    pending.set(client, created)
+    void (async () => load())().then(
+      (roster) => {
+        created.settled = true
+        if (pending.get(client) === created) pending.delete(client)
+        if (created.failure) return
+        // Unique identity associates only this transport's response with its
+        // prepublication merge, even if a fixture/cache reuses the input array.
+        const result = [...roster]
+        results.set(result, created)
+        if (created.consumers.size === 0) created.dispose()
+        resolve(result)
+      },
+      (error: unknown) => {
+        created.settled = true
+        if (pending.get(client) === created) pending.delete(client)
+        created.dispose()
+        reject(error)
+      }
     )
-  })
-  function dispose(): void {
-    if (disposed) return
-    disposed = true
-    replay.events = []
-    replays.delete(replay)
-    if (replays.size === 0) activeReplays.delete(client)
-    unsubscribe()
-    signal.removeEventListener('abort', dispose)
   }
-  replays.add(replay)
-  signal.addEventListener('abort', dispose, { once: true })
-  try {
-    signal.throwIfAborted()
-    return await Promise.race([load(), overflow])
-  } catch (error) {
-    dispose()
-    throw error
+  const owned = transport
+  if (owned.failure) return owned.promise
+  const onAbort = (): void => {
+    stop()
+    owned.consumers.delete(stop)
+    if (owned.settled && owned.consumers.size === 0) owned.dispose()
   }
+  const stop = (): void => signal.removeEventListener('abort', onAbort)
+  owned.consumers.add(stop)
+  signal.addEventListener('abort', onAbort, { once: true })
+  return owned.promise
 }
