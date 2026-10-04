@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Show roster failures when the other platform is signed out, and restrict Friends
+  refresh to enabled platforms so recovery does not bypass the sign-in gate.
+
 - Preserve loaded preferences when settings normalization cannot be saved, and retain
   the unsaved snapshot for retry instead of replacing choices with defaults.
 - Retry failed account-history writes without publishing uncommitted account entries.

@@ -8,7 +8,7 @@
  * buffers the latest snapshot per platform and re-applies it when the roster
  * fetch resolves. These tests pin that, and the no-re-apply-loop guard.
  */
-import { render, screen, cleanup, act, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, act, waitFor, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
@@ -560,7 +560,7 @@ describe('useLiveFriendEvents — auth-status quarantine guard (VRX-155)', () =>
 
     // The VRChat fetch is still pending; CVR has no fabricated roster. The list
     // must stay in loading, not flash a false empty state.
-    expect(screen.getByText(i18n.t('friends.loading'))).toBeTruthy()
+    expect(await screen.findByText(i18n.t('friends.loading'))).toBeTruthy()
     expect(screen.queryByText(i18n.t('friends.empty'))).toBeNull()
   })
 })
@@ -684,6 +684,55 @@ describe('useLiveFriendEvents — roster request ordering', () => {
         await pending
       })
       expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual(expected)
+      mounted.unmount()
+      client.clear()
+    }
+  )
+})
+
+describe('all-platform FriendsList recovery with one signed-out platform', () => {
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'shows %s load failure and refreshes only that authenticated platform',
+    async (platform) => {
+      const other = platform === 'vrchat' ? 'chilloutvr' : 'vrchat'
+      const getFriends = vi.fn().mockRejectedValue(new Error('synthetic unavailable roster'))
+      stubBridge({ getFriends })
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      client.setQueryData(authStatusQueryKey(platform), {
+        platform,
+        state: 'authenticated',
+        accountId: 'self',
+        displayName: 'Self'
+      })
+      client.setQueryData(authStatusQueryKey(other), {
+        platform: other,
+        state: 'unauthenticated',
+        accountId: null,
+        displayName: null
+      })
+      function FriendsListProbe(): React.JSX.Element {
+        useLiveFriendEvents()
+        return <FriendsList />
+      }
+      const mounted = render(
+        <QueryClientProvider client={client}>
+          <FriendsListProbe />
+        </QueryClientProvider>
+      )
+      await waitFor(() =>
+        expect(client.getQueryState(friendsQueryKey(platform))?.status).toBe('error')
+      )
+      expect(await screen.findByText(i18n.t('friends.error'))).toBeTruthy()
+      expect(screen.queryByText(i18n.t('friends.loading'))).toBeNull()
+      expect(client.getQueryData(friendsQueryKey(other))).toBeUndefined()
+      expect(getFriends.mock.calls).toEqual([[{ platform }]])
+
+      getFriends.mockResolvedValue([])
+      fireEvent.click(screen.getByRole('button', { name: i18n.t('friends.refresh') }))
+      await waitFor(() => expect(screen.getByText(i18n.t('friends.empty'))).toBeTruthy())
+      expect(screen.queryByText(i18n.t('friends.error'))).toBeNull()
+      expect(getFriends.mock.calls).toEqual([[{ platform }], [{ platform }]])
+      expect(client.getQueryData(friendsQueryKey(other))).toBeUndefined()
       mounted.unmount()
       client.clear()
     }

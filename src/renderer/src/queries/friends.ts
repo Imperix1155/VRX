@@ -105,7 +105,10 @@ export function scopeByPlatformFilter<T>(filter: PlatformFilter, vrc: T, cvr: T)
 export type FriendQuery = Pick<
   UseQueryResult<Friend[], Error>,
   'data' | 'isPending' | 'isError' | 'isFetching' | 'refetch'
->
+> & {
+  /** Query projections without enablement retain their existing enabled behavior. */
+  isEnabled?: boolean
+}
 
 export interface CombinedFriendsView {
   friends: Friend[] | undefined
@@ -125,7 +128,8 @@ export interface CombinedFriendsView {
  * `friends` stays `undefined` until at least one scoped query returns, so the
  * list never flashes "empty" or an error while data is still loading (matching
  * the stale-while-revalidate render in FriendsList). Error/empty only surface
- * once every scoped query has resolved with nothing.
+ * once every enabled scoped query has resolved with nothing. Disabled queries
+ * do not hold loading/error recovery open and are skipped by explicit refresh.
  */
 export function combineFriendQueries(
   filter: PlatformFilter,
@@ -133,25 +137,25 @@ export function combineFriendQueries(
   cvr: FriendQuery
 ): CombinedFriendsView {
   const scoped = scopeByPlatformFilter(filter, vrc, cvr)
-  const anyData = scoped.some((q) => q.data !== undefined)
-  const anyPending = scoped.some((q) => q.isPending)
-  const combined = scoped.flatMap((q) => q.data ?? [])
-  // A scoped query errored and, once everything has settled, the combined list
-  // is EMPTY → surface the error instead of a misleading "no friends" empty
-  // state (Codex VRX-196): in `all` mode a failing platform must not be hidden
-  // behind the other platform's empty-but-successful list. If there ARE friends
-  // to show, we keep showing them (stale-while-revalidate) and don't error.
-  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
+  const friends = scoped.some((q) => q.data !== undefined)
+    ? scoped.flatMap((q) => q.data ?? [])
+    : undefined
+  return combinedView(scoped, friends)
+}
+
+/** Disabled queries can remain pending forever and refetch bypasses their gate. */
+function combinedView(scoped: FriendQuery[], friends: Friend[] | undefined): CombinedFriendsView {
+  const enabled = scoped.filter((q) => q.isEnabled !== false)
+  const anyPending = enabled.some((q) => q.isPending)
+  const errorMasksEmpty =
+    !anyPending && (friends?.length ?? 0) === 0 && enabled.some((q) => q.isError)
   return {
-    friends: anyData && !errorMasksEmpty ? combined : undefined,
-    // Loading until the FIRST scoped query returns data — so `all` mode still
-    // shows "loading" when one platform errored while the other is mid-load
-    // (rather than a blank frame). Once any data is in, it's no longer pending.
-    isPending: !anyData && anyPending,
-    isError: errorMasksEmpty || scoped.every((q) => q.isError),
-    isFetching: scoped.some((q) => q.isFetching),
+    friends: errorMasksEmpty ? undefined : friends,
+    isPending: friends === undefined && anyPending,
+    isError: errorMasksEmpty || (enabled.length > 0 && enabled.every((q) => q.isError)),
+    isFetching: enabled.some((q) => q.isFetching),
     refetch: () => {
-      for (const q of scoped) void q.refetch()
+      for (const q of enabled) void q.refetch()
     }
   }
 }
@@ -178,19 +182,5 @@ export function useCombineFriendQueries(
     return scoped.flatMap((d) => d ?? [])
   }, [filter, vrc.data, cvr.data])
 
-  const scoped = scopeByPlatformFilter(filter, vrc, cvr)
-  const anyData = scoped.some((q) => q.data !== undefined)
-  const anyPending = scoped.some((q) => q.isPending)
-  const combined = friends ?? []
-  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
-
-  return {
-    friends: anyData && !errorMasksEmpty ? friends : undefined,
-    isPending: !anyData && anyPending,
-    isError: errorMasksEmpty || scoped.every((q) => q.isError),
-    isFetching: scoped.some((q) => q.isFetching),
-    refetch: () => {
-      for (const q of scoped) void q.refetch()
-    }
-  }
+  return combinedView(scopeByPlatformFilter(filter, vrc, cvr), friends)
 }

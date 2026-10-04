@@ -108,3 +108,7 @@ the diff and applicable API/design documentation for sync.
 ## Child DOX Index
 
 No children.
+
+- Combined Friends query state ignores disabled platforms for pending/error/fetching
+  flags and explicit refresh. Keep cached-data folding and memoized array identity
+  intact; an enabled but paused first load still counts as pending.
