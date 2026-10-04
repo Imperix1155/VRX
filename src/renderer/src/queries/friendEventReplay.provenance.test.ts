@@ -12,6 +12,7 @@ import { fullFriend } from '../test-utils/friendFixture'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 import { fetchFriendRoster, friendsQueryKey } from './friends'
 import {
+  clearFriendEventReplay,
   recordFriendEventForReplay,
   shareFriendReplayResult,
   withFriendEventReplay
@@ -37,6 +38,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 function setup(): {
   client: QueryClient
+  replaceAccount: () => Promise<void>
+  start: () => Promise<Friend[]>
   reads: Array<{ resolve: (roster: FriendRoster) => void; reject: (error: Error) => void }>
   refresh: RosterRefresh
   request: Promise<Friend[]>
@@ -54,7 +57,8 @@ function setup(): {
     () => authority.captureSeedRevision('vrchat')
   )
   const adapter = stubPlatformAdapter()
-  const lease = { generation: 0, signal: new AbortController().signal, isCurrent: () => true }
+  let controller = new AbortController()
+  let lease = { generation: 0, signal: controller.signal, isCurrent: () => true }
   vi.mocked(adapter.getFriends).mockImplementation(() => refresh.get(lease))
   registerFriendsHandlers(new Map([['vrchat', adapter]]), authority, new AppStatusService())
   const getFriends = vi.fn(() =>
@@ -62,14 +66,26 @@ function setup(): {
   )
   vi.stubGlobal('window', { vrx: { getFriends } })
   client.setQueryData(key, [alice, bob])
-  const request = client.fetchQuery({
-    queryKey: key,
-    structuralSharing: shareFriendReplayResult,
-    queryFn: ({ signal }) =>
-      withFriendEventReplay(client, signal, () =>
-        fetchFriendRoster('vrchat', () => client.getQueryData(key))
-      )
-  })
+  const start = (): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) =>
+        withFriendEventReplay(client, signal, () =>
+          fetchFriendRoster('vrchat', () => client.getQueryData(key))
+        )
+    })
+  const request = start()
+  const replaceAccount = async (): Promise<void> => {
+    controller.abort()
+    refresh.clear()
+    authority.consume({ type: 'auth-invalidated', platform: 'vrchat' })
+    controller = new AbortController()
+    lease = { ...lease, generation: lease.generation + 1, signal: controller.signal }
+    clearFriendEventReplay(client)
+    await client.cancelQueries({ queryKey: key })
+    client.setQueryData(key, [])
+  }
   const deliver = (event: FriendEvent): void => {
     authority.consume(event)
     const published = { ...event, rosterRevision: authority.captureEventRevision() }
@@ -78,7 +94,7 @@ function setup(): {
   }
   const offline = (friend: Friend): void =>
     deliver({ type: 'friend-offline', platform: 'vrchat', platformUserId: friend.platformUserId })
-  return { client, reads, refresh, request, deliver, offline, getFriends }
+  return { client, reads, refresh, request, deliver, offline, getFriends, start, replaceAccount }
 }
 
 describe('physical roster read provenance through IPC and renderer', () => {
@@ -173,4 +189,27 @@ describe('physical roster read provenance through IPC and renderer', () => {
     ])
     s.client.clear()
   })
+})
+
+it('fences a reconnect follow-up across account replacement and keeps the new journal', async () => {
+  const s = setup()
+  const oldRequest = s.request.catch(() => undefined)
+  s.refresh.invalidate()
+  s.reads[0]!.resolve({ friends: [alice], completeness: 'complete' })
+  await vi.waitFor(() => expect(s.reads).toHaveLength(2))
+  await s.replaceAccount()
+  const next = s.start()
+  expect(s.reads).toHaveLength(3)
+  s.offline(bob)
+  s.reads[1]!.resolve({ friends: [alice], completeness: 'complete' })
+  await oldRequest
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  expect(s.client.getQueryData(key)).toEqual([])
+  s.reads[2]!.resolve({ friends: [bob], completeness: 'complete' })
+  await next
+  expect(
+    s.client.getQueryData<Friend[]>(key)?.map((f) => [f.platformUserId, f.presence.state])
+  ).toEqual([[bob.platformUserId, 'offline']])
+  expect(s.getFriends).toHaveBeenCalledTimes(2)
+  s.client.clear()
 })
