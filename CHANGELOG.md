@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reduce time spent validating large linked-profile lists.
+
 - Show roster failures when the other platform is signed out, and restrict Friends
   refresh to enabled platforms so recovery does not bypass the sign-in gate.
 

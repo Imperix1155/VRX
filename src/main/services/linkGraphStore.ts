@@ -408,6 +408,7 @@ const profileFields = {
   sharedNote: z.string().max(500),
   revision: revisionSchema
 }
+const profileFieldsSchema = z.object(profileFields).strict()
 const profileKeys = ['id', 'members', ...Object.keys(profileFields)]
 const changeSchema = z.discriminatedUnion('kind', [
   z
@@ -533,7 +534,7 @@ function parseProfiles(raw: unknown): { file: LinkProfileFile; legacy: boolean }
       throw new Error('link graph: invalid profile')
     const fields = Object.create(null) as Record<string, unknown>
     for (const key of Object.keys(profileFields)) fields[key] = pd[key]!.value
-    Object.assign(person, z.object(profileFields).strict().parse(fields))
+    Object.assign(person, profileFieldsSchema.parse(fields))
     for (const member of person.members) {
       const key = memberKey(member)
       if (owners.has(key)) throw new Error('link graph: conflicting members')
