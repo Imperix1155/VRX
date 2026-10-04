@@ -36,11 +36,11 @@ export type VrcFetcher = <T>(path: string, schema: z.ZodType<T>) => Promise<T>
 
 // ─── Zod schemas for raw API shapes ──────────────────────────────────────────
 
-/** Minimal current-user shape — only the bucket arrays we need. */
+/** Missing buckets are unavailable evidence, not an empty/offline baseline. */
 const currentUserBucketsSchema = z.object({
-  onlineFriends: z.array(z.string()).default([]),
-  activeFriends: z.array(z.string()).default([]),
-  offlineFriends: z.array(z.string()).default([])
+  onlineFriends: z.array(z.string()),
+  activeFriends: z.array(z.string()),
+  offlineFriends: z.array(z.string())
 })
 
 /**

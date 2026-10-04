@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { z } from 'zod'
 import type { VrcFetcher } from './fetchFriends'
 import { fetchFriends } from './fetchFriends'
 import { AuthError, RateLimitError } from '../errors'
@@ -473,6 +474,58 @@ describe('fetchFriends', () => {
       const result = await fetchFriends(fetcher)
       expect(result.friends).toHaveLength(MAX_FRIENDS)
       expect(offlineCalled).toBe(false)
+    })
+  })
+
+  describe('presence evidence validation', () => {
+    const bucketFields = ['onlineFriends', 'activeFriends', 'offlineFriends'] as const
+    const invalidBuckets: Array<[string, Record<string, unknown>]> = [
+      ['all arrays omitted', {}],
+      ...bucketFields.flatMap((field): Array<[string, Record<string, unknown>]> => {
+        const omitted: Record<string, unknown> = { ...BUCKETS }
+        delete omitted[field]
+        return [
+          [`${field} omitted`, omitted],
+          [`${field} null`, { ...BUCKETS, [field]: null }],
+          [`${field} wrong type`, { ...BUCKETS, [field]: 'offline' }],
+          [`${field} invalid member`, { ...BUCKETS, [field]: [42] }]
+        ]
+      })
+    ]
+
+    it.each(invalidBuckets)('degrades without pagination when %s', async (_label, buckets) => {
+      const paths: string[] = []
+      const fetcher: VrcFetcher = async <T>(path: string, schema: z.ZodType<T>): Promise<T> => {
+        paths.push(path)
+        return schema.parse(path === '/auth/user' ? buckets : [makeFriend(1)])
+      }
+
+      expect(await fetchFriends(fetcher)).toMatchObject({
+        presence: 'degraded',
+        completeness: 'partial',
+        friends: []
+      })
+      expect(paths).toEqual(['/auth/user'])
+    })
+
+    it('accepts explicitly empty arrays as complete presence evidence', async () => {
+      const paths: string[] = []
+      const fetcher: VrcFetcher = async <T>(path: string, schema: z.ZodType<T>): Promise<T> => {
+        paths.push(path)
+        return schema.parse(
+          path === '/auth/user'
+            ? { onlineFriends: [], activeFriends: [], offlineFriends: [] }
+            : path.includes('offline=true')
+              ? [makeFriend(1)]
+              : []
+        )
+      }
+
+      const roster = await fetchFriends(fetcher)
+      expect(roster).toMatchObject({ presence: 'complete', completeness: 'complete' })
+      expect(roster.friends).toHaveLength(1)
+      expect(roster.friends[0]?.presence.state).toBe('offline')
+      expect(paths).toHaveLength(3)
     })
   })
 

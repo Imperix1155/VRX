@@ -564,3 +564,128 @@ describe('useLiveFriendEvents — auth-status quarantine guard (VRX-155)', () =>
     expect(screen.queryByText(i18n.t('friends.empty'))).toBeNull()
   })
 })
+
+describe('useLiveFriendEvents — roster request ordering', () => {
+  it.each(['complete', 'partial'] as const)(
+    'keeps a first-load removal in a delayed %s roster',
+    async (completeness) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const friend = vrcFriend('Alice')
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        state: 'authenticated',
+        accountId: 'self',
+        displayName: 'Self'
+      })
+      let resolve!: (value: Friend[] | { friends: Friend[]; completeness: 'partial' }) => void
+      stubBridge({
+        getFriends: () =>
+          new Promise((done) => {
+            resolve = done
+          })
+      })
+      const mounted = mountFriends(client, () => {})
+      await waitFor(() => expect(resolve).toBeTypeOf('function'))
+      act(() =>
+        fireFriendEvent!({
+          type: 'friend-removed',
+          platform: 'vrchat',
+          platformUserId: friend.platformUserId
+        })
+      )
+      expect(client.getQueryData(friendsQueryKey('vrchat'))).toBeUndefined()
+      await act(async () => {
+        resolve(
+          completeness === 'complete' ? [friend] : { friends: [friend], completeness: 'partial' }
+        )
+      })
+      await waitFor(() => expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([]))
+      mounted.unmount()
+      client.clear()
+    }
+  )
+
+  it('preserves partial-roster omissions while applying newer live removals', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const alice = vrcFriend('Alice')
+    const omitted = vrcFriend('Omitted')
+    client.setQueryData(authStatusQueryKey('vrchat'), {
+      state: 'authenticated',
+      accountId: 'self',
+      displayName: 'Self'
+    })
+    client.setQueryData(friendsQueryKey('vrchat'), [alice, omitted])
+    let resolve!: (value: { friends: Friend[]; completeness: 'partial' }) => void
+    stubBridge({
+      getFriends: () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    })
+    const mounted = mountFriends(client, () => {})
+    let pending!: Promise<void>
+    act(() => {
+      pending = client.invalidateQueries({ queryKey: friendsQueryKey('vrchat') })
+    })
+    await waitFor(() => expect(resolve).toBeTypeOf('function'))
+    act(() =>
+      fireFriendEvent!({
+        type: 'friend-removed',
+        platform: 'vrchat',
+        platformUserId: alice.platformUserId
+      })
+    )
+    await act(async () => {
+      resolve({ friends: [alice], completeness: 'partial' })
+      await pending
+    })
+    expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([omitted])
+    mounted.unmount()
+    client.clear()
+  })
+
+  it.each(['friend-offline', 'friend-removed'] as const)(
+    'keeps a newer %s when an older roster completes',
+    async (type) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const friend: Friend = {
+        ...vrcFriend('Alice'),
+        platform: 'vrchat',
+        presence: { state: 'active' }
+      }
+      client.setQueryData(authStatusQueryKey('vrchat'), {
+        platform: 'vrchat',
+        state: 'authenticated',
+        accountId: 'self',
+        displayName: 'Self'
+      })
+      client.setQueryData(friendsQueryKey('vrchat'), [friend])
+      let resolve!: (friends: Friend[]) => void
+      const getFriends = vi.fn(
+        () =>
+          new Promise<Friend[]>((done) => {
+            resolve = done
+          })
+      )
+      stubBridge({ getFriends })
+      const mounted = mountFriends(client, () => {})
+      let pending!: Promise<void>
+      act(() => {
+        pending = client.invalidateQueries({ queryKey: friendsQueryKey('vrchat') })
+      })
+      await waitFor(() => expect(getFriends).toHaveBeenCalledTimes(1))
+      act(() =>
+        fireFriendEvent!({ type, platform: 'vrchat', platformUserId: friend.platformUserId })
+      )
+      const expected =
+        type === 'friend-removed' ? [] : [{ ...friend, presence: { state: 'offline' } }]
+      expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual(expected)
+      await act(async () => {
+        resolve([friend])
+        await pending
+      })
+      expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual(expected)
+      mounted.unmount()
+      client.clear()
+    }
+  )
+})
