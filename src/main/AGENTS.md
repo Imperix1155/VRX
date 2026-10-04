@@ -146,3 +146,8 @@ and Node/Electron access on this side of the process boundary.
   ChilloutVR parsing, discovery, and pipeline code.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md):
   VRChat parsing, metadata, and pipeline code.
+
+- Roster seed captures and published friend events share LocationAuthority’s
+  monotonic revision order. VRChat IPC returns bounded per-read provenance,
+  preserving earlier rows on partial follow-up; publication revisions do not
+  change per-friend location fences.

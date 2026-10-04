@@ -179,13 +179,16 @@ describe('get-friends location seeding', () => {
           ok: false,
           reason: 'stale'
         })
-        expect(result).toEqual({ friends: [fresh, oldFriend, omission], completeness: 'partial' })
+        expect(result).toMatchObject({
+          friends: [fresh, oldFriend, omission],
+          completeness: 'partial'
+        })
       } else {
         expect(authority.resolve('vrchat', oldFriend.platformUserId)).toEqual({
           ok: false,
           reason: 'unknown-friend'
         })
-        expect(result).toEqual([fresh])
+        expect(result).toMatchObject({ friends: [fresh], completeness: 'complete' })
       }
     }
   )
@@ -227,9 +230,11 @@ describe('get-friends location seeding', () => {
     const capture = vi.spyOn(authority, 'captureSeedRevision')
     const seed = vi.spyOn(authority, 'seed')
 
-    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual([
-      rosterFriend
-    ])
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
+      friends: [rosterFriend],
+      completeness: 'complete',
+      provenance: { baseRevision: expect.any(Number), overrides: [] }
+    })
     expect(capture).toHaveBeenCalledWith('vrchat')
     const captureOrder = capture.mock.invocationCallOrder[0]
     const fetchOrder = vi.mocked(adapter.getFriends).mock.invocationCallOrder[0]
@@ -308,7 +313,8 @@ describe('get-friends location seeding', () => {
 
     await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
       friends: [rosterFriend],
-      completeness: 'partial'
+      completeness: 'partial',
+      provenance: { baseRevision: expect.any(Number), overrides: [] }
     })
     expect(authority.resolve('vrchat', omittedFriend.platformUserId)).toMatchObject({
       ok: true,

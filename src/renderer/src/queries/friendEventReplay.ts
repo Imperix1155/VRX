@@ -1,10 +1,11 @@
 import { replaceEqualDeep, type QueryClient } from '@tanstack/react-query'
 import { MAX_FRIENDS } from '@shared/constants'
-import type { AdapterEvent, Friend } from '@shared/types'
+import type { FriendEvent, FriendRosterProvenance, FriendRosterResponse } from '@shared/ipc'
+import type { Friend } from '@shared/types'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
 type LiveDelta = Extract<
-  AdapterEvent,
+  FriendEvent,
   {
     type:
       | 'friend-presence'
@@ -19,6 +20,7 @@ type LiveDelta = Extract<
 
 interface Transport {
   events: LiveDelta[]
+  provenance?: FriendRosterProvenance
   promise: Promise<Friend[]>
   settled: boolean
   consumers: Set<() => void>
@@ -41,7 +43,7 @@ export class FriendEventReplayOverflowError extends Error {
 }
 
 /** Called after auth quarantine; only active transports retain accepted deltas. */
-export function recordFriendEventForReplay(client: QueryClient, event: AdapterEvent): void {
+export function recordFriendEventForReplay(client: QueryClient, event: FriendEvent): void {
   if (
     event.platform !== 'vrchat' ||
     event.type === 'connection' ||
@@ -81,13 +83,45 @@ export function shareFriendReplayResult(previous: unknown, incoming: unknown): u
   const events = transport.events
   transport.dispose()
   if (transport.failure) throw transport.failure
-  return replaceEqualDeep(previous, events.reduce(applyFriendEvent, incoming as Friend[]))
+  return replaceEqualDeep(
+    previous,
+    replayEvents(incoming as Friend[], events, transport.provenance)
+  )
+}
+
+/** Compare each row with its physical read, not the containing IPC operation. */
+function replayEvents(
+  friends: Friend[],
+  events: LiveDelta[],
+  provenance?: FriendRosterProvenance
+): Friend[] {
+  const revisions = new Map<string, number>()
+  for (const override of provenance?.overrides ?? []) {
+    for (const id of override.friendIds) revisions.set(id, override.revision)
+  }
+  return events.reduce((current, event) => {
+    const revision = event.rosterRevision
+    if (revision === undefined || !provenance) return applyFriendEvent(current, event)
+    const isNewer = (id: string): boolean =>
+      revision > (revisions.get(id) ?? provenance.baseRevision)
+    if (event.type === 'world-metadata' || event.type === 'group-metadata') {
+      // One metadata event may affect rows from both physical reads.
+      const changed = applyFriendEvent(
+        current.filter((friend) => isNewer(friend.platformUserId)),
+        event
+      )
+      const byId = new Map(changed.map((friend) => [friend.platformUserId, friend]))
+      return current.map((friend) => byId.get(friend.platformUserId) ?? friend)
+    }
+    const id = 'friend' in event ? event.friend.platformUserId : event.platformUserId
+    return isNewer(id) ? applyFriendEvent(current, event) : current
+  }, friends)
 }
 
 export function withFriendEventReplay(
   client: QueryClient,
   signal: AbortSignal,
-  load: () => Promise<Friend[]>
+  load: () => Promise<Friend[] | FriendRosterResponse>
 ): Promise<Friend[]> {
   signal.throwIfAborted()
   let transport = pending.get(client)
@@ -124,7 +158,8 @@ export function withFriendEventReplay(
         if (created.failure) return
         // Unique identity associates only this transport's response with its
         // prepublication merge, even if a fixture/cache reuses the input array.
-        const result = [...roster]
+        created.provenance = Array.isArray(roster) ? undefined : roster.provenance
+        const result = [...(Array.isArray(roster) ? roster : roster.friends)]
         results.set(result, created)
         if (created.consumers.size === 0) created.dispose()
         resolve(result)
