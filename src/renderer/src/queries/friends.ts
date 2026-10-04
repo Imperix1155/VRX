@@ -1,13 +1,29 @@
 import { useMemo } from 'react'
+import { z } from 'zod'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import type { FriendRosterResponse } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import { RECONCILE_INTERVAL_MS } from '@shared/constants'
+import { MAX_FRIENDS, RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 import { mergeKnownInstanceMetadata } from '../utils/mergeKnownInstanceMetadata'
 import { shareFriendReplayResult, withFriendEventReplay } from './friendEventReplay'
+
+const revisionSchema = z.number().int().nonnegative()
+const rosterProvenanceSchema = z
+  .object({
+    baseRevision: revisionSchema,
+    overrides: z
+      .array(
+        z.object({
+          revision: revisionSchema,
+          friendIds: z.array(z.string().min(1)).max(MAX_FRIENDS)
+        })
+      )
+      .max(1)
+  })
+  .refine((value) => value.overrides.every((entry) => entry.revision >= value.baseRevision))
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -39,6 +55,14 @@ export async function fetchFriendRoster(
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   const result = await window.vrx.getFriends({ platform })
   if (Array.isArray(result)) return { friends: result, completeness: 'complete' }
+  if (
+    !result ||
+    !Array.isArray(result.friends) ||
+    (result.completeness !== 'complete' && result.completeness !== 'partial') ||
+    (result.provenance !== undefined &&
+      !rosterProvenanceSchema.safeParse(result.provenance).success)
+  )
+    throw new Error('invalid_roster_response')
   if (result.completeness === 'complete') return result
   const seen = new Set(result.friends.map((friend) => friend.platformUserId))
   // Read after the await: live updates and account-boundary cache clears win.

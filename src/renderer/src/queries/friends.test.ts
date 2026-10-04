@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchFriends, friendsQueryKey } from './friends'
+import { fetchFriendRoster, fetchFriends, friendsQueryKey } from './friends'
 import { fullFriend } from '../test-utils/friendFixture'
 
 describe('friendsQueryKey', () => {
@@ -40,5 +40,46 @@ describe('fetchFriends', () => {
     vi.stubGlobal('window', { vrx: { getFriends } })
     await expect(fetchFriends('vrchat')).resolves.toBe(friends)
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
+  })
+})
+
+describe('roster envelope contract', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it.each([
+    null,
+    { baseRevision: NaN, overrides: [] },
+    { baseRevision: -1, overrides: [] },
+    { baseRevision: 1, overrides: [{ revision: 0, friendIds: ['usr_a'] }] },
+    { baseRevision: 1, overrides: [{ revision: 2, friendIds: null }] }
+  ])(
+    'rejects malformed provenance instead of silently dropping live updates: %j',
+    async (provenance) => {
+      vi.stubGlobal('window', {
+        vrx: {
+          getFriends: vi
+            .fn()
+            .mockResolvedValue({ friends: [], completeness: 'complete', provenance })
+        }
+      })
+      await expect(fetchFriendRoster('vrchat')).rejects.toThrow('invalid_roster_response')
+    }
+  )
+  it('preserves legacy partial merging and does not merge omissions into a complete envelope', async () => {
+    const old = fullFriend('Old', 'vrchat')
+    const getFriends = vi
+      .fn()
+      .mockResolvedValueOnce({ friends: [], completeness: 'partial' })
+      .mockResolvedValueOnce({
+        friends: [],
+        completeness: 'complete',
+        provenance: { baseRevision: 4, overrides: [] }
+      })
+    vi.stubGlobal('window', { vrx: { getFriends } })
+    expect((await fetchFriendRoster('vrchat', () => [old])).friends).toEqual([old])
+    expect(await fetchFriendRoster('vrchat', () => [old])).toEqual({
+      friends: [],
+      completeness: 'complete',
+      provenance: { baseRevision: 4, overrides: [] }
+    })
   })
 })
