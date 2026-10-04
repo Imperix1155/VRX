@@ -1,3 +1,4 @@
+import { createRendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { JoinCoordinator } from './services/joinCoordinator'
@@ -19,7 +20,12 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { initAutoUpdater } from './updater'
-import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
+import {
+  flushPendingSettingsSave,
+  getSettingsSnapshot,
+  loadSettings,
+  saveSettings
+} from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
@@ -50,6 +56,7 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
+import { requestCvrImportConsent } from './services/cvrImportConsent'
 import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
 
 // Set true by the before-quit handler below — the single source of truth for
@@ -167,70 +174,21 @@ function createWindow(): BrowserWindow {
     log.error('renderer load failed', { message: String(err) })
   })
 
-  // ── Renderer crash/hang handlers (VRX-127 follow-up) ──────────────────────
-
-  // render-process-gone fires when the renderer process exits unexpectedly.
-  // Denylist only intentional teardown reasons — all others (crashed, oom,
-  // abnormal-exit, launch-failed, integrity-failure, memory-eviction) surface
-  // a recovery dialog. 'clean-exit' is normal shutdown; 'killed' is the
-  // reason emitted when forcefullyCrashRenderer() is called to unstick an
-  // unresponsive renderer, so a second dialog is never shown for that path.
-  const SILENT_REASONS: ReadonlySet<string> = new Set(['clean-exit', 'killed'])
-
+  const recovery = createRendererRecovery({
+    window: mainWindow,
+    showDialog: (options) => dialog.showMessageBox(mainWindow, options),
+    onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) })
+  })
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])
-    // Expected exits (a clean shutdown, or our own forcefullyCrashRenderer →
-    // 'killed') are silent — don't error-log or alarm on them (CodeRabbit).
-    if (SILENT_REASONS.has(details.reason)) return
-
-    log.error('render-process-gone', { reason: details.reason, exitCode: details.exitCode })
-
-    dialog
-      .showMessageBox(mainWindow, {
-        type: 'error',
-        title: 'VRX — Renderer Crashed',
-        message: 'The window has stopped responding due to an unexpected error.',
-        detail: `Reason: ${details.reason} (exit code ${details.exitCode})`,
-        buttons: ['Reload', 'Close'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      .then(({ response }) => {
-        if (!mainWindow.isDestroyed() && response === 0) {
-          mainWindow.reload()
-        }
-      })
-      .catch((err: unknown) => {
-        log.warn('render-process-gone dialog rejected', { message: String(err) })
-      })
+    if (details.reason !== 'clean-exit' && details.reason !== 'killed') {
+      log.error('render-process-gone', { reason: details.reason, exitCode: details.exitCode })
+    }
+    recovery.crashed(details.reason, details.exitCode)
   })
-
-  // unresponsive fires when the renderer stops responding to IPC pings.
   mainWindow.on('unresponsive', () => {
     log.warn('window-unresponsive')
-
-    dialog
-      .showMessageBox(mainWindow, {
-        type: 'warning',
-        title: 'VRX — Window Not Responding',
-        message: 'VRX is not responding.',
-        detail: 'The window may be busy. You can wait or reload it.',
-        buttons: ['Reload', 'Wait'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      .then(({ response }) => {
-        if (!mainWindow.isDestroyed() && response === 0) {
-          // Force-kill the stuck renderer before reloading so the reload
-          // starts a fresh process. This emits render-process-gone with
-          // reason 'killed', which is silently skipped by SILENT_REASONS.
-          mainWindow.webContents.forcefullyCrashRenderer()
-          mainWindow.reload()
-        }
-      })
-      .catch((err: unknown) => {
-        log.warn('unresponsive dialog rejected', { message: String(err) })
-      })
+    recovery.unresponsive()
   })
 
   // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
@@ -414,8 +372,8 @@ app
       }
     })
     // CVR session = { username, accessKey } persisted as ONE encrypted credential
-    // (VRX-37/174/56). With no valid stored session, the read-only importer checks the
-    // game profile first and CVRX second. Imported material is printable-ASCII
+    // (VRX-37/174/56). With no valid stored session, explicit remembered consent
+    // precedes discovery of game profiles or CVRX sessions. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
       const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
@@ -439,6 +397,39 @@ app
     try {
       initialCvrCredentials = await loadStoredOrImportedCvrSession({
         loadStored: loadStoredCvrCredentials,
+        requestImportConsent: () =>
+          requestCvrImportConsent({
+            choice: getSettingsSnapshot().cvrSessionImportChoice,
+            prompt: async () => {
+              const result = await dialog.showMessageBox({
+                type: 'question',
+                title: 'ChilloutVR session import',
+                message: 'Allow VRX to find and use an existing ChilloutVR session?',
+                detail:
+                  'VRX will read local ChilloutVR game profiles and CVRX files, copy a session into VRX, and sign in on your behalf. Source files are never changed. Sessions use OS-backed encryption when available; otherwise a weaker local installation key is stored alongside the encrypted data. Access to both permits session recovery. VRX remembers your choice. You can change it in Settings → Accounts; direct sign-in remains available.',
+                buttons: ['Use direct sign-in', 'Allow session import'],
+                defaultId: 0,
+                cancelId: 0,
+                noLink: true
+              })
+              return result.response === 1
+            },
+            saveChoice: async (cvrSessionImportChoice) => {
+              try {
+                await saveSettings({ cvrSessionImportChoice })
+              } catch (error) {
+                await dialog.showMessageBox({
+                  type: 'warning',
+                  title: 'ChilloutVR session import',
+                  message: 'Your session import choice could not be saved.',
+                  detail:
+                    'No external session was read. You can sign in directly. VRX may ask again on the next launch.',
+                  buttons: ['Continue to sign-in']
+                })
+                throw error
+              }
+            }
+          }),
         importSession: () =>
           importCvrSession({
             appDataPath: app.getPath('appData'),

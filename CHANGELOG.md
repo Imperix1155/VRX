@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid a duplicate VRChat presence-bucket request immediately after successful
+  session validation when fresh, account-bound bucket data is already available.
+- Stable installations no longer opt into prerelease updates; beta and rc builds
+  retain their existing updater channel behavior.
+- Built local previews can use IPC from their exact renderer entry without a
+  development server.
+- Release tags select stable, beta, or rc metadata and artifact validation;
+  generated coverage and test reports are excluded from application packages.
+- Require explicit, remembered consent before discovering or importing external
+  ChilloutVR sessions. Add a revocable Accounts preference and preserve direct
+  sign-in and valid existing VRX sessions.
+- Mask Ask Me/DND world names in desktop friend alerts, including cached world
+  metadata, while preserving online alerts and default-off notification settings.
+- Explain OS-backed session encryption and the weaker per-installation local
+  encryption fallback in sign-in copy and the user documentation.
+- Preserve newly typed VRX names when an earlier platform-name reset completes.
+- Match Greek Sigma consistently in friend search and preserve original Hangul
+  spelling when highlighting decomposed matches.
+- Offer an explicit local-read retry when linked profiles cannot load or reload.
+- Keep actionable join failures readable until another attempt or account boundary;
+  friend rows wrap feedback below their controls without covering Join.
+
+- Keep failed settings saves visibly unsaved with explicit retry and retain the latest pending snapshot for another disk flush (VRX-271).
+- Commit account notes to memory only after storage succeeds, preventing rejected edits from leaking into later reads or unrelated writes.
+- Keep healthy platform sessions usable while the other starts, and expose failed initial auth checks with retry instead of a signed-out form.
+- Recover healthy tabs after a panel failure and prevent duplicate renderer recovery dialogs.
+
 ## [0.23.0] - 2026-09-24
 
 ### Fixed

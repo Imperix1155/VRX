@@ -31,6 +31,10 @@ fresh machine. Each checkout used for packaging needs its own dependencies;
 do not replace the whole `node_modules` directory with a symlink to another
 checkout. That can omit production modules from the packaged app.
 
+After `npm run build`, `npm start` previews the built renderer without a Vite
+server. Its IPC admission accepts only the exact built renderer entry as a
+top-level local document. It does not enable packaged-only updates.
+
 The development app can use real accounts. Prefer test fixtures when checking
 UI or isolated behavior. Device access, screenshots, accounts, and permission
 prompts follow the local environment and the owner's task authorization.
@@ -127,7 +131,11 @@ Verify both conditions, allowlist the exact advisory, and record the rationale
 and revisit tracking. Production exposure or an available forward fix is not
 eligible under this exception. Never weaken the audit threshold or disable the
 gate to make an update green. Use
-[SECURITY.md](../SECURITY.md) for private vulnerability reporting.
+[SECURITY.md](../SECURITY.md) for private vulnerability reporting and the
+current time-bounded dependency exception. The executable policy in
+`scripts/audit-policy.mjs` evaluates full and production reports plus the
+lockfile; policy changes require negative tests for non-exempt and production
+advisories, expiry, and failed reports.
 
 Secrets belong in main-process credential storage. OS encryption is preferred;
 the existing authenticated local fallback stores a random installation key

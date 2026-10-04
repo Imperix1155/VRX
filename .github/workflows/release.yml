@@ -16,7 +16,7 @@ name: Release
 #   publish-release — resolve the tag's DRAFT release BY ID (draft-first, newest,
 #                     full installer set), assert the exact expected artifacts,
 #                     set the body from CHANGELOG, then flip draft=false /
-#                     prerelease=true. A rerun over an already-PUBLISHED tag fails
+#                     prerelease=<tag channel>. A rerun over an already-PUBLISHED tag fails
 #                     loudly (electron-builder skips uploads when a published
 #                     release exists, so re-blessing would ship stale binaries).
 #
@@ -54,18 +54,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Fail fast if the tag and package.json disagree: electron-builder derives
-      # artifact names and latest.yml from package.json, so a mismatch would
-      # publish broken updater metadata. Equality (not a semver regex) so
-      # prereleases like v0.1.0-beta.1 still pass.
-      - name: Verify tag matches package.json version
-        run: |
-          PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION" >&2
-            exit 1
-          fi
+      - name: Verify tag, version and release channel
+        run: node scripts/release-channel.mjs "$GITHUB_REF_NAME"
 
   build:
     name: build (${{ matrix.platform }})
@@ -107,9 +97,11 @@ jobs:
       # first run / reuses it on the second, uploading the installers plus the
       # latest*.yml electron-updater manifests into it.
       - name: Build and publish ${{ matrix.platform }} installers
+        shell: bash
         run: |
           npm run build
-          npx electron-builder --${{ matrix.platform }} --publish always
+          CHANNEL="$(node scripts/release-channel.mjs "$GITHUB_REF_NAME" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
+          npx electron-builder --${{ matrix.platform }} --config.publish.channel="$CHANNEL" --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -122,7 +114,8 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           APPIMAGE="$GITHUB_WORKSPACE/dist/vrx-$VERSION-x86_64.AppImage"
           DEB="$GITHUB_WORKSPACE/dist/vrx_${VERSION}_amd64.deb"
-          MANIFEST="$GITHUB_WORKSPACE/dist/latest-linux.yml"
+          CHANNEL="$(node scripts/release-channel.mjs "$GITHUB_REF_NAME" | jq -r .channel)"
+          MANIFEST="$GITHUB_WORKSPACE/dist/$CHANNEL-linux.yml"
           APPIMAGE_DIR="$(mktemp -d)"
           DEB_DIR="$(mktemp -d)"
 
@@ -183,15 +176,9 @@ jobs:
           # Exact artifact set electron-builder derives from package.json for this
           # version. Asserting the NAMES (not just a count) proves the right
           # binaries are present. Update this list if the target matrix changes.
-          EXPECTED="$(jq -n --arg v "$VER" '[
-            "vrx-\($v)-setup.exe",
-            "vrx-\($v)-setup.exe.blockmap",
-            "VRX-\($v).exe",
-            "vrx-\($v)-x86_64.AppImage",
-            "vrx_\($v)_amd64.deb",
-            "latest.yml",
-            "latest-linux.yml"
-          ]')"
+          METADATA="$(node scripts/release-channel.mjs "$TAG")"
+          EXPECTED="$(echo "$METADATA" | jq -c .assets)"
+          PRERELEASE="$(echo "$METADATA" | jq -r .prerelease)"
 
           # `gh api --paginate` streams one JSON array PER PAGE; `jq -s add`
           # flattens the pages into a single array (and is a no-op for the common
@@ -265,13 +252,13 @@ jobs:
           # this is an edge).
           if node scripts/extract-changelog.mjs "${TAG#v}" > /tmp/release-notes.md && [ -s /tmp/release-notes.md ]; then
             echo "Using CHANGELOG notes for ${TAG#v}."
-            PATCH="$(jq -n --rawfile body /tmp/release-notes.md '{draft:false, prerelease:true, body:$body}')"
+            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" --rawfile body /tmp/release-notes.md '{draft:false, prerelease:$prerelease, body:$body}')"
           else
             echo "No CHANGELOG section for ${TAG#v} (or extractor failed) — publishing without changing the body." >&2
-            PATCH="$(jq -n '{draft:false, prerelease:true}')"
+            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" '{draft:false, prerelease:$prerelease}')"
           fi
 
-          # Publish BY ID: un-draft and keep prerelease=true (owner policy until 1.0).
+          # Publish BY ID: un-draft with the verified tag channel.
           echo "$PATCH" | gh api -X PATCH "repos/$REPO/releases/$TARGET_ID" --input - --jq '"Published: \(.html_url) (draft=\(.draft), prerelease=\(.prerelease))"'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

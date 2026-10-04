@@ -78,6 +78,11 @@ export function loadSettings(): Settings {
   }
 }
 
+/** Transient durability metadata for renderer hydration; never stored on disk. */
+export function hasPendingSettingsSave(): boolean {
+  return pendingSettingsSave !== undefined
+}
+
 /** Cheap fire-time view for hot paths. Startup's first load populates it; the
  *  fallback keeps direct/test callers safe without changing IPC behavior. */
 export function getSettingsSnapshot(): Settings {
@@ -115,7 +120,6 @@ export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
 export function flushPendingSettingsSave(): void {
   const pending = pendingSettingsSave
   if (!pending) return
-  pendingSettingsSave = undefined
   clearTimeout(pending.timer)
   try {
     if (!shouldPersistSettings(getStore().store)) {
@@ -123,8 +127,11 @@ export function flushPendingSettingsSave(): void {
     }
     getStore().store = pending.settings
     settingsSnapshot = pending.settings
+    if (pendingSettingsSave === pending) pendingSettingsSave = undefined
     for (const waiter of pending.waiters) waiter.resolve(pending.settings)
   } catch (error) {
     for (const waiter of pending.waiters) waiter.reject(error)
+    // Retain the snapshot for an explicit retry or quit flush, not a timer loop.
+    pending.waiters = []
   }
 }

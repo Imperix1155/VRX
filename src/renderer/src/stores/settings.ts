@@ -20,6 +20,10 @@ interface SettingsState {
   dirty: boolean
   /** True once the initial persisted-settings load has resolved. */
   hydrated: boolean
+  saveError: boolean
+  saving: boolean
+  saveAttempt: number
+  retrySave: () => void
   /** Replace settings wholesale (e.g. after loading persisted state); clears dirty. */
   setSettings: (settings: Settings) => void
   /** Merge a partial update; marks dirty only when a value actually changes. */
@@ -34,7 +38,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   settings: DEFAULT_SETTINGS,
   dirty: false,
   hydrated: false,
-  setSettings: (settings) => set({ settings, dirty: false }),
+  saveError: false,
+  saving: false,
+  saveAttempt: 0,
+  retrySave: () => set((state) => ({ saveAttempt: state.saveAttempt + 1 })),
+  setSettings: (settings) => set({ settings, dirty: false, saveError: false, saving: false }),
   updateSettings: (patch) =>
     set((state) => {
       const next = { ...state.settings, ...patch }
@@ -43,6 +51,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       )
       return { settings: next, dirty: state.dirty || changed }
     }),
-  markSaved: () => set({ dirty: false }),
+  markSaved: () => set({ dirty: false, saveError: false, saving: false }),
   hydrate: () => set({ hydrated: true })
 }))

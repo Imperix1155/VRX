@@ -62,6 +62,9 @@ and Node/Electron access on this side of the process boundary.
   mutation. They write cloned, revision-checked snapshots; link-graph public
   operations reject same-realm reentry. Failed or stale writes must not corrupt
   or cross account data.
+- External CVR session discovery requires explicit remembered consent before any
+  source I/O. Valid VRX sessions bypass import; declined consent preserves direct
+  login. A failed consent write fails closed and is disclosed to the user.
 - Session importers are read-only. Bound path discovery, directory traversal,
   file size, parsing time, and accepted credential shape; reject aliases,
   symlinks, changing sources, ambiguity, and active database sidecars. Persist
@@ -92,6 +95,8 @@ and Node/Electron access on this side of the process boundary.
   rate. A disabled hot-instance feature suppresses hot alerts without erasing
   its saved notification preference. Alert payloads and failure logs stay free
   of private location data.
+- Stable builds exclude prereleases; beta/rc builds retain the locked updater
+  channel selection. No implicit channel selector or rc-to-stable promotion.
 - Updates remain consent-based: no silent download, no raw updater error passed
   to the renderer, and a restart only installs a verified staged update.
 

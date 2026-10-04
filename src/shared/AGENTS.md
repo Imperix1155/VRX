@@ -21,13 +21,15 @@ main, preload, and renderer. It is the vocabulary at the process boundary.
   reduce them to a bare upstream ID.
 - `settings.ts` owns the schema, defaults, version, migrations, and safe parse.
   `parseSettings` migrates, strips unknown keys, and falls back to defaults
-  without throwing. `SETTINGS_VERSION` is 10. Every additive persisted field
-  requires a version bump and identity migration. Preserve the v1-v10 migration
+  without throwing. `SETTINGS_VERSION` is 11. Every additive persisted field
+  requires a version bump and identity migration. Preserve the v1-v11 migration
   chain. A missing released migration throws rather than stamping an old shape
   as current. A newer-version file stays read-only and is never down-leveled or
   rewritten by an older build. The v9-v10 identity migration adds default-on
   `dashboardPopularNow` and `hotInstancesEnabled`; dashboard, alert, and join
   preferences remain retained when their parent feature is disabled.
+  The v10-v11 identity migration adds `cvrSessionImportChoice` (ask/skip/import);
+  missing or invalid data never grants external-session discovery consent.
 - `linkedProfiles.ts` owns versioned linked-person values. Snapshots carry a
   document `storeRevision` and main-owned ready `accountIds`; readers retain the
   newest revision within an identity lease. Shared notes belong to the

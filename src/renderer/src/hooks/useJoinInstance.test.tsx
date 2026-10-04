@@ -68,6 +68,42 @@ afterEach(() => {
 })
 
 describe('useJoinInstance', () => {
+  it('keeps failure readable without auto-retrying, and explicit retry retains busy and cooldown admission', async () => {
+    vi.useFakeTimers()
+    joinInstance.mockResolvedValueOnce({ ok: false, reason: 'unknown' })
+    const { result } = renderHook(() => useJoinInstance())
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('unknown')
+    expect(joinInstance).toHaveBeenCalledTimes(1)
+    let finish!: (value: { ok: false; reason: 'cooldown' }) => void
+    joinInstance.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.join(friend)
+    })
+    await act(async () => {
+      await result.current.join(friend)
+    })
+    expect(joinInstance).toHaveBeenCalledTimes(2)
+    expect(result.current.isJoining).toBe(true)
+    await act(async () => {
+      finish({ ok: false, reason: 'cooldown' })
+      await pending
+    })
+    expect(result.current.joinFailureFor(friend)).toBe('cooldown')
+    act(() => result.current.invalidatePending('vrchat'))
+    expect(result.current.joinFailureFor(friend)).toBeNull()
+  })
+
   it('parks an explicit Explore source and invokes only its opaque selection reference', async () => {
     const joinExploreRoom = vi.fn().mockResolvedValue({ ok: true })
     window.vrx = { joinExploreRoom } as unknown as Window['vrx']

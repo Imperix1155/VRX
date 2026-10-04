@@ -31,6 +31,11 @@ credential, network, or launch authority.
   instances, and Explore. The renderer may give main a reviewed friend ID or an
   opaque Explore `selectionRef` and expected target. Main alone decides
   joinability, builds the allowlisted URL, enforces settings, and launches.
+  Failure feedback remains readable until another attempt or account boundary;
+  retries use this same flow and never run automatically.
+- `LinkedProfilesLoadError` exposes local-read retry in Friends and Identities,
+  coalescing active reads through the existing account-fenced query. Name saves
+  and platform-name resets clear only drafts with no later edits.
 - Explore route and Dashboard preview share ranking, selection, and the
   non-modal sheet. `useExploreCoordinator` is the sole renderer trigger for
   discovery: it reacts to eligible visibility, focus, and connectivity wakes,
