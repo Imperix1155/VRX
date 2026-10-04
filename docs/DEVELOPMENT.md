@@ -131,7 +131,11 @@ Verify both conditions, allowlist the exact advisory, and record the rationale
 and revisit tracking. Production exposure or an available forward fix is not
 eligible under this exception. Never weaken the audit threshold or disable the
 gate to make an update green. Use
-[SECURITY.md](../SECURITY.md) for private vulnerability reporting.
+[SECURITY.md](../SECURITY.md) for private vulnerability reporting and the
+current time-bounded dependency exception. The executable policy in
+`scripts/audit-policy.mjs` evaluates full and production reports plus the
+lockfile; policy changes require negative tests for non-exempt and production
+advisories, expiry, and failed reports.
 
 Secrets belong in main-process credential storage. OS encryption is preferred;
 the existing authenticated local fallback stores a random installation key
