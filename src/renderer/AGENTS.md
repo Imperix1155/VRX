@@ -56,7 +56,10 @@ credential, network, or launch authority.
   snapshot replay remains separate. Compare event revisions with each row’s
   physical-read provenance before replay; one IPC can include a newer follow-up.
   Partial follow-ups and rate-limit fallback retain earlier fences. Reject
-  malformed envelope/revision metadata as a refresh error; legacy arrays and
+  malformed envelope/revision metadata as a refresh error. Keep one bounded
+  published roster fence per query client: Electron can deliver older pushes
+  after invoke completion, so direct live application uses the same per-row
+  ordering. Clear this fence at account boundaries. Legacy arrays and
   unversioned partial replies retain their existing behavior.
 - `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
   metadata only when the current instance keeps the same world or group identity;

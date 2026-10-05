@@ -797,3 +797,32 @@ it.each(['identity', 'auth-invalidated'] as const)(
     client.clear()
   }
 )
+
+it('ignores an older push delivered after the newer native roster reply', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const friend = vrcFriend('Alice')
+  client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated', accountId: 'self' })
+  stubBridge({
+    getFriends: async () => ({
+      friends: [friend],
+      completeness: 'complete',
+      provenance: { baseRevision: 3, overrides: [] }
+    })
+  })
+  const mounted = mountFriends(client, () => {})
+  await waitFor(() => expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([friend]))
+  const event = {
+    type: 'friend-offline' as const,
+    platform: 'vrchat' as const,
+    platformUserId: friend.platformUserId,
+    rosterRevision: 2
+  }
+  act(() => fireFriendEvent!(event))
+  expect(client.getQueryData(friendsQueryKey('vrchat'))).toEqual([friend])
+  act(() => fireFriendEvent!({ ...event, rosterRevision: 4 }))
+  expect(client.getQueryData<Friend[]>(friendsQueryKey('vrchat'))?.[0]?.presence.state).toBe(
+    'offline'
+  )
+  mounted.unmount()
+  client.clear()
+})

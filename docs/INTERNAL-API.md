@@ -610,6 +610,11 @@ Older fixture/legacy arrays and unversioned events retain replay-all behavior.
 nonnegative safe integers, follow-up revisions cannot precede the base, and
 overrides are bounded to one follow-up with at most `MAX_FRIENDS` nonempty IDs.
 Invalid metadata becomes a refresh error instead of silently suppressing deltas.
+`applyOrderedFriendEvent(client, friends, event)` also compares direct VRChat
+cache updates with the last published provenance: native invoke responses and
+push messages can arrive on separate queues. One bounded fence per query client
+survives transport cleanup and is cleared by `clearFriendEventReplay` at account
+boundaries; it retains no journal or listeners. CVR live updates are unchanged.
 Transport failure, abandoned settlement, or successful publication releases events
 and abort listeners. Identity/auth boundaries explicitly discard old transports.
 A `MAX_FRIENDS` event cap rejects without retry and preserves live cache; the failed
