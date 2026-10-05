@@ -800,7 +800,11 @@ it.each(['identity', 'auth-invalidated'] as const)(
 
 it('ignores an older push delivered after the newer native roster reply', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const friend: Friend = { ...vrcFriend('Alice'), presence: { state: 'active' } }
+  const friend: Friend = {
+    ...vrcFriend('Alice'),
+    platform: 'vrchat',
+    presence: { state: 'active' }
+  }
   client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated', accountId: 'self' })
   stubBridge({
     getFriends: async () => ({
