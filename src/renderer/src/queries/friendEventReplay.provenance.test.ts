@@ -12,6 +12,7 @@ import { fullFriend } from '../test-utils/friendFixture'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 import { fetchFriendRoster, friendsQueryKey } from './friends'
 import {
+  applyOrderedFriendEvent,
   clearFriendEventReplay,
   recordFriendEventForReplay,
   shareFriendReplayResult,
@@ -212,4 +213,40 @@ it('fences a reconnect follow-up across account replacement and keeps the new jo
   ).toEqual([[bob.platformUserId, 'offline']])
   expect(s.getFriends).toHaveBeenCalledTimes(2)
   s.client.clear()
+})
+
+it('rejects late old pushes after publication but accepts newer events and resets at account boundary', async () => {
+  const client = new QueryClient()
+  const controller = new AbortController()
+  await client.fetchQuery({
+    queryKey: key,
+    structuralSharing: shareFriendReplayResult,
+    queryFn: () =>
+      withFriendEventReplay(client, controller.signal, async () => ({
+        friends: [alice, bob],
+        completeness: 'partial',
+        provenance: {
+          baseRevision: 1,
+          overrides: [{ revision: 3, friendIds: [alice.platformUserId] }]
+        }
+      }))
+  })
+  const late = {
+    type: 'friend-offline' as const,
+    platform: 'vrchat' as const,
+    platformUserId: alice.platformUserId,
+    rosterRevision: 2
+  }
+  const current = client.getQueryData<Friend[]>(key)!
+  expect(applyOrderedFriendEvent(client, current, late)).toBe(current)
+  expect(
+    applyOrderedFriendEvent(client, current, { ...late, platformUserId: bob.platformUserId })[1]
+      ?.presence.state
+  ).toBe('offline')
+  expect(
+    applyOrderedFriendEvent(client, current, { ...late, rosterRevision: 4 })[0]?.presence.state
+  ).toBe('offline')
+  clearFriendEventReplay(client)
+  expect(applyOrderedFriendEvent(client, current, late)[0]?.presence.state).toBe('offline')
+  client.clear()
 })

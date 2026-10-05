@@ -19,6 +19,7 @@ type LiveDelta = Extract<
 >
 
 interface Transport {
+  client: QueryClient
   events: LiveDelta[]
   provenance?: FriendRosterProvenance
   promise: Promise<Friend[]>
@@ -34,6 +35,8 @@ interface Transport {
 const pending = new WeakMap<QueryClient, Transport>()
 const journals = new WeakMap<QueryClient, Set<Transport>>()
 const results = new WeakMap<object, Transport>()
+// One bounded roster fence per client also rejects older pushes delivered after invoke completion.
+const published = new WeakMap<QueryClient, FriendRosterProvenance>()
 
 export class FriendEventReplayOverflowError extends Error {
   constructor() {
@@ -68,6 +71,7 @@ export function recordFriendEventForReplay(client: QueryClient, event: FriendEve
 /** Account boundaries abandon the transport; ordinary query cancellation does not. */
 export function clearFriendEventReplay(client: QueryClient): void {
   pending.delete(client)
+  published.delete(client)
   for (const transport of journals.get(client) ?? []) {
     transport.failure = new Error('Friends account changed')
     transport.reject(transport.failure)
@@ -83,6 +87,8 @@ export function shareFriendReplayResult(previous: unknown, incoming: unknown): u
   const events = transport.events
   transport.dispose()
   if (transport.failure) throw transport.failure
+  if (transport.provenance) published.set(transport.client, transport.provenance)
+  else published.delete(transport.client)
   return replaceEqualDeep(
     previous,
     replayEvents(incoming as Friend[], events, transport.provenance)
@@ -92,7 +98,7 @@ export function shareFriendReplayResult(previous: unknown, incoming: unknown): u
 /** Compare each row with its physical read, not the containing IPC operation. */
 function replayEvents(
   friends: Friend[],
-  events: LiveDelta[],
+  events: FriendEvent[],
   provenance?: FriendRosterProvenance
 ): Friend[] {
   const revisions = new Map<string, number>()
@@ -113,9 +119,22 @@ function replayEvents(
       const byId = new Map(changed.map((friend) => [friend.platformUserId, friend]))
       return current.map((friend) => byId.get(friend.platformUserId) ?? friend)
     }
+    if (!('friend' in event) && !('platformUserId' in event))
+      return applyFriendEvent(current, event)
     const id = 'friend' in event ? event.friend.platformUserId : event.platformUserId
     return isNewer(id) ? applyFriendEvent(current, event) : current
   }, friends)
+}
+
+/** Electron invoke replies and push messages can arrive on separate queues. */
+export function applyOrderedFriendEvent(
+  client: QueryClient,
+  friends: Friend[],
+  event: FriendEvent
+): Friend[] {
+  return event.platform === 'vrchat'
+    ? replayEvents(friends, [event], published.get(client))
+    : applyFriendEvent(friends, event)
 }
 
 export function withFriendEventReplay(
@@ -135,6 +154,7 @@ export function withFriendEventReplay(
     const active = journals.get(client) ?? new Set<Transport>()
     journals.set(client, active)
     const created: Transport = {
+      client,
       events: [],
       promise,
       settled: false,

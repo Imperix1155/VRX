@@ -32,7 +32,11 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
-import { clearFriendEventReplay, recordFriendEventForReplay } from '../queries/friendEventReplay'
+import {
+  applyOrderedFriendEvent,
+  clearFriendEventReplay,
+  recordFriendEventForReplay
+} from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -66,7 +70,7 @@ export function useLiveFriendEvents(): void {
       event: Parameters<typeof applyFriendEvent>[1]
     ): void => {
       queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), (cached) =>
-        cached === undefined ? undefined : applyFriendEvent(cached, event)
+        cached === undefined ? undefined : applyOrderedFriendEvent(queryClient, cached, event)
       )
     }
 
