@@ -614,7 +614,14 @@ Invalid metadata becomes a refresh error instead of silently suppressing deltas.
 cache updates with the last published provenance: native invoke responses and
 push messages can arrive on separate queues. One bounded fence per query client
 survives transport cleanup and is cleared by `clearFriendEventReplay` at account
-boundaries; it retains no journal or listeners. CVR live updates are unchanged.
+boundaries; it retains no journal or listeners. Partial provenance includes
+`coveredIds` from main before renderer cache merging. Only covered IDs advance;
+unlisted present and absent IDs retain their previous fences. With no prior
+complete snapshot, unknown IDs have revision0 rather than the partial read’s
+revision. Complete snapshots replace global absence freshness and compact
+per-ID fences. Accumulation beyond `2 * MAX_FRIENDS` rejects the refresh through
+the existing no-retry overflow error; never evict evidence to admit stale events.
+CVR live updates are unchanged.
 Transport failure, abandoned settlement, or successful publication releases events
 and abort listeners. Identity/auth boundaries explicitly discard old transports.
 A `MAX_FRIENDS` event cap rejects without retry and preserves live cache; the failed

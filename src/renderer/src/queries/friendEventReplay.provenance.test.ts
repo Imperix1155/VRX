@@ -39,6 +39,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 function setup(): {
   client: QueryClient
+  eventRevision: () => number
   replaceAccount: () => Promise<void>
   start: () => Promise<Friend[]>
   reads: Array<{ resolve: (roster: FriendRoster) => void; reject: (error: Error) => void }>
@@ -95,7 +96,18 @@ function setup(): {
   }
   const offline = (friend: Friend): void =>
     deliver({ type: 'friend-offline', platform: 'vrchat', platformUserId: friend.platformUserId })
-  return { client, reads, refresh, request, deliver, offline, getFriends, start, replaceAccount }
+  return {
+    client,
+    reads,
+    refresh,
+    request,
+    deliver,
+    offline,
+    getFriends,
+    start,
+    replaceAccount,
+    eventRevision: () => authority.captureEventRevision()
+  }
 }
 
 describe('physical roster read provenance through IPC and renderer', () => {
@@ -248,5 +260,103 @@ it('rejects late old pushes after publication but accepts newer events and reset
   ).toBe('offline')
   clearFriendEventReplay(client)
   expect(applyOrderedFriendEvent(client, current, late)[0]?.presence.state).toBe('offline')
+  client.clear()
+})
+
+it.each(['friend-offline', 'friend-removed', 'friend-added'] as const)(
+  'retains cross-operation partial omission freshness for delayed %s',
+  async (type) => {
+    const s = setup()
+    s.reads[0]!.resolve({ friends: [alice, bob], completeness: 'complete' })
+    await s.request
+    const revision = s.eventRevision()
+    const delayed: FriendEvent =
+      type === 'friend-added'
+        ? {
+            type,
+            platform: 'vrchat',
+            friend: fullFriend('Carol', 'vrchat'),
+            rosterRevision: revision
+          }
+        : { type, platform: 'vrchat', platformUserId: bob.platformUserId, rosterRevision: revision }
+    // Advance main's ordering while holding delivery until after a new partial read.
+    const next = s.start()
+    s.reads[1]!.resolve({ friends: [alice], completeness: 'partial' })
+    await next
+    s.client.setQueryData<Friend[]>(key, (current) =>
+      applyOrderedFriendEvent(s.client, current!, delayed)
+    )
+    const result = s.client.getQueryData<Friend[]>(key)!
+    if (type === 'friend-offline')
+      expect(result.find((f) => f.platformUserId === bob.platformUserId)?.presence.state).toBe(
+        'offline'
+      )
+    if (type === 'friend-removed')
+      expect(result.some((f) => f.platformUserId === bob.platformUserId)).toBe(false)
+    if (type === 'friend-added')
+      expect(result.some((f) => f.platformUserId === 'usr_carol')).toBe(true)
+    s.client.clear()
+  }
+)
+
+it('bounds partial coverage accumulation and permits complete recovery', async () => {
+  const client = new QueryClient()
+  const publish = (revision: number, ids: string[] | undefined): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) =>
+        withFriendEventReplay(client, signal, async () => ({
+          friends: [alice],
+          completeness: ids ? 'partial' : 'complete',
+          provenance: { baseRevision: revision, ...(ids ? { coveredIds: ids } : {}), overrides: [] }
+        }))
+    })
+  await publish(1, undefined)
+  await publish(
+    2,
+    Array.from({ length: 10000 }, (_, i) => `usr_${i}`)
+  )
+  await expect(publish(3, ['usr_extra'])).rejects.toThrow('Friends changed too often')
+  expect(client.getQueryData(key)).toEqual([alice])
+  await publish(4, undefined)
+  const old: FriendEvent = {
+    type: 'friend-added',
+    platform: 'vrchat',
+    friend: bob,
+    rosterRevision: 3
+  }
+  expect(applyOrderedFriendEvent(client, [alice], old)).toEqual([alice])
+  client.clear()
+})
+
+it('does not invent absence freshness from a first partial or forget it after a complete read', async () => {
+  const client = new QueryClient()
+  const publish = (completeness: 'partial' | 'complete', revision: number): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) =>
+        withFriendEventReplay(client, signal, async () => ({
+          friends: [alice],
+          completeness,
+          provenance: {
+            baseRevision: revision,
+            ...(completeness === 'partial' ? { coveredIds: [alice.platformUserId] } : {}),
+            overrides: []
+          }
+        }))
+    })
+  const delayed: FriendEvent = {
+    type: 'friend-added',
+    platform: 'vrchat',
+    friend: bob,
+    rosterRevision: 2
+  }
+  await publish('partial', 3)
+  expect(applyOrderedFriendEvent(client, [alice], delayed)).toEqual([alice, bob])
+  await publish('complete', 4)
+  await publish('partial', 6)
+  expect(applyOrderedFriendEvent(client, [alice], delayed)).toEqual([alice])
   client.clear()
 })

@@ -59,7 +59,10 @@ credential, network, or launch authority.
   malformed envelope/revision metadata as a refresh error. Keep one bounded
   published roster fence per query client: Electron can deliver older pushes
   after invoke completion, so direct live application uses the same per-row
-  ordering. Clear this fence at account boundaries. Legacy arrays and
+  ordering. Partial coverage merges only listed IDs into previous fences,
+  including retained absent-ID evidence; complete snapshots replace all fences.
+  Bound accumulated per-ID fences to twice MAX_FRIENDS and reject overflow
+  without evicting evidence. Clear this fence at account boundaries. Legacy arrays and
   unversioned partial replies retain their existing behavior.
 - `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
   metadata only when the current instance keeps the same world or group identity;

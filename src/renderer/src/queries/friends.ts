@@ -14,6 +14,10 @@ const revisionSchema = z.number().int().nonnegative()
 const rosterProvenanceSchema = z
   .object({
     baseRevision: revisionSchema,
+    coveredIds: z
+      .array(z.string().min(1))
+      .max(MAX_FRIENDS * 2)
+      .optional(),
     overrides: z
       .array(
         z.object({
@@ -60,7 +64,8 @@ export async function fetchFriendRoster(
     !Array.isArray(result.friends) ||
     (result.completeness !== 'complete' && result.completeness !== 'partial') ||
     (result.provenance !== undefined &&
-      !rosterProvenanceSchema.safeParse(result.provenance).success)
+      (!rosterProvenanceSchema.safeParse(result.provenance).success ||
+        (result.completeness === 'partial') !== (result.provenance.coveredIds !== undefined)))
   )
     throw new Error('invalid_roster_response')
   if (result.completeness === 'complete') return result
