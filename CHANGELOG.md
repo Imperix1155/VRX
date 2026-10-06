@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Reconnect roster freshness:** a newer VRChat follow-up roster now supersedes older live deltas, while partial results and events received after that read retain their correct order. This also covers older native IPC pushes delivered after the roster response.
+- **Reconnect roster freshness:** a newer VRChat follow-up roster now supersedes older live deltas, while partial results and events received after that read retain their correct order. This also covers older native IPC pushes delivered after the roster response. Partial rosters preserve earlier freshness for friends and absences they did not refresh, so delayed updates are not lost.
 
 ### Fixed
 

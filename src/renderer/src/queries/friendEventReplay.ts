@@ -36,7 +36,33 @@ const pending = new WeakMap<QueryClient, Transport>()
 const journals = new WeakMap<QueryClient, Set<Transport>>()
 const results = new WeakMap<object, Transport>()
 // One bounded roster fence per client also rejects older pushes delivered after invoke completion.
-const published = new WeakMap<QueryClient, FriendRosterProvenance>()
+interface RosterFence {
+  baseRevision: number
+  revisions: Map<string, number>
+}
+const published = new WeakMap<QueryClient, RosterFence>()
+
+/** Only complete snapshots establish freshness for unlisted/absent IDs. */
+function mergeCoverage(
+  previous: RosterFence | undefined,
+  next: FriendRosterProvenance
+): RosterFence {
+  const revisions = new Map(next.coveredIds === undefined ? [] : previous?.revisions)
+  const baseRevision =
+    next.coveredIds === undefined ? next.baseRevision : (previous?.baseRevision ?? 0)
+  const overrides = new Map(
+    next.overrides.flatMap((entry) => entry.friendIds.map((id) => [id, entry.revision] as const))
+  )
+  for (const id of next.coveredIds ?? overrides.keys()) {
+    const revision = overrides.get(id) ?? next.baseRevision
+    if (revision > baseRevision) revisions.set(id, Math.max(revision, revisions.get(id) ?? 0))
+  }
+  // Retain omitted-ID fences (including absences) until complete replacement or
+  // account clear. Reject excessive partial accumulation rather than evicting
+  // evidence and permitting an old addition to resurrect a removed friend.
+  if (revisions.size > MAX_FRIENDS * 2) throw new FriendEventReplayOverflowError()
+  return { baseRevision, revisions }
+}
 
 export class FriendEventReplayOverflowError extends Error {
   constructor() {
@@ -87,29 +113,26 @@ export function shareFriendReplayResult(previous: unknown, incoming: unknown): u
   const events = transport.events
   transport.dispose()
   if (transport.failure) throw transport.failure
-  if (transport.provenance) published.set(transport.client, transport.provenance)
+  const fence = transport.provenance
+    ? mergeCoverage(published.get(transport.client), transport.provenance)
+    : undefined
+  const merged = replaceEqualDeep(previous, replayEvents(incoming as Friend[], events, fence))
+  if (fence) published.set(transport.client, fence)
   else published.delete(transport.client)
-  return replaceEqualDeep(
-    previous,
-    replayEvents(incoming as Friend[], events, transport.provenance)
-  )
+  return merged
 }
 
 /** Compare each row with its physical read, not the containing IPC operation. */
 function replayEvents(
   friends: Friend[],
   events: FriendEvent[],
-  provenance?: FriendRosterProvenance
+  provenance?: RosterFence
 ): Friend[] {
-  const revisions = new Map<string, number>()
-  for (const override of provenance?.overrides ?? []) {
-    for (const id of override.friendIds) revisions.set(id, override.revision)
-  }
   return events.reduce((current, event) => {
     const revision = event.rosterRevision
     if (revision === undefined || !provenance) return applyFriendEvent(current, event)
     const isNewer = (id: string): boolean =>
-      revision > (revisions.get(id) ?? provenance.baseRevision)
+      revision > (provenance.revisions.get(id) ?? provenance.baseRevision)
     if (event.type === 'world-metadata' || event.type === 'group-metadata') {
       // One metadata event may affect rows from both physical reads.
       const changed = applyFriendEvent(

@@ -46,6 +46,9 @@ export function registerFriendsHandlers(
         completeness: roster.completeness,
         provenance: {
           baseRevision: seeds[0]?.revision ?? revision,
+          ...(roster.completeness === 'partial'
+            ? { coveredIds: roster.friends.map((friend) => friend.platformUserId) }
+            : {}),
           overrides: seeds.slice(1).map((seed) => ({
             revision: seed.revision,
             friendIds: seed.friends.map((friend) => friend.platformUserId)

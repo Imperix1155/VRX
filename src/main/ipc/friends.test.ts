@@ -314,7 +314,11 @@ describe('get-friends location seeding', () => {
     await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
       friends: [rosterFriend],
       completeness: 'partial',
-      provenance: { baseRevision: expect.any(Number), overrides: [] }
+      provenance: {
+        baseRevision: expect.any(Number),
+        coveredIds: [rosterFriend.platformUserId],
+        overrides: []
+      }
     })
     expect(authority.resolve('vrchat', omittedFriend.platformUserId)).toMatchObject({
       ok: true,

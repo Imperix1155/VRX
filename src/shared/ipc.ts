@@ -63,6 +63,8 @@ export type InstanceActionResult =
 /** Main-owned ordering, shared by physical roster reads and published live events. */
 export interface FriendRosterProvenance {
   baseRevision: number
+  /** Present only for partial results: IDs actually read, before renderer cache merging. */
+  coveredIds?: string[]
   /** Partial follow-ups replace only these rows; omitted rows keep the base fence. */
   overrides: Array<{ revision: number; friendIds: string[] }>
 }

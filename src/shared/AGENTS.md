@@ -52,7 +52,9 @@ main, preload, and renderer. It is the vocabulary at the process boundary.
 - `ExploreImageResult` permits ready `data:` data, terminal `null`, or a typed
   bounded local-admission deferral. It grants no URL or session authority.
   VRChat friend responses carry completeness and physical-read provenance;
-  partial follow-ups retain the earlier revision for omitted rows. CVR complete
+  partial replies list actual covered IDs before cache merging and retain
+  earlier row/absence fences for all omissions. Only complete snapshots can
+  advance global absence freshness. CVR complete
   snapshots remain arrays. Friend events carry a main-owned ordering revision,
   never a timestamp or renderer-supplied authority.
 - `CREDENTIAL_PERSISTENCE_FAILED` is the sole login error with dedicated renderer
