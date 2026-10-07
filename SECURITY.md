@@ -65,7 +65,7 @@ Any extension requires a new explicit owner decision and review.
 Only [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
 at its current high severity is temporarily accepted for the locked, dev-only
 `node_modules/http-cache-semantics` version `4.2.0`. The build-tool chain is
-`app-builder-lib@26.16.1 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
+`app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
 As checked on 2026-10-03, upstream lists no patched version; the compatible
 builder 26.17.0 still uses the affected downloader major. A builder 27 alpha or
 npm's proposed builder downgrade is not a compatible stable security patch.
