@@ -1,3 +1,6 @@
+// Import resolution selects preload/index.ts; this cross-boundary test needs its .d.ts globals.
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="../../preload/index.d.ts" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { Friend, Platform } from '@shared/types'
@@ -30,6 +33,11 @@ const trusted = vi.hoisted(() => ({ value: true }))
 vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => trusted.value) }))
 
 import { registerFriendsHandlers } from './friends'
+import {
+  fetchFriends as fetchVrcFriends,
+  type VrcFetcher
+} from '../services/adapters/vrchat/fetchFriends'
+import { fetchFriendRoster } from '../../renderer/src/queries/friends'
 
 const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
 const rosterFriend = {
@@ -326,3 +334,57 @@ describe('get-friends location seeding', () => {
     })
   })
 })
+
+it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
+  'accepts overlapping pagination rows in a partial roster after %s',
+  async (reason) => {
+    const raw = {
+      id: 'usr_alice',
+      displayName: 'Alice',
+      currentAvatarThumbnailImageUrl: '',
+      status: 'active',
+      statusDescription: null,
+      tags: []
+    }
+    const fetcher: VrcFetcher = async <T>(path: string): Promise<T> => {
+      if (path === '/auth/user')
+        return { onlineFriends: ['usr_alice'], activeFriends: [], offlineFriends: [] } as T
+      return (
+        reason === 'malformed sibling' && path.includes('offline=false') ? [raw, { id: 42 }] : [raw]
+      ) as T
+    }
+    const realAdapter = new VrcAdapter(
+      { load: () => undefined, save: vi.fn(), delete: vi.fn() },
+      instantAdmission(),
+      { captureRosterRevision: () => authority.captureSeedRevision('vrchat') }
+    )
+    const read = vi
+      .spyOn(realAdapter as unknown as { readFriends(): Promise<FriendRoster> }, 'readFriends')
+      .mockImplementationOnce(() => fetchVrcFriends(fetcher))
+      .mockRejectedValueOnce(new RateLimitError(1000))
+    registerFriendsHandlers(new Map([['vrchat', realAdapter]]), authority, appStatus)
+    const response = handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    if (reason === 'rate-limited follow-up')
+      (
+        realAdapter as unknown as { rosterRefresh: { invalidate(): void } }
+      ).rosterRefresh.invalidate()
+    const envelope = await response
+    expect(envelope).toMatchObject({
+      completeness: 'partial',
+      friends: [{ platformUserId: 'usr_alice' }, { platformUserId: 'usr_alice' }]
+    })
+    vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
+    try {
+      const result = await fetchFriendRoster('vrchat', () => [rosterFriend])
+      expect(result.provenance?.coveredIds).toEqual(['usr_alice'])
+      expect(result.friends.map((friend) => friend.platformUserId)).toEqual([
+        'usr_alice',
+        'usr_alice',
+        'usr_friend'
+      ])
+      expect(read).toHaveBeenCalledTimes(reason === 'rate-limited follow-up' ? 2 : 1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+)
