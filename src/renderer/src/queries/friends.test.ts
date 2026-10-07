@@ -1,3 +1,10 @@
+import { QueryClient } from '@tanstack/react-query'
+import {
+  applyOrderedFriendEvent,
+  shareFriendReplayResult,
+  withFriendEventReplay
+} from './friendEventReplay'
+import type { Friend } from '@shared/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchFriendRoster, fetchFriends, friendsQueryKey } from './friends'
 import { fullFriend } from '../test-utils/friendFixture'
@@ -82,4 +89,63 @@ describe('roster envelope contract', () => {
       provenance: { baseRevision: 4, overrides: [] }
     })
   })
+})
+
+it.each([
+  { coveredIds: ['usr_alice', 'usr_bob'], overrides: [] },
+  { coveredIds: [], overrides: [] },
+  { coveredIds: ['usr_alice'], overrides: [{ revision: 6, friendIds: ['usr_bob'] }] },
+  { coveredIds: ['usr_alice', 'usr_alice'], overrides: [] }
+])('rejects inconsistent coverage and preserves cache AND prior fences: %j', async (coverage) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const alice = fullFriend('Alice', 'vrchat'),
+    bob = fullFriend('Bob', 'vrchat'),
+    key = friendsQueryKey('vrchat')
+  const getFriends = vi
+    .fn()
+    .mockResolvedValueOnce({
+      friends: [alice],
+      completeness: 'complete',
+      provenance: { baseRevision: 1, overrides: [] }
+    })
+    .mockResolvedValueOnce({
+      friends: [alice],
+      completeness: 'partial',
+      provenance: { baseRevision: 5, ...coverage }
+    })
+  vi.stubGlobal('window', { vrx: { getFriends } })
+  const read = (): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) =>
+        withFriendEventReplay(client, signal, () =>
+          fetchFriendRoster('vrchat', () => client.getQueryData(key))
+        )
+    })
+  try {
+    await read()
+    await expect(read()).rejects.toThrow('invalid_roster_response')
+    const cached = client.getQueryData<Friend[]>(key)!
+    expect(cached).toEqual([alice])
+    expect(
+      applyOrderedFriendEvent(client, cached, {
+        type: 'friend-added',
+        platform: 'vrchat',
+        friend: bob,
+        rosterRevision: 3
+      })
+    ).toEqual([alice, bob])
+    expect(
+      applyOrderedFriendEvent(client, cached, {
+        type: 'friend-added',
+        platform: 'vrchat',
+        friend: bob,
+        rosterRevision: 0
+      })
+    ).toEqual([alice])
+  } finally {
+    client.clear()
+    vi.unstubAllGlobals()
+  }
 })

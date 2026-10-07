@@ -68,6 +68,19 @@ export async function fetchFriendRoster(
         (result.completeness === 'partial') !== (result.provenance.coveredIds !== undefined)))
   )
     throw new Error('invalid_roster_response')
+  if (result.provenance) {
+    // Validate against physical response rows BEFORE appending cached omissions.
+    const ids = new Set(result.friends.map((friend) => friend.platformUserId))
+    const { coveredIds, overrides } = result.provenance
+    if (
+      (coveredIds !== undefined &&
+        (coveredIds.length !== ids.size ||
+          new Set(coveredIds).size !== ids.size ||
+          coveredIds.some((id) => !ids.has(id)))) ||
+      overrides.some((entry) => entry.friendIds.some((id) => !ids.has(id)))
+    )
+      throw new Error('invalid_roster_response')
+  }
   if (result.completeness === 'complete') return result
   const seen = new Set(result.friends.map((friend) => friend.platformUserId))
   // Read after the await: live updates and account-boundary cache clears win.

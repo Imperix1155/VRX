@@ -56,7 +56,9 @@ credential, network, or launch authority.
   snapshot replay remains separate. Compare event revisions with each row’s
   physical-read provenance before replay; one IPC can include a newer follow-up.
   Partial follow-ups and rate-limit fallback retain earlier fences. Reject
-  malformed envelope/revision metadata as a refresh error. Keep one bounded
+  malformed envelope/revision metadata as a refresh error. Before cache merging,
+  partial coveredIds must exactly match unique returned IDs and override IDs
+  must belong to returned rows. Rejection preserves prior cache and fences. Keep one bounded
   published roster fence per query client: Electron can deliver older pushes
   after invoke completion, so direct live application uses the same per-row
   ordering. Partial coverage merges only listed IDs into previous fences,
