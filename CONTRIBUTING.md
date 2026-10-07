@@ -74,5 +74,6 @@ Never log or commit real credentials, tokens, or personal data.
 synchronize package and lockfile metadata and changelog, review and merge the
 version PR, tag the merged commit, then verify publication and assets.
 A nonempty changelog section is required preparation; automatic notes are not
-a fallback. The current workflow publishes Windows and Linux pre-releases.
+a fallback. The current workflow publishes Windows and Linux releases in the
+[tag-derived channel](docs/RELEASING.md#2-tag-the-merged-commit).
 Local Mac packaging and installation are separate, explicitly requested steps.
