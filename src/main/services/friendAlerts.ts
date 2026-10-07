@@ -1,6 +1,6 @@
 import type { AdapterEvent, Friend, InstanceInfo, Platform, PresenceState } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
-import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
+import { hotInstanceKey, isHotInstanceMember, isWorldHidden } from '@shared/hotInstanceKey'
 
 export type FriendAlertType = 'online' | 'in-game' | 'offline' | 'hot-instance'
 
@@ -491,12 +491,15 @@ export class FriendAlerts {
   }
 
   private fromFriend(friend: Friend): KnownPresence {
-    return this.fromPresence(
+    const presence = this.fromPresence(
       friend.platform,
       friend.presence.state,
       friend.instance,
       isHotInstanceMember(friend)
     )
+    // The same privacy gate as rows and hot membership also governs ordinary
+    // alerts. Cached metadata and parseable IDs do not make a hidden world public.
+    return isWorldHidden(friend) ? { ...presence, worldName: null } : presence
   }
 
   private fromPresence(

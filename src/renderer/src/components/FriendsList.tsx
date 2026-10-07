@@ -1,3 +1,4 @@
+import LinkedProfilesLoadError from './LinkedProfilesLoadError'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { Range } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -246,10 +247,7 @@ const FriendRow = memo(function FriendRow({
   const failureStatus = (
     <span
       role="status"
-      className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
-      style={
-        combined && joinFailure ? { background: 'var(--bg-base)', borderRadius: 10 } : undefined
-      }
+      className="col-span-full text-[12px] leading-relaxed break-words text-[var(--text-dim)]"
     >
       {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
     </span>
@@ -451,7 +449,6 @@ const FriendRow = memo(function FriendRow({
           >
             {t('linking.locations', { count: 2 })}
           </button>
-          {failureStatus}
         </span>
       ) : instancePill !== null ? (
         joinable ? (
@@ -468,7 +465,6 @@ const FriendRow = memo(function FriendRow({
                 world: instance?.worldName ?? instancePill
               })}
             />
-            {failureStatus}
           </span>
         ) : (
           <InstancePill label={instancePill} tier={pillTier} className="min-w-[78px]" />
@@ -476,6 +472,7 @@ const FriendRow = memo(function FriendRow({
       ) : (
         <span aria-hidden="true" />
       )}
+      {(joinable || joinFailure) && failureStatus}
     </li>
   )
 })
@@ -1213,6 +1210,7 @@ export default function FriendsList(): React.JSX.Element {
           {t('friends.refresh')}
         </button>
       </div>
+      <LinkedProfilesLoadError query={links} />
       <div className="relative mb-[var(--space-3)]">
         <input
           ref={searchInputRef}
@@ -1329,7 +1327,7 @@ export default function FriendsList(): React.JSX.Element {
                       data-index={virtualItem.index}
                       data-virtual-kind="friend"
                       data-friend-key={row.key}
-                      style={{ ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }}
+                      style={{ ...virtualStyle, minHeight: COMPACT_FRIEND_ROW_ESTIMATE }}
                       className="rounded-control border border-[var(--border)] px-[var(--space-3)] text-[var(--text-dim)]"
                       onPointerLeave={() => setHoveredRowKey(null)}
                     >
@@ -1370,12 +1368,10 @@ export default function FriendsList(): React.JSX.Element {
                     virtualIndex={virtualItem.index}
                     virtualStyle={
                       density === 'compact'
-                        ? { ...virtualStyle, height: COMPACT_FRIEND_ROW_ESTIMATE }
+                        ? { ...virtualStyle, minHeight: COMPACT_FRIEND_ROW_ESTIMATE }
                         : virtualStyle
                     }
-                    measureElement={
-                      density === 'compact' ? undefined : rowVirtualizer.measureElement
-                    }
+                    measureElement={rowVirtualizer.measureElement}
                   />
                 )
               })}

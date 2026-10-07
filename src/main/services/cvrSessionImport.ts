@@ -28,6 +28,7 @@ interface CvrxConfig {
 }
 
 interface LoadStoredOrImportedOptions {
+  requestImportConsent: () => Promise<boolean>
   loadStored: () => CVRCredentials | undefined
   importSession: () => Promise<CVRCredentials | null>
   persistImported: (credentials: CVRCredentials) => void
@@ -597,8 +598,8 @@ export async function importCvrSession(
 
 /**
  * Preserve an existing valid VRX session. Invalid or unreadable stored material
- * is treated as absent so a safe local import can replace it. A newly imported
- * session becomes usable only after the caller persists it through safeStorage.
+ * is treated as absent. Explicit consent precedes ALL external discovery. A newly
+ * imported session becomes usable only after encrypted credential persistence.
  */
 export async function loadStoredOrImportedCvrSession(
   options: LoadStoredOrImportedOptions
@@ -610,6 +611,8 @@ export async function loadStoredOrImportedCvrSession(
     stored = undefined
   }
   if (stored !== undefined && isValidCvrSession(stored.username, stored.accessKey)) return stored
+
+  if ((await options.requestImportConsent()) !== true) return undefined
 
   const imported = await options.importSession()
   if (imported === null || !isValidCvrSession(imported.username, imported.accessKey)) {

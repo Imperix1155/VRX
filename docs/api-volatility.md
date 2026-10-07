@@ -100,9 +100,19 @@ traffic recorded in `api-policy.md`; normal CVR auth/friend traffic remains on
   it, so the renderer retains its last known roster/presence instead of
   replacing every friend with fabricated offline state. Authentication errors
   still propagate through the existing invalidation boundary.
-- **Individual bucket field omitted from a readable response:** Zod schema
-  `.default([])` still substitutes an empty array for that field; this remains
-  🟡 unverified drift behavior and should be revisited if the API changes shape.
+- **Fresh auth bucket reuse (synthetic verification only):** The immediately
+  following roster may reuse all three strictly parsed arrays from successful,
+  owner-persisted status validation once, within five seconds of request start.
+  Account/session replacement, another status probe, or a Pipeline event clears
+  that evidence. Omitted/malformed auth arrays disable reuse without rejecting
+  valid authentication. This saves one admitted request, not an auth ownership
+  check; subsequent roster reads retain their existing probe. Live latency and
+  real-account payload coverage have not been measured for this optimization.
+- **Missing or malformed roster-probe buckets (synthetic verification):** All
+  three arrays must validate. An omitted array, null, wrong type, or invalid
+  member takes the degraded-presence path without friend pagination; explicit
+  empty arrays remain valid. Auth identity remains usable while the roster read
+  reports unavailable data. No live omission of these fields is claimed.
 - **Missing `id` or `displayName`:** Zod validation fails; entire login fails with an auth error. Safe: user is prompted to log in again.
 
 **Code reference:** `/src/main/services/adapters/VrcAdapter.ts` (lines 28–31: schemas with defensive `.object()` and no required-field gotchas).

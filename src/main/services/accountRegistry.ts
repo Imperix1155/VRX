@@ -167,8 +167,12 @@ export class AccountRegistry {
       state: 'active'
     }
     if (JSON.stringify(entries) === JSON.stringify(this.file.entries)) return
-    this.file.entries = entries
-    this.persist()
+    const next: AccountRegistryFile = {
+      storeFormatVersion: ACCOUNT_REGISTRY_FORMAT_VERSION,
+      entries
+    }
+    this.storage.write(structuredClone(next))
+    this.file = next
   }
 
   listAccounts(): Account[] {
@@ -199,13 +203,5 @@ export class AccountRegistry {
         'account registry: storage could not be loaded; explicit recovery/reset required'
       )
     }
-  }
-
-  private persist(): void {
-    this.file.storeFormatVersion = ACCOUNT_REGISTRY_FORMAT_VERSION
-    this.storage.write({
-      storeFormatVersion: this.file.storeFormatVersion,
-      entries: structuredClone(this.file.entries)
-    })
   }
 }

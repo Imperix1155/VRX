@@ -65,6 +65,29 @@ describe('SocialStore', () => {
     })
   })
 
+  it('does not publish rejected notes or persist them through an unrelated write or restart', () => {
+    const context = {
+      platform: 'vrchat' as const,
+      platformAccountId: 'usr_a',
+      epoch: currentEpoch()
+    }
+    store.write(context, 'notes', { friend_a: 'saved' })
+    vi.spyOn(storage, 'write').mockImplementationOnce(() => {
+      throw new Error('disk full')
+    })
+    expect(() => store.write(context, 'notes', { friend_a: 'rejected' })).toThrow('disk full')
+    expect(store.read('vrchat', 'usr_a', 'notes')?.data).toEqual({ friend_a: 'saved' })
+    store.write(context, 'favorites', { friend_b: true })
+    expect(new SocialStore(session, storage).read('vrchat', 'usr_a', 'notes')?.data).toEqual({
+      friend_a: 'saved'
+    })
+    session.setIdentity('vrchat', 'usr_b')
+    expect(() => store.write(context, 'notes', { friend_a: 'retry' })).toThrow(
+      'stale account epoch'
+    )
+    expect(store.read('vrchat', 'usr_b', 'notes')).toBeNull()
+  })
+
   it('rejects a stale write issued before an account switch', () => {
     const staleEpoch = currentEpoch()
     session.setIdentity('vrchat', null)

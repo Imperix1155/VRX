@@ -626,3 +626,29 @@ describe('Settings dependency cards', () => {
     })
   })
 })
+
+describe('external CVR import preference', () => {
+  it('shows the remembered choice and lets the user revoke it without importing', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, cvrSessionImportChoice: 'import' },
+      dirty: false
+    })
+    useUiStore.setState({ settingsCategory: 'accounts' })
+    renderSettings()
+    const choice = screen.getByRole('radiogroup', {
+      name: msg('settings.accounts.sessionImport.label')
+    })
+    expect(
+      within(choice)
+        .getByRole('radio', { name: msg('settings.accounts.sessionImport.import') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+    fireEvent.click(
+      within(choice).getByRole('radio', { name: msg('settings.accounts.sessionImport.skip') })
+    )
+    expect(useSettingsStore.getState().settings.cvrSessionImportChoice).toBe('skip')
+    expect(screen.getByText(msg('settings.accounts.sessionImport.unsaved'))).toBeTruthy()
+    act(() => useSettingsStore.getState().markSaved())
+    expect(screen.queryByText(msg('settings.accounts.sessionImport.unsaved'))).toBeNull()
+  })
+})
