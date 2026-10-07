@@ -31,6 +31,15 @@ fresh machine. Each checkout used for packaging needs its own dependencies;
 do not replace the whole `node_modules` directory with a symlink to another
 checkout. That can omit production modules from the packaged app.
 
+The root postinstall applies `scripts/patch-http-cache.mjs` before Builder setup.
+This exact-source patch closes the locked development HTTP cache's stale reuse
+defect without changing the downloader or its proxy/options API. Normal builds
+verify the patched source digest. Do not use an install with lifecycle scripts
+disabled for building; after such an install, run `npm run postinstall`.
+An unexpected source, dependency version, or cache-library location fails closed
+and needs a reviewed replacement, not an updated hash alone. The focused
+`scripts/http-cache-security.test.mjs` suite covers the actual adapter and policy.
+
 After `npm run build`, `npm start` previews the built renderer without a Vite
 server. Its IPC admission accepts only the exact built renderer entry as a
 top-level local document. It does not enable packaged-only updates.
