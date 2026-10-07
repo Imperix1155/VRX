@@ -388,3 +388,61 @@ it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
     }
   }
 )
+
+it.each(['complete', 'partial'] as const)(
+  'preserves CVR %s payload identity and response shape',
+  async (completeness) => {
+    const friend: Friend = {
+      ...rosterFriend,
+      platform: 'chilloutvr',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null
+    }
+    const friends = [friend]
+    const roster: FriendRoster = { friends, completeness }
+    Object.freeze(friends)
+    Object.freeze(roster)
+    vi.mocked(adapter.getFriends).mockResolvedValue(roster)
+    registerFriendsHandlers(new Map([['chilloutvr', adapter]]), authority, appStatus)
+    const result = await handlers.get('get-friends')!(event, { platform: 'chilloutvr' })
+    if (completeness === 'complete') expect(result).toBe(friends)
+    else {
+      expect(result).toEqual({ friends, completeness: 'partial' })
+      if (!result || typeof result !== 'object' || !('friends' in result)) {
+        throw new Error('Expected a roster envelope')
+      }
+      expect(result.friends).toBe(friends)
+    }
+    expect(friends[0]).toBe(friend)
+    expect(appStatus.snapshot().lastReconcileAt.chilloutvr).toBe(12_345)
+  }
+)
+
+it('rejects a missing adapter before capturing or publishing authority', async () => {
+  const capture = vi.spyOn(authority, 'captureSeedRevision')
+  const seed = vi.spyOn(authority, 'seed')
+  await expect(handlers.get('get-friends')!(event, { platform: 'chilloutvr' })).rejects.toThrow(
+    'No adapter registered for platform: chilloutvr'
+  )
+  expect(capture).not.toHaveBeenCalled()
+  expect(seed).not.toHaveBeenCalled()
+  expect(appStatus.snapshot().lastReconcileAt.chilloutvr).toBeNull()
+})
+
+it('preserves the captured revision fallback when the seed array is empty', async () => {
+  vi.spyOn(authority, 'captureSeedRevision').mockReturnValue(44)
+  const friends = [rosterFriend]
+  vi.mocked(adapter.getFriends).mockResolvedValue({ friends, completeness: 'complete', seeds: [] })
+  const result = await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+  expect(result).toEqual({
+    friends,
+    completeness: 'complete',
+    provenance: { baseRevision: 44, overrides: [] }
+  })
+  if (!result || typeof result !== 'object' || !('friends' in result)) {
+    throw new Error('Expected a roster envelope')
+  }
+  expect(result.friends).toBe(friends)
+})
