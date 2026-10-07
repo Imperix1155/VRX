@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   importCvrSession,
   loadStoredOrImportedCvrSession,
@@ -359,10 +359,44 @@ describe('CVR session import', () => {
 })
 
 describe('CVR import persistence boundary', () => {
+  it.each([false, undefined, 'yes'])(
+    'does no discovery or persistence without explicit consent (%s)',
+    async (choice) => {
+      const importSession = vi.fn(async () => ({
+        username: 'synthetic',
+        accessKey: 'synthetic-key'
+      }))
+      const persistImported = vi.fn()
+      const result = await loadStoredOrImportedCvrSession({
+        loadStored: () => undefined,
+        requestImportConsent: async () => choice as boolean,
+        importSession,
+        persistImported
+      })
+      expect(result).toBeUndefined()
+      expect(importSession).not.toHaveBeenCalled()
+      expect(persistImported).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not ask permission when a valid VRX session exists', async () => {
+    const requestImportConsent = vi.fn(async () => false)
+    await expect(
+      loadStoredOrImportedCvrSession({
+        loadStored: () => ({ username: 'stored', accessKey: 'synthetic-key' }),
+        requestImportConsent,
+        importSession: async () => null,
+        persistImported: () => undefined
+      })
+    ).resolves.toEqual({ username: 'stored', accessKey: 'synthetic-key' })
+    expect(requestImportConsent).not.toHaveBeenCalled()
+  })
+
   it('persists an imported session before returning it for adapter use', async () => {
     const events: string[] = []
 
     const result = await loadStoredOrImportedCvrSession({
+      requestImportConsent: async () => true,
       loadStored: () => undefined,
       importSession: async () => {
         events.push('import')
@@ -379,6 +413,7 @@ describe('CVR import persistence boundary', () => {
   it('does not return imported credentials when encrypted persistence fails', async () => {
     await expect(
       loadStoredOrImportedCvrSession({
+        requestImportConsent: async () => true,
         loadStored: () => undefined,
         importSession: async () => ({ username: 'user', accessKey: 'key' }),
         persistImported: () => {
@@ -393,6 +428,7 @@ describe('CVR import persistence boundary', () => {
 
     expect(
       await loadStoredOrImportedCvrSession({
+        requestImportConsent: async () => true,
         loadStored: () => ({ username: 'stored-user', accessKey: 'stored-key' }),
         importSession: async () => {
           imported = true
@@ -421,6 +457,7 @@ describe('CVR import persistence boundary', () => {
 
       await expect(
         loadStoredOrImportedCvrSession({
+          requestImportConsent: async () => true,
           loadStored,
           importSession: async () => ({ username: 'external-user', accessKey: 'external-key' }),
           persistImported: (credentials) => {

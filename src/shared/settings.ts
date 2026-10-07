@@ -49,7 +49,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 10 as const
+export const SETTINGS_VERSION = 11 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -68,6 +68,8 @@ export const SettingsSchema = z.object({
   density: z.enum(['comfortable', 'compact']).catch('comfortable'),
   /** Whether the user acknowledged the unofficial-API first-run disclaimer. */
   firstRunDisclaimerAcknowledged: z.boolean().catch(false),
+  /** Remembered permission for external CVR session discovery at startup. */
+  cvrSessionImportChoice: z.enum(['ask', 'skip', 'import']).catch('ask'),
   /** Opt-in crash/usage telemetry; OFF by default. */
   telemetryEnabled: z.boolean().catch(false),
   /** Instance-pill naming scheme (DESIGN.md §6 label rule). Values from `@shared/types` LABEL_SCHEMES. */
@@ -133,7 +135,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   6: (prev) => ({ ...prev }),
   7: (prev) => ({ ...prev }),
   8: (prev) => ({ ...prev }),
-  9: (prev) => ({ ...prev })
+  9: (prev) => ({ ...prev }),
+  10: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

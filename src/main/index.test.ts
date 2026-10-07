@@ -176,6 +176,11 @@ describe('main credential-owner wiring', () => {
 
     expect(importStart).toBeGreaterThan(-1)
     expect(adapterStart).toBeGreaterThan(importStart)
+    expect(importWiring).toContain('requestImportConsent: () =>')
+    expect(importWiring).toContain('requestCvrImportConsent({')
+    expect(importWiring).toContain('defaultId: 0')
+    expect(importWiring).toContain('cancelId: 0')
+    expect(importWiring).toContain('saveSettings({ cvrSessionImportChoice })')
     expect(importWiring).toContain('importSession: () =>')
     expect(importWiring).toContain('importCvrSession({')
     expect(importWiring).toContain(

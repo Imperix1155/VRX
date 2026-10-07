@@ -66,6 +66,34 @@ describe.each([
   ['vrchat', 'Neo'],
   ['chilloutvr', 'Trinity']
 ] as const)('AccountCard — %s parity', (platform, displayName) => {
+  it('keeps initial IPC rejection visible with explicit retry, never a credential form', async () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.getAuthStatus.mockRejectedValueOnce(new Error('ipc failed'))
+    renderCard(platform, bridge)
+    const retry = await screen.findByRole('button', { name: msg('settings.accounts.retry') })
+    expect(screen.queryByLabelText(msg('settings.accounts.password'))).toBeNull()
+    fireEvent.click(retry)
+    expect(await screen.findByLabelText(msg('settings.accounts.password'))).toBeTruthy()
+  })
+
+  it('shows a pending status without inviting a duplicate login while initial auth is unresolved', () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.getAuthStatus.mockReturnValue(new Promise(() => {}))
+    renderCard(platform, bridge)
+    expect(screen.queryByLabelText(msg('settings.accounts.password'))).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe(msg('boot.connecting'))
+  })
+
   it('shows the connect form when disconnected and delegates credentials to that platform', async () => {
     const bridge = bridgeFor({
       platform,

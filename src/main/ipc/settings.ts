@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Settings } from '@shared/settings'
-import { loadSettings, saveSettings } from '../services/settings'
+import { hasPendingSettingsSave, loadSettings, saveSettings } from '../services/settings'
 import { isTrustedIpcSender } from './security'
 
 /**
@@ -13,9 +13,10 @@ import { isTrustedIpcSender } from './security'
  * leaves the store dirty and carries on in-memory).
  */
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('get-settings', (event): Settings => {
+  ipcMain.handle('get-settings', (event): IpcInvoke['get-settings']['res'] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    return loadSettings()
+    const settings = loadSettings()
+    return hasPendingSettingsSave() ? { ...settings, unsaved: true } : settings
   })
 
   ipcMain.handle(

@@ -20,6 +20,7 @@ import { AuthError, AuthSessionPendingError, NetworkError, RateLimitError } from
 import { VRC_USER_AGENT, VrcApiClient } from './VrcApiClient'
 import { VrcPipeline, type PipelineSocket } from './vrchat/VrcPipeline'
 import { fetchFriends } from './vrchat/fetchFriends'
+import { toBucketSets, type VrcCurrentUserBucketSets } from './vrchat/parsePresence'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { fetchGroupMetadata } from './vrchat/fetchGroupMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
@@ -74,7 +75,16 @@ const vrcUserIdSchema = z
   .string()
   .refine((id) => canonicalVrcUserId.test(id) || conservativeLegacyVrcUserId.test(id))
 /** Minimal current-user shape we rely on (the API returns much more). */
-const currentUserSchema = z.object({ id: vrcUserIdSchema, displayName: z.string() })
+const currentUserSchema = z.object({
+  id: vrcUserIdSchema,
+  displayName: z.string(),
+  // Optional optimization evidence: drift must not invalidate an otherwise
+  // valid identity, nor turn missing buckets into synthetic offline presence.
+  onlineFriends: z.array(z.string()).optional().catch(undefined),
+  activeFriends: z.array(z.string()).optional().catch(undefined),
+  offlineFriends: z.array(z.string()).optional().catch(undefined)
+})
+const AUTH_BUCKET_FRESHNESS_MS = 5_000
 /** The 2FA-required branch of `GET /auth/user`. */
 const twoFactorRequiredSchema = z.object({ requiresTwoFactorAuth: z.array(z.string()).min(1) })
 const authUserResponseSchema = z.union([twoFactorRequiredSchema, currentUserSchema])
@@ -189,6 +199,14 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   private accountId: string | null = null
   private pendingTwoFactorMethod: TwoFactorMethod | null = null
   private sessionGeneration = 0
+  private authBucketRevision = 0
+  /** One-use evidence from a successful, durably owner-bound status probe. */
+  private freshAuthBuckets: {
+    owner: string
+    generation: number
+    startedAt: number
+    buckets: VrcCurrentUserBucketSets
+  } | null = null
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
     this.get(`/worlds/${worldId}`, z.unknown(), { retry: 'none' })
@@ -523,6 +541,8 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   }
 
   async getAuthStatus(): Promise<AuthStatus> {
+    const bucketRevision = ++this.authBucketRevision
+    this.freshAuthBuckets = null
     for (;;) {
       if (this.authPersistencePending) {
         const tentative = await this.awaitTentativeAuthStatus()
@@ -531,6 +551,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       }
       if (!this.cookie) return this.status('unauthenticated')
       const generation = this.sessionGeneration
+      const startedAt = Date.now()
 
       let response: Response
       try {
@@ -638,8 +659,44 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       }
       this.live?.onIdentity?.(this.accountId)
       if (establishedByThisStatus) this.restartPipeline()
+      this.rememberAuthBuckets(parsed.data, generation, startedAt, bucketRevision)
       return this.status('authenticated')
     }
+  }
+
+  private rememberAuthBuckets(
+    user: z.infer<typeof currentUserSchema>,
+    generation: number,
+    startedAt: number,
+    bucketRevision: number
+  ): void {
+    const { onlineFriends, activeFriends, offlineFriends } = user
+    if (
+      bucketRevision !== this.authBucketRevision ||
+      !onlineFriends ||
+      !activeFriends ||
+      !offlineFriends
+    )
+      return
+    this.freshAuthBuckets = {
+      owner: user.id,
+      generation,
+      startedAt,
+      buckets: toBucketSets({ onlineFriends, activeFriends, offlineFriends })
+    }
+  }
+
+  private takeFreshAuthBuckets(): VrcCurrentUserBucketSets | undefined {
+    const evidence = this.freshAuthBuckets
+    this.freshAuthBuckets = null
+    if (
+      !evidence ||
+      evidence.owner !== this.accountId ||
+      evidence.generation !== this.sessionGeneration
+    )
+      return undefined
+    const age = Date.now() - evidence.startedAt
+    return age >= 0 && age <= AUTH_BUCKET_FRESHNESS_MS ? evidence.buckets : undefined
   }
 
   /** Avatar requests may observe only a cookie whose secure save has settled. */
@@ -832,6 +889,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.assertDurableSession()
     const generation = this.sessionGeneration
     const rateLimitRevision = this.admission.rateLimitRevision
+    const buckets = this.takeFreshAuthBuckets()
     try {
       const result = await fetchFriends((path, schema) => {
         // fetchFriends can issue several pages. Bind every request launch to
@@ -842,7 +900,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
           throw new RateLimitError(this.admission.cooldownRemainingMs)
         }
         return this.get(path, schema, { retry: 'none' })
-      })
+      }, buckets)
       const { friends, failedPages, skippedRecords } = result
       if (result.presence === 'degraded') {
         throw new NetworkError('Failed to fetch friends (presence=degraded)')
@@ -1143,6 +1201,8 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       tokenProvider: () => this.pipelineToken(),
       onEvent: (event) => {
         if (generation !== this.sessionGeneration) return
+        this.authBucketRevision += 1
+        this.freshAuthBuckets = null
         if (event.type === 'connection' && event.health === 'live') this.rosterRefresh.invalidate()
         this.emit(this.enrichPipelineEvent(event, generation))
       },
@@ -1412,6 +1472,8 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    */
   private bumpSessionGeneration(restartPipeline = true): void {
     this.sessionAbort.abort()
+    this.authBucketRevision += 1
+    this.freshAuthBuckets = null
     this.rosterRefresh.clear()
     this.sessionAbort = new AbortController()
     this.sessionGeneration += 1

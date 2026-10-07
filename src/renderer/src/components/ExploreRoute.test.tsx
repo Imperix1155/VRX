@@ -475,7 +475,11 @@ describe('ExploreRoute world sheet', () => {
       rerender(view(1))
       const opener = screen.getByRole('button', { name: /open visible rooms for a world/i })
       opener.focus()
-      fireEvent.click(opener)
+      // The resolved roster publishes asynchronously. Flush its effects before
+      // Escape: dialog markup can appear before the document listener is attached.
+      await act(async () => {
+        fireEvent.click(opener)
+      })
       await screen.findByRole('dialog', { name: /Visible public rooms/ })
       if (dismiss === 'Close') fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       else fireEvent.keyDown(document, { key: 'Escape' })

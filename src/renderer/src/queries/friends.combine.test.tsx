@@ -7,9 +7,9 @@
  * have not changed, so downstream memoization in the view actually holds.
  */
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Friend } from '@shared/types'
-import { useCombineFriendQueries, type FriendQuery } from './friends'
+import { combineFriendQueries, useCombineFriendQueries, type FriendQuery } from './friends'
 
 function query(overrides: Partial<FriendQuery> = {}): FriendQuery {
   return {
@@ -99,5 +99,34 @@ describe('useCombineFriendQueries', () => {
       cvr
     })
     expect(result.current.friends).not.toBe(first)
+  })
+})
+
+describe('combined query enablement', () => {
+  it('ignores disabled pending/error state and does not bypass its auth gate on refresh', () => {
+    const vrc = query({ isError: true, refetch: vi.fn() })
+    const cvr = Object.assign(query({ isPending: true, refetch: vi.fn() }), { isEnabled: false })
+    const pure = combineFriendQueries('all', vrc, cvr)
+    const { result } = renderHook(() => useCombineFriendQueries('all', vrc, cvr))
+    for (const view of [pure, result.current]) {
+      expect(view).toMatchObject({ isPending: false, isError: true })
+      view.refetch()
+    }
+    expect(vrc.refetch).toHaveBeenCalledTimes(2)
+    expect(cvr.refetch).not.toHaveBeenCalled()
+
+    const disabledError = Object.assign(query({ isError: true }), { isEnabled: false })
+    expect(combineFriendQueries('all', query({ data: [] }), disabledError)).toMatchObject({
+      friends: [],
+      isError: false,
+      isPending: false
+    })
+  })
+
+  it('keeps an enabled paused first load pending instead of treating idle as signed out', () => {
+    const vrc = Object.assign(query({ isPending: true, isFetching: false }), { isEnabled: true })
+    const cvr = Object.assign(query({ isError: true }), { isEnabled: false })
+    const { result } = renderHook(() => useCombineFriendQueries('all', vrc, cvr))
+    expect(result.current).toMatchObject({ isPending: true, isError: false })
   })
 })
