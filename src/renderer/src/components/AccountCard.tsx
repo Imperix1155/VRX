@@ -15,7 +15,7 @@ import { ACCOUNT_COPY } from './auth/copy'
 export default function AccountCard({ platform }: { platform: Platform }): React.JSX.Element {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { data: authStatus } = useAuthStatus(platform)
+  const { data: authStatus, isPending, isError } = useAuthStatus(platform)
   const config = ACCOUNT_CARD_CONFIG[platform]
 
   const [isDisconnecting, setIsDisconnecting] = useState(false)
@@ -71,12 +71,12 @@ export default function AccountCard({ platform }: { platform: Platform }): React
     }
   }
 
-  const isConnected = authStatus?.state === 'authenticated'
+  const isConnected = !isError && authStatus?.state === 'authenticated'
   // `error` = the platform couldn't be reached / its reply couldn't be read
   // (VRX-201) — the session may be alive, so NEVER show the Connect form here
   // (re-entering credentials would create a duplicate session). Quiet banner +
   // Retry + Sign out instead; identical path for both platforms.
-  const isUnreachable = authStatus?.state === 'error'
+  const isUnreachable = isError || authStatus?.state === 'error'
 
   return (
     <div
@@ -88,7 +88,11 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         <p className="text-sm font-medium text-[var(--text)]">{t(config.labelKey)}</p>
       </div>
 
-      {isConnected ? (
+      {isPending ? (
+        <p role="status" className="mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
+          {t('boot.connecting')}
+        </p>
+      ) : isConnected ? (
         <div className="relative mt-[var(--space-4)]">
           <div className="flex items-center justify-between gap-[var(--space-6)]">
             <p className="flex items-center gap-[var(--space-2)] text-sm text-[var(--text)]">

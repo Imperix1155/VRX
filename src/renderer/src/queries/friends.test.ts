@@ -1,5 +1,12 @@
+import { QueryClient } from '@tanstack/react-query'
+import {
+  applyOrderedFriendEvent,
+  shareFriendReplayResult,
+  withFriendEventReplay
+} from './friendEventReplay'
+import type { Friend } from '@shared/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchFriends, friendsQueryKey } from './friends'
+import { fetchFriendRoster, fetchFriends, friendsQueryKey } from './friends'
 import { fullFriend } from '../test-utils/friendFixture'
 
 describe('friendsQueryKey', () => {
@@ -42,3 +49,155 @@ describe('fetchFriends', () => {
     expect(getFriends).toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 })
+
+describe('roster envelope contract', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it.each([
+    null,
+    { baseRevision: NaN, overrides: [] },
+    { baseRevision: -1, overrides: [] },
+    { baseRevision: 1, overrides: [{ revision: 0, friendIds: ['usr_a'] }] },
+    { baseRevision: 1, overrides: [{ revision: 2, friendIds: null }] }
+  ])(
+    'rejects malformed provenance instead of silently dropping live updates: %j',
+    async (provenance) => {
+      vi.stubGlobal('window', {
+        vrx: {
+          getFriends: vi
+            .fn()
+            .mockResolvedValue({ friends: [], completeness: 'complete', provenance })
+        }
+      })
+      await expect(fetchFriendRoster('vrchat')).rejects.toThrow('invalid_roster_response')
+    }
+  )
+  it('preserves legacy partial merging and does not merge omissions into a complete envelope', async () => {
+    const old = fullFriend('Old', 'vrchat')
+    const getFriends = vi
+      .fn()
+      .mockResolvedValueOnce({ friends: [], completeness: 'partial' })
+      .mockResolvedValueOnce({
+        friends: [],
+        completeness: 'complete',
+        provenance: { baseRevision: 4, overrides: [] }
+      })
+    vi.stubGlobal('window', { vrx: { getFriends } })
+    expect((await fetchFriendRoster('vrchat', () => [old])).friends).toEqual([old])
+    expect(await fetchFriendRoster('vrchat', () => [old])).toEqual({
+      friends: [],
+      completeness: 'complete',
+      provenance: { baseRevision: 4, overrides: [] }
+    })
+  })
+})
+
+it.each([
+  { coveredIds: ['usr_alice', 'usr_bob'], overrides: [] },
+  { coveredIds: [], overrides: [] },
+  { coveredIds: ['usr_alice'], overrides: [{ revision: 6, friendIds: ['usr_bob'] }] },
+  { coveredIds: ['usr_alice', 'usr_alice'], overrides: [] }
+])('rejects inconsistent coverage and preserves cache AND prior fences: %j', async (coverage) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const alice = fullFriend('Alice', 'vrchat'),
+    bob = fullFriend('Bob', 'vrchat'),
+    key = friendsQueryKey('vrchat')
+  const getFriends = vi
+    .fn()
+    .mockResolvedValueOnce({
+      friends: [alice],
+      completeness: 'complete',
+      provenance: { baseRevision: 1, overrides: [] }
+    })
+    .mockResolvedValueOnce({
+      friends: [alice],
+      completeness: 'partial',
+      provenance: { baseRevision: 5, ...coverage }
+    })
+  vi.stubGlobal('window', { vrx: { getFriends } })
+  const read = (): Promise<Friend[]> =>
+    client.fetchQuery({
+      queryKey: key,
+      structuralSharing: shareFriendReplayResult,
+      queryFn: ({ signal }) =>
+        withFriendEventReplay(client, signal, () =>
+          fetchFriendRoster('vrchat', () => client.getQueryData(key))
+        )
+    })
+  try {
+    await read()
+    await expect(read()).rejects.toThrow('invalid_roster_response')
+    const cached = client.getQueryData<Friend[]>(key)!
+    expect(cached).toEqual([alice])
+    expect(
+      applyOrderedFriendEvent(client, cached, {
+        type: 'friend-added',
+        platform: 'vrchat',
+        friend: bob,
+        rosterRevision: 3
+      })
+    ).toEqual([alice, bob])
+    expect(
+      applyOrderedFriendEvent(client, cached, {
+        type: 'friend-added',
+        platform: 'vrchat',
+        friend: bob,
+        rosterRevision: 0
+      })
+    ).toEqual([alice])
+  } finally {
+    client.clear()
+    vi.unstubAllGlobals()
+  }
+})
+
+it('rejects inconsistent coverage before consulting cached omissions', async () => {
+  const alice = fullFriend('Alice', 'vrchat')
+  const readCache = vi.fn(() => {
+    throw new Error('cache must not be read before validation')
+  })
+  vi.stubGlobal('window', {
+    vrx: {
+      getFriends: vi.fn().mockResolvedValue({
+        friends: [alice],
+        completeness: 'partial',
+        provenance: { baseRevision: 5, coveredIds: [], overrides: [] }
+      })
+    }
+  })
+  try {
+    await expect(fetchFriendRoster('vrchat', readCache)).rejects.toThrow('invalid_roster_response')
+    expect(readCache).not.toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each(['complete', 'partial'] as const)(
+  'retains frozen %s response payload identity when no cached rows are omitted',
+  async (completeness) => {
+    const alice = fullFriend('Alice', 'vrchat')
+    const friends = Object.freeze([alice])
+    const provenance = Object.freeze({
+      baseRevision: 5,
+      ...(completeness === 'partial' ? { coveredIds: Object.freeze([alice.platformUserId]) } : {}),
+      overrides: Object.freeze([])
+    })
+    const envelope = Object.freeze({ friends, completeness, provenance })
+    const readCache = vi.fn(() => undefined)
+    vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
+    try {
+      const result = await fetchFriendRoster('vrchat', readCache)
+      expect(result.friends).toBe(friends)
+      expect(result.provenance).toBe(provenance)
+      expect(result.friends[0]).toBe(alice)
+      if (completeness === 'complete') {
+        expect(result).toBe(envelope)
+        expect(readCache).not.toHaveBeenCalled()
+      } else {
+        expect(readCache).toHaveBeenCalledOnce()
+      }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+)

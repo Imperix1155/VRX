@@ -244,6 +244,25 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     expect(screen.getByRole('status').textContent).toBe('Connecting…')
   })
 
+  it('reveals healthy CVR while VRChat is still unresolved', () => {
+    mockAuthStatuses(vrcUnauthenticated, { ...cvrUnauthenticated, state: 'authenticated' }, [
+      'vrchat'
+    ])
+    renderApp()
+    expect(screen.getByTestId('app-shell')).toBeTruthy()
+  })
+
+  it('keeps a rejected initial auth query out of the signed-out form', () => {
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data: platform === 'vrchat' ? undefined : cvrUnauthenticated,
+      isPending: false,
+      isError: platform === 'vrchat'
+    }))
+    renderApp()
+    expect(screen.getByTestId('app-shell')).toBeTruthy()
+    expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
+  })
+
   it('routes a native hot-instance toast click to the Dashboard', () => {
     stubDashboardNavigation()
     useUiStore.setState({ activeTab: 'settings' })

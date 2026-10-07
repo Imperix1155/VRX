@@ -25,7 +25,11 @@ function foldWithOffsets(text: string): FoldedText {
   for (const character of text) {
     const start = offset
     offset += character.length
-    const foldedCharacter = character.normalize('NFD').replace(COMBINING_MARK, '').toLowerCase()
+    const foldedCharacter = character
+      .normalize('NFD')
+      .replace(COMBINING_MARK, '')
+      .toLowerCase()
+      .replace(/ς/g, 'σ')
 
     // Keep a decomposed combining mark attached to the preceding highlighted
     // character so slicing never leaves the accent outside the match span.
@@ -44,10 +48,6 @@ function foldWithOffsets(text: string): FoldedText {
   return { value, starts, ends }
 }
 
-function fold(text: string): string {
-  return text.normalize('NFD').replace(COMBINING_MARK, '').toLowerCase()
-}
-
 /**
  * Split a display name into matched and unmatched segments. Matching is
  * case-insensitive and diacritic-insensitive, while returned text always
@@ -57,7 +57,7 @@ export function splitByMatch(name: string, query: string): MatchSegment[] {
   if (name.length === 0) return []
 
   const foldedName = foldWithOffsets(name)
-  const foldedQuery = fold(query)
+  const foldedQuery = foldWithOffsets(query).value
   if (foldedQuery.length === 0) return [{ text: name, isMatch: false }]
 
   const segments: MatchSegment[] = []
@@ -75,7 +75,14 @@ export function splitByMatch(name: string, query: string): MatchSegment[] {
     if (originalStart > originalCursor) {
       segments.push({ text: name.slice(originalCursor, originalStart), isMatch: false })
     }
-    segments.push({ text: name.slice(originalStart, originalEnd), isMatch: true })
+    // Different normalized matches may map to overlapping original syllables.
+    // Emit each original code unit only once, even for partial Hangul matches.
+    if (originalEnd > originalCursor) {
+      segments.push({
+        text: name.slice(Math.max(originalStart, originalCursor), originalEnd),
+        isMatch: true
+      })
+    }
 
     foldedCursor = matchIndex + foldedQuery.length
     originalCursor = originalEnd

@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
+import { FriendEventReplayOverflowError } from './friendEventReplay'
 
 function isRateLimitedError(error: unknown): boolean {
   return error instanceof Error && error.message === 'rate_limited'
@@ -20,9 +21,14 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
       // Local IPC rate-limit denials are deterministic inside their window;
-      // retrying them only consumes more channel budget. Other failures keep
+      // retrying them only consumes more channel budget. An overflowing live
+      // journal also needs an explicit retry, not another roster in the burst.
+      // Other failures keep
       // the existing three-retry policy and TanStack's exponential backoff.
-      retry: (failureCount, error) => (isRateLimitedError(error) ? false : failureCount < 3)
+      retry: (failureCount, error) =>
+        isRateLimitedError(error) || error instanceof FriendEventReplayOverflowError
+          ? false
+          : failureCount < 3
     }
   }
 })

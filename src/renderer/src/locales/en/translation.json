@@ -96,7 +96,9 @@
     "chooseDestination": "Choose a destination",
     "joinOn": "Join on {{platform}}",
     "activityChanged": "Activity changed. Review the current location.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "loadFailed": "Could not load linked profiles. Retry to restore identity management.",
+    "retryLoad": "Retry linked profiles"
   },
   "boot": {
     "connecting": "Connecting…"
@@ -258,6 +260,14 @@
       },
       "chilloutvr": {
         "label": "ChilloutVR"
+      },
+      "sessionImport": {
+        "label": "External ChilloutVR session",
+        "skip": "Never",
+        "ask": "Ask",
+        "import": "Allow",
+        "description": "When VRX has no saved ChilloutVR session, allow reading local game profiles and CVRX files to copy a session and sign in on your behalf. Source files are unchanged. Takes effect on the next app launch; existing VRX sessions and direct sign-in are unaffected.",
+        "unsaved": "Settings changes are not yet saved."
       }
     },
     "boolean": {
@@ -275,6 +285,12 @@
         "label": "Hot Instances",
         "description": "Show where friends gather and allow Hot Instances alerts."
       }
+    },
+    "persistence": {
+      "error": "Settings could not be saved. Your changes are still applied here, but may be lost on restart.",
+      "unsaved": "Settings have unsaved changes.",
+      "retry": "Retry saving settings",
+      "saving": "Saving…"
     }
   },
   "error": {
@@ -294,7 +310,7 @@
     "refresh": "Refresh",
     "error": "Could not load friends",
     "joinAria": "Join {{name}} in {{world}}",
-    "joinFailed": "Couldn't join",
+    "joinFailed": "Couldn't join. Check the game and connection, then use Join to try again.",
     "joinFailure": {
       "stale": "Live connection not ready — joins resume when the live feed reconnects",
       "cooldown": "One moment — just launched a join",
@@ -458,7 +474,7 @@
     "passwordPlaceholder": "••••••••",
     "signIn": "Sign In",
     "signingIn": "Signing in…",
-    "disclaimer": "Connects to VRChat on your behalf. Your credentials are stored securely on this device.",
+    "disclaimer": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
       "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
       "unknown": "Sign-in failed. Check your details and connection, then try again."
@@ -475,7 +491,7 @@
       "aria": "Sign-in platform"
     },
     "formAria": "{{platform}} sign-in",
-    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Your credentials are stored securely on this device."
+    "disclaimerChilloutvr": "Connects to ChilloutVR on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."
   },
   "stepper": {
     "decrease": "Decrease",
