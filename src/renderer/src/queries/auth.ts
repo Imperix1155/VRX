@@ -33,6 +33,9 @@ export function useAuthStatus(platform: Platform = 'vrchat'): UseQueryResult<Aut
   return useQuery({
     queryKey: authStatusQueryKey(platform),
     queryFn: () => fetchAuthStatus(platform),
-    staleTime: 30_000
+    staleTime: 30_000,
+    // Recovery surfaces mount after failure; mounting them must not restart
+    // the initial check and send App back through its pending gate.
+    retryOnMount: false
   })
 }

@@ -4,7 +4,7 @@
 
 VRX is a local desktop Electron app that brings your VRChat and ChilloutVR social lives into one place. Friends list, presence, hot instances, notifications, and more — using live WebSocket presence, with no bots or writes to VRCX or CVRX data.
 
-**Status:** Early development. VRChat and ChilloutVR support direct login,
+**Status:** Preparing for a Windows-first 1.0; 1.0 is not yet declared shipped. VRChat and ChilloutVR support direct login,
 session restore, live friends and the hot-instance dashboard. Local manual
 identity linking adds combined profiles, separate shared/account notes and an
 explicit destination chooser. The app also includes theming and auto-update.
@@ -21,6 +21,33 @@ confirmation and permission settings. Current behavior is documented in the
 
 Navigation contains Dashboard, Friends, Explore, and Settings. Activity and
 Groups are deferred concepts and do not appear as unfinished tabs.
+
+## Install and support
+
+Windows is the primary 1.0 target; use the NSIS installer for automatic update
+support or the portable executable for manual updates. Linux AppImage/deb builds
+are experimental. macOS builds are for local development and are not published
+by the release workflow. See [Install and support](docs/INSTALL.md) for choosing
+an artifact, update channels, limitations, and reporting problems.
+
+## Sessions and privacy
+
+VRX signs in to each platform on your behalf. Saved sessions use Electron
+`safeStorage` with OS-backed encryption when available. If that is unavailable
+or fails, VRX uses authenticated local encryption with a random per-installation
+key in private app files. This fallback is weaker: access to both that key and
+the encrypted data permits session recovery. Passwords are not saved.
+
+With no valid saved VRX ChilloutVR session, VRX asks before discovering or
+copying a session from local ChilloutVR game profiles or CVRX files. Direct
+sign-in is the default choice. Settings → Accounts → External ChilloutVR session
+lets you choose Never, Ask, or Allow; changes apply on the next app launch.
+Existing VRX sessions are unaffected. Source files are never changed. If the
+choice cannot be saved, no external session is read and VRX explains the failure.
+
+Desktop friend notifications default off. When enabled, Ask Me/DND locations
+remain hidden even when a cached world name or parseable location is available;
+online notifications and generic world-entry notifications remain available.
 
 ## Stack
 

@@ -7,7 +7,10 @@
  * flips dev/prod per test without module resets.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { WebFrameMain } from 'electron'
+import { app, type WebFrameMain } from 'electron'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+vi.mock('electron', () => ({ app: { getAppPath: () => '/app' } }))
 import { isTrustedIpcSender } from './security'
 
 const mockState = { dev: true }
@@ -90,6 +93,23 @@ describe('isTrustedIpcSender — dev (Vite renderer origin)', () => {
     devSetup()
     expect(isTrustedIpcSender(frame('not a url'))).toBe(false)
     expect(isTrustedIpcSender(frame(''))).toBe(false)
+  })
+})
+
+describe('built local preview', () => {
+  const entry = pathToFileURL(join(app.getAppPath(), 'out/renderer/index.html')).href
+  it('admits only the built top-level renderer when the dev server is absent', () => {
+    mockState.dev = true
+    setDevServer(null)
+    expect(isTrustedIpcSender(frame(entry))).toBe(true)
+    expect(isTrustedIpcSender(frame(`${entry}#settings`))).toBe(true)
+    expect(isTrustedIpcSender(frame('file:///tmp/evil.html'))).toBe(false)
+    expect(isTrustedIpcSender(frame(entry, frame(entry)))).toBe(false)
+  })
+  it('does not admit local files while a dev server is configured', () => {
+    mockState.dev = true
+    setDevServer('http://localhost:5173')
+    expect(isTrustedIpcSender(frame(entry))).toBe(false)
   })
 })
 

@@ -236,6 +236,13 @@ Combined/neutral options sit between the two scoped options. Preserve reduced
 motion. Boolean settings use visible On/Off labels and the same sliding glass
 indicator, radiogroup semantics, and arrow-key navigation.
 
+Unsaved settings stay visibly marked in the shell. A failed save retains the
+latest edits with an explicit Retry control; the warning remains until a save
+succeeds. Initial auth IPC failures show a platform-specific recovery message
+and Retry, never a signed-out credentials form. A healthy platform may reveal
+the shell while the other is pending. Panel failures are scoped to the active
+tab; navigating to a healthy tab recovers without concealing repeated faults.
+
 Settings has Appearance, Dashboard, Behavior, Notifications, and Accounts
 categories. Each top-level setting has a compact neutral information card over
 the backing panel. Hot Instances contains its minimum-friend threshold and
@@ -271,6 +278,11 @@ Reuse the existing Friends list's virtual rows and sticky collapsible sections:
 In-Game, Online, Offline. Offline starts collapsed. Search exposes matches
 without mutating saved collapse settings. Preserve roving avatar focus and
 exclude offscreen overscan actions from sequential Tab navigation.
+Join failures wrap below row controls. Compact rows keep a 60 px minimum and
+are measured as feedback expands or clears, preserving the gap to following rows.
+Failures remain until another attempt or account
+boundary, and describe the next step. Retrying uses the existing Join control and
+its confirmation, busy, and main admission checks; never retry joins automatically.
 
 The avatar is the semantic details opener. Default whole-card pointer opening
 extends that target while excluding Join and text-selection gestures. The Avatar
@@ -331,6 +343,13 @@ unavailable sources, stale results, and verified empty states. Unknown or partia
 counts remain unknown, never zero. Sheet coverage and disabled actions must
 reflect the supplied snapshot. No documentation example may add polling.
 
+Accounts exposes a compact Never / Ask / Allow control for external ChilloutVR
+session import. Ask is the default; the native default-cancel consent prompt runs
+only without a valid VRX session, before source discovery. Decisions are remembered
+and revocable in Accounts, applying on the next launch. Direct login remains
+available. Sign-in copy explains OS-backed encryption and the weaker local-key
+fallback; it must not promise universal OS-keychain protection.
+
 Auth examples use the actual credentials and method-specific 2FA forms. Secure
 storage failure keeps the dedicated production error copy. Fixtures accept only
 invented sample input and never authenticate or persist it.
@@ -362,6 +381,9 @@ reviews disclose affected pairs and shared-note loss with explicit acknowledgeme
 Unsaved/in-flight drafts block destructive submission and offer return to their
 editor. Reviewed revisions must still match. Preserve account ownership checks,
 all-or-nothing writes, explicit retry, and account-boundary invalidation.
+Linked-profile load/reload failures show a local-read Retry in Friends and
+Identities. A retry coalesces with an active read and cannot restore an outgoing
+account's snapshot. Name-save/reset completions clear only an unchanged draft.
 
 Sources: [`projectLinkedFriends.ts`](../src/renderer/src/utils/projectLinkedFriends.ts),
 [`FriendDrawer.tsx`](../src/renderer/src/components/FriendDrawer.tsx),

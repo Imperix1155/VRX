@@ -37,7 +37,7 @@ function createMockAutoUpdater(): {
   const autoUpdater = {
     // Start OPPOSITE the service's required settings so the config-contract pin
     // binds: autoDownload must flip to false, autoInstallOnAppQuit must flip to
-    // true, allowPrerelease must flip to true, and logger must be set.
+    // true, stable allowPrerelease must stay false, and logger must be set.
     autoDownload: true,
     autoInstallOnAppQuit: false,
     allowPrerelease: false,
@@ -79,10 +79,10 @@ function createMockBrowserWindow(): {
   return { win, sent }
 }
 
-function createMockApp(packaged: boolean): App {
+function createMockApp(packaged: boolean, version = '0.14.0'): App {
   return {
     isPackaged: packaged,
-    getVersion: () => '0.14.0'
+    getVersion: () => version
   } as unknown as App
 }
 
@@ -158,6 +158,7 @@ describe('UpdaterService', () => {
 
   function createService(
     options: {
+      version?: string
       packaged?: boolean
       autoUpdate?: boolean
       windows?: BrowserWindow[]
@@ -176,7 +177,7 @@ describe('UpdaterService', () => {
   } {
     const { autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall } = createMockAutoUpdater()
     const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
-    const app = createMockApp(options.packaged ?? true)
+    const app = createMockApp(options.packaged ?? true, options.version)
     const windows = options.windows ?? []
     const settings = { autoUpdate: options.autoUpdate ?? false }
     const service = new UpdaterService({
@@ -233,16 +234,23 @@ describe('UpdaterService', () => {
     expect(quitAndInstall).not.toHaveBeenCalled()
   }
 
+  it.each([
+    ['1.0.0', false],
+    ['0.23.0', false],
+    ['1.0.0-beta.1', true],
+    ['1.0.0-rc.1', true]
+  ])('derives prerelease admission from installed version %s', (version, expected) => {
+    const { autoUpdater } = createService({ version })
+    expect(autoUpdater.allowPrerelease).toBe(expected)
+  })
+
   it('overrides updater defaults and discards all library logger payloads', () => {
     // The consent core. autoDownload must be forced OFF (the library default is
-    // true — leaving it would silently download every release), allowPrerelease
-    // must be forced ON (pre-1.0 releases are all GitHub prereleases; the
-    // default false empties the update feed), autoInstallOnAppQuit must be
-    // forced ON (a consented download applies at quit), and the logger must be
-    // wrapped so updater diagnostics reach the VRX log only after sanitization.
+    // true — leaving it would silently download every release). A consented
+    // download applies at quit; raw library diagnostics must be discarded.
     const { autoUpdater, log } = createService()
     expect(autoUpdater.autoDownload).toBe(false)
-    expect(autoUpdater.allowPrerelease).toBe(true)
+    expect(autoUpdater.allowPrerelease).toBe(false)
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
     expect(autoUpdater.logger).not.toBe(log)
 

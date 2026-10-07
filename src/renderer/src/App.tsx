@@ -52,8 +52,16 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  const { data: vrcAuthStatus, isPending: isVrcPending } = useAuthStatus('vrchat')
-  const { data: cvrAuthStatus, isPending: isCvrPending } = useAuthStatus('chilloutvr')
+  const {
+    data: vrcAuthStatus,
+    isPending: isVrcPending,
+    isError: isVrcError
+  } = useAuthStatus('vrchat')
+  const {
+    data: cvrAuthStatus,
+    isPending: isCvrPending,
+    isError: isCvrError
+  } = useAuthStatus('chilloutvr')
 
   // Platform parity: keep account management reachable while either platform is
   // connected. A VRChat 2FA reprompt is handled inside its AccountCard in-shell.
@@ -66,11 +74,18 @@ function App(): React.JSX.Element {
   // Hydration gate (VRX-212): do not reveal the UI until the persisted settings
   // load has resolved. An empty tree keeps the default dark canvas visible, so
   // a saved light theme or non-standard glow is applied before anything renders.
-  if (!hydrated || isVrcPending || isCvrPending) return <BootSplash />
+  if (!hydrated) return <BootSplash />
 
-  if (entersShell(vrcAuthStatus?.state) || entersShell(cvrAuthStatus?.state)) {
+  if (
+    entersShell(vrcAuthStatus?.state) ||
+    entersShell(cvrAuthStatus?.state) ||
+    isVrcError ||
+    isCvrError
+  ) {
     return <AppShell />
   }
+
+  if (isVrcPending || isCvrPending) return <BootSplash />
 
   // Neither platform is connected. needs-2fa keeps the existing direct VRChat
   // code-prompt route; otherwise LoginScreen starts on credentials as before.

@@ -24,6 +24,13 @@ events.
 - Treat every API value as untrusted. Validate page envelopes and individual
   records. Skip malformed records without discarding valid siblings. A partial
   roster must never claim completeness or remove absent cached friends.
+- Optional auth-status presence buckets are one-use evidence, valid only for
+  the same durably bound owner and session within five seconds of probe start.
+  New status probes, Pipeline events, and session boundaries invalidate them;
+  missing or malformed evidence falls back to the ordinary roster probe.
+- The ordinary roster bucket probe requires all three presence arrays. Missing
+  or malformed arrays degrade without publishing an invented offline baseline;
+  explicitly empty arrays remain valid.
 - VRChat presence has two axes. Derive `state` from the current user's bucket
   membership and `status` from each friend's status field. Keep them separate.
   Unknown values degrade safely and do not crash an update.

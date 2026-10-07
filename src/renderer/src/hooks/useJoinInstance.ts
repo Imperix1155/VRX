@@ -157,7 +157,6 @@ function createJoinStore(): JoinStore {
     failureReason: null
   }
   const listeners = new Set<() => void>()
-  let failureTimer: number | null = null
 
   function emit(patch: Partial<JoinSnapshot>): void {
     snapshot = { ...snapshot, ...patch }
@@ -165,22 +164,15 @@ function createJoinStore(): JoinStore {
   }
 
   function clearFailureBlip(): void {
-    if (failureTimer != null) {
-      window.clearTimeout(failureTimer)
-      failureTimer = null
-    }
     if (snapshot.failedFriendId != null || snapshot.failureReason != null) {
       emit({ failedFriendId: null, failureReason: null })
     }
   }
 
   function showFailureBlip(friendKey: string, reason: JoinFailureReason): void {
-    if (failureTimer != null) window.clearTimeout(failureTimer)
     emit({ failedFriendId: friendKey, failureReason: reason })
-    failureTimer = window.setTimeout(() => {
-      failureTimer = null
-      emit({ failedFriendId: null, failureReason: null })
-    }, 2_500)
+    // Keep feedback readable until the next explicit attempt or session boundary.
+    // Retry still goes through the shared busy/confirmation latch and main admission.
   }
 
   async function performJoin(friend: Friend, mode: JoinMode): Promise<void> {
