@@ -618,7 +618,9 @@ cache updates with the last published provenance: native invoke responses and
 push messages can arrive on separate queues. One bounded fence per query client
 survives transport cleanup and is cleared by `clearFriendEventReplay` at account
 boundaries; it retains no journal or listeners. Partial provenance includes
-`coveredIds` from main before renderer cache merging. Only covered IDs advance;
+`coveredIds` from main before renderer cache merging. Main deduplicates these IDs
+even when pagination returns overlapping rows; friend payloads remain unchanged.
+Only covered IDs advance;
 unlisted present and absent IDs retain their previous fences. With no prior
 complete snapshot, unknown IDs have revision0 rather than the partial read’s
 revision. Complete snapshots replace global absence freshness and compact
