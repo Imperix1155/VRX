@@ -36,11 +36,11 @@ export type VrcFetcher = <T>(path: string, schema: z.ZodType<T>) => Promise<T>
 
 // ─── Zod schemas for raw API shapes ──────────────────────────────────────────
 
-/** Minimal current-user shape — only the bucket arrays we need. */
+/** Missing buckets are unavailable evidence, not an empty/offline baseline. */
 const currentUserBucketsSchema = z.object({
-  onlineFriends: z.array(z.string()).default([]),
-  activeFriends: z.array(z.string()).default([]),
-  offlineFriends: z.array(z.string()).default([])
+  onlineFriends: z.array(z.string()),
+  activeFriends: z.array(z.string()),
+  offlineFriends: z.array(z.string())
 })
 
 /**
@@ -224,7 +224,7 @@ async function fetchPass(
  * Fetch the complete VRChat friend list for the authenticated user.
  *
  * Steps:
- *   1. GET /auth/user for bucket arrays (needed to derive PresenceState).
+ *   1. Reuse caller-validated fresh buckets, or GET /auth/user for them.
  *   2. Paginate online friends (`offline=false`).
  *   3. Paginate offline friends (`offline=true`).
  *
@@ -234,9 +234,13 @@ async function fetchPass(
  * skipped (the rest of its page survives). Returns everything collected plus
  * both counters so the caller can distinguish "no friends" from "drift ate them".
  *
+ * @param freshBuckets - Optional one-use evidence; caller owns account/session/freshness validation.
  * @param fetcher - Injected HTTP helper (e.g. `(path, schema) => this.get(path, schema)`).
  */
-export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsResult> {
+export async function fetchFriends(
+  fetcher: VrcFetcher,
+  freshBuckets?: VrcCurrentUserBucketSets
+): Promise<FetchFriendsResult> {
   // Step 1: fetch buckets. Presence has no honest fallback: empty synthetic
   // buckets would turn every friend offline, overwriting known live state.
   // EXCEPTION: a 401/403 on this session-probe call means the cookie is dead —
@@ -244,8 +248,7 @@ export async function fetchFriends(fetcher: VrcFetcher): Promise<FetchFriendsRes
   // degrading to an empty roster while the session is actually gone (VRX-195).
   let buckets: VrcCurrentUserBucketSets
   try {
-    const rawBuckets = await fetcher('/auth/user', currentUserBucketsSchema)
-    buckets = toBucketSets(rawBuckets)
+    buckets = freshBuckets ?? toBucketSets(await fetcher('/auth/user', currentUserBucketsSchema))
   } catch (error) {
     if (
       error instanceof AuthError ||

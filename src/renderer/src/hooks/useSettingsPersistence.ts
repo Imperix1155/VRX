@@ -1,3 +1,4 @@
+import type { IpcInvoke } from '@shared/ipc'
 import { useEffect, useState } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
@@ -9,7 +10,9 @@ function isRateLimitedError(error: unknown): boolean {
   return error instanceof Error && error.message === 'rate_limited'
 }
 
-async function loadSettingsWithRetry(load: () => Promise<Settings>): Promise<Settings> {
+async function loadSettingsWithRetry(
+  load: () => Promise<IpcInvoke['get-settings']['res']>
+): Promise<IpcInvoke['get-settings']['res']> {
   for (let attempt = 0; attempt < SETTINGS_LOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
       return await load()
@@ -51,7 +54,7 @@ async function loadSettingsWithRetry(load: () => Promise<Settings>): Promise<Set
  * update), so a stale save resolving before React runs the cleanup can never
  * mark newer unsaved settings clean. A failed save (e.g. main's newer-version
  * rollback refusal) leaves the store dirty — the session keeps working
- * in-memory and the next change retries.
+ * in-memory, shows a persistent warning, and explicit Retry or the next edit retries.
  *
  * Guards `window.vrx` absence (Preview/tests): everything stays in-memory.
  */
@@ -60,6 +63,7 @@ export function useSettingsPersistence(): void {
   const hydrate = useSettingsStore((s) => s.hydrate)
   const settings = useSettingsStore((s) => s.settings)
   const dirty = useSettingsStore((s) => s.dirty)
+  const saveAttempt = useSettingsStore((s) => s.saveAttempt)
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState<Error | null>(null)
 
@@ -71,7 +75,7 @@ export function useSettingsPersistence(): void {
     let cancelled = false
     const bridge = window.vrx
     void loadSettingsWithRetry(() => bridge.getSettings())
-      .then((persisted) => {
+      .then(({ unsaved, ...persisted }) => {
         if (cancelled) return
         const state = useSettingsStore.getState()
         if (state.dirty) {
@@ -88,6 +92,7 @@ export function useSettingsPersistence(): void {
         } else {
           setSettings(persisted)
         }
+        if (unsaved) useSettingsStore.setState({ dirty: true, saveError: true })
         setLoaded(true)
         hydrate()
       })
@@ -104,6 +109,7 @@ export function useSettingsPersistence(): void {
   useEffect(() => {
     if (!loaded || !dirty || typeof window === 'undefined' || !window.vrx) return
     let cancelled = false
+    useSettingsStore.setState({ saving: true })
     const snapshot = settings
     const bridge = window.vrx
     void bridge
@@ -114,13 +120,14 @@ export function useSettingsPersistence(): void {
         }
       })
       .catch(() => {
-        // Leave dirty (retried on the next change). The only expected rejection
-        // is the deliberate newer-version rollback refusal.
+        if (!cancelled && useSettingsStore.getState().settings === snapshot) {
+          useSettingsStore.setState({ saveError: true, saving: false })
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [loaded, dirty, settings])
+  }, [loaded, dirty, settings, saveAttempt])
 
   if (loadError) throw loadError
 }

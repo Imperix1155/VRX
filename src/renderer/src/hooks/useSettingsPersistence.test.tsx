@@ -215,6 +215,65 @@ describe('useSettingsPersistence', () => {
     expect(storeState().settings.theme).toBe('light')
   })
 
+  it('exposes a persistent save error and explicitly retries the latest unchanged draft', async () => {
+    const bridge = stubBridge({
+      saveSettings: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('disk full'))
+        .mockImplementation((req: { patch: Settings }) => Promise.resolve(req.patch))
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
+    await waitFor(() => expect(useSettingsStore.getState().saveError).toBe(true))
+    expect(storeState().settings.theme).toBe('light')
+    act(() => useSettingsStore.getState().retrySave())
+    await waitFor(() => expect(storeState().dirty).toBe(false))
+    expect(useSettingsStore.getState().saveError).toBe(false)
+    expect(bridge.saveSettings).toHaveBeenLastCalledWith({
+      patch: expect.objectContaining({ theme: 'light' })
+    })
+  })
+
+  it('ignores a stale rejection after the latest edit saves successfully', async () => {
+    let rejectFirst!: (error: Error) => void
+    const first = new Promise<Settings>((_resolve, reject) => {
+      rejectFirst = reject
+    })
+    stubBridge({
+      saveSettings: vi
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockImplementation((req: { patch: Settings }) => Promise.resolve(req.patch))
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    act(() => useSettingsStore.getState().updateSettings({ theme: 'light' }))
+    act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+    await waitFor(() => expect(storeState().dirty).toBe(false))
+    await act(async () => {
+      rejectFirst(new Error('old failure'))
+    })
+    expect(useSettingsStore.getState().saveError).toBe(false)
+    expect(storeState().settings).toMatchObject({ theme: 'light', density: 'compact' })
+  })
+
+  it('keeps a failed main snapshot visibly unsaved after renderer reload until retry succeeds', async () => {
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockResolvedValue({ ...PERSISTED, theme: 'light', unsaved: true }),
+      saveSettings: vi.fn().mockRejectedValue(new Error('disk full'))
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    expect(storeState().settings.theme).toBe('light')
+    expect(storeState().dirty).toBe(true)
+    expect(useSettingsStore.getState().saveError).toBe(true)
+    expect(storeState().settings).not.toHaveProperty('unsaved')
+    bridge.saveSettings.mockImplementation((req: { patch: Settings }) => Promise.resolve(req.patch))
+    act(() => useSettingsStore.getState().retrySave())
+    await waitFor(() => expect(storeState().dirty).toBe(false))
+  })
+
   it('retries a boot rate_limited failure after a short backoff and then loads normally', async () => {
     vi.useFakeTimers()
     const bridge = stubBridge({

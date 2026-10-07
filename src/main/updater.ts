@@ -224,12 +224,9 @@ export class UpdaterService {
     // A consented download applies when VRX next closes; Restart applies it now.
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.logger = DISCARDED_UPDATER_LOGGER
-    // The release pipeline deliberately publishes every pre-1.0 release as a GitHub
-    // PRERELEASE (release.yml). electron-updater's allowPrerelease defaults to false
-    // for a stable version string like "0.1.1", which filters ALL of our releases out
-    // of the update feed — auto-update would never find anything. Allow prereleases
-    // until 1.0; when releases stop being marked prerelease, this line can go.
-    autoUpdater.allowPrerelease = true
+    // Stable installs opt out of prereleases. Keep electron-updater's native
+    // beta/rc channel selection for users who installed a prerelease build.
+    autoUpdater.allowPrerelease = /-(?:beta|rc)\.\d+$/.test(this.deps.app.getVersion())
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
       this.setState({

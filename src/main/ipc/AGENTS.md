@@ -20,6 +20,9 @@ handlers; domain files validate requests and call main-owned services.
 
 ## Local Contracts
 
+- Unpackaged built preview admits only the exact `out/renderer/index.html`
+  top-level document when no Vite server is configured; never admit arbitrary
+  local files as a preview workaround.
 - Every handler calls `isTrustedIpcSender` first. Register it through the
   `index.ts` shell before its limiter. Deny malformed, oversized, unknown, and
   stale requests without logging sensitive request data.
@@ -63,7 +66,10 @@ handlers; domain files validate requests and call main-owned services.
   services.
 - Preserve roster completeness and location revisions through `get-friends`.
   Only a complete roster may reconcile missing friends. Partial results preserve
-  cached omissions; failed reads do not seed authority.
+  cached omissions; failed reads do not seed authority. VRChat responses expose
+  seed revisions, unique actual partial coverage IDs, and IDs replaced by a follow-up,
+  without duplicating friend payloads or leaking rate-limit timing. Deduplicate
+  coverage IDs even when online/offline pagination returns overlapping rows.
 - Settings reads migrate and validate in main. A save must reject a newer-file
   overwrite or durable-write failure so the renderer does not report an
   unsaved preference as durable.

@@ -56,12 +56,19 @@ and Node/Electron access on this side of the process boundary.
   admission while CDN body work stays bounded. Send a VRChat cookie only to
   `api.vrchat.cloud`, fence cache publication to the account lease, and never
   make the renderer fetch a vendor image directly.
-- Settings load through migration and validation, coalesce writes, flush before
-  quit, and refuse to overwrite a newer-version file. Account, social, and
-  linked-profile stores validate bounded data and account/epoch ownership before
+- Settings load through migration and validation, retain valid parsed choices if
+  normalization persistence fails, coalesce writes, flush before quit, and refuse
+  to overwrite a newer-version file. Failed normalization remains visibly unsaved
+  and retryable; it must not replace parsed settings with defaults. Account, social,
+  and linked-profile stores validate bounded data and account/epoch ownership before
   mutation. They write cloned, revision-checked snapshots; link-graph public
-  operations reject same-realm reentry. Failed or stale writes must not corrupt
-  or cross account data.
+  operations reject same-realm reentry. Account registry writes publish memory only
+  after persistence succeeds, so an identical retry after failure still attempts
+  the durable write. Failed or stale
+  writes must not corrupt or cross account data.
+- External CVR session discovery requires explicit remembered consent before any
+  source I/O. Valid VRX sessions bypass import; declined consent preserves direct
+  login. A failed consent write fails closed and is disclosed to the user.
 - Session importers are read-only. Bound path discovery, directory traversal,
   file size, parsing time, and accepted credential shape; reject aliases,
   symlinks, changing sources, ambiguity, and active database sidecars. Persist
@@ -92,6 +99,8 @@ and Node/Electron access on this side of the process boundary.
   rate. A disabled hot-instance feature suppresses hot alerts without erasing
   its saved notification preference. Alert payloads and failure logs stay free
   of private location data.
+- Stable builds exclude prereleases; beta/rc builds retain the locked updater
+  channel selection. No implicit channel selector or rc-to-stable promotion.
 - Updates remain consent-based: no silent download, no raw updater error passed
   to the renderer, and a restart only installs a verified staged update.
 
@@ -137,3 +146,8 @@ and Node/Electron access on this side of the process boundary.
   ChilloutVR parsing, discovery, and pipeline code.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md):
   VRChat parsing, metadata, and pipeline code.
+
+- Roster seed captures and published friend events share LocationAuthority’s
+  monotonic revision order. VRChat IPC returns bounded per-read provenance,
+  preserving earlier rows on partial follow-up; publication revisions do not
+  change per-friend location fences.

@@ -133,6 +133,47 @@ describe('identity management', () => {
     }
   )
 
+  it.each(['initial', 'reload'])(
+    'offers explicit retry after a linked-profile %s failure',
+    async (stage) => {
+      if (stage === 'initial') client.removeQueries({ queryKey: linkedProfilesKey })
+      const read = vi.mocked(window.vrx!.getLinkedProfiles)
+      read.mockResolvedValueOnce({ ok: false, reason: 'storage' })
+      render(dialog())
+      if (stage === 'reload')
+        await act(async () => {
+          await client.invalidateQueries({ queryKey: linkedProfilesKey })
+        })
+      expect(
+        await screen.findByText(
+          'Could not load linked profiles. Retry to restore identity management.'
+        )
+      ).toBeTruthy()
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' }).disabled
+      ).toBe(true)
+      let finish!: (result: { ok: true; value: LinkSnapshot }) => void
+      read.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve
+        })
+      )
+      const retry = screen.getByRole<HTMLButtonElement>('button', { name: 'Retry linked profiles' })
+      fireEvent.click(retry)
+      fireEvent.click(retry)
+      await waitFor(() => expect(retry.disabled).toBe(true))
+      expect(read).toHaveBeenCalledTimes(2)
+      await act(async () => finish({ ok: true, value: snapshot }))
+      await waitFor(() =>
+        expect(screen.queryByRole('button', { name: 'Retry linked profiles' })).toBeNull()
+      )
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' }).disabled
+      ).toBe(false)
+      expect(mutate).not.toHaveBeenCalled()
+    }
+  )
+
   it('waits for the first lease without closing and still closes on a later lease change', async () => {
     client.removeQueries({ queryKey: linkedProfilesKey })
     let finish!: (result: { ok: true; value: LinkSnapshot }) => void
@@ -290,6 +331,51 @@ describe('identity management', () => {
       screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' }).disabled
     ).toBe(true)
   })
+  it('keeps a newer typed draft when Use platform name completes', async () => {
+    snapshot.profiles = [
+      {
+        id: 'pair',
+        members: [
+          { platform: 'vrchat', platformAccountId: 'v', friendId: source.platformUserId },
+          { platform: 'chilloutvr', platformAccountId: 'c', friendId: candidate.platformUserId }
+        ],
+        customName: 'Custom',
+        defaultName: 'Origin',
+        preferredPlatform: 'vrchat',
+        pictureMode: 'preferred',
+        sharedNote: '',
+        revision: 1
+      }
+    ]
+    client.setQueryData(linkedProfilesKey, snapshot)
+    let finish!: (result: { ok: true; value: LinkSnapshot }) => void
+    mutate.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    render(dialog())
+    fireEvent.click(screen.getByRole('button', { name: 'Use platform name' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'VRX name' }), {
+      target: { value: 'Newer draft' }
+    })
+    await act(async () =>
+      finish({
+        ok: true,
+        value: {
+          ...snapshot,
+          storeRevision: 2,
+          profiles: [{ ...snapshot.profiles[0]!, customName: null, revision: 2 }]
+        }
+      })
+    )
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'VRX name' }).value).toBe(
+      'Newer draft'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
+    expect(mutate.mock.calls[1]?.[0].change.patch).toEqual({ customName: 'Newer draft' })
+  })
+
   it('keeps custom names when preference changes and clears custom mode only explicitly', async () => {
     snapshot.profiles = [
       {

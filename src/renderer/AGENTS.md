@@ -31,6 +31,11 @@ credential, network, or launch authority.
   instances, and Explore. The renderer may give main a reviewed friend ID or an
   opaque Explore `selectionRef` and expected target. Main alone decides
   joinability, builds the allowlisted URL, enforces settings, and launches.
+  Failure feedback remains readable until another attempt or account boundary;
+  retries use this same flow and never run automatically.
+- `LinkedProfilesLoadError` exposes local-read retry in Friends and Identities,
+  coalescing active reads through the existing account-fenced query. Name saves
+  and platform-name resets clear only drafts with no later edits.
 - Explore route and Dashboard preview share ranking, selection, and the
   non-modal sheet. `useExploreCoordinator` is the sole renderer trigger for
   discovery: it reacts to eligible visibility, focus, and connectivity wakes,
@@ -42,6 +47,25 @@ credential, network, or launch authority.
   recover one expired reference for the same world. Visible
   consumers may retry only typed image-admission deferrals within the bounded
   per-reference budget; terminal failures stay neutral.
+- VRChat roster deltas belong to the pending IPC transport, shared across query
+  cancellation/replacement because main coalesces reads. Replay by response identity
+  in structural sharing before publication, never by a key-only success listener.
+  Account boundaries explicitly discard old transports. Failure, abandoned
+  settlement, and publication release journals/listeners. Overflow bounds events,
+  rejects without retry, and fences reuse until the old transport settles. CVR
+  snapshot replay remains separate. Compare event revisions with each row’s
+  physical-read provenance before replay; one IPC can include a newer follow-up.
+  Partial follow-ups and rate-limit fallback retain earlier fences. Reject
+  malformed envelope/revision metadata as a refresh error. Before cache merging,
+  partial coveredIds must exactly match unique returned IDs and override IDs
+  must belong to returned rows. Rejection preserves prior cache and fences. Keep one bounded
+  published roster fence per query client: Electron can deliver older pushes
+  after invoke completion, so direct live application uses the same per-row
+  ordering. Partial coverage merges only listed IDs into previous fences,
+  including retained absent-ID evidence; complete snapshots replace all fences.
+  Bound accumulated per-ID fences to twice MAX_FRIENDS and reject overflow
+  without evicting evidence. Clear this fence at account boundaries. Legacy arrays and
+  unversioned partial replies retain their existing behavior.
 - `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
   metadata only when the current instance keeps the same world or group identity;
   fresh values win.
@@ -97,3 +121,7 @@ the diff and applicable API/design documentation for sync.
 ## Child DOX Index
 
 No children.
+
+- Combined Friends query state ignores disabled platforms for pending/error/fetching
+  flags and explicit refresh. Keep cached-data folding and memoized array identity
+  intact; an enabled but paused first load still counts as pending.

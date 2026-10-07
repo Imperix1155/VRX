@@ -1,11 +1,33 @@
 import { useMemo } from 'react'
+import { z } from 'zod'
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import type { FriendRosterResponse } from '@shared/ipc'
 import type { Friend, Platform } from '@shared/types'
-import { RECONCILE_INTERVAL_MS } from '@shared/constants'
+import { MAX_FRIENDS, RECONCILE_INTERVAL_MS } from '@shared/constants'
 import type { PlatformFilter } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
 import { useAuthStatus } from './auth'
 import { mergeKnownInstanceMetadata } from '../utils/mergeKnownInstanceMetadata'
+import { shareFriendReplayResult, withFriendEventReplay } from './friendEventReplay'
+
+const revisionSchema = z.number().int().nonnegative()
+const rosterProvenanceSchema = z
+  .object({
+    baseRevision: revisionSchema,
+    coveredIds: z
+      .array(z.string().min(1))
+      .max(MAX_FRIENDS * 2)
+      .optional(),
+    overrides: z
+      .array(
+        z.object({
+          revision: revisionSchema,
+          friendIds: z.array(z.string().min(1)).max(MAX_FRIENDS)
+        })
+      )
+      .max(1)
+  })
+  .refine((value) => value.overrides.every((entry) => entry.revision >= value.baseRevision))
 
 const RECONCILE_JITTER_FRACTION = 0.1
 
@@ -27,15 +49,50 @@ export async function fetchFriends(
   platform: Platform,
   getCached?: () => Friend[] | undefined
 ): Promise<Friend[]> {
+  return (await fetchFriendRoster(platform, getCached)).friends
+}
+
+/** Validate only physical response rows, before consulting cached omissions. */
+function validateRosterEnvelope(result: FriendRosterResponse): void {
+  if (
+    !result ||
+    !Array.isArray(result.friends) ||
+    (result.completeness !== 'complete' && result.completeness !== 'partial') ||
+    (result.provenance !== undefined &&
+      (!rosterProvenanceSchema.safeParse(result.provenance).success ||
+        (result.completeness === 'partial') !== (result.provenance.coveredIds !== undefined)))
+  )
+    throw new Error('invalid_roster_response')
+  if (result.provenance) {
+    // Validate against physical response rows BEFORE appending cached omissions.
+    const ids = new Set(result.friends.map((friend) => friend.platformUserId))
+    const { coveredIds, overrides } = result.provenance
+    if (
+      (coveredIds !== undefined &&
+        (coveredIds.length !== ids.size ||
+          new Set(coveredIds).size !== ids.size ||
+          coveredIds.some((id) => !ids.has(id)))) ||
+      overrides.some((entry) => entry.friendIds.some((id) => !ids.has(id)))
+    )
+      throw new Error('invalid_roster_response')
+  }
+}
+
+export async function fetchFriendRoster(
+  platform: Platform,
+  getCached?: () => Friend[] | undefined
+): Promise<FriendRosterResponse> {
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   const result = await window.vrx.getFriends({ platform })
-  if (Array.isArray(result)) return result
+  if (Array.isArray(result)) return { friends: result, completeness: 'complete' }
+  validateRosterEnvelope(result)
+  if (result.completeness === 'complete') return result
   const seen = new Set(result.friends.map((friend) => friend.platformUserId))
   // Read after the await: live updates and account-boundary cache clears win.
   const omitted = (getCached?.() ?? []).filter(
     (friend) => friend.platform === platform && !seen.has(friend.platformUserId)
   )
-  return omitted.length ? [...result.friends, ...omitted] : result.friends
+  return { ...result, friends: omitted.length ? [...result.friends, ...omitted] : result.friends }
 }
 
 /**
@@ -68,12 +125,24 @@ export function useFriends(platform: Platform): UseQueryResult<Friend[], Error> 
     // (VRX-254), covering the REST roster path (VRX-258). The cache is read
     // AFTER the fetch resolves so any live world-metadata enrichment that lands
     // mid-flight survives the REST write.
-    queryFn: async () => {
-      const fresh = await fetchFriends(platform, () =>
-        queryClient.getQueryData(friendsQueryKey(platform))
-      )
-      return mergeKnownInstanceMetadata(queryClient.getQueryData(friendsQueryKey(platform)), fresh)
+    queryFn: (context) => {
+      const load = async (): Promise<FriendRosterResponse> => {
+        const fresh = await fetchFriendRoster(platform, () =>
+          queryClient.getQueryData(friendsQueryKey(platform))
+        )
+        return {
+          ...fresh,
+          friends: mergeKnownInstanceMetadata(
+            queryClient.getQueryData(friendsQueryKey(platform)),
+            fresh.friends
+          )
+        }
+      }
+      return platform === 'vrchat'
+        ? withFriendEventReplay(queryClient, context.signal, load)
+        : load().then((roster) => roster.friends)
     },
+    structuralSharing: platform === 'vrchat' ? shareFriendReplayResult : undefined,
     staleTime: reconcileIntervalMs === false ? Infinity : reconcileIntervalMs,
     refetchInterval:
       reconcileIntervalMs === false ? false : () => jitteredReconcileInterval(reconcileIntervalMs),
@@ -96,7 +165,10 @@ export function scopeByPlatformFilter<T>(filter: PlatformFilter, vrc: T, cvr: T)
 export type FriendQuery = Pick<
   UseQueryResult<Friend[], Error>,
   'data' | 'isPending' | 'isError' | 'isFetching' | 'refetch'
->
+> & {
+  /** Query projections without enablement retain their existing enabled behavior. */
+  isEnabled?: boolean
+}
 
 export interface CombinedFriendsView {
   friends: Friend[] | undefined
@@ -116,7 +188,8 @@ export interface CombinedFriendsView {
  * `friends` stays `undefined` until at least one scoped query returns, so the
  * list never flashes "empty" or an error while data is still loading (matching
  * the stale-while-revalidate render in FriendsList). Error/empty only surface
- * once every scoped query has resolved with nothing.
+ * once every enabled scoped query has resolved with nothing. Disabled queries
+ * do not hold loading/error recovery open and are skipped by explicit refresh.
  */
 export function combineFriendQueries(
   filter: PlatformFilter,
@@ -124,25 +197,25 @@ export function combineFriendQueries(
   cvr: FriendQuery
 ): CombinedFriendsView {
   const scoped = scopeByPlatformFilter(filter, vrc, cvr)
-  const anyData = scoped.some((q) => q.data !== undefined)
-  const anyPending = scoped.some((q) => q.isPending)
-  const combined = scoped.flatMap((q) => q.data ?? [])
-  // A scoped query errored and, once everything has settled, the combined list
-  // is EMPTY → surface the error instead of a misleading "no friends" empty
-  // state (Codex VRX-196): in `all` mode a failing platform must not be hidden
-  // behind the other platform's empty-but-successful list. If there ARE friends
-  // to show, we keep showing them (stale-while-revalidate) and don't error.
-  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
+  const friends = scoped.some((q) => q.data !== undefined)
+    ? scoped.flatMap((q) => q.data ?? [])
+    : undefined
+  return combinedView(scoped, friends)
+}
+
+/** Disabled queries can remain pending forever and refetch bypasses their gate. */
+function combinedView(scoped: FriendQuery[], friends: Friend[] | undefined): CombinedFriendsView {
+  const enabled = scoped.filter((q) => q.isEnabled !== false)
+  const anyPending = enabled.some((q) => q.isPending)
+  const errorMasksEmpty =
+    !anyPending && (friends?.length ?? 0) === 0 && enabled.some((q) => q.isError)
   return {
-    friends: anyData && !errorMasksEmpty ? combined : undefined,
-    // Loading until the FIRST scoped query returns data — so `all` mode still
-    // shows "loading" when one platform errored while the other is mid-load
-    // (rather than a blank frame). Once any data is in, it's no longer pending.
-    isPending: !anyData && anyPending,
-    isError: errorMasksEmpty || scoped.every((q) => q.isError),
-    isFetching: scoped.some((q) => q.isFetching),
+    friends: errorMasksEmpty ? undefined : friends,
+    isPending: friends === undefined && anyPending,
+    isError: errorMasksEmpty || (enabled.length > 0 && enabled.every((q) => q.isError)),
+    isFetching: enabled.some((q) => q.isFetching),
     refetch: () => {
-      for (const q of scoped) void q.refetch()
+      for (const q of enabled) void q.refetch()
     }
   }
 }
@@ -169,19 +242,5 @@ export function useCombineFriendQueries(
     return scoped.flatMap((d) => d ?? [])
   }, [filter, vrc.data, cvr.data])
 
-  const scoped = scopeByPlatformFilter(filter, vrc, cvr)
-  const anyData = scoped.some((q) => q.data !== undefined)
-  const anyPending = scoped.some((q) => q.isPending)
-  const combined = friends ?? []
-  const errorMasksEmpty = !anyPending && combined.length === 0 && scoped.some((q) => q.isError)
-
-  return {
-    friends: anyData && !errorMasksEmpty ? friends : undefined,
-    isPending: !anyData && anyPending,
-    isError: errorMasksEmpty || scoped.every((q) => q.isError),
-    isFetching: scoped.some((q) => q.isFetching),
-    refetch: () => {
-      for (const q of scoped) void q.refetch()
-    }
-  }
+  return combinedView(scopeByPlatformFilter(filter, vrc, cvr), friends)
 }

@@ -14,6 +14,7 @@ describe('settings schema', () => {
   it('DEFAULT_SETTINGS materializes every field with sane defaults', () => {
     expect(DEFAULT_SETTINGS).toEqual({
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -252,6 +253,7 @@ describe('migration runner', () => {
     expect(parseSettings(v1)).toEqual({
       ...v1,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -286,6 +288,7 @@ describe('migration runner', () => {
     expect(parseSettings(v2)).toEqual({
       ...v2,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -321,6 +324,7 @@ describe('migration runner', () => {
     expect(parseSettings(v3)).toEqual({
       ...v3,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -356,6 +360,7 @@ describe('migration runner', () => {
     expect(parseSettings(v4)).toEqual({
       ...v4,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -391,6 +396,7 @@ describe('migration runner', () => {
     expect(parseSettings(v5)).toEqual({
       ...v5,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -427,6 +433,7 @@ describe('migration runner', () => {
     expect(parseSettings(v6)).toEqual({
       ...v6,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -443,6 +450,7 @@ describe('migration runner', () => {
     expect(parseSettings(v7)).toEqual({
       ...v7,
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
@@ -633,6 +641,7 @@ describe('Explore settings migration', () => {
   it('migrates v8 and preserves explicit filter/count while defaulting invalid values', () => {
     expect(parseSettings({ version: 8 })).toMatchObject({
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'all',
       exploreWorldsShown: 4
     })
@@ -640,6 +649,7 @@ describe('Explore settings migration', () => {
       parseSettings({ version: 8, platformFilter: 'chilloutvr', exploreWorldsShown: 6 })
     ).toMatchObject({
       version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       platformFilter: 'chilloutvr',
       exploreWorldsShown: 6
     })
@@ -660,7 +670,8 @@ describe('Dashboard feature settings', () => {
     expect(
       parseSettings({ version: 9, notifyHotInstance: true, hotInstanceThreshold: 8 })
     ).toMatchObject({
-      version: 10,
+      version: SETTINGS_VERSION,
+      cvrSessionImportChoice: 'ask',
       dashboardPopularNow: true,
       hotInstancesEnabled: true,
       notifyHotInstance: true,
@@ -690,5 +701,23 @@ describe('Dashboard feature settings', () => {
       notifyHotInstance: true,
       hotInstanceThreshold: 8
     })
+  })
+})
+
+describe('CVR external session consent', () => {
+  it('migrates v10 without granting permission and protects the choice on downgrade', () => {
+    expect(parseSettings({ version: 10 })).toMatchObject({
+      version: 11,
+      cvrSessionImportChoice: 'ask'
+    })
+    expect(shouldPersistSettings({ version: 11, cvrSessionImportChoice: 'skip' }, 10)).toBe(false)
+  })
+  it('retains explicit choices and fails closed on invalid values', () => {
+    for (const choice of ['ask', 'skip', 'import']) {
+      expect(parseSettings({ cvrSessionImportChoice: choice }).cvrSessionImportChoice).toBe(choice)
+    }
+    for (const choice of [true, 'yes', null, undefined]) {
+      expect(parseSettings({ cvrSessionImportChoice: choice }).cvrSessionImportChoice).toBe('ask')
+    }
   })
 })

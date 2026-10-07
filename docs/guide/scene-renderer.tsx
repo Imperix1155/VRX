@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
 import AppShell from '@renderer/components/AppShell'
@@ -85,6 +85,13 @@ function JoinScene(): React.JSX.Element {
 }
 
 function Scene({ name, variant }: { name: string; variant: string }): React.JSX.Element {
+  // Synthetic persistence recovery: the retry only settles fixture memory.
+  useEffect(() => {
+    if (name !== 'settings' || variant !== 'save-error') return
+    return useSettingsStore.subscribe((state, previous) => {
+      if (state.saveAttempt !== previous.saveAttempt) state.markSaved()
+    })
+  }, [name, variant])
   useApplyTheme()
   useApplyGlow()
   if (name === 'login')
@@ -138,6 +145,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     confirmJoin: true
   })
   useSettingsStore.getState().hydrate()
+  if (name === 'settings' && variant === 'save-error') {
+    useSettingsStore.setState({ dirty: true, saveError: true })
+  }
   useUiStore
     .getState()
     .setActiveTab(

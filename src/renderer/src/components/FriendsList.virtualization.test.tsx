@@ -49,9 +49,17 @@ const JOINABLE_INSTANCE: InstanceInfo = {
   userCount: 1
 }
 
+const resizeObservers = new Set<ResizeObserverStub>()
+const resizedHeights = new Map<Element, number>()
+
 function measuredHeight(target: Element): number {
+  const resizedHeight = resizedHeights.get(target)
+  if (resizedHeight !== undefined) return resizedHeight
   if (target.tagName === 'MAIN') return VIEWPORT_HEIGHT
   if (target.getAttribute('data-virtual-kind') === 'section') return SECTION_ROW_HEIGHT
+  if (useSettingsStore.getState().settings.density === 'compact') {
+    return COMPACT_ROW_HEIGHT_FOR_TEST
+  }
   if (target.getAttribute('data-friend-key') === 'vrchat:usr_0000') {
     return FIRST_DETAIL_ROW_HEIGHT
   }
@@ -82,9 +90,18 @@ function measuredTop(target: Element): number {
 }
 
 class ResizeObserverStub {
-  constructor(private readonly callback: ResizeObserverCallback) {}
+  private readonly targets = new Set<Element>()
+
+  constructor(private readonly callback: ResizeObserverCallback) {
+    resizeObservers.add(this)
+  }
+
+  resize(target: Element): void {
+    if (this.targets.has(target)) this.observe(target)
+  }
 
   observe(target: Element): void {
+    this.targets.add(target)
     const height = measuredHeight(target)
     this.callback(
       [
@@ -99,10 +116,11 @@ class ResizeObserverStub {
   }
 
   unobserve(target: Element): void {
-    void target
+    this.targets.delete(target)
   }
   disconnect(): void {
-    void this.callback
+    this.targets.clear()
+    resizeObservers.delete(this)
   }
 }
 
@@ -138,6 +156,8 @@ let vrchatFriendsReady: boolean
 let originalScrollTo: typeof HTMLElement.prototype.scrollTo | undefined
 
 beforeEach(() => {
+  resizeObservers.clear()
+  resizedHeights.clear()
   vrchatFriends = Array.from({ length: 500 }, (_, index) => makeFriend(index))
   chilloutvrFriends = []
   vrchatFriendsReady = true
@@ -158,6 +178,12 @@ beforeEach(() => {
     this: HTMLElement
   ) {
     return rect(measuredHeight(this), measuredTop(this))
+  })
+
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
+    this: HTMLElement
+  ) {
+    return measuredHeight(this)
   })
 
   originalScrollTo = HTMLElement.prototype.scrollTo
@@ -264,7 +290,7 @@ describe('FriendsList virtualization (VRX-63)', () => {
     expect(listItems[0]?.getAttribute('aria-posinset')).toBe('1')
   })
 
-  it('measures variable detail rows and uses a fixed compact-row stride', async () => {
+  it('measures detail rows and preserves the normal compact-row stride', async () => {
     const view = renderInScrollContainer()
     await waitFor(() => {
       const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
@@ -290,12 +316,30 @@ describe('FriendsList virtualization (VRX-63)', () => {
         '[data-friend-key="vrchat:usr_0001"]'
       )
       if (first === null || second === null) throw new Error('missing live compact rows')
-      expect(first.style.height).toBe(`${COMPACT_ROW_HEIGHT_FOR_TEST}px`)
+      expect(first.style.minHeight).toBe(`${COMPACT_ROW_HEIGHT_FOR_TEST}px`)
       expect(translateY(second) - translateY(first)).toBe(
         COMPACT_ROW_HEIGHT_FOR_TEST + VIRTUAL_ROW_GAP_FOR_TEST
       )
       expect(document.activeElement).toBe(opener('Friend 0000'))
     })
+  })
+
+  it('repositions following compact rows when feedback expands and clears', async () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, density: 'compact' } })
+    const view = renderInScrollContainer()
+    const first = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0000"]')
+    const second = view.container.querySelector<HTMLElement>('[data-friend-key="vrchat:usr_0001"]')
+    if (first === null || second === null) throw new Error('missing compact rows')
+
+    for (const height of [99, COMPACT_ROW_HEIGHT_FOR_TEST]) {
+      act(() => {
+        resizedHeights.set(first, height)
+        for (const observer of resizeObservers) observer.resize(first)
+      })
+      await waitFor(() => {
+        expect(translateY(second) - translateY(first)).toBe(height + VIRTUAL_ROW_GAP_FOR_TEST)
+      })
+    }
   })
 
   it('derives rendered row spacing from the renderer design token', async () => {

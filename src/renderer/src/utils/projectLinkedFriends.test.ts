@@ -83,6 +83,19 @@ const expectedSections: Record<PresenceState, Record<PresenceState, string[]>> =
 }
 
 describe('projectLinkedFriends', () => {
+  it.each(['ΟΣ', 'ος', 'οσ'])(
+    'finds an exact Greek alias with query %s without changing names',
+    (search) => {
+      const data = input('in-game', 'offline', { search })
+      data.vrc.displayName = 'ΟΣ'
+      const before = structuredClone(data)
+      const result = projectLinkedFriends(data)
+      expect(result.rows).toHaveLength(1)
+      expect(result.rows[0]!.name).toBe('ΟΣ')
+      expect(data).toEqual(before)
+    }
+  )
+
   it.each(
     states.flatMap((vrc) =>
       states.flatMap((cvr) =>
