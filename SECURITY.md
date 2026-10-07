@@ -39,6 +39,24 @@ Project-owned renderer-to-main IPC validates the sender in a trust-first registr
 
 ## Temporary dependency audit exception
 
+The repository now applies an exact-source local patch to the locked 4.2.0
+library during postinstall and verifies it before builds. It prevents security
+reuse prohibitions from being overridden by max-stale, stale-while-revalidate,
+or stale-if-error, including restored cache policies. Ordinary stale caching,
+explicit upstream public/immutable cookie opt-ins, and private caches retain
+their existing semantics. The version and advisory remain visible; this is not
+an upstream release fix or advisory suppression. The exception and expiry below
+are unchanged. An upstream replacement still needs behavioral verification;
+4.3.0 must not be assumed fixed merely because advisory metadata omits it.
+
+This build-tool cache flaw is distinct from local session theft. The later
+pre-release security scan must cover OS-backed encryption and fallback key/file
+permissions, logs and diagnostics, renderer/preload/IPC credential boundaries,
+account switching, logout and persisted-cache cleanup, asynchronous work after
+session changes, and updater/package integrity. No local encryption scheme
+guarantees protection against a compromised OS or a process able to read both
+the fallback key and encrypted session files. That wider scan is separate work.
+
 Owner: repository maintainer Imperix1155. Tracking: [PR #345](https://github.com/Imperix1155/VRX/pull/345).
 Approved by the owner on 2026-10-03 after disclosure; review by **2026-10-10**.
 The gate automatically stops accepting this exception at **2026-10-11 00:00 UTC**.
@@ -54,7 +72,7 @@ npm's proposed builder downgrade is not a compatible stable security patch.
 
 The defect can disclose another user's cached response in a shared HTTP cache.
 This exception accepts the remaining development-tool dependency risk; it does
-not claim the vulnerable library is fixed. The downloader's Got HTTP cache is
+not substitute for verifying the local patch. The downloader's Got HTTP cache is
 disabled by default; Electron's downloaded-artifact disk cache is separate.
 The current production audit contains no findings, and this dependency does not
 ship in the application. Do not enable shared HTTP caching or introduce runtime
