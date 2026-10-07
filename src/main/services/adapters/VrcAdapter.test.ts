@@ -98,7 +98,7 @@ describe('VRChat dispatch cancellation', () => {
               ? input.href
               : input.url
           ).endsWith('/auth/user')
-            ? { onlineFriends: [] }
+            ? { onlineFriends: [], activeFriends: [], offlineFriends: [] }
             : []
         )
       )
@@ -122,7 +122,9 @@ describe('VRChat dispatch cancellation', () => {
       })
       const fetchMock = vi
         .fn()
-        .mockResolvedValueOnce(jsonResponse({ onlineFriends: ['usr_friend'] }))
+        .mockResolvedValueOnce(
+          jsonResponse({ onlineFriends: ['usr_friend'], activeFriends: [], offlineFriends: [] })
+        )
       if (stage === 'offline') fetchMock.mockResolvedValueOnce(jsonResponse([]))
       fetchMock.mockReturnValueOnce(page).mockResolvedValue(jsonResponse([]))
       vi.stubGlobal('fetch', fetchMock)
@@ -260,7 +262,9 @@ describe('VRChat dispatch cancellation', () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (href.endsWith('/auth/user'))
-        return Promise.resolve(jsonResponse({ onlineFriends: ['usr_0'] }))
+        return Promise.resolve(
+          jsonResponse({ onlineFriends: ['usr_0'], activeFriends: [], offlineFriends: [] })
+        )
       if (href.includes('offset=0&') && href.includes('offline=false')) {
         return Promise.resolve(
           jsonResponse(

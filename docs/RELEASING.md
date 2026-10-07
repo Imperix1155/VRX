@@ -22,8 +22,8 @@ its covered steps without asking repeatedly. Keep any other steps pending.
    agree. The version-only operation must not change the dependency graph.
 4. Move all applicable `[Unreleased]` entries into
    `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md`. Leave a new Unreleased heading.
-   Do this for private owner test builds too; otherwise the in-app What's New
-   view shows old release notes.
+   Do this for private owner test builds too so their packaged notes match.
+   There is currently no in-app What's New viewer.
 5. Run `node scripts/extract-changelog.mjs X.Y.Z` and verify nonempty notes
    covering the release. The workflow leaves the existing body unchanged if
    extraction is empty or fails; it does **not** generate replacement notes.
@@ -50,14 +50,31 @@ git push origin vX.Y.Z
 
 Replace both placeholders before running. Tag push is publication authority:
 [release.yml](../.github/workflows/release.yml) will build and publish a public
-pre-release. Do not push the tag before that outcome is authorized. Never move
+release in the tag's channel. Do not push the tag before that outcome is authorized. Never move
 an existing public tag to repair a release.
 
 The workflow verifies tag/package agreement, builds Windows and Linux, and lets
 electron-builder create the draft. It resolves that draft by release ID,
 verifies the exact asset set, writes changelog notes, and publishes with
-`draft: false`, `prerelease: true`. It does not build a public macOS release.
-All current releases remain pre-releases; promotion is a separate decision.
+`draft: false` and a tag-derived `prerelease` flag. It does not build a public
+macOS release. Supported tag forms (exactly matching the package version) are:
+
+| Tag             | GitHub prerelease | Updater metadata                 |
+| --------------- | ----------------- | -------------------------------- |
+| `vX.Y.Z`        | false             | `latest.yml`, `latest-linux.yml` |
+| `vX.Y.Z-beta.N` | true              | `beta.yml`, `beta-linux.yml`     |
+| `vX.Y.Z-rc.N`   | true              | `rc.yml`, `rc-linux.yml`         |
+
+`N` is a nonnegative integer without leading zeroes. Other suffixes and build
+metadata are rejected. `scripts/release-channel.mjs` owns validation and the
+exact asset list; the build explicitly passes its channel to electron-builder.
+This plumbing does not declare 1.0 shipped or authorize a stable release.
+Historical releases with plain versions were marked prerelease; future tags use
+this explicit policy. Stable installs exclude prereleases. Beta installs keep
+the locked updater's beta/stable eligibility; rc installs stay on rc, including
+newer rc version lines. Moving an rc installation to stable currently requires
+an intentional stable installer download. Do not promise automatic rc-to-stable
+promotion; a different policy needs an owner decision.
 Do not pre-create a competing draft or toggle release settings to skip this flow.
 
 ## 3. Verify publication
@@ -67,7 +84,7 @@ all jobs, including Linux package inspection and final publication. Failure,
 timeout, missing results, or an ambiguous release is not success.
 
 Read back the published release, preferably by its resolved numeric ID. Check
-its tag/commit, public URL, `draft: false`, `prerelease: true`, body, and these
+its tag/commit, public URL, `draft: false`, the tag-appropriate `prerelease` flag, body, and these
 seven nonempty assets for the chosen version:
 
 - `vrx-X.Y.Z-setup.exe`
@@ -75,10 +92,12 @@ seven nonempty assets for the chosen version:
 - `VRX-X.Y.Z.exe`
 - `vrx-X.Y.Z-x86_64.AppImage`
 - `vrx_X.Y.Z_amd64.deb`
-- `latest.yml`
-- `latest-linux.yml`
+- `CHANNEL.yml`
+- `CHANNEL-linux.yml`
 
-The exact list is owned by `release.yml` and `electron-builder.yml`; keep both
+Use `latest`, `beta`, or `rc` from the table above for `CHANNEL`.
+
+The exact list is owned by `scripts/release-channel.mjs` and `electron-builder.yml`; keep both
 and this guide aligned when packaging targets change. Verify updater manifests
 identify the same version and matching package sizes/hashes. The Linux job
 extracts AppImage and deb contents and checks launcher identity, desktop
@@ -118,7 +137,21 @@ Verify there is one intended installed entry with the correct version, then
 check launch. Real-account testing requires the task's appropriate authorization;
 never publish private screenshots or credentials in release evidence.
 
-## 5. Handoff
+## 5. Public 1.0 acceptance still required
+
+Windows is the primary 1.0 target. On a clean supported Windows machine, verify
+NSIS install, launch, login/session restart, tray recovery, consented update from
+a prior installer, retained settings/data, uninstall, and portable launch. Use
+only authorized test accounts. Confirm stable does not offer a beta/rc release
+and beta/rc manifests download the intended installer. Check signing/SmartScreen
+behavior from the actual distributed artifact; do not assume signing exists.
+These real-install checks are not replaced by Mac tests or packaging CI.
+
+Linux AppImage/deb are experimental until target-desktop launch, credential
+persistence and update acceptance is recorded. macOS is a local development
+build, not a public release target. See the user [install guide](INSTALL.md).
+
+## 6. Handoff
 
 Report the version, merged source SHA, release URL, verified asset targets,
 verification evidence, and material limitations. Provide a short test checklist

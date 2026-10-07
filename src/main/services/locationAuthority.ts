@@ -69,6 +69,11 @@ export class LocationAuthority {
     return ++this.revision
   }
 
+  /** Order published events against physical reads without changing per-friend fences. */
+  captureEventRevision(): number {
+    return ++this.revision
+  }
+
   seed(
     platform: Platform,
     friends: Friend[],

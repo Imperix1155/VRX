@@ -1,3 +1,6 @@
+// Import resolution selects preload/index.ts; this cross-boundary test needs its .d.ts globals.
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
+/// <reference path="../../preload/index.d.ts" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { Friend, Platform } from '@shared/types'
@@ -30,6 +33,11 @@ const trusted = vi.hoisted(() => ({ value: true }))
 vi.mock('./security', () => ({ isTrustedIpcSender: vi.fn(() => trusted.value) }))
 
 import { registerFriendsHandlers } from './friends'
+import {
+  fetchFriends as fetchVrcFriends,
+  type VrcFetcher
+} from '../services/adapters/vrchat/fetchFriends'
+import { fetchFriendRoster } from '../../renderer/src/queries/friends'
 
 const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
 const rosterFriend = {
@@ -179,13 +187,16 @@ describe('get-friends location seeding', () => {
           ok: false,
           reason: 'stale'
         })
-        expect(result).toEqual({ friends: [fresh, oldFriend, omission], completeness: 'partial' })
+        expect(result).toMatchObject({
+          friends: [fresh, oldFriend, omission],
+          completeness: 'partial'
+        })
       } else {
         expect(authority.resolve('vrchat', oldFriend.platformUserId)).toEqual({
           ok: false,
           reason: 'unknown-friend'
         })
-        expect(result).toEqual([fresh])
+        expect(result).toMatchObject({ friends: [fresh], completeness: 'complete' })
       }
     }
   )
@@ -227,9 +238,11 @@ describe('get-friends location seeding', () => {
     const capture = vi.spyOn(authority, 'captureSeedRevision')
     const seed = vi.spyOn(authority, 'seed')
 
-    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual([
-      rosterFriend
-    ])
+    await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
+      friends: [rosterFriend],
+      completeness: 'complete',
+      provenance: { baseRevision: expect.any(Number), overrides: [] }
+    })
     expect(capture).toHaveBeenCalledWith('vrchat')
     const captureOrder = capture.mock.invocationCallOrder[0]
     const fetchOrder = vi.mocked(adapter.getFriends).mock.invocationCallOrder[0]
@@ -308,11 +321,128 @@ describe('get-friends location seeding', () => {
 
     await expect(handlers.get('get-friends')!(event, { platform: 'vrchat' })).resolves.toEqual({
       friends: [rosterFriend],
-      completeness: 'partial'
+      completeness: 'partial',
+      provenance: {
+        baseRevision: expect.any(Number),
+        coveredIds: [rosterFriend.platformUserId],
+        overrides: []
+      }
     })
     expect(authority.resolve('vrchat', omittedFriend.platformUserId)).toMatchObject({
       ok: true,
       friend: { platformUserId: omittedFriend.platformUserId }
     })
   })
+})
+
+it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
+  'accepts overlapping pagination rows in a partial roster after %s',
+  async (reason) => {
+    const raw = {
+      id: 'usr_alice',
+      displayName: 'Alice',
+      currentAvatarThumbnailImageUrl: '',
+      status: 'active',
+      statusDescription: null,
+      tags: []
+    }
+    const fetcher: VrcFetcher = async <T>(path: string): Promise<T> => {
+      if (path === '/auth/user')
+        return { onlineFriends: ['usr_alice'], activeFriends: [], offlineFriends: [] } as T
+      return (
+        reason === 'malformed sibling' && path.includes('offline=false') ? [raw, { id: 42 }] : [raw]
+      ) as T
+    }
+    const realAdapter = new VrcAdapter(
+      { load: () => undefined, save: vi.fn(), delete: vi.fn() },
+      instantAdmission(),
+      { captureRosterRevision: () => authority.captureSeedRevision('vrchat') }
+    )
+    const read = vi
+      .spyOn(realAdapter as unknown as { readFriends(): Promise<FriendRoster> }, 'readFriends')
+      .mockImplementationOnce(() => fetchVrcFriends(fetcher))
+      .mockRejectedValueOnce(new RateLimitError(1000))
+    registerFriendsHandlers(new Map([['vrchat', realAdapter]]), authority, appStatus)
+    const response = handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    if (reason === 'rate-limited follow-up')
+      (
+        realAdapter as unknown as { rosterRefresh: { invalidate(): void } }
+      ).rosterRefresh.invalidate()
+    const envelope = await response
+    expect(envelope).toMatchObject({
+      completeness: 'partial',
+      friends: [{ platformUserId: 'usr_alice' }, { platformUserId: 'usr_alice' }]
+    })
+    vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
+    try {
+      const result = await fetchFriendRoster('vrchat', () => [rosterFriend])
+      expect(result.provenance?.coveredIds).toEqual(['usr_alice'])
+      expect(result.friends.map((friend) => friend.platformUserId)).toEqual([
+        'usr_alice',
+        'usr_alice',
+        'usr_friend'
+      ])
+      expect(read).toHaveBeenCalledTimes(reason === 'rate-limited follow-up' ? 2 : 1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+)
+
+it.each(['complete', 'partial'] as const)(
+  'preserves CVR %s payload identity and response shape',
+  async (completeness) => {
+    const friend: Friend = {
+      ...rosterFriend,
+      platform: 'chilloutvr',
+      presence: { state: 'in-game' },
+      status: null,
+      statusDescription: null,
+      trustRank: null
+    }
+    const friends = [friend]
+    const roster: FriendRoster = { friends, completeness }
+    Object.freeze(friends)
+    Object.freeze(roster)
+    vi.mocked(adapter.getFriends).mockResolvedValue(roster)
+    registerFriendsHandlers(new Map([['chilloutvr', adapter]]), authority, appStatus)
+    const result = await handlers.get('get-friends')!(event, { platform: 'chilloutvr' })
+    if (completeness === 'complete') expect(result).toBe(friends)
+    else {
+      expect(result).toEqual({ friends, completeness: 'partial' })
+      if (!result || typeof result !== 'object' || !('friends' in result)) {
+        throw new Error('Expected a roster envelope')
+      }
+      expect(result.friends).toBe(friends)
+    }
+    expect(friends[0]).toBe(friend)
+    expect(appStatus.snapshot().lastReconcileAt.chilloutvr).toBe(12_345)
+  }
+)
+
+it('rejects a missing adapter before capturing or publishing authority', async () => {
+  const capture = vi.spyOn(authority, 'captureSeedRevision')
+  const seed = vi.spyOn(authority, 'seed')
+  await expect(handlers.get('get-friends')!(event, { platform: 'chilloutvr' })).rejects.toThrow(
+    'No adapter registered for platform: chilloutvr'
+  )
+  expect(capture).not.toHaveBeenCalled()
+  expect(seed).not.toHaveBeenCalled()
+  expect(appStatus.snapshot().lastReconcileAt.chilloutvr).toBeNull()
+})
+
+it('preserves the captured revision fallback when the seed array is empty', async () => {
+  vi.spyOn(authority, 'captureSeedRevision').mockReturnValue(44)
+  const friends = [rosterFriend]
+  vi.mocked(adapter.getFriends).mockResolvedValue({ friends, completeness: 'complete', seeds: [] })
+  const result = await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+  expect(result).toEqual({
+    friends,
+    completeness: 'complete',
+    provenance: { baseRevision: 44, overrides: [] }
+  })
+  if (!result || typeof result !== 'object' || !('friends' in result)) {
+    throw new Error('Expected a roster envelope')
+  }
+  expect(result.friends).toBe(friends)
 })

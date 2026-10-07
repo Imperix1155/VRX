@@ -60,6 +60,23 @@ export type InstanceActionResult =
         | 'joining-disabled'
     }
 
+/** Main-owned ordering, shared by physical roster reads and published live events. */
+export interface FriendRosterProvenance {
+  baseRevision: number
+  /** Present only for partial results: IDs actually read, before renderer cache merging. */
+  coveredIds?: string[]
+  /** Partial follow-ups replace only these rows; omitted rows keep the base fence. */
+  overrides: Array<{ revision: number; friendIds: string[] }>
+}
+
+export interface FriendRosterResponse {
+  friends: Friend[]
+  completeness: 'complete' | 'partial'
+  provenance?: FriendRosterProvenance
+}
+
+export type FriendEvent = AdapterEvent & { rosterRevision?: number }
+
 /**
  * Request/response channels — renderer asks, main answers:
  * `ipcRenderer.invoke(channel, req)` ↔ `ipcMain.handle(channel, …) → res`.
@@ -90,8 +107,8 @@ export interface IpcInvoke {
   }
   'get-friends': {
     req: { platform: Platform }
-    /** Complete results retain the array shape; partial results preserve cache omissions. */
-    res: Friend[] | { friends: Friend[]; completeness: 'partial' }
+    // VRChat carries physical-read ordering; legacy/CVR complete results remain arrays.
+    res: Friend[] | FriendRosterResponse
   }
   'get-avatar': { req: { url: string }; res: { ok: true; dataUrl: string } | null }
   'get-accounts': { req: void; res: Account[] }
@@ -118,7 +135,7 @@ export interface IpcInvoke {
   }
   'get-app-status': { req: void; res: AppStatus }
   'open-url': { req: { url: string }; res: void }
-  'get-settings': { req: void; res: Settings }
+  'get-settings': { req: void; res: Settings & { unsaved?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
   'updater:check': { req: void; res: void }
@@ -149,7 +166,7 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
-  'friend-event': AdapterEvent
+  'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   'navigate-to-dashboard': void
   'updater:state-changed': UpdaterSnapshot

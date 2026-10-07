@@ -7,6 +7,7 @@ import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
+import RecoveryNotices from './RecoveryNotices'
 import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
@@ -17,25 +18,25 @@ function MainContent(): React.JSX.Element {
   switch (activeTab) {
     case 'friends':
       return (
-        <ErrorBoundary variant="panel">
+        <ErrorBoundary key={activeTab} variant="panel">
           <FriendsList />
         </ErrorBoundary>
       )
     case 'dashboard':
       return (
-        <ErrorBoundary variant="panel">
+        <ErrorBoundary key={activeTab} variant="panel">
           <DashboardView />
         </ErrorBoundary>
       )
     case 'explore':
       return (
-        <ErrorBoundary variant="panel">
+        <ErrorBoundary key={activeTab} variant="panel">
           <ExploreRoute />
         </ErrorBoundary>
       )
     case 'settings':
       return (
-        <ErrorBoundary variant="panel">
+        <ErrorBoundary key={activeTab} variant="panel">
           <SettingsView />
         </ErrorBoundary>
       )
@@ -84,6 +85,7 @@ export default function AppShell(): React.JSX.Element {
         className="[&::-webkit-scrollbar]:w-[9px] [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar-thumb]:rounded-full"
       >
         <TopBar />
+        <RecoveryNotices />
         <MainContent />
       </main>
       {/* VRX-210: the ONE join confirmation dialog — mounted at shell level so

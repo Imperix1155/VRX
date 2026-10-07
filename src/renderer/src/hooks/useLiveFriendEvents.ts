@@ -6,8 +6,9 @@
  * just keeps it fresh in real time instead of waiting for the slow reconcile.
  *
  * - Friend deltas → applyFriendEvent over the cached list for that platform.
- *   Events arriving before the first fetch (no cached list yet) are dropped —
- *   the in-flight/upcoming fetch supersedes them.
+ *   VRChat deltas received during a roster request are also replayed at cache
+ *   publication, including on the first load. Events before any request/cache
+ *   have no roster to update; a later fresh request supplies that baseline.
  * - connection 'live' → invalidate the friends queries: the refetch IS the
  *   on-(re)connect REST reconcile the issue requires.
  * - CVR presence-snapshot → buffered per platform and re-applied when the roster
@@ -31,6 +32,11 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
+import {
+  applyOrderedFriendEvent,
+  clearFriendEventReplay,
+  recordFriendEventForReplay
+} from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
@@ -64,7 +70,7 @@ export function useLiveFriendEvents(): void {
       event: Parameters<typeof applyFriendEvent>[1]
     ): void => {
       queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), (cached) =>
-        cached === undefined ? undefined : applyFriendEvent(cached, event)
+        cached === undefined ? undefined : applyOrderedFriendEvent(queryClient, cached, event)
       )
     }
 
@@ -108,6 +114,7 @@ export function useLiveFriendEvents(): void {
         // roster to [] rather than removing the query, so a mounted observer
         // doesn't immediately refetch (→ another 401 → loop); a real reconnect
         // repopulates it.
+        if (event.platform === 'vrchat') clearFriendEventReplay(queryClient)
         quarantined.add(event.platform)
         latestSnapshot.delete(event.platform)
         // Cancel any in-flight friends fetch so it can't resolve and write a
@@ -135,10 +142,12 @@ export function useLiveFriendEvents(): void {
         return
       }
       if (event.type === 'presence-snapshot') latestSnapshot.set(event.platform, event)
+      recordFriendEventForReplay(queryClient, event)
       applyToCache(event.platform, event)
     })
 
     const unsubscribeIdentityBoundary = window.vrx.onIdentityBoundary(({ platform }) => {
+      if (platform === 'vrchat') clearFriendEventReplay(queryClient)
       // Account identity and buffered live state share one boundary. Clearing the
       // snapshot here prevents account A presence from being re-applied when the
       // account B roster fetch resolves before B's connection reaches 'live'.

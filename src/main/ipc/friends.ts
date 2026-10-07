@@ -9,6 +9,34 @@ import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 
+/** Encode the roster without changing its rows or the authority that produced it. */
+function serializeFriendRoster(
+  platform: Platform,
+  roster: FriendRoster,
+  revision: number
+): IpcInvoke['get-friends']['res'] {
+  if (platform === 'vrchat') {
+    const seeds = roster.seeds ?? [{ revision, friends: roster.friends }]
+    return {
+      friends: roster.friends,
+      completeness: roster.completeness,
+      provenance: {
+        baseRevision: seeds[0]?.revision ?? revision,
+        ...(roster.completeness === 'partial'
+          ? { coveredIds: [...new Set(roster.friends.map((friend) => friend.platformUserId))] }
+          : {}),
+        overrides: seeds.slice(1).map((seed) => ({
+          revision: seed.revision,
+          friendIds: seed.friends.map((friend) => friend.platformUserId)
+        }))
+      }
+    } satisfies IpcInvoke['get-friends']['res']
+  }
+  return roster.completeness === 'partial'
+    ? { friends: roster.friends, completeness: 'partial' as const }
+    : roster.friends
+}
+
 export function registerFriendsHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   authority: LocationAuthority,
@@ -39,8 +67,6 @@ export function registerFriendsHandlers(
       authority.seed(req.platform, roster.friends, revision, roster.completeness)
     }
     appStatus.recordReconcile(req.platform)
-    return roster.completeness === 'partial'
-      ? { friends: roster.friends, completeness: 'partial' as const }
-      : roster.friends
+    return serializeFriendRoster(req.platform, roster, revision)
   })
 }

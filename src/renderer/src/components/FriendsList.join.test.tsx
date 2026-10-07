@@ -201,7 +201,11 @@ describe('FriendsList join pill (VRX-166)', () => {
     })
 
     expect((button as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.queryByText("Couldn't join")).toBeNull()
+    expect(
+      screen.queryByText(
+        "Couldn't join. Check the game and connection, then use Join to try again."
+      )
+    ).toBeNull()
     expect(button.textContent).toBe('Public')
   })
 
@@ -219,19 +223,25 @@ describe('FriendsList join pill (VRX-166)', () => {
       await Promise.resolve()
     })
 
-    expect(status.textContent).toBe("Couldn't join")
+    expect(status.textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
     expect(button.getAttribute('aria-label')).toBe('Join Alex in The Great Pug')
     expect(button.textContent).toBe('Public')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_499)
     })
-    expect(status.textContent).toBe("Couldn't join")
+    expect(status.textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1)
     })
-    expect(status.textContent).toBe('')
+    expect(status.textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
   })
 
   it.each([
@@ -265,7 +275,9 @@ describe('FriendsList join pill (VRX-166)', () => {
       const row = screen.getByRole('button', { name: joinName }).closest('li')
       return row?.querySelector('[role="status"]')?.textContent ?? ''
     }
-    expect(statusOf('Join Alex in The Great Pug')).toBe("Couldn't join")
+    expect(statusOf('Join Alex in The Great Pug')).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
     expect(statusOf('Join Bea in The Great Pug')).toBe('') // Bea does NOT blip
   })
 

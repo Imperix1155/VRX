@@ -1,5 +1,7 @@
 import { is } from '@electron-toolkit/utils'
-import type { WebFrameMain } from 'electron'
+import { app, type WebFrameMain } from 'electron'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 /**
  * Guard every ipcMain.handle() against spoofed senders.
@@ -13,7 +15,20 @@ export function isTrustedIpcSender(frame: WebFrameMain | null): boolean {
   const { url } = frame
   if (is.dev) {
     const rendererUrl = process.env['ELECTRON_RENDERER_URL'] ?? ''
-    if (!rendererUrl) return false
+    if (!rendererUrl) {
+      // electron-vite preview loads this same built entry without a Vite server.
+      // Admit only that document, never arbitrary local files or subframes.
+      try {
+        const sender = new URL(url)
+        sender.hash = ''
+        return (
+          frame.parent === null &&
+          sender.href === pathToFileURL(join(app.getAppPath(), 'out/renderer/index.html')).href
+        )
+      } catch {
+        return false
+      }
+    }
     try {
       return new URL(url).origin === new URL(rendererUrl).origin
     } catch {
