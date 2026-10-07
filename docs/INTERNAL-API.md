@@ -606,6 +606,11 @@ orders published `FriendEvent.rosterRevision` on the same clock as physical read
 captures without changing per-friend authority fences. Replay applies only events
 newer than the affected row's read; metadata events compare each affected row.
 Older fixture/legacy arrays and unversioned events retain replay-all behavior.
+`fetchFriendRoster` delegates to a private `validateRosterEnvelope` before reading
+cached omissions; the validator does not clone or normalize the response. Main
+uses a private `serializeFriendRoster` only after authority seeding and reconcile
+notification, preserving payload identity and the existing platform response shapes.
+
 `fetchFriendRoster` rejects malformed envelopes or provenance: revisions must be
 nonnegative safe integers, follow-up revisions cannot precede the base, and
 overrides are bounded to one follow-up with at most `MAX_FRIENDS` nonempty IDs.

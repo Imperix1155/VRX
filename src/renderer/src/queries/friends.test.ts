@@ -149,3 +149,55 @@ it.each([
     vi.unstubAllGlobals()
   }
 })
+
+it('rejects inconsistent coverage before consulting cached omissions', async () => {
+  const alice = fullFriend('Alice', 'vrchat')
+  const readCache = vi.fn(() => {
+    throw new Error('cache must not be read before validation')
+  })
+  vi.stubGlobal('window', {
+    vrx: {
+      getFriends: vi.fn().mockResolvedValue({
+        friends: [alice],
+        completeness: 'partial',
+        provenance: { baseRevision: 5, coveredIds: [], overrides: [] }
+      })
+    }
+  })
+  try {
+    await expect(fetchFriendRoster('vrchat', readCache)).rejects.toThrow('invalid_roster_response')
+    expect(readCache).not.toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each(['complete', 'partial'] as const)(
+  'retains frozen %s response payload identity when no cached rows are omitted',
+  async (completeness) => {
+    const alice = fullFriend('Alice', 'vrchat')
+    const friends = Object.freeze([alice])
+    const provenance = Object.freeze({
+      baseRevision: 5,
+      ...(completeness === 'partial' ? { coveredIds: Object.freeze([alice.platformUserId]) } : {}),
+      overrides: Object.freeze([])
+    })
+    const envelope = Object.freeze({ friends, completeness, provenance })
+    const readCache = vi.fn(() => undefined)
+    vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
+    try {
+      const result = await fetchFriendRoster('vrchat', readCache)
+      expect(result.friends).toBe(friends)
+      expect(result.provenance).toBe(provenance)
+      expect(result.friends[0]).toBe(alice)
+      if (completeness === 'complete') {
+        expect(result).toBe(envelope)
+        expect(readCache).not.toHaveBeenCalled()
+      } else {
+        expect(readCache).toHaveBeenCalledOnce()
+      }
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  }
+)

@@ -52,13 +52,8 @@ export async function fetchFriends(
   return (await fetchFriendRoster(platform, getCached)).friends
 }
 
-export async function fetchFriendRoster(
-  platform: Platform,
-  getCached?: () => Friend[] | undefined
-): Promise<FriendRosterResponse> {
-  if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
-  const result = await window.vrx.getFriends({ platform })
-  if (Array.isArray(result)) return { friends: result, completeness: 'complete' }
+/** Validate only physical response rows, before consulting cached omissions. */
+function validateRosterEnvelope(result: FriendRosterResponse): void {
   if (
     !result ||
     !Array.isArray(result.friends) ||
@@ -81,6 +76,16 @@ export async function fetchFriendRoster(
     )
       throw new Error('invalid_roster_response')
   }
+}
+
+export async function fetchFriendRoster(
+  platform: Platform,
+  getCached?: () => Friend[] | undefined
+): Promise<FriendRosterResponse> {
+  if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
+  const result = await window.vrx.getFriends({ platform })
+  if (Array.isArray(result)) return { friends: result, completeness: 'complete' }
+  validateRosterEnvelope(result)
   if (result.completeness === 'complete') return result
   const seen = new Set(result.friends.map((friend) => friend.platformUserId))
   // Read after the await: live updates and account-boundary cache clears win.
