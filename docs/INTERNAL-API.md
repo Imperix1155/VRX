@@ -609,7 +609,10 @@ Older fixture/legacy arrays and unversioned events retain replay-all behavior.
 `fetchFriendRoster` rejects malformed envelopes or provenance: revisions must be
 nonnegative safe integers, follow-up revisions cannot precede the base, and
 overrides are bounded to one follow-up with at most `MAX_FRIENDS` nonempty IDs.
-Invalid metadata becomes a refresh error instead of silently suppressing deltas.
+Coverage must exactly match unique returned row IDs, and override IDs must
+belong to returned rows. Validate this before appending cached omissions.
+Invalid metadata becomes a refresh error, preserving prior cache/fences instead
+of silently suppressing deltas.
 `applyOrderedFriendEvent(client, friends, event)` also compares direct VRChat
 cache updates with the last published provenance: native invoke responses and
 push messages can arrive on separate queues. One bounded fence per query client
