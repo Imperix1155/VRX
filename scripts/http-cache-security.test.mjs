@@ -20,27 +20,34 @@ const policy = (headers, options) =>
   new CachePolicy(request, { status: 200, headers: { age: '10', ...headers } }, options)
 
 describe('HTTP cache security reuse boundary', () => {
-  it('runs the CLI check through a symlinked checkout and rejects missing dependencies', () => {
-    const root = mkdtempSync(join(tmpdir(), 'vrx-cache-cli-'))
-    try {
-      const source = join(root, 'source')
-      const alias = join(root, 'alias')
-      mkdirSync(source)
-      writeFileSync(
-        join(source, 'patch-http-cache.mjs'),
-        readFileSync(new URL('./patch-http-cache.mjs', import.meta.url))
-      )
-      symlinkSync(source, alias, 'junction')
-      const result = spawnSync(process.execPath, [join(alias, 'patch-http-cache.mjs'), '--check'], {
-        encoding: 'utf8'
-      })
-      expect(result.error).toBeUndefined()
-      expect(result.status).not.toBe(0)
-      expect(result.stderr).toContain("Cannot find module 'http-cache-semantics'")
-    } finally {
-      rmSync(root, { recursive: true, force: true })
+  it.each([{ nodeFlags: [] }, { nodeFlags: ['--preserve-symlinks-main'] }])(
+    'runs the CLI check through a symlinked checkout with Node flags %j',
+    ({ nodeFlags }) => {
+      const root = mkdtempSync(join(tmpdir(), 'vrx-cache-cli-'))
+      try {
+        const source = join(root, 'source')
+        const alias = join(root, 'alias')
+        mkdirSync(source)
+        writeFileSync(
+          join(source, 'patch-http-cache.mjs'),
+          readFileSync(new URL('./patch-http-cache.mjs', import.meta.url))
+        )
+        symlinkSync(source, alias, 'junction')
+        const result = spawnSync(
+          process.execPath,
+          [...nodeFlags, join(alias, 'patch-http-cache.mjs'), '--check'],
+          {
+            encoding: 'utf8'
+          }
+        )
+        expect(result.error).toBeUndefined()
+        expect(result.status).not.toBe(0)
+        expect(result.stderr).toContain("Cannot find module 'http-cache-semantics'")
+      } finally {
+        rmSync(root, { recursive: true, force: true })
+      }
     }
-  })
+  )
 
   it('requires the exact patched install and rejects unexpected source', () => {
     expect(() => patchHttpCache(true)).not.toThrow()
