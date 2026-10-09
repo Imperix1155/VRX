@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url'
 
 const CACHE_ADVISORY = 'https://github.com/advisories/GHSA-ch52-4w7c-c8xp'
 const LEGACY_ESBUILD_ADVISORY = 'https://github.com/advisories/GHSA-g7r4-m6w7-qqqr'
-const CACHE_EXCEPTION_EXPIRES = Date.parse('2026-10-11T00:00:00Z')
+const CACHE_EXCEPTION_EXPIRES = Date.parse('2026-10-31T00:00:00Z')
 const severities = ['info', 'low', 'moderate', 'high', 'critical']
 const highRisk = (severity) => severity === 'high' || severity === 'critical'
 
@@ -114,7 +114,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .map((file) => JSON.parse(readFileSync(file, 'utf8')))
     const failures = auditFailures(full, production, lock)
     if (failures.length) throw new Error(`Blocked advisories: ${failures.join(', ')}`)
-    console.log('Audit policy passed; temporary dev-only exception expires 2026-10-11 UTC.')
+    console.log('Audit policy passed; temporary dev-only exception expires 2026-10-31 UTC.')
   } catch (error) {
     console.error(`Audit policy failed: ${error.message}`)
     process.exitCode = 1

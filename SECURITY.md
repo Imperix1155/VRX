@@ -58,9 +58,21 @@ guarantees protection against a compromised OS or a process able to read both
 the fallback key and encrypted session files. That wider scan is separate work.
 
 Owner: repository maintainer Imperix1155. Tracking: [PR #345](https://github.com/Imperix1155/VRX/pull/345).
-Approved by the owner on 2026-10-03 after disclosure; review by **2026-10-10**.
-The gate automatically stops accepting this exception at **2026-10-11 00:00 UTC**.
-Any extension requires a new explicit owner decision and review.
+Approved by the owner on 2026-10-03 after disclosure (original expiry
+2026-10-11 00:00 UTC). Extended once on 2026-10-09 after upstream review;
+review by **2026-10-30**.
+The gate automatically stops accepting this exception at **2026-10-31 00:00 UTC**.
+Any further extension requires a new explicit owner decision and review.
+
+**2026-10-09 upstream review (reason for the extension).** `http-cache-semantics`
+4.3.0 (published 2026-10-04) does not fix this advisory. Its source diff against
+4.2.0 only changes `Vary` matching (wildcard and inherited-property handling,
+upstream PR #59) and adds a response `status()`. The max-stale, stale-while-revalidate
+and stale-if-error reuse paths that this advisory covers are unchanged. The upstream
+fixes for this advisory were still open pull requests (#62, #63; tracking issue #65).
+npm's advisory range `<= 4.2.0` predates 4.3.0, so a clean `npm audit` after a 4.3.0
+upgrade would be a false negative. The local patch is therefore kept unchanged, and the
+expiry moves three weeks to allow an upstream release and its behavioral verification.
 
 Only [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
 at its current high severity is temporarily accepted for the locked, dev-only
