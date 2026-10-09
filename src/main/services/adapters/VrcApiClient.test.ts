@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
-import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
+import type { AuthStatus, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { AuthError } from './errors'
 import { VrcApiClient } from './VrcApiClient'
@@ -36,9 +36,6 @@ class TestClient extends VrcApiClient {
     return
   }
   getFriends(): Promise<FriendRoster> {
-    throw new Error('stub')
-  }
-  getInstanceDetails(): Promise<InstanceInfo> {
     throw new Error('stub')
   }
   buildJoinUrl(): string | null {

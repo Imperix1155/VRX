@@ -224,7 +224,6 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   abstract verify2fa(code: string): Promise<LoginResult>
   abstract clearSession(): void
   abstract getFriends(): Promise<FriendRoster>
-  abstract getInstanceDetails(instanceId: string): Promise<InstanceInfo>
   abstract buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null
   abstract selfInvite(instanceId: string): Promise<void>
   abstract subscribe(handler: (event: AdapterEvent) => void): Unsubscribe
