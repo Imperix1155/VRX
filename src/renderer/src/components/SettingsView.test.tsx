@@ -647,8 +647,7 @@ describe('external CVR import preference', () => {
       within(choice).getByRole('radio', { name: msg('settings.accounts.sessionImport.skip') })
     )
     expect(useSettingsStore.getState().settings.cvrSessionImportChoice).toBe('skip')
-    expect(screen.getByText(msg('settings.accounts.sessionImport.unsaved'))).toBeTruthy()
-    act(() => useSettingsStore.getState().markSaved())
-    expect(screen.queryByText(msg('settings.accounts.sessionImport.unsaved'))).toBeNull()
+    // Save state is reported once, app-wide, by RecoveryNotices (not inline here).
+    expect(screen.queryByText(msg('settings.persistence.unsaved'))).toBeNull()
   })
 })
