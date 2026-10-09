@@ -233,7 +233,6 @@ export default function SettingsView(): React.JSX.Element {
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const cvrSessionImportChoice = useSettingsStore((s) => s.settings.cvrSessionImportChoice)
-  const settingsDirty = useSettingsStore((s) => s.dirty)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -590,11 +589,6 @@ export default function SettingsView(): React.JSX.Element {
               <p className="text-xs text-[var(--text-dim)]">
                 {t('settings.accounts.sessionImport.description')}
               </p>
-              {settingsDirty && (
-                <p role="status" className="text-xs text-[var(--text-dim)]">
-                  {t('settings.accounts.sessionImport.unsaved')}
-                </p>
-              )}
             </div>
           </section>
         )}

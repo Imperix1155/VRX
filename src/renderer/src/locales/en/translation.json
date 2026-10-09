@@ -266,8 +266,7 @@
         "skip": "Never",
         "ask": "Ask",
         "import": "Allow",
-        "description": "When VRX has no saved ChilloutVR session, allow reading local game profiles and CVRX files to copy a session and sign in on your behalf. Source files are unchanged. Takes effect on the next app launch; existing VRX sessions and direct sign-in are unaffected.",
-        "unsaved": "Settings changes are not yet saved."
+        "description": "When VRX has no saved ChilloutVR session, allow reading local game profiles and CVRX files to copy a session and sign in on your behalf. Source files are unchanged. Takes effect on the next app launch; existing VRX sessions and direct sign-in are unaffected."
       }
     },
     "boolean": {

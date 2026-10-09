@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop flashing a "Settings have unsaved changes" banner on every settings change.
+  The notice now appears only if a save is still pending after about two seconds
+  (failed saves still show immediately with Retry), and only once, app-wide.
+
 - Reduce time spent validating large linked-profile lists.
 
 - Show roster failures when the other platform is signed out, and restrict Friends
