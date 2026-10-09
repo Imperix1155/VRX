@@ -126,7 +126,6 @@ export function stubPlatformAdapter(overrides: Partial<IPlatformAdapter> = {}): 
     verify2fa: vi.fn().mockResolvedValue({ ok: true }),
     clearSession: vi.fn(),
     getFriends: vi.fn().mockResolvedValue({ friends: [], completeness: 'complete' }),
-    getInstanceDetails: vi.fn(),
     buildJoinUrl: vi.fn().mockReturnValue(null),
     selfInvite: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockReturnValue(() => {}),

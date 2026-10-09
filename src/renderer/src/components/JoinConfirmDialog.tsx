@@ -29,7 +29,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, InstanceInfo, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useFriends } from '../queries/friends'
@@ -73,11 +73,6 @@ const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
   vr: 'joinConfirm.willLaunch.vr',
   desktop: 'joinConfirm.willLaunch.desktop'
 }
-
-/** The pending getInstanceDetails IPC surface (adapter-side today; the bridge
- *  row is routed to the driver — see the PR report). Optional-chained so the
- *  dialog simply omits the total until the surface lands. */
-type InstanceDetailsBridge = { getInstanceDetails?: (instanceId: string) => Promise<InstanceInfo> }
 
 /** The one modal shell renders a distinct, typed Explore source; it never fabricates a Friend. */
 function ExploreJoinConfirmDialog(): React.JSX.Element | null {
@@ -366,12 +361,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
   const [mode, setMode] = useState<JoinMode>('desktop')
   const [moreOpen, setMoreOpen] = useState(false)
-  const [peopleCount, setPeopleCount] = useState<number | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const restoreFocusRef = useRef<Element | null>(null)
   const lastRequestId = useRef<number | null>(null)
-  const fetchedForRequestId = useRef<number | null>(null)
   const launchInitiatedRef = useRef(false)
   const wasOpenRef = useRef(false)
 
@@ -389,35 +382,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
     launchInitiatedRef.current = false
     setMode('desktop')
     setMoreOpen(false)
-    setPeopleCount(null)
-    fetchedForRequestId.current = null
     restoreFocusRef.current = document.activeElement
     cancelRef.current?.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingConfirm?.requestId])
-
-  // CVR total occupancy: ONE fetch per open, interactive priority, never polled.
-  // Silent on failure or when the bridge surface is absent — the friends row
-  // is the substance; the total is a nicety. VRChat has no such surface (the
-  // adapter method is a stub + the upstream shape is unverified) — never called.
-  useEffect(() => {
-    if (pendingConfirm?.platform !== 'chilloutvr' || liveInstance === null) return
-    if (fetchedForRequestId.current === pendingConfirm.requestId) return
-    const getDetails = (window.vrx as InstanceDetailsBridge | undefined)?.getInstanceDetails
-    if (typeof getDetails !== 'function') return
-    fetchedForRequestId.current = pendingConfirm.requestId
-    let cancelled = false
-    getDetails(liveInstance.instanceId)
-      .then((info) => {
-        if (!cancelled && info.userCount !== null) setPeopleCount(info.userCount)
-      })
-      .catch(() => {
-        /* silent by design — no spinner, no error */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [pendingConfirm?.requestId, pendingConfirm?.platform, liveInstance])
 
   // Track whether THIS dialog session committed a launch; if so, restore focus
   // to the main landmark rather than the opener (the row pill re-enables once
@@ -700,9 +668,8 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
         {/* Who's-there — the substance. A real LIST: the group aria-label
             carries the full names while each avatar's accessible name is the
             friend's display name (never a bare repeated status). ≤4 avatars +
-            "+N" (hot-card pattern); the CVR total appears only when the
-            one-shot fetch resolves. */}
-        {instanceForCopy !== null && (present.length > 0 || peopleCount !== null) && (
+            "+N" (hot-card pattern). */}
+        {instanceForCopy !== null && present.length > 0 && (
           <div
             role="list"
             aria-label={whoHereAria}
@@ -716,11 +683,6 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             {overflow > 0 && (
               <span className="shrink-0 text-[13.5px] font-bold text-[var(--text)]">
                 {t('dashboard.friendsOverflow', { count: overflow })}
-              </span>
-            )}
-            {peopleCount !== null && (
-              <span className="text-xs text-[var(--text-dim)]">
-                {t('joinConfirm.peopleCount', { count: peopleCount })}
               </span>
             )}
           </div>

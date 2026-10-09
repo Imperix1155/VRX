@@ -23,7 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent, Friend, InstanceInfo, Platform } from '@shared/types'
 import type { ExploreRoom, ExploreWorld } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import '../i18n'
+import i18n from '../i18n'
 import { useProfileSelection } from '../stores/profileSelection'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
@@ -949,14 +949,7 @@ describe("who's-there row", () => {
     expect(within(dialog).getAllByRole('img')).toHaveLength(1)
   })
 
-  it('CVR: one getInstanceDetails call on open; "· N people" when it resolves', async () => {
-    const getInstanceDetails = vi.fn().mockResolvedValue({ ...cvrInstance, userCount: 7 })
-    window.vrx = {
-      joinInstance,
-      getFriendNote,
-      setFriendNote,
-      getInstanceDetails
-    } as unknown as Window['vrx']
+  it('CVR: renders the present friends without a separate total-occupancy fetch', () => {
     mockFriends([], [cvrFriend])
     render(
       <>
@@ -966,56 +959,9 @@ describe("who's-there row", () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'open join' }))
 
-    expect(getInstanceDetails).toHaveBeenCalledOnce()
-    expect(getInstanceDetails).toHaveBeenCalledWith('cvr_world:abc')
-    expect(await within(confirmDialog()).findByText('· 7 people')).toBeTruthy()
-  })
-
-  it('CVR: a failed details fetch silently omits the total (no error UI, no retry)', async () => {
-    const getInstanceDetails = vi.fn().mockRejectedValue(new Error('private'))
-    window.vrx = {
-      joinInstance,
-      getFriendNote,
-      setFriendNote,
-      getInstanceDetails
-    } as unknown as Window['vrx']
-    mockFriends([], [cvrFriend])
-    render(
-      <>
-        <OpenJoin friend={cvrFriend} />
-        <JoinConfirmDialog />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(getInstanceDetails).toHaveBeenCalledOnce()
-    const dialog = screen.getByRole('dialog', { name: 'Join this Friends+ instance?' })
-    expect(within(dialog).queryByText(/· \d+ people/)).toBeNull()
-    // The friends row is the substance — still there.
+    const dialog = confirmDialog()
     expect(within(dialog).getAllByRole('img')).toHaveLength(1)
-  })
-
-  it('VRChat: getInstanceDetails is NEVER called (stub + unverified upstream)', () => {
-    const getInstanceDetails = vi.fn()
-    window.vrx = {
-      joinInstance,
-      getFriendNote,
-      setFriendNote,
-      getInstanceDetails
-    } as unknown as Window['vrx']
-    render(
-      <>
-        <OpenJoin friend={joinableFriend} />
-        <JoinConfirmDialog />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
-
-    expect(confirmDialog()).toBeTruthy()
-    expect(getInstanceDetails).not.toHaveBeenCalled()
+    expect(within(dialog).queryByText(/· \d+ (people|person)/)).toBeNull()
   })
 })
 
@@ -1632,24 +1578,9 @@ describe('CVR explicit mode preference (no picker) still says what Confirm does'
 })
 
 describe('people-count pluralization', () => {
-  it('count:1 renders the SINGULAR ("· 1 person")', async () => {
-    const getInstanceDetails = vi.fn().mockResolvedValue({ ...cvrInstance, userCount: 1 })
-    window.vrx = {
-      joinInstance,
-      getFriendNote,
-      setFriendNote,
-      getInstanceDetails
-    } as unknown as Window['vrx']
-    mockFriends([], [cvrFriend])
-    render(
-      <>
-        <OpenJoin friend={cvrFriend} />
-        <JoinConfirmDialog />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
-
-    expect(await within(confirmDialog()).findByText('· 1 person')).toBeTruthy()
+  it('count:1 renders the SINGULAR and other counts the plural', () => {
+    expect(i18n.t('joinConfirm.peopleCount', { count: 1 })).toBe('· 1 person')
+    expect(i18n.t('joinConfirm.peopleCount', { count: 7 })).toBe('· 7 people')
   })
 })
 

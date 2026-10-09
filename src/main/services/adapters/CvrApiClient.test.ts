@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { CVR_API_BASE, CVR_PLATFORM } from '@shared/constants'
-import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
+import type { AuthStatus, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { CVRAuthError, CVRNetworkError } from './errors'
 import { CvrApiClient, type CVRUserAuth } from './CvrApiClient'
@@ -52,9 +52,6 @@ class TestClient extends CvrApiClient {
     return
   }
   getFriends(): Promise<FriendRoster> {
-    throw new Error('stub')
-  }
-  getInstanceDetails(): Promise<InstanceInfo> {
     throw new Error('stub')
   }
   buildJoinUrl(): string | null {

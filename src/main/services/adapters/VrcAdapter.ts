@@ -1113,9 +1113,6 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     }
   }
 
-  getInstanceDetails(): Promise<InstanceInfo> {
-    return Promise.reject(new Error('VrcAdapter.getInstanceDetails not implemented'))
-  }
   buildJoinUrl(instance: InstanceInfo, mode: JoinMode): string | null {
     // VRChat's URI has no desktop/VR selector; the client's own setting governs.
     void mode
