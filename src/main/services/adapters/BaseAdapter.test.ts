@@ -62,9 +62,6 @@ class TestAdapter extends BaseAdapter {
   getFriends(): Promise<FriendRoster> {
     return Promise.resolve({ friends: [], completeness: 'complete' })
   }
-  getInstanceDetails(): Promise<never> {
-    return Promise.reject(new Error('not implemented'))
-  }
   buildJoinUrl(): string | null {
     return null
   }

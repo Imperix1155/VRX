@@ -617,8 +617,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   }
   /**
    * Resolve full instance details on demand (VRX-59) — the detail-panel path.
-   * Unresolvable (private/hidden/gone/API failure) REJECTS per the interface
-   * contract (`Promise<InstanceInfo>` has no null); the enrichment path is the
+   * CVR-only; not part of IPlatformAdapter and not yet exposed over IPC (VRChat
+   * has no equivalent yet). Unresolvable (private/hidden/gone/API failure)
+   * REJECTS (`Promise<InstanceInfo>` has no null); the enrichment path is the
    * one with graceful-null semantics.
    */
   async getInstanceDetails(instanceId: string): Promise<InstanceInfo> {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { z } from 'zod'
-import type { AuthStatus, InstanceInfo, LoginResult } from '@shared/types'
+import type { AuthStatus, LoginResult } from '@shared/types'
 import type { FriendRoster, Unsubscribe } from './IPlatformAdapter'
 import { CvrApiClient } from './CvrApiClient'
 import { VRC_USER_AGENT } from './VrcApiClient'
@@ -60,9 +60,6 @@ class TestCvrClient extends CvrApiClient {
     return
   }
   getFriends(): Promise<FriendRoster> {
-    throw new Error('stub')
-  }
-  getInstanceDetails(): Promise<InstanceInfo> {
     throw new Error('stub')
   }
   buildJoinUrl(): string | null {
