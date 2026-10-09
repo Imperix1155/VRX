@@ -236,9 +236,12 @@ Combined/neutral options sit between the two scoped options. Preserve reduced
 motion. Boolean settings use visible On/Off labels and the same sliding glass
 indicator, radiogroup semantics, and arrow-key navigation.
 
-Unsaved settings stay visibly marked in the shell. A failed save retains the
-latest edits with an explicit Retry control; the warning remains until a save
-succeeds. Initial auth IPC failures show a platform-specific recovery message
+Settings save state is reported once, in the shell, failure-first. A failed
+save shows immediately as an alert, retains the latest edits with an explicit
+Retry control, and remains until a save succeeds. An ordinary in-flight save
+stays silent (no banner, no live-region announcement); a status notice appears
+only if the latest change is still unsaved after about two seconds, and the
+delay restarts on each change. Initial auth IPC failures show a platform-specific recovery message
 and Retry, never a signed-out credentials form. A healthy platform may reveal
 the shell while the other is pending. Panel failures are scoped to the active
 tab; navigating to a healthy tab recovers without concealing repeated faults.

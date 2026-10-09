@@ -643,12 +643,15 @@ describe('external CVR import preference', () => {
         .getByRole('radio', { name: msg('settings.accounts.sessionImport.import') })
         .getAttribute('aria-checked')
     ).toBe('true')
+    const statusesBefore = screen.queryAllByRole('status').length
     fireEvent.click(
       within(choice).getByRole('radio', { name: msg('settings.accounts.sessionImport.skip') })
     )
     expect(useSettingsStore.getState().settings.cvrSessionImportChoice).toBe('skip')
-    expect(screen.getByText(msg('settings.accounts.sessionImport.unsaved'))).toBeTruthy()
-    act(() => useSettingsStore.getState().markSaved())
-    expect(screen.queryByText(msg('settings.accounts.sessionImport.unsaved'))).toBeNull()
+    // Save state is reported once, app-wide, by RecoveryNotices — never inline here,
+    // so a dirty store must not add a live region or any unsaved copy to Settings.
+    expect(useSettingsStore.getState().dirty).toBe(true)
+    expect(screen.queryAllByRole('status')).toHaveLength(statusesBefore)
+    expect(screen.queryByText(/unsaved|not yet saved/i)).toBeNull()
   })
 })
