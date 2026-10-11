@@ -564,7 +564,8 @@
         "checkNetwork": "Couldn't check for updates. Check your connection and try again.",
         "downloadWrite": "Couldn't download the update. Check your connection and available storage, then try again. If it keeps failing, install the latest release manually.",
         "stagedInstall": "Couldn't install the staged update. Download it again and try once more."
-      }
+      },
+      "actionFailed": "Couldn't reach the updater. Try again in a moment."
     }
   }
 }
