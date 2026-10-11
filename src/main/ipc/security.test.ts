@@ -118,9 +118,27 @@ describe('isTrustedIpcSender — prod (packaged, file://)', () => {
     mockState.dev = false
   }
 
-  it('accepts a top-level file:// frame', () => {
+  it('accepts the top-level packaged renderer entry, with or without a hash', () => {
     prodSetup()
     expect(isTrustedIpcSender(frame('file:///app/out/renderer/index.html'))).toBe(true)
+    expect(isTrustedIpcSender(frame('file:///app/out/renderer/index.html#settings'))).toBe(true)
+  })
+
+  it('rejects any other top-level local file', () => {
+    prodSetup()
+    expect(isTrustedIpcSender(frame('file:///tmp/unrelated.html'))).toBe(false)
+    expect(isTrustedIpcSender(frame('file:///app/out/renderer/other.html'))).toBe(false)
+    expect(isTrustedIpcSender(frame('file:///app/out/renderer/index.html.evil'))).toBe(false)
+    expect(isTrustedIpcSender(frame('file://remote-host/app/out/renderer/index.html'))).toBe(false)
+  })
+
+  it('matches a percent-encoded entry path (e.g. spaces in the install dir)', () => {
+    prodSetup()
+    const getAppPath = vi.spyOn(app, 'getAppPath').mockReturnValue('/Program Files/VRX/app.asar')
+    expect(
+      isTrustedIpcSender(frame('file:///Program%20Files/VRX/app.asar/out/renderer/index.html'))
+    ).toBe(true)
+    getAppPath.mockRestore()
   })
 
   it('rejects a file:// SUBFRAME (rogue local file in an embedded frame)', () => {
