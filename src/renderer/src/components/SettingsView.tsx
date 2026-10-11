@@ -112,7 +112,7 @@ function SettingCard({
 
 function UpdaterSettingsRow(): React.JSX.Element {
   const { t } = useTranslation()
-  const { state, check, download, install } = useUpdater()
+  const { state, check, download, install, actionFailed } = useUpdater()
   const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
@@ -174,6 +174,11 @@ function UpdaterSettingsRow(): React.JSX.Element {
         {isUnsupported && (
           <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
             {t('updater.settings.unsupportedNote')}
+          </p>
+        )}
+        {actionFailed && (
+          <p role="alert" className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+            {t('updater.settings.actionFailed')}
           </p>
         )}
         {state.failure != null && (
