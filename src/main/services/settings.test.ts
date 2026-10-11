@@ -226,6 +226,19 @@ describe('loadSettings (W7 M1)', () => {
     vi.useRealTimers()
   })
 
+  it('applies the patch in memory even when the settings file cannot be read', () => {
+    storeState.data = { ...DEFAULT_SETTINGS, notifyFriendOnline: true }
+    loadSettings()
+    storeState.written = []
+    storeState.throwOnRead = true
+
+    expect(() => saveSettings({ notifyFriendOnline: false })).toThrow('Unexpected token')
+    // Native policy (e.g. notifications) must follow the UI, not the unreadable file.
+    expect(getSettingsSnapshot().notifyFriendOnline).toBe(false)
+    expect(storeState.written).toHaveLength(0)
+    expect(hasPendingSettingsSave()).toBe(false)
+  })
+
   it('keeps native policy aligned with the UI when a newer-version file refuses persistence', () => {
     storeState.data = {
       ...DEFAULT_SETTINGS,
