@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
@@ -208,6 +208,53 @@ function UpdaterSettingsRow(): React.JSX.Element {
         >
           {buttonIcon}
           {buttonLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Reveal the main-owned log directory (path never crosses the bridge). */
+function LogsSettingsRow(): React.JSX.Element {
+  const { t } = useTranslation()
+  const [failed, setFailed] = useState(false)
+  const openLogs = (): void => {
+    setFailed(false)
+    const opening = window.vrx?.openLogsFolder?.()
+    if (!opening) {
+      setFailed(true)
+      return
+    }
+    opening.catch(() => setFailed(true))
+  }
+  return (
+    <div className="setting-card setting-row">
+      <div>
+        <p className="text-sm font-medium text-[var(--text)]">{t('settings.logs.label')}</p>
+        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+          {t('settings.logs.description')}
+        </p>
+        {failed && (
+          <p role="alert" className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+            {t('settings.logs.error')}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+        <button
+          type="button"
+          onClick={openLogs}
+          className={[
+            'inline-flex items-center gap-[var(--space-1)]',
+            'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+            'border border-[var(--border)]',
+            'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+            'text-[var(--text)]',
+            'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+            'cursor-pointer'
+          ].join(' ')}
+        >
+          {t('settings.logs.open')}
         </button>
       </div>
     </div>
@@ -498,6 +545,7 @@ export default function SettingsView(): React.JSX.Element {
 
             {/* Automatic updates row (VRX-113) */}
             <UpdaterSettingsRow />
+            <LogsSettingsRow />
           </section>
         )}
 
