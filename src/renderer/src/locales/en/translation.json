@@ -290,6 +290,12 @@
       "unsaved": "Settings have unsaved changes.",
       "retry": "Retry saving settings",
       "saving": "Saving…"
+    },
+    "logs": {
+      "label": "Logs",
+      "description": "Diagnostic logs for troubleshooting. Credentials are redacted; review before sharing.",
+      "open": "Open logs folder",
+      "error": "Couldn't open the logs folder."
     }
   },
   "error": {

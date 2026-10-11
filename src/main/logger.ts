@@ -44,7 +44,9 @@ export function initLogger(): void {
   })
 
   logFilePath = log.transports.file.getFile().path
-  log.info(`VRX logger ready — level=${log.transports.file.level}, file=${logFilePath}`)
+  // No absolute path here: it embeds the OS account name (no-PII logging rule).
+  // Settings → Behavior → Open logs folder reveals the location instead.
+  log.info(`VRX logger ready — level=${log.transports.file.level}`)
 }
 
 // Deferred: VRX-81

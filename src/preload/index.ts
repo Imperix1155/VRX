@@ -60,6 +60,7 @@ const vrx = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getAppStatus: () => invoke('get-app-status', undefined),
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
+  openLogsFolder: () => invoke('open-logs-folder', undefined),
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
   getUpdaterState: () => invoke('updater:get-state', undefined),

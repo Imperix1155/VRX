@@ -81,7 +81,10 @@ vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
 vi.mock('./launch', () => ({
-  registerLaunchHandlers: () => electron.ipcMain.handle('open-url', () => undefined)
+  registerLaunchHandlers: () => {
+    electron.ipcMain.handle('open-url', () => undefined)
+    electron.ipcMain.handle('open-logs-folder', () => undefined)
+  }
 }))
 vi.mock('./settings', () => ({
   registerSettingsHandlers: () => {
@@ -168,7 +171,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(27)
+    expect(electron.invokeHandlers.size).toBe(28)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -201,6 +204,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'login',
         'logout',
         'open-url',
+        'open-logs-folder',
         'save-settings',
         'self-invite',
         'set-friend-note',

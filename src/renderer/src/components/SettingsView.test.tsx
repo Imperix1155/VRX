@@ -571,6 +571,26 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
   })
 })
 
+describe('Settings logs row', () => {
+  it('asks main to open the logs folder and reports a failure', async () => {
+    const openLogsFolder = vi.fn().mockRejectedValue(new Error('Could not open logs folder'))
+    setBridge({
+      getAuthStatus: vi.fn(),
+      login: vi.fn(),
+      verify2fa: vi.fn(),
+      logout: vi.fn(),
+      openLogsFolder
+    } as unknown as VrxBridge)
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.logs.open') }))
+    expect(openLogsFolder).toHaveBeenCalledOnce()
+    expect(openLogsFolder).toHaveBeenCalledWith()
+    expect((await screen.findByRole('alert')).textContent).toBe(msg('settings.logs.error'))
+  })
+})
+
 describe('Settings dependency cards', () => {
   it('keeps Dashboard child choices while collapsed and excludes hidden controls', () => {
     useUiStore.setState({ settingsCategory: 'dashboard' })

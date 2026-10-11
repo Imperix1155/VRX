@@ -39,6 +39,7 @@ type VrxBridge = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
+  openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>
   saveSettings: (
     req: IpcInvoke['save-settings']['req']
