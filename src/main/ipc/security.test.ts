@@ -118,14 +118,46 @@ describe('isTrustedIpcSender — prod (packaged, file://)', () => {
     mockState.dev = false
   }
 
-  it('accepts a top-level file:// frame', () => {
+  const entryFor = (appPath: string): string =>
+    pathToFileURL(join(appPath, 'out/renderer/index.html')).href
+
+  it('accepts the top-level packaged renderer entry, with or without a hash', () => {
     prodSetup()
-    expect(isTrustedIpcSender(frame('file:///app/out/renderer/index.html'))).toBe(true)
+    expect(isTrustedIpcSender(frame(entryFor('/app')))).toBe(true)
+    expect(isTrustedIpcSender(frame(`${entryFor('/app')}#settings`))).toBe(true)
+  })
+
+  it('rejects any other top-level local file', () => {
+    prodSetup()
+    expect(isTrustedIpcSender(frame(pathToFileURL('/tmp/unrelated.html').href))).toBe(false)
+    expect(
+      isTrustedIpcSender(frame(pathToFileURL(join('/app', 'out/renderer/other.html')).href))
+    ).toBe(false)
+    expect(isTrustedIpcSender(frame(`${entryFor('/app')}.evil`))).toBe(false)
+    expect(isTrustedIpcSender(frame('file://remote-host/app/out/renderer/index.html'))).toBe(false)
+  })
+
+  it('matches a percent-encoded entry path (e.g. spaces in the install dir)', () => {
+    prodSetup()
+    const appPath = join('/Program Files', 'VRX', 'app.asar')
+    const getAppPath = vi.spyOn(app, 'getAppPath').mockReturnValue(appPath)
+    const entry = entryFor(appPath)
+    expect(entry).toContain('Program%20Files')
+    expect(isTrustedIpcSender(frame(entry))).toBe(true)
+    getAppPath.mockRestore()
+  })
+
+  it.runIf(process.platform === 'win32')('ignores drive-letter and path case on Windows', () => {
+    prodSetup()
+    expect(isTrustedIpcSender(frame(entryFor('/app').toLowerCase()))).toBe(true)
+    expect(
+      isTrustedIpcSender(frame(entryFor('/app').toUpperCase().replace('FILE:', 'file:')))
+    ).toBe(true)
   })
 
   it('rejects a file:// SUBFRAME (rogue local file in an embedded frame)', () => {
     prodSetup()
-    const top = frame('file:///app/out/renderer/index.html')
+    const top = frame(entryFor('/app'))
     expect(isTrustedIpcSender(frame('file:///tmp/evil.html', top))).toBe(false)
   })
 
