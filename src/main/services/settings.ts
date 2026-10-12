@@ -110,11 +110,15 @@ export function getSettingsSnapshot(): Settings {
  * coalesced write containing this snapshot settles.
  */
 export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
-  const raw = getStore().store
-  const next = parseSettings({ ...(settingsSnapshot ?? parseSettings(raw)), ...patch })
   // The renderer has already accepted the patch locally before this call. Keep
-  // native fire-time policy coherent even when persistence must be refused.
+  // native fire-time policy coherent even when persistence must be refused or
+  // the file cannot be read: apply the patch in memory BEFORE touching disk.
+  // loadSettings never throws (it falls back to in-memory defaults).
+  const next = parseSettings({ ...(settingsSnapshot ?? loadSettings()), ...patch })
   settingsSnapshot = next
+  // A throwing read (e.g. corrupted JSON) rejects the save without overwriting
+  // the unreadable file.
+  const raw = getStore().store
   if (!shouldPersistSettings(raw)) {
     // Merging an old-shaped patch over a newer-version file would drop the newer
     // build's fields. Refuse rather than lose data — VRX-21 will own the UX.
