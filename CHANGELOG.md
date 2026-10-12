@@ -7,9 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Reconnect roster freshness:** a newer VRChat follow-up roster now supersedes older live deltas, while partial results and events received after that read retain their correct order. This also covers older native IPC pushes delivered after the roster response. Partial rosters preserve earlier freshness for friends and absences they did not refresh, so delayed updates are not lost.
+## [1.0.0-beta.1] - 2026-10-12
+
+### Added
+
+- Settings → Behavior has an Open logs folder button for bug reports. The log no
+  longer records its own full file path, which included the OS account name.
+- Japanese systems now get Japanese text in the ChilloutVR session-import prompt,
+  window recovery dialogs, desktop friend notifications and the tray menu.
+
+### Changed
+
+- Updated the Electron runtime to 44.5.1.
 
 ### Fixed
+
+- Only VRX's own window can talk to the app's background process; other local
+  files opened in an installed build are refused.
+- Updater check, download and install failures now show a message in Settings
+  instead of failing silently. The window also declares its language for screen
+  readers.
+- A settings change still takes effect (for example, notifications) when the
+  settings file can't be read, instead of the app keeping the old behavior.
+- Reconnect roster freshness: a newer VRChat follow-up roster now supersedes older live deltas, while partial results and events received after that read retain their correct order. This also covers older native IPC pushes delivered after the roster response. Partial rosters preserve earlier freshness for friends and absences they did not refresh, so delayed updates are not lost.
 
 - Stop flashing a "Settings have unsaved changes" banner on every settings change.
   The notice now appears only if a save is still pending after about two seconds
