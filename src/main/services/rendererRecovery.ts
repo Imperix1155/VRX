@@ -1,4 +1,5 @@
 import type { MessageBoxOptions } from 'electron'
+import { mt } from '../i18n'
 
 interface RecoveryWindow {
   isDestroyed(): boolean
@@ -30,19 +31,22 @@ export function createRendererRecovery({ window, showDialog, onError }: Recovery
         kind === 'crash'
           ? {
               type: 'error',
-              title: 'VRX — Renderer Crashed',
-              message: 'The window has stopped responding due to an unexpected error.',
-              detail: `Reason: ${crash?.reason} (exit code ${crash?.exitCode})`,
-              buttons: ['Reload', 'Dismiss'],
+              title: mt('recovery.crash.title'),
+              message: mt('recovery.crash.message'),
+              detail: mt('recovery.crash.detail', {
+                reason: String(crash?.reason),
+                exitCode: String(crash?.exitCode)
+              }),
+              buttons: [mt('recovery.reload'), mt('recovery.dismiss')],
               defaultId: 0,
               cancelId: 1
             }
           : {
               type: 'warning',
-              title: 'VRX — Window Not Responding',
-              message: 'VRX is not responding.',
-              detail: 'The window may be busy. You can wait or reload it.',
-              buttons: ['Reload', 'Wait'],
+              title: mt('recovery.hang.title'),
+              message: mt('recovery.hang.message'),
+              detail: mt('recovery.hang.detail'),
+              buttons: [mt('recovery.reload'), mt('recovery.wait')],
               defaultId: 0,
               cancelId: 1
             }

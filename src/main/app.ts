@@ -58,6 +58,7 @@ import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friend
 import { wireAdapterEvents } from './adapterWiring'
 import { requestCvrImportConsent } from './services/cvrImportConsent'
 import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
+import { mt, setMainLocale } from './i18n'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -289,6 +290,9 @@ app
   .then(async () => {
     // Structured logging first, so anything below is captured (VRX-15).
     initLogger()
+    // Same source as the renderer's navigator.language, so dialogs, tray and
+    // notifications match the window's language.
+    setMainLocale(app.getLocale())
 
     // Lock down the default session's permission surface (defense-in-depth). VRX
     // loads only its own bundled renderer and legitimately needs exactly one web
@@ -403,11 +407,10 @@ app
             prompt: async () => {
               const result = await dialog.showMessageBox({
                 type: 'question',
-                title: 'ChilloutVR session import',
-                message: 'Allow VRX to find and use an existing ChilloutVR session?',
-                detail:
-                  'VRX will read local ChilloutVR game profiles and CVRX files, copy a session into VRX, and sign in on your behalf. Source files are never changed. Sessions use OS-backed encryption when available; otherwise a weaker local installation key is stored alongside the encrypted data. Access to both permits session recovery. VRX remembers your choice. You can change it in Settings → Accounts; direct sign-in remains available.',
-                buttons: ['Use direct sign-in', 'Allow session import'],
+                title: mt('cvrImport.title'),
+                message: mt('cvrImport.message'),
+                detail: mt('cvrImport.detail'),
+                buttons: [mt('cvrImport.deny'), mt('cvrImport.allow')],
                 defaultId: 0,
                 cancelId: 0,
                 noLink: true
@@ -420,11 +423,10 @@ app
               } catch (error) {
                 await dialog.showMessageBox({
                   type: 'warning',
-                  title: 'ChilloutVR session import',
-                  message: 'Your session import choice could not be saved.',
-                  detail:
-                    'No external session was read. You can sign in directly. VRX may ask again on the next launch.',
-                  buttons: ['Continue to sign-in']
+                  title: mt('cvrImport.title'),
+                  message: mt('cvrImport.saveFailed.message'),
+                  detail: mt('cvrImport.saveFailed.detail'),
+                  buttons: [mt('cvrImport.saveFailed.continue')]
                 })
                 throw error
               }

@@ -1,6 +1,7 @@
 import { Notification as NativeNotification } from 'electron'
 import type { Settings } from '@shared/settings'
 import type { FriendAlert, FriendAlertType } from './services/friendAlerts'
+import { mt } from './i18n'
 
 const INSTANCE_LABEL_SUFFIX = /\s*\(#[^)]*\)\s*$/
 const MAX_RETAINED_FRIEND_NOTIFICATIONS = 20
@@ -24,28 +25,38 @@ const strippedWorldName = (worldName: string | null): string =>
 export function notificationPresenter(alert: FriendAlert): NotificationPresentation {
   switch (alert.type) {
     case 'online':
-      return { title: 'Friend Online', body: `${alert.displayName} came online` }
+      return {
+        title: mt('notify.online.title'),
+        body: mt('notify.online.body', { name: alert.displayName })
+      }
     case 'in-game': {
       const worldName = strippedWorldName(alert.worldName)
       return {
-        title: 'Friend Joined a World',
+        title: mt('notify.inGame.title'),
         body:
           worldName === ''
-            ? `${alert.displayName} joined a world`
-            : `${alert.displayName} joined ${worldName}`
+            ? mt('notify.inGame.bodyNoWorld', { name: alert.displayName })
+            : mt('notify.inGame.body', { name: alert.displayName, world: worldName })
       }
     }
     case 'offline':
-      return { title: 'Friend Offline', body: `${alert.displayName} went offline` }
+      return {
+        title: mt('notify.offline.title'),
+        body: mt('notify.offline.body', { name: alert.displayName })
+      }
     case 'hot-instance': {
       const worldName = strippedWorldName(alert.worldName)
-      const countCopy = alert.friendCount === 1 ? '1 friend is' : `${alert.friendCount} friends are`
+      const count = alert.friendCount
+      const one = count === 1
       return {
-        title: 'Friends Gathering',
+        title: mt('notify.hot.title'),
         body:
           worldName === ''
-            ? `${countCopy} in the same instance — join them?`
-            : `${countCopy} together in ${worldName} — join them?`
+            ? mt(one ? 'notify.hot.bodyNoWorld_one' : 'notify.hot.bodyNoWorld_other', { count })
+            : mt(one ? 'notify.hot.body_one' : 'notify.hot.body_other', {
+                count,
+                world: worldName
+              })
       }
     }
   }
