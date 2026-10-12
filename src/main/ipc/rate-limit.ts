@@ -66,7 +66,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   // Manual check/download/install are deliberate human actions.
   'updater:check': { max: 6, windowMs: 60_000 },
   'updater:download': { max: 6, windowMs: 60_000 },
-  'updater:install': { max: 6, windowMs: 60_000 }
+  'updater:install': { max: 6, windowMs: 60_000 },
+  // A deliberate button press that opens a file-manager window.
+  'open-logs-folder': { max: 6, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */
