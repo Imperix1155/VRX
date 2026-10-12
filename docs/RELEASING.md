@@ -28,30 +28,41 @@ its covered steps without asking repeatedly. Keep any other steps pending.
    covering the release. The workflow leaves the existing body unchanged if
    extraction is empty or fails; it does **not** generate replacement notes.
 6. Run the full development gate, review the exact diff, open the version PR,
-   and wait for required final-head CI. Merge only under the applicable grant.
-   Do not commit version changes directly to protected `main`.
+   and wait for required final-head CI. Merge only under the applicable grant:
+   **merging a version PR publishes that version** (section 2). Do not commit
+   version changes directly to protected `main`.
 
 Public changelog/release text describes user-visible changes and limitations.
 Keep owner-specific click instructions and synthetic test details in a private
 handoff, using the authorized task or linked private tracker when available.
 A missing private tracker does not prevent making that handoff in the task.
 
-## 2. Tag the merged commit
+## 2. Tag and publish
 
-Fetch the merged result. Verify the intended commit is on `origin/main`, its
-package/lock/changelog versions match, and the release checks cover that code.
-Record its SHA. Tag that explicit commit, not whichever branch happens to be
-checked out:
+The tag is created automatically. When a push to `main` changes `package.json`
+(or the release workflow) and no `v<package.json version>` tag exists yet,
+[release.yml](../.github/workflows/release.yml) creates that tag at the merged
+commit and builds and publishes it in the same run. A tag created by the
+workflow's own token does not start a second run. Ordinary dependency bumps
+leave the version unchanged, find its tag present, and stop without publishing.
+
+Merging the version PR is therefore publication authority. Merge it only when
+the release in that tag's channel is authorized. Never move an existing public
+tag to repair a release; ship an approved new version instead.
+
+After merging, find the Release run for the merge commit and confirm its
+`prepare tag` job created `vX.Y.Z` at the intended SHA. If a build job fails,
+fix the cause and re-run that run's failed jobs; the manual **Run workflow**
+button (workflow_dispatch) only creates a tag that does not exist yet.
+
+Pushing a tag manually still works for a commit already on `main`:
 
 ```bash
 git tag vX.Y.Z MERGED_COMMIT_SHA
 git push origin vX.Y.Z
 ```
 
-Replace both placeholders before running. Tag push is publication authority:
-[release.yml](../.github/workflows/release.yml) will build and publish a public
-release in the tag's channel. Do not push the tag before that outcome is authorized. Never move
-an existing public tag to repair a release.
+Replace both placeholders before running.
 
 The workflow verifies tag/package agreement, builds Windows and Linux, and lets
 electron-builder create the draft. It resolves that draft by release ID,
