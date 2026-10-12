@@ -141,4 +141,31 @@ describe('useUpdater', () => {
     await expect(result.current.download()).resolves.toBeUndefined()
     await expect(result.current.install()).resolves.toBeUndefined()
   })
+
+  it('flags a refused action until the next action or state push', async () => {
+    bridge.checkForUpdates.mockRejectedValueOnce(new Error('rate_limited'))
+    const { result } = renderHook(() => useUpdater())
+    expect(result.current.actionFailed).toBe(false)
+
+    await act(async () => {
+      await result.current.check()
+    })
+    expect(result.current.actionFailed).toBe(true)
+
+    act(() => {
+      bridge.firePush({ ...DEFAULT_SNAPSHOT, state: 'checking' })
+    })
+    expect(result.current.actionFailed).toBe(false)
+
+    bridge.downloadUpdate.mockRejectedValueOnce(new Error('rate_limited'))
+    await act(async () => {
+      await result.current.download()
+    })
+    expect(result.current.actionFailed).toBe(true)
+    bridge.installUpdate.mockResolvedValueOnce(undefined)
+    await act(async () => {
+      await result.current.install()
+    })
+    expect(result.current.actionFailed).toBe(false)
+  })
 })

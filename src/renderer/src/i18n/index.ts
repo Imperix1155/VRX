@@ -31,4 +31,13 @@ void i18n.use(initReactI18next).init({
   }
 })
 
+// Tell assistive technology which language the UI is in (pronunciation), and
+// keep it in sync if the language ever changes at runtime.
+function syncDocumentLanguage(): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.lang = i18n.resolvedLanguage ?? 'en'
+}
+syncDocumentLanguage()
+i18n.on('languageChanged', syncDocumentLanguage)
+
 export default i18n
