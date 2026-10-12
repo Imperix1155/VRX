@@ -3,14 +3,14 @@ name: Release
 # Auto-publishes a GitHub Release with installers for the package.json version.
 #
 # Triggers (all converge on one tag `v<package.json version>`):
-#   - a merge to main that changes package.json or this file: if that version
+#   - a merge to main that CHANGES the package.json version: if that version
 #     has no tag yet, the prepare job creates the tag at the merged commit and
 #     this same run builds and publishes it. A merged version PR is therefore the
-#     release trigger; no manual tag push is needed. If the tag already exists
-#     (ordinary dependency bumps), the run stops after prepare.
-#   - workflow_dispatch: the same "release main's version if untagged" check,
-#     for when no automatic run fired. It does not retry a version whose tag
-#     already exists; re-run the failed jobs of that version's run instead.
+#     release trigger; no manual tag push is needed. Pushes that leave the
+#     version unchanged (dependency bumps, workflow edits) never publish.
+#   - workflow_dispatch: publish main's current version if it has no tag yet.
+#     An owner-authorized recovery path; it never retries an existing tag
+#     (re-run the failed jobs of that version's run instead).
 #   - a manually pushed `v*` tag, as before.
 # A tag created with GITHUB_TOKEN does not start a second run, so each version
 # is built once. electron-builder derives artifact names and update manifests
@@ -53,9 +53,11 @@ on:
       - .github/workflows/release.yml
   workflow_dispatch:
 
-# One release run per ref; never cancel a publish already in flight.
+# Tag runs serialize per tag. Main/dispatch runs are keyed by commit so a newer
+# push can never replace a pending run that would publish another version.
+# Never cancel a publish already in flight.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref_type == 'tag' && github.ref || github.sha }}
   cancel-in-progress: false
 
 # Needed to create the release and upload assets via GITHUB_TOKEN.
@@ -74,12 +76,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # Tag push: release that tag. Main push or manual run: release main's
-      # package.json version only if its tag does not exist yet, creating the tag
-      # at this exact commit through the API (no git credentials persisted).
+      # Tag push: release that tag. Main push: release only when this push
+      # changed the package.json version. Manual run: release main's version.
+      # Either way only if its tag does not exist yet, creating the tag at this
+      # exact commit through the API (no git credentials persisted).
       - name: Resolve or create the release tag
         id: resolve
         run: |
+          set -o pipefail
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
@@ -89,7 +93,17 @@ jobs:
             echo "::error::Releases are cut only from main (got $GITHUB_REF)." >&2
             exit 1
           fi
-          TAG="v$(node -p "require('./package.json').version")"
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            BEFORE_VERSION="$(gh api "repos/$GITHUB_REPOSITORY/contents/package.json?ref=$BEFORE_SHA" --jq .content \
+              | base64 -d | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0, "utf8")).version)')"
+            if [ "$BEFORE_VERSION" = "$VERSION" ]; then
+              echo "Version unchanged ($VERSION); nothing to release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          TAG="v$VERSION"
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
             echo "$TAG already exists; nothing to release."
             echo "release=false" >> "$GITHUB_OUTPUT"
@@ -103,6 +117,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE_SHA: ${{ github.event.before }}
 
   verify:
     name: verify tag

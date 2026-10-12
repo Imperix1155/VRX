@@ -39,12 +39,12 @@ A missing private tracker does not prevent making that handoff in the task.
 
 ## 2. Tag and publish
 
-The tag is created automatically. When a push to `main` changes `package.json`
-(or the release workflow) and no `v<package.json version>` tag exists yet,
+The tag is created automatically. When a push to `main` changes the
+`package.json` version and no `v<version>` tag exists yet,
 [release.yml](../.github/workflows/release.yml) creates that tag at the merged
 commit and builds and publishes it in the same run. A tag created by the
-workflow's own token does not start a second run. Ordinary dependency bumps
-leave the version unchanged, find its tag present, and stop without publishing.
+workflow's own token does not start a second run. Pushes that leave the version
+unchanged (dependency bumps, workflow edits) never publish.
 
 Merging the version PR is therefore publication authority. Merge it only when
 the release in that tag's channel is authorized. Never move an existing public
@@ -52,8 +52,10 @@ tag to repair a release; ship an approved new version instead.
 
 After merging, find the Release run for the merge commit and confirm its
 `prepare tag` job created `vX.Y.Z` at the intended SHA. If a build job fails,
-fix the cause and re-run that run's failed jobs; the manual **Run workflow**
-button (workflow_dispatch) only creates a tag that does not exist yet.
+fix the cause and re-run that run's failed jobs. The manual **Run workflow**
+button (workflow_dispatch) publishes `main`'s current version only when its tag
+does not exist yet, for example when the automatic run never fired. It is a
+publication like any other and needs the same authorization.
 
 Pushing a tag manually still works for a commit already on `main`:
 
