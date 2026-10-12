@@ -8,6 +8,7 @@
  */
 import { app, Menu, Tray, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import icon from '../../resources/icon.png?asset'
+import { mt } from './i18n'
 
 export interface TrayMenuCallbacks {
   isVisible: boolean
@@ -23,9 +24,11 @@ export function buildTrayMenuTemplate({
   onQuit
 }: TrayMenuCallbacks): MenuItemConstructorOptions[] {
   return [
-    isVisible ? { label: 'Hide VRX', click: onHide } : { label: 'Show VRX', click: onShow },
+    isVisible
+      ? { label: mt('tray.hide'), click: onHide }
+      : { label: mt('tray.show'), click: onShow },
     { type: 'separator' },
-    { label: 'Quit VRX', click: onQuit }
+    { label: mt('tray.quit'), click: onQuit }
   ]
 }
 
