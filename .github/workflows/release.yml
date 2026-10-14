@@ -1,12 +1,24 @@
 name: Release
 
-# Auto-publishes a GitHub Release with installers when a version tag is pushed.
+# Auto-publishes a GitHub Release with installers for the package.json version.
 #
-# Process: bump package.json version -> commit -> tag `vX.Y.Z` to match, then
-# push the tag. electron-builder derives artifact names and latest.yml from
-# package.json, so the tag and package version MUST agree.
+# Triggers (all converge on one tag `v<package.json version>`):
+#   - a merge to main that CHANGES the package.json version: if that version
+#     has no tag yet, the prepare job creates the tag at the merged commit and
+#     this same run builds and publishes it. A merged version PR is therefore the
+#     release trigger; no manual tag push is needed. Pushes that leave the
+#     version unchanged (dependency bumps, workflow edits) never publish.
+#   - workflow_dispatch: publish main's current version if it has no tag yet.
+#     An owner-authorized recovery path; it never retries an existing tag
+#     (re-run the failed jobs of that version's run instead).
+#   - a manually pushed `v*` tag, as before.
+# A tag created with GITHUB_TOKEN does not start a second run, so each version
+# is built once. electron-builder derives artifact names and update manifests
+# from package.json, so the tag and package version MUST agree.
 #
 # Flow (VRX-224 — single source of release creation):
+#   prepare         — resolve the tag (pushed tag, or create the missing tag
+#                     for main's version) and decide whether to release.
 #   verify          — fail fast if the tag and package.json version disagree.
 #   build (matrix)  — each OS runs `electron-builder --publish always`, which
 #                     CREATES the release itself (as a draft; releaseType:draft
@@ -32,11 +44,20 @@ name: Release
 # create/update — the run fails and cannot be granted its way out.
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    # GitHub does not evaluate path filters for tag pushes, so this limits only
+    # main pushes; a pushed `v*` tag always runs.
+    paths:
+      - package.json
+      - .github/workflows/release.yml
+  workflow_dispatch:
 
-# One release run per tag; never cancel a publish already in flight.
+# Tag runs serialize per tag. Main/dispatch runs are keyed by commit so a newer
+# push can never replace a pending run that would publish another version.
+# Never cancel a publish already in flight.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref_type == 'tag' && github.ref || github.sha }}
   cancel-in-progress: false
 
 # Needed to create the release and upload assets via GITHUB_TOKEN.
@@ -44,22 +65,81 @@ permissions:
   contents: write
 
 jobs:
-  verify:
-    name: verify tag
+  prepare:
+    name: prepare tag
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.resolve.outputs.release }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
-      # Checks out the tagged commit (tag push), so the version read below is the
-      # one this release will actually ship.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # Tag push: release that tag. Main push: release only when this push
+      # changed the package.json version. Manual run: release main's version.
+      # Either way only if its tag does not exist yet, creating the tag at this
+      # exact commit through the API (no git credentials persisted).
+      - name: Resolve or create the release tag
+        id: resolve
+        run: |
+          set -o pipefail
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Releases are cut only from main (got $GITHUB_REF)." >&2
+            exit 1
+          fi
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            BEFORE_VERSION="$(gh api "repos/$GITHUB_REPOSITORY/contents/package.json?ref=$BEFORE_SHA" --jq .content \
+              | base64 -d | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0, "utf8")).version)')"
+            if [ "$BEFORE_VERSION" = "$VERSION" ]; then
+              echo "Version unchanged ($VERSION); nothing to release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          TAG="v$VERSION"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Validates the tag form before anything is created.
+          node scripts/release-channel.mjs "$TAG" >/dev/null
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --jq '"Created \(.ref) at \(.object.sha)"'
+          echo "release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE_SHA: ${{ github.event.before }}
+
+  verify:
+    name: verify tag
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      # Checks out the tagged commit, so the version read below is the one this
+      # release will actually ship.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+
       - name: Verify tag, version and release channel
-        run: node scripts/release-channel.mjs "$GITHUB_REF_NAME"
+        run: node scripts/release-channel.mjs "$TAG"
 
   build:
     name: build (${{ matrix.platform }})
-    needs: verify
+    needs: [prepare, verify]
     strategy:
       fail-fast: false
       # Serial: the first OS's electron-builder run creates the draft release for
@@ -74,12 +154,15 @@ jobs:
           - os: windows-latest
             platform: win
     runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
     steps:
       # persist-credentials: false — npm ci runs third-party postinstall scripts
       # (electron-builder install-app-deps) and no later step needs git auth
       # (electron-builder publishes via GH_TOKEN env).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.prepare.outputs.tag }}
           persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -100,7 +183,7 @@ jobs:
         shell: bash
         run: |
           npm run build
-          CHANNEL="$(node scripts/release-channel.mjs "$GITHUB_REF_NAME" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
+          CHANNEL="$(node scripts/release-channel.mjs "$TAG" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
           npx electron-builder --${{ matrix.platform }} --config.publish.channel="$CHANNEL" --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,7 +197,7 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           APPIMAGE="$GITHUB_WORKSPACE/dist/vrx-$VERSION-x86_64.AppImage"
           DEB="$GITHUB_WORKSPACE/dist/vrx_${VERSION}_amd64.deb"
-          CHANNEL="$(node scripts/release-channel.mjs "$GITHUB_REF_NAME" | jq -r .channel)"
+          CHANNEL="$(node scripts/release-channel.mjs "$TAG" | jq -r .channel)"
           MANIFEST="$GITHUB_WORKSPACE/dist/$CHANNEL-linux.yml"
           APPIMAGE_DIR="$(mktemp -d)"
           DEB_DIR="$(mktemp -d)"
@@ -152,12 +235,13 @@ jobs:
 
   publish-release:
     name: publish release
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
       # Need the repo for scripts/extract-changelog.mjs + CHANGELOG.md + node.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.prepare.outputs.tag }}
           persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -170,7 +254,7 @@ jobs:
       - name: Resolve, verify, and publish the release
         run: |
           REPO="$GITHUB_REPOSITORY"
-          TAG="$GITHUB_REF_NAME"
+          TAG="${{ needs.prepare.outputs.tag }}"
           VER="${TAG#v}"
 
           # Exact artifact set electron-builder derives from package.json for this
