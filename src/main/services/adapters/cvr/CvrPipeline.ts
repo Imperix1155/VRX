@@ -350,9 +350,16 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       this.log('debug', 'cvr pipeline: skipped malformed ONLINE_FRIENDS entries', { skipped })
     }
     // A non-empty frame whose EVERY entry was malformed carries no usable
-    // presence. Emitting the unchanged set would assert it as authoritative and,
-    // on connect, flip every friend offline. Ignore the frame instead.
-    if (list.data.length > 0 && skipped === list.data.length) return null
+    // presence. Never re-assert the merged set as authoritative from it. This
+    // does not create a baseline: after a reconnect the renderer's REST
+    // refetch still seeds friends offline until a valid frame arrives (#366).
+    // Warn so wire drift is visible in logs instead of silently skipped.
+    if (list.data.length > 0 && skipped === list.data.length) {
+      this.log('warn', 'cvr pipeline: ONLINE_FRIENDS frame had no usable entry', {
+        entries: list.data.length
+      })
+      return null
+    }
     const entries = [...this.onlineSet.values()]
     return { type: 'presence-snapshot', platform: 'chilloutvr', entries }
   }
