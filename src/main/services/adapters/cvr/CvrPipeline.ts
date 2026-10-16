@@ -371,7 +371,8 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
 
   /**
    * A malformed full-set entry whose id is still readable: restore that
-   * friend's pre-reconnect presence (if any) rather than asserting offline.
+   * friend's pre-reconnect ONLINE state (if any, with no instance) rather than
+   * asserting offline.
    * Deltas need nothing here — skipping leaves the merged entry unchanged.
    * Unidentifiable entries cannot be attributed to anyone and stay skipped.
    */
@@ -383,7 +384,12 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     const idResult = extractCvrPlatformUserId(rawId)
     if (!idResult.ok) return
     const previous = this.carryOver.get(idResult.platformUserId)
-    if (previous !== undefined) this.onlineSet.set(idResult.platformUserId, previous)
+    // Carry ONLY the online state. The old instance is a pre-disconnect join
+    // target this frame did not revalidate; republishing it would let Join
+    // launch a stale room (LocationAuthority treats snapshot instances as fresh).
+    if (previous !== undefined) {
+      this.onlineSet.set(idResult.platformUserId, { ...previous, instance: null })
+    }
   }
 
   private instanceOf(
