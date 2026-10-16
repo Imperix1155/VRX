@@ -439,6 +439,29 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
+  it('emits carried-over friends when every entry of the reconnect full set is malformed', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    r.sockets[0]!.fire(
+      'message',
+      frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: true, Instance: null }] })
+    )
+    r.sockets[0]!.fire('close')
+    await tick()
+    await tick()
+    const s1 = r.sockets.at(-1)!
+    s1.fire('open')
+    s1.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: 'yes' }, { x: 1 }] }))
+    const e = r.events.at(-1)
+    if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(e.entries).toEqual([
+      { platformUserId: G1, presence: { state: 'in-game' }, instance: null }
+    ])
+    r.pipeline.stop()
+  })
+
   it('maps FRIEND_LIST_UPDATED to roster-changed (trigger-only)', async () => {
     const r = rig()
     r.pipeline.start()
