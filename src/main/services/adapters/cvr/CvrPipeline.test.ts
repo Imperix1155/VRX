@@ -360,6 +360,31 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
+  it('emits no snapshot when every entry of a non-empty frame is malformed', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    const before = r.events.length
+
+    // Initial frame entirely unparseable: must NOT become "everyone offline".
+    r.sockets[0]!.fire(
+      'message',
+      frame({ ResponseType: 10, Data: [{ nope: true }, { Id: 'not-a-guid', IsOnline: true }] })
+    )
+    expect(r.events.slice(before).some((e) => e.type === 'presence-snapshot')).toBe(false)
+
+    // A later valid frame still applies, and a genuinely empty set still emits.
+    r.sockets[0]!.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: true }] }))
+    const ok = r.events.at(-1)
+    if (ok?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(ok.entries.map((x) => x.platformUserId)).toEqual([G1])
+
+    r.sockets[0]!.fire('message', frame({ ResponseType: 10, Data: [{ nope: true }] }))
+    expect(r.events.at(-1)).toBe(ok)
+    r.pipeline.stop()
+  })
+
   it('maps FRIEND_LIST_UPDATED to roster-changed (trigger-only)', async () => {
     const r = rig()
     r.pipeline.start()
