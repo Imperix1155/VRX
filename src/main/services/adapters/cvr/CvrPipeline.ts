@@ -349,6 +349,10 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     if (skipped > 0) {
       this.log('debug', 'cvr pipeline: skipped malformed ONLINE_FRIENDS entries', { skipped })
     }
+    // A non-empty frame whose EVERY entry was malformed carries no usable
+    // presence. Emitting the unchanged set would assert it as authoritative and,
+    // on connect, flip every friend offline. Ignore the frame instead.
+    if (list.data.length > 0 && skipped === list.data.length) return null
     const entries = [...this.onlineSet.values()]
     return { type: 'presence-snapshot', platform: 'chilloutvr', entries }
   }
