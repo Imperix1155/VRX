@@ -329,11 +329,12 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     }
 
     let skipped = 0
+    let restored = 0
     for (const raw of list.data) {
       const parsed = onlineFriendSchema.safeParse(raw)
       if (!parsed.success || parsed.data.id === undefined) {
         skipped++
-        this.carryOverMalformed(raw)
+        if (this.carryOverMalformed(raw)) restored++
         continue
       }
       // Normalize the id EXACTLY as the REST roster does (VRX-61): the roster
@@ -360,9 +361,18 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       this.log('debug', 'cvr pipeline: skipped malformed ONLINE_FRIENDS entries', { skipped })
     }
     // A non-empty frame whose EVERY entry was malformed carries no usable
-    // presence. Emitting the unchanged set would assert it as authoritative and,
-    // on connect, flip every friend offline. Ignore the frame instead.
-    if (list.data.length > 0 && skipped === list.data.length) return null
+    // presence. Never re-assert the merged set as authoritative from it. This
+    // does not create a baseline: after a reconnect the renderer's REST
+    // refetch still seeds friends offline until a valid frame arrives (#366).
+    // Warn so wire drift is visible in logs instead of silently skipped.
+    // A carried-over friend is still evidence from THIS frame (they are listed
+    // in the new full set), so it counts as usable.
+    if (list.data.length > 0 && skipped === list.data.length && restored === 0) {
+      this.log('warn', 'cvr pipeline: ONLINE_FRIENDS frame had no usable entry', {
+        entries: list.data.length
+      })
+      return null
+    }
     // The connect's full set has now been applied; later frames are deltas.
     this.carryOver = null
     const entries = [...this.onlineSet.values()]
@@ -376,20 +386,20 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
    * Deltas need nothing here — skipping leaves the merged entry unchanged.
    * Unidentifiable entries cannot be attributed to anyone and stay skipped.
    */
-  private carryOverMalformed(raw: unknown): void {
-    if (this.carryOver === null || typeof raw !== 'object' || raw === null) return
+  private carryOverMalformed(raw: unknown): boolean {
+    if (this.carryOver === null || typeof raw !== 'object' || raw === null) return false
     const record = raw as { Id?: unknown; id?: unknown }
     const rawId = typeof record.Id === 'string' ? record.Id : record.id
-    if (typeof rawId !== 'string') return
+    if (typeof rawId !== 'string') return false
     const idResult = extractCvrPlatformUserId(rawId)
-    if (!idResult.ok) return
+    if (!idResult.ok) return false
     const previous = this.carryOver.get(idResult.platformUserId)
     // Carry ONLY the online state. The old instance is a pre-disconnect join
     // target this frame did not revalidate; republishing it would let Join
     // launch a stale room (LocationAuthority treats snapshot instances as fresh).
-    if (previous !== undefined) {
-      this.onlineSet.set(idResult.platformUserId, { ...previous, instance: null })
-    }
+    if (previous === undefined) return false
+    this.onlineSet.set(idResult.platformUserId, { ...previous, instance: null })
+    return true
   }
 
   private instanceOf(

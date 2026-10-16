@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A garbled ChilloutVR presence message no longer shows every ChilloutVR friend
-  as offline.
 - After a reconnect, a ChilloutVR friend whose entry in the presence update is
   garbled stays online instead of dropping to offline.
 
