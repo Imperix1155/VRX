@@ -385,6 +385,58 @@ describe('CvrPipeline', () => {
     r.pipeline.stop()
   })
 
+  it('keeps a known friend online across reconnect when their full-set entry is malformed', async () => {
+    const G3 = '33333333-3333-3333-3333-333333333333'
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+    r.sockets[0]!.fire(
+      'message',
+      frame({
+        ResponseType: 10,
+        Data: [
+          { Id: G1, IsOnline: true, Instance: null },
+          { Id: G2, IsOnline: true, Instance: null }
+        ]
+      })
+    )
+
+    r.sockets[0]!.fire('close')
+    await tick()
+    await tick()
+    const s1 = r.sockets.at(-1)!
+    expect(s1).not.toBe(r.sockets[0])
+    s1.fire('open')
+    // Reconnect full set: G1 readable-but-malformed (IsOnline not a boolean),
+    // G3 malformed and never seen before, plus an unidentifiable entry.
+    s1.fire(
+      'message',
+      frame({
+        ResponseType: 10,
+        Data: [
+          { Id: G1, IsOnline: 'yes' },
+          { Id: G3, IsOnline: 'yes' },
+          { IsOnline: true },
+          { Id: G2, IsOnline: true, Instance: null }
+        ]
+      })
+    )
+    const full = r.events.at(-1)
+    if (full?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    // G1 keeps its last known presence; G3 has none to keep, so stays absent.
+    expect(full.entries.map((x) => x.platformUserId).sort()).toEqual([G1, G2])
+
+    // Once the full set is applied, carry-over ends: a later explicit leave
+    // evicts, and a malformed delta changes nothing.
+    s1.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: false }] }))
+    s1.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: 'yes' }] }))
+    const after = r.events.at(-1)
+    if (after?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(after.entries.map((x) => x.platformUserId)).toEqual([G2])
+    r.pipeline.stop()
+  })
+
   it('maps FRIEND_LIST_UPDATED to roster-changed (trigger-only)', async () => {
     const r = rig()
     r.pipeline.start()
