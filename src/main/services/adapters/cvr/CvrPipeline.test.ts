@@ -396,7 +396,7 @@ describe('CvrPipeline', () => {
       frame({
         ResponseType: 10,
         Data: [
-          { Id: G1, IsOnline: true, Instance: null },
+          { Id: G1, IsOnline: true, Instance: { Id: 'i+old-room', Name: 'Old Room', Privacy: 0 } },
           { Id: G2, IsOnline: true, Instance: null }
         ]
       })
@@ -426,6 +426,8 @@ describe('CvrPipeline', () => {
     if (full?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
     // G1 keeps its last known presence; G3 has none to keep, so stays absent.
     expect(full.entries.map((x) => x.platformUserId).sort()).toEqual([G1, G2])
+    // Online state only: the pre-disconnect room is never republished as a join target.
+    expect(full.entries.find((x) => x.platformUserId === G1)?.instance).toBeNull()
 
     // Once the full set is applied, carry-over ends: a later explicit leave
     // evicts, and a malformed delta changes nothing.
