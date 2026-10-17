@@ -118,6 +118,19 @@ export abstract class ReconnectingPipeline<Prep> {
     this.closeSocket()
   }
 
+  /**
+   * Drop the current socket so the loop reconnects through its normal
+   * backoff/cooldown discipline (the close is unhealthy, so the next delay
+   * grows). Callers must bound how often they ask. No-op when not connected.
+   */
+  protected requestReconnect(): void {
+    try {
+      this.socket?.close()
+    } catch {
+      /* already closing/closed */
+    }
+  }
+
   // ── Shared internals ────────────────────────────────────────────────────────
 
   protected log(level: 'info' | 'warn' | 'debug', message: string, meta?: unknown): void {

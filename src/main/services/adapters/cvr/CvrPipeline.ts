@@ -160,6 +160,9 @@ const onlineFriendsSchema = z.array(z.unknown())
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
+/** Reconnects requested for unreadable full sets before VRX settles for no baseline. */
+export const MAX_UNUSABLE_FULL_SET_RESYNCS = 2
+
 export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   protected readonly platform = 'chilloutvr' as const
 
@@ -186,6 +189,10 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
    * dropped (absent ⇒ offline) by an unreadable entry.
    */
   private carryOver: typeof this.onlineSet | null = null
+  /** True from (re)connect until the connection's first ONLINE_FRIENDS frame. */
+  private awaitingFullSet = false
+  /** Consecutive reconnects asked for because a full set was unusable. */
+  private unusableFullSetResyncs = 0
 
   constructor(deps: CvrPipelineDeps) {
     super(deps)
@@ -198,6 +205,7 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     // so friends who went offline while we were disconnected don't linger.
     if (this.onlineSet.size > 0) this.carryOver = new Map(this.onlineSet)
     this.onlineSet.clear()
+    this.awaitingFullSet = true
     return this.headersProvider()
   }
 
@@ -328,6 +336,8 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       return null
     }
 
+    const isFullSet = this.awaitingFullSet
+    this.awaitingFullSet = false
     let skipped = 0
     let restored = 0
     for (const raw of list.data) {
@@ -371,10 +381,22 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       this.log('warn', 'cvr pipeline: ONLINE_FRIENDS frame had no usable entry', {
         entries: list.data.length
       })
+      // The connect's FULL set is the only presence baseline CVR sends (there is
+      // no "resend online friends" request). If it was unreadable, ask for a
+      // fresh one by reconnecting through the normal backoff, a bounded number of
+      // times. Never re-apply pre-drop presence instead (useLiveFriendEvents).
+      if (isFullSet && this.unusableFullSetResyncs < MAX_UNUSABLE_FULL_SET_RESYNCS) {
+        this.unusableFullSetResyncs++
+        this.log('warn', 'cvr pipeline: reconnecting for a fresh ONLINE_FRIENDS full set', {
+          attempt: this.unusableFullSetResyncs
+        })
+        this.requestReconnect()
+      }
       return null
     }
     // The connect's full set has now been applied; later frames are deltas.
     this.carryOver = null
+    if (isFullSet) this.unusableFullSetResyncs = 0
     const entries = [...this.onlineSet.values()]
     return { type: 'presence-snapshot', platform: 'chilloutvr', entries }
   }
