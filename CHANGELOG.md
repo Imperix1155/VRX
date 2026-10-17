@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
+  reconnects (at most twice) to get a fresh one instead of showing every
+  ChilloutVR friend as offline.
+
 ## [1.0.0-beta.1] - 2026-10-12
 
 ### Added
