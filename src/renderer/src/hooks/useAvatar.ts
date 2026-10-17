@@ -1,6 +1,10 @@
 import { useEffect, useState, type RefObject } from 'react'
 
 const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
+/** Just past main's 30 s negative cache, so a retry can reach the network again. */
+export const AVATAR_RETRY_DELAY_MS = 31_000
+/** Bounded: a permanently missing image stops after this many re-attempts. */
+export const AVATAR_MAX_RETRIES = 3
 
 const avatarData = new Map<string, string>()
 const avatarRequests = new Map<string, Promise<string | null>>()
@@ -51,12 +55,25 @@ export function useAvatar(url: string | null, targetRef: RefObject<Element | nul
     if (!url || !target || typeof IntersectionObserver === 'undefined') return
 
     let active = true
+    let retries = 0
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return
         observer.disconnect()
         void requestAvatar(url).then((result) => {
-          if (active) setLoaded({ url, dataUrl: result })
+          if (!active) return
+          setLoaded({ url, dataUrl: result })
+          // A transient failure (network, rate limit, negative cache) resolves to
+          // null. Re-arm visibility after the negative-cache window so an avatar
+          // that is still on screen gets another chance; off-screen rows wait
+          // until they intersect again.
+          if (result === null && retries < AVATAR_MAX_RETRIES) {
+            retries += 1
+            retryTimer = setTimeout(() => {
+              if (active) observer.observe(target)
+            }, AVATAR_RETRY_DELAY_MS)
+          }
         })
       },
       { rootMargin: '200px' }
@@ -65,6 +82,7 @@ export function useAvatar(url: string | null, targetRef: RefObject<Element | nul
 
     return () => {
       active = false
+      if (retryTimer !== undefined) clearTimeout(retryTimer)
       observer.disconnect()
     }
   }, [targetRef, url])

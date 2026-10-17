@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useRef } from 'react'
-import { useAvatar } from './useAvatar'
+import { AVATAR_MAX_RETRIES, AVATAR_RETRY_DELAY_MS, useAvatar } from './useAvatar'
 
 type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0]
 
@@ -120,5 +120,65 @@ describe('useAvatar', () => {
     await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
 
     expect(getAvatar).toHaveBeenCalledTimes(urls.length + 1)
+  })
+
+  it('re-arms a visible avatar after a transient failure, a bounded number of times', async () => {
+    vi.useFakeTimers()
+    try {
+      const getAvatar = vi.fn().mockResolvedValue(null)
+      window.vrx = { getAvatar } as unknown as Window['vrx']
+      const url = 'https://files.vrchat.cloud/avatar/retry-test.png'
+      const view = render(<Harness url={url} />)
+      const observer = observers[0]!
+
+      for (let attempt = 0; attempt <= AVATAR_MAX_RETRIES; attempt++) {
+        expect(observer.observe).toHaveBeenCalledTimes(attempt + 1)
+        await act(async () => {
+          observer.intersect(true)
+          await Promise.resolve()
+        })
+        expect(getAvatar).toHaveBeenCalledTimes(attempt + 1)
+        await act(async () => {
+          vi.advanceTimersByTime(AVATAR_RETRY_DELAY_MS - 1)
+        })
+        expect(observer.observe).toHaveBeenCalledTimes(attempt + 1)
+        await act(async () => {
+          vi.advanceTimersByTime(1)
+        })
+      }
+      // Budget exhausted: no further re-arm.
+      expect(observer.observe).toHaveBeenCalledTimes(AVATAR_MAX_RETRIES + 1)
+
+      // Recovery after a retry shows the image.
+      getAvatar.mockResolvedValue({ ok: true, dataUrl: 'data:image/png;base64,b2s=' })
+      view.unmount()
+      render(<Harness url={url} />)
+      await act(async () => {
+        observers.at(-1)!.intersect(true)
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('target').textContent).toContain('data:image')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a pending retry on unmount', async () => {
+    vi.useFakeTimers()
+    try {
+      const getAvatar = vi.fn().mockResolvedValue(null)
+      window.vrx = { getAvatar } as unknown as Window['vrx']
+      const view = render(<Harness url="https://files.vrchat.cloud/avatar/unmount.png" />)
+      const observer = observers[0]!
+      await act(async () => {
+        observer.intersect(true)
+        await Promise.resolve()
+      })
+      view.unmount()
+      vi.advanceTimersByTime(AVATAR_RETRY_DELAY_MS)
+      expect(observer.observe).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
