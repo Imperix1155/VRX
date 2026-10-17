@@ -153,7 +153,8 @@ const FriendRow = memo(function FriendRow({
   onArrowNavigate,
   setAvatarElement,
   virtualIndex,
-  virtualStyle,
+  offsetY,
+  compact,
   measureElement
 }: {
   friend: Friend
@@ -175,10 +176,23 @@ const FriendRow = memo(function FriendRow({
   onArrowNavigate: (key: string, direction: -1 | 1) => void
   setAvatarElement: (key: string, element: HTMLButtonElement | null) => void
   virtualIndex: number
-  virtualStyle: CSSProperties
+  /** Primitive position props (not a style object) so the memo comparison holds. */
+  offsetY: number
+  compact: boolean
   measureElement?: RefCallback<HTMLLIElement>
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const virtualStyle = useMemo<CSSProperties>(
+    () => ({
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      transform: `translateY(${offsetY}px)`,
+      ...(compact ? { minHeight: COMPACT_FRIEND_ROW_ESTIMATE } : {})
+    }),
+    [offsetY, compact]
+  )
   // Store subscription (not a prop) so memo'd rows still re-render on change.
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   // Drawer opener surface (VRX-228): 'card' (default) = the whole row is a
@@ -758,6 +772,10 @@ export default function FriendsList(): React.JSX.Element {
   // One flattened stream lets a single virtualizer own headers and friend rows.
   // Keeping headers in the same index space is what makes a section-aware sticky
   // range possible without adding a second scroll container inside <main>.
+  const profileById = useMemo(
+    () => new Map((links.data?.profiles ?? []).map((profile) => [profile.id, profile])),
+    [links.data]
+  )
   const virtualRows = useMemo(() => {
     const rows: VirtualFriendRow[] = []
     if (sections === undefined) return rows
@@ -773,10 +791,13 @@ export default function FriendsList(): React.JSX.Element {
       })
       if (!collapsed) {
         for (const projection of sectionFriends) {
+          // Hand the resolver only this row's profile: a full-array scan per row
+          // made preparation O(rows × profiles) on every live update.
+          const profile = profileById.get(projection.target.personId ?? '')
           const friend =
             resolveLinkedProfile(projection.target, {
               friends: projection.accounts,
-              profiles: links.data?.profiles ?? [],
+              profiles: profile === undefined ? [] : [profile],
               accountIds
             })?.header ??
             projection.accounts[0] ??
@@ -786,7 +807,7 @@ export default function FriendsList(): React.JSX.Element {
       }
     }
     return rows
-  }, [sections, searchActive, collapsedSections, links.data, accountIds])
+  }, [sections, searchActive, collapsedSections, profileById, accountIds])
 
   const friendKeys = useMemo(
     () => virtualRows.flatMap((row) => (row.kind === 'friend' ? [row.key] : [])),
@@ -1366,11 +1387,8 @@ export default function FriendsList(): React.JSX.Element {
                     onArrowNavigate={onArrowNavigate}
                     setAvatarElement={setAvatarElement}
                     virtualIndex={virtualItem.index}
-                    virtualStyle={
-                      density === 'compact'
-                        ? { ...virtualStyle, minHeight: COMPACT_FRIEND_ROW_ESTIMATE }
-                        : virtualStyle
-                    }
+                    offsetY={virtualItem.start - scrollMargin}
+                    compact={density === 'compact'}
                     measureElement={rowVirtualizer.measureElement}
                   />
                 )
