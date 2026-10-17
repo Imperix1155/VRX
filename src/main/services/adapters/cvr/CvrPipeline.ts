@@ -160,6 +160,9 @@ const onlineFriendsSchema = z.array(z.unknown())
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
+/** Reconnects requested for unreadable full sets before VRX settles for no baseline. */
+export const MAX_UNUSABLE_FULL_SET_RESYNCS = 2
+
 export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
   protected readonly platform = 'chilloutvr' as const
 
@@ -179,6 +182,11 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     { platformUserId: string; presence: { state: 'in-game' }; instance: InstanceInfo | null }
   >()
 
+  /** True from (re)connect until the connection's first ONLINE_FRIENDS frame. */
+  private awaitingFullSet = false
+  /** Consecutive reconnects asked for because a full set was unusable. */
+  private unusableFullSetResyncs = 0
+
   constructor(deps: CvrPipelineDeps) {
     super(deps)
     this.headersProvider = deps.headersProvider
@@ -189,6 +197,7 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     // Fresh (re)connect ⇒ CVR will push a fresh FULL set; drop the stale merge
     // so friends who went offline while we were disconnected don't linger.
     this.onlineSet.clear()
+    this.awaitingFullSet = true
     return this.headersProvider()
   }
 
@@ -319,6 +328,8 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
       return null
     }
 
+    const isFullSet = this.awaitingFullSet
+    this.awaitingFullSet = false
     let skipped = 0
     for (const raw of list.data) {
       const parsed = onlineFriendSchema.safeParse(raw)
@@ -349,6 +360,29 @@ export class CvrPipeline extends ReconnectingPipeline<Record<string, string>> {
     if (skipped > 0) {
       this.log('debug', 'cvr pipeline: skipped malformed ONLINE_FRIENDS entries', { skipped })
     }
+    // A non-empty frame whose EVERY entry was malformed carries no usable
+    // presence. Never re-assert the merged set as authoritative from it. This
+    // does not create a baseline: after a reconnect the renderer's REST
+    // refetch still seeds friends offline until a valid frame arrives (#366).
+    // Warn so wire drift is visible in logs instead of silently skipped.
+    if (list.data.length > 0 && skipped === list.data.length) {
+      this.log('warn', 'cvr pipeline: ONLINE_FRIENDS frame had no usable entry', {
+        entries: list.data.length
+      })
+      // The connect's FULL set is the only presence baseline CVR sends (there is
+      // no "resend online friends" request). If it was unreadable, ask for a
+      // fresh one by reconnecting through the normal backoff, a bounded number of
+      // times. Never re-apply pre-drop presence instead (useLiveFriendEvents).
+      if (isFullSet && this.unusableFullSetResyncs < MAX_UNUSABLE_FULL_SET_RESYNCS) {
+        this.unusableFullSetResyncs++
+        this.log('warn', 'cvr pipeline: reconnecting for a fresh ONLINE_FRIENDS full set', {
+          attempt: this.unusableFullSetResyncs
+        })
+        this.requestReconnect()
+      }
+      return null
+    }
+    if (isFullSet) this.unusableFullSetResyncs = 0
     const entries = [...this.onlineSet.values()]
     return { type: 'presence-snapshot', platform: 'chilloutvr', entries }
   }
