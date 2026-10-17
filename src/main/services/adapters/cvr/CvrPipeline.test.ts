@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AdapterEvent } from '@shared/types'
 import type { PipelineSocket } from '../ReconnectingPipeline'
-import { CvrPipeline } from './CvrPipeline'
+import { MAX_UNUSABLE_FULL_SET_RESYNCS, CvrPipeline } from './CvrPipeline'
 
 type Listener = (...args: unknown[]) => void
 
@@ -365,16 +365,7 @@ describe('CvrPipeline', () => {
     r.pipeline.start()
     await tick()
     r.sockets[0]!.fire('open')
-    const before = r.events.length
-
-    // Initial frame entirely unparseable: must NOT become "everyone offline".
-    r.sockets[0]!.fire(
-      'message',
-      frame({ ResponseType: 10, Data: [{ nope: true }, { Id: 'not-a-guid', IsOnline: true }] })
-    )
-    expect(r.events.slice(before).some((e) => e.type === 'presence-snapshot')).toBe(false)
-
-    // A later valid frame still applies, and a genuinely empty set still emits.
+    // A valid full set first, so the frames below are mid-session deltas.
     r.sockets[0]!.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: true }] }))
     const ok = r.events.at(-1)
     if (ok?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
@@ -382,6 +373,66 @@ describe('CvrPipeline', () => {
 
     r.sockets[0]!.fire('message', frame({ ResponseType: 10, Data: [{ nope: true }] }))
     expect(r.events.at(-1)).toBe(ok)
+    // A malformed delta never triggers a resync reconnect.
+    expect(r.sockets[0]!.closeCalls).toBe(0)
+    r.pipeline.stop()
+  })
+
+  it('reconnects a bounded number of times when the connect full set is unusable', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    const garbage = frame({ ResponseType: 10, Data: [{ nope: true }, { Id: 'not-a-guid' }] })
+
+    for (let attempt = 0; attempt < MAX_UNUSABLE_FULL_SET_RESYNCS; attempt++) {
+      const socket = r.sockets.at(-1)!
+      socket.fire('open')
+      socket.fire('message', garbage)
+      expect(r.events.some((e) => e.type === 'presence-snapshot')).toBe(false)
+      expect(socket.closeCalls).toBe(1)
+      await tick()
+      await tick()
+      expect(r.sockets.at(-1)).not.toBe(socket)
+    }
+
+    // Budget spent: stay connected and wait for deltas instead of looping.
+    const last = r.sockets.at(-1)!
+    last.fire('open')
+    last.fire('message', garbage)
+    expect(last.closeCalls).toBe(0)
+    expect(r.events.some((e) => e.type === 'presence-snapshot')).toBe(false)
+
+    // A later valid frame still applies.
+    last.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: true }] }))
+    const e = r.events.at(-1)
+    if (e?.type !== 'presence-snapshot') throw new Error('expected presence-snapshot')
+    expect(e.entries.map((x) => x.platformUserId)).toEqual([G1])
+    r.pipeline.stop()
+  })
+
+  it('resets the resync budget after a usable full set', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    const garbage = frame({ ResponseType: 10, Data: [{ nope: true }] })
+    r.sockets[0]!.fire('open')
+    r.sockets[0]!.fire('message', garbage)
+    await tick()
+    await tick()
+    const s1 = r.sockets.at(-1)!
+    s1.fire('open')
+    s1.fire('message', frame({ ResponseType: 10, Data: [{ Id: G1, IsOnline: true }] }))
+    s1.fire('close')
+    await tick()
+    await tick()
+    for (let attempt = 0; attempt < MAX_UNUSABLE_FULL_SET_RESYNCS; attempt++) {
+      const socket = r.sockets.at(-1)!
+      socket.fire('open')
+      socket.fire('message', garbage)
+      expect(socket.closeCalls).toBe(1)
+      await tick()
+      await tick()
+    }
     r.pipeline.stop()
   })
 
