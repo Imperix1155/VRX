@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ChilloutVR friend as offline.
 - After a reconnect, a ChilloutVR friend whose entry in the presence update is
   garbled stays online instead of dropping to offline.
+- An avatar that failed to load (for example during a brief network hiccup)
+  now tries again while it stays on screen, instead of keeping the placeholder
+  until the list is reopened.
 
 ## [1.0.0-beta.1] - 2026-10-12
 
