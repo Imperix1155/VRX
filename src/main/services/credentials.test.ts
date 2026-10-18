@@ -1,4 +1,6 @@
-import { createHash } from 'node:crypto'
+import { mkdirSync, mkdtempSync, existsSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -109,7 +111,7 @@ import {
   clearCredential,
   CredentialEncryptionUnavailableError,
   loadCredential,
-  recordCredentialOwner,
+  removeLegacyCredentialOwnerStore,
   saveCredential
 } from './credentials'
 
@@ -154,25 +156,8 @@ describe('credential storage', () => {
     expect(JSON.stringify(persisted)).not.toContain('raw-auth-token')
     expect(mocks.encryptString).toHaveBeenCalledWith('raw-auth-token')
     expect(mocks.storeOptions).toEqual([
-      { name: 'credentials', accessPropertiesByDotNotation: false },
-      { name: 'credential-owners', accessPropertiesByDotNotation: false }
+      { name: 'credentials', accessPropertiesByDotNotation: false }
     ])
-  })
-
-  it('invalidates the credential before owner-store initialization can fail', async () => {
-    vi.resetModules()
-    mocks.stores.set('credentials', {
-      'vrchat:primary': Buffer.from('encrypted:account-a-token').toString('base64')
-    })
-    mocks.constructorErrors.set('credential-owners', new Error('owner store unavailable'))
-    const isolated = await import('./credentials')
-
-    expect(() =>
-      isolated.saveCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
-    ).toThrow('owner store unavailable')
-    mocks.decryptString.mockClear()
-    expect(isolated.loadCredential(isolated.CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
-    expect(mocks.decryptString).not.toHaveBeenCalled()
   })
 
   it('decrypts a stored credential in the main process', () => {
@@ -182,59 +167,8 @@ describe('credential storage', () => {
     expect(mocks.decryptString).toHaveBeenCalledWith(Buffer.from('encrypted:raw-auth-token'))
   })
 
-  it('records and returns the owner of the exact stored ciphertext', () => {
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
-
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account-1')
-
-    expect(mocks.stores.get('credential-owners')).toEqual({
-      'vrchat:primary': {
-        platformAccountId: 'usr_account-1',
-        // sha256 of the stored (base64) ciphertext — computed, not hardcoded (no secret literal)
-        credentialDigest: createHash('sha256')
-          .update(Buffer.from('encrypted:raw-auth-token').toString('base64'))
-          .digest('hex')
-      }
-    })
-  })
-
-  it('records B with the digest of B after a completed A-to-B replacement in the same slot', () => {
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_b')
-
-    expect(mocks.stores.get('credential-owners')).toEqual({
-      'vrchat:primary': {
-        platformAccountId: 'usr_account_b',
-        credentialDigest: createHash('sha256')
-          .update(Buffer.from('encrypted:account-b-token').toString('base64'))
-          .digest('hex')
-      }
-    })
-  })
-
-  it('returns null when a save completes but owner recording is interrupted', () => {
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
-
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-b-token')
-
-    expect(mocks.stores.get('credential-owners')).toEqual({})
-  })
-
-  it('saveCredential clears a pre-existing owner sidecar entry', () => {
-    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-a-session')
-    recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-a')
-
-    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-b-session')
-
-    expect(mocks.stores.get('credential-owners')).toEqual({})
-  })
-
   it('leaves a non-restorable slot when its replacement ciphertext write throws', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
     mocks.delayedSetErrors.set('credentials', {
       successfulWritesRemaining: 1,
@@ -246,7 +180,7 @@ describe('credential storage', () => {
     )
 
     expect(mocks.stores.get('credentials')?.['vrchat:primary']).not.toBe(oldCiphertext)
-    expect(mocks.stores.get('credential-owners')).toEqual({})
+    expect(mocks.stores.has('credential-owners')).toBe(false)
     mocks.decryptString.mockClear()
     expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBeUndefined()
     expect(mocks.decryptString).not.toHaveBeenCalled()
@@ -254,7 +188,6 @@ describe('credential storage', () => {
 
   it('cannot restore an old credential when both encryption paths and cleanup deletion fail', () => {
     saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'account-a-token')
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account_a')
     const oldCiphertext = mocks.stores.get('credentials')?.['vrchat:primary']
     mocks.encryptString.mockImplementationOnce(() => {
       throw new Error('encryption failed')
@@ -277,32 +210,34 @@ describe('credential storage', () => {
     expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('account-a-token')
   })
 
-  it('clears the credential owner sidecar with the stored credential', () => {
-    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
-    recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'account-2')
+  it('never creates the removed credential-owner sidecar (#371)', () => {
+    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
+    clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
 
-    clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
-
-    expect(mocks.stores.get('credentials')).toEqual({})
-    expect(mocks.stores.get('credential-owners')).toEqual({})
+    expect(mocks.stores.has('credential-owners')).toBe(false)
+    expect(mocks.storeOptions.map((o) => o.name)).not.toContain('credential-owners')
   })
 
-  it.each(['', 'account.with.dot', 'account id', 'x'.repeat(129)])(
-    'rejects unsafe credential owner account id %j',
-    (platformAccountId) => {
-      saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'raw-auth-token')
+  it('deletes a legacy credential-owner sidecar file and leaves other stores alone', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vrx-owner-'))
+    writeFileSync(join(dir, 'credential-owners.json'), '{}')
+    writeFileSync(join(dir, 'credentials.json'), '{}')
 
-      expect(() =>
-        recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, platformAccountId)
-      ).toThrow('invalid platformAccountId')
-      expect(mocks.stores.get('credential-owners')).toEqual({})
-    }
-  )
+    removeLegacyCredentialOwnerStore(dir)
 
-  it('does not create an owner sidecar when no ciphertext is stored', () => {
-    recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'usr_account-1')
+    expect(existsSync(join(dir, 'credential-owners.json'))).toBe(false)
+    expect(existsSync(join(dir, 'credentials.json'))).toBe(true)
+    // Idempotent when the file is already gone.
+    expect(() => removeLegacyCredentialOwnerStore(dir)).not.toThrow()
+  })
 
-    expect(mocks.stores.get('credential-owners')).toBeUndefined()
+  it('never throws when the legacy sidecar cannot be removed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vrx-owner-'))
+    // A directory in its place makes the non-recursive delete fail.
+    mkdirSync(join(dir, 'credential-owners.json'))
+
+    expect(() => removeLegacyCredentialOwnerStore(dir)).not.toThrow()
+    expect(() => removeLegacyCredentialOwnerStore(join(dir, 'missing'))).not.toThrow()
   })
 
   it('returns undefined when a credential is not stored', () => {
@@ -394,20 +329,18 @@ describe('credential storage', () => {
     (key) => {
       mocks.isEncryptionAvailable.mockReturnValue(false)
       saveCredential(key, 'synthetic-session')
-      recordCredentialOwner(key, 'usr_account_a')
       const local = mocks.stores.get('credentials')?.[key]
       mocks.isEncryptionAvailable.mockReturnValue(true)
       expect(loadCredential(key)).toBe('synthetic-session')
       expect(mocks.stores.get('credentials')?.[key]).toBe(local)
       saveCredential(key, 'synthetic-session')
-      recordCredentialOwner(key, 'usr_account_a')
       expect(mocks.stores.get('credentials')?.[key]).toBe(
         Buffer.from('encrypted:synthetic-session').toString('base64')
       )
       expect(loadCredential(key)).toBe('synthetic-session')
       clearCredential(key)
       expect(loadCredential(key)).toBeUndefined()
-      expect(mocks.stores.get('credential-owners')).toEqual({})
+      expect(mocks.stores.has('credential-owners')).toBe(false)
     }
   )
 
@@ -415,15 +348,9 @@ describe('credential storage', () => {
     mocks.isEncryptionAvailable.mockReturnValue(false)
     const key = CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY
     saveCredential(key, 'synthetic-account-a-session')
-    recordCredentialOwner(key, 'account_a')
     saveCredential(key, 'synthetic-account-b-session')
-    recordCredentialOwner(key, 'account_b')
     expect(loadCredential(key)).toBe('synthetic-account-b-session')
-    expect(mocks.stores.get('credential-owners')?.[key]).toMatchObject({
-      platformAccountId: 'account_b'
-    })
     mocks.deleteErrors.set('credentials', new Error('delete failed'))
-    mocks.deleteErrors.set('credential-owners', new Error('delete failed'))
     clearCredential(key)
     expect(loadCredential(key)).toBeUndefined()
     mocks.localDecrypt.mockClear()
@@ -458,9 +385,6 @@ describe('credential storage', () => {
     )
     expect(() => loadCredential(key as never)).toThrow('Unsupported credential key')
     expect(() => clearCredential(key as never)).toThrow('Unsupported credential key')
-    expect(() => recordCredentialOwner(key as never, 'usr_account-1')).toThrow(
-      'Unsupported credential key'
-    )
     expect(mocks.encryptString).not.toHaveBeenCalled()
     expect(mocks.decryptString).not.toHaveBeenCalled()
     expect(mocks.stores.get('credentials')).toBeUndefined()
