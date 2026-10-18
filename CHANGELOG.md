@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- VRX no longer keeps a separate credential-owner file next to saved sign-ins.
+  It was never read. An existing file is deleted the next time VRX starts.
+
 ### Fixed
 
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
