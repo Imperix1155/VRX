@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The app window's content security policy no longer allows inline styles, so
+  injected style markup can't take effect.
+
 ### Fixed
 
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
