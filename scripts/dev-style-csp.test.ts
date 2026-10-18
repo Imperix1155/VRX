@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { devStyleCspPlugin, relaxStyleCspForDev } from './dev-style-csp'
 
@@ -49,7 +50,7 @@ describe('renderer style injection guard (#369)', () => {
   ]
 
   it('production renderer source never injects inline stylesheets or style attributes', () => {
-    const root = new URL('../src/renderer/src', import.meta.url).pathname
+    const root = fileURLToPath(new URL('../src/renderer/src', import.meta.url))
     const hits = rendererSources(root).flatMap((file) => {
       const text = readFileSync(file, 'utf8')
       return forbidden.filter((re) => re.test(text)).map((re) => `${file}: ${re}`)
