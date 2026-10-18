@@ -312,6 +312,12 @@
     "searchNoResults": "検索に一致するフレンドはいません",
     "refresh": "更新",
     "error": "フレンドを読み込めませんでした",
+    "sourceState": {
+      "missing": "{{platform}} のフレンドを読み込めませんでした。この一覧には含まれていません。",
+      "stale": "{{platform}} のフレンドを更新できませんでした。最後に読み込んだ一覧を表示しています。",
+      "retry": "{{platform}} を再試行",
+      "retrying": "{{platform}} を再試行中…"
+    },
     "joinAria": "{{name}}さんがいる{{world}}に参加",
     "joinFailed": "参加できませんでした。ゲームと接続を確認してから、参加ボタンで再試行してください。",
     "joinFailure": {

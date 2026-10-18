@@ -1,4 +1,5 @@
 import LinkedProfilesLoadError from './LinkedProfilesLoadError'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { Range } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -690,11 +691,8 @@ export default function FriendsList(): React.JSX.Element {
     () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
     [vrcFriends.data, cvrFriends.data]
   )
-  const { friends, isPending, isError, isFetching, refetch } = useCombineFriendQueries(
-    platformFilter,
-    vrcFriends,
-    cvrFriends
-  )
+  const { friends, isPending, isError, isFetching, refetch, sourceFailures } =
+    useCombineFriendQueries(platformFilter, vrcFriends, cvrFriends)
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
   // within each section — SUPERSEDES the old flat online-first ordering. Counts
@@ -1232,6 +1230,9 @@ export default function FriendsList(): React.JSX.Element {
         </button>
       </div>
       <LinkedProfilesLoadError query={links} />
+      {!isAuthStatusPending && !isNotConnected ? (
+        <FriendsSourceNotice failures={sourceFailures} isFetching={isFetching} />
+      ) : null}
       <div className="relative mb-[var(--space-3)]">
         <input
           ref={searchInputRef}
