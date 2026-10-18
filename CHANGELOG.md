@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- When one platform's friends fail to load or refresh, the Friends list now says
+  so (for example "ChilloutVR friends could not refresh") and offers a Retry for
+  just that platform, instead of silently showing a partial or outdated list.
+
+### Fixed
+
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
   reconnects (at most twice) to get a fresh one instead of showing every
   ChilloutVR friend as offline.
