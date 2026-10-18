@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- When VRChat asks you to re-enter your two-factor code, VRX now stops all
+  account activity in the background (friend updates, image requests) until the
+  code is verified, instead of only blocking the window.
+
 ### Fixed
 
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
