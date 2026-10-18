@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Avatar images kept in memory are now capped at about 48 MB per cache (one in
+  the background process, one in the window), so long sessions with many large
+  avatars can't grow memory without limit.
+
 ### Fixed
 
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
