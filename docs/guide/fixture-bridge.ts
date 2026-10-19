@@ -9,6 +9,7 @@ import {
   getWorldSnapshot,
   linkedSnapshot
 } from './fixtures'
+import { friendsFailureFor } from './scenarios'
 
 export type FixtureBridge = NonNullable<Window['vrx']>
 const noop = (): void => undefined
@@ -70,7 +71,10 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       return Promise.resolve({ ok: true, value: structuredClone(links) })
     },
     onLinkedProfilesChanged: unsubscribe,
-    getFriends: ({ platform }) => Promise.resolve(friends[platform]),
+    getFriends: ({ platform }) =>
+      friendsFailureFor(variant)?.platform === platform
+        ? Promise.reject(new Error('Synthetic roster refresh failed'))
+        : Promise.resolve(friends[platform]),
     getAvatar: (url) => {
       const dataUrl = worldImages[url] ?? (url.startsWith('data:image/') ? url : undefined)
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)

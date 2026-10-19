@@ -32,6 +32,21 @@ export const drawerScenarios = [
   { value: 'note-save-error', label: 'Note save failure' }
 ]
 
+/** Friends roster states (issue 368): one platform fails while the other stays usable. */
+export const friendsScenarios = [
+  { value: 'ready', label: 'All loaded' },
+  { value: 'cvr-missing', label: 'ChilloutVR failed' },
+  { value: 'vrc-stale', label: 'VRChat stale' }
+]
+
+export function friendsFailureFor(
+  variant: string
+): { platform: 'vrchat' | 'chilloutvr'; kind: 'missing' | 'stale' } | null {
+  if (variant === 'cvr-missing') return { platform: 'chilloutvr', kind: 'missing' }
+  if (variant === 'vrc-stale') return { platform: 'vrchat', kind: 'stale' }
+  return null
+}
+
 export function sourceModesFor(variant: string): readonly [PlatformMode, PlatformMode] {
   return sourceScenarios.find((scenario) => scenario.value === variant)?.modes ?? ['ready', 'ready']
 }
