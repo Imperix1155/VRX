@@ -110,9 +110,11 @@ import {
   CREDENTIAL_KEYS,
   clearCredential,
   CredentialEncryptionUnavailableError,
+  isCredentialSignedOut,
   loadCredential,
   removeLegacyCredentialOwnerStore,
-  saveCredential
+  saveCredential,
+  signOutCredential
 } from './credentials'
 
 const originalPlatform = process.platform
@@ -208,6 +210,50 @@ describe('credential storage', () => {
     expect(mocks.decryptString).not.toHaveBeenCalled()
     expect(mocks.stores.get('credentials')?.['vrchat:primary']).not.toBe(oldCiphertext)
     expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('account-a-token')
+  })
+
+  it('remembers an explicit sign-out until the next save', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+
+    signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBeUndefined()
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(true)
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('cvr-session')
+
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'next-session')
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe('next-session')
+  })
+
+  it('does not mark an automatic clear as a sign-out', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+  })
+
+  it('signs out with one marker write and never empties the slot', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    // An absent slot would read as "never signed in" and allow an import.
+    mocks.deleteErrors.set('credentials', new Error('slot delete must not run'))
+
+    signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+
+    expect(mocks.deleteErrors.has('credentials')).toBe(true)
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(true)
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBeUndefined()
+    expect(mocks.stores.has('credential-owners')).toBe(false)
+  })
+
+  it('fails the sign-out like clearCredential when the marker cannot be written', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    mocks.setErrors.set('credentials', new Error('store write failed'))
+
+    expect(() => signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toThrow(
+      'store write failed'
+    )
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
   })
 
   it('never creates the removed credential-owner sidecar (#371)', () => {

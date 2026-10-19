@@ -71,6 +71,9 @@ and Node/Electron access on this side of the process boundary.
 - External CVR session discovery requires explicit remembered consent before any
   source I/O. Valid VRX sessions bypass import; declined consent preserves direct
   login. A failed consent write fails closed and is disclosed to the user.
+  Never import over an unreadable stored session or after an explicit sign-out
+  (the signed-out credential marker); only a never-signed-in or automatically
+  invalidated slot may import.
 - Session importers are read-only. Bound path discovery, directory traversal,
   file size, parsing time, and accepted credential shape; reject aliases,
   symlinks, changing sources, ambiguity, and active database sidecars. Persist

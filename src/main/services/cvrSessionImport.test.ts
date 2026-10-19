@@ -441,14 +441,57 @@ describe('CVR import persistence boundary', () => {
   })
 
   const unusableStoredSessions: Array<[string, () => CVRCredentials | undefined]> = [
-    ['unsafe', () => ({ username: 'stored-user', accessKey: 'unsafe\nkey' })],
-    [
-      'unreadable',
-      () => {
-        throw new Error('safeStorage ciphertext is unreadable')
-      }
-    ]
+    ['unsafe', () => ({ username: 'stored-user', accessKey: 'unsafe\nkey' })]
   ]
+
+  it('never imports over an unreadable stored session (locked keychain)', async () => {
+    const requestImportConsent = vi.fn(async () => true)
+    const importSession = vi.fn(async () => ({ username: 'external', accessKey: 'external-key' }))
+    const persistImported = vi.fn()
+
+    await expect(
+      loadStoredOrImportedCvrSession({
+        requestImportConsent,
+        loadStored: () => {
+          throw new Error('safeStorage ciphertext is unreadable')
+        },
+        importSession,
+        persistImported
+      })
+    ).resolves.toBeUndefined()
+    expect(requestImportConsent).not.toHaveBeenCalled()
+    expect(importSession).not.toHaveBeenCalled()
+    expect(persistImported).not.toHaveBeenCalled()
+  })
+
+  it('does not import again after an explicit sign-out', async () => {
+    const requestImportConsent = vi.fn(async () => true)
+    const importSession = vi.fn(async () => ({ username: 'external', accessKey: 'external-key' }))
+
+    await expect(
+      loadStoredOrImportedCvrSession({
+        requestImportConsent,
+        loadStored: () => undefined,
+        signedOut: () => true,
+        importSession,
+        persistImported: () => undefined
+      })
+    ).resolves.toBeUndefined()
+    expect(requestImportConsent).not.toHaveBeenCalled()
+    expect(importSession).not.toHaveBeenCalled()
+  })
+
+  it('imports as before when the empty slot was never signed out', async () => {
+    await expect(
+      loadStoredOrImportedCvrSession({
+        requestImportConsent: async () => true,
+        loadStored: () => undefined,
+        signedOut: () => false,
+        importSession: async () => ({ username: 'external', accessKey: 'external-key' }),
+        persistImported: () => undefined
+      })
+    ).resolves.toEqual({ username: 'external', accessKey: 'external-key' })
+  })
 
   it.each(unusableStoredSessions)(
     'treats an %s stored session as absent and imports a valid replacement',

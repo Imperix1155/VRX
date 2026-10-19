@@ -87,6 +87,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   access to (such as a private instance). VRX now checks your sign-in first and
   only signs you out if ChilloutVR rejects that too. A few of those refusals in a
   row also no longer pause all ChilloutVR requests for a minute.
+- Signing out of ChilloutVR now stays signed out. Before, if you had allowed
+  session import, the next launch quietly signed you back in with the game's
+  or CVRX's session, which could be a different account.
+- If the system keychain is locked when VRX starts, VRX no longer replaces your
+  saved ChilloutVR sign-in with an imported one. Your saved sign-in works again
+  the next time VRX starts with the keychain unlocked.
 
 ### Security
 
