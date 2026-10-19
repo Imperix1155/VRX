@@ -109,6 +109,7 @@
     "nav": {
       "aria": "Main navigation",
       "dashboard": "Dashboard",
+      "hot": "Hot Instances",
       "friends": "Friends",
       "explore": "Explore",
       "settings": "Settings"
@@ -178,7 +179,7 @@
     },
     "hotThreshold": {
       "label": "Hot instance threshold",
-      "description": "Minimum friends in one instance before it counts as hot.",
+      "description": "Minimum friends in one instance before it counts as hot. Used by the Dashboard, the Hot Instances page and alerts.",
       "aria": "Hot instance threshold"
     },
     "allowJoinInstances": {
@@ -276,13 +277,20 @@
     "dashboard": {
       "heading": "Dashboard",
       "shortcut": "Settings",
+      "order": {
+        "label": "Section order",
+        "description": "Choose which Dashboard section comes first. The first one shows pictures.",
+        "aria": "Dashboard section order",
+        "popularFirst": "Popular now first",
+        "hotFirst": "Hot Instances first"
+      },
       "popular": {
         "label": "Popular now",
         "description": "Show the Dashboard preview. Explore stays available."
       },
       "hot": {
         "label": "Hot Instances",
-        "description": "Show where friends gather and allow Hot Instances alerts."
+        "description": "Show Hot Instances on the Dashboard. The Hot Instances page and alerts stay available."
       }
     },
     "persistence": {
@@ -466,9 +474,11 @@
     "hotThresholdAria": "Hot instance threshold",
     "hotHelp": {
       "label": "About Hot Instances",
-      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. Up to six instances are shown, with the most friends first.",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the top instance from each platform, and the Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you enable them in Settings."
-    }
+    },
+    "seeAll": "See all {{count}}",
+    "seeAllAria": "See all {{count}} hot instances"
   },
   "login": {
     "subtitle": "Social VR Companion",
