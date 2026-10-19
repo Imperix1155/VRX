@@ -64,6 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
 
+### Security
+
+- The app window's content security policy no longer allows inline styles, so
+  injected style markup can't take effect.
+
 ## [1.0.0-beta.1] - 2026-10-12
 
 ### Added
