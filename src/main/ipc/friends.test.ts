@@ -253,6 +253,42 @@ describe('get-friends location seeding', () => {
     expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number), 'complete')
   })
 
+  it('hands every successful roster to the friend-alert baseline', async () => {
+    handlers.clear()
+    const onRoster = vi.fn()
+    registerFriendsHandlers(
+      new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]),
+      authority,
+      appStatus,
+      onRoster
+    )
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [rosterFriend],
+      completeness: 'complete'
+    })
+    await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [rosterFriend])
+
+    // A live removal that lands while a roster read is in flight wins.
+    let finish!: (roster: FriendRoster) => void
+    vi.mocked(adapter.getFriends).mockReturnValue(
+      new Promise<FriendRoster>((resolve) => {
+        finish = resolve
+      })
+    )
+    const pending = handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    await Promise.resolve()
+    authority.consume({
+      type: 'friend-removed',
+      platform: 'vrchat',
+      platformUserId: rosterFriend.platformUserId
+    })
+    finish({ friends: [rosterFriend], completeness: 'complete' })
+    await pending
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [])
+  })
+
   it('stamps the platform reconcile time only after a successful friends response', async () => {
     vi.mocked(adapter.getFriends).mockResolvedValue({
       friends: [rosterFriend],
@@ -336,7 +372,7 @@ describe('get-friends location seeding', () => {
 })
 
 it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
-  'accepts overlapping pagination rows in a partial roster after %s',
+  'collapses overlapping pagination rows in a partial roster after %s',
   async (reason) => {
     const raw = {
       id: 'usr_alice',
@@ -371,14 +407,14 @@ it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
     const envelope = await response
     expect(envelope).toMatchObject({
       completeness: 'partial',
-      friends: [{ platformUserId: 'usr_alice' }, { platformUserId: 'usr_alice' }]
+      friends: [{ platformUserId: 'usr_alice' }]
     })
+    expect((envelope as FriendRoster).friends).toHaveLength(1)
     vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
     try {
       const result = await fetchFriendRoster('vrchat', () => [rosterFriend])
       expect(result.provenance?.coveredIds).toEqual(['usr_alice'])
       expect(result.friends.map((friend) => friend.platformUserId)).toEqual([
-        'usr_alice',
         'usr_alice',
         'usr_friend'
       ])

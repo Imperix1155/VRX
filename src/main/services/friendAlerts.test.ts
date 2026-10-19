@@ -178,6 +178,32 @@ describe('FriendAlerts transitions', () => {
     expect(alerts).toEqual([expect.objectContaining({ type: 'in-game', worldName: 'World B' })])
   })
 
+  it('A → traveling → A again does not announce the same instance twice', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline')))
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    engine.consume(presenceEvent(friend('in-game', null)))
+    engine.consume(presenceEvent(friend('in-game', null)))
+    engine.consume(presenceEvent(friend('in-game', instance('a', 'World A'))))
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+  })
+
+  it('alerts when a friend who was offline in the roster comes online first time seen live', () => {
+    const { engine, alerts } = harness()
+    engine.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    engine.seedRoster('vrchat', [friend('offline')])
+    engine.consume(presenceEvent(friend('in-game', instance('one'))))
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
+  })
+
+  it('keeps live state over an older roster row', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('in-game', instance('one'))))
+    engine.seedRoster('vrchat', [friend('offline')])
+    engine.consume(presenceEvent(friend('in-game', instance('one'))))
+    expect(alerts).toEqual([])
+  })
+
   it('offline alerts exist but are disabled by default', () => {
     const { engine, alerts, enabled } = harness()
     engine.consume(presenceEvent(friend('active')))
@@ -280,6 +306,25 @@ describe('FriendAlerts CVR snapshot diffing', () => {
       snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('b') }])
     )
     expect(alerts.map((alert) => alert.type)).toEqual(['offline', 'online', 'in-game'])
+  })
+
+  it('alerts for a roster friend who was absent from the first CVR snapshot', () => {
+    const { engine, alerts } = harness({ names: { [CVR_ID]: 'Trinity' } })
+    engine.seedRoster('chilloutvr', [
+      {
+        ...friend('in-game', instance('stale'), CVR_ID, 'Trinity'),
+        platform: 'chilloutvr',
+        status: null,
+        trustRank: null,
+        statusDescription: null
+      } as Friend
+    ])
+    engine.consume(snapshot([]))
+    expect(alerts).toEqual([])
+    engine.consume(
+      snapshot([{ platformUserId: CVR_ID, state: 'in-game', instance: instance('b') }])
+    )
+    expect(alerts.map((alert) => alert.type)).toEqual(['online', 'in-game'])
   })
 
   it('re-baselines the first snapshot after connection live', () => {
