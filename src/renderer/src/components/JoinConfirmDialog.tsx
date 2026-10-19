@@ -356,7 +356,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
 
   // Fallback to the reviewed identity's display name when the live friend is gone.
   const friendForCopy = liveFriend ?? pendingConfirm
-  const instanceForCopy = liveInstance
+  // R6: once the live friend is no longer joinable (Ask Me/DND, active, offline),
+  // their current instance is hidden information and must not reach the copy.
+  const instanceForCopy = isJoinableLive ? liveInstance : null
   const isVrc = friendForCopy?.platform === 'vrchat'
 
   const [mode, setMode] = useState<JoinMode>('desktop')

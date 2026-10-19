@@ -18,7 +18,9 @@ name: Release
 #
 # Flow (VRX-224 — single source of release creation):
 #   prepare         — resolve the tag (pushed tag, or create the missing tag
-#                     for main's version) and decide whether to release.
+#                     for main's version) and decide whether to release. Before
+#                     tagging, require the commit to be on main with a green
+#                     ci-success (CI gate; a red or missing CI never publishes).
 #   verify          — fail fast if the tag and package.json version disagree.
 #   build (matrix)  — each OS runs `electron-builder --publish always`, which
 #                     CREATES the release itself (as a draft; releaseType:draft
@@ -60,14 +62,18 @@ concurrency:
   group: release-${{ github.ref_type == 'tag' && github.ref || github.sha }}
   cancel-in-progress: false
 
-# Needed to create the release and upload assets via GITHUB_TOKEN.
+# contents: create the release and upload assets via GITHUB_TOKEN.
+# checks: read CI's ci-success result for the release commit (CI gate below).
 permissions:
   contents: write
+  checks: read
 
 jobs:
   prepare:
     name: prepare tag
     runs-on: ubuntu-latest
+    # The CI gate waits up to 60 minutes for ci-success on the release commit.
+    timeout-minutes: 75
     outputs:
       release: ${{ steps.resolve.outputs.release }}
       tag: ${{ steps.resolve.outputs.tag }}
@@ -80,11 +86,15 @@ jobs:
       # changed the package.json version. Manual run: release main's version.
       # Either way only if its tag does not exist yet, creating the tag at this
       # exact commit through the API (no git credentials persisted).
+      # CI gate: nothing is tagged or built until this exact commit is on main
+      # and CI's ci-success passed on it (scripts/require-green-ci.mjs). On a
+      # merge CI and this run start together, so the gate waits for CI.
       - name: Resolve or create the release tag
         id: resolve
         run: |
           set -o pipefail
           if [ "$GITHUB_REF_TYPE" = tag ]; then
+            node scripts/require-green-ci.mjs "$GITHUB_SHA"
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             exit 0
@@ -111,6 +121,7 @@ jobs:
           fi
           # Validates the tag form before anything is created.
           node scripts/release-channel.mjs "$TAG" >/dev/null
+          node scripts/require-green-ci.mjs "$GITHUB_SHA"
           gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --jq '"Created \(.ref) at \(.object.sha)"'
           echo "release=true" >> "$GITHUB_OUTPUT"

@@ -72,7 +72,9 @@ uses those components with synthetic data; known defects are not design rules.
   files when OS encryption is unavailable or fails. It is weaker: possession of
   both key and ciphertext permits session recovery. Never encrypt with Electron
   `basic_text`, hardcode a key, or expose tokens to the renderer.
-- Allowlist URLs before `shell.openExternal`. Do not permit `unsafe-inline` in CSP.
+- Allowlist URLs before `shell.openExternal`. Do not permit `unsafe-inline` in the
+  shipped CSP. Only the Vite dev server may relax `style-src` for HMR
+  (`scripts/dev-style-csp.ts`, serve-only, never in a build).
 - Never log credentials, tokens, or PII. Never write to VRCX or CVRX folders.
 - Never commit secrets. Keep gitleaks and dependency/security CI gates. Allowlist
   only confirmed fake fixture values, never whole paths.
