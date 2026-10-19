@@ -360,7 +360,8 @@ describe('ExploreView', () => {
   it.each([
     ['joining-disabled', 'Joining is disabled in Settings'],
     ['rate-limited', 'Too many attempts — try again shortly'],
-    ['not-joinable', 'Couldn’t join this room. Try again after refreshing.']
+    ['not-joinable', 'Couldn’t join this room. Try again after refreshing.'],
+    ['stale', 'Couldn’t join this room. Try again after refreshing.']
   ] as const)('explains a %s room join failure', (reason, copy) => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const joinRoom = room(

@@ -262,12 +262,31 @@ describe('get-friends location seeding', () => {
       appStatus,
       onRoster
     )
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
     vi.mocked(adapter.getFriends).mockResolvedValue({
       friends: [rosterFriend],
       completeness: 'complete'
     })
     await handlers.get('get-friends')!(event, { platform: 'vrchat' })
-    expect(onRoster).toHaveBeenCalledWith('vrchat', [rosterFriend])
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [rosterFriend])
+
+    // A live removal that lands while a roster read is in flight wins.
+    let finish!: (roster: FriendRoster) => void
+    vi.mocked(adapter.getFriends).mockReturnValue(
+      new Promise<FriendRoster>((resolve) => {
+        finish = resolve
+      })
+    )
+    const pending = handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    await Promise.resolve()
+    authority.consume({
+      type: 'friend-removed',
+      platform: 'vrchat',
+      platformUserId: rosterFriend.platformUserId
+    })
+    finish({ friends: [rosterFriend], completeness: 'complete' })
+    await pending
+    expect(onRoster).toHaveBeenLastCalledWith('vrchat', [])
   })
 
   it('stamps the platform reconcile time only after a successful friends response', async () => {
