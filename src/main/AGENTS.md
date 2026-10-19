@@ -102,6 +102,10 @@ and Node/Electron access on this side of the process boundary.
   and renderer failure recovery must not create duplicate recovery dialogs. On
   Windows and Linux, close hides to the tray until `before-quit` sets the sole
   quit flag; macOS keeps its native close behavior.
+- Tray artwork uses the multi-size Windows ICO or native 16px macOS/24px Linux
+  PNGs, including matching `@2x` files. Resolve native asset paths through
+  electron-vite's `asset&asarUnpack` handling; keep runtime resources unpacked.
+  Do not shrink the 512px app master into the small tray glyphs.
 - Native friend alerts are settings-gated at dispatch and bounded in memory and
   rate. A disabled hot-instance feature suppresses hot alerts without erasing
   its saved notification preference. Alert payloads and failure logs stay free

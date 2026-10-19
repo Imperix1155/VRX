@@ -71,6 +71,13 @@ Source HTML opened directly from disk is not a supported preview. For a
 production guide build, use `npm run guide:build` then `npm run guide:preview`,
 which serves `http://127.0.0.1:4174/design.html`.
 
+## Icon artwork
+
+The editable SVGs and generated app/tray icons are committed. After an approved
+artwork edit, run `npm run icons:generate` and `npm run icons:check`; see
+[App icon](APP-ICON.md) for formats, optical sizes, and native package checks.
+The visual guide's Identity section uses those same output files.
+
 ## Verification
 
 For application, dependency, build, runtime, release, or CI configuration changes:

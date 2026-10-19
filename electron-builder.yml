@@ -5,6 +5,7 @@ directories:
 files:
   - '!{coverage,test-results,playwright-report,blob-report,.codex,.superpowers,.fallow}/**'
   - '!**/*.{test,spec}.{ts,tsx,js,mjs,cjs}'
+  - '!scripts/generate-app-icons.mjs'
   - '!docs/guide/**'
   - '!docs/design.html'
   - '!docs/glass.html'
@@ -32,6 +33,7 @@ extraResources:
       - SOURCES.json
 afterPack: scripts/assert-packaged-fonts.cjs
 win:
+  icon: icon.ico
   executableName: vrx
   target:
     - nsis
@@ -42,6 +44,7 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  icon: icon.icns
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.

@@ -27,6 +27,9 @@ production renderer code, CSS, fonts, translations, and synthetic data.
 - Label static samples, interactive fixtures, and proposals. Keep guide controls
   outside app examples. Do not redesign production UI to make a scene easier to
   build, or turn a known defect into a design rule.
+- The static `icons` scene imports committed package/runtime PNGs, including
+  the 16px and 24px optical images. Keep it synchronized with the Identity section
+  and [App icon](../APP-ICON.md); do not redraw the logo in guide CSS.
 - Keep source revision and component references visible without cluttering the
   examples.
 - Reuse production theme and glow applicators. Dark is the default scene; verify

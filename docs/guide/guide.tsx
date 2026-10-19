@@ -237,7 +237,6 @@ export default function Guide(): React.JSX.Element {
 
       <main className="design-guide__main">
         <header id="current" className="design-guide__intro glass">
-          <span id="identity" className="design-guide__alias" />
           <p className="design-guide__kicker">VRX interface guide</p>
           <h1>The VRX visual language</h1>
           <p>
@@ -285,6 +284,22 @@ export default function Guide(): React.JSX.Element {
             height="tall"
             variant="ready"
             variants={exploreScenarios}
+          />
+        </Section>
+
+        <Section id="identity" kicker="Identity · app icon" title="The VRX launcher mark">
+          <p className="design-guide__lead">
+            The launcher icon packs a blue V on the left and a silver R above an orange X. Its
+            smoked-glass case retains the diagonal cuts and colored rails, with softly rounded
+            transitions. The horizontal VT323 wordmark inside the app stays distinct.
+          </p>
+          <Scene
+            name="icons"
+            title="App icon and taskbar sizes"
+            note="Static sample. These are the actual packaged PNG assets, with dedicated optical lettering at 16 and 24 pixels. Grayscale is available in the standalone scene controls."
+            source="build/icon.svg · build/icon-16.svg · build/icon-24.svg · docs/APP-ICON.md"
+            height="short"
+            paired
           />
         </Section>
 

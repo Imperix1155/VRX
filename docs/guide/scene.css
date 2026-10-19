@@ -105,3 +105,28 @@
   min-width: 900px;
   min-height: 670px;
 }
+
+.fixture-app-icon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-block: var(--space-6);
+}
+.fixture-app-icon__sizes {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+.fixture-app-icon__sizes figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.fixture-app-icon__sizes figcaption {
+  color: var(--text-dim);
+  font-size: 11px;
+}
