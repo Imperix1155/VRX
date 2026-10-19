@@ -28,6 +28,7 @@
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
  *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
+ *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  */
 import { z } from 'zod'
 import {
@@ -37,6 +38,7 @@ import {
 } from './constants'
 import {
   BACKGROUND_GLOWS,
+  DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
   FRIEND_SECTIONS,
   JOIN_MODE_PREFERENCES,
@@ -49,7 +51,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 11 as const
+export const SETTINGS_VERSION = 12 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -58,6 +60,8 @@ export const SettingsSchema = z.object({
   /** Dashboard features default on; child preferences survive disabling. */
   dashboardPopularNow: z.boolean().catch(true),
   hotInstancesEnabled: z.boolean().catch(true),
+  /** Dashboard section order; the first section shows picture cards. */
+  dashboardSectionOrder: z.enum(DASHBOARD_SECTION_ORDERS).catch('popular-first'),
   /** Schema version of the persisted object; drives {@link runMigrations}. */
   version: z.number().int().nonnegative().catch(SETTINGS_VERSION),
   /** UI theme; `system` follows the OS. Values sourced from `@shared/types` THEMES. */
@@ -122,7 +126,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v9 → v10 are deliberately
+ * v1 → v2 through v11 → v12 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -136,7 +140,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   7: (prev) => ({ ...prev }),
   8: (prev) => ({ ...prev }),
   9: (prev) => ({ ...prev }),
-  10: (prev) => ({ ...prev })
+  10: (prev) => ({ ...prev }),
+  11: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
