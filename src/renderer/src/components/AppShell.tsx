@@ -5,6 +5,7 @@ import TopBar from './TopBar'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
+import HotInstancesView from './HotInstancesView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
 import RecoveryNotices from './RecoveryNotices'
@@ -26,6 +27,12 @@ function MainContent(): React.JSX.Element {
       return (
         <ErrorBoundary key={activeTab} variant="panel">
           <DashboardView />
+        </ErrorBoundary>
+      )
+    case 'hot':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <HotInstancesView />
         </ErrorBoundary>
       )
     case 'explore':
