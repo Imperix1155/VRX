@@ -126,6 +126,9 @@ function DashboardContent(): React.JSX.Element {
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  // A signed-out platform's disabled query stays pending forever and refetch
+  // bypasses its gate, so only enabled queries drive loading and Retry.
+  const enabled = scoped.filter((q) => q.isEnabled !== false)
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const notConnectedKey =
@@ -172,7 +175,7 @@ function DashboardContent(): React.JSX.Element {
     // Loading while ANY scoped query is still pending (don't flash an error
     // while the other platform may yet deliver); error only when every scoped
     // source has settled with nothing.
-    if (scoped.some((q) => q.isPending)) {
+    if (enabled.some((q) => q.isPending)) {
       return (
         <>
           <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
@@ -191,7 +194,7 @@ function DashboardContent(): React.JSX.Element {
           <button
             type="button"
             onClick={() => {
-              for (const q of scoped) void q.refetch()
+              for (const q of enabled) void q.refetch()
             }}
             className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
           >

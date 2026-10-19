@@ -208,6 +208,13 @@ export function getHotInstances(
       // metadata (e.g. after hydration the merge filled one member but a
       // fresh-roster member is still null). Back-fill nulls from any member
       // that knows more — same groupId only, never across (CodeRabbit, VRX-260).
+      // World art and name are identical across one exact instance, so a
+      // member that is already enriched fills a still-null first member's
+      // gap; the picture cards would otherwise keep the placeholder.
+      if (existing.thumbnailUrl === null && instance.thumbnailUrl !== null) {
+        existing.thumbnailUrl = instance.thumbnailUrl
+      }
+      if (existing.worldName === null && worldName !== null) existing.worldName = worldName
       if (existing.isGroup && existing.groupId !== null && instance.groupId === existing.groupId) {
         if (existing.groupName === null && instance.groupName !== null) {
           existing.groupName = instance.groupName

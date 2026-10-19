@@ -789,3 +789,15 @@ describe('pickOnePerPlatform (owner, 2026-10-18)', () => {
     expect(pickOnePerPlatform([])).toEqual([])
   })
 })
+
+describe('getHotInstances world art backfill', () => {
+  it('fills a missing thumbnail and world name from a later member of the same instance', () => {
+    const at = (id: string, worldName: string | null, thumbnailUrl: string | null): Friend =>
+      vrcFriend(id, 'in-game', { ...instance('wrld_art', worldName), thumbnailUrl })
+    const [hot] = getHotInstances(
+      [at('a', null, null), at('b', 'Art World', 'https://img/x.png')],
+      2
+    )
+    expect(hot).toMatchObject({ worldName: 'Art World', thumbnailUrl: 'https://img/x.png' })
+  })
+})
