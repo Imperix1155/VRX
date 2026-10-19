@@ -30,6 +30,8 @@ interface CvrxConfig {
 interface LoadStoredOrImportedOptions {
   requestImportConsent: () => Promise<boolean>
   loadStored: () => CVRCredentials | undefined
+  /** True after an explicit VRX sign-out; import waits for the next login. */
+  signedOut?: () => boolean
   importSession: () => Promise<CVRCredentials | null>
   persistImported: (credentials: CVRCredentials) => void
 }
@@ -597,9 +599,12 @@ export async function importCvrSession(
 }
 
 /**
- * Preserve an existing valid VRX session. Invalid or unreadable stored material
- * is treated as absent. Explicit consent precedes ALL external discovery. A newly
- * imported session becomes usable only after encrypted credential persistence.
+ * Preserve an existing valid VRX session. Invalid stored material is treated as
+ * absent. Unreadable material (a locked or unavailable keychain) is NOT: it may
+ * be a valid session that unlocks later, so nothing is imported over it. After
+ * an explicit sign-out nothing is imported either, so signing out sticks across
+ * launches. Explicit consent precedes ALL external discovery. A newly imported
+ * session becomes usable only after encrypted credential persistence.
  */
 export async function loadStoredOrImportedCvrSession(
   options: LoadStoredOrImportedOptions
@@ -608,9 +613,10 @@ export async function loadStoredOrImportedCvrSession(
   try {
     stored = options.loadStored()
   } catch {
-    stored = undefined
+    return undefined
   }
   if (stored !== undefined && isValidCvrSession(stored.username, stored.accessKey)) return stored
+  if (options.signedOut?.() === true) return undefined
 
   if ((await options.requestImportConsent()) !== true) return undefined
 

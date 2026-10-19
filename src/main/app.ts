@@ -29,9 +29,11 @@ import {
 import {
   CREDENTIAL_KEYS,
   clearCredential,
+  isCredentialSignedOut,
   loadCredential,
-  recordCredentialOwner,
-  saveCredential
+  removeLegacyCredentialOwnerStore,
+  saveCredential,
+  signOutCredential
 } from './services/credentials'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
@@ -325,16 +327,15 @@ app
       optimizer.watchWindowShortcuts(window)
     })
 
+    // The write-only credential-owner sidecar was removed (#371); delete any
+    // file an older build left behind. Best-effort and never throws.
+    removeLegacyCredentialOwnerStore(app.getPath('userData'))
+
     // The VRChat session cookie uses OS-first credential storage (VRX-34/282); it is
     // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
     const vrcCredentials: VrcCredentialStore = {
       load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-      save: (cookie, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
-        }
-      },
+      save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
       delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
     }
     // Live-pipeline wiring (VRX-146): the real socket carries the required
@@ -386,7 +387,15 @@ app
     // precedes discovery of game profiles or CVRX sessions. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
-      const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      let raw: string | undefined
+      try {
+        raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      } catch (error) {
+        // Unreadable (for example a locked keychain): keep the slot untouched.
+        // loadStoredOrImportedCvrSession then skips import instead of replacing it.
+        log.warn('CVR stored session unreadable; session import skipped')
+        throw error
+      }
       if (!raw) return undefined
       try {
         const parsed: unknown = JSON.parse(raw)
@@ -407,6 +416,7 @@ app
     try {
       initialCvrCredentials = await loadStoredOrImportedCvrSession({
         loadStored: loadStoredCvrCredentials,
+        signedOut: () => isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
         requestImportConsent: () =>
           requestCvrImportConsent({
             choice: getSettingsSnapshot().cvrSessionImportChoice,
@@ -454,13 +464,10 @@ app
     }
     const cvrCredentials: CvrCredentialStore = {
       load: () => initialCvrCredentials,
-      save: (credentials, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
-        }
-      },
-      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      save: (credentials) =>
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
+      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
+      signOut: () => signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
     }
     // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
     // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the

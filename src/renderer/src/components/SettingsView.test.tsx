@@ -418,6 +418,8 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
     expect(await screen.findByText(msg('settings.accounts.vrchat.label'))).toBeTruthy()
     expect(screen.getByText(msg('settings.accounts.chilloutvr.label'))).toBeTruthy()
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
+    // Same faint treatment as the sign-in screen's copy of this line.
+    expect(screen.getByText(msg('shell.unofficialNotice')).className).toContain('text-faint')
   })
 })
 
