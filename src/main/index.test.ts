@@ -145,6 +145,18 @@ describe('main identity-boundary fan-out', () => {
       )
     }
   )
+
+  it('does not broadcast a VRChat identity boundary for an identity-retaining 401', () => {
+    const resetIndex = source.indexOf(`resetPlatform('vrchat')`)
+    const boundaryStart = source.lastIndexOf('onSessionBoundary:', resetIndex)
+    const boundaryEnd = source.indexOf('\n      }', resetIndex)
+    const boundary = source.slice(boundaryStart, boundaryEnd)
+    expect(boundary).toContain('onSessionBoundary: ({ identityRetained }) =>')
+    expect(boundary.indexOf('if (!identityRetained)')).toBeGreaterThan(-1)
+    expect(boundary.indexOf('if (!identityRetained)')).toBeLessThan(
+      boundary.indexOf(`send('identity-boundary'`)
+    )
+  })
 })
 
 describe('main credential-owner wiring', () => {
