@@ -357,6 +357,35 @@ describe('ExploreView', () => {
     expect(screen.queryByText('No visible public rooms are available.')).toBeNull()
   })
 
+  it.each([
+    ['joining-disabled', 'Joining is disabled in Settings'],
+    ['rate-limited', 'Too many attempts — try again shortly'],
+    ['not-joinable', 'Couldn’t join this room. Try again after refreshing.']
+  ] as const)('explains a %s room join failure', (reason, copy) => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const joinRoom = room(
+      'vrchat',
+      { state: 'available', selectionRef: 'synthetic' },
+      selected.worldId
+    )
+    render(
+      <ExploreWorldSheet
+        snapshot={{
+          ...source('vrchat', [selected]),
+          world: selected,
+          rooms: [joinRoom],
+          roomsComplete: true
+        }}
+        opener={null}
+        focusFallback={null}
+        onClose={vi.fn()}
+        onJoin={vi.fn()}
+        joinFailureFor={() => reason}
+      />
+    )
+    expect(screen.getByRole('status').textContent).toBe(copy)
+  })
+
   it('removes failed injected sheet images to the neutral image layer', () => {
     const selected = world('vrchat', 'vrc', 'VRC World')
     const snapshot: ExploreWorldSnapshot = {

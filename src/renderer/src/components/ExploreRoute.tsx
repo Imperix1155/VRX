@@ -151,7 +151,7 @@ export default function ExploreRoute(): React.JSX.Element {
         isJoining={isJoining}
         onRefreshSheet={refreshSheet}
         joinFailureFor={(room) =>
-          sheet !== null && joinExploreFailureFor(sheet.world, room) !== null
+          sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
         }
       />
     </>
@@ -263,7 +263,7 @@ export function ExploreDashboardPreviewRoute({
         dismissable={pendingConfirm === null}
         joining={isJoining}
         joinFailureFor={(room) =>
-          sheet !== null && joinExploreFailureFor(sheet.world, room) !== null
+          sheet !== null ? joinExploreFailureFor(sheet.world, room) : null
         }
         consumeFocusRestoreSuppression={consumeFocusRestoreSuppression}
       />
