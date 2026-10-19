@@ -18,6 +18,7 @@ describe('settings schema', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       theme: 'system',
       language: 'en',
@@ -257,6 +258,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
@@ -292,6 +294,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
@@ -328,6 +331,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -364,6 +368,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -400,6 +405,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       confirmJoin: true,
       joinMode: 'ask',
@@ -437,6 +443,7 @@ describe('migration runner', () => {
       platformFilter: 'all',
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
+      dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
       autoUpdate: false,
       allowJoinInstances: true
@@ -707,7 +714,7 @@ describe('Dashboard feature settings', () => {
 describe('CVR external session consent', () => {
   it('migrates v10 without granting permission and protects the choice on downgrade', () => {
     expect(parseSettings({ version: 10 })).toMatchObject({
-      version: 11,
+      version: SETTINGS_VERSION,
       cvrSessionImportChoice: 'ask'
     })
     expect(shouldPersistSettings({ version: 11, cvrSessionImportChoice: 'skip' }, 10)).toBe(false)
@@ -718,6 +725,28 @@ describe('CVR external session consent', () => {
     }
     for (const choice of [true, 'yes', null, undefined]) {
       expect(parseSettings({ cvrSessionImportChoice: choice }).cvrSessionImportChoice).toBe('ask')
+    }
+  })
+})
+
+describe('Dashboard section order', () => {
+  it('migrates v11 to Popular now first and protects the choice on downgrade', () => {
+    expect(parseSettings({ version: 11 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      dashboardSectionOrder: 'popular-first'
+    })
+    expect(shouldPersistSettings({ version: 12, dashboardSectionOrder: 'hot-first' }, 11)).toBe(
+      false
+    )
+  })
+  it('retains explicit choices and falls back on invalid values', () => {
+    for (const order of ['popular-first', 'hot-first']) {
+      expect(parseSettings({ dashboardSectionOrder: order }).dashboardSectionOrder).toBe(order)
+    }
+    for (const order of [true, 'hot', null, undefined]) {
+      expect(parseSettings({ dashboardSectionOrder: order }).dashboardSectionOrder).toBe(
+        'popular-first'
+      )
     }
   })
 })
