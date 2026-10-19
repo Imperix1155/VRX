@@ -28,6 +28,9 @@ export default function HotInstancesView(): React.JSX.Element {
   const threshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  // A signed-out platform's disabled query stays pending forever and refetch
+  // bypasses its gate, so only enabled queries drive loading and Retry.
+  const enabled = scoped.filter((q) => q.isEnabled !== false)
   const { selectedPlatform, isAuthStatusPending, isNotConnected, openAccounts } =
     useNotConnectedGate(platformFilter)
   const notConnectedKey =
@@ -58,7 +61,7 @@ export default function HotInstancesView(): React.JSX.Element {
     )
   }
   if (!scoped.some((q) => q.data != null)) {
-    if (scoped.some((q) => q.isPending)) {
+    if (enabled.some((q) => q.isPending)) {
       return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
     }
     return (
@@ -67,7 +70,7 @@ export default function HotInstancesView(): React.JSX.Element {
         <button
           type="button"
           onClick={() => {
-            for (const q of scoped) void q.refetch()
+            for (const q of enabled) void q.refetch()
           }}
           className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
         >

@@ -100,4 +100,19 @@ describe('HotInstancesView', () => {
     fireEvent.click(screen.getByRole('button', { name: /Lake hot instance details/ }))
     expect(screen.getByRole('dialog', { name: 'Lake' })).toBeTruthy()
   })
+
+  it('ignores a signed-out platform when the other fails, and retries only the enabled one', () => {
+    const vrcRefetch = vi.fn()
+    const cvrRefetch = vi.fn()
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? { data: undefined, isPending: false, isError: true, isEnabled: true, refetch: vrcRefetch }
+        : { data: undefined, isPending: true, isEnabled: false, refetch: cvrRefetch }
+    )
+    render(<HotInstancesView />)
+    expect(screen.getByText(msg('dashboard.error'))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: msg('dashboard.retry') }))
+    expect(vrcRefetch).toHaveBeenCalledTimes(1)
+    expect(cvrRefetch).not.toHaveBeenCalled()
+  })
 })
