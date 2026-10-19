@@ -365,7 +365,7 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
 })
 
 describe('SettingsView — Notifications section (VRX-84/85)', () => {
-  it('renders three friend notification controls and writes changes to the settings store', () => {
+  it('renders the friend and hot instance alert controls and writes changes to the settings store', () => {
     useUiStore.setState({ settingsCategory: 'notifications' })
     renderSettings()
 
@@ -378,10 +378,10 @@ describe('SettingsView — Notifications section (VRX-84/85)', () => {
     const offline = screen.getByRole('radiogroup', {
       name: msg('settings.notifications.offline.aria')
     })
-    expect(
-      screen.queryByRole('radiogroup', { name: msg('settings.notifications.hotInstance.aria') })
-    ).toBeNull()
-    for (const group of [online, inGame, offline]) {
+    const hotAlert = screen.getByRole('radiogroup', {
+      name: msg('settings.notifications.hotInstance.aria')
+    })
+    for (const group of [online, inGame, offline, hotAlert]) {
       expect(
         within(group)
           .getByRole('radio', { name: msg('settings.boolean.off') })
@@ -392,6 +392,8 @@ describe('SettingsView — Notifications section (VRX-84/85)', () => {
     fireEvent.click(within(offline).getByRole('radio', { name: msg('settings.boolean.on') }))
     expect(useSettingsStore.getState().settings.notifyFriendOnline).toBe(true)
     expect(useSettingsStore.getState().settings.notifyFriendOffline).toBe(true)
+    fireEvent.click(within(hotAlert).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(useSettingsStore.getState().settings.notifyHotInstance).toBe(true)
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 })
@@ -594,7 +596,7 @@ describe('Settings logs row', () => {
 })
 
 describe('Settings dependency cards', () => {
-  it('keeps Dashboard child choices while collapsed and excludes hidden controls', () => {
+  it('keeps the threshold visible and independent of the Dashboard Hot Instances switch', () => {
     useUiStore.setState({ settingsCategory: 'dashboard' })
     useSettingsStore.setState({
       settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 7, notifyHotInstance: true }
@@ -602,27 +604,29 @@ describe('Settings dependency cards', () => {
     renderSettings()
     const parent = screen.getByRole('radiogroup', { name: msg('settings.dashboard.hot.label') })
     fireEvent.click(within(parent).getByRole('radio', { name: msg('settings.boolean.off') }))
-    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.getByRole('spinbutton').getAttribute('aria-valuenow')).toBe('7')
     expect(
       screen.queryByRole('radiogroup', { name: msg('settings.notifications.hotInstance.aria') })
     ).toBeNull()
-    expect(document.querySelector('.setting-disclosure[inert]')).toBeTruthy()
     expect(useSettingsStore.getState().settings).toMatchObject({
       hotInstancesEnabled: false,
       hotInstanceThreshold: 7,
       notifyHotInstance: true,
       dashboardPopularNow: true
     })
-    fireEvent.click(within(parent).getByRole('radio', { name: msg('settings.boolean.on') }))
-    expect(screen.getByRole('spinbutton').getAttribute('aria-valuenow')).toBe('7')
-    const alerts = screen.getByRole('radiogroup', {
-      name: msg('settings.notifications.hotInstance.aria')
+  })
+  it('switches the Dashboard section order', () => {
+    useUiStore.setState({ settingsCategory: 'dashboard' })
+    renderSettings()
+    const order = screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
+    const popularFirst = within(order).getByRole('radio', {
+      name: msg('settings.dashboard.order.popularFirst')
     })
-    expect(
-      within(alerts)
-        .getByRole('radio', { name: msg('settings.boolean.on') })
-        .getAttribute('aria-checked')
-    ).toBe('true')
+    expect(popularFirst.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(
+      within(order).getByRole('radio', { name: msg('settings.dashboard.order.hotFirst') })
+    )
+    expect(useSettingsStore.getState().settings.dashboardSectionOrder).toBe('hot-first')
   })
   it('retains joining choices and returns child focus to the disabled parent', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })

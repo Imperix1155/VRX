@@ -7,6 +7,7 @@ import type { ActiveTab } from '../stores/ui'
  */
 export const VIEW_TITLE_KEYS: Record<ActiveTab, string> = {
   dashboard: 'shell.nav.dashboard',
+  hot: 'shell.nav.hot',
   friends: 'shell.nav.friends',
   explore: 'shell.nav.explore',
   settings: 'shell.nav.settings'
