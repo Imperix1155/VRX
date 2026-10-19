@@ -45,9 +45,11 @@ and Node/Electron access on this side of the process boundary.
   renderer-visible tokens. Clear memory and durable state when a session is
   invalidated.
 - Credential persistence stays behind `services/credentials.ts`: allowlist
-  credential keys, validate the authenticated owner before recording it, and
-  write an invalidation marker before replacement or deletion. A failed write,
-  digest mismatch, or owner mismatch fails closed and cannot revive old auth.
+  credential keys and write an invalidation marker before replacement or
+  deletion. A failed write fails closed and cannot revive old auth. Persist a
+  credential only after the adapter has validated its authenticated owner. There
+  is no separate owner store (#371); future offline ownership belongs inside the
+  same credential record.
 - Log through `electron-log` and redaction. Do not log credentials, tokens,
   friend data, URLs containing identifiers, or raw upstream payloads. Use
   `app.getPath()` for application files. Do not write VRCX or CVRX paths.
@@ -79,7 +81,9 @@ and Node/Electron access on this side of the process boundary.
   source directory.
 - Feed each accepted adapter event to `LocationAuthority` before alerts and
   renderer fan-out. Identity boundaries clear the affected account-scoped
-  authority and renderer data. One failing event consumer must not block the
+  authority and renderer data. A VRChat data-path 401 keeps the account
+  (`identityRetained`): clear main state, but leave the renderer to the
+  following `auth-invalidated` quarantine instead of an identity boundary. One failing event consumer must not block the
   other consumers.
 - Platform requests use shared admission, backoff, timeout, and circuit rules.
   One request per second is the ceiling. Prefer VRChat Pipeline and CVR

@@ -31,7 +31,7 @@ import {
   clearCredential,
   isCredentialSignedOut,
   loadCredential,
-  recordCredentialOwner,
+  removeLegacyCredentialOwnerStore,
   saveCredential,
   signOutCredential
 } from './services/credentials'
@@ -327,16 +327,15 @@ app
       optimizer.watchWindowShortcuts(window)
     })
 
+    // The write-only credential-owner sidecar was removed (#371); delete any
+    // file an older build left behind. Best-effort and never throws.
+    removeLegacyCredentialOwnerStore(app.getPath('userData'))
+
     // The VRChat session cookie uses OS-first credential storage (VRX-34/282); it is
     // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
     const vrcCredentials: VrcCredentialStore = {
       load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-      save: (cookie, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
-        }
-      },
+      save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
       delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
     }
     // Live-pipeline wiring (VRX-146): the real socket carries the required
@@ -363,13 +362,19 @@ app
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
       },
-      onSessionBoundary: () => {
+      onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.isDestroyed()) {
-            window.webContents.send('identity-boundary', { platform: 'vrchat' })
+        // A data-path 401 keeps the same account and is followed by
+        // auth-invalidated, which quarantines the renderer. Sending an identity
+        // boundary too would read as an account switch: it refetched the dead
+        // roster and wiped unsaved note drafts.
+        if (!identityRetained) {
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) {
+              window.webContents.send('identity-boundary', { platform: 'vrchat' })
+            }
           }
         }
         // VRX-202: auth changed — cached avatar FAILURES (401s from the old
@@ -459,12 +464,8 @@ app
     }
     const cvrCredentials: CvrCredentialStore = {
       load: () => initialCvrCredentials,
-      save: (credentials, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
-        }
-      },
+      save: (credentials) =>
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
       delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
       signOut: () => signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
     }
