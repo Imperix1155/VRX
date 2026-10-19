@@ -7,11 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
+### Added
 
-- When VRChat asks you to re-enter your two-factor code, VRX now stops all
-  account activity in the background (friend updates, image requests) until the
-  code is verified, instead of only blocking the window.
+- A new Hot Instances page in the sidebar lists every hot instance, most
+  friends first. The Dashboard's Hot Instances section has a See all button
+  that opens it.
+- Settings → Dashboard has a Section order choice to put Hot Instances above
+  Popular now (Popular now stays first by default). The top section uses
+  picture cards; the bottom one uses compact bars with the world picture behind
+  them, still tinted in the platform's color.
+
+### Changed
+
+- The Dashboard shows two cards per section: the top one from each platform
+  when both have one, otherwise the top two.
+- The hot instance alert now lives in Settings → Notifications and works on its
+  own. Turning off Hot Instances in Settings → Dashboard only hides the
+  Dashboard section; the page and alerts stay available. The hot instance
+  threshold is now its own row in Settings → Dashboard.
 
 ### Fixed
 
@@ -23,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+
+### Security
+
+- When VRChat asks you to re-enter your two-factor code, VRX now stops all
+  account activity in the background (friend updates, image requests) until the
+  code is verified, instead of only blocking the window.
 
 ## [1.0.0-beta.1] - 2026-10-12
 
