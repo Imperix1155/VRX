@@ -104,7 +104,7 @@ per-account namespace — they're the installation-global graph (§D7).
 
 - **History storage** (D5) → its consumer (VRX-53/144). Seam: the namespace names
   are reserved; the store layer refuses history writes until the mechanism lands.
-- **Per-account credential slots** (D2) → VRX-89. Seam: the owner-map + `accountKey`.
+- **Per-account credential slots** (D2) → VRX-89. Seam: `accountKey`; ownership goes inside the credential record (D2a), not a separate owner map.
 - **Account switch UI** (D6) → VRX-90. Seam: the epoch primitive (§7) + the identity-boundary cache reset (this milestone).
 - **Favorites vertical** (D8) → VRX-70/203, next block. Seam: the overlay contract + the small-namespace store.
 - **Link graph integration** (D7) → VRX-143. The main-only, installation-global
