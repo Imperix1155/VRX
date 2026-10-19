@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When one platform's friends fail to load or refresh, the Friends list now says
   so (for example "ChilloutVR friends could not refresh") and offers a Retry for
   just that platform, instead of silently showing a partial or outdated list.
+- When one VRChat request comes back as signed out, VRX now checks your sign-in
+  before acting like you switched accounts. It no longer asks VRChat for the
+  friend list again right away, and if your sign-in turns out to be fine, a note
+  you were still typing is kept.
 
 ### Security
 
