@@ -23,6 +23,22 @@ function IconDashboard(): React.JSX.Element {
   )
 }
 
+function IconHot(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.4-5.4 3.6-8.3.5 1.9 1.6 3 2.7 3.6C12 7 13 4.6 15 3c.2 3 3.5 5.6 3.5 10.6C18.5 18.2 15.9 21 12 21Z" />
+      <path d="M12 21c-1.6 0-2.8-1.2-2.8-2.9 0-1.6 1.2-2.6 2-4 .9 1.4 3.6 2.3 3.6 4.4 0 1.5-1.2 2.5-2.8 2.5Z" />
+    </svg>
+  )
+}
+
 function IconFriends(): React.JSX.Element {
   return (
     <svg
@@ -176,6 +192,7 @@ function indicatorBackground(filter: PlatformFilter): string {
 
 const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
+  { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
   { id: 'explore', icon: IconExplore },
   { id: 'settings', icon: IconSettings }
