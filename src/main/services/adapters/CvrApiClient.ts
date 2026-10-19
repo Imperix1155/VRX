@@ -53,6 +53,9 @@ export interface CVRCredentials {
 /** Low-level, main-process-only ChilloutVR HTTP client. */
 export abstract class CvrApiClient extends BaseAdapter {
   readonly platform: Platform = 'chilloutvr'
+  // CvrAdapter answers data-path 403s itself (one confirming reauth), so a
+  // private-instance or discovery denial never counts toward the breaker.
+  protected override readonly forbiddenOpensCircuit = false
 
   private credentials: CVRCredentials | null = null
 
