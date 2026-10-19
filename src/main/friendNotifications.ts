@@ -108,7 +108,8 @@ export function createFriendNotificationNotifier({
   }
 }
 
-/** Read the current snapshot at dispatch; disabling a feature preserves its preference. */
+/** Read the current snapshot at dispatch. The Dashboard's Hot Instances switch
+ *  only hides that Dashboard section, so it no longer gates the alert. */
 export function isFriendAlertEnabled(type: FriendAlertType, settings: Settings): boolean {
   switch (type) {
     case 'online':
@@ -118,6 +119,6 @@ export function isFriendAlertEnabled(type: FriendAlertType, settings: Settings):
     case 'offline':
       return settings.notifyFriendOffline
     case 'hot-instance':
-      return settings.hotInstancesEnabled && settings.notifyHotInstance
+      return settings.notifyHotInstance
   }
 }

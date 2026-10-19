@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
+  DashboardSectionOrder,
   DrawerOpener,
   JoinModePreference,
   LabelScheme,
@@ -10,6 +11,7 @@ import type {
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
+  DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
@@ -277,6 +279,7 @@ export default function SettingsView(): React.JSX.Element {
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
@@ -369,6 +372,28 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
+            {/* Section order (owner, 2026-10-18): the first section shows
+                picture cards, the second compact bars. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.order.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.order.description')}
+                </p>
+              </div>
+              <SegmentedControl<DashboardSectionOrder>
+                values={DASHBOARD_SECTION_ORDERS}
+                active={sectionOrder}
+                labelKeys={{
+                  'popular-first': 'settings.dashboard.order.popularFirst',
+                  'hot-first': 'settings.dashboard.order.hotFirst'
+                }}
+                ariaLabel={t('settings.dashboard.order.aria')}
+                onChange={(value) => updateSettings({ dashboardSectionOrder: value })}
+              />
+            </div>
             <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
@@ -384,62 +409,42 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(checked) => updateSettings({ dashboardPopularNow: checked })}
               />
             </div>
-            <SettingCard
-              expanded={hotEnabled}
-              parent={
-                <div className="setting-row">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text)]">
-                      {t('settings.dashboard.hot.label')}
-                    </p>
-                    <p className="text-xs text-[var(--text-dim)]">
-                      {t('settings.dashboard.hot.description')}
-                    </p>
-                  </div>
-                  <Toggle
-                    checked={hotEnabled}
-                    ariaLabel={t('settings.dashboard.hot.label')}
-                    onChange={(checked) => updateSettings({ hotInstancesEnabled: checked })}
-                  />
-                </div>
-              }
-            >
-              {/* Hot-instance threshold row (VRX-78) — also quick-adjustable on the
-              Dashboard's hot-instances header; both write the same setting. */}
-              <div className="setting-row">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text)]">
-                    {t('settings.hotThreshold.label')}
-                  </p>
-                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                    {t('settings.hotThreshold.description')}
-                  </p>
-                </div>
-                <NumberStepper
-                  value={hotThreshold}
-                  min={HOT_INSTANCE_THRESHOLD_MIN}
-                  max={HOT_INSTANCE_THRESHOLD_MAX}
-                  onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
-                  ariaLabel={t('settings.hotThreshold.aria')}
-                />
+            {/* Dashboard-only: the Hot Instances page and alerts stay available. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.hot.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.hot.description')}
+                </p>
               </div>
-
-              <div className="setting-row">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text)]">
-                    {t('settings.notifications.hotInstance.label')}
-                  </p>
-                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                    {t('settings.notifications.hotInstance.description')}
-                  </p>
-                </div>
-                <Toggle
-                  checked={notifyHotInstance}
-                  ariaLabel={t('settings.notifications.hotInstance.aria')}
-                  onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
-                />
+              <Toggle
+                checked={hotEnabled}
+                ariaLabel={t('settings.dashboard.hot.label')}
+                onChange={(checked) => updateSettings({ hotInstancesEnabled: checked })}
+              />
+            </div>
+            {/* Hot-instance threshold (VRX-78) — its own row so it keeps working
+                when the Dashboard section is off. Also quick-adjustable on the
+                Dashboard and the Hot Instances page; all write the same setting. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.hotThreshold.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.hotThreshold.description')}
+                </p>
               </div>
-            </SettingCard>
+              <NumberStepper
+                value={hotThreshold}
+                min={HOT_INSTANCE_THRESHOLD_MIN}
+                max={HOT_INSTANCE_THRESHOLD_MAX}
+                onChange={(next) => updateSettings({ hotInstanceThreshold: next })}
+                ariaLabel={t('settings.hotThreshold.aria')}
+              />
+            </div>
           </section>
         )}
 
@@ -606,6 +611,24 @@ export default function SettingsView(): React.JSX.Element {
                 checked={notifyFriendOffline}
                 ariaLabel={t('settings.notifications.offline.aria')}
                 onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
+              />
+            </div>
+
+            {/* Hot instance alert — moved here from the Dashboard card (owner,
+                2026-10-18); the Dashboard switch no longer gates it. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.notifications.hotInstance.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.notifications.hotInstance.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={notifyHotInstance}
+                ariaLabel={t('settings.notifications.hotInstance.aria')}
+                onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
               />
             </div>
           </section>

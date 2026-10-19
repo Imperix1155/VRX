@@ -106,7 +106,8 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
       />
     )
   if (name === 'join') return <JoinScene />
-  if (['dashboard', 'friends', 'linked', 'settings', 'updater'].includes(name)) return <AppShell />
+  if (['dashboard', 'hot', 'friends', 'linked', 'settings', 'updater'].includes(name))
+    return <AppShell />
   return (
     <main className="fixture-canvas">
       <CatalogScene scene={name} variant={variant} />
@@ -142,7 +143,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     theme: params.get('theme') === 'light' ? 'light' : 'dark',
     backgroundGlow: glow,
     reconcileInterval: 'manual',
-    confirmJoin: true
+    confirmJoin: true,
+    dashboardSectionOrder:
+      name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
   })
   useSettingsStore.getState().hydrate()
   if (name === 'settings' && variant === 'save-error') {
@@ -155,7 +158,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
         ? 'friends'
         : name === 'settings'
           ? 'settings'
-          : 'dashboard'
+          : name === 'hot'
+            ? 'hot'
+            : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(
