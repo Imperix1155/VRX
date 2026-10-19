@@ -1231,7 +1231,7 @@ export default function FriendsList(): React.JSX.Element {
       </div>
       <LinkedProfilesLoadError query={links} />
       {!isAuthStatusPending && !isNotConnected ? (
-        <FriendsSourceNotice failures={sourceFailures} isFetching={isFetching} />
+        <FriendsSourceNotice failures={sourceFailures} />
       ) : null}
       <div className="relative mb-[var(--space-3)]">
         <input
@@ -1275,7 +1275,9 @@ export default function FriendsList(): React.JSX.Element {
           {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
           {/* Stale-while-revalidate: only surface the error when there's no cached data;
           a background refetch failure keeps showing the last good list. */}
-          {isError && !friends && (
+          {/* A platform-named source notice replaces the generic error when another
+          platform did load (issue 368). */}
+          {isError && !friends && sourceFailures.length === 0 && (
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
           {filteredFriends && filteredFriends.length === 0 && (

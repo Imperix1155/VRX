@@ -346,6 +346,13 @@ unavailable sources, stale results, and verified empty states. Unknown or partia
 counts remain unknown, never zero. Sheet coverage and disabled actions must
 reflect the supplied snapshot. No documentation example may add polling.
 
+Friends keeps a usable list visible when one platform's roster fails. A
+non-blocking line under the header names that platform and offers a Retry for
+that platform only, with its own retrying state. A platform that never loaded uses
+error text; a platform showing its last loaded list uses dim text, matching
+Explore's stale line. When the other platform loaded an empty roster, the named
+line replaces the generic friends error.
+
 Accounts exposes a compact Never / Ask / Allow control for external ChilloutVR
 session import. Ask is the default; the native default-cancel consent prompt runs
 only without a valid VRX session, before source discovery. Decisions are remembered
