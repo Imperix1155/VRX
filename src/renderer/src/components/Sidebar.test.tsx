@@ -134,6 +134,24 @@ describe('Sidebar update button (VRX-113)', () => {
     expect(updaterState.download).toHaveBeenCalledOnce()
   })
 
+  it('keeps the footer text clear of the update button so a long version cannot run under it', () => {
+    updaterState.state = {
+      state: 'update-available',
+      currentVersion: '1.0.0-beta.1',
+      availableVersion: '1.0.0-beta.2',
+      progressPercent: 0,
+      failure: null
+    }
+    render(<Sidebar />)
+
+    const button = screen.getByRole('button', { name: i18n.t('updater.sidebar.downloadAria') })
+    const footer = button.parentElement as HTMLElement
+    // The reserve is right-[10px] + w-[36px] and applies only while the button is a child.
+    expect(footer.className).toContain('has-[>button]:pr-[46px]')
+    // The version wraps as one piece rather than splitting at its hyphens.
+    expect(footer.querySelector(':scope > span.whitespace-nowrap')?.textContent).toMatch(/^v\S+$/)
+  })
+
   it('appends localized retry guidance to update-available title/aria-label after a download/write failure', () => {
     updaterState.state = {
       state: 'update-available',
