@@ -226,7 +226,10 @@ const FriendRow = memo(function FriendRow({
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
   const hideWorld = isWorldHidden(pillFriend ?? friend)
-  const instance = !combined || pillFriend.presence.state === 'in-game' ? pillFriend.instance : null
+  // Active/offline friends never expose a stale cached instance (§5 R6), for
+  // single-account rows as well as linked ones: VRChat's state comes from the
+  // presence buckets while `instance` comes from the raw location.
+  const instance = pillFriend.presence.state === 'in-game' ? pillFriend.instance : null
   const worldText =
     !hideWorld && instance != null
       ? (instance.worldName ?? t('friends.instance.unknownWorld'))
@@ -334,8 +337,12 @@ const FriendRow = memo(function FriendRow({
           account.platformUserId,
           account.presence.state,
           account.status,
-          isWorldHidden(account) ? null : account.instance?.worldId,
-          isWorldHidden(account) ? null : account.instance?.instanceId
+          isWorldHidden(account) || account.presence.state !== 'in-game'
+            ? null
+            : account.instance?.worldId,
+          isWorldHidden(account) || account.presence.state !== 'in-game'
+            ? null
+            : account.instance?.instanceId
         ])
       ])}
       onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
