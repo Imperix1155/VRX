@@ -45,8 +45,9 @@ reuse prohibitions from being overridden by max-stale, stale-while-revalidate,
 or stale-if-error, including restored cache policies. Ordinary stale caching,
 explicit upstream public/immutable cookie opt-ins, and private caches retain
 their existing semantics. The version and advisory remain visible; this is not
-an upstream release fix or advisory suppression. The exception and expiry below
-are unchanged. An upstream replacement still needs behavioral verification;
+an upstream release fix or advisory suppression, so the patch does not replace
+the exception below, which still needs an owner decision to extend and lapses
+at its expiry. An upstream replacement still needs behavioral verification;
 4.3.0 must not be assumed fixed merely because advisory metadata omits it.
 
 This build-tool cache flaw is distinct from local session theft. The later
