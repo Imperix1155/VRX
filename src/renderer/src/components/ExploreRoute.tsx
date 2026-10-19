@@ -50,15 +50,17 @@ function useCachedAuthStatus(platform: Platform): AuthStatus | undefined {
 
 function ResolvedCard({
   world,
-  onOpen
+  onOpen,
+  layout = 'card'
 }: {
   world: ExploreWorld
   onOpen: (world: ExploreWorld, opener: HTMLElement) => void
+  layout?: 'card' | 'bar'
 }): React.JSX.Element {
   const { ref, image } = useExploreImage(world.platform, world.worldRef)
   return (
     <div ref={ref} className="h-full w-full">
-      <ExploreWorldCard world={world} image={image} onOpen={onOpen} />
+      <ExploreWorldCard world={world} image={image} onOpen={onOpen} layout={layout} />
     </div>
   )
 }
@@ -166,10 +168,13 @@ export default function ExploreRoute(): React.JSX.Element {
 /** Dashboard-only shared cache preview. Cards use exactly the same ranking and sheet component. */
 export function ExploreDashboardPreviewRoute({
   onSheetOpen,
-  dismissSignal = 0
+  dismissSignal = 0,
+  cardLayout = 'card'
 }: {
   onSheetOpen?: () => void
   dismissSignal?: number
+  /** `bar` when Popular now is the second Dashboard section (owner, 2026-10-18). */
+  cardLayout?: 'card' | 'bar'
 } = {}): React.JSX.Element | null {
   const platformFilter = useFriendsStore((state) => state.platformFilter)
   const vrc = useExploreCachedSnapshot('vrchat')
@@ -247,6 +252,7 @@ export function ExploreDashboardPreviewRoute({
             key={`${world.platform}:${world.worldId}`}
             world={world}
             onOpen={openWorld}
+            layout={cardLayout}
           />
         ))}
       </div>

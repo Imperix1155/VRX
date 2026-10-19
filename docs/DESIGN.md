@@ -215,8 +215,8 @@ contextual top-bar selector, with no scroll at the supported 900×670 app floor.
 On smaller work areas, the window floor yields so the app stays recoverable.
 Do not invent a mobile app layout from a narrow documentation viewport.
 
-Primary navigation contains Dashboard, Friends, Explore, and Settings, in that
-order. Activity and Groups are deferred concepts, not visible placeholders or
+Primary navigation contains Dashboard, Hot Instances, Friends, Explore, and
+Settings, in that order. Activity and Groups are deferred concepts, not visible placeholders or
 current release commitments. Existing notifications and group-instance metadata
 remain available through their implemented features.
 
@@ -250,8 +250,9 @@ tab; navigating to a healthy tab recovers without concealing repeated faults.
 
 Settings has Appearance, Dashboard, Behavior, Notifications, and Accounts
 categories. Each top-level setting has a compact neutral information card over
-the backing panel. Hot Instances contains its minimum-friend threshold and
-notification preference; Allow joining contains confirmation and launch mode.
+the backing panel. Dashboard lists Section order, Popular now, Hot Instances,
+and the hot instance threshold as separate rows; Allow joining contains
+confirmation and launch mode.
 Off collapses the same card to its parent row. A 220ms height transition moves
 siblings with it; reduced motion is immediate. Hidden children are inert and
 excluded from accessibility, with focus returned to the selected parent control
@@ -261,12 +262,16 @@ Dashboard has a compact “Settings” button below its content, opening its Set
 category. It stays outside the header and the summary-card row, including when
 both Dashboard features are off. Popular now controls only
 its Dashboard preview; Explore remains available. Hot Instances off removes its
-statistic, heading, threshold, cards, and details, leaving the ordinary friend
-statistics in two equal columns. It also suppresses Hot Instances alerts without
-changing the saved notification preference. Both feature controls default On;
-notification opt-in defaults remain unchanged. The Notifications category keeps
-the three independent friend-event preferences, without a duplicate Hot Instances
-control. Disabling Popular now makes Dashboard irrelevant to discovery work;
+Dashboard statistic, heading, threshold, cards, and details, leaving the ordinary
+friend statistics in two equal columns. It never hides the Hot Instances page and
+never gates alerts. Both feature controls default On; notification opt-in
+defaults remain unchanged. The Notifications category holds the three friend-event
+preferences and the Hot instance alert, each independent. Section order
+(default Popular now first) swaps the two Dashboard sections: the first section
+uses picture cards, the second uses compact bars with the world picture behind a
+same-color scrim and the platform tint re-applied above it, so the platform
+color still reads at a glance. Pills over a picture get a small backing in the
+card color. Disabling Popular now makes Dashboard irrelevant to discovery work;
 Explore retains the existing request admission and automatic gates.
 
 The updater uses the actual sidebar footer control. Idle is absent; available,
@@ -301,9 +306,12 @@ The threshold stays compact without an inline explanation. A quiet neutral glass
 circle marked “?” sits immediately to its right and toggles an inline explanation
 of exact-instance grouping, visible in-game friends, platform filtering, ranking,
 and the minimum-friend selector. It starts closed and exposes its expanded state
-to assistive technology. The existing Hot card design is intentional. Its access
-pill is an intentional discreet Join shortcut; do not turn it into a prominent
-Join label or redesign the card. The actual Hot Instance sheet supplies details;
+to assistive technology. Each Dashboard section shows two cards: the top one per
+platform when both platforms have one, otherwise the top two. Hot Instances adds
+a quiet “See all” button that opens the Hot Instances page, which lists every hot
+instance, most friends first, as picture cards with the same header, empty state,
+and sheet. The Hot card's access pill is an intentional discreet Join shortcut in
+both layouts; do not turn it into a prominent Join label. The actual Hot Instance sheet supplies details;
 do not add placeholder actions.
 
 ### §9.2 Friend drawer
