@@ -165,7 +165,7 @@ export abstract class CvrApiClient extends BaseAdapter {
       return envelope.data
     } catch (error) {
       if (error instanceof CVRAuthError) throw error
-      if (error instanceof AuthError) throw new CVRAuthError(error.message)
+      if (error instanceof AuthError) throw new CVRAuthError(error.message, error.status)
       if (error instanceof RateLimitError) throw new CVRRateLimitError(error.retryAfterMs)
       if (error instanceof NetworkError) throw new CVRNetworkError(error.message, error)
       throw error

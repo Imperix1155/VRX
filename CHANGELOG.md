@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+- ChilloutVR no longer signs you out when it refuses one thing you don't have
+  access to (such as a private instance). VRX now checks your sign-in first and
+  only signs you out if ChilloutVR rejects that too.
 
 ## [1.0.0-beta.1] - 2026-10-12
 

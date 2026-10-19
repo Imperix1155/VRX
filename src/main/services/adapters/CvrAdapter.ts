@@ -143,6 +143,10 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   private displayName: string | null = null
   private accountId: string | null = null
   private validationInFlight: Promise<AuthStatus> | null = null
+  /** One in-flight reauth after a data-path 403 (see handleDataAuthFailure). */
+  private forbiddenCheckInFlight: Promise<void> | null = null
+  /** Session generation whose key a 403 reauth already proved alive. */
+  private forbiddenConfirmedGeneration: number | null = null
   /** Fences async account-scoped cache writes across session replacement. */
   private sessionGeneration = 0
   /** Last-started-wins fence for direct-login responses and body parsing. */
@@ -533,7 +537,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       return value
     } catch (error) {
       if (context.lease.isCurrent() && error instanceof CVRAuthError) {
-        this.invalidateSession(true)
+        this.handleDataAuthFailure(error)
       }
       throw error
     }
@@ -573,8 +577,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       if (error instanceof CVRAuthError) {
         // Dead access key on the data path — clear the session AND tell the
         // renderer, which has no other signal that auth changed out of band, so
-        // the Accounts card stops showing a stale "connected" (VRX-195).
-        this.invalidateSession(true)
+        // the Accounts card stops showing a stale "connected" (VRX-195). A 403
+        // is confirmed against /users/auth first (handleDataAuthFailure).
+        this.handleDataAuthFailure(error)
       }
       throw error
     }
@@ -635,7 +640,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
         if (generation !== this.sessionGeneration) {
           throw new Error('Session ended')
         }
-        if (error instanceof CVRAuthError) this.invalidateSession(true)
+        if (error instanceof CVRAuthError) this.handleDataAuthFailure(error)
         throw error
       }
       if (generation !== this.sessionGeneration) throw new Error('Session ended')
@@ -896,7 +901,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
             // degrades without crashing the roster path. The dead key still
             // invalidates the session; treating it as "private" would leave the
             // UI falsely connected.
-            this.invalidateSession(true)
+            this.handleDataAuthFailure(error)
           }
         })
         .finally(() => {
@@ -983,6 +988,86 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     this.validated = false
     this.live?.onIdentity?.(null)
     this.bumpSessionGeneration(restartPipeline)
+  }
+
+  /**
+   * Data-path auth failure. A 401 (or missing credentials) means the access key
+   * is dead: sign out at once. A 403 can also be a permission denial on one
+   * resource (a private instance, a discovery route), so it signs out only if
+   * a reauth with the same key is also rejected. Network trouble or an
+   * unreadable reply keeps the session. At most one confirming reauth runs per
+   * session, so repeated 403s cannot hammer /users/auth (VRX-190).
+   */
+  private handleDataAuthFailure(error: CVRAuthError): void {
+    if (error.status !== 403) {
+      this.invalidateSession(true)
+      return
+    }
+    if (this.forbiddenConfirmedGeneration === this.sessionGeneration) return
+    this.forbiddenCheckInFlight ??= this.confirmSessionAfterForbidden().finally(() => {
+      this.forbiddenCheckInFlight = null
+    })
+  }
+
+  private async confirmSessionAfterForbidden(): Promise<void> {
+    const checked = this.session
+    if (!checked || !this.validated) return
+    const generation = this.sessionGeneration
+    let response: Response
+    try {
+      response = await this.authenticateRaw(1, checked.username, checked.accessKey, {
+        priority: 'background',
+        recordCircuitFailure: false,
+        lease: this.captureSessionLease()
+      })
+    } catch {
+      return
+    }
+    if (this.session !== checked || generation !== this.sessionGeneration) {
+      await response.body?.cancel().catch(() => {})
+      return
+    }
+    if (response.status === 401 || response.status === 403) {
+      await response.body?.cancel().catch(() => {})
+      if (this.session === checked) this.invalidateSession(true)
+      return
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {})
+      return
+    }
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      return
+    }
+    if (this.session !== checked || generation !== this.sessionGeneration) return
+    const parsed = cvrCurrentUserSchema.safeParse(body)
+    if (!parsed.success) return
+    const { username, accessKey } = parsed.data.data
+    if (!isValidCvrSession(username, accessKey)) {
+      this.invalidateSession(true)
+      return
+    }
+    if (accessKey === checked.accessKey && username === checked.username) {
+      this.forbiddenConfirmedGeneration = generation
+      return
+    }
+    // CVR rotated the key on reauth: adopt and persist it exactly as restore
+    // validation does, or the old key would die under the running session.
+    this.adoptSession({ username, accessKey }, false)
+    this.displayName = username
+    this.accountId = parsed.data.data.userId
+    if (!this.persist()) {
+      this.persistenceFailure()
+      this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
+      return
+    }
+    this.validated = true
+    this.forbiddenConfirmedGeneration = this.sessionGeneration
+    this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
   }
 
   /** Automatic 401 invalidation is best-effort on disk: the dead session must
