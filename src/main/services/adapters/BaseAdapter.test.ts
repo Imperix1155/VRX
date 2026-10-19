@@ -97,6 +97,11 @@ class TestAdapter extends BaseAdapter {
   }
 }
 
+/** Answers 403s itself, like CvrApiClient. */
+class ForbiddenNeutralAdapter extends TestAdapter {
+  protected override readonly forbiddenOpensCircuit = false
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('BaseAdapter', () => {
@@ -789,6 +794,32 @@ describe('BaseAdapter', () => {
       fetchMock.mockResolvedValue(makeResponse(200, validBody))
       await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
       expect(fetchMock.mock.calls.length).toBe(callsWhileOpen + 1)
+    })
+
+    it('counts 403s by default', async () => {
+      fetchMock.mockResolvedValue(makeResponse(403, {}))
+      const adapter = new TestAdapter()
+
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(AuthError)
+      }
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
+    })
+
+    it('leaves 403s out when the adapter answers them itself, but still counts 401s', async () => {
+      fetchMock.mockResolvedValue(makeResponse(403, {}))
+      const adapter = new ForbiddenNeutralAdapter()
+
+      for (let i = 0; i < 5; i++) {
+        await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(AuthError)
+      }
+      expect(fetchMock.mock.calls.length).toBe(5)
+
+      fetchMock.mockResolvedValue(makeResponse(401, {}))
+      for (let i = 0; i < 3; i++) {
+        await expect(adapter.fetch('http://api/x', schema)).rejects.toBeInstanceOf(AuthError)
+      }
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
     })
 
     it('rawRequest 401s do NOT trip the circuit (auth flows stay unlocked)', async () => {
