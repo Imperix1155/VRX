@@ -174,10 +174,14 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   // The WS wire has no world id/thumbnail and only the creator-set instance
   // label; the resolver fills those from GET /instances/{id} (TTL-cached).
   // `this.get` carries auth + the BaseAdapter rate limiter + typed errors.
+  // A private or closed instance answers with an error status as a normal,
+  // cached "unavailable" result, so lookups never feed the shared circuit
+  // breaker (three of them would otherwise block the roster for a minute).
   private readonly instanceResolver = createCvrInstanceResolver({
     fetcher: (path, schema, options) =>
       this.get(path, schema, {
         ...options,
+        recordCircuitFailure: false,
         retry: options?.priority === 'interactive' ? 'bounded' : 'none'
       })
   })

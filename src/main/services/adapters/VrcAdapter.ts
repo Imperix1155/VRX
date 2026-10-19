@@ -643,6 +643,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
         // Remember the method so a verify2fa() from the reprompt hits the right
         // endpoint (email OTP vs TOTP) — login() isn't part of this flow.
         this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
+        this.revokeConsumersForTwoFactorReprompt()
         return this.status('needs-2fa', this.pendingTwoFactorMethod)
       }
 
@@ -1332,7 +1333,9 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
           method: 'GET',
           headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
         }),
-        { lease }
+        // The raw-cookie fallback covers a failed exchange. Reconnect attempts
+        // during an outage must not open the breaker for the reconcile after.
+        { lease, recordCircuitFailure: false }
       )
       if (response.ok) {
         const parsed = authTokenSchema.safeParse(await response.json())
@@ -1489,6 +1492,24 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       this.pipeline?.stop()
       this.pipeline = null
     }
+  }
+
+  /**
+   * #367: the server says this session's second factor expired. Until verify2fa
+   * succeeds it is a restricted 2FA-pending session, not an authenticated one:
+   * keep the cookie (its `auth` part is what the verify call needs) and the
+   * persisted credential, but revoke everything account-scoped — consumer
+   * readiness (REST, avatar and cookie leases), the published identity, and the
+   * live pipeline. verifyTwoFactor (or a later authenticated status) rebinds the
+   * owner, re-persists, and restarts the pipeline. Idempotent while pending.
+   */
+  private revokeConsumersForTwoFactorReprompt(): void {
+    if (!this.sessionPersistenceEstablished && this.accountId === null) return
+    this.sessionPersistenceEstablished = false
+    this.displayName = null
+    this.accountId = null
+    this.live?.onIdentity?.(null)
+    this.bumpSessionGeneration(false)
   }
 
   /** Start a replacement only after a tentative session is durably persisted. */

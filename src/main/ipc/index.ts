@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainEvent } from 'electron'
 import log from '../logger'
 import type { IpcInvokeChannel } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
 import { registerAppStatusHandlers } from './app-status'
@@ -46,6 +46,8 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   instance: InstanceHandlerOptions
   explore: ExploreService
   onRendererHydrated: (event: IpcMainEvent) => void
+  /** Each roster read, after the location authority is seeded. */
+  onFriendRoster?: (platform: Platform, friends: Friend[]) => void
   rateLimit?: IpcRateLimitOptions
 }
 
@@ -92,7 +94,12 @@ export function registerIpcHandlers(
   }
 
   try {
-    registerFriendsHandlers(adapters, options.locationAuthority, options.appStatus)
+    registerFriendsHandlers(
+      adapters,
+      options.locationAuthority,
+      options.appStatus,
+      options.onFriendRoster
+    )
     registerAvatarHandlers()
     registerAuthHandlers(adapters, options)
     registerAccountsHandlers(options.accountRegistry, options.accountSession)

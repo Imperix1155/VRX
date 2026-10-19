@@ -12,6 +12,7 @@ import NumberStepper from './NumberStepper'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
 import ExploreSourceState from './ExploreSourceState'
+import type { JoinFailureReason } from '../hooks/useJoinInstance'
 
 export interface ExploreViewProps {
   worlds: readonly ExploreWorld[]
@@ -31,7 +32,7 @@ export interface ExploreViewProps {
   sheetDismissable?: boolean
   isJoining?: boolean
   onRefreshSheet?: () => void
-  joinFailureFor?: (room: ExploreRoom) => boolean
+  joinFailureFor?: (room: ExploreRoom) => JoinFailureReason | null
 }
 
 /** Presentational grid. The existing platform selector remains owned by the shell. */
