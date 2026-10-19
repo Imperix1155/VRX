@@ -30,7 +30,7 @@ import {
   CREDENTIAL_KEYS,
   clearCredential,
   loadCredential,
-  recordCredentialOwner,
+  removeLegacyCredentialOwnerStore,
   saveCredential
 } from './services/credentials'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
@@ -325,16 +325,15 @@ app
       optimizer.watchWindowShortcuts(window)
     })
 
+    // The write-only credential-owner sidecar was removed (#371); delete any
+    // file an older build left behind. Best-effort and never throws.
+    removeLegacyCredentialOwnerStore(app.getPath('userData'))
+
     // The VRChat session cookie uses OS-first credential storage (VRX-34/282); it is
     // injected so VrcAdapter stays electron-free + unit-testable (VRX-157).
     const vrcCredentials: VrcCredentialStore = {
       load: () => loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY),
-      save: (cookie, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie)
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.VRCHAT_PRIMARY, accountId)
-        }
-      },
+      save: (cookie) => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, cookie),
       delete: () => clearCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)
     }
     // Live-pipeline wiring (VRX-146): the real socket carries the required
@@ -454,12 +453,8 @@ app
     }
     const cvrCredentials: CvrCredentialStore = {
       load: () => initialCvrCredentials,
-      save: (credentials, accountId) => {
-        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
-        if (accountId !== null) {
-          recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
-        }
-      },
+      save: (credentials) =>
+        saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials)),
       delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
     }
     // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
