@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The sign-in screen and Settings → Accounts now say that VRX is an unofficial
+  app, not affiliated with or endorsed by VRChat or Alpha Blend Interactive
+  (ChilloutVR).
+- The install guide explains the Windows "Windows protected your PC" warning
+  for unsigned builds, and what to do on Linux desktops without a tray icon.
+
+### Changed
+
+- Updated Electron from 44.5.1 to 44.7.0.
+
 ### Fixed
 
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
