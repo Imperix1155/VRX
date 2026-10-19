@@ -273,15 +273,21 @@ export default function TopBar(): React.JSX.Element {
           role="status"
           className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
         >
+          {/* Shape repeats the color for colorblind users: a pulsing dot is
+              live, a hollow ring is reconnecting, a square is down. */}
           <span
+            role="img"
+            data-health={worstHealth}
             className={[
-              'w-[8px] h-[8px] rounded-full flex-none',
+              'box-border w-[8px] h-[8px] flex-none',
+              worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full',
               worstHealth === 'live' ? 'motion-safe:animate-pulse' : ''
             ].join(' ')}
-            style={{
-              background: healthColor,
-              boxShadow: `0 0 10px ${healthColor}`
-            }}
+            style={
+              worstHealth === 'reconnecting'
+                ? { border: `2px solid ${healthColor}`, boxShadow: `0 0 10px ${healthColor}` }
+                : { background: healthColor, boxShadow: `0 0 10px ${healthColor}` }
+            }
             aria-label={connectionLabel}
             title={connectionLabel}
           />

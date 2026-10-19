@@ -170,12 +170,17 @@ describe('TopBar connection health (VRX-223)', () => {
 
     const reconnecting = await screen.findByLabelText('VRChat: Live; ChilloutVR: Reconnecting')
     expect(reconnecting.getAttribute('style')).toContain('var(--warning)')
+    // Non-color cue: a hollow ring, not the live dot.
+    expect(reconnecting.getAttribute('style')).toContain('border')
+    expect(reconnecting.className).toContain('rounded-full')
+    expect(reconnecting.getAttribute('role')).toBe('img')
 
     unmount()
     stubAppStatus('down', 'live')
     render(<TopBar />)
     const down = await screen.findByLabelText('VRChat: Down; ChilloutVR: Live')
     expect(down.getAttribute('style')).toContain('var(--error)')
+    expect(down.className).not.toContain('rounded-full')
   })
 
   it('ignores signed-out platform health and degrades unknown health to down', async () => {
