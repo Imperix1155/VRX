@@ -244,6 +244,11 @@ export type LabelScheme = (typeof LABEL_SCHEMES)[number]
 export const DRAWER_OPENERS = ['card', 'avatar'] as const
 export type DrawerOpener = (typeof DRAWER_OPENERS)[number]
 
+/** Which Dashboard section comes first. The first section shows picture cards;
+ *  the second shows compact bars (owner, 2026-10-18). */
+export const DASHBOARD_SECTION_ORDERS = ['popular-first', 'hot-first'] as const
+export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
+
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct
  *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the
