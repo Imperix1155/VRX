@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On beta and rc builds, the sidebar's update button no longer covers the end of
+  the version number. The version moves to its own line while the button shows.
+
 ## [1.0.0-beta.2] - 2026-10-19
 
 ### Added

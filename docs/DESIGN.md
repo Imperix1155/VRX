@@ -278,6 +278,8 @@ The updater uses the actual sidebar footer control. Idle is absent; available,
 downloading, and downloaded have distinct actions and labels. The collapsed
 icon wrapper must not shrink, and the hidden label has zero width. Hover/focus
 may reveal the label without clipping the icon. Use neutral control tokens.
+While the control shows, the footer text keeps clear of the collapsed circle;
+a long prerelease version wraps whole onto its own line.
 The guide's updater callbacks are inert and never download or install anything.
 
 ## §9 Component behavior

@@ -270,9 +270,11 @@ export default function Sidebar(): React.JSX.Element {
         })}
       </nav>
 
-      {/* Footer (§8) */}
+      {/* Footer (§8). While the update button shows, the text keeps clear of
+          it (right-[10px] + w-[36px]); a long prerelease version wraps whole
+          instead of running under the button. */}
       <div
-        className="relative text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px]"
+        className="relative text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px] has-[>button]:pr-[46px]"
         style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
       >
         <SidebarUpdateButton />
@@ -284,7 +286,7 @@ export default function Sidebar(): React.JSX.Element {
         </span>
         <br />
         {/* Version is build-injected from package.json (never hardcode — it drifts) */}
-        {t('shell.footer')} · v{__APP_VERSION__}
+        {t('shell.footer')} · <span className="whitespace-nowrap">v{__APP_VERSION__}</span>
       </div>
     </aside>
   )
