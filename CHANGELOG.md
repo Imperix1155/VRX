@@ -73,6 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The app window's content security policy no longer allows inline styles, so
   injected style markup can't take effect.
+- When VRChat asks you to re-enter your two-factor code, VRX now stops all
+  account activity in the background (friend updates, image requests) until the
+  code is verified, instead of only blocking the window.
 
 ## [1.0.0-beta.1] - 2026-10-12
 
