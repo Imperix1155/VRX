@@ -1,4 +1,5 @@
 import LinkedProfilesLoadError from './LinkedProfilesLoadError'
+import FriendsSourceNotice from './FriendsSourceNotice'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { Range } from '@tanstack/react-virtual'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -226,7 +227,10 @@ const FriendRow = memo(function FriendRow({
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
   const hideWorld = isWorldHidden(pillFriend ?? friend)
-  const instance = !combined || pillFriend.presence.state === 'in-game' ? pillFriend.instance : null
+  // Active/offline friends never expose a stale cached instance (§5 R6), for
+  // single-account rows as well as linked ones: VRChat's state comes from the
+  // presence buckets while `instance` comes from the raw location.
+  const instance = pillFriend.presence.state === 'in-game' ? pillFriend.instance : null
   const worldText =
     !hideWorld && instance != null
       ? (instance.worldName ?? t('friends.instance.unknownWorld'))
@@ -334,8 +338,12 @@ const FriendRow = memo(function FriendRow({
           account.platformUserId,
           account.presence.state,
           account.status,
-          isWorldHidden(account) ? null : account.instance?.worldId,
-          isWorldHidden(account) ? null : account.instance?.instanceId
+          isWorldHidden(account) || account.presence.state !== 'in-game'
+            ? null
+            : account.instance?.worldId,
+          isWorldHidden(account) || account.presence.state !== 'in-game'
+            ? null
+            : account.instance?.instanceId
         ])
       ])}
       onPointerEnter={() => onRowHover(key.startsWith('person:') ? key : null)}
@@ -454,6 +462,14 @@ const FriendRow = memo(function FriendRow({
             onClick={joinFriend}
             disabled={isJoining}
             tabIndex={isFullyVisible ? undefined : -1}
+            // The diagonal halves carry each location's access tier in color;
+            // the tooltip (and accessible description) spells both out.
+            title={destinations
+              .map(
+                (account) =>
+                  `${account.platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'}: ${t(instancePillFor(account.instance!, labelScheme).labelKey)}`
+              )
+              .join(' · ')}
             style={Object.fromEntries(
               destinations.map((account) => [
                 `--linked-${account.platform === 'vrchat' ? 'vrc' : 'cvr'}-tier`,
@@ -690,11 +706,8 @@ export default function FriendsList(): React.JSX.Element {
     () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
     [vrcFriends.data, cvrFriends.data]
   )
-  const { friends, isPending, isError, isFetching, refetch } = useCombineFriendQueries(
-    platformFilter,
-    vrcFriends,
-    cvrFriends
-  )
+  const { friends, isPending, isError, isFetching, refetch, sourceFailures } =
+    useCombineFriendQueries(platformFilter, vrcFriends, cvrFriends)
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
   // within each section — SUPERSEDES the old flat online-first ordering. Counts
@@ -1232,6 +1245,9 @@ export default function FriendsList(): React.JSX.Element {
         </button>
       </div>
       <LinkedProfilesLoadError query={links} />
+      {!isAuthStatusPending && !isNotConnected ? (
+        <FriendsSourceNotice failures={sourceFailures} />
+      ) : null}
       <div className="relative mb-[var(--space-3)]">
         <input
           ref={searchInputRef}
@@ -1274,7 +1290,9 @@ export default function FriendsList(): React.JSX.Element {
           {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
           {/* Stale-while-revalidate: only surface the error when there's no cached data;
           a background refetch failure keeps showing the last good list. */}
-          {isError && !friends && (
+          {/* A platform-named source notice replaces the generic error when another
+          platform did load (issue 368). */}
+          {isError && !friends && sourceFailures.length === 0 && (
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
           {filteredFriends && filteredFriends.length === 0 && (

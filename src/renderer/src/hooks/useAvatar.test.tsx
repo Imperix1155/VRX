@@ -2,7 +2,13 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useRef } from 'react'
-import { AVATAR_MAX_RETRIES, AVATAR_RETRY_DELAY_MS, useAvatar } from './useAvatar'
+import {
+  AVATAR_MAX_RETRIES,
+  AVATAR_RENDERER_CACHE_MAX_BYTES,
+  AVATAR_RETRY_DELAY_MS,
+  AvatarDataCache,
+  useAvatar
+} from './useAvatar'
 
 type ObserverCallback = ConstructorParameters<typeof IntersectionObserver>[0]
 
@@ -180,5 +186,41 @@ describe('useAvatar', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('AvatarDataCache byte budget (issue 370)', () => {
+  it('evicts least recently used entries by total size', () => {
+    const cache = new AvatarDataCache(200, 10)
+    cache.set('a', '1234')
+    cache.set('b', '1234')
+    expect(cache.get('a')).toBe('1234') // a is now most recent
+    cache.set('c', '1234') // 12 > 10 → evict b
+    expect(cache.get('b')).toBeUndefined()
+    expect(cache.get('a')).toBe('1234')
+    expect(cache.retainedBytes).toBe(8)
+  })
+
+  it('still honours the entry-count cap', () => {
+    const cache = new AvatarDataCache(2, 1000)
+    cache.set('a', 'x')
+    cache.set('b', 'x')
+    cache.set('c', 'x')
+    expect(cache.size).toBe(2)
+    expect(cache.get('a')).toBeUndefined()
+  })
+
+  it('does not retain a value larger than the whole budget, and replaces in place', () => {
+    const cache = new AvatarDataCache(200, 4)
+    cache.set('a', '12345')
+    expect(cache.size).toBe(0)
+    cache.set('a', '12')
+    cache.set('a', '1234')
+    expect(cache.retainedBytes).toBe(4)
+    expect(cache.size).toBe(1)
+  })
+
+  it('defaults to a 48 MiB budget', () => {
+    expect(AVATAR_RENDERER_CACHE_MAX_BYTES).toBe(48 * 1024 * 1024)
   })
 })

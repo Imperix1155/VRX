@@ -176,6 +176,23 @@ export interface CombinedFriendsView {
   isError: boolean
   isFetching: boolean
   refetch: () => void
+  /**
+   * Enabled, in-scope platforms whose latest fetch failed while the list still
+   * shows friends or another platform loaded (issue 368): either that platform
+   * never loaded (the roster is partial) or it keeps its last good data (the
+   * roster is stale). Empty when nothing loaded at all; FriendsList then shows
+   * its full error state instead.
+   */
+  sourceFailures: FriendSourceFailure[]
+}
+
+export interface FriendSourceFailure {
+  platform: Platform
+  /** `missing`: no data from this platform yet; `stale`: last good data kept. */
+  kind: 'missing' | 'stale'
+  /** This platform's own query is fetching (a retry or a background refresh). */
+  isFetching: boolean
+  retry: () => void
 }
 
 /**
@@ -200,19 +217,46 @@ export function combineFriendQueries(
   const friends = scoped.some((q) => q.data !== undefined)
     ? scoped.flatMap((q) => q.data ?? [])
     : undefined
-  return combinedView(scoped, friends)
+  return combinedView(scoped, friends, scopeByPlatformFilter(filter, 'vrchat', 'chilloutvr'))
 }
 
 /** Disabled queries can remain pending forever and refetch bypasses their gate. */
-function combinedView(scoped: FriendQuery[], friends: Friend[] | undefined): CombinedFriendsView {
+function combinedView(
+  scoped: FriendQuery[],
+  friends: Friend[] | undefined,
+  platforms: Platform[]
+): CombinedFriendsView {
   const enabled = scoped.filter((q) => q.isEnabled !== false)
   const anyPending = enabled.some((q) => q.isPending)
   const errorMasksEmpty =
     !anyPending && (friends?.length ?? 0) === 0 && enabled.some((q) => q.isError)
+  const isError = errorMasksEmpty || (enabled.length > 0 && enabled.every((q) => q.isError))
+  const visibleFriends = errorMasksEmpty ? undefined : friends
+  // Computed whenever a list is visible — including when every scoped query
+  // failed but kept stale data (isError is true, yet FriendsList still shows
+  // the list and, before issue 368, said nothing) — and when another platform
+  // loaded a verified empty roster, so the failure still names its platform.
+  const anyHealthy = enabled.some((q) => q.data !== undefined && !q.isError)
+  const sourceFailures: FriendSourceFailure[] =
+    visibleFriends === undefined && !anyHealthy
+      ? []
+      : scoped.flatMap((q, i) => {
+          const platform = platforms[i]
+          if (platform === undefined || q.isEnabled === false || !q.isError) return []
+          return [
+            {
+              platform,
+              kind: q.data === undefined ? ('missing' as const) : ('stale' as const),
+              isFetching: q.isFetching,
+              retry: () => void q.refetch()
+            }
+          ]
+        })
   return {
-    friends: errorMasksEmpty ? undefined : friends,
+    friends: visibleFriends,
     isPending: friends === undefined && anyPending,
-    isError: errorMasksEmpty || (enabled.length > 0 && enabled.every((q) => q.isError)),
+    isError,
+    sourceFailures,
     isFetching: enabled.some((q) => q.isFetching),
     refetch: () => {
       for (const q of enabled) void q.refetch()
@@ -242,5 +286,9 @@ export function useCombineFriendQueries(
     return scoped.flatMap((d) => d ?? [])
   }, [filter, vrc.data, cvr.data])
 
-  return combinedView(scopeByPlatformFilter(filter, vrc, cvr), friends)
+  return combinedView(
+    scopeByPlatformFilter(filter, vrc, cvr),
+    friends,
+    scopeByPlatformFilter(filter, 'vrchat', 'chilloutvr')
+  )
 }

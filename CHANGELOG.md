@@ -30,10 +30,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own. Turning off Hot Instances in Settings → Dashboard only hides the
   Dashboard section; the page and alerts stay available. The hot instance
   threshold is now its own row in Settings → Dashboard.
+- Avatar images kept in memory are now capped at about 48 MB per cache (one in
+  the background process, one in the window), so long sessions with many large
+  avatars can't grow memory without limit.
 - Updated Electron from 44.5.1 to 44.7.0.
 
 ### Fixed
 
+- "Friend came online" alerts now fire for friends who were offline when VRX
+  started. Before, a friend's first sign-in each session was skipped on both
+  platforms.
+- Coming back to the same VRChat instance after a world reload no longer sends a
+  second "joined a world" alert.
+- The join dialog no longer shows a friend's new world when they switch to Ask Me
+  or Do Not Disturb while the dialog is open.
+- A friend who is on the website, in the app, or offline no longer shows an old
+  world and access pill in the friends list.
+- VRChat friends who are traveling between worlds no longer show up as being in a
+  public world called "traveling" or "private".
+- A friend you just added on VRChat now shows their real status and world instead
+  of always appearing as "on the website".
+- A VRChat friend who changed status while the list was loading no longer appears
+  twice, and the friend list no longer drops someone because of it.
+- A few private ChilloutVR rooms, or a short Wi-Fi drop on VRChat, no longer stop
+  the friend list from loading for a minute afterwards.
+- Unlinking or editing a linked profile no longer fails with "review expired"
+  just because the friend changed their name.
+- A failed join from a friend's side panel keeps its message on screen even after
+  the friend stops being joinable.
+- A refused Explore room join now says why (for example, joining is switched off
+  in Settings) instead of always suggesting a refresh.
+- The connection indicator in the top bar now changes shape as well as color
+  (dot, ring, square), and the "2 locations" button names both access types in
+  its tooltip, so neither relies on color alone.
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
   reconnects (at most twice) to get a fresh one instead of showing every
   ChilloutVR friend as offline.
@@ -42,6 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+- When one platform's friends fail to load or refresh, the Friends list now says
+  so (for example "ChilloutVR friends could not refresh") and offers a Retry for
+  just that platform, instead of silently showing a partial or outdated list.
+
+### Security
+
+- The app window's content security policy no longer allows inline styles, so
+  injected style markup can't take effect.
 
 ## [1.0.0-beta.1] - 2026-10-12
 

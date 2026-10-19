@@ -323,6 +323,12 @@
     "searchNoResults": "No friends match your search",
     "refresh": "Refresh",
     "error": "Could not load friends",
+    "sourceState": {
+      "missing": "{{platform}} friends could not load. This list is missing them.",
+      "stale": "{{platform}} friends could not refresh. Showing the last loaded list.",
+      "retry": "Retry {{platform}}",
+      "retrying": "Retrying {{platform}}…"
+    },
     "joinAria": "Join {{name}} in {{world}}",
     "joinFailed": "Couldn't join. Check the game and connection, then use Join to try again.",
     "joinFailure": {

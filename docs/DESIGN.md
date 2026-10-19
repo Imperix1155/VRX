@@ -223,6 +223,8 @@ remain available through their implemented features.
 The top bar owns the page's single heading. Its social selector reads
 VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
 echoes that filter. Connection-health copy is real state, not decoration.
+The connection indicator pairs its color with shape: a pulsing dot is live, a
+hollow ring is reconnecting, and a square is down; its label names each platform.
 Settings replaces the social selector with its category control. Keep the platform
 filter in the same horizontal position across Dashboard, Friends, and Explore,
 including when a scrollbar appears or disappears. No page-specific shortcut may
@@ -353,6 +355,13 @@ sources do not keep it alive. Ordinary refresh with retained cards stays quiet. 
 unavailable sources, stale results, and verified empty states. Unknown or partial
 counts remain unknown, never zero. Sheet coverage and disabled actions must
 reflect the supplied snapshot. No documentation example may add polling.
+
+Friends keeps a usable list visible when one platform's roster fails. A
+non-blocking line under the header names that platform and offers a Retry for
+that platform only, with its own retrying state. A platform that never loaded uses
+error text; a platform showing its last loaded list uses dim text, matching
+Explore's stale line. When the other platform loaded an empty roster, the named
+line replaces the generic friends error.
 
 Accounts exposes a compact Never / Ask / Allow control for external ChilloutVR
 session import. Ask is the default; the native default-cancel consent prompt runs
