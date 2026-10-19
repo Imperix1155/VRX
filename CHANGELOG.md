@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+- Signing out of ChilloutVR now stays signed out. Before, if you had allowed
+  session import, the next launch quietly signed you back in with the game's
+  or CVRX's session, which could be a different account.
+- If the system keychain is locked when VRX starts, VRX no longer replaces your
+  saved ChilloutVR sign-in with an imported one. Your saved sign-in works again
+  the next time VRX starts with the keychain unlocked.
 
 ## [1.0.0-beta.1] - 2026-10-12
 

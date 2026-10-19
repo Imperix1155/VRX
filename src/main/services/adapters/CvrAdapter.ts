@@ -107,6 +107,9 @@ export interface CvrCredentialStore {
   save(credentials: CVRCredentials, accountId: string | null): void
   /** Remove the persisted session so a dead accessKey can't survive a restart. */
   delete(): void
+  /** Explicit sign-out: remove the session and remember the choice, so the next
+   *  launch does not import an external session. Falls back to delete(). */
+  signOut?(): void
 }
 
 /**
@@ -966,7 +969,8 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   }
 
   clearSession(): void {
-    this.store.delete()
+    if (this.store.signOut) this.store.signOut()
+    else this.store.delete()
     this.clearSessionState()
     this.emit({ type: 'auth-invalidated', platform: 'chilloutvr' })
   }

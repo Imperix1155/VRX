@@ -15,6 +15,10 @@ const UNSUPPORTED_CREDENTIAL_KEY_MESSAGE = 'Unsupported credential key'
 // A failed replacement/delete may leave this marker behind; load treats it as
 // an empty slot and never tries to decrypt an older credential after restart.
 const INVALIDATED_CREDENTIAL = '!vrx-credential-invalidated-v1!'
+// Left in the slot by an explicit sign-out (never removed) so the next launch
+// can tell "the user signed out" from "never signed in" and skip external
+// session import. Load treats it as empty; the next save replaces it.
+const SIGNED_OUT_CREDENTIAL = '!vrx-credential-signed-out-v1!'
 
 export const CREDENTIAL_KEYS = {
   VRCHAT_PRIMARY: 'vrchat:primary',
@@ -106,7 +110,7 @@ export function loadCredential(key: CredentialKey): string | undefined {
   const encrypted = getStore().get(key)
   if (encrypted === undefined) return undefined
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
-  if (encrypted === INVALIDATED_CREDENTIAL) return undefined
+  if (encrypted === INVALIDATED_CREDENTIAL || encrypted === SIGNED_OUT_CREDENTIAL) return undefined
   if (encrypted.startsWith(LOCAL_CREDENTIAL_PREFIX)) return decryptLocalCredential(key, encrypted)
 
   // Old OS-protected sessions remain OS-protected. Failure to unlock one must
@@ -146,4 +150,24 @@ export function clearCredential(key: CredentialKey): void {
   } catch {
     /* marker remains intentionally when physical removal is unavailable */
   }
+}
+
+/**
+ * Explicit user sign-out: revoke the slot like clearCredential, then leave the
+ * signed-out marker. The marker is best-effort: the sign-out itself has already
+ * happened if it cannot be written.
+ */
+export function signOutCredential(key: CredentialKey): void {
+  clearCredential(key)
+  try {
+    getStore().set(key, SIGNED_OUT_CREDENTIAL)
+  } catch {
+    /* revocation above stands; only the import fence is lost */
+  }
+}
+
+/** True when the slot holds the explicit sign-out marker (no session, by choice). */
+export function isCredentialSignedOut(key: CredentialKey): boolean {
+  requireCredentialKey(key)
+  return getStore().get(key) === SIGNED_OUT_CREDENTIAL
 }
