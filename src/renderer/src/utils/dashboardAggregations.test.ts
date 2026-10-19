@@ -5,7 +5,7 @@ import {
   type FriendAlert,
   type HotInstanceAlert
 } from '../../../main/services/friendAlerts'
-import { getDashboardStats, getHotInstances } from './dashboardAggregations'
+import { getDashboardStats, getHotInstances, pickOnePerPlatform } from './dashboardAggregations'
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
@@ -762,5 +762,30 @@ describe('hot-instance key alignment (VRX-237)', () => {
     const [hot] = getHotInstances([first, second], 2)
     expect(hot!.groupName).toBe('Pixel Pals')
     expect(hot!.groupImageUrl).toBe('https://example.com/pals.png')
+  })
+})
+
+describe('pickOnePerPlatform (owner, 2026-10-18)', () => {
+  const item = (
+    id: string,
+    platform: 'vrchat' | 'chilloutvr'
+  ): { id: string; platform: 'vrchat' | 'chilloutvr' } => ({ id, platform })
+  const ids = (items: readonly { id: string }[]): string[] => items.map((i) => i.id)
+
+  it('takes the top of each platform even when one platform holds the top two', () => {
+    const sorted = [item('c1', 'chilloutvr'), item('c2', 'chilloutvr'), item('v1', 'vrchat')]
+    expect(ids(pickOnePerPlatform(sorted))).toEqual(['c1', 'v1'])
+  })
+  it('falls back to the overall top two when only one platform has any', () => {
+    const sorted = [item('c1', 'chilloutvr'), item('c2', 'chilloutvr'), item('c3', 'chilloutvr')]
+    expect(ids(pickOnePerPlatform(sorted))).toEqual(['c1', 'c2'])
+  })
+  it('keeps the original ranking order and handles short lists', () => {
+    expect(ids(pickOnePerPlatform([item('v1', 'vrchat'), item('c1', 'chilloutvr')]))).toEqual([
+      'v1',
+      'c1'
+    ])
+    expect(ids(pickOnePerPlatform([item('v1', 'vrchat')]))).toEqual(['v1'])
+    expect(pickOnePerPlatform([])).toEqual([])
   })
 })
