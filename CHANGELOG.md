@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Popular now (Popular now stays first by default). The top section uses
   picture cards; the bottom one uses compact bars with the world picture behind
   them, still tinted in the platform's color.
+- The sign-in screen and Settings → Accounts now say that VRX is an unofficial
+  app, not affiliated with or endorsed by VRChat or Alpha Blend Interactive
+  (ChilloutVR).
+- The install guide explains the Windows "Windows protected your PC" warning
+  for unsigned builds, and what to do on Linux desktops without a tray icon.
 
 ### Changed
 
@@ -28,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatar images kept in memory are now capped at about 48 MB per cache (one in
   the background process, one in the window), so long sessions with many large
   avatars can't grow memory without limit.
+- Updated Electron from 44.5.1 to 44.7.0.
 
 ### Fixed
 
