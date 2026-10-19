@@ -118,6 +118,21 @@ describe('FriendsList join pill (VRX-166)', () => {
     )
   })
 
+  it.each(['active', 'offline'] as const)(
+    'never shows a stale world or pill for a single %s friend (R6)',
+    (state) => {
+      mockFriends([{ ...joinableFriend, presence: { state } }])
+      const { container } = render(<FriendsList />)
+
+      expect(screen.queryByText('The Great Pug')).toBeNull()
+      expect([...container.querySelectorAll('span')].some((s) => s.textContent === 'Public')).toBe(
+        false
+      )
+      const row = container.querySelector('[data-gesture-key]')
+      expect(row?.getAttribute('data-gesture-key') ?? '').not.toContain('wrld_fixture')
+    }
+  )
+
   it('opennessUnknown renders the neutral "Unknown" pill instead of the degraded typed label (VRX-244)', () => {
     const unknown: Friend = {
       ...joinableFriend,

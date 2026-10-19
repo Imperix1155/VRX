@@ -179,6 +179,25 @@ describe('scoped linked profile IPC', () => {
     ).toEqual({ ok: false, reason: 'stale' })
     expect(storage.read()).toEqual(before)
   })
+  it('does not report a stale review when the friend was renamed before the change', () => {
+    const authority = new LocationAuthority()
+    const { graph } = setup(authority)
+    const created = create().value
+    const person = created.profiles[0]!
+    authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })
+    authority.seed(
+      'vrchat',
+      [{ ...fullFriend('Renamed meanwhile', 'vrchat'), platformUserId: vrc.friendId }],
+      authority.captureSeedRevision('vrchat')
+    )
+    expect(
+      invoke('change-linked-profile', {
+        lease: created.lease,
+        change: { kind: 'unlink', personId: person.id, expectedRevision: person.revision }
+      }).ok
+    ).toBe(true)
+    expect(graph.list()).toEqual([])
+  })
   it('keeps a healthy anchor and permits unlink while the other account is unavailable', () => {
     const { session, graph } = setup()
     create()

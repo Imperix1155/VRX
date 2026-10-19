@@ -54,7 +54,7 @@ and Node/Electron access on this side of the process boundary.
   friend data, URLs containing identifiers, or raw upstream payloads. Use
   `app.getPath()` for application files. Do not write VRCX or CVRX paths.
 - `AvatarCache` is the only renderer image proxy. Keep HTTPS host, redirect,
-  MIME, URL-length, body-size, LRU, and TTL validation; API hops share platform
+  MIME, URL-length, body-size, LRU (entry count and byte budget), and TTL validation; API hops share platform
   admission while CDN body work stays bounded. Send a VRChat cookie only to
   `api.vrchat.cloud`, fence cache publication to the account lease, and never
   make the renderer fetch a vendor image directly.

@@ -243,6 +243,32 @@ describe('VrcPipeline', () => {
     r.pipeline.stop()
   })
 
+  it.each([
+    ['online', 'in-game', { worldId: 'wrld_a', instanceId: '123~public' }],
+    ['offline', 'offline', null],
+    ['active', 'active', null]
+  ] as const)(
+    'friend-add uses the new friend state %s instead of assuming active',
+    async (wireState, state, instance) => {
+      const r = rig()
+      r.pipeline.start()
+      await tick()
+      r.sockets[0]!.fire('open')
+      r.sockets[0]!.fire(
+        'message',
+        frame('friend-add', {
+          userId: 'usr_1',
+          user: { ...USER, state: wireState, location: 'wrld_a:123~public' }
+        })
+      )
+      expect(r.events.at(-1)).toMatchObject({
+        type: 'friend-added',
+        friend: { presence: { state }, instance }
+      })
+      r.pipeline.stop()
+    }
+  )
+
   it('maps friend-add / friend-delete / friend-update', async () => {
     const r = rig()
     r.pipeline.start()

@@ -85,6 +85,11 @@ credential, network, or launch authority.
   status. Hidden locations never leak into labels, images, gesture metadata, or
   actions. Use the shared hot-instance membership/key and joinability predicates
   instead of local copies.
+- The CSP is `style-src 'self'` with no `unsafe-inline` (#369). React `style={}`
+  is fine because it goes through the CSSOM, but never add `<style>` elements,
+  `setAttribute('style', …)`, `cssText`, or raw HTML (`dangerouslySetInnerHTML`,
+  `innerHTML`); `scripts/dev-style-csp.test.ts` enforces this. Only the Vite dev
+  server relaxes style-src (`scripts/dev-style-csp.ts`, serve-only).
 - Keep established accessibility behavior. Reuse overlay primitives; sheets are
   non-modal and restore their opener, confirmation dialogs trap focus, controls
   keep their radiogroup keyboard behavior, and existing workflows stay reachable

@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import './guide.css'
-import { desktopScenes, drawerScenarios, exploreScenarios, sourceScenarios } from './scenarios'
+import {
+  desktopScenes,
+  drawerScenarios,
+  exploreScenarios,
+  friendsScenarios,
+  sourceScenarios
+} from './scenarios'
 
 declare const __APP_VERSION__: string
 declare const __GUIDE_REVISION__: string
@@ -477,8 +483,9 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="friends"
             title="Friends list"
-            note="Interactive fixture. Rows show the real platform tab, avatar treatment, and contextual action space."
-            source="FriendsList.tsx · Avatar.tsx"
+            note="Interactive fixture. Rows show the real platform tab, avatar treatment, and contextual action space. Failure states name the platform that could not refresh and retry only that platform."
+            source="FriendsList.tsx · FriendsSourceNotice.tsx · Avatar.tsx"
+            variants={friendsScenarios}
             paired
           />
           <Scene
