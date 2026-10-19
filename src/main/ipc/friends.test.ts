@@ -336,7 +336,7 @@ describe('get-friends location seeding', () => {
 })
 
 it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
-  'accepts overlapping pagination rows in a partial roster after %s',
+  'collapses overlapping pagination rows in a partial roster after %s',
   async (reason) => {
     const raw = {
       id: 'usr_alice',
@@ -371,14 +371,14 @@ it.each(['malformed sibling', 'rate-limited follow-up'] as const)(
     const envelope = await response
     expect(envelope).toMatchObject({
       completeness: 'partial',
-      friends: [{ platformUserId: 'usr_alice' }, { platformUserId: 'usr_alice' }]
+      friends: [{ platformUserId: 'usr_alice' }]
     })
+    expect((envelope as FriendRoster).friends).toHaveLength(1)
     vi.stubGlobal('window', { vrx: { getFriends: vi.fn().mockResolvedValue(envelope) } })
     try {
       const result = await fetchFriendRoster('vrchat', () => [rosterFriend])
       expect(result.provenance?.coveredIds).toEqual(['usr_alice'])
       expect(result.friends.map((friend) => friend.platformUserId)).toEqual([
-        'usr_alice',
         'usr_alice',
         'usr_friend'
       ])
