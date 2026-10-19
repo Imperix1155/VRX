@@ -59,10 +59,18 @@ the fallback key and encrypted session files. That wider scan is separate work.
 
 Owner: repository maintainer Imperix1155. Tracking: [PR #345](https://github.com/Imperix1155/VRX/pull/345).
 Approved by the owner on 2026-10-03 after disclosure (original expiry
-2026-10-11 00:00 UTC). Extended once on 2026-10-09 after upstream review;
-review by **2026-10-30**.
-The gate automatically stops accepting this exception at **2026-10-31 00:00 UTC**.
+2026-10-11 00:00 UTC). Extended on 2026-10-09 after upstream review, and again
+on 2026-10-19 by owner decision (1.0 readiness, issue #376); review by
+**2027-01-30**.
+The gate automatically stops accepting this exception at **2027-01-31 00:00 UTC**.
 Any further extension requires a new explicit owner decision and review.
+
+**2026-10-19 upstream review (reason for the second extension).** npm still lists
+`http-cache-semantics` 4.3.0 (2026-10-04) as the latest release, which the
+2026-10-09 review below found does not fix this advisory. The compatible
+electron-builder line still pulls 4.2.0 through `@electron/get`. Nothing about the
+exposure changed: the package remains build-tool only, the local patch stays in
+place, and the production audit is clean.
 
 **2026-10-09 upstream review (reason for the extension).** `http-cache-semantics`
 4.3.0 (published 2026-10-04) does not fix this advisory. Its source diff against
