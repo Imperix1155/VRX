@@ -409,24 +409,26 @@ export default function FriendDrawer({
             )}
 
             {/* 4 · Actions — phase 1 = the one real action. */}
-            {joinable && (
+            {(joinable || joinFailure) && (
               <div className="flex flex-col gap-[var(--space-1)]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (combined) setChooserOwner(identityOwner)
-                    else if (shown) void join(shown)
-                  }}
-                  disabled={isJoining}
-                  className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
-                  style={{
-                    borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                    background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
-                    color: 'var(--op-public-text)'
-                  }}
-                >
-                  {t('drawer.join')}
-                </button>
+                {joinable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (combined) setChooserOwner(identityOwner)
+                      else if (shown) void join(shown)
+                    }}
+                    disabled={isJoining}
+                    className="w-full rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
+                      background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                      color: 'var(--op-public-text)'
+                    }}
+                  >
+                    {t('drawer.join')}
+                  </button>
+                )}
                 <span
                   role="status"
                   className="block min-h-[16px] text-center text-[12px] text-[var(--text-dim)]"
