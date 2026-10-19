@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On beta and rc builds, the sidebar's update button no longer covers the end of
+  the version number. The version moves to its own line while the button shows.
 - "Friend came online" alerts now fire for friends who were offline when VRX
   started. Before, a friend's first sign-in each session was skipped on both
   platforms.
