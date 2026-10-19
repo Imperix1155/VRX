@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On beta and rc builds, the sidebar's update button no longer covers the end of
+  the version number. The version moves to its own line while the button shows.
+
+## [1.0.0-beta.2] - 2026-10-19
+
 ### Added
 
 - A new Hot Instances page in the sidebar lists every hot instance, most
@@ -16,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Popular now (Popular now stays first by default). The top section uses
   picture cards; the bottom one uses compact bars with the world picture behind
   them, still tinted in the platform's color.
+- The sign-in screen and Settings → Accounts now say that VRX is an unofficial
+  app, not affiliated with or endorsed by VRChat or Alpha Blend Interactive
+  (ChilloutVR).
+- The install guide explains the Windows "Windows protected your PC" warning
+  for unsigned builds, and what to do on Linux desktops without a tray icon.
 
 ### Changed
 
@@ -28,11 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatar images kept in memory are now capped at about 48 MB per cache (one in
   the background process, one in the window), so long sessions with many large
   avatars can't grow memory without limit.
+- Updated Electron from 44.5.1 to 44.7.0.
+
+### Removed
+
+- VRX no longer keeps a separate credential-owner file next to saved sign-ins.
+  It was never read. An existing file is deleted the next time VRX starts.
 
 ### Fixed
 
-- On beta and rc builds, the sidebar's update button no longer covers the end of
-  the version number. The version moves to its own line while the button shows.
 - "Friend came online" alerts now fire for friends who were offline when VRX
   started. Before, a friend's first sign-in each session was skipped on both
   platforms.
@@ -78,6 +94,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   access to (such as a private instance). VRX now checks your sign-in first and
   only signs you out if ChilloutVR rejects that too. A few of those refusals in a
   row also no longer pause all ChilloutVR requests for a minute.
+- Signing out of ChilloutVR now stays signed out. Before, if you had allowed
+  session import, the next launch quietly signed you back in with the game's
+  or CVRX's session, which could be a different account.
+- If the system keychain is locked when VRX starts, VRX no longer replaces your
+  saved ChilloutVR sign-in with an imported one. Your saved sign-in works again
+  the next time VRX starts with the keychain unlocked.
 
 ### Security
 

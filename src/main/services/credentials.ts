@@ -1,7 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
-import { createHash } from 'node:crypto'
-import { isPlatformAccountId } from './accountSession'
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   LOCAL_CREDENTIAL_PREFIX,
   encryptLocalCredential,
@@ -15,6 +15,11 @@ const UNSUPPORTED_CREDENTIAL_KEY_MESSAGE = 'Unsupported credential key'
 // A failed replacement/delete may leave this marker behind; load treats it as
 // an empty slot and never tries to decrypt an older credential after restart.
 const INVALIDATED_CREDENTIAL = '!vrx-credential-invalidated-v1!'
+// Written over the slot by an explicit sign-out (never removed) so the next
+// launch can tell "the user signed out" from "never signed in" and skip external
+// session import. It is the revocation itself: load treats it as empty, and the
+// next save replaces it.
+const SIGNED_OUT_CREDENTIAL = '!vrx-credential-signed-out-v1!'
 
 export const CREDENTIAL_KEYS = {
   VRCHAT_PRIMARY: 'vrchat:primary',
@@ -33,23 +38,16 @@ export class CredentialEncryptionUnavailableError extends Error {
 
 let store: Store<Partial<Record<CredentialKey, string>>> | undefined
 
-interface CredentialOwnerRecord {
-  platformAccountId: string
-  credentialDigest: string
-}
-
-let ownerStore: Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>> | undefined
+/**
+ * Store name of the removed credential-owner sidecar (#371). It was written on
+ * every save but never read, so it proved nothing on restore and a failed write
+ * could fail a login. Older installs may still hold the file; it is deleted.
+ */
+const LEGACY_CREDENTIAL_OWNER_STORE = 'credential-owners'
 
 function getStore(): Store<Partial<Record<CredentialKey, string>>> {
   return (store ??= new Store<Partial<Record<CredentialKey, string>>>({
     name: 'credentials',
-    accessPropertiesByDotNotation: false
-  }))
-}
-
-function getOwnerStore(): Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>> {
-  return (ownerStore ??= new Store<Partial<Record<CredentialKey, CredentialOwnerRecord>>>({
-    name: 'credential-owners',
     accessPropertiesByDotNotation: false
   }))
 }
@@ -77,25 +75,19 @@ function decodeCredential(encrypted: string): Buffer {
   return decoded
 }
 
-function credentialDigest(encrypted: string): string {
-  return createHash('sha256').update(encrypted).digest('hex')
-}
-
 export function saveCredential(key: CredentialKey, plaintext: string): void {
   requireCredentialKey(key)
   const credentials = getStore()
   // Revoke the old slot before any keychain or replacement write that can fail.
   // If a later step throws, the non-secret marker remains a durable load fence.
   credentials.set(key, INVALIDATED_CREDENTIAL)
-  const owners = getOwnerStore()
-  owners.delete(key)
   let encrypted: string
   try {
     requireEncryption()
     encrypted = safeStorage.encryptString(plaintext).toString('base64')
   } catch {
-    // Only OS encryption failure selects the approved local fallback. Store,
-    // invalidation and owner-write failures must still fail the login.
+    // Only OS encryption failure selects the approved local fallback. Store
+    // and invalidation failures must still fail the login.
     encrypted = encryptLocalCredential(key, plaintext)
   }
   credentials.set(key, encrypted)
@@ -106,28 +98,13 @@ export function loadCredential(key: CredentialKey): string | undefined {
   const encrypted = getStore().get(key)
   if (encrypted === undefined) return undefined
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
-  if (encrypted === INVALIDATED_CREDENTIAL) return undefined
+  if (encrypted === INVALIDATED_CREDENTIAL || encrypted === SIGNED_OUT_CREDENTIAL) return undefined
   if (encrypted.startsWith(LOCAL_CREDENTIAL_PREFIX)) return decryptLocalCredential(key, encrypted)
 
   // Old OS-protected sessions remain OS-protected. Failure to unlock one must
   // never create a new local key or reinterpret its ciphertext.
   requireEncryption()
   return safeStorage.decryptString(decodeCredential(encrypted))
-}
-
-export function recordCredentialOwner(key: CredentialKey, platformAccountId: string): void {
-  requireCredentialKey(key)
-  if (!isPlatformAccountId(platformAccountId)) throw new Error('invalid platformAccountId')
-
-  const encrypted = getStore().get(key)
-  if (encrypted === undefined) return
-  if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
-  if (encrypted === INVALIDATED_CREDENTIAL) return
-
-  getOwnerStore().set(key, {
-    platformAccountId,
-    credentialDigest: credentialDigest(encrypted)
-  })
 }
 
 export function clearCredential(key: CredentialKey): void {
@@ -137,13 +114,38 @@ export function clearCredential(key: CredentialKey): void {
   // marker still prevents the prior credential from being restored.
   credentials.set(key, INVALIDATED_CREDENTIAL)
   try {
-    getOwnerStore().delete(key)
-  } catch {
-    /* marker is the durable revocation; sidecar cleanup is best-effort */
-  }
-  try {
     credentials.delete(key)
   } catch {
     /* marker remains intentionally when physical removal is unavailable */
+  }
+}
+
+/**
+ * Explicit user sign-out. One write replaces the credential with the signed-out
+ * marker, so the slot is never absent: a crash or failed write can never leave
+ * it looking like "never signed in" to the next launch's session import. If that
+ * write throws, the sign-out fails like clearCredential.
+ */
+export function signOutCredential(key: CredentialKey): void {
+  requireCredentialKey(key)
+  getStore().set(key, SIGNED_OUT_CREDENTIAL)
+}
+
+/** True when the slot holds the explicit sign-out marker (no session, by choice). */
+export function isCredentialSignedOut(key: CredentialKey): boolean {
+  requireCredentialKey(key)
+  return getStore().get(key) === SIGNED_OUT_CREDENTIAL
+}
+
+/**
+ * Best-effort removal of the legacy credential-owner sidecar file (#371). It
+ * held platform account ids next to a ciphertext digest and nothing reads it.
+ * Never throws: a leftover file is inert and must not block boot.
+ */
+export function removeLegacyCredentialOwnerStore(userDataDir: string): void {
+  try {
+    rmSync(join(userDataDir, `${LEGACY_CREDENTIAL_OWNER_STORE}.json`), { force: true })
+  } catch {
+    /* inert leftover; retried on the next launch */
   }
 }

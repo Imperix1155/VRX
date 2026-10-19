@@ -961,6 +961,28 @@ describe('CvrAdapter', () => {
       await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'unauthenticated' })
     })
 
+    it('records an explicit logout as a sign-out but a dead key as a plain delete', async () => {
+      const calls: string[] = []
+      const store: CvrCredentialStore = {
+        load: () => ({ username: 'trinity', accessKey: 'key-1' }),
+        save: () => {},
+        delete: () => calls.push('delete'),
+        signOut: () => calls.push('signOut')
+      }
+      const adapter = markSessionEstablishedForTest(new CvrAdapter(store, instantAdmission()))
+      adapter.clearSession()
+      expect(calls).toEqual(['signOut'])
+
+      calls.length = 0
+      const restored = markSessionEstablishedForTest(new CvrAdapter(store, instantAdmission()))
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ message: 'denied' }, { status: 401 }))
+      )
+      await expect(restored.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+      expect(calls).toEqual(['delete'])
+    })
+
     it('propagates explicit logout deletion failure without clearing the live session', async () => {
       const store: CvrCredentialStore = {
         load: () => ({ username: 'trinity', accessKey: 'key-1' }),
