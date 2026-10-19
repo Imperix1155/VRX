@@ -1394,3 +1394,104 @@ describe('Dashboard secondary controls (VRX-285)', () => {
     expect(screen.queryByRole('button', { name: msg('dashboard.hotHelp.label') })).toBeNull()
   })
 })
+
+/** `count` friends in one public instance of `world` on `platform`. */
+function crowd(platform: 'vrchat' | 'chilloutvr', world: string, count: number): Friend[] {
+  return Array.from({ length: count }, (_, i) => {
+    const friend = makeFriend({
+      platformUserId: `${platform}-${world}-${i}`,
+      displayName: `${world} ${i}`,
+      instance: {
+        worldId: `wrld_${world}`,
+        instanceId: `wrld_${world}:1~public`,
+        worldName: world,
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+        region: 'us',
+        userCount: count
+      }
+    })
+    return platform === 'vrchat'
+      ? friend
+      : ({
+          ...friend,
+          platform: 'chilloutvr',
+          status: null,
+          statusDescription: null,
+          trustRank: null
+        } as unknown as Friend)
+  })
+}
+
+const hotCardNames = (): string[] =>
+  screen
+    .getAllByRole('button', { name: /hot instance details/ })
+    .map((card) => card.getAttribute('aria-label') ?? '')
+
+describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
+  it('shows the top instance per platform, even when one platform holds the top two', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      {
+        data: [...crowd('chilloutvr', 'Big', 5), ...crowd('chilloutvr', 'Mid', 4)],
+        isPending: false
+      }
+    )
+    render(<DashboardView />)
+    expect(hotCardNames()).toEqual([
+      msg('hotSheet.ariaLabel', { world: 'Big' }),
+      msg('hotSheet.ariaLabel', { world: 'Lake' })
+    ])
+    const seeAll = screen.getByRole('button', { name: msg('dashboard.seeAllAria', { count: 3 }) })
+    fireEvent.click(seeAll)
+    expect(useUiStore.getState().activeTab).toBe('hot')
+  })
+
+  it('shows the top two of one platform when the other has none', () => {
+    stubQueries(
+      { data: [], isPending: false },
+      {
+        data: [
+          ...crowd('chilloutvr', 'Big', 5),
+          ...crowd('chilloutvr', 'Mid', 4),
+          ...crowd('chilloutvr', 'Low', 3)
+        ],
+        isPending: false
+      }
+    )
+    render(<DashboardView />)
+    expect(hotCardNames()).toEqual([
+      msg('hotSheet.ariaLabel', { world: 'Big' }),
+      msg('hotSheet.ariaLabel', { world: 'Mid' })
+    ])
+    expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
+  })
+
+  it.each([
+    ['popular-first', 'bar'],
+    ['hot-first', 'picture']
+  ] as const)('with %s, hot cards use the %s layout', (order, layout) => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardSectionOrder: order } })
+    seedExplorePreview()
+    render(<DashboardView />)
+    const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    expect(hot.querySelector(`[data-hot-card-layout="${layout}"]`)).not.toBeNull()
+    const headings = screen
+      .getAllByRole('heading', { level: 2 })
+      .map((heading) => heading.textContent)
+    const hotIndex = headings.indexOf(msg('dashboard.sectionHotInstances'))
+    const popularIndex = headings.indexOf(msg('explore.popularNow'))
+    expect(hotIndex).toBeGreaterThanOrEqual(0)
+    expect(popularIndex).toBeGreaterThanOrEqual(0)
+    expect(hotIndex < popularIndex).toBe(order === 'hot-first')
+  })
+})

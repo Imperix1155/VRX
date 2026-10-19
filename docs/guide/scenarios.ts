@@ -38,6 +38,7 @@ export function sourceModesFor(variant: string): readonly [PlatformMode, Platfor
 
 export const desktopScenes: readonly string[] = [
   'dashboard',
+  'hot',
   'friends',
   'linked',
   'settings',
