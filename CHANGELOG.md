@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   avatars can't grow memory without limit.
 - Updated Electron from 44.5.1 to 44.7.0.
 
+### Removed
+
+- VRX no longer keeps a separate credential-owner file next to saved sign-ins.
+  It was never read. An existing file is deleted the next time VRX starts.
+
 ### Fixed
 
 - "Friend came online" alerts now fire for friends who were offline when VRX

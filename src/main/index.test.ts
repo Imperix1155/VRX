@@ -159,16 +159,19 @@ describe('main identity-boundary fan-out', () => {
   })
 })
 
-describe('main credential-owner wiring', () => {
+describe('main credential wiring', () => {
+  it('removes the legacy credential-owner sidecar from userData at startup', () => {
+    expect(source).toContain("removeLegacyCredentialOwnerStore(app.getPath('userData'))")
+  })
+
   it.each([
     ['vrchat', 'VRCHAT_PRIMARY'],
     ['chilloutvr', 'CHILLOUTVR_PRIMARY']
-  ])('records the %s owner only inside the successful credential-save closure', (platform, key) => {
+  ])('saves the %s credential without a credential-owner sidecar (#371)', (platform, key) => {
     expect(source).toMatch(
-      new RegExp(
-        `save: \\(.*accountId\\) => \\{\\s*saveCredential\\(CREDENTIAL_KEYS\\.${key},[\\s\\S]*?\\)\\s*if \\(accountId !== null\\) \\{\\s*recordCredentialOwner\\(CREDENTIAL_KEYS\\.${key}, accountId\\)`
-      )
+      new RegExp(`save: \\(\\w+\\) =>\\s*saveCredential\\(CREDENTIAL_KEYS\\.${key},`)
     )
+    expect(source).not.toContain('recordCredentialOwner')
     expect(source).toMatch(
       new RegExp(
         `onIdentity: \\(accountId\\) => \\{\\s*accountSession\\.setIdentity\\('${platform}', accountId\\)\\s*\\}`
