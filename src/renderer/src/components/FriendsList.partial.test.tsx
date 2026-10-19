@@ -81,6 +81,45 @@ describe('FriendsList partial roster notice (issue 368)', () => {
     expect(vrcRefetch).not.toHaveBeenCalled()
   })
 
+  it('replaces the generic error with the named platform when the other roster is empty', () => {
+    const cvrRefetch = vi.fn()
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? { data: [], isPending: false, isError: false, isFetching: false, refetch: vi.fn() }
+        : {
+            data: undefined,
+            isPending: false,
+            isError: true,
+            isFetching: false,
+            refetch: cvrRefetch
+          }
+    )
+    render(<FriendsList />)
+    expect(screen.queryByText('Could not load friends')).toBeNull()
+    expect(
+      screen.getByText('ChilloutVR friends could not load. This list is missing them.')
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry ChilloutVR' }))
+    expect(cvrRefetch).toHaveBeenCalledOnce()
+  })
+
+  it('does not show a healthy platform background refresh as a retry', () => {
+    useFriendsMock.mockImplementation((platform: string) =>
+      platform === 'vrchat'
+        ? {
+            data: [mk('Anna', 'in-game')],
+            isPending: false,
+            isError: false,
+            isFetching: true,
+            refetch: vi.fn()
+          }
+        : { data: undefined, isPending: false, isError: true, isFetching: false, refetch: vi.fn() }
+    )
+    render(<FriendsList />)
+    const retry = screen.getByRole('button', { name: 'Retry ChilloutVR' })
+    expect((retry as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('shows no notice when every platform loaded', () => {
     useFriendsMock.mockImplementation((platform: string) => ({
       data: platform === 'vrchat' ? [mk('Anna', 'in-game')] : [],

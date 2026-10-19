@@ -180,6 +180,27 @@ describe('per-platform source failures (issue 368)', () => {
     ])
   })
 
+  it('carries each platform own fetching state, not the combined one', () => {
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend], isFetching: true }),
+      query({ isError: true })
+    )
+    expect(view.isFetching).toBe(true)
+    expect(view.sourceFailures.map((f) => [f.platform, f.isFetching])).toEqual([
+      ['chilloutvr', false]
+    ])
+  })
+
+  it('still names the failed platform when the other loaded an empty roster', () => {
+    const view = combineFriendQueries('all', query({ data: [] }), query({ isError: true }))
+    expect(view.friends).toBeUndefined()
+    expect(view.isError).toBe(true)
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([
+      ['chilloutvr', 'missing']
+    ])
+  })
+
   it('stays empty when the whole view is in its error state', () => {
     const view = combineFriendQueries('all', query({ isError: true }), query({ isError: true }))
     expect(view.isError).toBe(true)

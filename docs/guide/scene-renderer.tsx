@@ -22,6 +22,7 @@ import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
 import { fixtureAuth } from './fixture-bridge'
 import { friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
 import CatalogScene from './catalog-scenes'
+import { friendsFailureFor } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -135,6 +136,22 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     queryClient.setQueryData(authStatusQueryKey(platform), fixtureAuth(platform))
     queryClient.setQueryData(friendsQueryKey(platform), friends[platform])
     queryClient.setQueryData(exploreQueryKey(platform), getPlatformSnapshot(platform))
+  }
+  const rosterFailure = name === 'friends' ? friendsFailureFor(variant) : null
+  if (rosterFailure !== null) {
+    // Issue 368 states: the fixture bridge rejects this platform's roster, so
+    // Retry stays failed. `stale` keeps the seeded list; `missing` drops it.
+    const queryKey = friendsQueryKey(rosterFailure.platform)
+    if (rosterFailure.kind === 'missing') queryClient.removeQueries({ queryKey })
+    queryClient
+      .getQueryCache()
+      .build(queryClient, { queryKey })
+      .setState({
+        status: 'error',
+        fetchStatus: 'idle',
+        error: new Error('Synthetic roster refresh failed'),
+        errorUpdateCount: 1
+      })
   }
   queryClient.setQueryData(linkedProfilesKey, structuredClone(linkedSnapshot))
   useSettingsStore.getState().setSettings({
