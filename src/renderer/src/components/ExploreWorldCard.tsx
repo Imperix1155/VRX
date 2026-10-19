@@ -1,12 +1,21 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExploreCount, ExploreWorld } from '@shared/explore'
+import InstancePill from './InstancePill'
+import PlatformPill from './PlatformPill'
+import { CardPictureBackdrop, PictureBackedPill } from './CardPictureBackdrop'
 
 export interface ExploreWorldCardProps {
   world: ExploreWorld
   /** A renderer-safe, already-resolved image. This component never reads API URLs. */
   image?: string
   onOpen: (world: ExploreWorld, opener: HTMLElement) => void
+  /**
+   * `card` (default): the full picture-first card. `bar`: the compact Dashboard
+   * bar used when Popular now is the second section (owner, 2026-10-18). It
+   * borrows the Hot Instances bar grid, with the world picture behind it.
+   */
+  layout?: 'card' | 'bar'
 }
 
 function Count({ count }: { count: ExploreCount }): React.JSX.Element {
@@ -18,13 +27,79 @@ function Count({ count }: { count: ExploreCount }): React.JSX.Element {
 export default function ExploreWorldCard({
   world,
   image,
-  onOpen
+  onOpen,
+  layout = 'card'
 }: ExploreWorldCardProps): React.JSX.Element {
   const { t } = useTranslation()
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const isVrc = world.platform === 'vrchat'
   const platformLabel = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
   const activityLabel = t('explore.people')
+
+  if (layout === 'bar') {
+    const barImage = image && failedImage !== image ? image : null
+    return (
+      <button
+        type="button"
+        data-explore-sheet-opener
+        data-explore-card-layout="bar"
+        onClick={(event) => onOpen(world, event.currentTarget)}
+        aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
+        className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative block w-full min-w-0 overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
+      >
+        <CardPictureBackdrop
+          image={barImage}
+          platform={world.platform}
+          onError={() => setFailedImage(image ?? null)}
+        />
+        <div
+          aria-hidden="true"
+          className="relative h-[4px] w-full"
+          style={{
+            background: isVrc
+              ? 'linear-gradient(90deg, var(--vrc), transparent)'
+              : 'linear-gradient(90deg, var(--cvr), transparent)'
+          }}
+        />
+        <div
+          className="relative p-[14px_16px]"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,1fr) minmax(78px, max-content)',
+            gridTemplateRows: 'auto 1fr',
+            columnGap: '12px',
+            rowGap: '16px',
+            minHeight: '96px'
+          }}
+        >
+          <h3
+            className="col-start-1 row-start-1 self-center min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[25px] font-bold leading-[1.5] text-[var(--text)]"
+            title={world.name}
+          >
+            {world.name}
+          </h3>
+          <PictureBackedPill
+            backed={barImage !== null}
+            className="col-start-2 row-start-1 self-center"
+          >
+            <InstancePill label={t('explore.viewRooms')} tier={null} className="w-full" />
+          </PictureBackedPill>
+          <span className="col-start-1 row-start-2 self-end min-w-0 truncate text-[13.5px] leading-[1.2] text-[var(--text-dim)]">
+            {activityLabel}:{' '}
+            <span className="font-bold text-[var(--text)]">
+              <Count count={world.activity} />
+            </span>
+          </span>
+          <PictureBackedPill
+            backed={barImage !== null}
+            className="col-start-2 row-start-2 self-end"
+          >
+            <PlatformPill platform={world.platform} className="w-full" />
+          </PictureBackedPill>
+        </div>
+      </button>
+    )
+  }
 
   return (
     <button
