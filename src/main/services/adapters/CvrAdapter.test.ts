@@ -1403,6 +1403,20 @@ describe('CvrAdapter', () => {
         expect(store.deleted).toBe(0)
       })
 
+      it('never opens the circuit on repeated permission denials', async () => {
+        const { adapter } = setup()
+        const fetchMock = routed([() => Promise.resolve(jsonResponse(envelope(authPayload())))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(authCalls(fetchMock)).toBe(1))
+        // Each later 403 still reaches ChilloutVR instead of failing fast as
+        // "Circuit open", so valid requests are never blocked by denials.
+        for (let i = 0; i < 4; i++) {
+          await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        }
+        expect(fetchMock.mock.calls.length - authCalls(fetchMock)).toBe(5)
+      })
+
       it('signs out and tells the renderer when the reauth is rejected too', async () => {
         const { adapter, store, events } = setup()
         routed([() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 }))])

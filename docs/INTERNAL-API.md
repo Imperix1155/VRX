@@ -570,7 +570,10 @@ resets fallback only after cooldown. Clock/sleep/random are injectable. The
 
 `BaseAdapter` accepts that controller and owns physical fetch/retry handling.
 `AdapterRequestOptions` includes priority, signal, lease, beforeDispatch, circuit
-recording and bounded/no-retry policy. `RequestInitSource` can be a lazy main-only
+recording and bounded/no-retry policy. Typed-request 401s always count toward the
+circuit; 403s count unless the client sets `forbiddenOpensCircuit = false`, as
+`CvrApiClient` does because CVR answers data-path 403s with one confirming reauth,
+so permission denials never open its breaker. `RequestInitSource` can be a lazy main-only
 request initializer, evaluated after admission. All retries re-enter the queue.
 `RequestLease` in `adapters/RequestLease.ts` carries generation, AbortSignal and
 `isCurrent()`. Session generations and interactive-login generations remain
