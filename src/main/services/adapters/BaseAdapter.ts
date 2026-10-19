@@ -48,6 +48,15 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   private consecutiveFailures = 0
   private lastFailureAt = 0
 
+  /**
+   * Whether a 403 from `request` counts toward the circuit breaker. A 403 can
+   * be a per-resource permission denial from a healthy service, so a subclass
+   * that answers 403s itself (CVR confirms the session with one reauth) opts
+   * out; repeated private-instance denials then cannot open the breaker and
+   * block valid requests. 401s always count.
+   */
+  protected readonly forbiddenOpensCircuit: boolean = true
+
   protected constructor(protected readonly admission = new ApiAdmissionController()) {}
 
   /**
@@ -144,8 +153,9 @@ export abstract class BaseAdapter implements IPlatformAdapter {
    * Typed request: `rawRequest` + status/JSON/Zod interpretation. A non-2xx
    * response (401/403 → `AuthError`, else `NetworkError`), an unparseable body,
    * or a schema mismatch records a circuit failure unless the caller passes
-   * `recordCircuitFailure: false` (lookups where a 404 is an expected answer);
-   * a fully-validated response resets it.
+   * `recordCircuitFailure: false` (lookups where a 404 is an expected answer).
+   * A 403 counts only while `forbiddenOpensCircuit`. A fully-validated
+   * response resets the count.
    */
   protected async request<T>(
     url: string,
@@ -160,7 +170,9 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     if (response.status === 401 || response.status === 403) {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
-      if (recordCircuitFailure) this.recordFailure()
+      if (recordCircuitFailure && (response.status === 401 || this.forbiddenOpensCircuit)) {
+        this.recordFailure()
+      }
       throw new AuthError(undefined, response.status)
     }
 

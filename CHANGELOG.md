@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Popular now (Popular now stays first by default). The top section uses
   picture cards; the bottom one uses compact bars with the world picture behind
   them, still tinted in the platform's color.
+- The sign-in screen and Settings → Accounts now say that VRX is an unofficial
+  app, not affiliated with or endorsed by VRChat or Alpha Blend Interactive
+  (ChilloutVR).
+- The install guide explains the Windows "Windows protected your PC" warning
+  for unsigned builds, and what to do on Linux desktops without a tray icon.
 
 ### Changed
 
@@ -28,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Avatar images kept in memory are now capped at about 48 MB per cache (one in
   the background process, one in the window), so long sessions with many large
   avatars can't grow memory without limit.
+- Updated Electron from 44.5.1 to 44.7.0.
 
 ### Removed
 
@@ -73,11 +79,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When one platform's friends fail to load or refresh, the Friends list now says
   so (for example "ChilloutVR friends could not refresh") and offers a Retry for
   just that platform, instead of silently showing a partial or outdated list.
+- When one VRChat request comes back as signed out, VRX now checks your sign-in
+  before acting like you switched accounts. It no longer asks VRChat for the
+  friend list again right away, and if your sign-in turns out to be fine, a note
+  you were still typing is kept.
+- ChilloutVR no longer signs you out when it refuses one thing you don't have
+  access to (such as a private instance). VRX now checks your sign-in first and
+  only signs you out if ChilloutVR rejects that too. A few of those refusals in a
+  row also no longer pause all ChilloutVR requests for a minute.
 
 ### Security
 
 - The app window's content security policy no longer allows inline styles, so
   injected style markup can't take effect.
+- When VRChat asks you to re-enter your two-factor code, VRX now stops all
+  account activity in the background (friend updates, image requests) until the
+  code is verified, instead of only blocking the window.
 
 ## [1.0.0-beta.1] - 2026-10-12
 

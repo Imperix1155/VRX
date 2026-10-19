@@ -78,7 +78,9 @@ and Node/Electron access on this side of the process boundary.
   source directory.
 - Feed each accepted adapter event to `LocationAuthority` before alerts and
   renderer fan-out. Identity boundaries clear the affected account-scoped
-  authority and renderer data. One failing event consumer must not block the
+  authority and renderer data. A VRChat data-path 401 keeps the account
+  (`identityRetained`): clear main state, but leave the renderer to the
+  following `auth-invalidated` quarantine instead of an identity boundary. One failing event consumer must not block the
   other consumers.
 - Platform requests use shared admission, backoff, timeout, and circuit rules.
   One request per second is the ceiling. Prefer VRChat Pipeline and CVR
