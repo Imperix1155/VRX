@@ -607,6 +607,29 @@ describe('policy-space context', () => {
     expect(dialog.querySelector('[data-policy-space-pill]')).toBeNull()
   })
 
+  it('hides the new location when the friend moves and turns Ask Me mid-review (R6)', async () => {
+    const { rerender } = render(<TestSurface friend={joinableFriend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+    const dialog = confirmDialog()
+
+    updateFriend({
+      ...joinableFriend,
+      status: 'ask-me',
+      instance: {
+        ...publicInstance,
+        worldId: 'wrld_secret',
+        instanceId: 'wrld_secret:42~public',
+        worldName: 'Secret Hideout'
+      }
+    })
+    rerender(<TestSurface friend={joinableFriend} />)
+    await act(async () => await Promise.resolve())
+
+    expect(within(dialog).getByText(/is no longer available to join/)).toBeTruthy()
+    expect(within(dialog).queryByText(/Secret Hideout/)).toBeNull()
+    expect(dialog.querySelector('[data-policy-space-pill]')).toBeNull()
+  })
+
   it('More info discloses the explainer inline (no new modal)', () => {
     render(
       <>
