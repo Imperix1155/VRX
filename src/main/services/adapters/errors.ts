@@ -47,8 +47,8 @@ export class RequestQueueFullError extends Error {
 }
 
 export class CVRAuthError extends AuthError {
-  constructor(message = 'ChilloutVR authentication required') {
-    super(message)
+  constructor(message = 'ChilloutVR authentication required', status?: number) {
+    super(message, status)
     this.name = 'CVRAuthError'
   }
 }

@@ -37,7 +37,8 @@ dependency-injected; `CvrAdapter` composes it with shared transport policy.
   retries without credentials, never queues a social action while disconnected,
   and relies on shared reconnect and backoff policy. A data-path auth failure
   reaches the adapter's fenced invalidation path; ordinary 5xx failures do not
-  clear a session.
+  clear a session. A data-path 401 signs out at once; a 403 signs out only when
+  one confirming reauth with the same key is also rejected.
 - Reconnect waits honor a shared 429 cooldown, recheck it before a dial, and
   cancel on stop or session replacement. Do not add a heartbeat or queue
   disconnected friend actions.

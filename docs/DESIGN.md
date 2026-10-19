@@ -368,7 +368,10 @@ session import. Ask is the default; the native default-cancel consent prompt run
 only without a valid VRX session, before source discovery. Decisions are remembered
 and revocable in Accounts, applying on the next launch. Direct login remains
 available. Sign-in copy explains OS-backed encryption and the weaker local-key
-fallback; it must not promise universal OS-keychain protection.
+fallback; it must not promise universal OS-keychain protection. The sign-in
+screen (on both tabs) and Accounts show one unofficial-app line that names VRChat
+and Alpha Blend Interactive (ChilloutVR) together in plain faint text, so neither
+platform gets more weight.
 
 Auth examples use the actual credentials and method-specific 2FA forms. Secure
 storage failure keeps the dedicated production error copy. Fixtures accept only
