@@ -461,6 +461,14 @@ const FriendRow = memo(function FriendRow({
             onClick={joinFriend}
             disabled={isJoining}
             tabIndex={isFullyVisible ? undefined : -1}
+            // The diagonal halves carry each location's access tier in color;
+            // the tooltip (and accessible description) spells both out.
+            title={destinations
+              .map(
+                (account) =>
+                  `${account.platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'}: ${t(instancePillFor(account.instance!, labelScheme).labelKey)}`
+              )
+              .join(' · ')}
             style={Object.fromEntries(
               destinations.map((account) => [
                 `--linked-${account.platform === 'vrchat' ? 'vrc' : 'cvr'}-tier`,
