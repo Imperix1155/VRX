@@ -71,6 +71,16 @@ afterEach(() => {
 })
 
 describe('LoginScreen (W6)', () => {
+  it('shows the same unofficial notice naming both platforms on either tab', () => {
+    renderLogin()
+    const notice = msg('shell.unofficialNotice')
+    expect(notice).toContain('VRChat')
+    expect(notice).toContain('ChilloutVR')
+    expect(screen.getByText(notice)).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+    expect(screen.getByText(notice)).toBeTruthy()
+  })
+
   it('disables submit until both fields are filled', () => {
     setBridge({ login: vi.fn(), verify2fa: vi.fn() })
     renderLogin()

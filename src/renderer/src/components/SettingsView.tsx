@@ -643,6 +643,7 @@ export default function SettingsView(): React.JSX.Element {
                 {t('settings.accounts.sessionImport.description')}
               </p>
             </div>
+            <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>
         )}
       </div>

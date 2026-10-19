@@ -22,6 +22,12 @@ confirmation and permission settings. Current behavior is documented in the
 Navigation contains Dashboard, Friends, Explore, and Settings. Activity and
 Groups are deferred concepts and do not appear as unfinished tabs.
 
+## Unofficial
+
+VRX is an unofficial app. It is not affiliated with or endorsed by VRChat or
+Alpha Blend Interactive (ChilloutVR). Both APIs it uses are unofficial and can
+change without notice.
+
 ## Install and support
 
 Windows is the primary 1.0 target; use the NSIS installer for automatic update
