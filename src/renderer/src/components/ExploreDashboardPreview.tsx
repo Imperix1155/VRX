@@ -8,6 +8,8 @@ export interface ExploreDashboardPreviewProps {
   platformSnapshots: readonly ExplorePlatformSnapshot[]
   images?: Readonly<Record<string, string | undefined>>
   onOpenWorld: (world: ExploreWorld, opener: HTMLElement) => void
+  /** `bar` when Popular now is the second Dashboard section. */
+  cardLayout?: 'card' | 'bar'
 }
 
 /** Dashboard composition receives the same selector output, already capped to two. */
@@ -15,7 +17,8 @@ export default function ExploreDashboardPreview({
   worlds,
   platformSnapshots,
   images,
-  onOpenWorld
+  onOpenWorld,
+  cardLayout = 'card'
 }: ExploreDashboardPreviewProps): React.JSX.Element | null {
   const { t } = useTranslation()
   const hasSourceState = platformSnapshots.some(
@@ -45,6 +48,7 @@ export default function ExploreDashboardPreview({
               world={world}
               image={images?.[world.worldRef]}
               onOpen={onOpenWorld}
+              layout={cardLayout}
             />
           ))}
         </div>
