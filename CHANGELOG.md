@@ -65,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+- When one platform's friends fail to load or refresh, the Friends list now says
+  so (for example "ChilloutVR friends could not refresh") and offers a Retry for
+  just that platform, instead of silently showing a partial or outdated list.
 
 ### Security
 
