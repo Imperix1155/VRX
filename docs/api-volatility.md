@@ -175,6 +175,14 @@ response capture or proof of rendered pictures on either affected machine.
 **Endpoint:** Data extracted from the `location` field in friend objects or instance details (not an endpoint itself).
 
 **Format:** `wrld_<worldId>:<nonce>[~tag(value)]...` or empty/`private`/`offline`/`traveling`.
+VRChat (and VRCX's parser) also use colon-form placeholders such as
+`traveling:traveling`, `private:private` and `offline:offline`; `parseLocation`
+accepts an instance only when the part before the colon starts with `wrld_`.
+
+A pipeline `friend-add` carries the full User; VRX reads its `state`
+(`online` → in-game with `user.location`, `active`, `offline`) and keeps the
+older `active` assumption only when that field is missing (🟡 inferred from the
+User schema and VRCX, not observed on the wire by VRX).
 
 **What VRX depends on:**
 
