@@ -45,9 +45,11 @@ and Node/Electron access on this side of the process boundary.
   renderer-visible tokens. Clear memory and durable state when a session is
   invalidated.
 - Credential persistence stays behind `services/credentials.ts`: allowlist
-  credential keys, validate the authenticated owner before recording it, and
-  write an invalidation marker before replacement or deletion. A failed write,
-  digest mismatch, or owner mismatch fails closed and cannot revive old auth.
+  credential keys and write an invalidation marker before replacement or
+  deletion. A failed write fails closed and cannot revive old auth. Persist a
+  credential only after the adapter has validated its authenticated owner. There
+  is no separate owner store (#371); future offline ownership belongs inside the
+  same credential record.
 - Log through `electron-log` and redaction. Do not log credentials, tokens,
   friend data, URLs containing identifiers, or raw upstream payloads. Use
   `app.getPath()` for application files. Do not write VRCX or CVRX paths.
