@@ -15,9 +15,10 @@ const UNSUPPORTED_CREDENTIAL_KEY_MESSAGE = 'Unsupported credential key'
 // A failed replacement/delete may leave this marker behind; load treats it as
 // an empty slot and never tries to decrypt an older credential after restart.
 const INVALIDATED_CREDENTIAL = '!vrx-credential-invalidated-v1!'
-// Left in the slot by an explicit sign-out (never removed) so the next launch
-// can tell "the user signed out" from "never signed in" and skip external
-// session import. Load treats it as empty; the next save replaces it.
+// Written over the slot by an explicit sign-out (never removed) so the next
+// launch can tell "the user signed out" from "never signed in" and skip external
+// session import. It is the revocation itself: load treats it as empty, and the
+// next save replaces it.
 const SIGNED_OUT_CREDENTIAL = '!vrx-credential-signed-out-v1!'
 
 export const CREDENTIAL_KEYS = {
@@ -126,7 +127,7 @@ export function recordCredentialOwner(key: CredentialKey, platformAccountId: str
   const encrypted = getStore().get(key)
   if (encrypted === undefined) return
   if (typeof encrypted !== 'string') throw new Error(MALFORMED_CREDENTIAL_MESSAGE)
-  if (encrypted === INVALIDATED_CREDENTIAL) return
+  if (encrypted === INVALIDATED_CREDENTIAL || encrypted === SIGNED_OUT_CREDENTIAL) return
 
   getOwnerStore().set(key, {
     platformAccountId,
@@ -153,16 +154,18 @@ export function clearCredential(key: CredentialKey): void {
 }
 
 /**
- * Explicit user sign-out: revoke the slot like clearCredential, then leave the
- * signed-out marker. The marker is best-effort: the sign-out itself has already
- * happened if it cannot be written.
+ * Explicit user sign-out. One write replaces the credential with the signed-out
+ * marker, so the slot is never absent: a crash or failed write can never leave
+ * it looking like "never signed in" to the next launch's session import. If that
+ * write throws, the sign-out fails like clearCredential.
  */
 export function signOutCredential(key: CredentialKey): void {
-  clearCredential(key)
+  requireCredentialKey(key)
+  getStore().set(key, SIGNED_OUT_CREDENTIAL)
   try {
-    getStore().set(key, SIGNED_OUT_CREDENTIAL)
+    getOwnerStore().delete(key)
   } catch {
-    /* revocation above stands; only the import fence is lost */
+    /* marker is the durable revocation; sidecar cleanup is best-effort */
   }
 }
 
