@@ -1333,7 +1333,9 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
           method: 'GET',
           headers: { ...this.cookieHeader(), 'User-Agent': VRC_USER_AGENT }
         }),
-        { lease }
+        // The raw-cookie fallback covers a failed exchange. Reconnect attempts
+        // during an outage must not open the breaker for the reconcile after.
+        { lease, recordCircuitFailure: false }
       )
       if (response.ok) {
         const parsed = authTokenSchema.safeParse(await response.json())

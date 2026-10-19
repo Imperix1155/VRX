@@ -3,6 +3,7 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { devStyleCspPlugin } from './scripts/dev-style-csp'
 
 // @shared must be aliased in ALL THREE process builds (main / preload / renderer)
 // because electron-vite bundles them separately. Aliasing only the renderer would
@@ -52,6 +53,7 @@ export default defineConfig({
         '@shared': shared
       }
     },
-    plugins: [react(), tailwindcss()]
+    // devStyleCspPlugin: dev server only (#369); production keeps style-src 'self'.
+    plugins: [react(), tailwindcss(), devStyleCspPlugin()]
   }
 })

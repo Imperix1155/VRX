@@ -100,6 +100,18 @@ describe('fetchFriends', () => {
     expect(paths).toHaveLength(3)
     expect(paths.some((path) => path.includes('offline=true'))).toBe(false)
   })
+  it('keeps one row per friend listed by both passes and marks the roster partial', async () => {
+    // A friend who goes offline between the online and offline passes appears
+    // in both; the shifted pages may also have skipped someone else.
+    const fetcher = buildFetcher([makePage(1, 3)], [makePage(3, 2)])
+    const result = await fetchFriends(fetcher)
+    expect(result.friends.map((friend) => friend.platformUserId)).toEqual([
+      ...new Set(result.friends.map((friend) => friend.platformUserId))
+    ])
+    expect(result.friends).toHaveLength(4)
+    expect(result.completeness).toBe('partial')
+  })
+
   describe('pagination stops when a page < PAGE_SIZE items', () => {
     it('stops the online pass when a page has fewer than 100 items', async () => {
       const fetcher = buildFetcher(

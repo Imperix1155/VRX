@@ -77,6 +77,11 @@ const friendWithUserSchema = z.object({
   travelingToLocation: z.string().nullable().optional()
 })
 
+/** `friend-add` carries a full User whose `state` says where the new friend is. */
+const friendAddStateSchema = z.object({
+  user: z.object({ state: z.enum(['online', 'active', 'offline']).optional().catch(undefined) })
+})
+
 /** Events that only carry the user id (`friend-offline`, `friend-delete`). */
 const friendIdSchema = z.object({ userId: z.string() })
 
@@ -161,7 +166,12 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
         return { type: 'friend-offline', platform: 'vrchat', platformUserId: parsed.data.userId }
       }
       case 'friend-add': {
-        const friend = this.buildFriend(content, 'active')
+        // Requests are often accepted in-game, so read the user's own state;
+        // only a payload without one keeps the historical 'active' fallback.
+        const wireState = friendAddStateSchema.safeParse(content).data?.user.state
+        const state =
+          wireState === 'online' ? 'in-game' : wireState === 'offline' ? 'offline' : 'active'
+        const friend = this.buildFriend(content, state)
         if (!friend) return this.dropped(type)
         return { type: 'friend-added', platform: 'vrchat', friend }
       }

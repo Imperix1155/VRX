@@ -35,6 +35,9 @@ interface KnownPresence {
    * and a stale populated instance on a non-in-game friend never counts.
    */
   hot: boolean
+  /** The last real instance while in-game but between instances (VRChat
+   *  `traveling`/hidden), so returning to it is not announced as a new arrival. */
+  lastInstance?: { instanceId: string; worldId: string | null }
 }
 
 interface KnownInstanceCount {
@@ -172,6 +175,25 @@ export class FriendAlerts {
     }
   }
 
+  /**
+   * Record roster friends the engine has not seen yet, silently. Without this a
+   * friend who was offline at launch is "first sight" on their first live event,
+   * so their online alert was swallowed. Ids already known keep their live state
+   * (events can be newer than the roster); ids absent from the roster, such as a
+   * just-accepted friend request, still baseline silently on first sight.
+   */
+  seedRoster(platform: Platform, friends: readonly Friend[]): void {
+    const platformPresence = this.platformPresence(platform)
+    let added = false
+    for (const friend of friends) {
+      if (friend.platform !== platform || platformPresence.has(friend.platformUserId)) continue
+      this.rememberName(friend)
+      this.setPresence(platform, friend.platformUserId, this.fromFriend(friend))
+      added = true
+    }
+    if (added) this.rebuildInstanceCounts(platform)
+  }
+
   getDroppedCount(type?: FriendAlertType): number {
     return type === undefined
       ? this.dropped.online +
@@ -204,7 +226,20 @@ export class FriendAlerts {
     const firstSnapshot = this.snapshotBaselined.get(event.platform) !== true
 
     if (firstSnapshot) {
-      current.clear()
+      // The first full set is the complete online list: anyone else known
+      // (roster-seeded) is offline, not forgotten, so their later return alerts.
+      const online = new Set(event.entries.map((entry) => entry.platformUserId))
+      for (const [platformUserId, known] of current) {
+        if (!online.has(platformUserId) && known.state !== 'offline') {
+          current.set(platformUserId, {
+            state: 'offline',
+            instanceId: null,
+            worldId: null,
+            worldName: null,
+            hot: false
+          })
+        }
+      }
       for (const entry of event.entries) {
         this.setPresence(
           event.platform,
@@ -255,6 +290,13 @@ export class FriendAlerts {
   ): void {
     const platformPresence = this.platformPresence(platform)
     const previous = platformPresence.get(platformUserId)
+    if (previous?.state === 'in-game' && next.state === 'in-game' && next.instanceId === null) {
+      const lastInstance =
+        previous.instanceId !== null
+          ? { instanceId: previous.instanceId, worldId: previous.worldId }
+          : previous.lastInstance
+      if (lastInstance !== undefined) next = { ...next, lastInstance }
+    }
     this.setPresence(platform, platformUserId, next)
 
     if (previous === undefined) {
@@ -279,12 +321,16 @@ export class FriendAlerts {
       this.fireFriend('online', platform, platformUserId, next.worldName)
     }
 
+    const reference =
+      before.instanceId === null && before.lastInstance !== undefined
+        ? { ...before, ...before.lastInstance }
+        : before
     const enteredDifferentInstance =
       next.state === 'in-game' &&
       next.instanceId !== null &&
       (before.state !== 'in-game' ||
-        before.instanceId === null ||
-        !this.isSameInstance(platform, before, next))
+        reference.instanceId === null ||
+        !this.isSameInstance(platform, reference, next))
     if (enteredDifferentInstance) {
       this.fireFriend('in-game', platform, platformUserId, next.worldName)
     }

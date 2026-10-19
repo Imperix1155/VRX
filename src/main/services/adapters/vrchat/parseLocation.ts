@@ -39,6 +39,10 @@ export function parseLocation(location: string): InstanceInfo | null {
   const instanceId = location.slice(colonIndex + 1)
 
   if (!worldId || !instanceId) return null
+  // VRChat also sends colon-form placeholders such as `traveling:traveling`,
+  // `private:private` and `offline:offline`. Only a real world id names an
+  // instance; anything else would surface as a public world named "traveling".
+  if (!worldId.startsWith('wrld_')) return null
 
   const type = parseInstanceType(instanceId)
   const openness = opennessFor(type)

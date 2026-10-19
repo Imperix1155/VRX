@@ -10,10 +10,11 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on the same ref to save minutes.
+# Cancel superseded PR runs to save minutes. Main pushes are keyed by commit and
+# never cancelled: the release CI gate needs ci-success on the exact merge commit.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:

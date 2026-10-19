@@ -143,8 +143,9 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   /**
    * Typed request: `rawRequest` + status/JSON/Zod interpretation. A non-2xx
    * response (401/403 → `AuthError`, else `NetworkError`), an unparseable body,
-   * or a schema mismatch records a circuit failure; a fully-validated response
-   * resets it.
+   * or a schema mismatch records a circuit failure unless the caller passes
+   * `recordCircuitFailure: false` (lookups where a 404 is an expected answer);
+   * a fully-validated response resets it.
    */
   protected async request<T>(
     url: string,
@@ -154,18 +155,19 @@ export abstract class BaseAdapter implements IPlatformAdapter {
   ): Promise<T> {
     const response = await this.rawRequest(url, options, requestOptions)
     this.assertRequestCurrent(options, requestOptions)
+    const recordCircuitFailure = requestOptions.recordCircuitFailure ?? true
 
     if (response.status === 401 || response.status === 403) {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
-      this.recordFailure()
+      if (recordCircuitFailure) this.recordFailure()
       throw new AuthError(undefined, response.status)
     }
 
     if (!response.ok) {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
-      this.recordFailure()
+      if (recordCircuitFailure) this.recordFailure()
       throw new NetworkError(`HTTP ${response.status}`)
     }
 
@@ -174,14 +176,14 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       data = await response.json()
     } catch {
       this.assertRequestCurrent(options, requestOptions)
-      this.recordFailure()
+      if (recordCircuitFailure) this.recordFailure()
       throw new NetworkError('Failed to parse response body')
     }
 
     this.assertRequestCurrent(options, requestOptions)
     const parsed = schema.safeParse(data)
     if (!parsed.success) {
-      this.recordFailure()
+      if (recordCircuitFailure) this.recordFailure()
       throw new NetworkError(`Response validation failed: ${parsed.error.message}`)
     }
 

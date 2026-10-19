@@ -3,6 +3,7 @@ import type { AvatarRequestLease } from './adapters/RequestLease'
 import { normalize, rawFriendSchema } from './adapters/vrchat/fetchFriends'
 import { toBucketSets } from './adapters/vrchat/parsePresence'
 import {
+  AVATAR_CACHE_MAX_BYTES,
   AVATAR_CACHE_MAX_ENTRIES,
   AVATAR_FETCH_MAX_CONCURRENCY,
   AVATAR_MAX_BODY_BYTES,
@@ -38,6 +39,70 @@ describe('AvatarCache', () => {
 
   const VRC_IMAGE_URL = 'https://api.vrchat.cloud/api/1/image/file_0000/1/256'
   const CDN_URL = 'https://d348imysud55la.cloudfront.net/thumbnails/file_0000.256.png'
+
+  // ── #370: aggregate byte budget ─────────────────────────────────────────────
+  describe('byte budget', () => {
+    const url = (n: number): string => `https://files.vrchat.cloud/avatar/file_${n}.png`
+    // 300-byte body → 400 base64 chars + "data:image/png;base64," (22) = 422.
+    const body = (): string => 'x'.repeat(300)
+
+    it('evicts least recently used entries once retained data URLs exceed maxBytes', async () => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockImplementation(() => Promise.resolve(imageResponse(body())))
+      const cache = new AvatarCache({ fetchFn, maxBytes: 1000 })
+      await cache.get(url(1))
+      await cache.get(url(2))
+      expect(cache.retainedBytes).toBe(844)
+      await cache.get(url(1)) // hit: url(1) becomes most recent
+      expect(fetchFn).toHaveBeenCalledTimes(2)
+
+      await cache.get(url(3)) // over budget → evict url(2), the LRU
+      expect(cache.retainedBytes).toBe(844)
+      await cache.get(url(1))
+      expect(fetchFn).toHaveBeenCalledTimes(3)
+      await cache.get(url(2))
+      expect(fetchFn).toHaveBeenCalledTimes(4)
+    })
+
+    it('returns but does not retain an image larger than the whole budget', async () => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockImplementation(() => Promise.resolve(imageResponse(body())))
+      const cache = new AvatarCache({ fetchFn, maxBytes: 400 })
+      await expect(cache.get(url(1))).resolves.toMatch(/^data:image\/png;base64,/)
+      expect(cache.retainedBytes).toBe(0)
+      await cache.get(url(1))
+      expect(fetchFn).toHaveBeenCalledTimes(2)
+    })
+
+    it('releases bytes for expired and cleared entries', async () => {
+      let now = 0
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(imageResponse(body()))
+        .mockResolvedValueOnce(new Response(null, { status: 500 }))
+        .mockResolvedValue(imageResponse(body()))
+      const cache = new AvatarCache({
+        fetchFn,
+        now: () => now,
+        positiveCacheMs: 10,
+        maxBytes: 1000
+      })
+      await cache.get(url(1))
+      expect(cache.retainedBytes).toBe(422)
+      now = 11
+      await cache.get(url(1)) // expired → refetch fails → negative entry costs nothing
+      expect(cache.retainedBytes).toBe(0)
+      cache.clearNegativeEntries()
+      await cache.get(url(1))
+      expect(cache.retainedBytes).toBe(422)
+    })
+
+    it('defaults to a 48 MiB budget', () => {
+      expect(AVATAR_CACHE_MAX_BYTES).toBe(48 * 1024 * 1024)
+    })
+  })
 
   it('does not fetch API images while the session provider is quarantined', async () => {
     const fetchFn = vi.fn<typeof fetch>()

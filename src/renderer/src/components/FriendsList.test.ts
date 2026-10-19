@@ -187,12 +187,18 @@ describe('FriendsList', () => {
   // ─── World subline ──────────────────────────────────────────────────────────
 
   it('renders the world name in the subline for a visible instance', () => {
-    mock([{ ...friend, instance: publicInstance }])
+    mock([{ ...friend, presence: { state: 'in-game' }, instance: publicInstance }])
     expect(render()).toContain('The Great Pug')
   })
 
   it('renders the unknown-world fallback when worldName is null', () => {
-    mock([{ ...friend, instance: { ...publicInstance, worldName: null } }])
+    mock([
+      {
+        ...friend,
+        presence: { state: 'in-game' },
+        instance: { ...publicInstance, worldName: null }
+      }
+    ])
     expect(render()).toContain('Unknown World')
   })
 
@@ -211,7 +217,7 @@ describe('FriendsList', () => {
     ['invite', 'Invite'],
     ['group', 'Group']
   ] as const)('renders the %s instance type as the pill label', (type, label) => {
-    mock([{ ...friend, instance: { ...publicInstance, type } }])
+    mock([{ ...friend, presence: { state: 'in-game' }, instance: { ...publicInstance, type } }])
     expect(render()).toContain(label)
   })
 

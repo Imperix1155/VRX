@@ -500,6 +500,25 @@ describe('FriendDrawer (VRX-69)', () => {
     )
   })
 
+  it('keeps the join failure readable after the friend stops being joinable', async () => {
+    joinInstance.mockResolvedValue({ ok: false, reason: 'not-joinable' })
+    const { rerender } = render(<FriendsList />)
+    openDrawerFor('Alex')
+
+    const scoped = within(dialog())
+    await act(async () => {
+      fireEvent.click(scoped.getByRole('button', { name: 'Join' }))
+      await Promise.resolve()
+    })
+    mockFriends([{ ...joinableFriend, status: 'ask-me' }])
+    rerender(<FriendsList />)
+
+    expect(scoped.queryByRole('button', { name: 'Join' })).toBeNull()
+    expect(scoped.getByRole('status').textContent).toBe(
+      "Couldn't join. Check the game and connection, then use Join to try again."
+    )
+  })
+
   it.each([
     ['stale', 'Live connection not ready — joins resume when the live feed reconnects'],
     ['cooldown', 'One moment — just launched a join'],
