@@ -6,6 +6,8 @@
     "scripts/credential-persistence-probe-arguments.ts",
     "scripts/credential-persistence-probe.ts",
     "scripts/credential-persistence-probe-contract.test.ts",
+    "scripts/dev-style-csp.ts",
+    "scripts/dev-style-csp.test.ts",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*"

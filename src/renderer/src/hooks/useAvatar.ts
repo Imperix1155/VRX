@@ -1,31 +1,70 @@
 import { useEffect, useState, type RefObject } from 'react'
 
-const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
+export const AVATAR_RENDERER_CACHE_MAX_ENTRIES = 200
+/** Aggregate data-URL budget for the renderer copy (#370); mirrors main's. */
+export const AVATAR_RENDERER_CACHE_MAX_BYTES = 48 * 1024 * 1024
 /** Just past main's 30 s negative cache, so a retry can reach the network again. */
 export const AVATAR_RETRY_DELAY_MS = 31_000
 /** Bounded: a permanently missing image stops after this many re-attempts. */
 export const AVATAR_MAX_RETRIES = 3
 
-const avatarData = new Map<string, string>()
-const avatarRequests = new Map<string, Promise<string | null>>()
+/**
+ * LRU of successful avatar data URLs, bounded by entry count AND total size
+ * (data-URL characters ≈ bytes, base64 is ASCII). An entry larger than the
+ * whole budget is not retained.
+ */
+export class AvatarDataCache {
+  private readonly entries = new Map<string, string>()
+  private bytes = 0
 
-function cacheSuccessfulAvatar(url: string, dataUrl: string): void {
-  avatarData.delete(url)
-  avatarData.set(url, dataUrl)
-  while (avatarData.size > AVATAR_RENDERER_CACHE_MAX_ENTRIES) {
-    const oldest = avatarData.keys().next().value
-    if (oldest === undefined) return
-    avatarData.delete(oldest)
+  constructor(
+    private readonly maxEntries = AVATAR_RENDERER_CACHE_MAX_ENTRIES,
+    private readonly maxBytes = AVATAR_RENDERER_CACHE_MAX_BYTES
+  ) {}
+
+  get size(): number {
+    return this.entries.size
+  }
+
+  get retainedBytes(): number {
+    return this.bytes
+  }
+
+  /** Read and mark most recently used. */
+  get(url: string): string | undefined {
+    const value = this.entries.get(url)
+    if (value === undefined) return undefined
+    this.entries.delete(url)
+    this.entries.set(url, value)
+    return value
+  }
+
+  set(url: string, dataUrl: string): void {
+    this.delete(url)
+    if (dataUrl.length > this.maxBytes) return
+    this.entries.set(url, dataUrl)
+    this.bytes += dataUrl.length
+    while (this.entries.size > this.maxEntries || this.bytes > this.maxBytes) {
+      const oldest = this.entries.keys().next().value
+      if (oldest === undefined) return
+      this.delete(oldest)
+    }
+  }
+
+  private delete(url: string): void {
+    const value = this.entries.get(url)
+    if (value === undefined) return
+    this.bytes -= value.length
+    this.entries.delete(url)
   }
 }
 
+const avatarData = new AvatarDataCache()
+const avatarRequests = new Map<string, Promise<string | null>>()
+
 function requestAvatar(url: string): Promise<string | null> {
   const cached = avatarData.get(url)
-  if (cached) {
-    avatarData.delete(url)
-    avatarData.set(url, cached)
-    return Promise.resolve(cached)
-  }
+  if (cached) return Promise.resolve(cached)
 
   const pending = avatarRequests.get(url)
   if (pending) return pending
@@ -37,7 +76,7 @@ function requestAvatar(url: string): Promise<string | null> {
           .getAvatar(url)
           .then((result) => {
             const dataUrl = result?.dataUrl ?? null
-            if (dataUrl !== null) cacheSuccessfulAvatar(url, dataUrl)
+            if (dataUrl !== null) avatarData.set(url, dataUrl)
             return dataUrl
           })
           .catch(() => null)

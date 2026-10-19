@@ -572,6 +572,7 @@ app
       },
       locationAuthority,
       onRendererHydrated,
+      onFriendRoster: (platform, friends) => friendAlerts.seedRoster(platform, friends),
       instance: {
         joinCoordinator,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,

@@ -180,9 +180,16 @@ export function registerLinksHandlers(options: LinksHandlerOptions): void {
         ]
       }
     } else {
-      const visible = snapshot()
-      if (!visible.ok) return visible
-      if (!visible.value.profiles.some((person) => person.id === change.personId))
+      // Visibility only. The read path's best-effort name refresh bumps person
+      // revisions, which would turn the caller's reviewed revision stale for a
+      // change nobody else made.
+      let visible: LinkSnapshot
+      try {
+        visible = scopedSnapshot(linkGraph.snapshot())
+      } catch {
+        return { ok: false, reason: 'storage' }
+      }
+      if (!visible.profiles.some((person) => person.id === change.personId))
         return { ok: false, reason: 'unavailable' }
       qualified = change
     }
