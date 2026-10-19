@@ -9,9 +9,9 @@ import type {
 import PlatformPill from './PlatformPill'
 import { joinFailureMessageKey, type JoinFailureReason } from '../hooks/useJoinInstance'
 
-/** Failures where "refresh and try again" is wrong advice; they keep their own copy. */
+/** Failures where "refresh and try again" is wrong advice; they keep their own copy.
+ *  Explore's `stale` means an expired selection, so refreshing is the right advice. */
 const RETRYABLE_EXPLORE_FAILURES: ReadonlySet<JoinFailureReason> = new Set([
-  'stale',
   'cooldown',
   'rate-limited',
   'joining-disabled'

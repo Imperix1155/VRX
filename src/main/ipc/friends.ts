@@ -69,7 +69,15 @@ export function registerFriendsHandlers(
     }
     appStatus.recordReconcile(req.platform)
     try {
-      onRoster?.(req.platform, roster.friends)
+      // Hand on the authority's merged view, not the raw rows: a live removal
+      // or move that landed while this read was in flight must win over it.
+      if (onRoster) {
+        const accepted = roster.friends.flatMap((friend) => {
+          const resolved = authority.resolve(req.platform, friend.platformUserId)
+          return resolved.ok ? [resolved.friend] : []
+        })
+        onRoster(req.platform, accepted)
+      }
     } catch {
       /* A consumer failure must not fail the roster read. */
     }
