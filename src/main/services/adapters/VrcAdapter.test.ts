@@ -765,6 +765,26 @@ describe('VrcAdapter', () => {
       expect(boundary).toHaveBeenCalledTimes(2)
     })
 
+    it('publishes no boundary when a restored cookie first needs 2FA at boot (#367)', async () => {
+      const accountSession = new AccountSession()
+      const store = fakeStore('auth=account-a; twoFactorAuth=old')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+      )
+      const boundary = vi.fn()
+      const adapter = new VrcAdapter(store, instantAdmission(), wiring(accountSession, boundary))
+      const deletedBefore = store.deleted
+      // Adopting the restored cookie is the only boundary so far.
+      const boundariesAtBoot = boundary.mock.calls.length
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      // Nothing was ever published, so there is nothing to revoke.
+      expect(boundary).toHaveBeenCalledTimes(boundariesAtBoot)
+      expect(accountSession.getAccountId('vrchat')).toBeNull()
+      expect(store.deleted).toBe(deletedBefore)
+    })
+
     it('stops the live pipeline when an established session needs 2FA again (#367)', async () => {
       const sockets: DrivableVrcSocket[] = []
       const fetchMock = vi.fn((url: RequestInfo | URL) => {
