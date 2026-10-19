@@ -89,6 +89,10 @@ npm run build:mac    # macOS (DMG)
 npm run build:linux  # Linux (AppImage + deb)
 ```
 
+The app icon's SVG masters, platform exports, and regeneration commands are
+documented in [App icon](docs/APP-ICON.md). The visual guide shows the actual
+shipped assets at taskbar sizes.
+
 ## Docs
 
 [`docs/design.html`](docs/design.html) is the human visual guide. Run

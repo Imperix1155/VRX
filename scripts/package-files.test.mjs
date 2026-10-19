@@ -17,6 +17,7 @@ describe('packaged application file boundary', () => {
     'test-results/result.json',
     'playwright-report/index.html',
     'scripts/example.test.mjs',
+    'scripts/generate-app-icons.mjs',
     'out/credential-probe/index.js',
     '.codex/session.json',
     '.superpowers/notes.md',
@@ -32,6 +33,11 @@ describe('packaged application file boundary', () => {
     'out/renderer/index.html',
     'out/renderer/assets/main.js',
     'resources/icon.png',
+    'resources/icon.ico',
+    'resources/icon-16.png',
+    'resources/icon-16@2x.png',
+    'resources/icon-24.png',
+    'resources/icon-24@2x.png',
     'package.json',
     'node_modules/electron-updater/out/main.js'
   ])('retains %s', (file) => {

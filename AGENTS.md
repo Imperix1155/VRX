@@ -59,6 +59,8 @@ uses those components with synthetic data; known defects are not design rules.
   sheen can vary; decorative chrome such as the sidebar may retain ambient color.
 - Presence `state` and VRChat `status` are separate axes. Use the avatar ring
   fold and written drawer status, not the old row dot/status-pill examples.
+- App icon sources and native/runtime exports follow [App icon](docs/APP-ICON.md).
+  Keep the optical small sizes and regenerate outputs with their SVG masters.
 - Use tokens for color and spacing. Preserve access to existing controls and
   workflows unless removal was approved. Observe changed UI in both themes and
   relevant window sizes; compilation alone does not prove rendering.
@@ -185,6 +187,7 @@ so agents with bounded instruction loading receive the complete rules.
 
 ## Child DOX Index
 
+- [Build assets](build/AGENTS.md): icon sources, native exports, and packaging resources.
 - [Shared](src/shared/AGENTS.md): pure cross-process contracts and constants.
 - [Main](src/main/AGENTS.md): main process and preload, security, services, adapters.
 - [Renderer](src/renderer/AGENTS.md): UI, state, design tokens, interactions.

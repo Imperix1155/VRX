@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the default Electron app icon with VRX's packed blue, silver, and
+  orange monogram, with a smoked-glass case, colored rails, and softened
+  chamfers. Windows, Linux, macOS, and tray assets now share that design, with
+  dedicated small-size lettering.
+
 ## [1.0.0-beta.2] - 2026-10-19
 
 ### Added
