@@ -361,13 +361,19 @@ app
       onIdentity: (accountId) => {
         accountSession.setIdentity('vrchat', accountId)
       },
-      onSessionBoundary: () => {
+      onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
-        for (const window of BrowserWindow.getAllWindows()) {
-          if (!window.isDestroyed()) {
-            window.webContents.send('identity-boundary', { platform: 'vrchat' })
+        // A data-path 401 keeps the same account and is followed by
+        // auth-invalidated, which quarantines the renderer. Sending an identity
+        // boundary too would read as an account switch: it refetched the dead
+        // roster and wiped unsaved note drafts.
+        if (!identityRetained) {
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) {
+              window.webContents.send('identity-boundary', { platform: 'vrchat' })
+            }
           }
         }
         // VRX-202: auth changed — cached avatar FAILURES (401s from the old

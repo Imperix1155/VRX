@@ -59,8 +59,12 @@ export interface VrcLiveWiring {
   captureRosterRevision?: () => number
   socketFactory?: (url: string) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
-  /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
-  onSessionBoundary?: () => void
+  /**
+   * Main-process hook for clearing account-scoped consumers such as FriendAlerts.
+   * `identityRetained` marks a data-path 401: the same account may only need 2FA
+   * again, so it is a session fence, not an account switch.
+   */
+  onSessionBoundary?: (boundary: { identityRetained: boolean }) => void
   /** Publishes the current platform identity after adapter state settles. */
   onIdentity?: (accountId: string | null) => void
 }
@@ -820,8 +824,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       return value
     } catch (error) {
       if (context.lease.isCurrent() && error instanceof AuthError && error.status === 401) {
-        this.bumpSessionGeneration()
-        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        this.invalidateDataPathSession()
       }
       throw error
     }
@@ -959,8 +962,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       if (error instanceof AuthError && error.status === 401) {
         // Ordering exemption: a data-path AuthError may mean only that 2FA
         // expired, so this boundary deliberately retains the current identity.
-        this.bumpSessionGeneration()
-        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        this.invalidateDataPathSession()
       }
       throw error
     }
@@ -1084,8 +1086,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     if (!(error instanceof AuthError) || error.status !== 401) return false
     // Invalidate immediately, even while another batch worker is still active.
     // Keep the cookie for the existing 2FA-aware status check.
-    this.bumpSessionGeneration()
-    this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+    this.invalidateDataPathSession()
     return true
   }
 
@@ -1160,8 +1161,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       // We do NOT clearSession: getAuthStatus is 2FA-aware and decides needs-2fa vs
       // unauthenticated; a blunt clear would force a full re-login.
       if (error instanceof AuthError && error.status === 401) {
-        this.bumpSessionGeneration()
-        this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+        this.invalidateDataPathSession()
       }
       throw error
     }
@@ -1252,8 +1252,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
           .catch((error: unknown) => {
             if (generation !== this.sessionGeneration) return
             if (error instanceof AuthError && error.status === 401) {
-              this.bumpSessionGeneration()
-              this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+              this.invalidateDataPathSession()
               return
             }
             this.live?.log?.('warn', 'vrc adapter: live world enrichment failed', {
@@ -1296,8 +1295,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
             .catch((error: unknown) => {
               if (generation !== this.sessionGeneration) return
               if (error instanceof AuthError && error.status === 401) {
-                this.bumpSessionGeneration()
-                this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+                this.invalidateDataPathSession()
                 return
               }
               this.live?.log?.('warn', 'vrc adapter: live group enrichment failed', {
@@ -1467,7 +1465,18 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    * Any late callback from the stopped object keeps its captured old generation
    * and is dropped by createPipeline's event handler.
    */
-  private bumpSessionGeneration(restartPipeline = true): void {
+  /**
+   * Data-path 401: the cookie may be dead or only need 2FA again, so identity and
+   * cookie stay for the 2FA-aware getAuthStatus to decide. In-flight work is
+   * fenced by the new generation and the renderer quarantines on auth-invalidated.
+   * Not an account switch, so no renderer identity boundary follows.
+   */
+  private invalidateDataPathSession(): void {
+    this.bumpSessionGeneration(true, true)
+    this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
+  }
+
+  private bumpSessionGeneration(restartPipeline = true, identityRetained = false): void {
     this.sessionAbort.abort()
     this.authBucketRevision += 1
     this.freshAuthBuckets = null
@@ -1481,7 +1490,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     // paths skip ids already in the set) — drop them with the caches.
     this.pendingGroupResolutions.clear()
     this.pendingWorldResolutions.clear()
-    this.live?.onSessionBoundary?.()
+    this.live?.onSessionBoundary?.({ identityRetained })
 
     if (restartPipeline) {
       this.restartPipeline()
