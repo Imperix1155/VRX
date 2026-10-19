@@ -253,6 +253,23 @@ describe('get-friends location seeding', () => {
     expect(seed).toHaveBeenCalledWith('vrchat', [rosterFriend], expect.any(Number), 'complete')
   })
 
+  it('hands every successful roster to the friend-alert baseline', async () => {
+    handlers.clear()
+    const onRoster = vi.fn()
+    registerFriendsHandlers(
+      new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]),
+      authority,
+      appStatus,
+      onRoster
+    )
+    vi.mocked(adapter.getFriends).mockResolvedValue({
+      friends: [rosterFriend],
+      completeness: 'complete'
+    })
+    await handlers.get('get-friends')!(event, { platform: 'vrchat' })
+    expect(onRoster).toHaveBeenCalledWith('vrchat', [rosterFriend])
+  })
+
   it('stamps the platform reconcile time only after a successful friends response', async () => {
     vi.mocked(adapter.getFriends).mockResolvedValue({
       friends: [rosterFriend],
