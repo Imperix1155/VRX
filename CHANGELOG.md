@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own. Turning off Hot Instances in Settings → Dashboard only hides the
   Dashboard section; the page and alerts stay available. The hot instance
   threshold is now its own row in Settings → Dashboard.
+- Avatar images kept in memory are now capped at about 48 MB per cache (one in
+  the background process, one in the window), so long sessions with many large
+  avatars can't grow memory without limit.
 
 ### Fixed
 
@@ -54,7 +57,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The connection indicator in the top bar now changes shape as well as color
   (dot, ring, square), and the "2 locations" button names both access types in
   its tooltip, so neither relies on color alone.
-
 - If ChilloutVR sends an unreadable friend list when VRX connects, VRX now
   reconnects (at most twice) to get a fresh one instead of showing every
   ChilloutVR friend as offline.
