@@ -3758,6 +3758,40 @@ describe('VrcAdapter', () => {
       expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
     })
 
+    it('marks a data-path 401 boundary as identity-retaining, unlike a login', async () => {
+      // The renderer treats identity-boundary as an account switch (it refetches
+      // the roster and drops note drafts). A data-path 401 keeps the account, so
+      // main must be able to tell the two apart.
+      const accountSession = new AccountSession()
+      const boundaries: Array<{ identityRetained: boolean }> = []
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+        socketFactory: () => ({ on: () => {}, close: () => {} }),
+        onIdentity: (accountId) => accountSession.setIdentity('vrchat', accountId),
+        onSessionBoundary: (boundary) => boundaries.push(boundary)
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      )
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      adapter.subscribe((e) => events.push(e))
+      boundaries.length = 0
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthError)
+      expect(boundaries).toEqual([{ identityRetained: true }])
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
+
+      boundaries.length = 0
+      adapter.clearSession()
+      expect(boundaries).toEqual([{ identityRetained: false }])
+    })
+
     it('a 403 on the buckets probe does NOT emit auth-invalidated (ordinary denial on a live session, VRX-42)', async () => {
       // Same 401-only boundary rule as selfInvite: BaseAdapter classifies 403s
       // as AuthError too, but a 403 must never read as a dead session.

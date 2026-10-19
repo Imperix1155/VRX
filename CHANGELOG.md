@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An avatar that failed to load (for example during a brief network hiccup)
   now tries again while it stays on screen, instead of keeping the placeholder
   until the list is reopened.
+- When one VRChat request comes back as signed out, VRX now checks your sign-in
+  before acting like you switched accounts. It no longer asks VRChat for the
+  friend list again right away, and if your sign-in turns out to be fine, a note
+  you were still typing is kept.
 
 ## [1.0.0-beta.1] - 2026-10-12
 
