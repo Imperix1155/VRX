@@ -130,3 +130,104 @@ describe('combined query enablement', () => {
     expect(result.current).toMatchObject({ isPending: true, isError: false })
   })
 })
+
+describe('per-platform source failures (issue 368)', () => {
+  it('reports a platform that never loaded while the other shows friends', () => {
+    const cvrRefetch = vi.fn(async () => ({}) as never)
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend] }),
+      query({ isError: true, refetch: cvrRefetch })
+    )
+    expect(view.isError).toBe(false)
+    expect(view.friends).toEqual([vrcFriend])
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([
+      ['chilloutvr', 'missing']
+    ])
+    view.sourceFailures[0]?.retry()
+    expect(cvrRefetch).toHaveBeenCalledOnce()
+  })
+
+  it('reports a stale platform that kept its last good data after a failed refetch', () => {
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend], isError: true }),
+      query({ data: [cvrFriend] })
+    )
+    expect(view.isError).toBe(false)
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([['vrchat', 'stale']])
+  })
+
+  it('reports a stale single-platform view', () => {
+    const view = combineFriendQueries(
+      'chilloutvr',
+      query({ isError: true }),
+      query({ data: [cvrFriend], isError: true })
+    )
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([['chilloutvr', 'stale']])
+  })
+
+  it('reports every stale platform when all scoped queries failed but kept data', () => {
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend], isError: true }),
+      query({ data: [cvrFriend], isError: true })
+    )
+    expect(view.friends).toEqual([vrcFriend, cvrFriend])
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([
+      ['vrchat', 'stale'],
+      ['chilloutvr', 'stale']
+    ])
+  })
+
+  it('carries each platform own fetching state, not the combined one', () => {
+    const view = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend], isFetching: true }),
+      query({ isError: true })
+    )
+    expect(view.isFetching).toBe(true)
+    expect(view.sourceFailures.map((f) => [f.platform, f.isFetching])).toEqual([
+      ['chilloutvr', false]
+    ])
+  })
+
+  it('still names the failed platform when the other loaded an empty roster', () => {
+    const view = combineFriendQueries('all', query({ data: [] }), query({ isError: true }))
+    expect(view.friends).toBeUndefined()
+    expect(view.isError).toBe(true)
+    expect(view.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([
+      ['chilloutvr', 'missing']
+    ])
+  })
+
+  it('stays empty when the whole view is in its error state', () => {
+    const view = combineFriendQueries('all', query({ isError: true }), query({ isError: true }))
+    expect(view.isError).toBe(true)
+    expect(view.sourceFailures).toEqual([])
+  })
+
+  it('ignores disabled (signed-out) platforms and platforms outside the filter', () => {
+    const disabled = combineFriendQueries(
+      'all',
+      query({ data: [vrcFriend] }),
+      query({ isError: true, isEnabled: false })
+    )
+    expect(disabled.sourceFailures).toEqual([])
+    const filtered = combineFriendQueries(
+      'vrchat',
+      query({ data: [vrcFriend] }),
+      query({ isError: true })
+    )
+    expect(filtered.sourceFailures).toEqual([])
+  })
+
+  it('matches between the hook and the pure combiner', () => {
+    const vrc = query({ data: [vrcFriend] })
+    const cvr = query({ isError: true })
+    const { result } = renderHook(() => useCombineFriendQueries('all', vrc, cvr))
+    expect(result.current.sourceFailures.map((f) => [f.platform, f.kind])).toEqual([
+      ['chilloutvr', 'missing']
+    ])
+  })
+})
