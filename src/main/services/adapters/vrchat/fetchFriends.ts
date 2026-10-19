@@ -279,12 +279,22 @@ export async function fetchFriends(
     rateLimit = { retryAfterMs: error.retryAfterMs }
   }
 
+  // The two passes are offset-paginated seconds apart, so a friend who changes
+  // state between them can be listed twice and pages can shift. Keep one row
+  // per friend (the later read), and treat a duplicate as evidence the pages
+  // moved: the roster may also have skipped someone, so it cannot drive removal.
+  const byId = new Map<string, VrcFriend>()
+  for (const friend of friends) byId.set(friend.platformUserId, friend)
+  const shifted = byId.size !== friends.length
   const completeness: RosterCompleteness =
-    counters.failedPages === 0 && counters.skippedRecords === 0 && friends.length < MAX_FRIENDS
+    !shifted &&
+    counters.failedPages === 0 &&
+    counters.skippedRecords === 0 &&
+    friends.length < MAX_FRIENDS
       ? 'complete'
       : 'partial'
   return {
-    friends,
+    friends: shifted ? [...byId.values()] : friends,
     presence: 'complete',
     completeness,
     failedPages: counters.failedPages,
