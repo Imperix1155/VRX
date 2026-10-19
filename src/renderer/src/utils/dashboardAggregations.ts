@@ -126,13 +126,15 @@ const MAX_HOT_INSTANCES = 6
  *   iff VISIBLE members alone ≥ threshold.
  * - Members are deduped by `platform:platformUserId` (first occurrence
  *   wins) — a duplicated row must never count one person twice.
- * - Capped at MAX_HOT_INSTANCES (6) — one grid row of cards.
+ * - Capped at `limit` (default MAX_HOT_INSTANCES, 6). The Hot Instances page
+ *   passes `Infinity` to show every hot instance.
  * - `threshold` is the user's `settings.hotInstanceThreshold` (VRX-78);
  *   defaults to the project constant so non-UI callers stay unchanged.
  */
 export function getHotInstances(
   friends: Friend[],
-  threshold: number = HOT_INSTANCE_THRESHOLD
+  threshold: number = HOT_INSTANCE_THRESHOLD,
+  limit: number = MAX_HOT_INSTANCES
 ): HotInstance[] {
   const map = new Map<string, HotInstance>()
   // Dedupe by identity (first occurrence wins for membership and friendCount):
@@ -206,6 +208,13 @@ export function getHotInstances(
       // metadata (e.g. after hydration the merge filled one member but a
       // fresh-roster member is still null). Back-fill nulls from any member
       // that knows more — same groupId only, never across (CodeRabbit, VRX-260).
+      // World art and name are identical across one exact instance, so a
+      // member that is already enriched fills a still-null first member's
+      // gap; the picture cards would otherwise keep the placeholder.
+      if (existing.thumbnailUrl === null && instance.thumbnailUrl !== null) {
+        existing.thumbnailUrl = instance.thumbnailUrl
+      }
+      if (existing.worldName === null && worldName !== null) existing.worldName = worldName
       if (existing.isGroup && existing.groupId !== null && instance.groupId === existing.groupId) {
         if (existing.groupName === null && instance.groupName !== null) {
           existing.groupName = instance.groupName
@@ -261,6 +270,36 @@ export function getHotInstances(
         if (a.groupKey !== b.groupKey) return a.groupKey < b.groupKey ? -1 : 1
         return 0
       })
-      .slice(0, MAX_HOT_INSTANCES)
+      .slice(0, limit)
   )
+}
+
+/** Platform order for the fair pick. It only matters when `count` is 1. */
+const PICK_PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
+
+/** How many cards each Dashboard section shows (owner, 2026-10-18). */
+export const DASHBOARD_SECTION_CARDS = 2
+
+/**
+ * The Dashboard's platform-fair pick (owner, 2026-10-18). From a list already
+ * sorted best-first, take each platform's top item first, then fill any
+ * remaining slots by overall order. With only one platform present this is
+ * simply the top `count`. The result keeps the input order, so the larger
+ * one still comes first.
+ */
+export function pickOnePerPlatform<T extends { platform: Platform }>(
+  sorted: readonly T[],
+  count: number = DASHBOARD_SECTION_CARDS
+): T[] {
+  const picked = new Set<T>()
+  for (const platform of PICK_PLATFORMS) {
+    if (picked.size >= count) break
+    const top = sorted.find((item) => item.platform === platform)
+    if (top !== undefined) picked.add(top)
+  }
+  for (const item of sorted) {
+    if (picked.size >= count) break
+    picked.add(item)
+  }
+  return sorted.filter((item) => picked.has(item))
 }
