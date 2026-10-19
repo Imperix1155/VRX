@@ -220,6 +220,10 @@ describe('linked roster integration', () => {
     )
     const view = render(tree)
     const list = screen.getByRole('list', { name: 'Friends' })
+    // Each half's access tier is also spelled out, not color-only.
+    expect(within(list).getByRole('button', { name: '2 locations' }).getAttribute('title')).toMatch(
+      /^VRChat: .+ · ChilloutVR: .+$/
+    )
     fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
     fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
     expect(joinInstance).toHaveBeenCalledOnce()
