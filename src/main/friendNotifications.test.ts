@@ -247,27 +247,22 @@ describe('createFriendNotificationNotifier', () => {
 })
 
 describe('feature-aware alert consent', () => {
-  it('suppresses hot alerts while off and retains independent friend preferences', () => {
+  it('follows only the hot alert preference; the Dashboard switch never gates it', () => {
     const settings = {
       ...DEFAULT_SETTINGS,
       notifyHotInstance: true,
       notifyFriendOnline: true,
       hotInstancesEnabled: false
     }
-    expect(isFriendAlertEnabled('hot-instance', settings)).toBe(false)
+    expect(isFriendAlertEnabled('hot-instance', settings)).toBe(true)
     expect(isFriendAlertEnabled('online', settings)).toBe(true)
     expect(isFriendAlertEnabled('offline', settings)).toBe(false)
     expect(isFriendAlertEnabled('in-game', settings)).toBe(false)
-    expect(settings.notifyHotInstance).toBe(true)
     expect(isFriendAlertEnabled('hot-instance', { ...settings, hotInstancesEnabled: true })).toBe(
       true
     )
-    expect(
-      isFriendAlertEnabled('hot-instance', {
-        ...settings,
-        hotInstancesEnabled: true,
-        notifyHotInstance: false
-      })
-    ).toBe(false)
+    expect(isFriendAlertEnabled('hot-instance', { ...settings, notifyHotInstance: false })).toBe(
+      false
+    )
   })
 })
