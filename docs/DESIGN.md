@@ -223,6 +223,8 @@ remain available through their implemented features.
 The top bar owns the page's single heading. Its social selector reads
 VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
 echoes that filter. Connection-health copy is real state, not decoration.
+The connection indicator pairs its color with shape: a pulsing dot is live, a
+hollow ring is reconnecting, and a square is down; its label names each platform.
 Settings replaces the social selector with its category control. Keep the platform
 filter in the same horizontal position across Dashboard, Friends, and Explore,
 including when a scrollbar appears or disappears. No page-specific shortcut may
