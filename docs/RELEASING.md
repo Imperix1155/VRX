@@ -46,6 +46,16 @@ commit and builds and publishes it in the same run. A tag created by the
 workflow's own token does not start a second run. Pushes that leave the version
 unchanged (dependency bumps, workflow edits) never publish.
 
+**CI gate.** Before it creates or uses any tag, the workflow requires the
+commit to be on `main` and CI's `ci-success` check (from GitHub Actions) to have
+passed on that exact commit
+([scripts/require-green-ci.mjs](../scripts/require-green-ci.mjs)). On a merge CI
+and Release start together, so `prepare tag` waits up to 60 minutes for CI. A
+red, cancelled or missing `ci-success` stops the run before anything is tagged
+or built. Fix the cause on `main` with a new version, or, when CI passes on a
+re-run of that commit, re-run the Release run's failed jobs. CI runs for `main`
+pushes are never cancelled by a newer push, so every merge commit gets a result.
+
 Merging the version PR is therefore publication authority. Merge it only when
 the release in that tag's channel is authorized. Never move an existing public
 tag to repair a release; ship an approved new version instead.
