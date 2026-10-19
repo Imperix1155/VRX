@@ -1351,6 +1351,117 @@ describe('CvrAdapter', () => {
       expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'chilloutvr' })
     })
 
+    describe('a data-path 403 signs out only when a reauth is also rejected', () => {
+      function routed(authResponses: Array<() => Promise<Response>>): ReturnType<typeof vi.fn> {
+        const fetchMock = vi.fn((url: RequestInfo | URL) => {
+          const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+          if (href.endsWith('/users/auth')) {
+            const next = authResponses.shift()
+            if (!next) throw new Error('unexpected reauth')
+            return next()
+          }
+          return Promise.resolve(jsonResponse({ message: 'forbidden' }, { status: 403 }))
+        })
+        vi.stubGlobal('fetch', fetchMock)
+        return fetchMock
+      }
+
+      function setup(): {
+        adapter: CvrAdapter
+        store: ReturnType<typeof fakeStore>
+        events: AdapterEvent[]
+      } {
+        const events: AdapterEvent[] = []
+        const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+        const adapter = new CvrAdapter(store, instantAdmission(), {
+          socketFactory: () => ({ on: () => {}, close: () => {} })
+        })
+        markSessionEstablishedForTest(adapter)
+        adapter.subscribe((e) => events.push(e))
+        return { adapter, store, events }
+      }
+
+      function authCalls(fetchMock: ReturnType<typeof vi.fn>): number {
+        return fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/users/auth')).length
+      }
+
+      it('keeps the session when the same key still reauthenticates, and checks only once', async () => {
+        const { adapter, store, events } = setup()
+        const fetchMock = routed([() => Promise.resolve(jsonResponse(envelope(authPayload())))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(authCalls(fetchMock)).toBe(1))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(store.deleted).toBe(0)
+        expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
+        expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+
+        // A later 403 on the same session is a permission denial: no new reauth.
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(authCalls(fetchMock)).toBe(1)
+        expect(store.deleted).toBe(0)
+      })
+
+      it('never opens the circuit on repeated permission denials', async () => {
+        const { adapter } = setup()
+        const fetchMock = routed([() => Promise.resolve(jsonResponse(envelope(authPayload())))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(authCalls(fetchMock)).toBe(1))
+        // Each later 403 still reaches ChilloutVR instead of failing fast as
+        // "Circuit open", so valid requests are never blocked by denials.
+        for (let i = 0; i < 4; i++) {
+          await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        }
+        expect(fetchMock.mock.calls.length - authCalls(fetchMock)).toBe(5)
+      })
+
+      it('signs out and tells the renderer when the reauth is rejected too', async () => {
+        const { adapter, store, events } = setup()
+        routed([() => Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 }))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(store.deleted).toBe(1))
+        expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'chilloutvr' })
+        expect((await adapter.getAuthStatus()).state).toBe('unauthenticated')
+      })
+
+      it('keeps the session when the reauth cannot reach ChilloutVR', async () => {
+        const { adapter, store, events } = setup()
+        const fetchMock = routed([() => Promise.reject(new TypeError('offline'))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() => expect(authCalls(fetchMock)).toBe(1))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(store.deleted).toBe(0)
+        expect(events.some((e) => e.type === 'auth-invalidated')).toBe(false)
+      })
+
+      it('adopts and persists a key the reauth rotated', async () => {
+        const { adapter, store } = setup()
+        routed([() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' }))))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() =>
+          expect(store.saved).toContainEqual({ username: 'trinity', accessKey: 'key-2' })
+        )
+        expect(store.deleted).toBe(0)
+        expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+      })
+
+      it('still signs out at once on a 401, without a reauth', async () => {
+        const { adapter, store } = setup()
+        const fetchMock = vi.fn(() =>
+          Promise.resolve(jsonResponse({ message: 'denied' }, { status: 401 }))
+        )
+        vi.stubGlobal('fetch', fetchMock)
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        expect(store.deleted).toBe(1)
+        expect(authCalls(fetchMock)).toBe(0)
+      })
+    })
+
     it('a 5xx on getFriends does NOT emit auth-invalidated (the session is still valid)', async () => {
       const events: AdapterEvent[] = []
       const adapter = new CvrAdapter(

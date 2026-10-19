@@ -723,11 +723,124 @@ describe('VrcAdapter', () => {
       )
 
       await adapter.getAuthStatus()
-      await adapter.getAuthStatus()
-      expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
+      // #367: an expired second factor revokes the published identity at once,
+      // not only when verifyTwoFactor starts.
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      expect(accountSession.getAccountId('vrchat')).toBeNull()
       await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
       expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
+      expect(boundary).toHaveBeenCalledTimes(3)
+    })
+
+    it('revokes consumer authority when an established session needs 2FA again (#367)', async () => {
+      const accountSession = new AccountSession()
+      const store = fakeStore('auth=account-a; twoFactorAuth=old')
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+        .mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+      vi.stubGlobal('fetch', fetchMock)
+      const boundary = vi.fn()
+      const adapter = new VrcAdapter(store, instantAdmission(), wiring(accountSession, boundary))
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      expect(adapter.getAuthCookieHeader()).not.toBeNull()
+      expect(adapter.getAvatarRequestLease()).not.toBeNull()
+      const deletedBefore = store.deleted
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({
+        state: 'needs-2fa',
+        twoFactorMethod: 'totp'
+      })
+      // Account-scoped authority is gone…
+      expect(accountSession.getAccountId('vrchat')).toBeNull()
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      expect(adapter.getAvatarRequestLease()).toBeNull()
       expect(boundary).toHaveBeenCalledTimes(2)
+      // …but the verification credential survives (no logout, no disk delete).
+      expect(store.deleted).toBe(deletedBefore)
+
+      // Repeated needs-2fa polls do not publish further boundaries.
+      await adapter.getAuthStatus()
+      expect(boundary).toHaveBeenCalledTimes(2)
+    })
+
+    it('publishes no boundary when a restored cookie first needs 2FA at boot (#367)', async () => {
+      const accountSession = new AccountSession()
+      const store = fakeStore('auth=account-a; twoFactorAuth=old')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+      )
+      const boundary = vi.fn()
+      const adapter = new VrcAdapter(store, instantAdmission(), wiring(accountSession, boundary))
+      const deletedBefore = store.deleted
+      // Adopting the restored cookie is the only boundary so far.
+      const boundariesAtBoot = boundary.mock.calls.length
+
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+      // Nothing was ever published, so there is nothing to revoke.
+      expect(boundary).toHaveBeenCalledTimes(boundariesAtBoot)
+      expect(accountSession.getAccountId('vrchat')).toBeNull()
+      expect(store.deleted).toBe(deletedBefore)
+    })
+
+    it('stops the live pipeline when an established session needs 2FA again (#367)', async () => {
+      const sockets: DrivableVrcSocket[] = []
+      const fetchMock = vi.fn((url: RequestInfo | URL) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.href : url.url
+        if (href.endsWith('/auth'))
+          return Promise.resolve(jsonResponse({ token: 'pipeline-token' }))
+        return Promise.resolve(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      markSessionEstablished(adapter)
+      const unsubscribe = adapter.subscribe(() => {})
+      try {
+        await vi.waitFor(() => expect(sockets).toHaveLength(1))
+        sockets[0]!.fire('open')
+
+        await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'needs-2fa' })
+        expect(sockets[0]!.closed).toBe(true)
+        // No replacement pipeline starts while the reprompt is pending.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        expect(sockets).toHaveLength(1)
+      } finally {
+        unsubscribe()
+      }
+    })
+
+    it('restores consumer authority after the reprompt is verified (#367)', async () => {
+      const accountSession = new AccountSession()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+        .mockResolvedValueOnce(jsonResponse({ requiresTwoFactorAuth: ['totp'] }))
+        .mockResolvedValueOnce(
+          jsonResponse({ verified: true }, { setCookies: ['twoFactorAuth=fresh'] })
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(
+        fakeStore('auth=account-a; twoFactorAuth=old'),
+        instantAdmission(),
+        wiring(accountSession)
+      )
+
+      await adapter.getAuthStatus()
+      await adapter.getAuthStatus()
+      expect(adapter.getAuthCookieHeader()).toBeNull()
+      await expect(adapter.verify2fa('123456')).resolves.toEqual({ ok: true })
+      expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
+      expect(adapter.getAuthCookieHeader()).toBe('auth=account-a; twoFactorAuth=fresh')
+      expect(adapter.getAvatarRequestLease()).not.toBeNull()
     })
   })
 
@@ -3756,6 +3869,40 @@ describe('VrcAdapter', () => {
 
       await expect(adapter.getFriends()).rejects.toBeInstanceOf(Error)
       expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+    })
+
+    it('marks a data-path 401 boundary as identity-retaining, unlike a login', async () => {
+      // The renderer treats identity-boundary as an account switch (it refetches
+      // the roster and drops note drafts). A data-path 401 keeps the account, so
+      // main must be able to tell the two apart.
+      const accountSession = new AccountSession()
+      const boundaries: Array<{ identityRetained: boolean }> = []
+      const events: AdapterEvent[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+        socketFactory: () => ({ on: () => {}, close: () => {} }),
+        onIdentity: (accountId) => accountSession.setIdentity('vrchat', accountId),
+        onSessionBoundary: (boundary) => boundaries.push(boundary)
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce(jsonResponse({ id: 'ACCOUNT001', displayName: 'Account A' }))
+      )
+      await expect(adapter.getAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+      adapter.subscribe((e) => events.push(e))
+      boundaries.length = 0
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
+      )
+      await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthError)
+      expect(boundaries).toEqual([{ identityRetained: true }])
+      expect(events).toContainEqual({ type: 'auth-invalidated', platform: 'vrchat' })
+      expect(accountSession.getAccountId('vrchat')).toBe('ACCOUNT001')
+
+      boundaries.length = 0
+      adapter.clearSession()
+      expect(boundaries).toEqual([{ identityRetained: false }])
     })
 
     it('a 403 on the buckets probe does NOT emit auth-invalidated (ordinary denial on a live session, VRX-42)', async () => {

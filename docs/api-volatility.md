@@ -341,7 +341,7 @@ occupancy fields; malformed evidence stays unknown or is omitted.
 - Current avatar: `currentAvatar: string` (URI or ID)
 - Current home world: `currentHomeWorld: string` (world URI or ID)
 
-**Two auth legs (VRX-37):** `AuthType 2` = interactive password login; `AuthType 1` = re-auth with the stored `accessKey` (session validation on boot/refetch). Both use a breaker-free raw path so a failing validation can't lock out login (VRX-189 tracks the residual network sub-case). CVR may **rotate** the `accessKey` on re-auth — VRX persists the rotation; if it ever stops rotating, no impact (same key re-persisted). A 401 on re-auth = dead session → cleared everywhere (no zombie restore).
+**Two auth legs (VRX-37):** `AuthType 2` = interactive password login; `AuthType 1` = re-auth with the stored `accessKey` (session validation on boot/refetch). Both use a breaker-free raw path so a failing validation can't lock out login (VRX-189 tracks the residual network sub-case). CVR may **rotate** the `accessKey` on re-auth — VRX persists the rotation; if it ever stops rotating, no impact (same key re-persisted). A 401 on re-auth = dead session → cleared everywhere (no zombie restore). A **403 on a data call** (friends, instance, Explore) is not trusted as a dead key on its own: VRX re-auths once with the same key and signs out only if that is rejected too, since a 403 can be a per-resource permission denial.
 
 **Verification:** 🟡 Endpoint verified; response shape from reverse-engineering and live observation.
 
