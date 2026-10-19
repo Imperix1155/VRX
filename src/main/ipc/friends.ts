@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
-import type { Platform } from '@shared/types'
+import type { Friend, Platform } from '@shared/types'
 import type { FriendRoster, IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { RateLimitError, RequestQueueFullError } from '../services/adapters/errors'
 import type { AppStatusService } from '../services/appStatus'
@@ -40,7 +40,8 @@ function serializeFriendRoster(
 export function registerFriendsHandlers(
   adapters: Map<Platform, IPlatformAdapter>,
   authority: LocationAuthority,
-  appStatus: AppStatusService
+  appStatus: AppStatusService,
+  onRoster?: (platform: Platform, friends: Friend[]) => void
 ): void {
   ipcMain.handle('get-friends', async (event, req: IpcInvoke['get-friends']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
@@ -67,6 +68,19 @@ export function registerFriendsHandlers(
       authority.seed(req.platform, roster.friends, revision, roster.completeness)
     }
     appStatus.recordReconcile(req.platform)
+    try {
+      // Hand on the authority's merged view, not the raw rows: a live removal
+      // or move that landed while this read was in flight must win over it.
+      if (onRoster) {
+        const accepted = roster.friends.flatMap((friend) => {
+          const resolved = authority.resolve(req.platform, friend.platformUserId)
+          return resolved.ok ? [resolved.friend] : []
+        })
+        onRoster(req.platform, accepted)
+      }
+    } catch {
+      /* A consumer failure must not fail the roster read. */
+    }
     return serializeFriendRoster(req.platform, roster, revision)
   })
 }

@@ -35,6 +35,12 @@ export const AVATAR_ALLOWED_MIME_TYPES = new Set([
   'image/avif'
 ])
 export const AVATAR_CACHE_MAX_ENTRIES = 200
+/**
+ * Aggregate budget for retained data URLs (#370). Measured in data-URL
+ * characters (base64 is ASCII, so ~1 byte each in V8). Without it, 200 entries
+ * of up to 3 MiB (≈4 MiB as base64) could retain ~800 MiB in main.
+ */
+export const AVATAR_CACHE_MAX_BYTES = 48 * 1024 * 1024
 export const AVATAR_FETCH_MAX_CONCURRENCY = 4
 export const AVATAR_MAX_BODY_BYTES = 3 * 1024 * 1024
 export const AVATAR_MAX_URL_LENGTH = 2048
@@ -51,6 +57,7 @@ interface AvatarCacheOptions {
   fetchFn?: typeof fetch
   now?: () => number
   maxEntries?: number
+  maxBytes?: number
   negativeCacheMs?: number
   positiveCacheMs?: number
   maxConcurrency?: number
@@ -107,6 +114,8 @@ export class AvatarCache {
   private readonly fetchFn: typeof fetch
   private readonly now: () => number
   private readonly maxEntries: number
+  private readonly maxBytes: number
+  private cachedBytes = 0
   private readonly negativeCacheMs: number
   private readonly positiveCacheMs: number
   private readonly maxConcurrency: number
@@ -123,6 +132,7 @@ export class AvatarCache {
     this.fetchFn = options.fetchFn ?? fetch
     this.now = options.now ?? Date.now
     this.maxEntries = options.maxEntries ?? AVATAR_CACHE_MAX_ENTRIES
+    this.maxBytes = options.maxBytes ?? AVATAR_CACHE_MAX_BYTES
     this.negativeCacheMs = options.negativeCacheMs ?? AVATAR_NEGATIVE_CACHE_MS
     this.positiveCacheMs = options.positiveCacheMs ?? AVATAR_POSITIVE_CACHE_MS
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
@@ -148,7 +158,7 @@ export class AvatarCache {
    */
   clearNegativeEntries(): void {
     for (const [url, entry] of this.cache) {
-      if (entry.dataUrl === null) this.cache.delete(url)
+      if (entry.dataUrl === null) this.deleteEntry(url)
     }
   }
 
@@ -160,11 +170,12 @@ export class AvatarCache {
     const cached = this.cache.get(url)
     if (cached) {
       if (cached.expiresAt > this.now()) {
+        // Re-insert to mark most recently used (Map keeps insertion order).
         this.cache.delete(url)
         this.cache.set(url, cached)
         return Promise.resolve(cached.dataUrl)
       }
-      this.cache.delete(url)
+      this.deleteEntry(url)
     }
 
     const lease = parsed.hostname === AVATAR_COOKIE_HOST ? this.vrcSessionProvider?.() : undefined
@@ -197,11 +208,10 @@ export class AvatarCache {
     }
 
     if (lease && (lease.signal.aborted || !lease.isCurrent())) return null
-    this.cache.set(url, {
+    this.setEntry(url, {
       dataUrl,
       expiresAt: this.now() + (dataUrl === null ? this.negativeCacheMs : this.positiveCacheMs)
     })
-    this.evictOldestEntries()
     return dataUrl
   }
 
@@ -446,12 +456,41 @@ export class AvatarCache {
     }
   }
 
+  /** Retained size of one entry; negative entries cost nothing. */
+  private static entryBytes(entry: CacheEntry): number {
+    return entry.dataUrl?.length ?? 0
+  }
+
+  private deleteEntry(url: string): void {
+    const entry = this.cache.get(url)
+    if (!entry) return
+    this.cachedBytes -= AvatarCache.entryBytes(entry)
+    this.cache.delete(url)
+  }
+
+  private setEntry(url: string, entry: CacheEntry): void {
+    this.deleteEntry(url)
+    // An image larger than the whole budget is still returned to the caller,
+    // just not retained (it would evict everything else and then itself).
+    const bytes = AvatarCache.entryBytes(entry)
+    if (bytes > this.maxBytes) return
+    this.cache.set(url, entry)
+    this.cachedBytes += bytes
+    this.evictOldestEntries()
+  }
+
+  /** Evict least recently used entries until both the count and byte budgets hold. */
   private evictOldestEntries(): void {
-    while (this.cache.size > this.maxEntries) {
+    while (this.cache.size > this.maxEntries || this.cachedBytes > this.maxBytes) {
       const oldest = this.cache.keys().next().value
       if (oldest === undefined) return
-      this.cache.delete(oldest)
+      this.deleteEntry(oldest)
     }
+  }
+
+  /** Total retained data-URL size (test/diagnostic hook). */
+  get retainedBytes(): number {
+    return this.cachedBytes
   }
 }
 
