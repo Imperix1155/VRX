@@ -7,6 +7,15 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
+import { joinFailureMessageKey, type JoinFailureReason } from '../hooks/useJoinInstance'
+
+/** Failures where "refresh and try again" is wrong advice; they keep their own copy. */
+const RETRYABLE_EXPLORE_FAILURES: ReadonlySet<JoinFailureReason> = new Set([
+  'stale',
+  'cooldown',
+  'rate-limited',
+  'joining-disabled'
+])
 
 export interface ExploreWorldSheetProps {
   snapshot: ExploreWorldSnapshot | null
@@ -21,7 +30,7 @@ export interface ExploreWorldSheetProps {
   dismissable?: boolean
   joining?: boolean
   onRefresh?: () => void
-  joinFailureFor?: (room: ExploreRoom) => boolean
+  joinFailureFor?: (room: ExploreRoom) => JoinFailureReason | null
   /** A coordinated sibling-sheet handoff consumes this once to preserve the
    * incoming sheet's initial focus. Ordinary sheet closure still restores focus. */
   consumeFocusRestoreSuppression?: () => boolean
@@ -117,6 +126,9 @@ export default function ExploreWorldSheet({
   const [retained, setRetained] = useState<ExploreWorldSnapshot | null>(null)
   if (snapshot !== null && snapshot !== retained) setRetained(snapshot)
   const shown = snapshot ?? retained
+  const joinFailure =
+    shown?.rooms.map((room) => joinFailureFor?.(room) ?? null).find((reason) => reason !== null) ??
+    null
   const open = snapshot !== null
   const closeRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -298,9 +310,13 @@ export default function ExploreWorldSheet({
                 ))}
               </ul>
             ) : null}
-            {shown.rooms.some((room) => joinFailureFor?.(room)) ? (
+            {joinFailure != null ? (
               <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
-                {t('explore.joinFailed')}
+                {t(
+                  RETRYABLE_EXPLORE_FAILURES.has(joinFailure)
+                    ? joinFailureMessageKey(joinFailure)
+                    : 'explore.joinFailed'
+                )}
               </p>
             ) : null}
             {!shown.roomsComplete && shown.rooms.length > 0 ? (
