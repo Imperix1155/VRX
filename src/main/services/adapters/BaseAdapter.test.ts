@@ -77,8 +77,13 @@ class TestAdapter extends BaseAdapter {
   }
 
   // Expose the protected methods for testing.
-  fetch<T>(url: string, schema: z.ZodType<T>, options?: RequestInit): Promise<T> {
-    return this.request(url, schema, options)
+  fetch<T>(
+    url: string,
+    schema: z.ZodType<T>,
+    options?: RequestInit,
+    requestOptions?: AdapterRequestOptions
+  ): Promise<T> {
+    return this.request(url, schema, options, requestOptions)
   }
   raw(
     url: string,
@@ -732,6 +737,20 @@ describe('BaseAdapter', () => {
       const callsBefore = fetchMock.mock.calls.length
       await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
       expect(fetchMock.mock.calls.length).toBe(callsBefore)
+    })
+
+    it('does not count error statuses from requests that opt out of the breaker', async () => {
+      // Lookups such as CVR instance enrichment get 404/403 for private rooms as
+      // a normal answer; three of them must not block every other request.
+      fetchMock.mockResolvedValue(makeResponse(404, {}))
+      const adapter = new TestAdapter()
+      for (let i = 0; i < 3; i++) {
+        await expect(
+          adapter.fetch('http://api/x', schema, undefined, { recordCircuitFailure: false })
+        ).rejects.toBeInstanceOf(NetworkError)
+      }
+      fetchMock.mockResolvedValue(makeResponse(200, validBody))
+      await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
     })
 
     it('resets after a successful request', async () => {

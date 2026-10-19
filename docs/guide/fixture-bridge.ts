@@ -108,6 +108,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
     openUrl: () => Promise.resolve(),
+    openLogsFolder: () => Promise.resolve(),
     getSettings: () => Promise.resolve(DEFAULT_SETTINGS),
     saveSettings: ({ patch }) => Promise.resolve({ ...DEFAULT_SETTINGS, ...patch }),
     getUpdaterState: () => Promise.resolve(updater),
