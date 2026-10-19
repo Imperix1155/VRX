@@ -68,6 +68,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When one platform's friends fail to load or refresh, the Friends list now says
   so (for example "ChilloutVR friends could not refresh") and offers a Retry for
   just that platform, instead of silently showing a partial or outdated list.
+- When one VRChat request comes back as signed out, VRX now checks your sign-in
+  before acting like you switched accounts. It no longer asks VRChat for the
+  friend list again right away, and if your sign-in turns out to be fine, a note
+  you were still typing is kept.
 - ChilloutVR no longer signs you out when it refuses one thing you don't have
   access to (such as a private instance). VRX now checks your sign-in first and
   only signs you out if ChilloutVR rejects that too. A few of those refusals in a
@@ -77,6 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The app window's content security policy no longer allows inline styles, so
   injected style markup can't take effect.
+- When VRChat asks you to re-enter your two-factor code, VRX now stops all
+  account activity in the background (friend updates, image requests) until the
+  code is verified, instead of only blocking the window.
 
 ## [1.0.0-beta.1] - 2026-10-12
 
