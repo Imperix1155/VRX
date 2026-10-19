@@ -1464,11 +1464,6 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   }
 
   /**
-   * Fence every account boundary before replacing or stopping the live pipeline.
-   * Any late callback from the stopped object keeps its captured old generation
-   * and is dropped by createPipeline's event handler.
-   */
-  /**
    * Data-path 401: the cookie may be dead or only need 2FA again, so identity and
    * cookie stay for the 2FA-aware getAuthStatus to decide. In-flight work is
    * fenced by the new generation and the renderer quarantines on auth-invalidated.
@@ -1479,6 +1474,11 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
+  /**
+   * Fence every account boundary before replacing or stopping the live pipeline.
+   * Any late callback from the stopped object keeps its captured old generation
+   * and is dropped by createPipeline's event handler.
+   */
   private bumpSessionGeneration(restartPipeline = true, identityRetained = false): void {
     this.sessionAbort.abort()
     this.authBucketRevision += 1
