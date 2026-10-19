@@ -260,10 +260,22 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="dashboard"
             title="Dashboard"
-            note="Interactive fixture. The composition includes statistics, discovery, and hot instances."
-            source="DashboardView.tsx"
+            note="Interactive fixture. The composition includes statistics, discovery, and hot instances. Each section shows two cards; the first section uses picture cards and the second uses bars with the world picture behind them."
+            source="DashboardView.tsx · HotInstanceCard.tsx · ExploreWorldCard.tsx"
+            variant="popular-first"
+            variants={[
+              { value: 'popular-first', label: 'Popular now first' },
+              { value: 'hot-first', label: 'Hot Instances first' }
+            ]}
             height="tall"
             paired
+          />
+          <Scene
+            name="hot"
+            title="Hot Instances page"
+            note="Interactive fixture. Every hot instance, most friends first, as picture cards with the same header and sheet as the Dashboard."
+            source="HotInstancesView.tsx · HotInstanceCard.tsx"
+            height="tall"
           />
           <Scene
             name="explore"
@@ -411,7 +423,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="dashboard"
             title="App shell"
-            note="Interactive fixture. Dashboard, Friends, Explore, and Settings are the four navigation destinations. The sidebar stays fixed while content owns scrolling."
+            note="Interactive fixture. Dashboard, Hot Instances, Friends, Explore, and Settings are the navigation destinations. The sidebar stays fixed while content owns scrolling."
             source="AppShell.tsx · Sidebar.tsx · TopBar.tsx"
             height="short"
           />
