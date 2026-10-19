@@ -97,15 +97,15 @@ describe('dependency audit policy', () => {
   })
 
   it('still accepts the exception just before expiry', () => {
-    expect(evaluate(full(), report(), lock(), new Date('2026-10-30T23:59:59Z'))).toEqual([])
+    expect(evaluate(full(), report(), lock(), new Date('2027-01-30T23:59:59Z'))).toEqual([])
   })
 
-  it.each(['2026-10-31T00:00:00Z', '2026-11-01T00:00:00Z'])('expires at %s', (date) => {
+  it.each(['2027-01-31T00:00:00Z', '2027-02-01T00:00:00Z'])('expires at %s', (date) => {
     expect(evaluate(full(), report(), lock(), new Date(date))).toHaveLength(1)
   })
 
   it('does not block a fixed dependency tree after expiry', () => {
-    expect(evaluate(report(), report(), {}, new Date('2026-11-01'))).toEqual([])
+    expect(evaluate(report(), report(), {}, new Date('2027-02-01'))).toEqual([])
   })
 
   it.each(['high', 'critical'])('blocks production %s findings without exemptions', (severity) => {

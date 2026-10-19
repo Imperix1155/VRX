@@ -16,6 +16,13 @@ describe('parseLocation — non-instance inputs → null', () => {
     expect(parseLocation('offline')).toBeNull()
   })
 
+  it.each(['traveling:traveling', 'private:private', 'offline:offline'])(
+    'returns null for the colon-form placeholder %s',
+    (location) => {
+      expect(parseLocation(location)).toBeNull()
+    }
+  )
+
   it('returns null for "traveling"', () => {
     expect(parseLocation('traveling')).toBeNull()
   })
