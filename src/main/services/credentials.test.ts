@@ -108,9 +108,11 @@ import {
   CREDENTIAL_KEYS,
   clearCredential,
   CredentialEncryptionUnavailableError,
+  isCredentialSignedOut,
   loadCredential,
   recordCredentialOwner,
-  saveCredential
+  saveCredential,
+  signOutCredential
 } from './credentials'
 
 const originalPlatform = process.platform
@@ -275,6 +277,39 @@ describe('credential storage', () => {
     expect(mocks.decryptString).not.toHaveBeenCalled()
     expect(mocks.stores.get('credentials')?.['vrchat:primary']).not.toBe(oldCiphertext)
     expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('account-a-token')
+  })
+
+  it('remembers an explicit sign-out until the next save', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+
+    signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBeUndefined()
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(true)
+    expect(JSON.stringify(mocks.stores.get('credentials'))).not.toContain('cvr-session')
+
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'next-session')
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe('next-session')
+  })
+
+  it('does not mark an automatic clear as a sign-out', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+    expect(isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBe(false)
+  })
+
+  it('still revokes the slot when the sign-out marker cannot be written', () => {
+    saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, 'cvr-session')
+    // clearCredential's marker write succeeds; the sign-out marker write fails.
+    mocks.delayedSetErrors.set('credentials', {
+      successfulWritesRemaining: 1,
+      error: new Error('store write failed')
+    })
+
+    expect(() => signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).not.toThrow()
+    expect(loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)).toBeUndefined()
   })
 
   it('clears the credential owner sidecar with the stored credential', () => {

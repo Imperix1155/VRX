@@ -29,9 +29,11 @@ import {
 import {
   CREDENTIAL_KEYS,
   clearCredential,
+  isCredentialSignedOut,
   loadCredential,
   recordCredentialOwner,
-  saveCredential
+  saveCredential,
+  signOutCredential
 } from './services/credentials'
 import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdapter'
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
@@ -380,7 +382,15 @@ app
     // precedes discovery of game profiles or CVRX sessions. Imported material is printable-ASCII
     // validated and encrypted here before CvrAdapter can adopt or re-auth it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
-      const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      let raw: string | undefined
+      try {
+        raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      } catch (error) {
+        // Unreadable (for example a locked keychain): keep the slot untouched.
+        // loadStoredOrImportedCvrSession then skips import instead of replacing it.
+        log.warn('CVR stored session unreadable; session import skipped')
+        throw error
+      }
       if (!raw) return undefined
       try {
         const parsed: unknown = JSON.parse(raw)
@@ -401,6 +411,7 @@ app
     try {
       initialCvrCredentials = await loadStoredOrImportedCvrSession({
         loadStored: loadStoredCvrCredentials,
+        signedOut: () => isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
         requestImportConsent: () =>
           requestCvrImportConsent({
             choice: getSettingsSnapshot().cvrSessionImportChoice,
@@ -454,7 +465,8 @@ app
           recordCredentialOwner(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, accountId)
         }
       },
-      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
+      delete: () => clearCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
+      signOut: () => signOutCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
     }
     // CVR live pipeline (VRX-58): credentials ride in the upgrade HEADERS
     // (Username/AccessKey/User-Agent/Platform — same as REST, VRX-129), so the
