@@ -1,110 +1,99 @@
-# Security Policy
+# Security policy
 
 ## Supported versions
 
-VRX is in early development. Only the latest release and the current `main` branch receive fixes.
+Only the latest release and the current `main` branch receive security fixes.
 
-| Version               | Supported |
-| --------------------- | --------- |
-| `main` (latest)       | ✅        |
-| Older tagged releases | ❌        |
+| Version                   | Supported |
+| ------------------------- | --------- |
+| Latest release and `main` | ✅        |
+| Older releases            | ❌        |
 
-## Reporting an issue
+## Report a vulnerability
 
-Please report any security concern privately rather than in a public issue.
-
-Use **GitHub's private reporting**:
+Please report security problems privately, not in a public issue:
 
 1. Open the repository's **Security** tab.
-2. Click **Report a vulnerability**.
-3. Describe the concern and how to reproduce it.
+2. Select **Report a vulnerability**.
+3. Describe the problem and how to reproduce it.
 
-This creates a private thread visible only to you and the maintainer.
-
-## What to expect
-
-- Acknowledgement within 5 days.
-- An initial assessment shortly after.
-- Updates as a fix is prepared; you'll be credited unless you prefer otherwise.
+This opens a private thread with the maintainer. Expect an acknowledgement
+within 5 days, an initial assessment soon after, and updates while a fix is
+prepared. You'll be credited unless you prefer not to be.
 
 ## Scope
 
-VRX runs locally and signs in as the user on their own machine. Concerns about how VRX stores credentials or handles data from the VRChat and ChilloutVR APIs are in scope.
+VRX runs on your own computer and signs in to VRChat and ChilloutVR as you.
+How VRX stores sessions, handles data from those platforms, talks to them, and
+updates itself is in scope. Problems in VRChat or ChilloutVR themselves are
+out of scope; report those to the platforms.
 
-Issues in VRChat or ChilloutVR themselves are out of scope — please report those to their respective vendors.
+## How VRX protects you
 
-## Application safeguards
+- **Sessions.** Saved sessions are encrypted with Electron `safeStorage`, which
+  uses your operating system's secure storage. If that is unavailable or fails,
+  VRX encrypts them with authenticated encryption and a random key created for
+  your installation, kept in VRX's private app files. That fallback is weaker:
+  anyone who can read both the key and the encrypted session can reuse the
+  session. VRX never uses Electron's `basic_text` mode and never saves
+  passwords. Signing out deletes the saved session.
+- **Isolation.** The app window runs with `contextIsolation`, `sandbox`, and
+  no Node integration. The page can reach the main process only through a
+  fixed list of VRX channels. Every channel checks that the request comes from
+  VRX's own window, then applies a per-channel request budget. Session tokens
+  never reach the page.
+- **Links and content.** VRX opens only allowlisted web addresses in your
+  browser, blocks navigation away from the app, and ships a Content Security
+  Policy without `unsafe-inline`.
+- **Logs.** Passwords, tokens, and cookies are removed before anything is
+  written to the log file.
+- **Other apps' data.** VRX never writes to VRCX or ChilloutVR files. It reads
+  local ChilloutVR or CVRX files only to copy a session when you allow it
+  (Settings → Accounts → External ChilloutVR session).
+- **Updates.** Updates come only from this repository's GitHub Releases and
+  never install without your consent.
+- **Repository.** CI scans every pull request and every push to `main` for
+  committed secrets (gitleaks) and for high or critical dependency advisories,
+  and CodeQL scans the code weekly and on every pull request.
 
-Project-owned renderer-to-main IPC validates the sender in a trust-first registration shell before touching timer-free, per-channel sliding-window state, then validates it again inside every domain handler as defense in depth. The counters and warning suppression live for the main-process lifetime, so reloads and replacement windows share each channel's budget; denials do not include `retryAfterMs`. Untrusted frames cannot consume that state. The logger uses electron-log's main-only Node surface, and central IPC wiring removes electron-store's unused renderer bootstrap listener, leaving only the enumerated VRX channels. Budgets are fixed safety ceilings; repeated dual-platform retry/reconnect cycles can exhaust `get-friends` headroom before its window expires.
+No local encryption can protect a session from malware that runs as you or
+from someone who can read your files.
 
-## Temporary dependency audit exception
+## Temporary dependency exception
 
-The repository now applies an exact-source local patch to the locked 4.2.0
-library during postinstall and verifies it before builds. It prevents security
-reuse prohibitions from being overridden by max-stale, stale-while-revalidate,
-or stale-if-error, including restored cache policies. Ordinary stale caching,
-explicit upstream public/immutable cookie opt-ins, and private caches retain
-their existing semantics. The version and advisory remain visible; this is not
-an upstream release fix or advisory suppression, so the patch does not replace
-the exception below, which still needs an owner decision to extend and lapses
-at its expiry. An upstream replacement still needs behavioral verification;
-4.3.0 must not be assumed fixed merely because advisory metadata omits it.
+One development-only advisory is temporarily accepted.
+[`scripts/audit-policy.mjs`](scripts/audit-policy.mjs) enforces it in CI, and
+this section is the record of the owner's approval.
 
-This build-tool cache flaw is distinct from local session theft. The later
-pre-release security scan must cover OS-backed encryption and fallback key/file
-permissions, logs and diagnostics, renderer/preload/IPC credential boundaries,
-account switching, logout and persisted-cache cleanup, asynchronous work after
-session changes, and updater/package integrity. No local encryption scheme
-guarantees protection against a compromised OS or a process able to read both
-the fallback key and encrypted session files. That wider scan is separate work.
+- **Advisory:** [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
+  (high) in `http-cache-semantics` 4.2.0. A shared HTTP cache could serve one
+  user's cached response to another.
+- **Where it comes from:** the packaging tool only:
+  `app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
+  It is a development dependency and is not part of the installed app. The
+  production audit is clean.
+- **Mitigation:** `npm ci` runs
+  [`scripts/patch-http-cache.mjs`](scripts/patch-http-cache.mjs), which patches
+  the locked library so security-related reuse rules can't be overridden by
+  `max-stale`, `stale-while-revalidate`, or `stale-if-error`. Builds verify the
+  patch first. The downloader's HTTP cache is also off by default.
+- **Why no upgrade:** `http-cache-semantics` 4.3.0 does not fix this advisory
+  (it changed only `Vary` matching), and the compatible packaging tool still
+  pulls 4.2.0. npm's advisory range predates 4.3.0, so a clean audit after
+  upgrading would be a false result.
+- **Approval:** approved by the owner (Imperix1155) on 2026-10-03, extended
+  after upstream reviews on 2026-10-09 and 2026-10-19. Tracking:
+  [PR #345](https://github.com/Imperix1155/VRX/pull/345).
+- **Expiry:** review by **2027-01-30**. CI stops accepting the exception at
+  **2027-01-31 00:00 UTC**. A further extension needs a new owner decision.
+- **Removal:** remove the exception as soon as a compatible fixed release
+  removes this chain, or at once if the package ever reaches the installed app.
 
-Owner: repository maintainer Imperix1155. Tracking: [PR #345](https://github.com/Imperix1155/VRX/pull/345).
-Approved by the owner on 2026-10-03 after disclosure (original expiry
-2026-10-11 00:00 UTC). Extended on 2026-10-09 after upstream review, and again
-on 2026-10-19 by owner decision (1.0 readiness, issue #376); review by
-**2027-01-30**.
-The gate automatically stops accepting this exception at **2027-01-31 00:00 UTC**.
-Any further extension requires a new explicit owner decision and review.
-
-**2026-10-19 upstream review (reason for the second extension).** npm still lists
-`http-cache-semantics` 4.3.0 (2026-10-04) as the latest release, which the
-2026-10-09 review below found does not fix this advisory. The compatible
-electron-builder line still pulls 4.2.0 through `@electron/get`. Nothing about the
-exposure changed: the package remains build-tool only, the local patch stays in
-place, and the production audit is clean.
-
-**2026-10-09 upstream review (reason for the extension).** `http-cache-semantics`
-4.3.0 (published 2026-10-04) does not fix this advisory. Its source diff against
-4.2.0 only changes `Vary` matching (wildcard and inherited-property handling,
-upstream PR #59) and adds a response `status()`. The max-stale, stale-while-revalidate
-and stale-if-error reuse paths that this advisory covers are unchanged. The upstream
-fixes for this advisory were still open pull requests (#62, #63; tracking issue #65).
-npm's advisory range `<= 4.2.0` predates 4.3.0, so a clean `npm audit` after a 4.3.0
-upgrade would be a false negative. The local patch is therefore kept unchanged, and the
-expiry moves three weeks to allow an upstream release and its behavioral verification.
-
-Only [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
-at its current high severity is temporarily accepted for the locked, dev-only
-`node_modules/http-cache-semantics` version `4.2.0`. The build-tool chain is
-`app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
-As checked on 2026-10-03, upstream lists no patched version; the compatible
-builder 26.17.0 still uses the affected downloader major. A builder 27 alpha or
-npm's proposed builder downgrade is not a compatible stable security patch.
-
-The defect can disclose another user's cached response in a shared HTTP cache.
-This exception accepts the remaining development-tool dependency risk; it does
-not substitute for verifying the local patch. The downloader's Got HTTP cache is
-disabled by default; Electron's downloaded-artifact disk cache is separate.
-The current production audit contains no findings, and this dependency does not
-ship in the application. Do not enable shared HTTP caching or introduce runtime
-use under this exception.
-
-`scripts/audit-policy.mjs` checks both full and production audit reports and the
-lockfile: changed version/path, missing dev-only proof, production exposure,
-critical severity, expiry, malformed reports, and other high/critical advisories
-fail. The existing esbuild advisory exception (GHSA-g7r4-m6w7-qqqr, VRX-152) is
-unchanged for the full report; no exception applies to production high/critical
-findings. Remove the cache exception as soon as a compatible patched dependency
-or stable builder removes this chain, or immediately if its exposure changes.
-The maintainer must check upstream and remove it by the review date rather than
-silently renew it. No branch-protection or release approval is waived.
+The policy fails the audit on any other high or critical advisory, any
+production high or critical advisory, a changed version or dependency path,
+a critical severity, expiry, or a malformed report. Separately, the older
+`esbuild` advisory
+[GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr)
+remains excluded from the full (development) report only. No exception
+applies to production findings, and no branch protection or release approval
+is waived.
