@@ -84,15 +84,30 @@ export async function changeLinkedProfile(
 /** One app-lifetime subscription; shared notes never enter persisted friends caches. */
 export function subscribeLinkedProfiles(client: QueryClient): () => void {
   if (typeof window === 'undefined') return () => {}
-  const names = new Map<string, string>()
-  const fingerprint = (data: unknown): string =>
-    JSON.stringify(
-      Array.isArray(data)
-        ? (data as Friend[]).map((friend) => [friend.platformUserId, friend.displayName])
-        : []
-    )
+  // Friend rosters seen per query. Only an added, removed or renamed friend can
+  // change linked-profile names, so live presence events (a new array whose
+  // rows keep their identity through structural sharing) compare row by row
+  // instead of serializing the whole roster each time.
+  const rosters = new Map<string, readonly Friend[]>()
+  const rosterOf = (data: unknown): readonly Friend[] =>
+    Array.isArray(data) ? (data as Friend[]) : []
+  const namesChanged = (previous: readonly Friend[], next: readonly Friend[]): boolean => {
+    if (previous === next) return false
+    if (previous.length !== next.length) return true
+    for (let index = 0; index < next.length; index += 1) {
+      const before = previous[index]
+      const after = next[index]
+      if (before === after) continue
+      if (
+        before?.platformUserId !== after?.platformUserId ||
+        before?.displayName !== after?.displayName
+      )
+        return true
+    }
+    return false
+  }
   for (const query of client.getQueryCache().getAll()) {
-    if (query.queryKey[0] === 'friends') names.set(query.queryHash, fingerprint(query.state.data))
+    if (query.queryKey[0] === 'friends') rosters.set(query.queryHash, rosterOf(query.state.data))
   }
   const invalidate = (): void => {
     void client.invalidateQueries({ queryKey: linkedProfilesKey })
@@ -106,10 +121,10 @@ export function subscribeLinkedProfiles(client: QueryClient): () => void {
   const auth = client.getQueryCache().subscribe((event) => {
     const queryKey = event.query.queryKey as readonly unknown[]
     if (event.type === 'updated' && queryKey[0] === 'friends' && event.action.type === 'success') {
-      const next = fingerprint(event.query.state.data)
-      const previous = names.get(event.query.queryHash)
-      names.set(event.query.queryHash, next)
-      if (next !== previous) invalidate()
+      const next = rosterOf(event.query.state.data)
+      const previous = rosters.get(event.query.queryHash)
+      rosters.set(event.query.queryHash, next)
+      if (previous === undefined || namesChanged(previous, next)) invalidate()
     }
     if (
       event.type === 'updated' &&
