@@ -14,6 +14,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, render, screen, cleanup } from '@testing-library/react'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
+import { useSettingsStore } from '../stores/settings'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import AppShell from './AppShell'
 
 vi.mock('../queries/friends', async (importOriginal) => ({
@@ -47,6 +49,7 @@ const msg = (key: string): string => i18n.t(key)
 afterEach(() => {
   cleanup()
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
 })
 
 describe('AppShell contextual slot invariant (VRX-186)', () => {
@@ -63,6 +66,16 @@ describe('AppShell contextual slot invariant (VRX-186)', () => {
     render(<AppShell />)
     expect(screen.getAllByRole('radiogroup', { name: msg('shell.seg.aria') })).toHaveLength(1)
     expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()
+  })
+})
+
+describe('AppShell optional pages (owner, 2026-10-20)', () => {
+  it('falls back to the Dashboard when the open page is turned off', () => {
+    useUiStore.setState({ activeTab: 'explore' })
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showExplorePage: false } })
+    render(<AppShell />)
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
+    expect(screen.getByRole('main', { name: msg('shell.nav.dashboard') })).toBeTruthy()
   })
 })
 

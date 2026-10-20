@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import Store from 'electron-store'
 import {
+  freshInstallSettings,
   parseSettings,
   shouldPersistSettings,
   DEFAULT_SETTINGS,
@@ -43,6 +44,12 @@ let pendingSettingsSave: PendingSettingsSave | undefined
 // after `app.whenReady()`. Constructing on first use keeps this import side-effect-free.
 function getStore(): Store<Record<string, unknown>> {
   return (store ??= new Store<Record<string, unknown>>({ name: 'settings' }))
+}
+
+function isEmptyStore(raw: unknown): boolean {
+  return (
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw) && Object.keys(raw).length === 0
+  )
 }
 
 /**
@@ -80,7 +87,10 @@ export function loadSettings(): Settings {
     // throws" contract and (post-W7 bootstrap .catch) would exit-loop the app
     // on every launch until the file was hand-deleted.
     raw = getStore().store
-    settings = parseSettings(raw)
+    // No settings file yet (electron-store reads it as empty) means a brand-new
+    // install: queue the welcome setup. Every launch writes the normalized file
+    // below, so an existing install never reaches this branch again.
+    settings = isEmptyStore(raw) ? freshInstallSettings() : parseSettings(raw)
   } catch (err) {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
     // redaction hook's object-walk can't see inside an Error (house pattern).
