@@ -217,7 +217,7 @@ export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
 // ─── Friends reconcile interval (VRX-77) ───────────────────────────────────
 /** Friends-list background reconcile cadence. Single source for both the
  *  `ReconcileInterval` type and the settings schema's `reconcileInterval` enum. */
-export const RECONCILE_INTERVALS = ['5m', '10m', '30m', 'manual'] as const
+export const RECONCILE_INTERVALS = ['5m', '10m', '30m', '1h', 'manual'] as const
 export type ReconcileInterval = (typeof RECONCILE_INTERVALS)[number]
 
 // ─── Instance-label scheme (VRX-183) ─────────────────────────────────────────

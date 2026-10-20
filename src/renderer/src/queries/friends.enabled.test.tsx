@@ -123,7 +123,8 @@ describe('useFriends background reconcile cadence (VRX-77)', () => {
   it.each([
     ['5m', 300_000],
     ['10m', 600_000],
-    ['30m', 1_800_000]
+    ['30m', 1_800_000],
+    ['1h', 3_600_000]
   ] as const)('refetches on the %s setting', async (reconcileInterval, intervalMs) => {
     vi.useFakeTimers()
     vi.spyOn(Math, 'random').mockReturnValue(0.5)

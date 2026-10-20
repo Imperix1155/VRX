@@ -206,7 +206,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 
-  it('renders the friends background re-sync row with its note and four cadence options', () => {
+  it('renders the friends background re-sync row with its note and five cadence options', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
 
@@ -220,6 +220,7 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
       msg('settings.reconcileInterval.5m'),
       msg('settings.reconcileInterval.10m'),
       msg('settings.reconcileInterval.30m'),
+      msg('settings.reconcileInterval.1h'),
       msg('settings.reconcileInterval.manual')
     ])
     expect(radios.filter((radio) => radio.getAttribute('tabindex') === '0')).toHaveLength(1)

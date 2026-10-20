@@ -25,17 +25,18 @@ export async function fetchAuthStatus(platform: Platform): Promise<AuthStatus> {
  * - Auth is invalidation-driven (on login success), not polled: polling would
  *   hammer the unofficial API and risk rate-limiting/account flags. The only
  *   interval is the slow re-check of an `error` status below.
- * - staleTime: 30_000 so observer MOUNTS do not refetch /auth/user within the
- *   window. Freshness is still invalidation-driven: login/verify-2fa/logout and
- *   the auth-invalidated event all explicitly invalidate this key, which bypasses
- *   staleTime. The 30s window only suppresses mount-driven refetch bursts when
- *   tabs are flipped (2026-07 audit OP-A3).
+ * - staleTime: Infinity so observer MOUNTS never refetch. Each VRChat check is
+ *   a real GET /auth/user, and Friends, Hot Instances and Dashboard each mount
+ *   an observer, so a finite window (30 s until 2026-10) turned ordinary page
+ *   switches into sign-in checks VRCX never sends. Freshness is
+ *   invalidation-driven: login/verify-2fa/logout and the auth-invalidated event
+ *   all explicitly invalidate this key, which bypasses staleTime.
  */
 export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Error> {
   return useQuery({
     queryKey: authStatusQueryKey(platform),
     queryFn: () => fetchAuthStatus(platform),
-    staleTime: 30_000,
+    staleTime: Infinity,
     // The one exception to "not polled": an `error` status (the check could not
     // reach the platform, e.g. VRX started offline or during an outage) is
     // re-checked once a minute. Until a check succeeds, a restored session never
