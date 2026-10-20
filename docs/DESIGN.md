@@ -456,7 +456,8 @@ Appearance offers Run setup again.
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
 local-key fallback, and never promises keychain protection everywhere. The
 sign-in screen (both tabs) and Accounts show one unofficial-app line naming
-VRChat and Alpha Blend Interactive (ChilloutVR) together in plain faint text.
+VRChat Inc. and Disconeering LLC (the companies behind VRChat and ChilloutVR)
+together in plain faint text.
 The real credential and two-factor forms are used in examples; a secure
 storage failure keeps its dedicated message. Guide fixtures accept only
 made-up input and never sign in or save it.

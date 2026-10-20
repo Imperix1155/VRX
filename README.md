@@ -42,9 +42,9 @@ languages show English.
 
 ## Unofficial
 
-VRX is an unofficial app. It is not affiliated with or endorsed by VRChat or
-Alpha Blend Interactive (ChilloutVR). Both APIs it uses are unofficial and can
-change without notice.
+VRX is an unofficial app. It is not affiliated with or endorsed by VRChat Inc.
+or Disconeering LLC, the companies behind VRChat and ChilloutVR. Both APIs it
+uses are unofficial and can change without notice.
 
 ## Install
 

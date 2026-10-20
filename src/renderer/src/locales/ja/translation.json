@@ -105,7 +105,7 @@
   "shell": {
     "subtitle": "Social VR コンパニオン",
     "footer": "Social VR コンパニオン",
-    "unofficialNotice": "VRXは非公式アプリです。VRChatおよびAlpha Blend Interactive（ChilloutVR）とは提携しておらず、承認も受けていません。",
+    "unofficialNotice": "VRXは非公式アプリです。VRChatおよびChilloutVRの運営会社（VRChat Inc.、Disconeering LLC）とは提携しておらず、承認も受けていません。",
     "nav": {
       "aria": "メインナビゲーション",
       "dashboard": "ダッシュボード",
