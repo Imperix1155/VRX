@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import {
   QueryClient,
   QueryClientContext,
+  replaceEqualDeep,
   useQuery,
   useQueryClient,
   type UseQueryResult
@@ -17,13 +18,17 @@ const emptyLinkSnapshot: LinkSnapshot = {
   accountIds: {}
 }
 
-/** Used at publication time by every read and write, not at request start. */
+/**
+ * Used at publication time by every read and write, not at request start. An
+ * accepted snapshot keeps TanStack's default structural sharing, so a re-read
+ * with unchanged content keeps its identity and does not re-project the roster.
+ */
 export function retainNewestLinkSnapshot(previous: unknown, incoming: unknown): LinkSnapshot {
   const current = previous as LinkSnapshot | undefined
   const next = incoming as LinkSnapshot
   return current?.lease === next.lease && current.storeRevision > next.storeRevision
     ? current
-    : next
+    : replaceEqualDeep(current, next)
 }
 
 export async function fetchLinkedProfiles(signal?: AbortSignal): Promise<LinkSnapshot> {
