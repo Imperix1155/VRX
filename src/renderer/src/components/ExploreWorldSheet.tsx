@@ -232,6 +232,11 @@ export default function ExploreWorldSheet({
                 : 'linear-gradient(90deg, var(--cvr), transparent)'
             }}
           />
+          {/* Same grab bar as the Hot Instance sheet: it gives the close button
+              its own row, so the world picture never sits under it. */}
+          <div className="flex shrink-0 justify-center pt-[var(--space-3)] pb-[var(--space-2)]">
+            <div aria-hidden="true" className="h-[4px] w-[44px] rounded-full bg-[var(--border)]" />
+          </div>
           <div className="min-h-0 overflow-y-auto p-[var(--space-4)]">
             {image && failedImage !== image ? (
               <img
@@ -287,7 +292,7 @@ export default function ExploreWorldSheet({
               </p>
             ) : null}
             {shown.rooms.length === 0 && shown.status === 'ready' && !shown.roomsComplete ? (
-              <p className="mt-[var(--space-2)] text-sm text-[var(--text-faint)]">
+              <p className="mt-[var(--space-2)] text-sm text-[var(--text-dim)]">
                 {t('explore.incompleteRooms')}
               </p>
             ) : null}
@@ -320,7 +325,7 @@ export default function ExploreWorldSheet({
               </p>
             ) : null}
             {!shown.roomsComplete && shown.rooms.length > 0 ? (
-              <p className="mt-[var(--space-2)] text-xs text-[var(--text-faint)]">
+              <p className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
                 {t('explore.partialRooms')}
               </p>
             ) : null}

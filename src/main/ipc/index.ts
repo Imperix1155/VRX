@@ -1,6 +1,7 @@
 import { ipcMain, type IpcMainEvent } from 'electron'
 import log from '../logger'
 import type { IpcInvokeChannel } from '@shared/ipc'
+import type { Settings } from '@shared/settings'
 import type { Friend, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
@@ -48,6 +49,8 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
   onFriendRoster?: (platform: Platform, friends: Friend[]) => void
+  /** After each settings save attempt, with the in-memory settings. */
+  onSettingsApplied?: (settings: Settings) => void
   rateLimit?: IpcRateLimitOptions
 }
 
@@ -116,7 +119,7 @@ export function registerIpcHandlers(
     registerExploreHandlers(options.explore)
     registerAppStatusHandlers(options.appStatus)
     registerLaunchHandlers()
-    registerSettingsHandlers()
+    registerSettingsHandlers(options.onSettingsApplied)
     registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')

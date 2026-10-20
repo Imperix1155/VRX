@@ -13,11 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   R, and orange X at equal size in a smoked-glass case, with colored rails and
   softened chamfers. Windows, Linux, macOS, and tray assets now share that
   design, with dedicated small-size lettering.
+- Settings has a new About tab holding automatic updates, the installed version
+  and the logs folder, so Behavior fits the default window without scrolling.
+  The category tabs sit on their own row under the title.
+- The window frame, title bar and menus now follow the Theme setting, and the
+  window no longer flashes white while resizing or reloading.
+- Dashboard cards lay out the same whichever section is on top: picture cards
+  two across, compact bars stacked. Explore's compact bars match.
+- The VRC and CVR words in the top bar, Accounts and sign-in tabs are equally
+  readable in both themes, and status words in friend details are easier to
+  read in dark mode. Hints and error messages that must be read use the
+  stronger secondary text color.
 
 ### Fixed
 
 - On beta and rc builds, the sidebar's update button no longer covers the end of
   the version number. The version moves to its own line while the button shows.
+- In light theme the VRX logo and other text on glass no longer look washed out,
+  and the Hot Instance sheet's world name is readable over bright pictures.
+- The Explore room sheet's close button no longer sits on top of the picture.
+- The join dialog no longer shows a stray "·" before the people count, and
+  English uses "1 friend" and "1 hot instance" instead of "1 friends".
+- With Hot Instances first and none found, the Popular now heading no longer
+  touches the empty-state card.
 
 ## [1.0.0-beta.2] - 2026-10-19
 
