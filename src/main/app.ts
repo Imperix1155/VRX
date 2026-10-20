@@ -37,7 +37,13 @@ import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
-import { avatarCache } from './services/avatarCache'
+import {
+  AVATAR_ALLOWED_MIME_TYPES,
+  AVATAR_MAX_BODY_BYTES,
+  avatarCache
+} from './services/avatarCache'
+import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
+import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
@@ -374,7 +380,14 @@ app
     })
     const vrcAdmission = new ApiAdmissionController()
     const cvrAdmission = new ApiAdmissionController()
+    // World and group names wait in the same one-per-second line as everything
+    // else; keep them per account so the first roster after launch has them.
+    const vrcMetadataStore = new VrcMetadataStore({
+      directory: join(app.getPath('userData'), VRC_METADATA_DIRECTORY),
+      log: (message, meta) => log.warn(message, meta)
+    })
     const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
+      metadataStore: vrcMetadataStore,
       captureRosterRevision: () => locationAuthority.captureSeedRevision('vrchat'),
       // handshakeTimeout bounds a black-holed connect so the reconnect backoff
       // can retry instead of waiting for the OS default (~1-2 min).
@@ -493,6 +506,16 @@ app
     // endpoint 401s unauthenticated). Each operation captures its own session lease.
     avatarCache.setApiAdmission(vrcAdmission)
     avatarCache.setVrcSessionProvider(() => vrcAdapter.getAvatarRequestLease())
+    // VRChat pictures each cost a slot in the one-per-second line; keep them on
+    // disk so the next launch shows them without requests (imageDiskStore.ts).
+    avatarCache.setDiskStore(
+      new ImageDiskStore({
+        directory: join(app.getPath('userData'), IMAGE_DISK_DIRECTORY),
+        allowedMimeTypes: AVATAR_ALLOWED_MIME_TYPES,
+        maxBodyBytes: AVATAR_MAX_BODY_BYTES,
+        log: (message, meta) => log.warn(message, meta)
+      })
+    )
 
     const joinCoordinator = new JoinCoordinator()
     const explore = new ExploreService({
@@ -548,6 +571,11 @@ app
         vrchat: vrcAdapter,
         chilloutvr: cvrAdapter
       }),
+      onLogout: (platform) => {
+        if (platform !== 'vrchat') return
+        vrcMetadataStore.clearAll()
+        void avatarCache.clearStoredImages()
+      },
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&

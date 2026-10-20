@@ -48,6 +48,9 @@ transport, and published adapter events.
   on stop or session replacement.
 - Metadata caches are TTL-bound and cleared at account boundaries; late writes
   from an older generation are fenced. `GroupResolver` is also size-capped.
+  The launch-to-launch copy (`metadataStore`) is per account: seed only where a
+  durable account is published, never extend an entry's expiry, and write only
+  for the account and generation that owns the resolvers.
   Ordinary lookup failures resolve `null` and are negative-cached briefly.
   Auth, rate-limit, cancellation, and queue-overflow errors propagate and are
   never negative-cached. Enrichment never fails a roster already returned and
