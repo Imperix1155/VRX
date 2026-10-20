@@ -10,11 +10,13 @@ import PlatformPill from './PlatformPill'
 import { joinFailureMessageKey, type JoinFailureReason } from '../hooks/useJoinInstance'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
- *  Explore's `stale` means an expired selection, so refreshing is the right advice. */
+ *  Explore's `stale` means an expired selection, so refreshing is the right advice.
+ *  `launch-failed` means the game link didn't open, so the advice is to check the game. */
 const RETRYABLE_EXPLORE_FAILURES: ReadonlySet<JoinFailureReason> = new Set([
   'cooldown',
   'rate-limited',
-  'joining-disabled'
+  'joining-disabled',
+  'launch-failed'
 ])
 
 export interface ExploreWorldSheetProps {
