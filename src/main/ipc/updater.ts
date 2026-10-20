@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getUpdaterService } from '../updater'
+import { getUpdaterService, getUpdaterSnapshot, initAutoUpdater } from '../updater'
 import { isTrustedIpcSender } from './security'
 
 /**
@@ -11,12 +11,15 @@ import { isTrustedIpcSender } from './security'
 export function registerUpdaterHandlers(): void {
   ipcMain.handle('updater:get-state', (event) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    return getUpdaterService().snapshot()
+    return getUpdaterSnapshot()
   })
 
+  // A manual check can arrive before the deferred launch check has loaded the
+  // updater; it starts that same shared load. Download and install need state
+  // only a loaded service can reach, so they keep the loaded-service guard.
   ipcMain.handle('updater:check', async (event) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    await getUpdaterService().check()
+    await (await initAutoUpdater()).check()
   })
 
   ipcMain.handle('updater:download', async (event) => {

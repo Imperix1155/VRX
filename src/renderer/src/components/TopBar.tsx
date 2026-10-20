@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionHealth, Platform } from '@shared/types'
 import { SETTINGS_CATEGORIES, useUiStore, type SettingsCategory } from '../stores/ui'
@@ -150,12 +150,20 @@ export default function TopBar(): React.JSX.Element {
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
   const linkedSnapshot = useLinkedProfiles().data
-  const [connectionHealth, setConnectionHealth] = useState(defaultConnectionHealth)
+  const [connectionHealth, setConnectionHealthState] = useState(defaultConnectionHealth)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.getAppStatus) return
     const getAppStatus = window.vrx.getAppStatus
     let active = true
+
+    // Keep the previous object when nothing changed, so the steady poll below
+    // does not re-render the bar (and recount the roster) every few seconds.
+    function setConnectionHealth(next: Record<Platform, ConnectionHealth>): void {
+      setConnectionHealthState((current) =>
+        current.vrchat === next.vrchat && current.chilloutvr === next.chilloutvr ? current : next
+      )
+    }
 
     async function refreshStatus(): Promise<void> {
       try {
@@ -222,21 +230,25 @@ export default function TopBar(): React.JSX.Element {
   // queries are already cached (Friends/Dashboard views), so this re-uses them
   // rather than fetching again. Scoped to the platform filter (VRX-66) so the
   // count reflects whichever platform(s) the user is currently viewing.
-  const filteredFriends = scopeByPlatformFilter(platform, vrcFriends, cvrFriends).flatMap(
-    (query) => query.data ?? []
-  )
-  const onlineCount =
-    activeTab === 'friends'
-      ? projectLinkedFriends({
-          friends: [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
-          profiles: linkedSnapshot?.profiles ?? [],
-          accountIds: linkedSnapshot?.accountIds ?? {},
-          filter: platform,
-          search: ''
-        }).onlinePeople
-      : filteredFriends.filter(
-          (friend) => friend.presence.state === 'active' || friend.presence.state === 'in-game'
-        ).length
+  // Memoized on the cached rosters: the Friends-tab count projects (and sorts)
+  // the whole roster, which must not rerun on unrelated re-renders.
+  const vrcData = vrcFriends.data
+  const cvrData = cvrFriends.data
+  const onlineCount = useMemo(() => {
+    if (activeTab === 'friends') {
+      return projectLinkedFriends({
+        friends: [...(vrcData ?? []), ...(cvrData ?? [])],
+        profiles: linkedSnapshot?.profiles ?? [],
+        accountIds: linkedSnapshot?.accountIds ?? {},
+        filter: platform,
+        search: ''
+      }).onlinePeople
+    }
+    return scopeByPlatformFilter(platform, vrcData, cvrData)
+      .flatMap((data) => data ?? [])
+      .filter((friend) => friend.presence.state === 'active' || friend.presence.state === 'in-game')
+      .length
+  }, [activeTab, vrcData, cvrData, linkedSnapshot, platform])
 
   // Reserve a three-digit cell so the contextual dock stays fixed as the live
   // count changes. Tabular figures and right alignment mirror the

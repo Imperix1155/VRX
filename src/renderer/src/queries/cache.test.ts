@@ -13,6 +13,7 @@ import {
   deserializePersistedQueryCache,
   MAX_QUERY_AGE_MS,
   persistQueryCacheNow,
+  QUERY_CACHE_PERSIST_THROTTLE_MS,
   QUERY_CACHE_STORAGE_KEY,
   shouldDehydrateQuery
 } from './cache'
@@ -212,7 +213,7 @@ describe('write-path normalization — logout-after-outage (round-2 re-review F1
         clientState: dehydrate(client, options.dehydrateOptions)
       }
       void options.persister.persistClient(persisted)
-      await vi.advanceTimersByTimeAsync(1200) // past the persister's 1s throttle
+      await vi.advanceTimersByTimeAsync(QUERY_CACHE_PERSIST_THROTTLE_MS + 200)
 
       const raw = window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)
       expect(raw).toBeTruthy()
@@ -383,6 +384,51 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
 })
 
 describe('createQueryCachePersister', () => {
+  it('rewrites the rosters only when persisted data or its freshness changes', async () => {
+    vi.useFakeTimers()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    try {
+      window.localStorage.clear()
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      client.setQueryData(['friends', 'vrchat'], [fullFriend('VrcFriend', 'vrchat')])
+      const options = buildPersistOptions()
+      const offer = async (): Promise<void> => {
+        void options.persister.persistClient({
+          buster: buildCacheBuster(),
+          timestamp: Date.now(),
+          clientState: dehydrate(client, options.dehydrateOptions)
+        })
+        await vi.advanceTimersByTimeAsync(QUERY_CACHE_PERSIST_THROTTLE_MS + 200)
+      }
+      const writes = (): number =>
+        setItem.mock.calls.filter(([key]) => key === QUERY_CACHE_STORAGE_KEY).length
+
+      await offer()
+      expect(writes()).toBe(1)
+      // An unrelated cache event (an avatar read, say) offers the same rosters.
+      client.setQueryData(['avatar', 'x'], 'data:image/png;base64,AA==')
+      await offer()
+      expect(writes()).toBe(1)
+      // A refetch that changes nothing still refreshes the restore age stamp.
+      vi.advanceTimersByTime(1_000)
+      const unchanged = client.getQueryData(['friends', 'vrchat'])
+      client.setQueryData(['friends', 'vrchat'], unchanged, { updatedAt: Date.now() })
+      await offer()
+      expect(writes()).toBe(2)
+      client.setQueryData(['friends', 'vrchat'], [fullFriend('Renamed', 'vrchat')])
+      await offer()
+      expect(writes()).toBe(3)
+      const restored = deserializePersistedQueryCache(
+        window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+      )
+      expect(restored.clientState.queries[0]!.state.data).toEqual([fullFriend('Renamed', 'vrchat')])
+      client.clear()
+    } finally {
+      setItem.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not throw when acquiring localStorage fails', () => {
     const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
     Object.defineProperty(window, 'localStorage', {
