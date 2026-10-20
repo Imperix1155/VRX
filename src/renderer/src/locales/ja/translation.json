@@ -269,6 +269,9 @@
         "description": "VRXにChilloutVRの保存済みセッションがない場合、ローカルのゲームプロファイルとCVRXファイルを読み取り、セッションをコピーしてサインインすることを許可します。元のファイルは変更しません。次回のアプリ起動時に適用され、既存のVRXセッションや直接サインインには影響しません。"
       }
     },
+    "about": {
+      "heading": "情報"
+    },
     "boolean": {
       "on": "オン",
       "off": "オフ"
@@ -431,7 +434,7 @@
     "titleUnknown": "このインスタンスに参加しますか？",
     "context": "{{name}}さんが{{world}}にいます",
     "moreToggle": "詳しく",
-    "peopleCount_other": "・{{count}}人",
+    "peopleCount_other": "{{count}}人",
     "mode": {
       "aria": "起動モード",
       "vr": "VR",
@@ -471,7 +474,7 @@
     "platformVrc": "VRChat",
     "platformCvr": "ChilloutVR",
     "friendsOverflow": "+{{count}}",
-    "friendsHereAria": "{{count}}人がここにいます: {{names}}",
+    "friendsHereAria_other": "{{count}}人がここにいます: {{names}}",
     "joinInstance": "参加",
     "emptyHeading": "ホットインスタンスはありません",
     "emptyHint": "{{threshold}}人以上のフレンドが同じインスタンスにいると、ここに表示されます。",
@@ -482,7 +485,7 @@
       "threshold": "−と＋で、表示に必要なフレンドの最小人数を{{min}}〜{{max}}人に設定できます。設定でホットインスタンス通知を有効にした場合、この人数が通知のしきい値にもなります。"
     },
     "seeAll": "すべて表示（{{count}}）",
-    "seeAllAria": "ホットインスタンスをすべて表示（{{count}}件）"
+    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）"
   },
   "login": {
     "subtitle": "Social VR コンパニオン",

@@ -107,7 +107,7 @@ export default function ExploreWorldCard({
       data-explore-sheet-opener
       onClick={(event) => onOpen(world, event.currentTarget)}
       aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
-      className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)]`}
+      className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
     >
       <div
         aria-hidden="true"
@@ -133,10 +133,12 @@ export default function ExploreWorldCard({
           style={{
             color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
             borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)',
-            background: 'color-mix(in srgb, var(--bg-base) 55%, transparent)'
+            // Same small backing as other pills over a picture (PictureBackedPill),
+            // so the word reads on bright art too.
+            background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
           }}
         >
-          {isVrc ? 'VRC' : 'CVR'}
+          {t(isVrc ? 'friends.platform.vrchatShort' : 'friends.platform.chilloutvrShort')}
         </span>
       </div>
       <div className="relative flex flex-1 flex-col gap-[var(--space-2)] p-[var(--space-3)]">
