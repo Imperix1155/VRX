@@ -31,7 +31,12 @@ interface UiState {
    *  switches within a session so a user hopping Settings↔Dashboard lands
    *  back on the category they were adjusting (VRX-186). */
   settingsCategory: SettingsCategory
+  /** The Hot Instances page was opened by a hot-instance alert click. The
+   *  alert stays on when the page is hidden from the sidebar, so it may show
+   *  the page until the user goes elsewhere. */
+  hotOpenedFromAlert: boolean
   setActiveTab: (tab: ActiveTab) => void
+  openHotFromAlert: () => void
   setDrawerOpen: (open: boolean) => void
   toggleDrawer: () => void
   setSettingsCategory: (category: SettingsCategory) => void
@@ -42,7 +47,9 @@ export const useUiStore = create<UiState>((set) => ({
   activeTab: 'dashboard',
   drawerOpen: false,
   settingsCategory: 'appearance',
-  setActiveTab: (activeTab) => set({ activeTab }),
+  hotOpenedFromAlert: false,
+  setActiveTab: (activeTab) => set({ activeTab, hotOpenedFromAlert: false }),
+  openHotFromAlert: () => set({ activeTab: 'hot', hotOpenedFromAlert: true }),
   setDrawerOpen: (drawerOpen) => set({ drawerOpen }),
   toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen })),
   setSettingsCategory: (settingsCategory) => set({ settingsCategory })
