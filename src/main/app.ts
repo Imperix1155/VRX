@@ -8,6 +8,7 @@ import {
   shell,
   BrowserWindow,
   dialog,
+  Menu,
   screen,
   session,
   Notification as NativeNotification,
@@ -326,6 +327,12 @@ app
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
     })
+    // Without an app menu Electron installs its default one. The window hides it
+    // (autoHideMenuBar), but Alt still revealed File/Edit/View/Window/Help with
+    // Reload and Toggle Developer Tools, which the shortcut guard above can't
+    // block. Windows/Linux text fields keep copy/paste without it; macOS keeps
+    // the default menu, which carries those editing commands.
+    if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
 
     // The write-only credential-owner sidecar was removed (#371); delete any
     // file an older build left behind. Best-effort and never throws.
