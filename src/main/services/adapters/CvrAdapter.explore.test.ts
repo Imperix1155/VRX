@@ -41,6 +41,22 @@ describe('CvrAdapter Explore capability', () => {
     vi.unstubAllGlobals()
   })
 
+  it('does not let failed Explore lookups open the circuit for the friends list', async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      String(url).includes('/instances/')
+        ? new Response(null, { status: 404 })
+        : jsonResponse(envelope([]))
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = established(new CvrAdapter(store(), instantAdmission()))
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await adapter.getExploreRoom({ worldId, instanceId }, context(adapter)).catch(() => {})
+    }
+
+    await expect(adapter.getFriends()).resolves.toBeDefined()
+  })
+
   it('uses only the fixed discovery host and lazily adds authenticated headers', async () => {
     const fetchMock = vi
       .fn()

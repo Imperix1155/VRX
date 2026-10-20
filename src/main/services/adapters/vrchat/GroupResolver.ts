@@ -156,8 +156,11 @@ export function createGroupResolver(options: {
       return value
     } catch (error) {
       // A dead session must reach VrcAdapter's auth-invalidated boundary.
+      // A 403 is a denial on this one group on a live session (VRChat's
+      // boundary rule), so it falls through to the negative cache below
+      // instead of stopping the rest of the enrichment batch.
       if (
-        error instanceof AuthError ||
+        (error instanceof AuthError && error.status !== 403) ||
         error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError

@@ -20,7 +20,7 @@ import { pathToFileURL } from 'node:url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
-import { initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
+import { applyUpdaterSettings, initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
 import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
@@ -575,7 +575,10 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
-      onSettingsApplied: (saved) => applyWindowTheme(saved.theme),
+      onSettingsApplied: (saved) => {
+        applyWindowTheme(saved.theme)
+        applyUpdaterSettings(saved)
+      },
       accountRegistry,
       accountSession,
       socialStore,

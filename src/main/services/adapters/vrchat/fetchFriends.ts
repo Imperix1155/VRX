@@ -44,6 +44,16 @@ const currentUserBucketsSchema = z.object({
 })
 
 /**
+ * The same 200 reply getAuthStatus reads when the auth cookie is alive but the
+ * twoFactorAuth cookie expired. Listed first so it is recognized rather than
+ * read as schema drift (which surfaced as a failed roster with no 2FA prompt).
+ */
+const currentUserProbeSchema = z.union([
+  z.object({ requiresTwoFactorAuth: z.array(z.string()).min(1) }),
+  currentUserBucketsSchema
+])
+
+/**
  * Raw friend object from the VRChat /auth/user/friends endpoint. EXPORTED for
  * the Pipeline WS client (VRX-146) — friend events carry the same user shape.
  */
@@ -248,7 +258,17 @@ export async function fetchFriends(
   // degrading to an empty roster while the session is actually gone (VRX-195).
   let buckets: VrcCurrentUserBucketSets
   try {
-    buckets = freshBuckets ?? toBucketSets(await fetcher('/auth/user', currentUserBucketsSchema))
+    if (freshBuckets) {
+      buckets = freshBuckets
+    } else {
+      const probe = await fetcher('/auth/user', currentUserProbeSchema)
+      // A 401-equivalent: VrcAdapter's data-path boundary re-checks auth, and
+      // its 2FA-aware status turns this into the code reprompt.
+      if ('requiresTwoFactorAuth' in probe) {
+        throw new AuthError('Two-factor authentication required', 401)
+      }
+      buckets = toBucketSets(probe)
+    }
   } catch (error) {
     if (
       error instanceof AuthError ||
