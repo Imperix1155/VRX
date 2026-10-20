@@ -142,6 +142,29 @@ describe('projectLinkedFriends', () => {
     }
   )
 
+  it('orders rows within a section exactly as base-sensitivity localeCompare does', () => {
+    const names = ['émile', 'Emile', 'zed', 'Ålex', 'alex', 'ドラ', 'Chloé', 'chloe', 'Bob', 'bob']
+    const friends = names.map((name, index) =>
+      friend(index % 2 === 0 ? 'vrchat' : 'chilloutvr', `friend-${index}`, name, 'in-game')
+    )
+    const result = projectLinkedFriends({
+      friends,
+      profiles: [],
+      accountIds: ACCOUNT_IDS,
+      filter: 'all',
+      search: ''
+    })
+    const expected = result.rows
+      .slice()
+      .sort((left, right) => {
+        const nameOrder = left.name.localeCompare(right.name, undefined, { sensitivity: 'base' })
+        return nameOrder === 0 ? left.key.localeCompare(right.key) : nameOrder
+      })
+      .map((row) => row.key)
+    expect(result.rows.map((row) => row.key)).toEqual(expected)
+    expect(new Set(result.rows.map((row) => row.section))).toEqual(new Set(['in-game']))
+  })
+
   it('counts people globally rather than adding split section entries', () => {
     const result = projectLinkedFriends(input('in-game', 'active'))
     expect(result.rows).toHaveLength(2)

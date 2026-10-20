@@ -283,9 +283,32 @@ function normalizeDehydratedState(clientState: DehydratedState): DehydratedState
 }
 
 /**
+ * Throttle for the automatic save. Each save stringifies every persisted roster
+ * on the renderer thread (~10ms at 1,000 friends per platform), and live
+ * presence changes the roster constantly. Identity and auth boundaries write
+ * synchronously through `persistQueryCacheNow`, and a restored roster is always
+ * revalidated, so a longer window only bounds how warm the next cold paint is.
+ */
+export const QUERY_CACHE_PERSIST_THROTTLE_MS = 5_000
+
+/** What a save would write that can change: the persisted queries and their data. */
+function persistedDataIdentity(client: PersistedClient): unknown[] {
+  return client.clientState.queries.flatMap((query) => [
+    query.queryHash,
+    query.state.data,
+    query.state.dataUpdatedAt
+  ])
+}
+
+/**
  * Create the sync storage persister. The persister is created on demand so
  * node-based unit tests can import the pure helpers above without requiring
  * `window.localStorage` to exist.
+ *
+ * TanStack offers a save on EVERY query-cache event (avatar and Explore reads
+ * included). A save whose persisted queries hold the same data references as
+ * the last offered one would write the same rosters again, so it is dropped;
+ * the pending throttled save, if any, already carries that data.
  */
 export function createQueryCachePersister(): Persister {
   let storage: Storage | undefined
@@ -294,13 +317,30 @@ export function createQueryCachePersister(): Persister {
   } catch {
     storage = undefined
   }
-  return createSyncStoragePersister({
+  const persister = createSyncStoragePersister({
     storage,
     key: QUERY_CACHE_STORAGE_KEY,
+    throttleTime: QUERY_CACHE_PERSIST_THROTTLE_MS,
     serialize: (client) =>
       JSON.stringify({ ...client, clientState: normalizeDehydratedState(client.clientState) }),
     deserialize: deserializePersistedQueryCache
   })
+  let lastOffered: unknown[] | undefined
+  return {
+    ...persister,
+    persistClient: (client) => {
+      const identity = persistedDataIdentity(client)
+      if (
+        lastOffered !== undefined &&
+        lastOffered.length === identity.length &&
+        lastOffered.every((value, index) => value === identity[index])
+      ) {
+        return
+      }
+      lastOffered = identity
+      return persister.persistClient(client)
+    }
+  }
 }
 
 /**

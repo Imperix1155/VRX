@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
+import type { LinkSnapshot } from '@shared/linkedProfiles'
 import { fullFriend } from '../test-utils/friendFixture'
 import {
   fetchLinkedProfiles,
@@ -116,6 +117,36 @@ describe('linked profile snapshots', () => {
     replies[0]!({ ok: true, value: { ...newest, storeRevision: 2 } })
     expect(await earlier).toEqual({ ok: true, value: newest })
     expect(client.getQueryData(linkedProfilesKey)).toEqual(newest)
+  })
+  it('keeps the current snapshot identity when a re-read is unchanged', () => {
+    const current: LinkSnapshot = {
+      profiles: [
+        {
+          id: 'person',
+          members: [
+            { platform: 'vrchat', platformAccountId: 'vrc-account', friendId: 'vrc-friend' },
+            { platform: 'chilloutvr', platformAccountId: 'cvr-account', friendId: 'cvr-friend' }
+          ],
+          customName: null,
+          defaultName: 'Name',
+          preferredPlatform: 'vrchat',
+          pictureMode: 'preferred',
+          sharedNote: '',
+          revision: 1
+        }
+      ],
+      lease: 'lease',
+      storeRevision: 2,
+      accountIds: {}
+    }
+    expect(retainNewestLinkSnapshot(current, structuredClone(current))).toBe(current)
+    const renamed = { ...structuredClone(current), storeRevision: 3 }
+    renamed.profiles[0]!.customName = 'Renamed'
+    const adopted = retainNewestLinkSnapshot(current, renamed)
+    expect(adopted).toEqual(renamed)
+    expect(adopted).not.toBe(current)
+    const replacement = { ...structuredClone(current), lease: 'replacement' }
+    expect(retainNewestLinkSnapshot(current, replacement)).toEqual(replacement)
   })
   it('fails safely without a bridge', async () => {
     vi.stubGlobal('window', {})
