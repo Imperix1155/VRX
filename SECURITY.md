@@ -47,9 +47,10 @@ out of scope; report those to the platforms.
   Policy without `unsafe-inline`.
 - **Logs.** Passwords, tokens, and cookies are removed before anything is
   written to the log file.
-- **Other apps' data.** VRX never writes to VRCX or ChilloutVR files. It reads
-  local ChilloutVR or CVRX files only to copy a session when you allow it
-  (Settings → Accounts → External ChilloutVR session).
+- **Other apps' data.** VRX never writes to VRCX, ChilloutVR or CVRX files. It
+  reads the sign-in VRCX, ChilloutVR or CVRX saved on this PC only when you
+  press "Use my sign-in from VRCX" or "Use my sign-in from ChilloutVR", and the
+  platform checks that sign-in before VRX saves it.
 - **Updates.** Updates come only from this repository's GitHub Releases and
   never install without your consent.
 - **Repository.** CI scans every pull request and every push to `main` for
