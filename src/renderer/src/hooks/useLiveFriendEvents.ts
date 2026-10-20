@@ -64,6 +64,9 @@ export function useLiveFriendEvents(): void {
     // doesn't close it) could refill the buffer / patch the cache AFTER we cleared
     // it, and re-apply stale presence onto the next roster fetch (Codex, 2026-07-08).
     const quarantined = new Set<Friend['platform']>()
+    // Last auth-status state per platform: a recovery from `error` (the check
+    // could not reach the platform) must refetch a roster that failed meanwhile.
+    const lastAuthState = new Map<Friend['platform'], string | undefined>()
 
     const applyToCache = (
       platform: Friend['platform'],
@@ -197,7 +200,12 @@ export function useLiveFriendEvents(): void {
       // no re-apply loop to guard against here.
       if (key[0] === 'auth-status') {
         const status = cacheEvent.query.state.data as { state?: string } | undefined
-        if (status?.state === 'authenticated' && quarantined.delete(platform)) {
+        const previousState = lastAuthState.get(platform)
+        lastAuthState.set(platform, status?.state)
+        if (
+          status?.state === 'authenticated' &&
+          (quarantined.delete(platform) || previousState === 'error')
+        ) {
           void queryClient.invalidateQueries({ queryKey: friendsQueryKey(platform) })
         } else if (status?.state !== 'authenticated' && status?.state !== 'error') {
           // Hydration can restore a successful friends query before auth settles.
