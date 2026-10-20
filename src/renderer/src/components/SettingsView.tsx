@@ -288,6 +288,8 @@ export default function SettingsView(): React.JSX.Element {
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const cvrSessionImportChoice = useSettingsStore((s) => s.settings.cvrSessionImportChoice)
+  const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
+  const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -363,6 +365,67 @@ export default function SettingsView(): React.JSX.Element {
                 ariaLabel={t('settings.labelScheme.aria')}
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
+            </div>
+
+            {/* Optional pages (owner, 2026-10-20): hiding a page keeps its
+                Dashboard section and alerts. Dashboard, Friends and Settings
+                always show. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.pages.hot.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.pages.hot.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={showHotInstancesPage}
+                ariaLabel={t('settings.pages.hot.label')}
+                onChange={(checked) => updateSettings({ showHotInstancesPage: checked })}
+              />
+            </div>
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.pages.explore.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.pages.explore.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={showExplorePage}
+                ariaLabel={t('settings.pages.explore.label')}
+                onChange={(checked) => updateSettings({ showExplorePage: checked })}
+              />
+            </div>
+
+            {/* Welcome setup again (owner, 2026-10-20): the wizard replaces the
+                shell until it is finished or skipped; nothing else changes. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.setup.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.setup.description')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateSettings({ setupPending: true })}
+                className={[
+                  'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+                  'border border-[var(--border)]',
+                  'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+                  'text-[var(--text)]',
+                  'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+                  'cursor-pointer'
+                ].join(' ')}
+              >
+                {t('settings.setup.run')}
+              </button>
             </div>
           </section>
         )}

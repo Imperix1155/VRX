@@ -188,6 +188,26 @@ describe('loadSettings (W7 M1)', () => {
     expect(getSettingsSnapshot().theme).toBe('light')
   })
 
+  it('queues the welcome setup only when no settings file exists yet', () => {
+    // An empty store is electron-store's view of a missing settings.json.
+    const fresh = loadSettings()
+
+    expect(fresh).toEqual({ ...DEFAULT_SETTINGS, setupPending: true })
+    expect(storeState.written).toEqual([fresh])
+
+    // The next launch reads that written file and keeps the queued setup until
+    // the wizard clears it; an existing default-only file never starts it.
+    storeState.data = { ...DEFAULT_SETTINGS }
+    expect(loadSettings().setupPending).toBe(false)
+    storeState.data = { theme: 'light' }
+    expect(loadSettings().setupPending).toBe(false)
+  })
+
+  it('does not queue setup when the settings file cannot be read', () => {
+    storeState.throwOnRead = true
+    expect(loadSettings().setupPending).toBe(false)
+  })
+
   it('persists the normalized form back for a legacy (version-less) file', () => {
     // Raw legacy shape: no version field → readVersion 0 ≤ SETTINGS_VERSION →
     // loadSettings writes the migrated+validated form back to disk.

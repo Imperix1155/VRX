@@ -375,3 +375,30 @@ describe('App settings hydration gate (VRX-212)', () => {
     expect(useSettingsStore.getState().hydrated).toBe(true)
   })
 })
+
+describe('App welcome setup gate (owner, 2026-10-20)', () => {
+  it('shows the welcome setup before the shell or login while setup is pending', async () => {
+    stubSettingsLoad(Promise.resolve({ ...DEFAULT_SETTINGS, setupPending: true }))
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: msg('setup.welcome.title') })).toBeTruthy()
+    expect(screen.queryByTestId('app-shell')).toBeNull()
+
+    // Finishing clears the flag, and the usual gates take over.
+    act(() => useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, setupPending: false } }))
+    expect(screen.getByTestId('app-shell')).toBeTruthy()
+  })
+
+  it('shows the welcome setup to a signed-out new install instead of the login screen', async () => {
+    stubSettingsLoad(Promise.resolve({ ...DEFAULT_SETTINGS, setupPending: true }))
+    mockAuthStatuses(vrcUnauthenticated, cvrUnauthenticated)
+    renderApp()
+
+    expect(await screen.findByRole('button', { name: msg('setup.skip') })).toBeTruthy()
+    expect(screen.queryByRole('radiogroup', { name: msg('login.tabs.aria') })).toBeNull()
+  })
+})

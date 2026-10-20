@@ -44,7 +44,9 @@ through `@shared`.
   grants external-session consent. Alerts and `autoUpdate` default off.
   `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
-  preference.
+  preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
+  hide sidebar pages only. Missing or invalid `setupPending` is `false`, so
+  only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass
   exception text, tokens, cooldowns, or session data across IPC.

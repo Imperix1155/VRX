@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A welcome setup greets new installs. It walks through signing in to VRChat
+  and ChilloutVR side by side, then which pages to show, what the Dashboard
+  shows, desktop alerts, and the look, with each choice applied right away.
+  Skip setup is on every screen. Settings → Appearance has Run setup again.
+- Settings → Appearance can hide the Hot Instances and Explore pages from the
+  sidebar. Their Dashboard sections and alerts keep their own switches.
+
 ### Changed
 
 - VRX opens faster: the window appears about a fifth sooner (about 0.47s
@@ -86,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   English uses "1 friend" and "1 hot instance" instead of "1 friends".
 - With Hot Instances first and none found, the Popular now heading no longer
   touches the empty-state card.
+- Settings → Accounts asks ChilloutVR for an email address, the same as the
+  sign-in screen, instead of "Username or email".
+- A linked person's two accounts now appear in the same order everywhere (the
+  friend details chips, the "2 locations" tooltip, the destination chooser,
+  and the link dialogs), instead of the order the link was made in.
 - When VRChat's 2FA code expires while VRX is running, VRX asks for a new code
   instead of showing a friends list that won't load.
 - If VRX starts offline or while VRChat or ChilloutVR is down, it keeps checking

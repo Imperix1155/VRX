@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
 import AppShell from '@renderer/components/AppShell'
 import LoginScreen from '@renderer/components/LoginScreen'
+import SetupWizard from '@renderer/components/setup/SetupWizard'
 import FriendDrawer from '@renderer/components/FriendDrawer'
 import DashboardView from '@renderer/components/DashboardView'
 import JoinConfirmDialog from '@renderer/components/JoinConfirmDialog'
@@ -85,6 +86,27 @@ function JoinScene(): React.JSX.Element {
   )
 }
 
+/** The real welcome setup. Finishing or skipping clears the synthetic
+ *  `setupPending` flag, so the reader lands in the fixture app like a new
+ *  user would; the button outside the window opens setup again. */
+function SetupScene(): React.JSX.Element {
+  const setupPending = useSettingsStore((s) => s.settings.setupPending)
+  if (setupPending) return <SetupWizard />
+  return (
+    <>
+      <div className="fixture-controls">
+        <button
+          type="button"
+          onClick={() => useSettingsStore.getState().updateSettings({ setupPending: true })}
+        >
+          Open welcome setup again
+        </button>
+      </div>
+      <AppShell />
+    </>
+  )
+}
+
 function Scene({ name, variant }: { name: string; variant: string }): React.JSX.Element {
   // Synthetic persistence recovery: the retry only settles fixture memory.
   useEffect(() => {
@@ -107,6 +129,7 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
       />
     )
   if (name === 'join') return <JoinScene />
+  if (name === 'setup') return <SetupScene />
   if (['dashboard', 'hot', 'friends', 'linked', 'settings', 'updater'].includes(name))
     return <AppShell />
   return (
@@ -134,7 +157,13 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     }
   })
   for (const platform of ['vrchat', 'chilloutvr'] as const) {
-    queryClient.setQueryData(authStatusQueryKey(platform), fixtureAuth(platform))
+    queryClient.setQueryData(
+      authStatusQueryKey(platform),
+      // `signed-out` shows the setup sign-in step as a brand-new install sees it.
+      name === 'setup' && variant === 'signed-out'
+        ? { platform, state: 'unauthenticated' }
+        : fixtureAuth(platform)
+    )
     queryClient.setQueryData(friendsQueryKey(platform), friends[platform])
     queryClient.setQueryData(exploreQueryKey(platform), getPlatformSnapshot(platform))
   }
@@ -161,6 +190,7 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
+    setupPending: name === 'setup',
     dashboardSectionOrder:
       name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
   })
