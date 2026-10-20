@@ -64,8 +64,17 @@ beforeEach(() => {
   } as unknown as Window['vrx']
   navigate.mockClear()
   close.mockClear()
+  // jsdom has no layout. Give the picker's scroller a viewport and each row a
+  // height so its virtual window behaves as it does in the app.
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
+    this: HTMLElement
+  ) {
+    if (this.classList.contains('overflow-y-auto')) return 420
+    return this.tagName === 'LI' && this.dataset.index !== undefined ? 58 : 0
+  })
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   cleanup()
   client.clear()
   await i18n.changeLanguage('en')
@@ -250,6 +259,26 @@ describe('identity management', () => {
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'VRX name' }).value).toBe(
       'My draft'
     )
+  })
+  it('mounts only a window of a large picker and still finds any friend by search', () => {
+    const many = Array.from({ length: 2000 }, (_, index) => ({
+      ...candidate,
+      platformUserId: `cvr_${index}`,
+      displayName: `Friend ${index}`
+    }))
+    render(dialog([source, ...many]))
+    fireEvent.click(screen.getByRole('button', { name: 'Link an account' }))
+    const list = screen.getByRole('list', { name: 'Friends' })
+    const mounted = within(list).getAllByRole('button')
+    expect(mounted.length).toBeGreaterThan(0)
+    expect(mounted.length).toBeLessThan(40)
+    expect(within(list).getAllByRole('listitem')[0]?.getAttribute('aria-setsize')).toBe('2000')
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Friend 1999' } })
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    ).toEqual([expect.stringContaining('Friend 1999')])
   })
   it('selects duplicate names by exact friend identity and creates a blank-note link', async () => {
     const duplicate = { ...candidate, platformUserId: 'different_friend' }
