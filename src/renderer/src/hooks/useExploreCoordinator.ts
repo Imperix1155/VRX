@@ -196,6 +196,14 @@ export function useExploreCoordinator(): void {
     } else if (known.pending?.key === key) {
       activation = known.pending.promise
     } else {
+      // Hiding a platform cancels its unfinished first load in main. That cut
+      // attempt must not block the page's automatic load for 5 minutes once it
+      // is shown again; main still bounds the retry with its own gate.
+      for (const platform of PLATFORMS) {
+        if (platforms.includes(platform)) continue
+        const cached = queryClient.getQueryData<ExplorePlatformSnapshot>(exploreQueryKey(platform))
+        if (cached === undefined || cached.updatedAt === null) clearExploreAutomaticGate(platform)
+      }
       const declaration: ActiveDeclaration = {
         key,
         promise: Promise.resolve()

@@ -7,12 +7,12 @@ beta or release-candidate test builds.
 
 ## Choose a download
 
-| System  | File                          | Updates                                                   |
-| ------- | ----------------------------- | --------------------------------------------------------- |
-| Windows | `vrx-VERSION-setup.exe`       | In-app updates                                            |
-| Windows | `VRX-VERSION.exe` (portable)  | Download each new version yourself                        |
-| Linux   | `vrx-VERSION-x86_64.AppImage` | In-app updates                                            |
-| Linux   | `vrx_VERSION_amd64.deb`       | Install each new package with your system's package tools |
+| System  | File                          | Updates                            |
+| ------- | ----------------------------- | ---------------------------------- |
+| Windows | `vrx-VERSION-setup.exe`       | In-app updates                     |
+| Windows | `VRX-VERSION.exe` (portable)  | Download each new version yourself |
+| Linux   | `vrx-VERSION-x86_64.AppImage` | In-app updates                     |
+| Linux   | `vrx_VERSION_amd64.deb`       | In-app updates                     |
 
 Releases are built for 64-bit x86 (x64) only. There is no native ARM build.
 Linux packages are checked automatically when they are built but are less

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RELEASES_URL } from '@shared/constants'
+import { ALL_RELEASES_URL, RELEASES_URL, releasesUrlFor } from '@shared/constants'
 import { isAllowedUrl, isAllowedLaunchUrl } from './url-allowlist'
 
 describe('isAllowedUrl', () => {
@@ -48,6 +48,12 @@ describe('isAllowedUrl', () => {
 
   it('allows the GitHub releases page used by the updater', () => {
     expect(isAllowedUrl(RELEASES_URL)).toBe(true)
+    expect(isAllowedUrl(ALL_RELEASES_URL)).toBe(true)
+  })
+
+  it('sends a test build to all releases and a normal build to the latest', () => {
+    expect(releasesUrlFor('1.0.0-beta.3')).toBe(ALL_RELEASES_URL)
+    expect(releasesUrlFor('1.0.0')).toBe(RELEASES_URL)
   })
 
   // ── 2026-07 audit W6 ─────────────────────────────────────────────────────────

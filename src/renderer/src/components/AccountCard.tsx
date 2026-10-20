@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Platform } from '@shared/types'
 import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
-import { friendsQueryKey } from '../queries/friends'
+import { EMPTY_ROSTER_PLACEHOLDER, friendsQueryKey } from '../queries/friends'
 import { persistQueryCacheNow } from '../queries/cache'
 import { ACCOUNT_CARD_CONFIG, accountLoginErrorKey } from '../utils/accountCard'
 import { useAuthFlow } from '../hooks/useAuthFlow'
@@ -51,7 +51,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
       // platform's mounted roster without removing its observer. Logout means
       // the data must GO (a later login may be a different account), not refetch.
       await queryClient.invalidateQueries({ queryKey: authStatusQueryKey(platform) })
-      queryClient.setQueryData(friendsQueryKey(platform), [])
+      queryClient.setQueryData(friendsQueryKey(platform), [], EMPTY_ROSTER_PLACEHOLDER)
       persistQueryCacheNow(queryClient)
     } catch {
       flow.setErrorKey('settings.accounts.error.disconnect')
@@ -181,6 +181,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
             method={flow.pending2fa}
             code={flow.twoFactorCode}
             isSubmitting={flow.isSubmitting}
+            locked={isDisconnecting}
             errorKey={flow.errorKey}
             onCodeChange={flow.setTwoFactorCode}
             onSubmit={(e) => void flow.handleSubmit(e)}

@@ -173,7 +173,8 @@ export interface IpcEvents {
   'linked-profiles-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
-  'navigate-to-dashboard': void
+  /** A hot-instance alert click: open Hot Instances with this platform in view. */
+  'navigate-to-dashboard': { platform: Platform }
   'updater:state-changed': UpdaterSnapshot
 }
 

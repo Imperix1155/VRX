@@ -224,7 +224,12 @@ const FriendRow = memo(function FriendRow({
   const { isJoining, joinFailureFor, join } = useJoinInstance()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
-  const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
+  // Offline friends carry no status (the live offline event clears it; a full
+  // roster refresh may still include the old one).
+  const customStatus =
+    friend.platform === 'vrchat' && friend.presence.state !== 'offline'
+      ? (friend.statusDescription ?? null)
+      : null
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
   const hideWorld = isWorldHidden(pillFriend ?? friend)
@@ -459,9 +464,12 @@ const FriendRow = memo(function FriendRow({
           <button
             type="button"
             data-join-pill
-            className="linked-location-button disabled:opacity-50"
-            onClick={joinFriend}
-            disabled={isJoining}
+            className="linked-location-button aria-disabled:opacity-50"
+            onClick={(event) => {
+              if (isJoining) event.stopPropagation()
+              else joinFriend(event)
+            }}
+            aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
             // The diagonal halves carry each location's access tier in color;
             // the tooltip (and accessible description) spells both out.
@@ -707,7 +715,7 @@ export default function FriendsList(): React.JSX.Element {
     () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
     [vrcFriends.data, cvrFriends.data]
   )
-  const { friends, isPending, isError, isFetching, refetch, sourceFailures } =
+  const { friends, isPending, isError, isFetching, isLoadingPlaceholder, refetch, sourceFailures } =
     useCombineFriendQueries(platformFilter, vrcFriends, cvrFriends)
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
@@ -1242,10 +1250,13 @@ export default function FriendsList(): React.JSX.Element {
         ) : null}
         <button
           type="button"
-          onClick={() => void refetch()}
-          disabled={isFetching}
+          // aria-disabled keeps keyboard focus here through a refresh.
+          onClick={() => {
+            if (!isFetching) void refetch()
+          }}
+          aria-disabled={isFetching || undefined}
           aria-label={t('friends.refresh')}
-          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:opacity-50 motion-safe:transition-colors"
+          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] aria-disabled:opacity-50 motion-safe:transition-colors"
         >
           {t('friends.refresh')}
         </button>
@@ -1268,7 +1279,11 @@ export default function FriendsList(): React.JSX.Element {
         {search.length > 0 && (
           <button
             type="button"
-            onClick={() => updateSearch('')}
+            onClick={() => {
+              updateSearch('')
+              // The button goes away with the search; keep focus in the field.
+              searchInputRef.current?.focus()
+            }}
             aria-label={t('friends.clearSearch')}
             className="absolute top-1/2 right-[var(--space-2)] grid h-[24px] w-[24px] -translate-y-1/2 place-items-center rounded-control text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
           >
@@ -1301,14 +1316,14 @@ export default function FriendsList(): React.JSX.Element {
           {isError && !friends && sourceFailures.length === 0 && (
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
-          {/* An empty list with a fetch in flight is usually the [] placeholder a
-          sign-in or account switch leaves while the new roster loads, so it
-          says loading rather than claiming nobody is online. */}
+          {/* The [] placeholder a sign-in or account switch leaves says loading
+          while the new roster loads; a verified empty roster that is merely
+          refreshing keeps saying nobody is online. */}
           {filteredFriends && filteredFriends.length === 0 && (
             <p className="text-sm text-[var(--text-dim)]">
               {searchActive
                 ? t('friends.searchNoResults')
-                : isFetching
+                : isLoadingPlaceholder
                   ? t('friends.loading')
                   : t('friends.empty')}
             </p>

@@ -570,8 +570,10 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(screen.getByText(msg('updater.settings.unsupportedNote'))).toBeTruthy()
     const button = screen.getByRole('button', { name: msg('updater.settings.releases') })
     fireEvent.click(button)
+    // This build is a beta, so the link lists test builds too.
+    expect(__APP_VERSION__).toContain('-')
     expect(openUrl).toHaveBeenCalledWith({
-      url: 'https://github.com/Imperix1155/VRX/releases/latest'
+      url: 'https://github.com/Imperix1155/VRX/releases'
     })
   })
 })

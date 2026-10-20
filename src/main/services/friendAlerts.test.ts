@@ -502,6 +502,35 @@ describe('FriendAlerts hot-instance crossings (VRX-85)', () => {
     expect(hotAlerts(alerts).map((alert) => alert.friendCount)).toEqual([2, 2])
   })
 
+  it('a friend rejoining the same hot instance through traveling does not re-announce it', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    expect(hotAlerts(alerts)).toHaveLength(1)
+
+    // Two friends traveling back together count as the same group too.
+    engine.consume(presenceEvent(friend('in-game', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    expect(hotAlerts(alerts)).toHaveLength(1)
+  })
+
+  it('still announces when a friend travels into a hot instance from somewhere else', () => {
+    const { engine, alerts } = harness()
+    engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('offline', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_1', 'One')))
+    engine.consume(presenceEvent(friend('in-game', instance('elsewhere'), 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', null, 'usr_2', 'Two')))
+    engine.consume(presenceEvent(friend('in-game', instance('party'), 'usr_2', 'Two')))
+    expect(hotAlerts(alerts)).toHaveLength(1)
+  })
+
   it('a status-only friend-updated re-evaluates membership: newly-hidden drops out, flip-back crosses again (VRX-237)', () => {
     const { engine, alerts } = harness()
     engine.consume(presenceEvent(friend('offline', null, 'usr_1', 'One')))

@@ -50,7 +50,12 @@ export interface TrayHandle {
  * captured reference would leave every tray action a silent no-op (Codex
  * review, PR #118). Null/destroyed → the action no-ops safely.
  */
-export function createTray(getWindow: () => Electron.BrowserWindow | null): TrayHandle {
+export function createTray(
+  getWindow: () => Electron.BrowserWindow | null,
+  /** Show (and recreate if needed) the main window. Without it, Show and
+   *  double-click do nothing once macOS has destroyed the closed window. */
+  showWindow?: () => void
+): TrayHandle {
   // Windows selects the matching ICO frame. PNG paths on macOS/Linux load
   // their matching @2x representations without shrinking the large app master.
   const image =
@@ -67,6 +72,10 @@ export function createTray(getWindow: () => Electron.BrowserWindow | null): Tray
   }
 
   const showCurrent = (): void => {
+    if (showWindow) {
+      showWindow()
+      return
+    }
     const win = live()
     if (win) {
       win.show()
@@ -92,6 +101,8 @@ export function createTray(getWindow: () => Electron.BrowserWindow | null): Tray
   const wireWindow = (win: Electron.BrowserWindow): void => {
     win.on('show', refreshMenu)
     win.on('hide', refreshMenu)
+    // A destroyed window (macOS close) must flip the label back to Show.
+    win.on('closed', refreshMenu)
     refreshMenu()
   }
 

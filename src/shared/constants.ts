@@ -71,3 +71,11 @@ export const CVR_PLATFORM = 'pc_standalone' as const
 // ─── External links ──────────────────────────────────────────────────────────
 /** GitHub Releases page for manual update downloads (VRX-113). */
 export const RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases/latest' as const
+/** All releases, newest first: `/latest` never lists a beta or rc. */
+export const ALL_RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases' as const
+
+/** Where a build that can't update itself finds its next version: a test
+ *  build's next version is usually another test build. */
+export function releasesUrlFor(version: string): string {
+  return version.includes('-') ? ALL_RELEASES_URL : RELEASES_URL
+}

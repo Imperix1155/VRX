@@ -168,13 +168,22 @@ export type FriendQuery = Pick<
 > & {
   /** Query projections without enablement retain their existing enabled behavior. */
   isEnabled?: boolean
+  /** 0 marks the empty placeholder a sign-in or account switch leaves. */
+  dataUpdatedAt?: number
 }
+
+/** `setQueryData` options for the empty roster a sign-in, sign-out or account
+ *  switch leaves: stamped 0 so the list knows it is a placeholder, not a
+ *  verified empty roster, and the saved cache never restores it. */
+export const EMPTY_ROSTER_PLACEHOLDER = { updatedAt: 0 } as const
 
 export interface CombinedFriendsView {
   friends: Friend[] | undefined
   isPending: boolean
   isError: boolean
   isFetching: boolean
+  /** A fetch is replacing an empty placeholder roster (not a verified empty one). */
+  isLoadingPlaceholder: boolean
   refetch: () => void
   /**
    * Enabled, in-scope platforms whose latest fetch failed while the list still
@@ -258,6 +267,7 @@ function combinedView(
     isError,
     sourceFailures,
     isFetching: enabled.some((q) => q.isFetching),
+    isLoadingPlaceholder: enabled.some((q) => q.isFetching && q.dataUpdatedAt === 0),
     refetch: () => {
       for (const q of enabled) void q.refetch()
     }
