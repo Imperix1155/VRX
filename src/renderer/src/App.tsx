@@ -57,7 +57,7 @@ function App(): React.JSX.Element {
       // gathering that was clicked is on the page.
       const { platformFilter, setPlatformFilter } = useFriendsStore.getState()
       if (platformFilter !== 'all' && platformFilter !== event?.platform) setPlatformFilter('all')
-      useUiStore.getState().setActiveTab('hot')
+      useUiStore.getState().openHotFromAlert()
     })
   }, [])
 

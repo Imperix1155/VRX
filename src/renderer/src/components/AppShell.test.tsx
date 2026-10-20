@@ -48,7 +48,11 @@ const msg = (key: string): string => i18n.t(key)
 
 afterEach(() => {
   cleanup()
-  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  useUiStore.setState({
+    activeTab: 'dashboard',
+    settingsCategory: 'appearance',
+    hotOpenedFromAlert: false
+  })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
 })
 
@@ -76,6 +80,19 @@ describe('AppShell optional pages (owner, 2026-10-20)', () => {
     render(<AppShell />)
     expect(useUiStore.getState().activeTab).toBe('dashboard')
     expect(screen.getByRole('main', { name: msg('shell.nav.dashboard') })).toBeTruthy()
+  })
+
+  it('shows a hidden Hot Instances page when a hot alert opens it, until the user moves on', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false } })
+    render(<AppShell />)
+
+    act(() => useUiStore.getState().openHotFromAlert())
+    expect(useUiStore.getState().activeTab).toBe('hot')
+    expect(screen.getByRole('main', { name: msg('shell.nav.hot') })).toBeTruthy()
+
+    act(() => useUiStore.getState().setActiveTab('friends'))
+    act(() => useUiStore.getState().setActiveTab('hot'))
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
   })
 })
 
