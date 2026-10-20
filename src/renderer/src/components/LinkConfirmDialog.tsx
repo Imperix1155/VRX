@@ -10,6 +10,7 @@ import type {
 } from '@shared/linkedProfiles'
 import type { Platform } from '@shared/types'
 import { usePersonNoteGuard } from '../hooks/usePersonNote'
+import { inPlatformOrder } from '../utils/platformOrder'
 
 export type LinkReview =
   | {
@@ -295,6 +296,7 @@ export default function LinkConfirmDialog({
     ).values()
   )
   const preferred = replacement.members.find((member) => member.platform === preferredPlatform)
+  const displayMembers = inPlatformOrder(replacement.members)
 
   return (
     <form
@@ -350,9 +352,9 @@ export default function LinkConfirmDialog({
           {t('linking.confirm.replace.newPairLabel')}
         </p>
         <p className="mt-[var(--space-1)] text-[13px] text-[var(--text)]">
-          <span>{nameFor(replacement.members[0])}</span>
+          <span>{nameFor(displayMembers[0])}</span>
           <span aria-hidden="true"> + </span>
-          <span>{nameFor(replacement.members[1])}</span>
+          <span>{nameFor(displayMembers[1])}</span>
         </p>
       </div>
 
@@ -379,7 +381,7 @@ export default function LinkConfirmDialog({
         </legend>
         <p className="text-[12px] text-[var(--text-dim)]">{t('linking.confirm.preferred.help')}</p>
         <div className="flex gap-[var(--space-2)]">
-          {replacement.members.map((member) => (
+          {displayMembers.map((member) => (
             <label
               key={member.platform}
               className="flex items-center gap-[var(--space-1)] rounded-pill border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-[13px] text-[var(--text)]"

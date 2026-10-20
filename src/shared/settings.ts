@@ -29,6 +29,9 @@
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
  *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
+ *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
+ *                            only for a brand-new settings file or "Run setup again")
  */
 import { z } from 'zod'
 import {
@@ -51,7 +54,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 12 as const
+export const SETTINGS_VERSION = 13 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -62,6 +65,12 @@ export const SettingsSchema = z.object({
   hotInstancesEnabled: z.boolean().catch(true),
   /** Dashboard section order; the first section shows picture cards. */
   dashboardSectionOrder: z.enum(DASHBOARD_SECTION_ORDERS).catch('popular-first'),
+  /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
+  showHotInstancesPage: z.boolean().catch(true),
+  showExplorePage: z.boolean().catch(true),
+  /** First-run welcome setup is waiting. Missing or invalid data never starts it:
+   *  main marks only a brand-new install (see `freshInstallSettings`). */
+  setupPending: z.boolean().catch(false),
   /** Schema version of the persisted object; drives {@link runMigrations}. */
   version: z.number().int().nonnegative().catch(SETTINGS_VERSION),
   /** UI theme; `system` follows the OS. Values sourced from `@shared/types` THEMES. */
@@ -126,7 +135,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11 are deliberately
+ * v1 → v2 through v10 → v11, and v12 → v13, are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -147,7 +156,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   11: (prev) => ({
     ...prev,
     notifyHotInstance: prev.notifyHotInstance === true && prev.hotInstancesEnabled !== false
-  })
+  }),
+  12: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -209,6 +219,15 @@ export function runMigrations(
 export function parseSettings(raw: unknown): Settings {
   const migrated = runMigrations(isRecord(raw) ? raw : {})
   return SettingsSchema.parse(migrated)
+}
+
+/**
+ * Settings for a brand-new install: the defaults with the welcome setup queued.
+ * Main uses this only when no settings file exists yet (an empty store), so
+ * every existing install, including one with only default choices, skips setup.
+ */
+export function freshInstallSettings(): Settings {
+  return { ...DEFAULT_SETTINGS, setupPending: true }
 }
 
 /**
