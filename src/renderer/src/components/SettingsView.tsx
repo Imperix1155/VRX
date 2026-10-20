@@ -118,6 +118,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
   const handleButtonClick = (): void => {
+    if (state.state === 'checking' || state.state === 'downloading') return
     if (state.state === 'unsupported') {
       void window.vrx?.openUrl({ url: releasesUrlFor(__APP_VERSION__) })
       return
@@ -138,6 +139,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
   const isDownloaded = state.state === 'downloaded'
   const isUnsupported = state.state === 'unsupported'
   const isUpdateAvailable = state.state === 'update-available'
+  const buttonDisabled = isChecking || isDownloading
 
   const buttonLabel = isUnsupported
     ? t('updater.settings.releases')
@@ -162,8 +164,6 @@ function UpdaterSettingsRow(): React.JSX.Element {
   ) : (
     <IconDownload />
   )
-
-  const buttonDisabled = isChecking || isDownloading
 
   return (
     <div className="setting-card setting-row">
@@ -200,7 +200,8 @@ function UpdaterSettingsRow(): React.JSX.Element {
         <button
           type="button"
           onClick={handleButtonClick}
-          disabled={buttonDisabled}
+          // aria-disabled keeps keyboard focus on the button while it works.
+          aria-disabled={buttonDisabled || undefined}
           className={[
             'inline-flex items-center gap-[var(--space-1)]',
             'px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
