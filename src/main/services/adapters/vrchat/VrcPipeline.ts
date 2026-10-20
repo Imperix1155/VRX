@@ -69,13 +69,23 @@ const envelopeSchema = z.object({
   content: z.union([z.string(), z.record(z.string(), z.unknown())])
 })
 
-/** Friend events that carry a full user object (+ optional location fields). */
-const friendWithUserSchema = z.object({
-  userId: z.string(),
-  user: rawFriendSchema,
-  location: z.string().nullable().optional(),
-  travelingToLocation: z.string().nullable().optional()
-})
+/**
+ * Friend events that carry a full user object (+ optional location fields).
+ * `friend-active` spells the id `userid` (VRChat community docs); every other
+ * friend event uses `userId`. Accept both, falling back to the user's own id.
+ */
+const friendWithUserSchema = z
+  .object({
+    userId: z.string().optional(),
+    userid: z.string().optional(),
+    user: rawFriendSchema,
+    location: z.string().nullable().optional(),
+    travelingToLocation: z.string().nullable().optional()
+  })
+  .transform(({ userId, userid, ...rest }) => ({
+    ...rest,
+    userId: userId ?? userid ?? rest.user.id
+  }))
 
 /** `friend-add` carries a full User whose `state` says where the new friend is. */
 const friendAddStateSchema = z.object({

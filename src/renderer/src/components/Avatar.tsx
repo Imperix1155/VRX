@@ -17,6 +17,15 @@ import type { Friend } from '@shared/types'
 import { ringFor } from '../utils/statusRing'
 import { useAvatar } from '../hooks/useAvatar'
 
+const graphemes = new Intl.Segmenter()
+
+/** The name's first user-perceived character. charAt(0) split emoji and styled
+ *  letters ("🌸Sakura", "𝓙osh") into half a surrogate pair, which shows as "�". */
+function initialOf(name: string): string {
+  const first = graphemes.segment(name.trim())[Symbol.iterator]().next()
+  return first.done === true ? '?' : first.value.segment.toUpperCase()
+}
+
 export function Avatar({
   friend,
   mergedWith,
@@ -34,7 +43,7 @@ export function Avatar({
 }): React.JSX.Element {
   const { t } = useTranslation()
   const ring = ringFor(friend)
-  const initial = friend.displayName.trim().charAt(0).toUpperCase() || '?'
+  const initial = initialOf(friend.displayName)
   const avatarRef = useRef<HTMLSpanElement>(null)
   const dataUrl = useAvatar(friend.avatarUrl, avatarRef)
   const mergedDataUrl = useAvatar(mergedWith?.avatarUrl ?? null, avatarRef)
@@ -111,7 +120,7 @@ export function Avatar({
     face: typeof friendFace,
     platform: Friend['platform']
   ): React.JSX.Element => {
-    const faceInitial = face.person.displayName.trim().charAt(0).toUpperCase() || '?'
+    const faceInitial = initialOf(face.person.displayName)
     const isVrchat = platform === 'vrchat'
     return (
       <span

@@ -247,7 +247,17 @@ describe('persisted cache boundaries', () => {
   it('does not strand the default all-platform FriendsList in loading after a boundary', async () => {
     mockAuthState('unauthenticated')
     const accountAVrc = [seededFriend('vrchat', 'VrcAccountA')]
-    stubBridge({ getFriends: vi.fn(() => new Promise<Friend[]>(() => {})) })
+    let calls = 0
+    stubBridge({
+      // The first read (mount) never settles; the post-boundary read finds an
+      // empty roster after a second.
+      getFriends: vi.fn(() => {
+        calls += 1
+        return calls === 1
+          ? new Promise<Friend[]>(() => {})
+          : new Promise<Friend[]>((resolve) => setTimeout(() => resolve([]), 1000))
+      })
+    })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(friendsQueryKey('vrchat'), accountAVrc)
     mountFriendsList(queryClient)
@@ -262,6 +272,15 @@ describe('persisted cache boundaries', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
+    // The [] placeholder is not a verified empty roster while the new one loads.
+    expect(screen.getByText('Loading...')).toBeTruthy()
+    expect(screen.queryByText('No friends online')).toBeNull()
+
+    // The signed-out ChilloutVR query stays pending forever; it must not hold
+    // the list in loading once the VRChat read settles.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
     expect(screen.queryByText('Loading...')).toBeNull()
     expect(screen.getByText('No friends online')).toBeTruthy()
   })

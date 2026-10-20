@@ -42,13 +42,42 @@ const SENSITIVE_INLINE: readonly RegExp[] = [
 ]
 const BARE_AUTHCOOKIE = /(?<![A-Za-z0-9])authcookie_[A-Za-z0-9-]+/g
 const BARE_JWT = /\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g
+let homeDirectoryPatterns: readonly RegExp[] = []
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Mask the OS home folder (it embeds the account name) as `~` in every logged
+ * string: stack traces and Node fs errors carry absolute paths such as
+ * `C:\Users\<name>\AppData\…`. Covers the native, forward-slash (file URL) and
+ * URL-encoded spellings; Windows paths match case-insensitively.
+ */
+export function setRedactedHomeDirectory(home: string, platform: string = process.platform): void {
+  const trimmed = home.replace(/[\\/]+$/, '')
+  if (trimmed.length < 2) {
+    homeDirectoryPatterns = []
+    return
+  }
+  const slashed = trimmed.replace(/\\/g, '/')
+  const flags = platform === 'win32' ? 'gi' : 'g'
+  homeDirectoryPatterns = [...new Set([trimmed, slashed, encodeURI(slashed)])].map(
+    (spelling) => new RegExp(`${escapeRegExp(spelling)}(?=$|[\\\\/])`, flags)
+  )
+}
+
 function redactString(value: string): string {
   const masked = SENSITIVE_INLINE.reduce(
     (current, expression) =>
       current.replace(expression, (_match, key, separator) => `${key}${separator}${REDACTED}`),
     value
   )
-  return masked.replace(BARE_AUTHCOOKIE, REDACTED).replace(BARE_JWT, REDACTED)
+  const withoutHome = homeDirectoryPatterns.reduce(
+    (current, expression) => current.replace(expression, '~'),
+    masked
+  )
+  return withoutHome.replace(BARE_AUTHCOOKIE, REDACTED).replace(BARE_JWT, REDACTED)
 }
 
 function isJwtCharacter(value: string): boolean {
