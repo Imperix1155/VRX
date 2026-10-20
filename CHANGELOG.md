@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   R, and orange X at equal size in a smoked-glass case, with colored rails and
   softened chamfers. Windows, Linux, macOS, and tray assets now share that
   design, with dedicated small-size lettering.
+- The installed app no longer carries the project's developer documents,
+  contributor tooling, and old planning notes, which never had a use inside it.
 
 ### Fixed
 
