@@ -176,12 +176,14 @@ describe('LoginScreen (W6)', () => {
     fireEvent.click(signIn)
 
     const code = await screen.findByLabelText(msg('login.twoFactor.code'))
-    expect(document.activeElement).toBe(code)
+    await waitFor(() => expect(document.activeElement).toBe(code))
 
     const back = screen.getByRole('button', { name: msg('login.twoFactor.back') })
     back.focus()
     fireEvent.click(back)
-    expect(document.activeElement).toBe(screen.getByLabelText(msg('login.username')))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText(msg('login.username')))
+    )
   })
 
   it('shows the email prompt for the email 2FA method', async () => {
