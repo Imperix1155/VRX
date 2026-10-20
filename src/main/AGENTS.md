@@ -87,6 +87,10 @@ etiquette rules apply in full; this file adds local detail.
   counts. Accept only local absolute paths; reject symlinks, sources that change
   during the read, XML DTD/CDATA, and ambiguous credential sets. Persist only a
   validated pair through `credentials.ts`.
+- `vrcxSessionImport.ts` (not wired yet) follows the same rules: read-only,
+  snapshot the VRCX database into private temp files, treat an active WAL,
+  lock, or journal as VRCX running, and never create or change files in a
+  VRCX folder. Wiring it needs the same consent and sign-out checks.
 
 **Stores**
 
