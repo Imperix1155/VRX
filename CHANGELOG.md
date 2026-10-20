@@ -55,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Searching friends with a leading or trailing space finds and highlights the
   same people as the trimmed search.
 - Windows and Linux builds no longer show Electron's default File/Edit/View menu
-  bar.
+  bar. Ctrl+Q still quits VRX, which matters on Linux desktops without a tray
+  icon.
 - Logs replace your home folder path with `~`, so a shared log doesn't show your
   computer account name.
 - In light theme the VRX logo and other text on glass no longer look washed out,
