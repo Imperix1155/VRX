@@ -11,7 +11,7 @@
  * platform filter and no category selector.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { act, render, screen, cleanup } from '@testing-library/react'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
 import AppShell from './AppShell'
@@ -63,5 +63,15 @@ describe('AppShell contextual slot invariant (VRX-186)', () => {
     render(<AppShell />)
     expect(screen.getAllByRole('radiogroup', { name: msg('shell.seg.aria') })).toHaveLength(1)
     expect(screen.queryByRole('radiogroup', { name: msg('settings.categories.aria') })).toBeNull()
+  })
+})
+
+describe('AppShell view switching', () => {
+  it('opens each new view at the top instead of the previous view’s scroll offset', () => {
+    render(<AppShell />)
+    const main = screen.getByRole('main')
+    main.scrollTop = 640
+    act(() => useUiStore.setState({ activeTab: 'hot' }))
+    expect(main.scrollTop).toBe(0)
   })
 })
