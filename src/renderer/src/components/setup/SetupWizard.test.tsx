@@ -97,6 +97,8 @@ describe('SetupWizard', () => {
     await screen.findByText(msg('setup.signin.one'))
     fireEvent.click(button('setup.skip'))
     expect(settings()).toEqual({ ...DEFAULT_SETTINGS, setupPending: false })
+    // Leaving setup early keeps the VRChat instance labels.
+    expect(settings().labelScheme).toBe('vrchat')
     expect(useUiStore.getState().activeTab).toBe('dashboard')
   })
 
@@ -172,6 +174,17 @@ describe('SetupWizard', () => {
     expect(settings().theme).toBe('dark')
     fireEvent.click(within(themes).getByRole('radio', { name: msg('settings.theme.light') }))
     expect(settings().theme).toBe('light')
+    // Instance labels are asked too, starting on the VRChat default.
+    const labels = screen.getByRole('radiogroup', { name: msg('settings.labelScheme.aria') })
+    expect(
+      within(labels)
+        .getByRole('radio', { name: msg('settings.labelScheme.vrchat') })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+    fireEvent.click(
+      within(labels).getByRole('radio', { name: msg('settings.labelScheme.platformNative') })
+    )
+    expect(settings().labelScheme).toBe('platform-native')
 
     fireEvent.click(button('setup.continue'))
     const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
@@ -191,13 +204,15 @@ describe('SetupWizard', () => {
     expect(
       within(summary).getByText(msg('setup.done.alertsSome', { count: 4, total: 4 }))
     ).toBeTruthy()
+    expect(within(summary).getByText(msg('settings.labelScheme.platformNative'))).toBeTruthy()
 
     fireEvent.click(button('setup.finish'))
     expect(settings()).toMatchObject({
       setupPending: false,
       showExplorePage: false,
       hotInstancesEnabled: false,
-      theme: 'light'
+      theme: 'light',
+      labelScheme: 'platform-native'
     })
     expect(useUiStore.getState().activeTab).toBe('dashboard')
   })
