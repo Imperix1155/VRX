@@ -31,7 +31,7 @@ function fakeStore(
   return store
 }
 
-/** A full CVR auth payload (the schema requires every field). */
+/** A full CVR auth payload (the schema reads only username, accessKey and userId). */
 function authPayload(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
   return {
     username: 'trinity',
@@ -198,6 +198,19 @@ describe('CvrAdapter', () => {
 
     expect(result).toEqual({ ok: false, needs2fa: false, error: 'invalid_credentials' })
     expect(store.saved).toEqual([])
+  })
+
+  it('signs in when the reply carries only the fields VRX reads', async () => {
+    const minimal = {
+      username: 'trinity',
+      accessKey: 'key-1',
+      userId: 'a1b2c3d4-0000-0000-0000-000000000001'
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(envelope(minimal))))
+
+    await expect(new CvrAdapter(fakeStore(), instantAdmission()).login(creds)).resolves.toEqual({
+      ok: true
+    })
   })
 
   it('sends valid Unicode direct-login credentials without altering them', async () => {

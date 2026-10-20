@@ -9,7 +9,9 @@ import { jsonResponse, noopSleep, instantAdmission } from './__testutils__/adapt
 
 const userSchema = z.object({ id: z.string(), username: z.string() })
 
-const authData: CVRUserAuth = {
+// The real reply carries more fields than VRX validates; keep them here so the
+// fixture stays a realistic payload.
+const authData: CVRUserAuth & Record<string, unknown> = {
   username: 'CVR User',
   accessKey: 'access-key',
   userId: 'user-id',
