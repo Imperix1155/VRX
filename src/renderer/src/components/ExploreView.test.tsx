@@ -175,6 +175,26 @@ describe('ExploreView', () => {
     }
   )
 
+  it('does not claim there are no worlds when a cancelled first load left nothing loaded', () => {
+    setup({
+      worlds: [],
+      platformSnapshots: [source('vrchat', [], 'idle'), source('chilloutvr', [], 'idle')]
+    })
+    expect(screen.getByText('Worlds haven’t loaded yet. Use Refresh to load them.')).toBeTruthy()
+    expect(screen.queryByText('No public worlds are available right now.')).toBeNull()
+  })
+
+  it('keeps the empty copy once a source has loaded with no worlds', () => {
+    setup({
+      worlds: [],
+      platformSnapshots: [
+        { ...source('vrchat', [], 'ready'), updatedAt: 1 },
+        source('chilloutvr', [], 'idle')
+      ]
+    })
+    expect(screen.getByText('No public worlds are available right now.')).toBeTruthy()
+  })
+
   it('does not present ordinary empty copy when every source is unavailable', () => {
     setup({
       worlds: [],
@@ -360,6 +380,7 @@ describe('ExploreView', () => {
   it.each([
     ['joining-disabled', 'Joining is disabled in Settings'],
     ['rate-limited', 'Too many attempts — try again shortly'],
+    ['launch-failed', "Couldn't join. Check the game and connection, then use Join to try again."],
     ['not-joinable', 'Couldn’t join this room. Try again after refreshing.'],
     ['stale', 'Couldn’t join this room. Try again after refreshing.']
   ] as const)('explains a %s room join failure', (reason, copy) => {

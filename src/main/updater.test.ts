@@ -496,6 +496,24 @@ describe('UpdaterService', () => {
     expect(service.snapshot().state).toBe('downloaded')
   })
 
+  it('starts an offered download when Automatic updates is turned on, once', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService({ autoUpdate: false })
+    downloadUpdate.mockResolvedValue(undefined)
+    const promise = service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    await promise
+    expect(downloadUpdate).not.toHaveBeenCalled()
+
+    service.applySettings({ autoUpdate: false })
+    expect(downloadUpdate).not.toHaveBeenCalled()
+    service.applySettings({ autoUpdate: true })
+    await Promise.resolve()
+    expect(downloadUpdate).toHaveBeenCalledOnce()
+    // Later unrelated saves with the switch still on never start another download.
+    service.applySettings({ autoUpdate: true })
+    expect(downloadUpdate).toHaveBeenCalledOnce()
+  })
+
   it('download no-ops unless state is update-available', async () => {
     const { service, downloadUpdate } = createService()
     await service.download()

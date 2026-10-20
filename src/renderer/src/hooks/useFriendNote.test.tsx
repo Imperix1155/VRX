@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -200,6 +200,25 @@ describe('useFriendNote', () => {
     // React double-invokes state updaters in StrictMode. A bridge call made
     // inside one would therefore issue duplicate IPC requests (VRX-213).
     expect(setFriendNote).toHaveBeenCalledTimes(1)
+  })
+
+  it('loads and saves a note while the browser reports offline (local IPC)', async () => {
+    onlineManager.setOnline(false)
+    try {
+      getFriendNote.mockResolvedValue({ note: 'Saved note', revision: makeRevision('self', 1) })
+      const { result } = renderHook(
+        () => useFriendNote({ platform: 'vrchat', friendId: 'usr_a' }),
+        { wrapper: createWrapper() }
+      )
+
+      await waitFor(() => expect(result.current.value).toBe('Saved note'))
+      act(() => result.current.setValue('Written offline'))
+      act(() => result.current.onBlur())
+
+      await waitFor(() => expect(setFriendNote).toHaveBeenCalledTimes(1))
+    } finally {
+      onlineManager.setOnline(true)
+    }
   })
 
   it('does not call setFriendNote on blur when the note is unchanged', async () => {

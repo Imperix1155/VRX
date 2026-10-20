@@ -352,3 +352,16 @@ describe('WorldResolver', () => {
     expect(await resolver.resolve('wrld_abc')).toBeNull()
   })
 })
+
+describe('WorldResolver cache bound', () => {
+  it('evicts the oldest entry once the cache is full', async () => {
+    const fetcher = vi.fn().mockResolvedValue(VALID_WORLD_RAW)
+    const resolver = new WorldResolver(fetcher, Date.now, WORLD_NEGATIVE_CACHE_TTL_MS, 2)
+    await resolver.resolve('wrld_a')
+    await resolver.resolve('wrld_b')
+    await resolver.resolve('wrld_c')
+    expect(resolver.peek('wrld_a')).toBeUndefined()
+    expect(resolver.peek('wrld_b')).toEqual(VALID_WORLD_META)
+    expect(resolver.peek('wrld_c')).toEqual(VALID_WORLD_META)
+  })
+})

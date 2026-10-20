@@ -361,3 +361,18 @@ describe('fetchWorldMetadata', () => {
     expect(resolved.map(({ worldId }) => worldId)).toEqual(['wrld_fast', 'wrld_slow'])
   })
 })
+
+describe('fetchWorldMetadata with a forbidden world', () => {
+  it('keeps naming the rest of the roster after one world answers 403', async () => {
+    const ids = Array.from({ length: 15 }, (_, index) => `wrld_${index}`)
+    const resolver = new WorldResolver(async (worldId) => {
+      if (worldId === 'wrld_0') throw new AuthError(undefined, 403)
+      return { name: `World ${worldId}`, capacity: 10 }
+    })
+
+    const result = await fetchWorldMetadata(ids, resolver)
+
+    expect(result.size).toBe(14)
+    expect(resolver.peek('wrld_0')).toBeNull()
+  })
+})

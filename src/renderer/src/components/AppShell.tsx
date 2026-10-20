@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUiStore } from '../stores/ui'
 import { useSettingsStore } from '../stores/settings'
@@ -76,7 +76,14 @@ export default function AppShell(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
   useHiddenPageFallback()
+  const mainRef = useRef<HTMLElement>(null)
   useExploreCoordinator()
+
+  // One scroller holds every view, so a new view would otherwise open at the
+  // previous view's offset (e.g. "See all" from low on the Dashboard).
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0
+  }, [activeTab])
 
   return (
     <div
@@ -92,6 +99,7 @@ export default function AppShell(): React.JSX.Element {
       {/* The landmark is labelled by the active view so screen-reader users hear
           which view the main region currently holds (audit W5). */}
       <main
+        ref={mainRef}
         aria-label={t(VIEW_TITLE_KEYS[activeTab])}
         // tabIndex -1: programmatically focusable so the join dialog's
         // focus-restore has a stable container fallback (VRX-210).

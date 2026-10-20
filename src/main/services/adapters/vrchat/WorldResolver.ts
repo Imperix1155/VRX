@@ -68,10 +68,18 @@ interface CacheEntry {
   expiresAt: number
 }
 
+/**
+ * Cache-size ceiling (same rule as GROUP_CACHE_MAX). Friends hopping between
+ * worlds would otherwise grow the map for the process lifetime. At the
+ * ceiling: sweep expired entries; if still over, evict oldest-inserted.
+ */
+export const WORLD_CACHE_MAX = 512
+
 export class WorldResolver {
   private readonly fetcher: (worldId: string) => Promise<unknown>
   private readonly clock: () => number
   private readonly negativeTtlMs: number
+  private readonly maxEntries: number
   private readonly cache = new Map<string, CacheEntry>()
   private readonly writeEpoch = new Map<string, number>()
   private generation = 0
@@ -79,11 +87,29 @@ export class WorldResolver {
   constructor(
     fetcher: (worldId: string) => Promise<unknown>,
     clock: () => number = Date.now,
-    negativeTtlMs: number = WORLD_NEGATIVE_CACHE_TTL_MS
+    negativeTtlMs: number = WORLD_NEGATIVE_CACHE_TTL_MS,
+    maxEntries: number = WORLD_CACHE_MAX
   ) {
     this.fetcher = fetcher
     this.clock = clock
     this.negativeTtlMs = negativeTtlMs
+    this.maxEntries = maxEntries
+  }
+
+  /** Bounded-growth guard — see WORLD_CACHE_MAX. */
+  private store(worldId: string, entry: CacheEntry): void {
+    if (this.cache.size >= this.maxEntries && !this.cache.has(worldId)) {
+      const now = this.clock()
+      for (const [key, existing] of this.cache) {
+        if (existing.expiresAt <= now) this.cache.delete(key)
+      }
+      while (this.cache.size >= this.maxEntries) {
+        const oldest = this.cache.keys().next().value
+        if (oldest === undefined) break
+        this.cache.delete(oldest)
+      }
+    }
+    this.cache.set(worldId, entry)
   }
 
   /**
@@ -142,15 +168,18 @@ export class WorldResolver {
       // it propagates so VrcAdapter can emit auth-invalidated from its background
       // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
+      // A 403 is a denial on this one world on a live session (VRChat's
+      // boundary rule), so it falls through to the negative cache below
+      // instead of stopping the rest of the enrichment batch.
       if (
-        error instanceof AuthError ||
+        (error instanceof AuthError && error.status !== 403) ||
         error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError
       )
         throw error
       if (mayWrite()) {
-        this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+        this.store(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
       }
       return null
     }
@@ -158,7 +187,7 @@ export class WorldResolver {
     const parsed = WorldApiSchema.safeParse(raw)
     if (!parsed.success) {
       if (mayWrite()) {
-        this.cache.set(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
+        this.store(worldId, { meta: null, expiresAt: this.clock() + this.negativeTtlMs })
       }
       return null
     }
@@ -171,7 +200,7 @@ export class WorldResolver {
     }
 
     if (mayWrite()) {
-      this.cache.set(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
+      this.store(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
     }
     return meta
   }

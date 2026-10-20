@@ -192,7 +192,9 @@ async function refreshProfiles(client: QueryClient): Promise<LinkSnapshot | unde
       queryKey: linkedProfilesKey,
       queryFn: ({ signal }) => fetchLinkedProfiles(signal),
       structuralSharing: retainNewestLinkSnapshot,
-      staleTime: 0
+      staleTime: 0,
+      // Local IPC: never pause while the browser reports offline.
+      networkMode: 'always'
     })
   } catch {
     return undefined
@@ -306,6 +308,7 @@ export function usePersonNote(personId: string | null): UseFriendNoteResult {
       staleTime: Infinity,
       retry: false,
       structuralSharing: retainNewestLinkSnapshot,
+      networkMode: 'always',
       enabled: personId !== null && bridgeReadable
     },
     queryClient

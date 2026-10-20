@@ -263,7 +263,7 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     expect(screen.queryByLabelText(msg('login.username'))).toBeNull()
   })
 
-  it('routes a native hot-instance toast click to the Dashboard', () => {
+  it('routes a native hot-instance toast click to the Hot Instances page', () => {
     stubDashboardNavigation()
     useUiStore.setState({ activeTab: 'settings' })
     mockAuthStatuses(
@@ -274,7 +274,8 @@ describe('App auth gate (VRX-173, platform parity)', () => {
 
     act(() => navigateToDashboard?.())
 
-    expect(useUiStore.getState().activeTab).toBe('dashboard')
+    // The page stays available when Settings → Dashboard hides the hot section.
+    expect(useUiStore.getState().activeTab).toBe('hot')
   })
 })
 

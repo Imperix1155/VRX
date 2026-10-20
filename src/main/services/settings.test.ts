@@ -6,6 +6,9 @@
  * would exit-loop the app on every launch until the user hand-deleted the file.
  * Pins: a throwing store read falls back to in-memory defaults.
  */
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { FriendAlerts } from './friendAlerts'
@@ -13,12 +16,14 @@ import { FriendAlerts } from './friendAlerts'
 const storeState = vi.hoisted(
   (): {
     throwOnRead: boolean
+    readError: Error | null
     throwOnWrite: boolean
     reads: number
     data: Record<string, unknown>
     written: Record<string, unknown>[]
   } => ({
     throwOnRead: false,
+    readError: null,
     throwOnWrite: false,
     reads: 0,
     data: {},
@@ -30,7 +35,9 @@ vi.mock('electron-store', () => ({
   default: class {
     get store(): Record<string, unknown> {
       storeState.reads += 1
-      if (storeState.throwOnRead) throw new SyntaxError('Unexpected token in JSON at position 0')
+      if (storeState.throwOnRead) {
+        throw storeState.readError ?? new SyntaxError('Unexpected token in JSON at position 0')
+      }
       return storeState.data
     }
     set store(value: Record<string, unknown>) {
@@ -42,6 +49,9 @@ vi.mock('electron-store', () => ({
 
 vi.mock('../logger', () => ({ default: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }))
 
+const userData = vi.hoisted(() => ({ dir: '' }))
+vi.mock('electron', () => ({ app: { getPath: () => userData.dir } }))
+
 import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
@@ -52,6 +62,7 @@ import {
 
 beforeEach(() => {
   storeState.throwOnRead = false
+  storeState.readError = null
   storeState.throwOnWrite = false
   storeState.data = {}
   flushPendingSettingsSave()
@@ -67,6 +78,46 @@ describe('loadSettings (W7 M1)', () => {
     storeState.throwOnRead = true
     expect(() => loadSettings()).not.toThrow()
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('moves a corrupt settings file aside so later saves can succeed', async () => {
+    userData.dir = mkdtempSync(join(tmpdir(), 'vrx-settings-'))
+    try {
+      writeFileSync(join(userData.dir, 'settings.json'), '{"theme": "light",')
+      storeState.throwOnRead = true
+
+      expect(loadSettings()).toEqual(DEFAULT_SETTINGS)
+
+      const files = readdirSync(userData.dir)
+      expect(files).not.toContain('settings.json')
+      const kept = files.find((name) => /^settings\.corrupt-\d+\.json$/.test(name))
+      expect(kept).toBeDefined()
+      expect(readFileSync(join(userData.dir, kept!), 'utf8')).toBe('{"theme": "light",')
+
+      // The fresh store reads no file (conf returns an empty object for ENOENT).
+      storeState.throwOnRead = false
+      const saved = saveSettings({ theme: 'light' })
+      flushPendingSettingsSave()
+      await expect(saved).resolves.toMatchObject({ theme: 'light' })
+    } finally {
+      rmSync(userData.dir, { recursive: true, force: true })
+      userData.dir = ''
+    }
+  })
+
+  it('leaves the settings file in place when the read fails for another reason', () => {
+    userData.dir = mkdtempSync(join(tmpdir(), 'vrx-settings-'))
+    try {
+      writeFileSync(join(userData.dir, 'settings.json'), '{}')
+      storeState.throwOnRead = true
+      storeState.readError = new Error('EACCES: permission denied')
+
+      expect(loadSettings()).toEqual(DEFAULT_SETTINGS)
+      expect(readdirSync(userData.dir)).toEqual(['settings.json'])
+    } finally {
+      rmSync(userData.dir, { recursive: true, force: true })
+      userData.dir = ''
+    }
   })
 
   it('parses a valid persisted file', () => {
