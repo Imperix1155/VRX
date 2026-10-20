@@ -17,6 +17,7 @@ import {
 } from '@shared/types'
 import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import i18n from '../i18n'
+import { LAST_LOGIN_PLATFORM_STORAGE_KEY } from '../utils/lastLoginPlatform'
 import LoginScreen from './LoginScreen'
 
 const msg = (key: string): string => i18n.t(key)
@@ -72,6 +73,7 @@ function submit(): void {
 afterEach(() => {
   cleanup()
   setBridge(undefined)
+  window.localStorage.clear()
   vi.restoreAllMocks()
 })
 
@@ -529,7 +531,7 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     return screen.getByRole('radio', { name: msg('settings.accounts.vrchat.label') })
   }
 
-  it('renders the tabs as a radiogroup with VRChat preselected and roving tabindex', () => {
+  it('renders the tabs as a radiogroup with VRChat preselected on first run and roving tabindex', () => {
     setBridge({ login: vi.fn(), verify2fa: vi.fn() })
     renderLogin()
 
@@ -542,6 +544,45 @@ describe('LoginScreen — platform tabs (VRX-217)', () => {
     // never a filled color block.
     expect(vrcTab().style.color).toBe('var(--login-tab-vrc)')
     expect(cvrTab().style.color).toBe('var(--login-tab-cvr)')
+  })
+
+  it('opens on the platform signed in to last', () => {
+    window.localStorage.setItem(LAST_LOGIN_PLATFORM_STORAGE_KEY, 'chilloutvr')
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+
+    expect(cvrTab().getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByLabelText(msg('login.email'))).toBeTruthy()
+  })
+
+  it('opens a VRChat 2FA reprompt on the VRChat tab even after a ChilloutVR sign-in', () => {
+    window.localStorage.setItem(LAST_LOGIN_PLATFORM_STORAGE_KEY, 'chilloutvr')
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin('totp')
+
+    expect(vrcTab().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('remembers a successful sign-in platform for the next visit', async () => {
+    const login = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({ login, verify2fa: vi.fn() })
+    renderLogin()
+    fireEvent.click(cvrTab())
+    fireEvent.change(screen.getByLabelText(msg('login.email')), { target: { value: 'a@b.c' } })
+    fireEvent.change(screen.getByLabelText(msg('login.password')), { target: { value: 'pw' } })
+    submit()
+
+    await waitFor(() =>
+      expect(window.localStorage.getItem(LAST_LOGIN_PLATFORM_STORAGE_KEY)).toBe('chilloutvr')
+    )
+  })
+
+  it('does not remember a tab that was only clicked', () => {
+    setBridge({ login: vi.fn(), verify2fa: vi.fn() })
+    renderLogin()
+    fireEvent.click(cvrTab())
+
+    expect(window.localStorage.getItem(LAST_LOGIN_PLATFORM_STORAGE_KEY)).toBeNull()
   })
 
   it('switches to the ChilloutVR tab, rendering the email form', () => {

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The welcome setup's Look step also asks which instance labels to use
   (VRChat, Per platform or ChilloutVR). Skipping setup keeps VRChat labels.
 
+### Changed
+
+- The login screen now opens on the platform you last signed in to, instead of
+  always opening on VRChat. First run still starts on VRChat.
+
 ## [1.0.0-beta.3] - 2026-10-20
 
 ### Added
