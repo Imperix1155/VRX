@@ -1,29 +1,43 @@
 # VRX
 
-> Social VR companion for VRChat + ChilloutVR — like VRCX and CVRX, unified.
+> Social VR Companion for VRChat and ChilloutVR.
 
-VRX is a local desktop Electron app that brings your VRChat and ChilloutVR social lives into one place. Friends list, presence, hot instances, notifications, and more — using live WebSocket presence, with no bots or writes to VRCX or CVRX data.
+VRX is a desktop app that brings your VRChat and ChilloutVR friends into one
+window, so you don't need VRCX and CVRX open side by side. It runs on your own
+computer, signs in as you, and shows both platforms with equal weight. Live
+presence comes from each platform's own live connection, not from polling.
+VRX never reads or writes VRCX or CVRX data, apart from the optional
+ChilloutVR session import described below.
 
-**Status:** Preparing for a Windows-first 1.0; 1.0 is not yet declared shipped. VRChat and ChilloutVR support direct login,
-session restore, live friends and the hot-instance dashboard. Local manual
-identity linking adds combined profiles, separate shared/account notes and an
-explicit destination chooser. The app also includes theming and auto-update.
-API traffic shares per-platform pacing and cooldowns; session changes cancel
-obsolete requests. Existing slow recovery/manual roster reads coalesce, while
-WebSockets remain the live presence path. See the API policy for the limits of
-these safeguards.
+## What it does
 
-Explore adds public-world discovery to the sidebar and Dashboard. Both views
-share a session cache, with bounded visible-view refreshes and room details.
-The platform filter and 2/4/6 world choice persist; Join uses the existing
-confirmation and permission settings. Current behavior is documented in the
-[design contract](docs/DESIGN.md) and [API catalog](docs/INTERNAL-API.md).
+- **Dashboard**: friends online, friends in game, and hot instances at a
+  glance, plus a Popular now section of public worlds and a Hot Instances
+  section. You choose which section comes first, or hide either one, in
+  Settings → Dashboard.
+- **Hot Instances**: every instance where at least two of your friends are
+  together (you can change the number), most friends first.
+- **Friends**: one list for both platforms, grouped into In-Game, Online, and
+  Offline, with search. Friend details show where someone is, their notes, and
+  a Join button when you can join them.
+- **Explore**: popular public worlds from both platforms, with room details.
+- **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
+  person by hand. VRX never guesses links from names.
+- **Platform filter**: VRC, ALL, or CVR at the top of the window.
+- **Notifications**: optional desktop alerts when a friend comes online, joins
+  a world, or goes offline, or when a hot instance forms. All are off until you
+  turn them on in Settings → Notifications.
+- **Your look**: Theme (System, Light, or Dark), Background glow, and which
+  platform's words the instance labels use. Hot Instances and Explore can be
+  hidden from the sidebar in Settings → Appearance.
+- **Welcome setup**: a new install starts with a short, skippable setup for
+  sign-in, pages, the Dashboard, alerts, and the look. Run it again any time
+  from Settings → Appearance.
+- **Tray and updates**: closing the window keeps VRX in the system tray. The
+  installed Windows app and the Linux AppImage can update from inside VRX.
 
-Navigation contains Dashboard, Hot Instances, Friends, Explore, and Settings;
-Hot Instances and Explore can be hidden. Activity and Groups are deferred
-concepts and do not appear as unfinished tabs. A new install starts with a
-skippable welcome setup that covers sign-in, pages, the Dashboard, alerts, and
-the look.
+VRX follows your system language. English and Japanese are included; other
+languages show English.
 
 ## Unofficial
 
@@ -31,41 +45,46 @@ VRX is an unofficial app. It is not affiliated with or endorsed by VRChat or
 Alpha Blend Interactive (ChilloutVR). Both APIs it uses are unofficial and can
 change without notice.
 
-## Install and support
+## Install
 
-Windows is the primary 1.0 target; use the NSIS installer for automatic update
-support or the portable executable for manual updates. Linux AppImage/deb builds
-are experimental. macOS builds are for local development and are not published
-by the release workflow. See [Install and support](docs/INSTALL.md) for choosing
-an artifact, update channels, limitations, and reporting problems.
+Download VRX from [GitHub Releases](https://github.com/Imperix1155/VRX/releases).
+Releases marked **Pre-release** are test builds.
+
+- **Windows**: use the installer (`vrx-VERSION-setup.exe`) to get in-app
+  updates, or the portable `VRX-VERSION.exe`, which you update by hand.
+- **Linux**: AppImage and deb packages are available and are less tested than
+  Windows.
+- **macOS**: no published builds. A Mac can run a local development build.
+
+VRX isn't code-signed yet, so Windows may show a "Windows protected your PC"
+screen the first time. [Install and support](docs/INSTALL.md) explains that
+screen, update channels, the tray, and how to report a problem.
 
 ## Sessions and privacy
 
-VRX signs in to each platform on your behalf. Saved sessions use Electron
-`safeStorage` with OS-backed encryption when available. If that is unavailable
-or fails, VRX uses authenticated local encryption with a random per-installation
-key in private app files. This fallback is weaker: access to both that key and
-the encrypted data permits session recovery. Passwords are not saved.
+- VRX signs in to each platform on your behalf and never saves your password.
+- Saved sessions are encrypted with your operating system's secure storage
+  when it is available. Otherwise VRX uses a weaker local key kept in its
+  private app files: anyone who can read both that key and the encrypted
+  session could reuse the session.
+- If VRX has no saved ChilloutVR session, it asks before copying one from your
+  local ChilloutVR game files or CVRX. Signing in directly is the default.
+  Settings → Accounts → External ChilloutVR session lets you choose Never, Ask,
+  or Allow; changes apply the next time VRX starts. VRX never changes those
+  files, and signing out of ChilloutVR in VRX stops any import until you sign
+  in again.
+- Friends set to Ask Me or Do Not Disturb keep their location hidden
+  everywhere in VRX, notifications included.
+- VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR, and
+  GitHub (for updates) only.
 
-With no valid saved VRX ChilloutVR session, VRX asks before discovering or
-copying a session from local ChilloutVR game profiles or CVRX files. Direct
-sign-in is the default choice. Settings → Accounts → External ChilloutVR session
-lets you choose Never, Ask, or Allow; changes apply on the next app launch.
-Existing VRX sessions are unaffected. Source files are never changed. If the
-choice cannot be saved, no external session is read and VRX explains the failure.
+## For developers
 
-Desktop friend notifications default off. When enabled, Ask Me/DND locations
-remain hidden even when a cached world name or parseable location is available;
-online notifications and generic world-entry notifications remain available.
-
-## Stack
+### Stack
 
 Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite
 
-Electron 44 requires macOS 13 or later and provides only 64-bit x64 and arm64
-binaries. See the [upstream platform changes](https://www.electronjs.org/blog/electron-44-0#breaking-changes).
-
-## Development setup
+### Setup
 
 Use Node.js **22.22.2 or a later 22.x patch** with npm. `.nvmrc` selects the
 supported line; with nvm, run `nvm install` and `nvm use` first.
@@ -75,51 +94,47 @@ npm ci
 npm run dev
 ```
 
-Read [Development](docs/DEVELOPMENT.md) for prerequisites and verification,
-[Review](docs/REVIEW.md) for PR readiness, and [Releasing](docs/RELEASING.md)
-for versioning and publication. These procedures work without personal agent
-skills or a Linear integration. Device permissions and agent-specific tools
-remain part of your local setup.
+[Development](docs/DEVELOPMENT.md) covers prerequisites and verification,
+[Review](docs/REVIEW.md) covers PR readiness, and
+[Releasing](docs/RELEASING.md) covers versioning and publishing. None of these
+need personal agent skills or a Linear integration.
 
-## Build
+### Build
 
-Run the [development gate](docs/DEVELOPMENT.md#verification) first, then choose
-the packaging command for your operating system:
+Run the [development gate](docs/DEVELOPMENT.md#verification) first, then the
+packaging command for your operating system:
 
 ```bash
 npm run build:win    # Windows (NSIS installer + portable)
-npm run build:mac    # macOS (DMG)
 npm run build:linux  # Linux (AppImage + deb)
+npm run build:mac    # macOS (DMG, local builds only)
 ```
 
-The app icon's SVG masters, platform exports, and regeneration commands are
-documented in [App icon](docs/APP-ICON.md). The visual guide shows the actual
-shipped assets at taskbar sizes.
+Electron 44 needs macOS 13 or later and ships only 64-bit x64 and arm64
+binaries. See the [upstream platform changes](https://www.electronjs.org/blog/electron-44-0#breaking-changes).
 
-## Docs
+The app icon's SVG masters, platform exports, and regeneration commands are in
+[App icon](docs/APP-ICON.md).
 
-[`docs/design.html`](docs/design.html) is the human visual guide. Run
-`npm run guide:dev`, then open `http://127.0.0.1:4173/design.html`. Its examples
-import real renderer components, tokens, fonts, and translations with synthetic
-local data. `glass.html` runs those same scenes independently. Both themes,
-glow levels, and representative states can be inspected without an account.
-Account, game-launch, and updater actions never reach Electron.
+### Docs
 
-`npm run guide:build` typechecks and builds the guide into `dist/design-guide`.
-`npm run guide:preview` serves that build at
-`http://127.0.0.1:4174/design.html`. These module-based entries need the preview
-server; opening the source HTML directly from disk is not supported.
-
-[`docs/DESIGN.md`](docs/DESIGN.md) is the agent-native design contract. The app's internal callable surface
-(every IPC channel, live event, hook, store, parser, and constant) is catalogued
-in [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md) — check it before building.
-Current directory contracts live in the `AGENTS.md` files. Historical plans
-under `docs/superpowers/` are records, not setup or workflow prerequisites.
-Read the root contract and each nearer contract before editing.
-
-VRX's stance on unofficial API use, rate-limit etiquette, and risk is in
-[`docs/api-policy.md`](docs/api-policy.md).
+- [`AGENTS.md`](AGENTS.md) is the contributor contract. Read it and each nearer
+  `AGENTS.md` before editing.
+- [`docs/DESIGN.md`](docs/DESIGN.md) holds the design rules.
+  [`docs/design.html`](docs/design.html) is the visual guide: run
+  `npm run guide:dev`, then open `http://127.0.0.1:4173/design.html`. It uses
+  the real app components with made-up sample data, in both themes, and never
+  signs in, launches a game, or runs the updater. `glass.html` shows the same
+  scenes one at a time. `npm run guide:build` and `npm run guide:preview`
+  build and serve it at `http://127.0.0.1:4174/design.html`. Opening the HTML
+  files straight from disk doesn't work.
+- [`docs/INTERNAL-API.md`](docs/INTERNAL-API.md) catalogues every IPC channel,
+  live event, hook, store, parser, and constant. Check it before adding one.
+- [`docs/api-policy.md`](docs/api-policy.md) covers how VRX uses the unofficial
+  APIs: rate limits, etiquette, and risk.
+  [`docs/api-volatility.md`](docs/api-volatility.md) records what is known and
+  uncertain about each platform's API.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

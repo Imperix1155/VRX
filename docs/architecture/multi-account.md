@@ -1,136 +1,216 @@
-# Multi-Account Data Model — Decision Record (VRX-24)
+# Multi-account architecture
 
-> Status: **owner-ratified 2026-07-12** (grill round) → **duel-hardened v2** (adversarial
-> planning round, Fable×Codex-sol@max, same day). The owner's high-level decisions (D1,
-> retain-on-removal, appearance-global/social-per-account intent, one active/platform-both-live)
-> are unchanged; the ENGINEERING beneath several was revised after the duel found 3 blockers.
->
-> **Milestone that lands this doc (tightened after the duel):** the doc + `@shared` record
-> types + the account **registry** (explicit-remove-only tombstones) + a hardened keyed store
-> for the SMALL bounded namespaces (runtime-validated bounded Zod) + the **epoch primitive**
->
-> - the **identity-boundary friends-cache reset** (fixes a LIVE stale-roster bug: relogin as a
->   different account today keeps the old list until a slow refetch) + the ciphertext-bound
->   **credential owner sidecar**. Explicitly NOT built now (seams named in §6):
->   append-heavy history storage, the account-switch UI, the
->   favorites vertical, credential re-keying, the linking engine.
+This note describes how VRX tracks accounts today and the rules that keep one
+account's data away from another. The binding rules for main-process code are
+in [`src/main/AGENTS.md`](../../src/main/AGENTS.md); this page explains the
+model behind them. Request cancellation and platform etiquette are in
+[API policy](../api-policy.md).
 
-## 1. The model in one paragraph
+## The model
 
-Every piece of user-authored/derived data is scoped to an **account** =
-`{platform, platformAccountId}` where `platformAccountId` is the platform's
-canonical user id (`AccountSession`, on main). One account per platform is
-**active**; both platforms' active accounts are **live at once**. Persisted
-per-account data is an **overlay** the renderer composes onto live rosters at the
-query boundary — it is NEVER written back onto adapter-owned `Friend` objects.
-Account switching, when built, uses a **two-phase epoch** (boundary-clear →
-identity-ready). Data survives account removal until an explicit wipe.
+- VRX holds **one signed-in account per platform**. VRChat and ChilloutVR are
+  signed in and live at the same time, independently.
+- An account's identity is its **canonical platform user id**. There is no
+  separate local account id.
+- `accountKey(platform, platformAccountId)` in
+  [`accountSession.ts`](../../src/main/services/accountSession.ts) is the only
+  key derivation: `` `${platform}:${platformAccountId}` ``. Ids must match
+  `[A-Za-z0-9_-]` and be at most 128 characters, or the call throws.
+- Main owns identity. The renderer may echo an account id back for comparison,
+  but main never takes one as input; it qualifies every account-scoped read and
+  write itself.
+- There is no account switcher. To use another account, the user signs out and
+  signs in again on that platform's card in **Settings → Accounts**.
 
-## 2. Ratified decisions (v2)
+## Account identity and epochs
 
-| #   | Decision                      | Ratified choice                                                                                            | Duel revision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| --- | ----------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Concurrency                   | One active/platform, both platforms live                                                                   | AGREE — unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| D2  | Credentials                   | Data namespaced now; slots re-keyed later (VRX-89) — **but credential OWNERSHIP is bound now**             | Bind ownership to the EXACT ciphertext — a sidecar `{platform: {platformAccountId, credentialDigest}}` written after each successful ciphertext save, with an owner-write failure leaving the ciphertext unowned and authentication failed closed. Pre-existing credentials are BACKFILLED only after validated session restoration, so an old build overwriting a slot can never leave a plausible-but-false owner. No slot re-keying, no auth-path migration. (findings 8, r2-2)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| D2a | Credentials (update, #371)    | **Sidecar removed**                                                                                        | The sidecar above shipped write-only: nothing read it at restore, and a failed sidecar write still failed a login. It was removed and older files are deleted at startup. When multi-account needs offline ownership, store the owner **inside the same credential record** (one atomic write) and read it on restore, rather than reviving a separate file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| D3  | Account removal               | Retain data; explicit wipe separate — **via a durable account registry**                                   | A main-owned account **registry** with per-account state `active \| known \| removed(tombstone)`, independent of the retained social data. ONLY an explicit user remove tombstones — logout, auth failure, 2FA re-auth, and identity churn (`onIdentity(null)`) NEVER change registry state (r2-4). Removing → tombstone (data stays, re-add restores); explicit wipe → delete the `accountKey` entry + tombstone. The registry, not the social store, is the source of truth for "which accounts exist." (finding 11)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| D4  | Settings scope                | Appearance global; social per-account — **as an executable field matrix, collapse stays global**           | See §4. `collapsedFriendSections` is over a MERGED VRC+CVR list → it **stays global** (it has no single owning account). Per-account = notification prefs + followed-friends. Notification resolution signature becomes `isEnabled(platform, type)` resolving through the active account. The MATRIX is ratified now as the target; the migration + `isEnabled(platform, type)` resolver conversion are DEFERRED to the account-qualified Notifications vertical (r2-3: two live platforms + single global toggles + settings loading before identity exists = no unique migration target today). §4.1 is that vertical's spec, not this milestone's work. (findings 1, 7, r2-3)                                                                                                                                                                                                                                                                                                                           |
-| D5  | Storage                       | Split by SHAPE, not one store                                                                              | **Small bounded namespaces** (favorites, notes, tags, socialPrefs, perFriendOptOuts) → one hardened electron-store JSON keyed by `accountKey`. **Append-heavy history** (instanceHistory, activityHistory) → NOT built this milestone; ratified mechanism (owner, 2026-07-12) = a **bounded JSON ring** (cap N entries, no native dependency — SQLite/better-sqlite3 rejected to avoid a native module + Electron-rebuild + V8-version risk; upgradeable later if history features grow). electron-store's synchronous full-object write is disqualified for unbounded append logs; the ring's fixed cap keeps writes bounded. The JSON store gets a **root format version** + downgrade-refusal (`shouldPersistSettings` equivalent) + `accessPropertiesByDotNotation: false` + strict key validation, and every namespace is a **runtime-validated, explicitly BOUNDED Zod schema** (cardinality caps; the settings service's parse-and-catch precedent) — never merely typed. (findings 6, 9, 10, r2-5) |
-| D6  | Switching                     | Two-phase epoch; reuse boundary fencing; friends-cache reset implemented                                   | `onSessionBoundary` now broadcasts every per-platform identity change. `useLiveFriendEvents` clears the buffered snapshot and cancels the affected platform's friends query, retains that query and sets it to `[]` so mounted observers clear immediately, then invalidates it and persists the cleared cache. Only account-note queries are cancelled and removed; removing the friends query would leave mounted observers holding old-account data. This prevents stale-while-revalidate data from account A appearing while account B loads. The full switch UI remains VRX-90. (findings 2, 3, r2-1)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| D7  | Cross-platform identity       | First-class — **via the EXISTING `LinkedPerson` graph, not an envelope field**                             | Correction: the envelope-level `personId` was wrong (an `AccountScoped<favorites>` holds many friends — one person id is meaningless) AND redundant (`Friend.linkedPersonId` + `LinkedPerson` already exist in `shared/types.ts`). Linking is an **installation-global graph** of fully-qualified `{platform, platformAccountId, friendId}` members, keyed by a VRX-local `personId`. The graph model is specified; the engine is VRX-143. No `personId` on `AccountScoped`. (finding 4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| D8  | Build depth + merge authority | Doc + types + registry + small-namespace store + epoch primitive; **overlay merge authority ratified now** | The persisted local fields are a **query-boundary overlay** composed at `select` time (renderer query layer), NEVER mutated onto adapter `Friend` objects — `applyFriendEvent` stays pure (it wholesale-upserts, so any field written onto a Friend is erased by the next live event). The favorites vertical (hydrate → survives a live event → survives a switch) is the FIRST CONSUMER's contract, ratified here, built next block with favorites. (finding 5)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+`AccountSession` keeps, per platform, the current identity and a monotonic
+**epoch**. Every real identity change, including a change to "none", increases
+the epoch. Setting the same identity again changes nothing.
 
-Credential-slot replacement and removal use an exact non-secret invalidation
-marker before any fallible keychain/write/delete step. A stranded prior
-ciphertext therefore cannot become a restore candidate after restart, while
-legacy and newly imported ciphertext can still be validated and owner-bound.
-VRChat also invalidates the prior durable slot before exposing a replacement
-account's first-leg 2FA prompt; a failed invalidation fails closed. A freshly
-persisted session retains its established owner binding across ordinary status
-refreshes, while a restored VRChat or ChilloutVR session must complete one
-validated owner backfill before authenticated REST or pipeline consumers can
-use it; Avatar follows the same gate for VRChat. A waiting pipeline subscription
-starts only after that backfill succeeds.
+`resolve(platform)` returns one of:
 
-## 3. Identifiers (finding 12 — resolved)
+| Result                                      | Meaning                                                    |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Frozen `{ accountKey, epoch, ready: true }` | An account is signed in, validated, and saved              |
+| `{ status: 'no-active' }`                   | No account has been resolved on this platform since launch |
+| `{ status: 'resolving' }`                   | An account existed this run, but identity is now cleared   |
 
-Rename `Account.accountId` → **`platformAccountId`** everywhere (`shared/types.ts`
-currently mis-documents it as a "stable local id"; it IS the canonical platform
-id, same value `AuthStatus`/`AccountSession` already carry). There is NO separate
-local UUID — the canonical platform id is the single identity. `accountKey(platform,
-platformAccountId)` is the only key derivation.
+The adapters feed `AccountSession` through their `onIdentity` callback:
 
-## 4. Settings scope matrix (D4, executable)
+- They publish `null` before every identity-clearing session boundary, so a
+  boundary handler can never read the outgoing account.
+- They publish the user id only after sign-in, two-factor verification, or
+  restore validation has succeeded **and** the credential has been saved.
 
-| Field                                                       | Scope                                       | Migration on first multi-account boot                                            |
-| ----------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
-| theme, density, labelScheme, hotInstanceThreshold, language | **global** — stays in `settings.json`       | none                                                                             |
-| collapsedFriendSections                                     | **global** (merged-list, no owning account) | none                                                                             |
-| notifyFriendOnline/InGame/Offline, notifyHotInstance        | **per-account**                             | move to the active account's `socialPrefs`, seeded from the current global value |
-| followed-friends (VRX-203)                                  | **per-account**                             | born per-account (no legacy value)                                               |
+## Session boundaries
 
-### 4.1 Legacy-settings migration (SPEC for the Notifications vertical — NOT executed this milestone, r2-3)
+A session boundary happens when an adapter adopts a new session cookie or key,
+signs out, loses its session, or (VRChat) is asked for a second factor again.
+Each adapter then advances its session generation, aborts its session signal,
+clears per-session caches, and restarts or stops its socket.
 
-1. On first boot with the new store, for each per-account field: **write** the
-   current global value into the active account's `socialPrefs` (main-owned write).
-2. **Verify** the social write landed.
-3. **Mark** migration complete (a `settingsSocialMigratedV1` flag).
-4. **Remove** the legacy fields from `settings.json` ONLY after the mark.
-5. `SETTINGS_VERSION` bumps; older builds refuse to persist the newer file
-   (`shouldPersistSettings`), preventing strip-and-rewrite downgrade loss.
-   Crash between any step re-runs safely (the mark gates removal; re-write is
-   idempotent). The renderer's full-object settings save must not run until the
-   migration mark is set (else it re-writes the legacy fields).
+`main/app.ts` handles each adapter's `onSessionBoundary`:
 
-## 5. Per-account record shape (v2 — no envelope personId)
+| Consumer                     | VRChat                                               | ChilloutVR      |
+| ---------------------------- | ---------------------------------------------------- | --------------- |
+| `FriendAlerts`               | `resetPlatform`                                      | `resetPlatform` |
+| `LocationAuthority`          | `clearPlatform`                                      | `clearPlatform` |
+| `ExploreService`             | `clearPlatform`                                      | `clearPlatform` |
+| `AvatarCache`                | Drops cached failures; successful images stay        | Not touched     |
+| Renderer `identity-boundary` | Sent, except for an identity-retaining data-path 401 | Always sent     |
 
-```ts
-interface AccountScoped<T> {
-  schemaVersion: number // per-namespace
-  platform: Platform
-  platformAccountId: string
-  data: T
-}
-```
+A VRChat data-path 401 sets `identityRetained`. The same account may only need
+its second factor again, so `AccountSession` keeps the identity and epoch, and
+main clears its own state but sends no `identity-boundary`. The `auth-invalidated` event that follows quarantines the
+renderer instead. ChilloutVR has no second factor, so it has no such case.
 
-Root store envelope carries its own `storeFormatVersion` (D5). Namespaces
-reserved now (adding one later = a migration, so owned up front):
-`favorites` · `notes` · `tags` · `socialPrefs` · `perFriendOptOuts` (small, JSON,
-built this milestone as runtime-validated bounded Zod schemas) · `instanceHistory` · `activityHistory`
-(append-heavy, storage deferred to consumer, §6). Cross-platform links are NOT a
-per-account namespace — they're the installation-global graph (§D7).
+In the renderer, `useLiveFriendEvents` handles `identity-boundary` for that
+platform only. It drops buffered live state, cancels and removes friend-note
+queries, cancels the friends query, sets it to `[]` so mounted views clear at
+once, invalidates it to load the new roster, and persists the cleared cache
+synchronously.
 
-## 6. Deferred, with seams named
+## Stale-write fencing
 
-- **History storage** (D5) → its consumer (VRX-53/144). Seam: the namespace names
-  are reserved; the store layer refuses history writes until the mechanism lands.
-- **Per-account credential slots** (D2) → VRX-89. Seam: `accountKey`; ownership goes inside the credential record (D2a), not a separate owner map.
-- **Account switch UI** (D6) → VRX-90. Seam: the epoch primitive (§7) + the identity-boundary cache reset (this milestone).
-- **Favorites vertical** (D8) → VRX-70/203, next block. Seam: the overlay contract + the small-namespace store.
-- **Link graph integration** (D7) → VRX-143. The main-only, installation-global
-  `LinkGraphStore` now persists fully-qualified `LinkedPerson` references with
-  runtime invariants and fail-closed version handling; IPC, UI, roster overlays,
-  suggestions, and account-wipe cascade integration remain deferred.
-- **Wipe cascade** (D3) → VRX-89. Seam: registry tombstone + `accountKey` deletion; the cascade list (social data, link-graph refs, registry, credentials, in-memory snapshots, renderer caches) is enumerated on that issue.
+Async work can finish after the account it belongs to is gone. Each layer
+checks ownership at the point of the write:
 
-## 7. AccountSession epoch primitive and implemented reset
+| Layer               | Fence                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Network requests    | A request lease bound to the adapter's session generation, checked before admission, after admission, and after the response |
+| `SocialStore.write` | `{ platform, platformAccountId, epoch }` must equal the current `resolve()` result, or it throws `stale account epoch`       |
+| Friend notes IPC    | `get-friend-note` returns `{ platformAccountId, epoch }`; `set-friend-note` must echo it, or the result is `stale`           |
+| `AccountRegistry`   | `recordAuthenticated` requires the reported account and epoch to match `AccountSession`                                      |
+| Linked profiles IPC | A lease that rotates whenever either platform's resolution changes, plus a per-profile revision on every change              |
+| `ExploreService`    | Per-platform state tied to `accountKey` and epoch; work from an older state is cancelled and discarded                       |
 
-`AccountSession` gains, per platform: a monotonic **epoch** (bumped on every
-identity change) and a **ready** flag (false until identity is captured
-post-auth). The resolver returns an immutable `{ accountKey, epoch, ready }` or a
-typed `no-active` / `resolving`. Store operations carry the epoch they were issued
-under; a write whose epoch is stale (an A-issued async write landing after a B
-switch) is REJECTED. This is the primitive the switch consumer (VRX-90) and the
-favorites overlay build on — it exists now so they can't be built racy. No switch
-UI lands with the later VRX-90 work; the implemented renderer friends-cache
-reset is driven by the per-platform identity-boundary push described in D6.
+## What is stored, and where
 
-## 8. Owner decisions (resolved 2026-07-12)
+All files live under `app.getPath('userData')`.
 
-1. **History storage** → RATIFIED: bounded JSON ring, no native dep (§5).
-2. **Milestone size** → RATIFIED: build the full duel-hardened surface today
-   (types + rename + registry + bounded store + epoch primitive + identity-boundary
-   cache reset + credential owner sidecar). Sequenced as PR-A (data layer + registry + bounded store + **epoch primitive**, so
-   the store is born epoch-guarded) → PR-B (credential owner sidecar, auth-adjacent)
-   → PR-C (identity-boundary cache reset, fixes the live stale-roster bug). Each
-   delegated, each through the full gauntlet.
+| File               | Owner                                                           | Scope                                        |
+| ------------------ | --------------------------------------------------------------- | -------------------------------------------- |
+| `accounts.json`    | [`AccountRegistry`](../../src/main/services/accountRegistry.ts) | Keyed by `accountKey`                        |
+| `social.json`      | [`SocialStore`](../../src/main/services/socialStore.ts)         | Keyed by `accountKey`                        |
+| `link-graph.json`  | [`LinkGraphStore`](../../src/main/services/linkGraphStore.ts)   | Installation-wide, account-qualified members |
+| `credentials.json` | [`credentials.ts`](../../src/main/services/credentials.ts)      | One slot per platform, not per account       |
+| `settings.json`    | [`settings.ts`](../../src/main/services/settings.ts)            | Global                                       |
+
+The renderer's friends cache is in `localStorage` (`vrx-query-cache`), keyed by
+platform only. It is kept correct by the identity-boundary clear above and
+expires after 24 hours.
+
+### Account registry
+
+`accounts.json` (format version 1) records every account that has signed in.
+Each entry holds `platform`, `platformAccountId`, `displayName`, and a state of
+`active`, `known`, or `removed`.
+
+- A successful `get-auth-status` for an authenticated account marks it
+  `active` and demotes the previous active account on that platform to `known`.
+  An unchanged result writes nothing.
+- Memory changes only after the write succeeds, so a retry after a failed write
+  still tries to persist.
+- Sign-out, session loss, and two-factor prompts never change the registry.
+- No code creates `removed` entries. The state is still parsed and hidden for
+  files written by older builds.
+- `get-accounts` returns non-removed entries only for platforms that currently
+  have a resolved account. Signed-out callers cannot list account history.
+
+### Social store
+
+`social.json` (format version 1) holds small, bounded overlays per account.
+Each namespace is an `AccountScoped<T>` envelope (`schemaVersion`, `platform`,
+`platformAccountId`, `data`) validated by a bounded Zod schema.
+
+| Namespace                            | Bound                                        | Used today     |
+| ------------------------------------ | -------------------------------------------- | -------------- |
+| `notes`                              | 5,000 friends, 10,000 characters each        | Yes            |
+| `favorites`                          | 5,000 friends                                | No             |
+| `tags`                               | 5,000 friends, 25 tags of 64 characters each | No             |
+| `socialPrefs`                        | Notification flags and followed friend ids   | No             |
+| `perFriendOptOuts`                   | 5,000 friends                                | No             |
+| `instanceHistory`, `activityHistory` | 200-entry ring type                          | Writes refused |
+
+Only friend notes are wired. The notes IPC limits a note to 500 characters. A
+read that fails validation or names a different account returns nothing.
+
+### Linked profiles
+
+`link-graph.json` (format version 2) is shared by the whole installation, not
+keyed by account. Each profile links exactly one VRChat friend and one
+ChilloutVR friend. Each member is `{ platform, platformAccountId, friendId }`,
+so a link always records which of the user's accounts owns that friend. A
+member belongs to at most one profile, and the file holds at most 5,000
+profiles.
+
+- `get-linked-profiles` returns only profiles with at least one member owned by
+  a currently signed-in account.
+- A new link requires both platforms to be signed in. Main fills in each
+  member's `platformAccountId`.
+- A profile's shared note (500 characters) belongs to the profile. It is
+  separate from the per-account friend notes in `social.json`.
+- Writes go to a temporary file, are synced, and replace the file with one
+  rename. A version 1 file is converted once and its original kept as
+  `link-graph.v1.backup.json`.
+
+### Credentials
+
+`credentials.json` has one slot per platform: `vrchat:primary` and
+`chilloutvr:primary`. Signing in with a different account replaces that slot.
+
+- `saveCredential` writes a non-secret invalidation marker before any step that
+  can fail, then the new ciphertext. A failed save can never restore the old
+  account.
+- An explicit ChilloutVR sign-out writes a signed-out marker so the next launch
+  skips external session import. A VRChat sign-out deletes the slot.
+- Before a VRChat replacement account's two-factor prompt is shown, the old
+  slot is deleted. A failed delete fails the sign-in.
+- **No owner is stored.** The adapter learns the owner from the platform during
+  sign-in or restore validation and saves the credential before it publishes
+  identity. A restored session is validated and saved again before
+  authenticated REST or the socket can use it, and on VRChat before API-host
+  images can.
+- The old credential-owner sidecar (`credential-owners.json`) was write-only
+  and has been removed. `removeLegacyCredentialOwnerStore` deletes any leftover
+  file at startup.
+
+### Settings
+
+Every setting is global, including the notification toggles. Signing in with
+another account does not change settings.
+
+## Not built
+
+- An account switcher, saved accounts per platform, or an add-account flow.
+- Per-account credential slots.
+- Per-account settings. The `socialPrefs` and `perFriendOptOuts` namespaces
+  exist but nothing reads or writes them.
+- Favorites, tags, followed friends, and history. `Friend.isFavorite`,
+  `favoriteGroupIds`, and `linkedPersonId` are placeholders that adapters always
+  set to defaults.
+- Account removal, data wipe, and a recovery path for an unreadable store.
+- A UI for the account registry. The renderer's `stores/accounts.ts` calls
+  `get-accounts`, but no component uses it.
+
+## Rules for contributors
+
+- Key account-scoped data with `accountKey()`. Never key it by display name or
+  by credential slot.
+- Every write of account-scoped data carries the epoch captured when the data
+  was read, and the store compares it with `AccountSession` before writing.
+- Publish `null` identity before a clearing boundary. Publish a new identity
+  only after the credential is saved.
+- Never accept an account id from the renderer. Main qualifies the account.
+- A new account-scoped consumer must be cleared from `onSessionBoundary` and,
+  if it has renderer state, from the `identity-boundary` handler.
+- A new persisted store needs a bounded schema and a format version. It must
+  refuse to overwrite a newer format or a file it failed to load, and update
+  memory only after the write succeeds.
+- Sign-out and session loss keep social data, linked profiles, and registry
+  entries. Only an explicit, future wipe may delete them.
+- Keep user-authored data in its own store and IPC. Do not build on the
+  placeholder `Friend` fields.
+- If offline credential ownership is ever needed, store the owner inside the
+  same credential record in one write. Do not add a separate owner file.

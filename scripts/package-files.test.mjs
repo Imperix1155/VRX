@@ -23,7 +23,23 @@ describe('packaged application file boundary', () => {
     '.superpowers/notes.md',
     '.fallow/cache.bin',
     '.fallow/graph-cache.bin',
-    '.fallow/cache/audit-base-v9/base.bin'
+    '.fallow/cache/audit-base-v9/base.bin',
+    'README.md',
+    'CHANGELOG.md',
+    'AGENTS.md',
+    'CLAUDE.md',
+    'CONTRIBUTING.md',
+    'SECURITY.md',
+    'docs/DESIGN.md',
+    'docs/architecture/multi-account.md',
+    'scripts/release-channel.mjs',
+    'scripts/assert-packaged-fonts.cjs',
+    'scripts/git-hooks/pre-commit',
+    '.coderabbit.yaml',
+    '.fallowrc.json',
+    '.gitleaks.toml',
+    '.nvmrc',
+    'vitest.config.ts'
   ])('excludes %s', (file) => {
     expect(filter(resolve(root, file), fileStat)).toBe(false)
   })
@@ -39,7 +55,9 @@ describe('packaged application file boundary', () => {
     'resources/icon-24.png',
     'resources/icon-24@2x.png',
     'package.json',
-    'node_modules/electron-updater/out/main.js'
+    'LICENSE',
+    'node_modules/electron-updater/out/main.js',
+    'node_modules/electron-updater/README.md'
   ])('retains %s', (file) => {
     expect(filter(resolve(root, file), fileStat)).toBe(true)
   })
