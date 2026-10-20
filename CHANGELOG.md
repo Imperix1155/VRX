@@ -133,6 +133,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ChilloutVR sign-in no longer depends on reply fields VRX doesn't use, so a
   small ChilloutVR change can't block every sign-in.
 - Japanese uses the same name for Popular now in Settings and on the Dashboard.
+- When a hot instance stops being hot while its Join confirmation is open, focus
+  stays in the confirmation instead of jumping behind it.
+- On a multi-monitor setup, VRX's minimum window size follows the screen the
+  window is on, so it always fits on a smaller second screen.
+- The tray's Show brings VRX back even after the window was closed or
+  minimized.
+- A ChilloutVR friend who went offline before the first friends list loaded no
+  longer shows as online.
+- A routine ChilloutVR sign-in refresh no longer clears Explore and open panels
+  as if you had switched accounts.
+- Switching away from Explore or Popular now while it is still loading no longer
+  leaves it saying "Worlds haven't loaded yet" with a Refresh button that does
+  nothing. An open world sheet also picks up its rooms again when you come
+  back, and no longer closes by itself after a few minutes.
+- The message shown if VRX fails to start is in Japanese on Japanese systems.
+- A ChilloutVR friends list over 5,000 friends no longer stops the saved
+  friends list loading on start for both platforms.
+- Rejoining the same instance in VRChat no longer repeats its hot-instance
+  alert.
+- VRChat friends marked as confirmed trolls show as Nuisance, like probable
+  trolls already did.
+- Signing in and signing out work even while Windows or Linux reports that
+  the PC is offline, instead of waiting forever.
+- When VRChat needs a fresh two-factor code, the friends list says to connect
+  VRChat in Accounts instead of "No friends online".
+- The two-factor code box gets keyboard focus when it opens, and Back returns
+  focus to the username box.
+- Verify can't be pressed while a saved VRChat session waiting for a code is
+  signing out.
+- Clicking a hot-instance alert for a platform the top-bar filter hides
+  switches the filter to All, so the gathering is on the page. On Windows, an
+  alert that moved to the notification centre still opens it.
+- On a test build, Settings → About's releases link lists test builds instead
+  of the latest full release. The install guide says the .deb updates in-app.
+- If the settings file was ever damaged, VRX no longer shows the welcome setup
+  again as if it were a new install.
+- Refresh, Retry, Join and Clear search keep keyboard focus after being
+  pressed, and Clear search puts focus back in the search box.
+- Searching friends in Japanese matches by letter, so full-width, half-width
+  and voiced kana forms find the same names.
+- An offline VRChat friend never shows an old custom status.
+- An empty friends list no longer flashes "Loading…" every time it refreshes.
 
 ## [1.0.0-beta.2] - 2026-10-19
 

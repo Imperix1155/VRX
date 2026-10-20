@@ -301,7 +301,16 @@ describe.each([
     // The synchronous persist must land immediately, not wait for a later
     // throttled cache event that may never come before quit — asserted through
     // the real restore path with schema-complete friends.
-    expect(storedFriends(platform)).toEqual([])
+    // The cleared roster is written at once as the empty placeholder, which a
+    // restore never brings back (so the stale friend can't return either).
+    const raw = JSON.parse(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY) ?? '{}') as {
+      clientState?: {
+        queries?: { queryKey: unknown[]; state: { data: unknown; dataUpdatedAt: number } }[]
+      }
+    }
+    const written = raw.clientState?.queries?.find((query) => query.queryKey[1] === platform)
+    expect(written?.state).toMatchObject({ data: [], dataUpdatedAt: 0 })
+    expect(storedFriends(platform)).toBeUndefined()
     expect(storedFriends(other)?.map((f) => f.displayName)).toEqual(['Other Friend'])
   })
 
@@ -407,6 +416,28 @@ describe('AccountCard — VRChat two-factor flow', () => {
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform: 'vrchat' }))
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+  })
+
+  it('locks Verify while a saved 2FA session is signing out', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.logout.mockReturnValue(new Promise(() => {}))
+    renderCard('vrchat', bridge)
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalled())
+    const verify = screen
+      .getByLabelText(msg('settings.accounts.twoFactor.code'))
+      .closest('form')!
+      .querySelector<HTMLButtonElement>('button[type="submit"]')!
+    expect(verify.disabled).toBe(true)
   })
 
   it('overrides an external 2FA status after persistence failure and clears the code', async () => {

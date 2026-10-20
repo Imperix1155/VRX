@@ -31,7 +31,7 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend } from '@shared/types'
-import { friendsQueryKey } from '../queries/friends'
+import { EMPTY_ROSTER_PLACEHOLDER, friendsQueryKey } from '../queries/friends'
 import {
   applyOrderedFriendEvent,
   clearFriendEventReplay,
@@ -124,7 +124,11 @@ export function useLiveFriendEvents(): void {
         // stale roster back after we clear (the cache subscriber above is the
         // backstop for one that still lands). Then clear the roster to [].
         void queryClient.cancelQueries({ queryKey: friendsQueryKey(event.platform) })
-        queryClient.setQueryData<Friend[]>(friendsQueryKey(event.platform), [])
+        queryClient.setQueryData<Friend[]>(
+          friendsQueryKey(event.platform),
+          [],
+          EMPTY_ROSTER_PLACEHOLDER
+        )
         void queryClient.invalidateQueries({ queryKey: authStatusQueryKey(event.platform) })
         // Persist the corrected cache synchronously: this platform is empty,
         // while the independent platform's legitimate roster stays intact.
@@ -168,7 +172,7 @@ export function useLiveFriendEvents(): void {
       // Set [] so every mounted consumer clears immediately and B live events
       // have a cache value to patch, then invalidate to fetch B's roster.
       void queryClient.cancelQueries({ queryKey })
-      queryClient.setQueryData<Friend[]>(queryKey, [])
+      queryClient.setQueryData<Friend[]>(queryKey, [], EMPTY_ROSTER_PLACEHOLDER)
       void queryClient.invalidateQueries({ queryKey })
       // Persist the corrected cache synchronously: this platform is empty,
       // while the independent platform's legitimate roster stays intact.
@@ -221,7 +225,11 @@ export function useLiveFriendEvents(): void {
           latestSnapshot.delete(platform)
           void queryClient.cancelQueries({ queryKey: friendsQueryKey(platform) })
           if (queryClient.getQueryData(friendsQueryKey(platform)) !== undefined) {
-            queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
+            queryClient.setQueryData<Friend[]>(
+              friendsQueryKey(platform),
+              [],
+              EMPTY_ROSTER_PLACEHOLDER
+            )
             persistQueryCacheNow(queryClient)
           }
         }
@@ -238,7 +246,7 @@ export function useLiveFriendEvents(): void {
       // briefly succeeded — and would write a stale/unauthorized roster back.
       // Force it empty until the quarantine lifts (an authenticated auth-status).
       if (quarantined.has(platform)) {
-        queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [])
+        queryClient.setQueryData<Friend[]>(friendsQueryKey(platform), [], EMPTY_ROSTER_PLACEHOLDER)
         return
       }
       const snapshot = latestSnapshot.get(platform)

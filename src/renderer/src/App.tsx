@@ -12,6 +12,7 @@ import { useLinkedProfileEvents } from './queries/linkedProfiles'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { usePlatformFilterSettings } from './hooks/usePlatformFilterSettings'
 import { useSettingsStore } from './stores/settings'
+import { useFriendsStore } from './stores/friends'
 import { useUiStore } from './stores/ui'
 
 function App(): React.JSX.Element {
@@ -51,7 +52,11 @@ function App(): React.JSX.Element {
   // Dashboard's hot section can be switched off while the alert stays on.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.onNavigateToDashboard) return
-    return window.vrx.onNavigateToDashboard(() => {
+    return window.vrx.onNavigateToDashboard((event) => {
+      // An alert can fire for the platform the filter hides; show both so the
+      // gathering that was clicked is on the page.
+      const { platformFilter, setPlatformFilter } = useFriendsStore.getState()
+      if (platformFilter !== 'all' && platformFilter !== event?.platform) setPlatformFilter('all')
       useUiStore.getState().setActiveTab('hot')
     })
   }, [])

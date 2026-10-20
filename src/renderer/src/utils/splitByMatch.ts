@@ -9,7 +9,11 @@ interface FoldedText {
   ends: number[]
 }
 
-const COMBINING_MARK = /\p{M}/gu
+// Kana voicing marks (゛゜ as U+3099/U+309A) are part of the letter: は and ば
+// are different letters, unlike e and é.
+const COMBINING_MARK = /(?![\u3099\u309A])\p{M}/gu
+const KANA_VOICING = /^[\u3099\u309A]$/
+const KANA = /[\u3040-\u30FF]/
 
 /**
  * Case- and diacritic-fold text while retaining offsets into the original
@@ -25,11 +29,24 @@ function foldWithOffsets(text: string): FoldedText {
   for (const character of text) {
     const start = offset
     offset += character.length
-    const foldedCharacter = character
-      .normalize('NFD')
-      .replace(COMBINING_MARK, '')
+    // NFKD also folds full-width and half-width forms (ＶＲ → vr, ﾀ → タ).
+    // Kana are recomposed so は and ば stay distinct letters; other scripts keep
+    // the decomposition (a Hangul jamo still finds its syllable).
+    const decomposed = character.normalize('NFKD').replace(COMBINING_MARK, '')
+    const foldedCharacter = (KANA.test(decomposed) ? decomposed.normalize('NFC') : decomposed)
       .toLowerCase()
       .replace(/ς/g, 'σ')
+
+    // A half-width voicing mark (ｶﾞ) is its own character; join it to the kana
+    // before it so it matches the composed letter (ガ).
+    if (KANA_VOICING.test(foldedCharacter) && value.length > 0) {
+      const composed = (value.slice(-1) + foldedCharacter).normalize('NFC')
+      if (composed.length === 1) {
+        value = value.slice(0, -1) + composed
+        ends[ends.length - 1] = offset
+        continue
+      }
+    }
 
     // Keep a decomposed combining mark attached to the preceding highlighted
     // character so slicing never leaves the accent outside the match span.

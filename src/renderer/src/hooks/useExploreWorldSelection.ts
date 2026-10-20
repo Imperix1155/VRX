@@ -125,12 +125,14 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
         if (current.current !== selection || request !== selection.request) return
         if (result === null) {
           // Main may renew opaque references while the card is still rendered.
-          // An explicit open or manual refresh gets one cache-only lookup for
-          // the same displayed world, then reopens with the replacement
-          // reference. It never starts discovery work or weakens the
-          // main-owned reference TTL.
+          // An explicit open, a manual refresh, or a change-driven read of the
+          // open sheet gets one cache-only lookup for the same displayed world,
+          // then reopens with the replacement reference. It never starts
+          // discovery work or weakens the main-owned reference TTL.
           const mayRecover =
-            reason === 'manual' || (reason === 'open' && !selection.recoveredExpiredRef)
+            reason === 'manual' ||
+            reason === 'snapshot' ||
+            (reason === 'open' && !selection.recoveredExpiredRef)
           if (mayRecover) {
             if (reason === 'open') selection.recoveredExpiredRef = true
             selection.recovering = true
@@ -147,10 +149,12 @@ export function useExploreWorldSelection(filter: ExploreFilter): {
               if (renewed !== undefined) {
                 selection.world = renewed
                 readImage(selection)
+                // Renewal dropped main's selection of the old reference, so a
+                // sheet that is just being kept current reopens as open.
                 const reopened = await window.vrx?.getExploreWorld?.({
                   platform: renewed.platform,
                   worldRef: renewed.worldRef,
-                  reason
+                  reason: reason === 'snapshot' ? 'open' : reason
                 })
                 if (current.current !== selection || request !== selection.request) return
                 if (

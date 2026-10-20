@@ -36,18 +36,22 @@ describe('FriendsSourceNotice (issue 368)', () => {
   })
 
   it('disables and labels only the platform whose own fetch is in flight', () => {
+    const busyRetry = vi.fn()
     render(
       <FriendsSourceNotice
         failures={[
           { platform: 'vrchat', kind: 'missing', isFetching: false, retry: vi.fn() },
-          { platform: 'chilloutvr', kind: 'missing', isFetching: true, retry: vi.fn() }
+          { platform: 'chilloutvr', kind: 'missing', isFetching: true, retry: busyRetry }
         ]}
       />
     )
+    // aria-disabled, not disabled, so focus stays on Retry while it runs.
     const busy = screen.getByRole('button', { name: 'Retrying ChilloutVR…' })
-    expect((busy as HTMLButtonElement).disabled).toBe(true)
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(busy)
+    expect(busyRetry).not.toHaveBeenCalled()
     const idle = screen.getByRole('button', { name: 'Retry VRChat' })
-    expect((idle as HTMLButtonElement).disabled).toBe(false)
+    expect(idle.getAttribute('aria-disabled')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Retrying VRChat…' })).toBeNull()
   })
 

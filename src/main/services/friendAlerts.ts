@@ -38,12 +38,17 @@ interface KnownPresence {
   /** The last real instance while in-game but between instances (VRChat
    *  `traveling`/hidden), so returning to it is not announced as a new arrival. */
   lastInstance?: { instanceId: string; worldId: string | null }
+  /** Whether this friend counted toward `lastInstance`'s hot group. */
+  lastInstanceHot?: boolean
+  /** Landed back in the hot instance they were traveling out of. */
+  rejoinedHot?: boolean
 }
 
 interface KnownInstanceCount {
   count: number
   instanceId: string
   worldName: string | null
+  members: string[]
 }
 
 interface FriendAlertsOptions {
@@ -295,7 +300,18 @@ export class FriendAlerts {
         previous.instanceId !== null
           ? { instanceId: previous.instanceId, worldId: previous.worldId }
           : previous.lastInstance
-      if (lastInstance !== undefined) next = { ...next, lastInstance }
+      const lastInstanceHot =
+        previous.instanceId !== null ? previous.hot : previous.lastInstanceHot === true
+      if (lastInstance !== undefined) next = { ...next, lastInstance, lastInstanceHot }
+    } else if (
+      previous?.instanceId === null &&
+      previous.lastInstance !== undefined &&
+      previous.lastInstanceHot === true &&
+      next.hot &&
+      hotInstanceKey(platform, next.instanceId, next.worldId) ===
+        hotInstanceKey(platform, previous.lastInstance.instanceId, previous.lastInstance.worldId)
+    ) {
+      next = { ...next, rejoinedHot: true }
     }
     this.setPresence(platform, platformUserId, next)
 
@@ -494,6 +510,13 @@ export class FriendAlerts {
       if (baselinedKeys.has(key)) continue
       const previousCount = before.get(key)?.count ?? 0
       if (previousCount < threshold && current.count >= threshold) {
+        // A crossing made only by friends landing back in the hot instance
+        // they were just traveling out of (Rejoin, a portal back) is the same
+        // group, already announced, not a new gathering.
+        const earlier = new Set(before.get(key)?.members ?? [])
+        const arrivals = current.members.filter((member) => !earlier.has(member))
+        const presence = this.platformPresence(platform)
+        if (arrivals.every((member) => presence.get(member)?.rejoinedHot === true)) continue
         this.fireHotInstance(platform, current.instanceId, current.count, current.worldName)
       }
     }
@@ -505,7 +528,7 @@ export class FriendAlerts {
 
   private buildInstanceCounts(platform: Platform): Map<string, KnownInstanceCount> {
     const instances = new Map<string, KnownInstanceCount>()
-    for (const presence of this.platformPresence(platform).values()) {
+    for (const [platformUserId, presence] of this.platformPresence(platform)) {
       const key = this.instanceKey(platform, presence)
       if (key === null) continue
       const known = instances.get(key)
@@ -517,10 +540,12 @@ export class FriendAlerts {
         instances.set(key, {
           count: 1,
           instanceId: presence.instanceId!,
-          worldName: presence.worldName
+          worldName: presence.worldName,
+          members: [platformUserId]
         })
       } else {
         known.count += 1
+        known.members.push(platformUserId)
         if (presence.worldName !== null) known.worldName = presence.worldName
       }
     }
