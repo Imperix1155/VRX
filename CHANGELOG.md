@@ -154,6 +154,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alert.
 - VRChat friends marked as confirmed trolls show as Nuisance, like probable
   trolls already did.
+- Signing in and signing out work even while Windows or Linux reports that
+  the PC is offline, instead of waiting forever.
+- When VRChat needs a fresh two-factor code, the friends list says to connect
+  VRChat in Accounts instead of "No friends online".
+- The two-factor code box gets keyboard focus when it opens, and Back returns
+  focus to the username box.
+- Verify can't be pressed while a saved VRChat session waiting for a code is
+  signing out.
+- Clicking a hot-instance alert for a platform the top-bar filter hides
+  switches the filter to All, so the gathering is on the page. On Windows, an
+  alert that moved to the notification centre still opens it.
+- On a test build, Settings → About's releases link lists test builds instead
+  of the latest full release. The install guide says the .deb updates in-app.
+- If the settings file was ever damaged, VRX no longer shows the welcome setup
+  again as if it were a new install.
+- Refresh, Retry, Join and Clear search keep keyboard focus after being
+  pressed, and Clear search puts focus back in the search box.
+- Searching friends in Japanese matches by letter, so full-width, half-width
+  and voiced kana forms find the same names.
+- An offline VRChat friend never shows an old custom status.
+- An empty friends list no longer flashes "Loading…" every time it refreshes.
 
 ## [1.0.0-beta.2] - 2026-10-19
 
