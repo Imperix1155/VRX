@@ -20,8 +20,8 @@ export function parseTrustRank(tags: string[]): TrustRank {
     return 'visitor'
   }
 
-  // Check for the separate nuisance flag first
-  if (tags.includes('system_probable_troll')) {
+  // Check for the separate nuisance flag first: a confirmed or a probable troll
+  if (tags.includes('system_troll') || tags.includes('system_probable_troll')) {
     return 'nuisance'
   }
 

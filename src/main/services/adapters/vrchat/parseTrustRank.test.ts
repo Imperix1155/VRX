@@ -35,6 +35,11 @@ describe('parseTrustRank', () => {
       expect(parseTrustRank(['system_probable_troll'])).toBe('nuisance')
     })
 
+    it('maps a confirmed troll (system_troll) to nuisance, over any trust rank', () => {
+      expect(parseTrustRank(['system_troll'])).toBe('nuisance')
+      expect(parseTrustRank(['system_trust_veteran', 'system_troll'])).toBe('nuisance')
+    })
+
     it('returns nuisance even when other trust tags are present', () => {
       expect(parseTrustRank(['system_trust_veteran', 'system_probable_troll'])).toBe('nuisance')
     })
