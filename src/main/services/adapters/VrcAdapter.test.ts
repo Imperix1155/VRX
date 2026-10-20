@@ -5322,7 +5322,7 @@ describe('live pipeline world enrichment (VRX-254)', () => {
     unsubscribe()
   })
 
-  it('a 403 on a live-event world fetch is not negative-cached and re-fetches on the next event', async () => {
+  it('a 403 on a live-event world fetch is negative-cached, so the next event does not re-fetch', async () => {
     const worldId = 'wrld_403live'
     let worldRequests = 0
     const sockets: DrivableVrcSocket[] = []
@@ -5353,12 +5353,15 @@ describe('live pipeline world enrichment (VRX-254)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    // 403 is an AuthError → not negative-cached; the next event should retry.
+    // A 403 denies this one world on a live session, so it is negative-cached
+    // like a deleted world and the next event does not re-request it.
     const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
-    expect(resolver.peek(worldId)).toBeUndefined()
+    expect(resolver.peek(worldId)).toBeNull()
 
     sockets[0]!.fire('message', onlineFrame(worldId, 'b'))
-    await vi.waitFor(() => expect(worldRequests).toBe(2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(worldRequests).toBe(1)
 
     unsubscribe()
   })

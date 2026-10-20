@@ -873,7 +873,7 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     unsubscribe()
   })
 
-  it('a 403 on a live-event group fetch is not negative-cached and re-fetches on the next event', async () => {
+  it('a 403 on a live-event group fetch is negative-cached, so the next event does not re-fetch', async () => {
     const groupId = 'grp_403live'
     const worldId = 'wrld_403live'
     let groupRequests = 0
@@ -906,10 +906,12 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     const resolver = (adapter as unknown as { groupResolver: GroupResolver }).groupResolver
-    expect(resolver.peek(groupId)).toBeUndefined()
+    expect(resolver.peek(groupId)).toBeNull()
 
     sockets[0]!.fire('message', onlineFrame(worldId, 'b', groupId))
-    await vi.waitFor(() => expect(groupRequests).toBe(2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(groupRequests).toBe(1)
 
     unsubscribe()
   })
