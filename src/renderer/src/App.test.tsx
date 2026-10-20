@@ -130,7 +130,7 @@ afterEach(() => {
   useAuthStatusMock.mockReset()
   navigateToDashboard = undefined
   Object.assign(window, { vrx: undefined })
-  useUiStore.setState({ activeTab: 'dashboard' })
+  useUiStore.setState({ activeTab: 'dashboard', hotOpenedFromAlert: false })
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false, hydrated: false })
 })
 

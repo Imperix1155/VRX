@@ -73,3 +73,23 @@ it('restores the same person opener after its original row has been replaced', (
   expect(document.activeElement).toBe(replacement.querySelector('button'))
   replacement.remove()
 })
+it('puts focus back on the control that started a save once it settles', () => {
+  const dialog = (busy: boolean): React.JSX.Element => (
+    <LinkedDialog title="Identities" busy={busy} onClose={vi.fn()}>
+      <label>
+        <input type="checkbox" disabled={busy} />
+        Use merged profile picture
+      </label>
+    </LinkedDialog>
+  )
+  const view = render(dialog(false))
+  const checkbox = screen.getByRole('checkbox')
+  checkbox.focus()
+  view.rerender(dialog(true))
+  // Chromium drops focus from a control once it is disabled; jsdom keeps it.
+  const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
+  const refocus = vi.spyOn(checkbox, 'focus')
+  view.rerender(dialog(false))
+  activeElement.mockRestore()
+  expect(refocus).toHaveBeenCalled()
+})

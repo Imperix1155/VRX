@@ -598,7 +598,10 @@ describe('UpdaterService', () => {
 
     await service.download()
 
-    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'download-write'
+    })
     expect(service.snapshot()).not.toHaveProperty('errorMessage')
   })
 
@@ -961,6 +964,7 @@ describe('UpdaterService', () => {
 
     await service.download()
 
+    // Set up without a known version, so there is nothing left to offer.
     expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
     expect(log.warn).toHaveBeenCalledTimes(2)
     expect(log.warn).toHaveBeenLastCalledWith('autoUpdater: download failed')
@@ -991,7 +995,10 @@ describe('UpdaterService', () => {
 
     downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
     await service.download()
-    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'download-write'
+    })
   })
 
   it('keeps a staged update retryable when macOS redispatches the same error', async () => {
@@ -1050,7 +1057,10 @@ describe('UpdaterService', () => {
 
     downloadUpdate.mockRejectedValueOnce(reusedError)
     await service.download()
-    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'download-write'
+    })
   })
 
   it('maps download errors to the download/write category', async () => {
@@ -1059,9 +1069,30 @@ describe('UpdaterService', () => {
     autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
     downloadUpdate.mockRejectedValue(new Error('disk full'))
     await service.download()
-    expect(service.snapshot().state).toBe('error')
+    expect(service.snapshot().state).toBe('update-available')
     expect(service.snapshot().failure).toBe('download-write')
     expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed')
+  })
+
+  it('keeps offering the update after a failed download, so it can be retried', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService()
+    await service.check()
+    autoUpdater.emit('update-available', { version: '0.15.0' } as UpdateInfo)
+    downloadUpdate.mockRejectedValueOnce(new Error('network reset'))
+    await service.download()
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      availableVersion: '0.15.0',
+      failure: 'download-write'
+    })
+
+    downloadUpdate.mockResolvedValueOnce(undefined)
+    const retry = service.download()
+    expect(service.snapshot()).toMatchObject({ state: 'downloading', failure: null })
+    autoUpdater.emit('update-downloaded', { version: '0.15.0' } as UpdateInfo)
+    await retry
+    expect(downloadUpdate).toHaveBeenCalledTimes(2)
+    expect(service.snapshot()).toMatchObject({ state: 'downloaded', failure: null })
   })
 
   it('keeps the download/write failure when electron-updater emits error before rejecting', async () => {
@@ -1076,7 +1107,10 @@ describe('UpdaterService', () => {
 
     await service.download()
 
-    expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      failure: 'download-write'
+    })
     expect(log.warn).toHaveBeenCalledTimes(1)
     expect(log.warn).toHaveBeenCalledWith('autoUpdater: download failed')
   })
@@ -1280,7 +1314,7 @@ describe('UpdaterService', () => {
 
     downloadUpdate.mockRejectedValueOnce(new Error('disk full'))
     await service.download()
-    expect(service.snapshot().state).toBe('error')
+    expect(service.snapshot().state).toBe('update-available')
     expect(service.snapshot().failure).toBe('download-write')
 
     // A later retry succeeds: the previous error must not survive.
@@ -1398,7 +1432,10 @@ describe('UpdaterService', () => {
       await service.download()
       ;(autoUpdater.emit as unknown as (...args: unknown[]) => void)('error', downloadFailure)
       expect(log.warn).toHaveBeenCalledTimes(2)
-      expect(service.snapshot()).toMatchObject({ state: 'error', failure: 'download-write' })
+      expect(service.snapshot()).toMatchObject({
+        state: 'update-available',
+        failure: 'download-write'
+      })
     })
   })
 })

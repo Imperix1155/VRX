@@ -117,6 +117,9 @@ export default function FriendDrawer({
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  // Moving between the combined and per-account views removes the button that
+  // was pressed. This names where focus goes next, so it doesn't fall to the page.
+  const navigationFocusRef = useRef<'back' | Platform | null>(null)
 
   // Shared join flow — the SAME implementation as the row pill (VRX-166).
   const { isJoining, joinFailureFor, join, pendingConfirm } = useJoinInstance()
@@ -139,6 +142,16 @@ export default function FriendDrawer({
     if (!open) return
     closeButtonRef.current?.focus()
   }, [open])
+
+  useLayoutEffect(() => {
+    const destination = navigationFocusRef.current
+    if (destination === null) return
+    navigationFocusRef.current = null
+    const selector =
+      destination === 'back' ? '[data-drawer-back]' : `[data-drawer-account="${destination}"]`
+    const target = panelRef.current?.querySelector<HTMLElement>(selector)
+    ;(target ?? closeButtonRef.current)?.focus()
+  }, [identityOwner])
 
   // Esc closes while open. NO focus trap
   // (VRX-225): the dialog is non-modal — Tab moves freely between the card and
@@ -197,7 +210,11 @@ export default function FriendDrawer({
 
   const trustAccount = shownAccounts.find((account) => account.platform === 'vrchat')
   const trustKey = trustAccount?.trustRank != null ? TRUST_RANK_KEY[trustAccount.trustRank] : null
-  const customStatus = shown?.platform === 'vrchat' ? (shown.statusDescription ?? null) : null
+  // VRChat keeps an offline friend's last custom status; it is old news.
+  const customStatus =
+    shown?.platform === 'vrchat' && shown.presence.state !== 'offline'
+      ? (shown.statusDescription ?? null)
+      : null
   const joinable = shownAccounts.some(isFriendJoinable)
   const isVrc = shown?.platform === 'vrchat'
 
@@ -279,14 +296,17 @@ export default function FriendDrawer({
             {!combined && selection?.profile && onNavigate && (
               <button
                 type="button"
+                data-drawer-back
                 className="self-start text-[12px] text-[var(--text-dim)] hover:text-[var(--text)]"
                 onClick={() => {
-                  if (selection.target.kind === 'account' && selection.profile)
+                  if (selection.target.kind === 'account' && selection.profile) {
+                    navigationFocusRef.current = selection.target.account.platform
                     onNavigate({
                       kind: 'person',
                       personId: selection.profile.id,
                       anchor: selection.target.account
                     })
+                  }
                 }}
               >
                 {t('linking.back')}
@@ -322,6 +342,7 @@ export default function FriendDrawer({
                         <button
                           key={member.platform}
                           type="button"
+                          data-drawer-account={member.platform}
                           disabled={!available}
                           title={!available ? t('linking.unavailable') : undefined}
                           className="rounded-pill border px-[var(--space-2)] text-[11px] disabled:opacity-50"
@@ -335,13 +356,14 @@ export default function FriendDrawer({
                                 ? 'var(--plat-vrc-ghost-border)'
                                 : 'var(--plat-cvr-ghost-border)'
                           }}
-                          onClick={() =>
+                          onClick={() => {
+                            navigationFocusRef.current = 'back'
                             onNavigate({
                               kind: 'account',
                               personId: selection.profile?.id ?? null,
                               account: { platform: member.platform, friendId: member.friendId }
                             })
-                          }
+                          }}
                         >
                           {t(
                             member.platform === 'vrchat'

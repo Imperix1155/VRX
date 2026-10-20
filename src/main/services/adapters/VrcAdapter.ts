@@ -510,6 +510,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.accountId = parsed.data.id
     if (!this.persist()) return this.persistenceFailure()
     this.authPersistencePending = false
+    this.adoptStoredMetadata()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }

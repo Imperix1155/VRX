@@ -463,7 +463,11 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     renderSettings()
 
     const button = screen.getByRole('button', { name: msg('updater.settings.checking') })
-    expect(button.hasAttribute('disabled')).toBe(true)
+    // aria-disabled, so a focused button keeps focus while the check runs.
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(button)
+    expect(updaterState.check).not.toHaveBeenCalled()
   })
 
   it('update-available state shows the target version and triggers download', () => {
@@ -498,7 +502,10 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     const button = screen.getByRole('button', {
       name: i18n.t('updater.settings.downloading', { percent: 37 })
     })
-    expect(button.hasAttribute('disabled')).toBe(true)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(button)
+    expect(updaterState.download).not.toHaveBeenCalled()
+    expect(updaterState.check).not.toHaveBeenCalled()
   })
 
   it('downloading at 0% shows the indeterminate label, not "Check for updates"', () => {

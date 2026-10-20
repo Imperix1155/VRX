@@ -93,7 +93,7 @@ export default function TwoFactorForm({
 
         <button
           type="submit"
-          disabled={isSubmitting || locked || !code}
+          disabled={isSubmitting || locked || !code.trim()}
           className={submitClassName}
         >
           {isSubmitting ? t(copy.credentials.submitting) : t(copy.twoFactor.verify)}
