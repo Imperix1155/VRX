@@ -175,6 +175,26 @@ function seedExplorePreview(): void {
 }
 
 describe('DashboardView states (W5)', () => {
+  it('keeps an open Popular now sheet open when friends finish loading', async () => {
+    stubQueries({ data: undefined, isPending: true }, { data: undefined, isPending: true })
+    seedExplorePreview()
+    const { rerender } = render(<DashboardView />)
+    fireEvent.click(
+      screen.getByRole('button', { name: /open visible rooms for Preview world on VRChat/i })
+    )
+    const sheetName = /Visible public rooms for Preview world/
+    await waitFor(() => expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy())
+
+    stubQueries(
+      { data: [publicWorld('usr_a', 'Amy')], isPending: false },
+      { data: [], isPending: false }
+    )
+    rerender(<DashboardView />)
+
+    expect(screen.getByText(msg('dashboard.statOnlineLabel'))).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy()
+  })
+
   it('shows loading (not 0/0/0) while both queries are pending with no data', () => {
     stubQueries({ data: undefined, isPending: true }, { data: undefined, isPending: true })
     render(<DashboardView />)
@@ -1193,7 +1213,7 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
     expect(sheet.querySelector('.h-\\[24px\\]')).not.toBeNull()
   })
 
-  it('renders the join-denial blip as an inset-0 overlay (no negative offsets)', () => {
+  it('renders the join-failure message on its own line, not over the Join button', () => {
     try {
       useSettingsStore.setState({
         settings: { ...DEFAULT_SETTINGS, confirmJoin: false }
@@ -1214,8 +1234,10 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
       // immediately and shows the attributed blip.
       fireEvent.click(joinBtn)
       const blip = within(sheet).getByRole('status')
+      expect(blip.textContent).not.toBe('')
       const className = blip.className
-      expect(className).toContain('inset-0')
+      expect(className).not.toContain('absolute')
+      expect(className).not.toContain('truncate')
       expect(className).not.toContain('-bottom-')
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })

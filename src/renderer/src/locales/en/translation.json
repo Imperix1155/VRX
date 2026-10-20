@@ -560,6 +560,7 @@
     },
     "stale": "Showing saved results while refreshing.",
     "empty": "No public worlds are available right now.",
+    "notLoaded": "Worlds haven’t loaded yet. Use Refresh to load them.",
     "sheetAria": "Visible public rooms for {{world}} on {{platform}}",
     "loadingRooms": "Loading visible public rooms…",
     "roomsError": "Visible public rooms could not load.",

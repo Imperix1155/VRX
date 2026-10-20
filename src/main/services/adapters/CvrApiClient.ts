@@ -25,15 +25,13 @@ type CvrDiscoveryRoute =
   | { kind: 'world'; worldId: string }
   | { kind: 'room'; instanceId: string }
 
+// Only username, accessKey and userId are read. The rest of CVR's auth reply is
+// left unvalidated so a renamed or dropped field there cannot fail every sign-in
+// (docs/api-volatility.md: require only what VRX uses).
 export const cvrUserAuthSchema = z.object({
   username: z.string(),
   accessKey: z.string(),
-  userId: z.string(),
-  currentAvatar: z.string(),
-  currentHomeWorld: z.string(),
-  videoUrlResolverExecutable: z.string(),
-  videoUrlResolverHashes: z.string(),
-  blockedUsers: z.array(z.string())
+  userId: z.string()
 })
 
 export type CVRUserAuth = z.infer<typeof cvrUserAuthSchema>

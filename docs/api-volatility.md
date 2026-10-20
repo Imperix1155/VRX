@@ -408,7 +408,7 @@ are Synthetic.
 | `type`                               | Content                       | VRX event                                                       |
 | ------------------------------------ | ----------------------------- | --------------------------------------------------------------- |
 | `friend-online`, `friend-location`   | `{ userId, user, location? }` | `friend-presence`, in game. Event `location` wins when present. |
-| `friend-active`                      | `{ userId, user }`            | `friend-presence`, active, no instance                          |
+| `friend-active`                      | `{ userid, platform, user }`  | `friend-presence`, active, no instance                          |
 | `friend-offline`                     | `{ userId }`                  | `friend-offline`                                                |
 | `friend-add`                         | `{ userId, user }`            | `friend-added`; state from `user.state`                         |
 | `friend-delete`                      | `{ userId }`                  | `friend-removed`                                                |
@@ -425,6 +425,8 @@ are Synthetic.
   anything else or a missing state keeps the `active` fallback (Source-derived
   from the User schema and VRCX). A `traveling` location shows no instance until
   the next `friend-location`. `travelingToLocation` is accepted but unused.
+- **Spelling:** `friend-active` documents its id as lowercase `userid`; VRX
+  accepts `userId`, then `userid`, then `user.id`.
 - **Assumes:** `userId` equals `user.id`. The event sets presence for `userId`,
   while normalization looks up `user.id`; if they ever differ, the friend
   normalizes as offline.
@@ -500,10 +502,11 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
   with the typed sign-in name (an email address) and password. `AuthType: 1`
   re-authenticates with the stored username and the access key as `Password`.
   A reply may rotate the access key.
-- **Schema:** `data` requires `username`, `accessKey`, `userId` (a GUID),
-  `currentAvatar`, `currentHomeWorld`, `videoUrlResolverExecutable`,
-  `videoUrlResolverHashes` (strings) and `blockedUsers` (string array). VRX uses
-  only `username`, `accessKey` and `userId`.
+- **Schema:** `data` requires only `username`, `accessKey` and `userId` (a
+  GUID), the fields VRX uses. The reply also carries `currentAvatar`,
+  `currentHomeWorld`, `videoUrlResolverExecutable`, `videoUrlResolverHashes`
+  and `blockedUsers`; they are not validated, so a change to them cannot fail
+  sign-in.
 - **No second factor:** as of 2026-07 the reply has no 2FA field.
   `verify2fa` returns `unsupported_2fa`. If ChilloutVR adds 2FA, follow the seam
   described in `CvrAdapter.login`.

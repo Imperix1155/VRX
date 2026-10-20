@@ -173,24 +173,34 @@ function DashboardContent(): React.JSX.Element {
       </div>
     )
   }
+  // Every branch below keeps Popular now in the same slot, a keyed child of
+  // the second child array under one <div>, so React reuses it when friends
+  // finish loading: an Explore sheet opened during the load stays open.
+  const popularSection = popularNow ? (
+    <ExploreDashboardPreviewRoute
+      key="popular"
+      onSheetOpen={clearSelection}
+      dismissSignal={exploreDismissSignal}
+      cardLayout={popularLayout}
+    />
+  ) : null
+
   if (!hasData) {
     // Loading while ANY scoped query is still pending (don't flash an error
     // while the other platform may yet deliver); error only when every scoped
     // source has settled with nothing.
     if (enabled.some((q) => q.isPending)) {
       return (
-        <>
+        <div>
           <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
-          {popularNow && (
-            <ExploreDashboardPreviewRoute onSheetOpen={clearSelection} cardLayout={popularLayout} />
-          )}
-        </>
+          {[popularSection]}
+        </div>
       )
     }
     // Manual retry (same affordance as FriendsList's Refresh) — without it the
     // only recovery is the 5-minute reconcile tick or a view remount.
     return (
-      <>
+      <div>
         <div className="flex items-center gap-[var(--space-3)]">
           <p className="text-sm text-[var(--error)]">{t('dashboard.error')}</p>
           <button
@@ -203,21 +213,10 @@ function DashboardContent(): React.JSX.Element {
             {t('dashboard.retry')}
           </button>
         </div>
-        {popularNow && (
-          <ExploreDashboardPreviewRoute onSheetOpen={clearSelection} cardLayout={popularLayout} />
-        )}
-      </>
+        {[popularSection]}
+      </div>
     )
   }
-
-  const popularSection = popularNow ? (
-    <ExploreDashboardPreviewRoute
-      key="popular"
-      onSheetOpen={clearSelection}
-      dismissSignal={exploreDismissSignal}
-      cardLayout={popularLayout}
-    />
-  ) : null
 
   // Hot instances section — a labelled landmark (audit W5).
   const hotSection = hotEnabled ? (

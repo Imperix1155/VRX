@@ -135,7 +135,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v12 → v13 are deliberately
+ * v1 → v2 through v10 → v11, and v12 → v13, are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -150,7 +150,13 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   8: (prev) => ({ ...prev }),
   9: (prev) => ({ ...prev }),
   10: (prev) => ({ ...prev }),
-  11: (prev) => ({ ...prev }),
+  // v11 → v12: up to v11 the hot-instance alert also needed the Dashboard's Hot
+  // Instances switch. Since v12 only the alert's own switch gates it, so fold
+  // the old gate in: an alert the user had muted that way stays off.
+  11: (prev) => ({
+    ...prev,
+    notifyHotInstance: prev.notifyHotInstance === true && prev.hotInstancesEnabled !== false
+  }),
   12: (prev) => ({ ...prev })
 }
 

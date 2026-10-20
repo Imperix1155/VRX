@@ -536,7 +536,7 @@
   },
   "explore": {
     "heading": "探索",
-    "popularNow": "人気のワールド",
+    "popularNow": "いま人気",
     "worldsShown": "表示するワールド",
     "worldsShownAria": "表示するワールド数",
     "openWorldAria": "{{platform}} の {{world}} の表示可能なルームを開く",
@@ -555,6 +555,7 @@
     },
     "stale": "更新中のため、保存済みの結果を表示しています。",
     "empty": "現在利用可能なパブリックワールドはありません。",
+    "notLoaded": "ワールドはまだ読み込まれていません。「更新」を押して読み込んでください。",
     "sheetAria": "{{platform}} の {{world}} にある表示可能なパブリックルーム",
     "loadingRooms": "表示可能なパブリックルームを読み込み中…",
     "roomsError": "表示可能なパブリックルームを読み込めませんでした。",

@@ -24,6 +24,8 @@ interface PlatformState {
   freshFromRevision: number | null
   minimumSeedRevision: number
   liveSeedRevision: number | null
+  /** Revision of the latest live connection; null while not live. */
+  liveSince: number | null
 }
 
 export type LocationResolution =
@@ -46,7 +48,8 @@ export class LocationAuthority {
       stale: true,
       freshFromRevision: null,
       minimumSeedRevision: 0,
-      liveSeedRevision: null
+      liveSeedRevision: null,
+      liveSince: null
     },
     chilloutvr: {
       friends: new Map(),
@@ -54,7 +57,8 @@ export class LocationAuthority {
       stale: true,
       freshFromRevision: null,
       minimumSeedRevision: 0,
-      liveSeedRevision: null
+      liveSeedRevision: null,
+      liveSince: null
     }
   }
 
@@ -88,7 +92,16 @@ export class LocationAuthority {
 
     for (const friend of friends) {
       const current = state.friends.get(friend.platformUserId)
-      if (current === undefined || current.revision <= capturedRevision) {
+      const keepsLive = current !== undefined && this.keepsLiveLocation(platform, state, current)
+      const live = keepsLive ? (current?.friend ?? current?.pending) : undefined
+      if (current !== undefined && live !== undefined && current.revision <= capturedRevision) {
+        state.friends.set(friend.platformUserId, {
+          friend: { ...friend, presence: live.presence, instance: live.instance } as Friend,
+          locationRevision: current.locationRevision,
+          revision: capturedRevision,
+          updatedAt
+        })
+      } else if (current === undefined || current.revision <= capturedRevision) {
         state.friends.set(friend.platformUserId, {
           friend,
           locationRevision: capturedRevision,
@@ -102,7 +115,7 @@ export class LocationAuthority {
       ) {
         const profile = current.pendingProfile ?? current.friend ?? friend
         const liveLocation =
-          current.locationRevision > capturedRevision
+          current.locationRevision > capturedRevision || keepsLive
             ? (current.friend ?? current.pending)
             : undefined
         state.friends.set(friend.platformUserId, {
@@ -156,11 +169,13 @@ export class LocationAuthority {
     if (event.type === 'connection') {
       state.stale = true
       state.liveSeedRevision = event.health === 'live' ? ++this.revision : null
+      state.liveSince = state.liveSeedRevision
       return
     }
     if (event.type === 'auth-invalidated') {
       state.stale = true
       state.liveSeedRevision = null
+      state.liveSince = null
       return
     }
     // Metadata-only (VRX-214): no presence or location claim, so it must exit
@@ -315,6 +330,27 @@ export class LocationAuthority {
     return { ok: true, friend: entry.friend }
   }
 
+  /**
+   * ChilloutVR's REST roster has no presence: every row is offline with no
+   * instance. Presence the pipeline delivered since the latest live connection
+   * is the only evidence, so a roster seed keeps it, the same rule the
+   * renderer applies by replaying its buffered snapshot after each fetch.
+   * Presence from before a drop is not kept: the seed's offline row is the
+   * safe baseline until the reconnect's full set arrives.
+   */
+  private keepsLiveLocation(
+    platform: Platform,
+    state: PlatformState,
+    current: VersionedFriend
+  ): boolean {
+    return (
+      platform === 'chilloutvr' &&
+      state.liveSince !== null &&
+      current.locationRevision > state.liveSince &&
+      (current.friend !== null || current.pending !== undefined)
+    )
+  }
+
   clearPlatform(platform: Platform): void {
     const state = this.states[platform]
     state.friends.clear()
@@ -323,6 +359,7 @@ export class LocationAuthority {
     state.freshFromRevision = null
     state.minimumSeedRevision = ++this.revision
     state.liveSeedRevision = null
+    state.liveSince = null
     this.log('debug', 'location authority cleared', { platform, at: this.clock() })
   }
 }
