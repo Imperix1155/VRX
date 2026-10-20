@@ -500,6 +500,12 @@ change waives them.
    `AGENTS.md` files, the catalog, and the changelog. Keep section numbers
    stable.
 
+Code comments cite these section numbers and a few older rule labels. R2, R10,
+and R12 mean a color always has a non-color cue (label, glyph, or word); R6 is
+the Ask Me and Do Not Disturb location privacy rule in §5; R5 is the updater
+showing an indeterminate "Updating…" label while it downloads. "Channel law"
+means the color rules in "Locked for 1.0" and §5.
+
 The guide includes the renderer's Tailwind utilities through
 `guide/production.css`. Its isolated documents keep the root theme, body
 background, portal, and fixed positioning. Desktop samples keep 900×670 and
