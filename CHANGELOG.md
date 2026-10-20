@@ -47,7 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bar.
 - Logs replace your home folder path with `~`, so a shared log doesn't show your
   computer account name.
-- Installers no longer ship the repository's docs and developer tooling files.
 
 ## [1.0.0-beta.2] - 2026-10-19
 
