@@ -1,132 +1,140 @@
-# Renderer
+# src/renderer
 
 ## Purpose
 
-`src/renderer` is VRX's sandboxed React and Tailwind UI. It presents main-process
-data and calls the typed preload bridge. It never gains direct Electron, Node,
-credential, network, or launch authority.
+The sandboxed React and Tailwind UI. It presents main-process data and calls
+the typed preload bridge. It never gains Electron, Node, credential, network,
+or launch authority.
 
 ## Ownership
 
-- `src/App.tsx` owns the auth gate and mounts the live-event bridge once. Auth errors
-  keep the shell available until main proves the account is signed out. Boot must
-  not flash the login form over a restored session. Login keeps platform input
-  separate, freezes its selector during a submit, and maps only the typed
-  credential-persistence failure to dedicated copy.
-- TanStack Query owns server and cache state. Zustand owns view state only. Do not
-  put server data in a store, have stores import each other, or create a second
-  subscription for an app-wide event.
-- Friend, linked-profile, Explore, and note queries own account-bound data. On an
-  identity or auth boundary they cancel old work, clear mounted data and fences,
-  and prevent an old reply from publishing under the replacement account. An
-  absent cache differs from a known empty roster.
-- `projectLinkedFriends` only projects qualified people. Raw friend caches stay
-  account-scoped. Linked snapshots retain the newest `storeRevision` within a
-  lease; their main-owned `accountIds` preserve ownership through transient auth
-  status errors. Shared person notes are installation-global, drafts stay in
-  memory, writes are serialized and explicitly retried, and renderer requests
-  never choose note or account ownership. A partial roster preserves omitted
-  cached friends; only a complete roster can make an absence authoritative.
-- `useJoinInstance` and `JoinConfirmDialog` own one join flow for friends, hot
-  instances, and Explore. The renderer may give main a reviewed friend ID or an
-  opaque Explore `selectionRef` and expected target. Main alone decides
-  joinability, builds the allowlisted URL, enforces settings, and launches.
-  Failure feedback remains readable until another attempt or account boundary;
-  retries use this same flow and never run automatically.
-- `LinkedProfilesLoadError` exposes local-read retry in Friends and Identities,
-  coalescing active reads through the existing account-fenced query. Name saves
-  and platform-name resets clear only drafts with no later edits.
-- Explore route and Dashboard preview share ranking, selection, and the
-  non-modal sheet. `useExploreCoordinator` is the sole renderer trigger for
-  discovery: it reacts to eligible visibility, focus, and connectivity wakes,
-  has no polling or timer-driven discovery, and gates automatic work by account
-  and platform. Cache reads, selection, images, and recovery remain fenced by
-  generation, account, close, and opaque-reference identity. A loading world
-  snapshot stays open until `onExploreChanged` performs a cache-only reread; it
-  must not close the sheet or retry discovery. A manual open or refresh may
-  recover one expired reference for the same world. Visible
-  consumers may retry only typed image-admission deferrals within the bounded
-  per-reference budget; terminal failures stay neutral.
-- VRChat roster deltas belong to the pending IPC transport, shared across query
-  cancellation/replacement because main coalesces reads. Replay by response identity
-  in structural sharing before publication, never by a key-only success listener.
-  Account boundaries explicitly discard old transports. Failure, abandoned
-  settlement, and publication release journals/listeners. Overflow bounds events,
-  rejects without retry, and fences reuse until the old transport settles. CVR
-  snapshot replay remains separate. Compare event revisions with each row’s
-  physical-read provenance before replay; one IPC can include a newer follow-up.
-  Partial follow-ups and rate-limit fallback retain earlier fences. Reject
-  malformed envelope/revision metadata as a refresh error. Before cache merging,
-  partial coveredIds must exactly match unique returned IDs and override IDs
-  must belong to returned rows. Rejection preserves prior cache and fences. Keep one bounded
-  published roster fence per query client: Electron can deliver older pushes
-  after invoke completion, so direct live application uses the same per-row
-  ordering. Partial coverage merges only listed IDs into previous fences,
-  including retained absent-ID evidence; complete snapshots replace all fences.
-  Bound accumulated per-ID fences to twice MAX_FRIENDS and reject overflow
-  without evicting evidence. Clear this fence at account boundaries. Legacy arrays and
-  unversioned partial replies retain their existing behavior.
-- `mergeKnownInstanceMetadata` is the roster merge helper. It may fill missing
-  metadata only when the current instance keeps the same world or group identity;
-  fresh values win.
-- Error boundaries, document-drop prevention, localized copy, and local licensed
-  fonts are renderer responsibilities. Keep diagnostics local to explicit copy,
-  preserve font licenses and provenance, and never load remote fonts.
+- `index.html` holds the shipped CSP. `src/App.tsx` owns the settings
+  hydration gate, the auth gate, and the app-wide subscriptions it mounts once
+  (`useLiveFriendEvents`, `useLinkedProfileEvents`, dashboard navigation).
+- `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
+  `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and
+  `assets` (`main.css` tokens, local fonts).
+- Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
 ## Local Contracts
 
-- Use `window.vrx` and the `@shared/ipc` types. Do not duplicate channel types,
-  bypass the bridge, treat opaque references as IDs or URLs, or expose main-only
-  cooldown, session, or error detail. See `docs/INTERNAL-API.md` sections 1, 2,
-  and 5 for the current callable contracts and limits.
-- Preserve the privacy and presentation model in `docs/DESIGN.md` sections 2-10:
-  token-only styles, dark/light parity, information-panel backing independent of
-  ambient glow, platform text or glyphs, and separate presence state and VRChat
-  status. Hidden locations never leak into labels, images, gesture metadata, or
-  actions. Use the shared hot-instance membership/key and joinability predicates
-  instead of local copies.
-- The CSP is `style-src 'self'` with no `unsafe-inline` (#369). React `style={}`
-  is fine because it goes through the CSSOM, but never add `<style>` elements,
-  `setAttribute('style', …)`, `cssText`, or raw HTML (`dangerouslySetInnerHTML`,
-  `innerHTML`); `scripts/dev-style-csp.test.ts` enforces this. Only the Vite dev
-  server relaxes style-src (`scripts/dev-style-csp.ts`, serve-only).
-- Keep established accessibility behavior. Reuse overlay primitives; sheets are
-  non-modal and restore their opener, confirmation dialogs trap focus, controls
-  keep their radiogroup keyboard behavior, and existing workflows stay reachable
-  at the 900x670 desktop floor. Virtualized friend rows retain stable section
-  identity and recover focus when live updates remove a focused control. Keep
-  TanStack Virtual's default `useFlushSync` commit for variable-height rows.
-- User-facing copy goes through i18next and every supported locale receives the
-  matching key. Do not hardcode renderer copy.
-- Settings changes use `@shared/settings`. Every additive persisted field bumps
-  `SETTINGS_VERSION` and adds an identity migration, so an older build cannot
-  erase it during a downgrade round trip. Preserve independent child preferences
-  when a parent control is off.
-- Images supplied to the DOM are main-issued `data:` URLs. Failed images use
-  neutral fallbacks. Explore and room sheets distinguish incomplete coverage,
-  verified emptiness, stale data, and typed denials without pretending success.
+**Boundary**
+
+- Use `window.vrx` and `@shared/ipc` types. Do not duplicate channel types,
+  bypass the bridge, treat opaque references as IDs or URLs, or expect
+  main-only cooldown, session, or error detail.
+- The CSP is `style-src 'self'` with no `unsafe-inline`. React `style={}` is
+  allowed; `<style>` elements, `setAttribute('style', …)`, `cssText`,
+  `dangerouslySetInnerHTML`, and `innerHTML` are not
+  (`scripts/dev-style-csp.test.ts`).
+- DOM images are main-issued `data:` URLs with neutral fallbacks. Fonts are
+  local, with their licenses and `SOURCES.json`; never load remote fonts.
+
+**Boot and auth**
+
+- Show `BootSplash` until settings hydrate, then notify main once. A platform
+  in `authenticated` or `error` state, or a failed auth query, enters the
+  shell; pending auth keeps the splash, so login never flashes over a restored
+  session.
+- The login screen remounts its form per platform tab and locks the tabs while
+  submitting. Only `CREDENTIAL_PERSISTENCE_FAILED` gets dedicated copy. A
+  `sessionCleared` result sets known unauthenticated state.
+
+**State**
+
+- TanStack Query owns server and cache state. Zustand holds view state and the
+  hydrated settings snapshot; stores never import each other. Do not add server
+  data to a store (the accounts store is an existing exception).
+- App-wide pushes reach the cache only through the hooks `App` mounts. A
+  component may subscribe only to clean up its own local state.
+- Only the `friends` namespace persists (`queries/cache.ts`): validated, 24 h
+  maximum age, keyed to the app version and `CACHE_SCHEMA_VERSION`. Bump that
+  version when the persisted shape changes. Images and notes never persist.
+
+**Friends rosters**
+
+- `useFriends` runs only while auth is `authenticated` or `error`. The
+  reconcile cadence comes from settings, with jitter; WebSocket events are the
+  live path. An absent cache differs from a known empty roster. A partial
+  roster keeps cached omissions; only a complete roster makes an absence
+  authoritative. `mergeKnownInstanceMetadata` fills missing world or group
+  metadata only for the same world or group; fresh values win.
+- VRChat deltas journal on the pending IPC transport (`friendEventReplay.ts`),
+  shared across query cancellation because main coalesces reads. They replay in
+  structural sharing before publication, never in a key-only success listener,
+  comparing each event's `rosterRevision` with its row's physical-read
+  provenance. Malformed provenance is a refresh error: partial `coveredIds`
+  must equal the unique returned IDs and override IDs must be returned rows.
+  Rejection keeps the prior cache and fences.
+- One bounded fence per query client also orders late pushes. Partial coverage
+  merges listed IDs only; complete snapshots replace all fences. Accumulation
+  beyond twice `MAX_FRIENDS` is rejected without evicting evidence. Account
+  boundaries discard transports and fences. CVR snapshot replay is separate.
+- Combined Friends state ignores disabled platforms for pending, error,
+  fetching, and refresh, and keeps memoized array identity.
+
+**Account-bound data**
+
+- Friend, linked-profile, Explore, and note queries cancel old work and clear
+  data and fences at identity or auth boundaries. An old reply never publishes
+  under the replacement account.
+- `projectLinkedFriends` projects only qualified people; raw friend caches stay
+  account-scoped. Linked snapshots keep the newest `storeRevision` within a
+  lease, and main-owned `accountIds` keep ownership through transient auth
+  errors. Shared person notes are installation-global. Drafts stay in memory,
+  saves are serialized and retried only explicitly, and requests never choose
+  note or account ownership.
+
+**Join and Explore**
+
+- `useJoinInstance` and `JoinConfirmDialog` own the one join flow for friends,
+  hot instances, and Explore. The renderer sends a friend ID with the reviewed
+  target, or an opaque `selectionRef`; main decides and launches. Failure
+  feedback stays until another attempt or an account boundary. Retries reuse
+  the flow and never run automatically.
+- Explore and the Dashboard preview share ranking, selection, and the
+  non-modal sheet. `useExploreCoordinator` is the only discovery trigger:
+  visibility, focus, and connectivity wakes, gated by account and platform. No
+  polling; timers serve only local freshness and typed image deferrals.
+- Explore reads, selection, and images are fenced by generation, account,
+  close, and reference identity. A loading world sheet waits for
+  `explore-changed` and a cache-only reread. A manual open or refresh may
+  recover one expired reference. Only typed image deferrals retry, within a
+  bound. Sheets distinguish incomplete coverage, verified emptiness, stale
+  data, and typed denials.
+
+**Design and accessibility**
+
+- Follow [`docs/DESIGN.md`](../../docs/DESIGN.md): tokens only, dark and light
+  parity, information panels independent of ambient glow, platform text or
+  glyphs beside color, and separate presence state and VRChat status. Ask Me
+  and DND locations never reach labels, images, accessible names, or actions.
+  Use the shared `isWorldHidden`, `isHotInstanceMember`, `hotInstanceKey`, and
+  `isFriendJoinable`; no local copies.
+- Reuse overlay primitives. Sheets are non-modal and restore their opener;
+  confirmation dialogs are modal and trap focus; segmented controls keep
+  radiogroup keyboard behavior. Every workflow stays reachable at 900x670.
+  Virtualized friend rows keep stable section identity, recover focus when a
+  focused row disappears, and keep TanStack Virtual's default `useFlushSync`.
+- All copy goes through i18next with every key in en and ja.
+- Settings change through `@shared/settings`. A collapsed parent card keeps
+  its child values (Allow joining keeps Confirm join and launch mode).
+- Error boundaries, the document-drop guard, and explicit local diagnostics
+  copy belong here.
 
 ## Work Guidance
 
-Read `docs/DESIGN.md`, `docs/design.html`, and `docs/glass.html` before UI
-work. Read the relevant entries in `docs/INTERNAL-API.md` before adding or
-changing a query, hook, store, utility, bridge call, or shared type. Use current
-source as the implementation record; examples and old audit notes do not
-authorize a behavior change. Update `CHANGELOG.md` for user-visible behavior
-and the API or design references named by the root contract when they change.
+Read the three design documents before UI work and the relevant catalog
+entries before changing a query, hook, store, utility, bridge call, or shared
+type. Current source is the implementation record; examples and old notes do
+not authorize behavior changes.
 
 ## Verification
 
-Run focused tests for changed queries, hooks, components, accessibility behavior,
-or boundary fencing. For UI changes, inspect the affected production component or
-isolated guide scene in both themes and at the supported desktop floor. Run the
-canonical gate in `docs/DEVELOPMENT.md` for application changes, then inspect
-the diff and applicable API/design documentation for sync.
+Run focused tests for changed queries, hooks, components, accessibility, or
+fencing. For UI changes, inspect the production component or guide scene in
+both themes at 900x670. Run the root gate for application changes.
 
 ## Child DOX Index
 
-No children.
-
-- Combined Friends query state ignores disabled platforms for pending/error/fetching
-  flags and explicit refresh. Keep cached-data folding and memoized array identity
-  intact; an enabled but paused first load still counts as pending.
+No child contracts.
