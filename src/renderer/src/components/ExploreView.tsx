@@ -62,6 +62,12 @@ export default function ExploreView({
   const terminalFailure = shownSources.some(
     (source) => source.status === 'error' || source.status === 'unavailable'
   )
+  // "No public worlds" is a claim about loaded data. A first load that was
+  // cancelled (view hidden mid-load) leaves every source idle with nothing
+  // loaded, so that state gets neutral copy instead.
+  const nothingLoaded =
+    platformSnapshots.length > 0 &&
+    platformSnapshots.every((source) => source.status === 'idle' && source.updatedAt === null)
   const setTotal = (raw: number): void => {
     if (raw === total) return
     if (EXPLORE_WORLD_TOTALS.includes(raw as ExploreWorldTotal)) {
@@ -94,7 +100,9 @@ export default function ExploreView({
       {worlds.length === 0 &&
       !shownSources.some((source) => source.status === 'loading') &&
       !terminalFailure ? (
-        <p className="mt-[var(--space-4)] text-sm text-[var(--text-dim)]">{t('explore.empty')}</p>
+        <p className="mt-[var(--space-4)] text-sm text-[var(--text-dim)]">
+          {t(nothingLoaded ? 'explore.notLoaded' : 'explore.empty')}
+        </p>
       ) : null}
       {worlds.length > 0 ? (
         <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">

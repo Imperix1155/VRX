@@ -203,6 +203,24 @@ describe('VrcPipeline', () => {
     r.pipeline.stop()
   })
 
+  it('maps the documented friend-active payload, which spells the id `userid`', async () => {
+    const r = rig()
+    r.pipeline.start()
+    await tick()
+    r.sockets[0]!.fire('open')
+
+    r.sockets[0]!.fire(
+      'message',
+      frame('friend-active', { userid: 'usr_1', platform: 'web', user: USER })
+    )
+
+    expect(r.events.at(-1)).toMatchObject({
+      type: 'friend-presence',
+      friend: { platformUserId: 'usr_1', presence: { state: 'active' }, instance: null }
+    })
+    r.pipeline.stop()
+  })
+
   it('maps friend-location traveling to in-game with a null instance (the Private approximation)', async () => {
     const r = rig()
     r.pipeline.start()

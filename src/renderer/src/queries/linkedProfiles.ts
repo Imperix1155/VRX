@@ -50,6 +50,8 @@ export function useLinkedProfiles(): UseQueryResult<LinkSnapshot, Error> {
       staleTime: Infinity,
       retry: false,
       structuralSharing: retainNewestLinkSnapshot,
+      // Linked profiles are local IPC: never pause while the browser reports offline.
+      networkMode: 'always',
       enabled: typeof window !== 'undefined' && typeof window.vrx?.getLinkedProfiles === 'function'
     },
     provided ?? fallback

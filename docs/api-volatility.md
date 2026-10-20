@@ -408,7 +408,7 @@ are Synthetic.
 | `type`                               | Content                       | VRX event                                                       |
 | ------------------------------------ | ----------------------------- | --------------------------------------------------------------- |
 | `friend-online`, `friend-location`   | `{ userId, user, location? }` | `friend-presence`, in game. Event `location` wins when present. |
-| `friend-active`                      | `{ userId, user }`            | `friend-presence`, active, no instance                          |
+| `friend-active`                      | `{ userid, platform, user }`  | `friend-presence`, active, no instance                          |
 | `friend-offline`                     | `{ userId }`                  | `friend-offline`                                                |
 | `friend-add`                         | `{ userId, user }`            | `friend-added`; state from `user.state`                         |
 | `friend-delete`                      | `{ userId }`                  | `friend-removed`                                                |
@@ -425,6 +425,8 @@ are Synthetic.
   anything else or a missing state keeps the `active` fallback (Source-derived
   from the User schema and VRCX). A `traveling` location shows no instance until
   the next `friend-location`. `travelingToLocation` is accepted but unused.
+- **Spelling:** `friend-active` documents its id as lowercase `userid`; VRX
+  accepts `userId`, then `userid`, then `user.id`.
 - **Assumes:** `userId` equals `user.id`. The event sets presence for `userId`,
   while normalization looks up `user.id`; if they ever differ, the friend
   normalizes as offline.
