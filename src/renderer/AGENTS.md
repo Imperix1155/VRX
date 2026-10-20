@@ -8,7 +8,10 @@ credential, network, or launch authority.
 
 ## Ownership
 
-- `src/App.tsx` owns the auth gate and mounts the live-event bridge once. Auth errors
+- `src/App.tsx` owns the welcome-setup and auth gates and mounts the live-event
+  bridge once. A pending setup renders `components/setup` before the shell or
+  login; its sign-in reuses `AccountCard`, and Skip setup stays visible on every
+  screen. Page visibility goes through `utils/pages.ts`. Auth errors
   keep the shell available until main proves the account is signed out. Boot must
   not flash the login form over a restored session. Login keeps platform input
   separate, freezes its selector during a submit, and maps only the typed

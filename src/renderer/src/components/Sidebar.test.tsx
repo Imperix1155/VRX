@@ -6,6 +6,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
+import { useSettingsStore } from '../stores/settings'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import Sidebar from './Sidebar'
@@ -35,6 +37,7 @@ vi.mock('../hooks/useUpdater', () => ({
 
 afterEach(() => {
   cleanup()
+  useSettingsStore.setState({ settings: DEFAULT_SETTINGS })
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useFriendsStore.setState({ platformFilter: 'all' })
   updaterState.state = {
@@ -64,6 +67,23 @@ describe('Sidebar destinations (VRX-281)', () => {
       expect(useUiStore.getState().activeTab).toBe(tab)
       expect(within(nav).getByRole('button', { current: 'page' })).toBe(button)
     }
+  })
+})
+
+describe('Sidebar optional pages (owner, 2026-10-20)', () => {
+  it('leaves out the pages the user turned off and keeps the rest in order', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false, showExplorePage: false }
+    })
+    render(<Sidebar />)
+    const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
+    expect(
+      within(nav)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    ).toEqual(
+      (['dashboard', 'friends', 'settings'] as const).map((tab) => i18n.t(`shell.nav.${tab}`))
+    )
   })
 })
 

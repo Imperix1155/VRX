@@ -6,6 +6,7 @@ import {
   parseSettings,
   runMigrations,
   shouldPersistSettings,
+  freshInstallSettings,
   type Settings,
   type SettingsMigration
 } from './settings'
@@ -20,6 +21,9 @@ describe('settings schema', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       theme: 'system',
       language: 'en',
       density: 'comfortable',
@@ -260,6 +264,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -296,6 +303,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       backgroundGlow: 'standard',
       reconcileInterval: '5m',
       drawerOpener: 'card',
@@ -333,6 +343,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       reconcileInterval: '5m',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -370,6 +383,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -407,6 +423,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
@@ -445,6 +464,9 @@ describe('migration runner', () => {
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
       hotInstancesEnabled: true,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false,
       autoUpdate: false,
       allowJoinInstances: true
     })
@@ -748,5 +770,35 @@ describe('Dashboard section order', () => {
         'popular-first'
       )
     }
+  })
+})
+
+describe('Optional pages and first-run setup', () => {
+  it('migrates v12 with every page shown and no setup queued', () => {
+    expect(parseSettings({ version: 12 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showHotInstancesPage: true,
+      showExplorePage: true,
+      setupPending: false
+    })
+    expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)
+  })
+  it('retains explicit choices and never starts setup from missing or invalid data', () => {
+    expect(
+      parseSettings({ showHotInstancesPage: false, showExplorePage: false, setupPending: true })
+    ).toMatchObject({ showHotInstancesPage: false, showExplorePage: false, setupPending: true })
+    for (const invalid of [undefined, null, 'true', 1]) {
+      expect(
+        parseSettings({
+          showHotInstancesPage: invalid,
+          showExplorePage: invalid,
+          setupPending: invalid
+        })
+      ).toMatchObject({ showHotInstancesPage: true, showExplorePage: true, setupPending: false })
+    }
+  })
+  it('queues setup only in the fresh-install defaults', () => {
+    expect(freshInstallSettings()).toEqual({ ...DEFAULT_SETTINGS, setupPending: true })
+    expect(DEFAULT_SETTINGS.setupPending).toBe(false)
   })
 })
