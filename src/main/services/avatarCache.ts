@@ -6,6 +6,7 @@ import { RequestQueueFullError, RequestCancelledError } from './adapters/errors'
 import { assertRequestLease, type AvatarRequestLease } from './adapters/RequestLease'
 import { API_TIMEOUT_MS } from '@shared/constants'
 import { VRC_USER_AGENT } from './adapters/VrcApiClient'
+import type { ImageDiskStore, StoredImage } from './imageDiskStore'
 
 export const AVATAR_ALLOWED_HOSTS = new Set([
   'files.vrchat.cloud',
@@ -67,6 +68,12 @@ interface AvatarCacheOptions {
    * runs only after admission, and never for CDN hosts. Never log its value.
    */
   vrcSessionProvider?: () => AvatarRequestLease | null
+  /**
+   * Optional disk tier for API-host images only (see imageDiskStore.ts). A
+   * stored image is served without a request, even before the VRChat session
+   * is ready; only a lease-current network result is written back.
+   */
+  diskStore?: ImageDiskStore | null
 }
 
 function parseAllowedAvatarUrl(value: string): URL | null {
@@ -127,6 +134,7 @@ export class AvatarCache {
   private readonly cdnUsers = new Map<string, number>()
   private readonly apiFetchWaiters: Array<() => void> = []
   private vrcSessionProvider: (() => AvatarRequestLease | null) | null
+  private diskStore: ImageDiskStore | null
 
   constructor(options: AvatarCacheOptions = {}) {
     this.fetchFn = options.fetchFn ?? fetch
@@ -137,6 +145,7 @@ export class AvatarCache {
     this.positiveCacheMs = options.positiveCacheMs ?? AVATAR_POSITIVE_CACHE_MS
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
     this.vrcSessionProvider = options.vrcSessionProvider ?? null
+    this.diskStore = options.diskStore ?? null
     this.apiAdmission = options.apiAdmission ?? new ApiAdmissionController({ now: this.now })
   }
 
@@ -148,6 +157,18 @@ export class AvatarCache {
 
   setVrcSessionProvider(provider: (() => AvatarRequestLease | null) | null): void {
     this.vrcSessionProvider = provider
+  }
+
+  setDiskStore(store: ImageDiskStore | null): void {
+    this.diskStore = store
+  }
+
+  /** Explicit VRChat sign-out: forget every stored API image, on disk and in memory. */
+  async clearStoredImages(): Promise<void> {
+    for (const url of [...this.cache.keys()]) {
+      if (new URL(url).hostname === AVATAR_COOKIE_HOST) this.deleteEntry(url)
+    }
+    await this.diskStore?.clear()
   }
 
   /**
@@ -179,7 +200,8 @@ export class AvatarCache {
     }
 
     const lease = parsed.hostname === AVATAR_COOKIE_HOST ? this.vrcSessionProvider?.() : undefined
-    if (lease === null) return Promise.resolve(null)
+    // No durable session yet: no request, but an image already on disk can show.
+    if (lease === null) return this.readStored(url)
     const pending = this.inFlight.get(url)
     const pendingLease = this.inFlightLeases.get(url)
     if (pending && (!pendingLease || (!pendingLease.signal.aborted && pendingLease.isCurrent())))
@@ -198,16 +220,38 @@ export class AvatarCache {
     return request
   }
 
+  /** Disk-tier lookup; a hit is also kept in memory. Never makes a request. */
+  private async readStored(url: string): Promise<string | null> {
+    const store = this.storeFor(url)
+    if (store === null) return null
+    const stored = await store.read(url).catch(() => null)
+    if (stored === null) return null
+    const dataUrl = toDataUrl(stored)
+    this.setEntry(url, { dataUrl, expiresAt: this.now() + this.positiveCacheMs })
+    return dataUrl
+  }
+
+  private storeFor(url: string): ImageDiskStore | null {
+    return this.diskStore !== null && new URL(url).hostname === AVATAR_COOKIE_HOST
+      ? this.diskStore
+      : null
+  }
+
   private async fetchAndCache(url: string, lease?: AvatarRequestLease): Promise<string | null> {
-    let dataUrl: string | null = null
+    const stored = await this.readStored(url)
+    if (stored !== null) return stored
+
+    let image: StoredImage | null = null
     try {
-      dataUrl = await this.fetchAvatar(url, lease)
+      image = await this.fetchAvatar(url, lease)
     } catch {
       // Avatar failures are intentionally non-fatal; the renderer keeps the
       // initial-letter fallback and the short negative cache prevents hammering.
     }
 
     if (lease && (lease.signal.aborted || !lease.isCurrent())) return null
+    const dataUrl = image === null ? null : toDataUrl(image)
+    if (image !== null) void this.storeFor(url)?.write(url, image)
     this.setEntry(url, {
       dataUrl,
       expiresAt: this.now() + (dataUrl === null ? this.negativeCacheMs : this.positiveCacheMs)
@@ -232,7 +276,7 @@ export class AvatarCache {
    *    it is never forwarded to a redirect target.
    *  - At most AVATAR_MAX_REDIRECTS hops.
    */
-  private async fetchAvatar(url: string, lease?: AvatarRequestLease): Promise<string | null> {
+  private async fetchAvatar(url: string, lease?: AvatarRequestLease): Promise<StoredImage | null> {
     let target = new URL(url)
     for (let hop = 0; hop <= AVATAR_MAX_REDIRECTS; hop++) {
       assertRequestLease(lease)
@@ -335,7 +379,7 @@ export class AvatarCache {
   private async readImageBody(
     response: Response,
     controller: AbortController
-  ): Promise<string | null> {
+  ): Promise<StoredImage | null> {
     const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
     if (!response.ok || !contentType || !AVATAR_ALLOWED_MIME_TYPES.has(contentType)) {
       controller.abort()
@@ -376,7 +420,7 @@ export class AvatarCache {
       chunks.map((chunk) => Buffer.from(chunk)),
       totalBytes
     )
-    return `data:${contentType};base64,${bytes.toString('base64')}`
+    return { contentType, bytes }
   }
 
   private acquireFetchSlot(signal?: AbortSignal): Promise<void> {
@@ -492,6 +536,10 @@ export class AvatarCache {
   get retainedBytes(): number {
     return this.cachedBytes
   }
+}
+
+function toDataUrl(image: StoredImage): string {
+  return `data:${image.contentType};base64,${image.bytes.toString('base64')}`
 }
 
 export const avatarCache = new AvatarCache()

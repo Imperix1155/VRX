@@ -75,11 +75,18 @@ interface CacheEntry {
  */
 export const WORLD_CACHE_MAX = 512
 
+export interface WorldSnapshotEntry {
+  id: string
+  meta: WorldMeta
+  expiresAt: number
+}
+
 export class WorldResolver {
   private readonly fetcher: (worldId: string) => Promise<unknown>
   private readonly clock: () => number
   private readonly negativeTtlMs: number
   private readonly maxEntries: number
+  private readonly onChange: (() => void) | undefined
   private readonly cache = new Map<string, CacheEntry>()
   private readonly writeEpoch = new Map<string, number>()
   private generation = 0
@@ -88,12 +95,15 @@ export class WorldResolver {
     fetcher: (worldId: string) => Promise<unknown>,
     clock: () => number = Date.now,
     negativeTtlMs: number = WORLD_NEGATIVE_CACHE_TTL_MS,
-    maxEntries: number = WORLD_CACHE_MAX
+    maxEntries: number = WORLD_CACHE_MAX,
+    /** Called after a successful lookup is cached. */
+    onChange?: () => void
   ) {
     this.fetcher = fetcher
     this.clock = clock
     this.negativeTtlMs = negativeTtlMs
     this.maxEntries = maxEntries
+    this.onChange = onChange
   }
 
   /** Bounded-growth guard — see WORLD_CACHE_MAX. */
@@ -110,6 +120,29 @@ export class WorldResolver {
       }
     }
     this.cache.set(worldId, entry)
+  }
+
+  /** Unexpired successful entries, oldest first (for the launch-to-launch store). */
+  snapshot(): WorldSnapshotEntry[] {
+    const now = this.clock()
+    const entries: WorldSnapshotEntry[] = []
+    for (const [id, entry] of this.cache) {
+      if (entry.meta !== null && entry.expiresAt > now)
+        entries.push({ id, meta: entry.meta, expiresAt: entry.expiresAt })
+    }
+    return entries
+  }
+
+  /**
+   * Adopt stored entries for the current account. Unexpired entries only, and
+   * never over an entry this session already has. Does not notify `onChange`.
+   */
+  seed(entries: readonly WorldSnapshotEntry[]): void {
+    const now = this.clock()
+    for (const { id, meta, expiresAt } of entries) {
+      if (expiresAt <= now || expiresAt > now + WORLD_CACHE_TTL_MS || this.cache.has(id)) continue
+      this.store(id, { meta, expiresAt })
+    }
   }
 
   /**
@@ -201,6 +234,7 @@ export class WorldResolver {
 
     if (mayWrite()) {
       this.store(worldId, { meta, expiresAt: this.clock() + WORLD_CACHE_TTL_MS })
+      this.onChange?.()
     }
     return meta
   }
