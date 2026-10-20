@@ -669,7 +669,14 @@ app
     // reuse it instead of spawning a duplicate the tray never wires (Kimi
     // review, VRX-230).
     currentWindow = getOrCreateMainWindow()
-    trayHandle = createTray(() => currentWindow)
+    // Tray Show goes through focusMainWindow so it also restores a minimized
+    // window and recreates one macOS destroyed on close.
+    trayHandle = createTray(
+      () => currentWindow,
+      () => {
+        focusMainWindow()
+      }
+    )
     trayHandle.wireWindow(currentWindow)
     bootstrapReadyForFocus = true
     if (secondInstanceFocusPending) {

@@ -130,12 +130,39 @@ describe('createTray — click-time window resolution (Codex regression, PR #118
     wireWindow(win as never)
     // Immediate sync: the menu was rebuilt with the visible-window label.
     expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
-    expect([...winListeners.keys()].sort()).toEqual(['hide', 'show'])
+    expect([...winListeners.keys()].sort()).toEqual(['closed', 'hide', 'show'])
 
     // A hide event refreshes the menu to the hidden-window label.
     win.isVisible = () => false
     winListeners.get('hide')!()
     expect(captured.lastTemplate[0]).toMatchObject({ label: 'Show VRX' })
+  })
+
+  it('a closed (destroyed) window flips the menu back to Show', () => {
+    const win = fakeWindow()
+    const winListeners = new Map<string, () => void>()
+    win.on = ((event: string, cb: () => void): void => {
+      winListeners.set(event, cb)
+    }) as never
+    const { wireWindow } = createTray(() => win as never)
+    wireWindow(win as never)
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
+
+    win.destroyed = true
+    winListeners.get('closed')!()
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Show VRX' })
+  })
+
+  it('Show uses the app-supplied action, which can recreate a destroyed window', () => {
+    const gone = fakeWindow()
+    gone.destroyed = true
+    const showWindow = vi.fn()
+    createTray(() => gone as never, showWindow)
+
+    captured.trayListeners.get('double-click')!()
+
+    expect(showWindow).toHaveBeenCalledOnce()
+    expect(gone.show).not.toHaveBeenCalled()
   })
 
   it('tray actions no-op safely when no live window exists', () => {
