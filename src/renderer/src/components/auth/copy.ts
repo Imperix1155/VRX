@@ -58,7 +58,7 @@ export function loginCopy(platform: Platform): AuthCopy {
   return LOGIN_COPY_BASE
 }
 
-export const ACCOUNT_COPY: AuthCopy = {
+const ACCOUNT_COPY_BASE: AuthCopy = {
   credentials: {
     username: 'settings.accounts.username',
     usernamePlaceholder: 'settings.accounts.usernamePlaceholder',
@@ -75,4 +75,16 @@ export const ACCOUNT_COPY: AuthCopy = {
     verify: 'settings.accounts.twoFactor.verify',
     back: 'settings.accounts.twoFactor.back'
   }
+}
+
+/** Settings → Accounts copy, with the same per-platform sign-in wording as
+ *  the login screen: ChilloutVR asks for an email, not a username. */
+export function accountCopy(platform: Platform): AuthCopy {
+  if (platform === 'chilloutvr') {
+    return {
+      ...ACCOUNT_COPY_BASE,
+      credentials: { ...ACCOUNT_COPY_BASE.credentials, username: 'settings.accounts.email' }
+    }
+  }
+  return ACCOUNT_COPY_BASE
 }

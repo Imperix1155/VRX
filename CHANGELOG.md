@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   English uses "1 friend" and "1 hot instance" instead of "1 friends".
 - With Hot Instances first and none found, the Popular now heading no longer
   touches the empty-state card.
+- Settings → Accounts asks ChilloutVR for an email address, the same as the
+  sign-in screen, instead of "Username or email".
+- A linked person's two accounts now appear in the same order everywhere (the
+  friend details chips, the "2 locations" tooltip, the destination chooser,
+  and the link dialogs), instead of the order the link was made in.
 
 ## [1.0.0-beta.2] - 2026-10-19
 

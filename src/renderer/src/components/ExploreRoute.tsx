@@ -16,7 +16,8 @@ import { EXPLORE_SESSION_SEEDS } from '../utils/exploreSeeds'
 import ExploreView from './ExploreView'
 import ExploreWorldCard from './ExploreWorldCard'
 import ExploreWorldSheet from './ExploreWorldSheet'
-import ExploreSourceState from './ExploreSourceState'
+import { PopularNowSection } from './ExploreDashboardPreview'
+import { isPopularNowHidden } from '../utils/popularNow'
 
 function unavailableSnapshot(platform: Platform): ExplorePlatformSnapshot {
   return {
@@ -197,7 +198,6 @@ export function ExploreDashboardPreviewRoute({
     total: 2,
     listSeeds: EXPLORE_SESSION_SEEDS
   })
-  const { t } = useTranslation()
   const { isJoining, joinExplore, joinExploreFailureFor, pendingConfirm } = useJoinInstance()
   const {
     selected,
@@ -230,41 +230,21 @@ export function ExploreDashboardPreviewRoute({
     if (sheet !== null) suppressFocusRestore.current = true
     close()
   }, [close, dismissSignal, sheet])
-  if (
-    worlds.length === 0 &&
-    snapshots.every((source) => source.status === 'ready' || source.status === 'idle')
-  )
-    return null
-  const cards = worlds.map((world) => (
-    <ResolvedCard
-      key={`${world.platform}:${world.worldId}`}
-      world={world}
-      onOpen={openWorld}
-      layout={cardLayout}
-    />
-  ))
+  if (isPopularNowHidden(worlds, snapshots)) return null
   return (
-    <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
-      <h2
-        id="dashboard-popular-heading"
-        className="font-[family-name:var(--font-mono)] text-[20px] font-normal tracking-[0.08em] text-[var(--text-faint)]"
-      >
-        {t('explore.popularNow')}
-      </h2>
-      <div className="mt-[var(--space-2)]">
-        <ExploreSourceState sources={snapshots} hasUsableCards={worlds.length > 0} />
-      </div>
-      {cardLayout === 'bar' ? (
-        // Bar cards share the Hot Instances bar grid (main.css), so the second
-        // Dashboard section lays out the same whichever section it is.
-        <div className="hotwrap mt-[var(--space-3)]">
-          <div className="hot-grid hot-grid--flush">{cards}</div>
-        </div>
-      ) : (
-        <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {cards}
-        </div>
-      )}
+    <PopularNowSection
+      platformSnapshots={snapshots}
+      hasCards={worlds.length > 0}
+      cardLayout={cardLayout}
+      cards={worlds.map((world) => (
+        <ResolvedCard
+          key={`${world.platform}:${world.worldId}`}
+          world={world}
+          onOpen={openWorld}
+          layout={cardLayout}
+        />
+      ))}
+    >
       <ExploreWorldSheet
         snapshot={sheet}
         image={image}
@@ -282,6 +262,6 @@ export function ExploreDashboardPreviewRoute({
         }
         consumeFocusRestoreSuppression={consumeFocusRestoreSuppression}
       />
-    </section>
+    </PopularNowSection>
   )
 }

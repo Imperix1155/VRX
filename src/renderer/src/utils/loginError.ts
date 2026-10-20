@@ -1,5 +1,5 @@
 /**
- * Map known VRChat login error codes → i18n translation keys.
+ * Map known login error codes (both platforms' adapters) → i18n translation keys.
  * Unknown codes fall back to the generic key (defensive parsing — never surface the raw code).
  *
  * Codes emitted by VrcAdapter:

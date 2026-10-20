@@ -17,6 +17,7 @@ import {
 } from '../queries/linkedProfiles'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import { splitByMatch } from '../utils/splitByMatch'
+import { inPlatformOrder } from '../utils/platformOrder'
 import { Avatar } from './Avatar'
 import PlatformPill from './PlatformPill'
 import LinkedDialog from './LinkedDialog'
@@ -224,7 +225,7 @@ export default function IdentitiesDialog({
     )
     onClose()
   }
-  const displayedMembers = profile?.members ?? [origin]
+  const displayedMembers = inPlatformOrder(profile?.members ?? [origin])
   const preferredMember = profile?.members.find(
     (member) => member.platform === profile.preferredPlatform
   )
