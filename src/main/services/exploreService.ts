@@ -12,7 +12,7 @@ import type { InstanceActionResult } from '@shared/ipc'
 import type { InstanceInfo, JoinMode, Platform } from '@shared/types'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { aggregateCvrExploreQualifiedRooms } from './adapters/cvr/parseExplore'
-import type { ApiAdmissionController } from './adapters/ApiAdmissionController'
+import type { ApiAdmissionController, RequestPriority } from './adapters/ApiAdmissionController'
 import type { IPlatformAdapter } from './adapters/IPlatformAdapter'
 import {
   AuthError,
@@ -403,7 +403,10 @@ export class ExploreService {
 
   private async runCandidates(job: Job): Promise<void> {
     const { platform, state } = job
-    const candidates = await this.request(job, 'background', (adapter, context) =>
+    // The candidate list is one read and is what Popular now renders first, so
+    // it queues with roster pages and world names instead of behind every
+    // background image. World and room qualification reads stay background.
+    const candidates = await this.request(job, 'default', (adapter, context) =>
       adapter.getExploreCandidates(context)
     )
     const staged = new Map<string, WorldRecord>()
@@ -710,7 +713,7 @@ export class ExploreService {
 
   private request<T>(
     job: Job,
-    priority: 'background' | 'interactive',
+    priority: RequestPriority,
     operation: (adapter: MainAdapter, context: ExploreRequestContext) => Promise<T>,
     budget: Job = job
   ): Promise<T> {
