@@ -50,6 +50,7 @@ vi.mock('./auth', () => ({
     electron.ipcMain.handle('get-auth-status', () => ({ state: 'unauthenticated' }))
     electron.ipcMain.handle('login', () => ({ ok: true }))
     electron.ipcMain.handle('verify-2fa', () => ({ ok: true }))
+    electron.ipcMain.handle('import-session', () => ({ ok: true }))
     electron.ipcMain.handle('logout', () => undefined)
   }
 }))
@@ -176,7 +177,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(28)
+    expect(electron.invokeHandlers.size).toBe(29)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -205,6 +206,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-friends',
         'get-linked-profiles',
         'get-settings',
+        'import-session',
         'join-instance',
         'login',
         'logout',

@@ -54,6 +54,7 @@ const vrx = {
   getAuthStatus: (req: IpcInvoke['get-auth-status']['req']) => invoke('get-auth-status', req),
   login: (req: IpcInvoke['login']['req']) => invoke('login', req),
   verify2fa: (req: IpcInvoke['verify-2fa']['req']) => invoke('verify-2fa', req),
+  importSession: (req: IpcInvoke['import-session']['req']) => invoke('import-session', req),
   logout: (req: IpcInvoke['logout']['req']) => invoke('logout', req),
   // Friend IDs only: the main-process LocationAuthority owns every instance identifier.
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),

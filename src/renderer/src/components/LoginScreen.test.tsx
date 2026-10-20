@@ -10,7 +10,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { CREDENTIAL_PERSISTENCE_FAILED, type AuthStatus } from '@shared/types'
+import {
+  CREDENTIAL_PERSISTENCE_FAILED,
+  SESSION_IMPORT_NOT_FOUND,
+  type AuthStatus
+} from '@shared/types'
 import { authStatusQueryKey, useAuthStatus } from '../queries/auth'
 import i18n from '../i18n'
 import LoginScreen from './LoginScreen'
@@ -28,6 +32,7 @@ vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 type VrxBridge = {
   login: ReturnType<typeof vi.fn>
   verify2fa: ReturnType<typeof vi.fn>
+  importSession?: ReturnType<typeof vi.fn>
 }
 
 function setBridge(bridge: VrxBridge | undefined): void {
@@ -119,6 +124,23 @@ describe('LoginScreen (W6)', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(msg('login.error.unknown'))
+  })
+
+  it('offers the PC sign-in for the selected tab and names where it looked when none is found', async () => {
+    const importSession = vi
+      .fn()
+      .mockResolvedValue({ ok: false, needs2fa: false, error: SESSION_IMPORT_NOT_FOUND })
+    setBridge({ login: vi.fn(), verify2fa: vi.fn(), importSession })
+    renderLogin()
+    fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
+
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('settings.accounts.import.chilloutvr') })
+    )
+
+    await waitFor(() => expect(importSession).toHaveBeenCalledWith({ platform: 'chilloutvr' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg('settings.accounts.error.importNotFoundChilloutvr'))
   })
 
   it('surfaces a credential persistence failure without invalidating auth', async () => {

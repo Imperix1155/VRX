@@ -421,19 +421,23 @@ only. A platform that never loaded uses the error color; one showing its last
 loaded list uses `--text-dim`, matching Explore's stale line. When the other
 platform loaded an empty roster, that named line replaces the generic error.
 
-**Accounts.** Settings → Accounts → External ChilloutVR session offers
-Never, Ask, and Allow; Ask is the default. With no valid VRX ChilloutVR
-session, Ask shows a native prompt, defaulting to cancel, before VRX looks for
-any files. The choice is remembered, can be changed in Accounts, and applies
-on the next launch. Signing out of ChilloutVR in VRX sticks: nothing is
-imported again until the next VRX sign-in. Direct sign-in is always
-available.
+**Sign-in from this PC.** Under each sign-in form (login screen, Accounts,
+welcome setup) a quieter outlined button, "Use my sign-in from VRCX" for
+VRChat and "Use my sign-in from ChilloutVR" for ChilloutVR, sits below the
+platform-tinted Connect button, so the password sign-in stays the main way in.
+Both platforms get the same button in the same place at the same size, with a
+one-line hint that the source app is only read. VRX looks only when the button
+is pressed; there is no startup prompt. Not found and no-longer-accepted
+results name where VRX looked and point back to the password form. An imported
+VRChat sign-in whose second factor expired opens the normal code prompt.
 
 **Welcome setup.** A brand-new install opens one centered information card
 before the app: a welcome screen, five labeled steps (Sign in, Pages,
 Dashboard, Alerts, Look), then a summary. Step state reads from position,
 weight and a check, not color. Sign-in shows the two Accounts cards side by
-side at equal size; one ready account is enough to continue. Every other step
+side at equal height, and the line under its title doubles as the live sign-in
+status, so the step fits the default window without scrolling; one ready
+account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
 off) until changed. Skip setup is a visible button on every screen, never a
 small link, so setup never feels like a forced tour; skipping before any
