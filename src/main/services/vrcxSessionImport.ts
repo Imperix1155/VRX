@@ -4,7 +4,6 @@ import { chmod, lstat, mkdtemp, open, readdir, realpath, rm } from 'node:fs/prom
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { TextDecoder } from 'node:util'
-import { CREDENTIAL_KEYS, saveCredential } from './credentials'
 import { isValidVrcSessionCookie } from './adapters/credentialValidation'
 import { copyOpenFile } from './vrcxSnapshotCopy'
 
@@ -572,24 +571,26 @@ function cookieHeader(cookies: VrcxCookie[]): string | null {
   return isValidVrcSessionCookie(header) ? header : null
 }
 
-async function importVrcxSessionOnce(): Promise<'imported' | null> {
+async function importVrcxSessionOnce(): Promise<string | null> {
   const databasePath = join(app.getPath('appData'), 'VRCX', 'VRCX.sqlite3')
   try {
     const cookies = decodeCookies(await readCookieStorageInTemporaryRoot(databasePath))
     if (cookies === null) return null
-    const header = cookieHeader(cookies)
-    if (header === null) return null
-
-    saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, header)
-    return 'imported'
+    return cookieHeader(cookies)
   } catch {
     return null
   }
 }
 
-let importInFlight: Promise<'imported' | null> | null = null
+let importInFlight: Promise<string | null> | null = null
 
-export function importVrcxSession(): Promise<'imported' | null> {
+/**
+ * Read VRCX's saved VRChat cookies from a private read-only snapshot and return
+ * them as one `auth=…; twoFactorAuth=…` Cookie header, or null. It persists
+ * nothing: VrcAdapter.importSession checks the cookie with VRChat and binds its
+ * owner before anything is saved. VRCX's own files are never written.
+ */
+export function importVrcxSession(): Promise<string | null> {
   if (importInFlight !== null) return importInFlight
   const operation = importVrcxSessionOnce().finally(() => {
     if (importInFlight === operation) importInFlight = null

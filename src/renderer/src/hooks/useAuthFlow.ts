@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { type AuthStatus, type Platform, type TwoFactorMethod } from '@shared/types'
+import {
+  type AuthStatus,
+  type LoginResult,
+  type Platform,
+  type TwoFactorMethod
+} from '@shared/types'
 import { authStatusQueryKey } from '../queries/auth'
 
 /**
@@ -57,7 +62,11 @@ export interface AuthFlow {
   errorKey: string | null
   setErrorKey: (key: string | null) => void
   isSubmitting: boolean
+  /** True while the running submission is a PC sign-in import. */
+  isImporting: boolean
   handleSubmit: (e: React.FormEvent) => Promise<void>
+  /** Sign in with the session VRCX (VRChat) or ChilloutVR/CVRX saved on this PC. */
+  handleImport: () => Promise<void>
   /** Escape hatch back to the full credentials form (keeps the username). */
   handleBack: () => void
 }
@@ -85,6 +94,7 @@ export function useAuthFlow(
   >(initialTwoFactor)
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [previousExternalTwoFactor, setPreviousExternalTwoFactor] =
     useState<TwoFactorMethod | null>(externalTwoFactor)
 
@@ -103,11 +113,14 @@ export function useAuthFlow(
   const pending2fa =
     twoFactorOverride === 'credentials' ? null : (twoFactorOverride ?? externalTwoFactor)
 
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault()
+  /** Shared settlement for a password login, a 2FA code and a PC sign-in import. */
+  async function run(
+    request: (bridge: NonNullable<Window['vrx']>) => Promise<LoginResult>
+  ): Promise<void> {
     setErrorKey(null)
 
-    if (!window.vrx) {
+    const bridge = window.vrx
+    if (!bridge) {
       setErrorKey(errorKeyForCode())
       onSubmissionSettled?.(false)
       return
@@ -116,17 +129,7 @@ export function useAuthFlow(
     setIsSubmitting(true)
     let sessionWasCleared = false
     try {
-      const result = pending2fa
-        ? await window.vrx.verify2fa({ platform, code: twoFactorCode })
-        : await window.vrx
-            .login({ platform, credentials: { username, password } })
-            // The secret leaves state the moment the login IPC settles — a
-            // separate microtask so the clear renders BEFORE the needs2fa
-            // transition can unmount the password input (pinned by
-            // AccountCard's held-invalidation test).
-            .finally(() => {
-              if (dropPasswordAfterSubmit) setPassword('')
-            })
+      const result = await request(bridge)
 
       if (result.ok) {
         // Invalidate so the auth gate / card re-checks and transitions. The 2FA
@@ -176,6 +179,38 @@ export function useAuthFlow(
     }
   }
 
+  async function handleSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault()
+    await run((bridge) =>
+      pending2fa
+        ? bridge.verify2fa({ platform, code: twoFactorCode })
+        : bridge
+            .login({ platform, credentials: { username, password } })
+            // The secret leaves state the moment the login IPC settles — a
+            // separate microtask so the clear renders BEFORE the needs2fa
+            // transition can unmount the password input (pinned by
+            // AccountCard's held-invalidation test).
+            .finally(() => {
+              if (dropPasswordAfterSubmit) setPassword('')
+            })
+    )
+  }
+
+  /**
+   * "Use my sign-in from this PC" (owner, 2026-10-20). An explicit press; main
+   * reads VRCX or ChilloutVR/CVRX read-only and validates before saving. A
+   * typed password is not sent and is dropped, since this attempt replaces it.
+   */
+  async function handleImport(): Promise<void> {
+    setPassword('')
+    setIsImporting(true)
+    try {
+      await run((bridge) => bridge.importSession({ platform }))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   function handleBack(): void {
     setTwoFactorOverride('credentials')
     setTwoFactorCode('')
@@ -193,7 +228,9 @@ export function useAuthFlow(
     errorKey,
     setErrorKey,
     isSubmitting,
+    isImporting,
     handleSubmit,
+    handleImport,
     handleBack
   }
 }

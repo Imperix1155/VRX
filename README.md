@@ -6,8 +6,8 @@ VRX is a desktop app that brings your VRChat and ChilloutVR friends into one
 window, so you don't need VRCX and CVRX open side by side. It runs on your own
 computer, signs in as you, and shows both platforms with equal weight. Live
 presence comes from each platform's own live connection, not from polling.
-VRX never reads or writes VRCX or CVRX data, apart from the optional
-ChilloutVR session import described below.
+VRX never writes VRCX or CVRX data. It reads their saved sign-in only when
+you press "Use my sign-in from this PC", described below.
 
 ## What it does
 
@@ -67,12 +67,15 @@ screen, update channels, the tray, and how to report a problem.
   when it is available. Otherwise VRX uses a weaker local key kept in its
   private app files: anyone who can read both that key and the encrypted
   session could reuse the session.
-- If VRX has no saved ChilloutVR session, it asks before copying one from your
-  local ChilloutVR game files or CVRX. Signing in directly is the default.
-  Settings → Accounts → External ChilloutVR session lets you choose Never, Ask,
-  or Allow; changes apply the next time VRX starts. VRX never changes those
-  files, and signing out of ChilloutVR in VRX stops any import until you sign
-  in again.
+- Signing in with your password is the main way in. Under each sign-in form,
+  "Use my sign-in from VRCX" (VRChat) and "Use my sign-in from ChilloutVR"
+  (the game's saved sign-in or CVRX) can reuse a sign-in already saved on this
+  PC. VRX looks only when you press the button, never at startup, and never
+  changes those files. The platform checks the sign-in before VRX saves it.
+- To show VRChat friends' pictures and worlds right away, VRX keeps a copy of
+  the pictures it loaded from VRChat (for up to 14 days) and of world and group
+  names (for up to a day) in its private app files. Signing out of VRChat in
+  VRX deletes them.
 - Friends set to Ask Me or Do Not Disturb keep their location hidden
   everywhere in VRX, notifications included.
 - VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR, and

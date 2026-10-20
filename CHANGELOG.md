@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Skip setup is on every screen. Settings → Appearance has Run setup again.
 - Settings → Appearance can hide the Hot Instances and Explore pages from the
   sidebar. Their Dashboard sections and alerts keep their own switches.
+- "Use my sign-in from VRCX" and "Use my sign-in from ChilloutVR" sit under
+  each sign-in form (login screen, Settings → Accounts, welcome setup). They
+  reuse a sign-in VRCX, CVRX or the game already saved on this PC, so you don't
+  have to type your password. VRX only looks when you press the button and
+  never changes those files; the platform checks the sign-in before VRX saves
+  it. Signing in with your password stays the main way.
 
 ### Changed
 
@@ -30,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "Link an account" picker opens and searches quickly even with thousands
   of friends, because it only draws the rows near what you can see. Live
   status changes also do less work checking linked-profile names.
+- VRChat friend and world pictures, and the names of the worlds and groups
+  friends are in, show right away when you open VRX. VRX now remembers what it
+  already loaded (pictures for up to 14 days, names for a day) instead of
+  asking VRChat for each one again, one per second, on every launch. Signing
+  out of VRChat deletes them.
 
 - Replaced the default Electron app icon with a VRX monogram: a blue V, silver
   R, and orange X at equal size in a smoked-glass case, with colored rails and
@@ -48,6 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stronger secondary text color.
 - The installed app no longer carries the project's developer documents,
   contributor tooling, and old planning notes, which never had a use inside it.
+
+### Removed
+
+- The ChilloutVR popup at startup ("Allow VRX to find and use an existing
+  ChilloutVR session?") and the External ChilloutVR session setting in
+  Accounts. The new button replaces both, so VRX never reads other apps' files
+  unless you ask.
 
 ### Fixed
 

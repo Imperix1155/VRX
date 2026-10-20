@@ -8,7 +8,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
-import type { AuthStatus, Platform } from '@shared/types'
+import {
+  SESSION_IMPORT_NOT_FOUND,
+  type AuthStatus,
+  type LoginResult,
+  type Platform
+} from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterTestKit'
 
@@ -226,11 +231,99 @@ describe('logout handler boundary', () => {
     expect(vrcAdapter.clearSession).not.toHaveBeenCalled()
   })
 
+  it('reports a completed sign-out to onLogout, and never a failed one', () => {
+    const onLogout = vi.fn()
+    handlers.clear()
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), { onLogout })
+
+    expect(call('logout', { platform: 'vrchat' })).toBeUndefined()
+    expect(onLogout).toHaveBeenCalledWith('vrchat')
+
+    onLogout.mockClear()
+    vi.mocked(adapter.clearSession).mockImplementation(() => {
+      throw new Error('credential deletion failed')
+    })
+    expect(() => call('logout', { platform: 'vrchat' })).toThrow('credential deletion failed')
+    expect(onLogout).not.toHaveBeenCalled()
+  })
+
+  it('keeps a sign-out successful when onLogout throws', () => {
+    handlers.clear()
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), {
+      onLogout: () => {
+        throw new Error('disk busy')
+      }
+    })
+
+    expect(call('logout', { platform: 'vrchat' })).toBeUndefined()
+    expect(log.warn).toHaveBeenCalledWith('onLogout callback failed for vrchat: disk busy')
+  })
+
   it('propagates credential deletion failure so the renderer invoke rejects', () => {
     vi.mocked(adapter.clearSession).mockImplementation(() => {
       throw new Error('credential deletion failed')
     })
 
     expect(() => call('logout', { platform: 'vrchat' })).toThrow('credential deletion failed')
+  })
+})
+
+describe('import-session handler boundary', () => {
+  let importSession = vi.fn<(platform: Platform) => Promise<LoginResult>>()
+
+  beforeEach(() => {
+    handlers.clear()
+    importSession = vi.fn<(platform: Platform) => Promise<LoginResult>>(() =>
+      Promise.resolve({ ok: true })
+    )
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), {
+      onLoginSuccess,
+      importSession
+    })
+  })
+
+  it('rejects an untrusted sender before any discovery', () => {
+    trusted.value = false
+    expect(() => call('import-session', { platform: 'vrchat' })).toThrow('Untrusted IPC sender')
+    expect(importSession).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['null request', null],
+    ['unknown platform', { platform: 'steam' }],
+    ['missing platform', {}]
+  ])('rejects %s', (_label, req) => {
+    expect(() => call('import-session', req)).toThrow('Invalid import-session request')
+    expect(importSession).not.toHaveBeenCalled()
+  })
+
+  it('imports for the requested platform and reports a successful sign-in', async () => {
+    await expect(call('import-session', { platform: 'chilloutvr' })).resolves.toEqual({
+      ok: true
+    })
+    expect(importSession).toHaveBeenCalledWith('chilloutvr')
+    expect(onLoginSuccess).toHaveBeenCalledWith('chilloutvr')
+  })
+
+  it('passes a failed import through without a sign-in side effect', async () => {
+    importSession.mockResolvedValue({
+      ok: false,
+      needs2fa: false,
+      error: SESSION_IMPORT_NOT_FOUND
+    })
+    await expect(call('import-session', { platform: 'vrchat' })).resolves.toEqual({
+      ok: false,
+      needs2fa: false,
+      error: SESSION_IMPORT_NOT_FOUND
+    })
+    expect(onLoginSuccess).not.toHaveBeenCalled()
+  })
+
+  it('refuses when main wired no importer', () => {
+    handlers.clear()
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]))
+    expect(() => call('import-session', { platform: 'vrchat' })).toThrow(
+      'Session import unavailable'
+    )
   })
 })

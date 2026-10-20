@@ -53,6 +53,19 @@ export interface GroupResolver {
    * from requests started before the clear are discarded when they settle.
    */
   clear(): void
+  /** Unexpired successful entries, oldest first (for the launch-to-launch store). */
+  snapshot(): GroupSnapshotEntry[]
+  /**
+   * Adopt stored entries for the current account. Unexpired entries only, and
+   * never over an entry this session already has. Does not notify `onChange`.
+   */
+  seed(entries: readonly GroupSnapshotEntry[]): void
+}
+
+export interface GroupSnapshotEntry {
+  id: string
+  meta: GroupMeta
+  expiresAt: number
 }
 
 export interface GroupFetcher {
@@ -88,12 +101,15 @@ export function createGroupResolver(options: {
   ttlMs?: number
   negativeTtlMs?: number
   maxEntries?: number
+  /** Called after a successful lookup is cached. */
+  onChange?: () => void
 }): GroupResolver {
   const { fetcher } = options
   const clock = options.clock ?? Date.now
   const ttlMs = options.ttlMs ?? GROUP_CACHE_TTL_MS
   const negativeTtlMs = options.negativeTtlMs ?? GROUP_NEGATIVE_TTL_MS
   const maxEntries = options.maxEntries ?? GROUP_CACHE_MAX
+  const onChange = options.onChange
 
   const cache = new Map<string, CacheEntry>()
   const inFlight = new Map<string, Promise<GroupMeta | null>>()
@@ -152,6 +168,7 @@ export function createGroupResolver(options: {
       }
       if (mayWrite()) {
         store(groupId, { expiresAt: clock() + ttlMs, value })
+        onChange?.()
       }
       return value
     } catch (error) {
@@ -211,6 +228,23 @@ export function createGroupResolver(options: {
       cache.clear()
       inFlight.clear()
       writeEpoch.clear()
+    },
+
+    snapshot(): GroupSnapshotEntry[] {
+      const entries: GroupSnapshotEntry[] = []
+      for (const [id, entry] of cache) {
+        if (entry.value !== null && fresh(entry))
+          entries.push({ id, meta: entry.value, expiresAt: entry.expiresAt })
+      }
+      return entries
+    },
+
+    seed(entries: readonly GroupSnapshotEntry[]): void {
+      const now = clock()
+      for (const { id, meta, expiresAt } of entries) {
+        if (expiresAt <= now || expiresAt > now + ttlMs || cache.has(id)) continue
+        store(id, { expiresAt, value: meta })
+      }
     }
   }
 }

@@ -184,29 +184,39 @@ describe('main credential wiring', () => {
     )
   })
 
-  it('persists an imported CVR session before giving it to the adapter store', () => {
+  it('never discovers an external session at startup, only from the explicit button', () => {
     const executableSource = stripComments(source)
-    const importStart = executableSource.indexOf(
-      'initialCvrCredentials = await loadStoredOrImportedCvrSession({'
-    )
     const adapterStart = executableSource.indexOf(
       'const cvrAdapter = new CvrAdapter(cvrCredentials'
     )
-    const importWiring = executableSource.slice(importStart, adapterStart)
+    const startup = executableSource.slice(0, adapterStart)
 
-    expect(importStart).toBeGreaterThan(-1)
-    expect(adapterStart).toBeGreaterThan(importStart)
-    expect(importWiring).toContain('requestImportConsent: () =>')
-    expect(importWiring).toContain('requestCvrImportConsent({')
-    expect(importWiring).toContain('defaultId: 0')
-    expect(importWiring).toContain('cancelId: 0')
-    expect(importWiring).toContain('saveSettings({ cvrSessionImportChoice })')
-    expect(importWiring).toContain('importSession: () =>')
-    expect(importWiring).toContain('importCvrSession({')
-    expect(importWiring).toContain(
-      'saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))'
+    expect(adapterStart).toBeGreaterThan(-1)
+    // Startup restores VRX's own stored session only: no game-profile, CVRX or
+    // VRCX reads, no consent dialog, and no import persisted around the adapter.
+    expect(startup).not.toContain('importCvrSession(')
+    expect(startup).not.toContain('importVrcxSession(')
+    const cvrRestore = startup.slice(
+      startup.indexOf('const loadStoredCvrCredentials'),
+      startup.indexOf('const cvrCredentials: CvrCredentialStore')
     )
-    expect(importWiring).toContain('load: () => initialCvrCredentials')
+    expect(cvrRestore.length).toBeGreaterThan(0)
+    expect(cvrRestore).not.toContain('showMessageBox')
+    expect(cvrRestore).not.toContain('saveCredential(')
+    expect(startup).toContain('initialCvrCredentials = loadStoredCvrCredentials()')
+    expect(executableSource).toContain('load: () => initialCvrCredentials')
+
+    // The importer reaches the adapters only through the guarded IPC option,
+    // and the adapters (not app.ts) validate the owner and persist.
+    const wiringStart = executableSource.indexOf('importSession: createSessionImporter({')
+    const wiringEnd = executableSource.indexOf('onAuthStatus:', wiringStart)
+    const wiring = executableSource.slice(wiringStart, wiringEnd)
+    expect(wiringStart).toBeGreaterThan(adapterStart)
+    expect(wiring).toContain('discoverVrchat: importVrcxSession')
+    expect(wiring).toContain('importCvrSession({')
+    expect(wiring).toContain('vrchat: vrcAdapter')
+    expect(wiring).toContain('chilloutvr: cvrAdapter')
+    expect(wiring).not.toContain('saveCredential')
   })
 })
 

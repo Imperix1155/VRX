@@ -115,6 +115,9 @@ export interface IpcInvoke {
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }
   'verify-2fa': { req: { platform: Platform; code: string }; res: LoginResult }
+  /** Explicit "use my sign-in from this PC": main reads VRCX or ChilloutVR/CVRX
+   *  read-only, then the adapter validates the owner before persisting. */
+  'import-session': { req: { platform: Platform }; res: LoginResult }
   logout: { req: { platform: Platform }; res: void }
   'join-instance': {
     req: {

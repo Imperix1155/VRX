@@ -2,7 +2,12 @@ import { RosterRefresh } from './RosterRefresh'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
-import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import {
+  AUTH_IDENTITY_UNAVAILABLE,
+  CREDENTIAL_PERSISTENCE_FAILED,
+  SESSION_IMPORT_NOT_FOUND,
+  SESSION_IMPORT_REJECTED
+} from '@shared/types'
 import type {
   AuthStatus,
   Credentials,
@@ -24,8 +29,13 @@ import { toBucketSets, type VrcCurrentUserBucketSets } from './vrchat/parsePrese
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { fetchGroupMetadata } from './vrchat/fetchGroupMetadata'
 import { parseInstanceType } from './vrchat/parseInstanceType'
-import { WorldResolver, type WorldMeta } from './vrchat/WorldResolver'
-import { createGroupResolver, type GroupMeta, type GroupResolver } from './vrchat/GroupResolver'
+import { WorldResolver, type WorldMeta, type WorldSnapshotEntry } from './vrchat/WorldResolver'
+import {
+  createGroupResolver,
+  type GroupMeta,
+  type GroupResolver,
+  type GroupSnapshotEntry
+} from './vrchat/GroupResolver'
 import { buildJoinUrl as buildVrcJoinUrl } from './vrchat/buildJoinUrl'
 import { hasUnsafeCredentialCharacters, isValidVrcSessionCookie } from './credentialValidation'
 import type {
@@ -67,7 +77,24 @@ export interface VrcLiveWiring {
   onSessionBoundary?: (boundary: { identityRetained: boolean }) => void
   /** Publishes the current platform identity after adapter state settles. */
   onIdentity?: (accountId: string | null) => void
+  /**
+   * Launch-to-launch copy of world and group names for one account. `load`
+   * runs synchronously when an account is published, so the first roster is
+   * already enriched; `save` runs debounced after new lookups.
+   */
+  metadataStore?: VrcMetadataPersistence
 }
+
+export interface VrcMetadataPersistence {
+  load(accountId: string): { worlds: WorldSnapshotEntry[]; groups: GroupSnapshotEntry[] } | null
+  save(
+    accountId: string,
+    snapshot: { worlds: WorldSnapshotEntry[]; groups: GroupSnapshotEntry[] }
+  ): Promise<void> | void
+}
+
+/** Coalesces a burst of world/group lookups into one metadata write. */
+export const VRC_METADATA_SAVE_DELAY_MS = 5_000
 
 const canonicalVrcUserId = /^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // No exact legacy-id grammar is evidenced in this codebase. Keep the fallback
@@ -212,8 +239,12 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     buckets: VrcCurrentUserBucketSets
   } | null = null
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
-  private readonly worldResolver = new WorldResolver((worldId) =>
-    this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), { retry: 'none' })
+  private readonly worldResolver = new WorldResolver(
+    (worldId) => this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), { retry: 'none' }),
+    undefined,
+    undefined,
+    undefined,
+    () => this.scheduleMetadataSave()
   )
   /**
    * WorldIds with an enrichment fetch in flight (the CvrAdapter
@@ -228,8 +259,12 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded. */
   private readonly groupResolver: GroupResolver = createGroupResolver({
     fetcher: (groupId) =>
-      this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), { retry: 'none' })
+      this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), { retry: 'none' }),
+    onChange: () => this.scheduleMetadataSave()
   })
+  /** The account and generation whose stored metadata the resolvers hold. */
+  private metadataOwner: { accountId: string; generation: number } | null = null
+  private metadataSaveTimer: ReturnType<typeof setTimeout> | null = null
   /**
    * GroupIds with an enrichment fetch in flight. Mirrors the world dedupe
    * pattern; batch-scoped so failed/private groups become retryable.
@@ -384,6 +419,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.accountId = parsed.data.id
     if (!this.sessionPersistenceEstablished && !this.persist()) return this.persistenceFailure()
     this.authPersistencePending = false
+    this.adoptStoredMetadata()
     this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -396,6 +432,87 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    */
   verify2fa(code: string): Promise<LoginResult> {
     return this.runAuthOperation((operationId) => this.verifyTwoFactor(code, operationId))
+  }
+
+  /**
+   * "Use my sign-in from this PC": a session cookie read from VRCX. It runs as
+   * an auth operation like login. The cookie is checked against /auth/user
+   * BEFORE it replaces anything, so a dead or unreadable import leaves the
+   * current session as it was. A live cookie whose second factor expired
+   * becomes the same pending 2FA session a password login produces; otherwise
+   * the owner named by VRChat is bound and persisted before any consumer runs.
+   */
+  importSession(cookie: string): Promise<LoginResult> {
+    return this.runAuthOperation((operationId) => this.performImport(cookie, operationId))
+  }
+
+  private async performImport(cookie: string, operationId: number): Promise<LoginResult> {
+    if (!isValidVrcSessionCookie(cookie) || !cookiePart(cookie, 'auth')) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_NOT_FOUND }
+    }
+    this.resetCircuit()
+
+    let response: Response
+    try {
+      response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        () => ({
+          method: 'GET',
+          headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
+        }),
+        { priority: 'interactive', lease: this.authRequestLease(operationId) }
+      )
+    } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      return { ok: false, needs2fa: false, error: 'network_error' }
+    }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (response.status === 401) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_REJECTED }
+    }
+    if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      return { ok: false, needs2fa: false, error: 'bad_response' }
+    }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    const parsed = authUserResponseSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+
+    // From here the imported cookie replaces the account boundary. Nothing
+    // below awaits, so no other operation can observe a half-installed session.
+    this.authPersistencePending = true
+    this.setCookie(cookie)
+    this.displayName = null
+    this.accountId = null
+    this.pendingTwoFactorMethod = null
+    this.live?.onIdentity?.(null)
+    this.bumpSessionGeneration(false)
+
+    if ('requiresTwoFactorAuth' in parsed.data) {
+      // Same rule as a password login's challenge: the previous account's disk
+      // slot goes before the prompt shows, so quitting mid-flow cannot bring
+      // that account back. The code then verifies against this cookie.
+      try {
+        this.credentials.delete()
+      } catch {
+        return this.persistenceFailure()
+      }
+      this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
+      return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
+    }
+
+    this.displayName = parsed.data.displayName
+    this.accountId = parsed.data.id
+    if (!this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
+    this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
+    return { ok: true }
   }
 
   private async verifyTwoFactor(code: string, operationId: number): Promise<LoginResult> {
@@ -516,6 +633,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     if (this.accountId === null) return this.identityUnavailableFailure()
     if (!this.persist()) return this.persistenceFailure()
     this.authPersistencePending = false
+    this.adoptStoredMetadata()
     if (this.accountId !== null) this.live?.onIdentity?.(this.accountId)
     this.restartPipeline()
     return { ok: true }
@@ -662,6 +780,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
         this.live?.log?.('warn', 'vrc adapter: credential persistence failed')
         return this.status('unauthenticated')
       }
+      this.adoptStoredMetadata()
       this.live?.onIdentity?.(this.accountId)
       if (establishedByThisStatus) this.restartPipeline()
       this.rememberAuthBuckets(parsed.data, generation, startedAt, bucketRevision)
@@ -1478,6 +1597,48 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   }
 
   /**
+   * Seed the resolvers once per session generation with this account's stored
+   * world and group names. Called only where a durable account is published.
+   */
+  private adoptStoredMetadata(): void {
+    const store = this.live?.metadataStore
+    const accountId = this.accountId
+    if (!store || accountId === null) return
+    const owner = this.metadataOwner
+    if (owner?.accountId === accountId && owner.generation === this.sessionGeneration) return
+    this.metadataOwner = { accountId, generation: this.sessionGeneration }
+    let stored: ReturnType<VrcMetadataPersistence['load']> = null
+    try {
+      stored = store.load(accountId)
+    } catch {
+      this.live?.log?.('warn', 'vrc adapter: stored world names unavailable')
+    }
+    if (stored === null) return
+    this.worldResolver.seed(stored.worlds)
+    this.groupResolver.seed(stored.groups)
+  }
+
+  private scheduleMetadataSave(): void {
+    const store = this.live?.metadataStore
+    const owner = this.metadataOwner
+    if (!store || owner === null || this.metadataSaveTimer !== null) return
+    this.metadataSaveTimer = setTimeout(() => {
+      this.metadataSaveTimer = null
+      // Only the account and generation that owns the resolvers may write.
+      if (this.metadataOwner !== owner || this.accountId !== owner.accountId) return
+      if (owner.generation !== this.sessionGeneration) return
+      const snapshot = {
+        worlds: this.worldResolver.snapshot(),
+        groups: this.groupResolver.snapshot()
+      }
+      void Promise.resolve()
+        .then(() => store.save(owner.accountId, snapshot))
+        .catch(() => this.live?.log?.('warn', 'vrc adapter: saving world names failed'))
+    }, VRC_METADATA_SAVE_DELAY_MS)
+    this.metadataSaveTimer.unref?.()
+  }
+
+  /**
    * Fence every account boundary before replacing or stopping the live pipeline.
    * Any late callback from the stopped object keeps its captured old generation
    * and is dropped by createPipeline's event handler.
@@ -1491,6 +1652,9 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     this.sessionGeneration += 1
     this.worldResolver.clear()
     this.groupResolver.clear()
+    this.metadataOwner = null
+    if (this.metadataSaveTimer !== null) clearTimeout(this.metadataSaveTimer)
+    this.metadataSaveTimer = null
     // Stale pending ids from the previous generation would suppress the new
     // session's first kick until their in-flight promises settle (both kick
     // paths skip ids already in the set) — drop them with the caches.

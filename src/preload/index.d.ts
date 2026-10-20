@@ -31,6 +31,9 @@ type VrxBridge = {
   ) => Promise<IpcInvoke['get-auth-status']['res']>
   login: (req: IpcInvoke['login']['req']) => Promise<IpcInvoke['login']['res']>
   verify2fa: (req: IpcInvoke['verify-2fa']['req']) => Promise<IpcInvoke['verify-2fa']['res']>
+  importSession: (
+    req: IpcInvoke['import-session']['req']
+  ) => Promise<IpcInvoke['import-session']['res']>
   logout: (req: IpcInvoke['logout']['req']) => Promise<IpcInvoke['logout']['res']>
   /** Friend IDs only; instance identifiers never cross from the renderer. */
   joinInstance: (
