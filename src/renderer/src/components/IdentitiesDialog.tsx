@@ -1,5 +1,6 @@
 import LinkedProfilesLoadError from './LinkedProfilesLoadError'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { Friend, Platform } from '@shared/types'
@@ -243,6 +244,16 @@ export default function IdentitiesDialog({
               splitByMatch(friend.displayName, search.trim()).some((part) => part.isMatch))
         )
       : []
+  const linkedCandidateKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const person of snapshot?.profiles ?? []) {
+      for (const member of person.members) {
+        if (member.platformAccountId === accountIds[member.platform])
+          keys.add(candidateKey(member.platform, member.friendId))
+      }
+    }
+    return keys
+  }, [snapshot, accountIds])
   const platformName = (platform: Platform): string =>
     t(platform === 'vrchat' ? 'friends.platform.vrchat' : 'friends.platform.chilloutvr')
   const title =
@@ -321,39 +332,15 @@ export default function IdentitiesDialog({
                   className={inputClass}
                 />
               </label>
-              <ul
-                aria-label={t('friends.title')}
-                className="flex max-h-[45vh] flex-col gap-[var(--space-2)] overflow-y-auto"
-              >
-                {pickerCandidates.map((friend) => (
-                  <li key={`${friend.platform}:${friend.platformUserId}`}>
-                    <button
-                      type="button"
-                      className={`${buttonClass} flex w-full items-center gap-[var(--space-2)] text-left`}
-                      disabled={!bothReady || !canWrite}
-                      onClick={() => choose(flow.source, friend)}
-                    >
-                      <Avatar friend={friend} variant="row" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate">{friend.displayName}</span>
-                        {snapshot?.profiles.some((person) =>
-                          person.members.some(
-                            (member) =>
-                              member.platform === friend.platform &&
-                              member.friendId === friend.platformUserId &&
-                              member.platformAccountId === accountIds[member.platform]
-                          )
-                        ) && (
-                          <span className="block text-[11px] text-[var(--text-dim)]">
-                            {t('linking.manage.linkedCandidate')}
-                          </span>
-                        )}
-                      </span>
-                      <PlatformPill platform={friend.platform} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <LinkPickerList
+                label={t('friends.title')}
+                candidates={pickerCandidates}
+                linkedKeys={linkedCandidateKeys}
+                linkedLabel={t('linking.manage.linkedCandidate')}
+                buttonClass={buttonClass}
+                disabled={!bothReady || !canWrite}
+                onChoose={(friend) => choose(flow.source, friend)}
+              />
               {pickerCandidates.length === 0 && (
                 <p className="text-[13px] text-[var(--text-dim)]">
                   {t('linking.manage.noMatches')}
@@ -542,5 +529,91 @@ export default function IdentitiesDialog({
         </>
       )}
     </LinkedDialog>
+  )
+}
+
+const PICKER_ROW_ESTIMATE = 58
+const PICKER_ROW_GAP = 8
+const PICKER_OVERSCAN = 6
+const PICKER_INITIAL_VIEWPORT = { width: 0, height: 420 }
+
+function candidateKey(platform: Platform, friendId: string): string {
+  return `${platform}:${friendId}`
+}
+
+/**
+ * The link picker can list every opposite-platform friend (thousands on a big
+ * VRChat roster). Only the rows near the scroll window are mounted, so opening
+ * the picker or typing in its search stays quick at any roster size.
+ */
+function LinkPickerList({
+  label,
+  candidates,
+  linkedKeys,
+  linkedLabel,
+  buttonClass,
+  disabled,
+  onChoose
+}: {
+  label: string
+  candidates: Friend[]
+  linkedKeys: ReadonlySet<string>
+  linkedLabel: string
+  buttonClass: string
+  disabled: boolean
+  onChoose: (friend: Friend) => void
+}): React.JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // TanStack Virtual returns fresh measurement functions each render, so this
+  // small component stays unmemoized by the React Compiler (as FriendsList).
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLLIElement>({
+    count: candidates.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => PICKER_ROW_ESTIMATE,
+    getItemKey: (index) => {
+      const friend = candidates[index]
+      return friend ? candidateKey(friend.platform, friend.platformUserId) : index
+    },
+    gap: PICKER_ROW_GAP,
+    overscan: PICKER_OVERSCAN,
+    initialRect: PICKER_INITIAL_VIEWPORT
+  })
+  return (
+    <div ref={scrollRef} className="max-h-[45vh] overflow-y-auto">
+      <ul aria-label={label} className="relative" style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((item) => {
+          const friend = candidates[item.index]
+          if (!friend) return null
+          return (
+            <li
+              key={item.key}
+              ref={virtualizer.measureElement}
+              data-index={item.index}
+              aria-posinset={item.index + 1}
+              aria-setsize={candidates.length}
+              className="absolute left-0 top-0 w-full"
+              style={{ transform: `translateY(${item.start}px)` }}
+            >
+              <button
+                type="button"
+                className={`${buttonClass} flex w-full items-center gap-[var(--space-2)] text-left`}
+                disabled={disabled}
+                onClick={() => onChoose(friend)}
+              >
+                <Avatar friend={friend} variant="row" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{friend.displayName}</span>
+                  {linkedKeys.has(candidateKey(friend.platform, friend.platformUserId)) && (
+                    <span className="block text-[11px] text-[var(--text-dim)]">{linkedLabel}</span>
+                  )}
+                </span>
+                <PlatformPill platform={friend.platform} />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }

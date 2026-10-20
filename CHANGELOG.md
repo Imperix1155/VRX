@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VRChat's Popular now list loads earlier after opening the app. It now waits
   in line with the friend list and world names instead of behind every
   picture. VRX still sends at most one VRChat request per second.
+- The "Link an account" picker opens and searches quickly even with thousands
+  of friends, because it only draws the rows near what you can see. Live
+  status changes also do less work checking linked-profile names.
 
 - Replaced the default Electron app icon with a VRX monogram: a blue V, silver
   R, and orange X at equal size in a smoked-glass case, with colored rails and
