@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Settings → Appearance is just the look now (Theme, Background glow,
+  Instance labels). The Hot Instances page and Explore page switches moved to
+  Settings → Behavior, and Run setup again moved to Settings → About. Saved
+  choices don't change.
 - The login screen now opens on the platform you last signed in to, instead of
   always opening on VRChat. First run still starts on VRChat.
 - Friends background re-sync now defaults to once an hour, the same pace VRCX

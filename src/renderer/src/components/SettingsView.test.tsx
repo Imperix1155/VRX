@@ -687,7 +687,24 @@ describe('Accounts sign-in from this PC', () => {
 })
 
 describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
+  it('keeps Appearance to the look: page switches sit in Behavior, setup in About', () => {
+    renderSettings()
+    expect(screen.queryByText(msg('settings.pages.hot.label'))).toBeNull()
+    expect(screen.queryByText(msg('settings.pages.explore.label'))).toBeNull()
+    expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
+
+    act(() => useUiStore.setState({ settingsCategory: 'behavior' }))
+    expect(screen.getByText(msg('settings.pages.hot.label'))).toBeTruthy()
+    expect(screen.getByText(msg('settings.pages.explore.label'))).toBeTruthy()
+    expect(screen.queryByRole('button', { name: msg('settings.setup.run') })).toBeNull()
+
+    act(() => useUiStore.setState({ settingsCategory: 'about' }))
+    expect(screen.getByRole('button', { name: msg('settings.setup.run') })).toBeTruthy()
+    expect(screen.queryByText(msg('settings.pages.hot.label'))).toBeNull()
+  })
+
   it('turns the Hot Instances and Explore pages off independently', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()
     for (const [label, key] of [
       ['settings.pages.hot.label', 'showHotInstancesPage'],
@@ -706,6 +723,7 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
 
   it('Run setup again queues the welcome setup without changing other choices', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, theme: 'light' } })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
     fireEvent.click(screen.getByRole('button', { name: msg('settings.setup.run') }))
     expect(useSettingsStore.getState().settings).toEqual({

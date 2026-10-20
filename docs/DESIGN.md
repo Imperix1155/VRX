@@ -48,7 +48,7 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    their Dashboard section (§8, §9.1).
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
-   Settings → Appearance (§8). While it shows, the Dashboard section's "See
+   Settings → Behavior (§8). While it shows, the Dashboard section's "See
    all" button opens it (§9.1).
 9. **Privacy first.** Friends set to Ask Me or Do Not Disturb never reveal
    their world or instance anywhere, including notifications (§5).
@@ -263,7 +263,7 @@ fixed and the main content scrolls. The default and minimum window is
 Don't design a mobile layout from a narrow documentation viewport.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Explore,
-Settings. Hot Instances and Explore can be hidden in Settings → Appearance or
+Settings. Hot Instances and Explore can be hidden in Settings → Behavior or
 the welcome setup; a hidden page leaves the sidebar and its links, while its
 Dashboard section and alerts keep their own switches. A hidden page that is
 open, or that a hot-instance alert asks for, falls back to the Dashboard. Activity and Groups are
@@ -294,22 +294,22 @@ behavior. Reduced motion is respected.
 default window size: Appearance, Dashboard, Behavior, Notifications,
 Accounts, and About. Each setting sits on a compact neutral card.
 
-- Appearance: Theme, Background glow, Instance labels, Hot Instances page,
-  Explore page, and Welcome setup (Run setup again).
+- Appearance: Theme, Background glow, and Instance labels.
 - Dashboard: Section order, Popular now, Hot Instances, and Hot instance
   threshold, as separate rows.
-- Behavior: Friend details open from (whole card or avatar only), Friends
-  background re-sync, and Allow joining friends, which contains Confirm
-  before joining and Join in. Turning a parent off collapses its card with a 220 ms
-  height transition (instant under reduced motion). Hidden children are inert
-  and hidden from assistive technology, focus returns to the parent control
-  when needed, and their saved choices survive.
+- Behavior: Hot Instances page and Explore page (one card), Friend details
+  open from (whole card or avatar only), Friends background re-sync, and
+  Allow joining friends, which contains Confirm before joining and Join in.
+  Turning a parent off collapses its card with a 220 ms height transition
+  (instant under reduced motion). Hidden children are inert and hidden from
+  assistive technology, focus returns to the parent control when needed, and
+  their saved choices survive.
 - Notifications: Friend comes online, Friend joins a world, Friend goes
   offline, and Hot instance. Each is independent and off by default.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates with the installed version,
-  and Open logs folder.
+  Welcome setup (Run setup again), and Open logs folder.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save
@@ -450,8 +450,8 @@ off, VRChat instance labels) until changed. Look also asks for the instance
 label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
-neutral text-colored fill, so neither platform color leads. Settings →
-Appearance offers Run setup again.
+neutral text-colored fill, so neither platform color leads. Settings → About
+offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
 local-key fallback, and never promises keychain protection everywhere. The
