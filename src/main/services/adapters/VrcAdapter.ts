@@ -213,7 +213,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   } | null = null
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
-    this.get(`/worlds/${worldId}`, z.unknown(), { retry: 'none' })
+    this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), { retry: 'none' })
   )
   /**
    * WorldIds with an enrichment fetch in flight (the CvrAdapter
@@ -811,6 +811,9 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       signal: context.signal,
       priority: context.priority,
       retry: 'none',
+      // A closed room or removed world is an expected Explore answer. Three in
+      // a row must not open the shared circuit and stall the friends list.
+      recordCircuitFailure: false,
       beforeDispatch: context.beforeDispatch
     }
   }

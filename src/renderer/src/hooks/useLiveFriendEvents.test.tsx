@@ -487,6 +487,30 @@ describe('useLiveFriendEvents — identity boundary', () => {
 })
 
 describe('useLiveFriendEvents — auth-status quarantine guard (VRX-155)', () => {
+  it('refetches the roster when auth recovers from an error status', () => {
+    stubBridge()
+    const client = new QueryClient()
+    mount(client)
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), { state: 'error' as const })
+    })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated' as const })
+    })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+
+    // A later authenticated refresh is not a recovery and does not refetch again.
+    invalidate.mockClear()
+    act(() => {
+      client.setQueryData(authStatusQueryKey('vrchat'), { state: 'authenticated' as const })
+    })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: friendsQueryKey('vrchat') })
+  })
+
   it('does not fabricate an empty roster for a never-signed-in platform when auth settles unauthenticated', () => {
     stubBridge()
     const client = new QueryClient()

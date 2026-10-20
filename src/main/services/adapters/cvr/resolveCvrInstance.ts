@@ -200,6 +200,16 @@ export function createCvrInstanceResolver(options: {
       }
       return value
     } catch (error) {
+      // A 403 is usually a permission denial on this one instance (private or
+      // friends-only). It still propagates so CvrAdapter can confirm the session
+      // once, but it is negative-cached so each presence snapshot does not
+      // re-request it. A dead session clears this cache when it is invalidated.
+      if (error instanceof AuthError && error.status === 403) {
+        if (requestGeneration === generation) {
+          store(instanceId, { expiresAt: clock() + negativeTtlMs, value: null })
+        }
+        throw error
+      }
       // A dead session must reach CvrAdapter's auth-invalidated boundary. It is
       // neither an unavailable instance nor safe to negative-cache.
       if (

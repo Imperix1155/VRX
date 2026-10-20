@@ -90,6 +90,13 @@ export default function LinkedDestinationChooser({
         {reviewed.length === 0 ? (
           <p className="text-sm text-[var(--text-dim)]">{t('linking.chooser.none')}</p>
         ) : null}
+        {/* Same reason a single-account friend's Join gives, so the greyed-out
+            buttons below are not left unexplained. */}
+        {reviewed.length > 0 && !allowJoinInstances ? (
+          <p className="text-sm text-[var(--text-dim)]">
+            {t('friends.joinFailure.joiningDisabled')}
+          </p>
+        ) : null}
         {reviewed.map((destination) => {
           const current = currentDestination(accounts, destination)
           const unavailable =

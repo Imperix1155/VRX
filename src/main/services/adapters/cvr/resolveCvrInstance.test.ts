@@ -177,6 +177,20 @@ describe('createCvrInstanceResolver', () => {
     expect(calls).toBe(2)
   })
 
+  it('propagates a 403 once, then serves the negative cache instead of re-requesting', async () => {
+    const forbidden = new CVRAuthError('forbidden', 403)
+    let calls = 0
+    const fetcher: CvrFetcher = <T>(): Promise<T> => {
+      calls += 1
+      return Promise.reject(forbidden)
+    }
+    const resolver = createCvrInstanceResolver({ fetcher })
+
+    await expect(resolver.resolve('i+private')).rejects.toBe(forbidden)
+    await expect(resolver.resolve('i+private')).resolves.toBeNull()
+    expect(calls).toBe(1)
+  })
+
   it('peek returns undefined before resolve, the value after, and undefined after expiry', async () => {
     let now = 9_000_000
     const { fetcher } = makeFetcher(fullDetail)

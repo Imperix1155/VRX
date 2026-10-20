@@ -244,7 +244,7 @@ export default function HotInstanceSheet({
                 </div>
 
                 {joinTarget !== null && (
-                  <span className="relative block shrink-0" data-join-pill>
+                  <span className="flex max-w-[14rem] shrink-0 flex-col items-end" data-join-pill>
                     <button
                       type="button"
                       onClick={joinSheetTarget}
@@ -262,9 +262,12 @@ export default function HotInstanceSheet({
                     >
                       {t('drawer.join')}
                     </button>
+                    {/* Its own line under Join, not an overlay on it: failures
+                        stay until the next attempt (as on friend rows). */}
                     <span
                       role="status"
-                      className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-center text-[12px] text-[var(--text-dim)]"
+                      className="text-right text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]"
+                      style={{ textShadow: 'var(--hot-sheet-banner-subtitle-shadow)' }}
                     >
                       {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
                     </span>

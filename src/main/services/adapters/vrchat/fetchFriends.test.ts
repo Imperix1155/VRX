@@ -71,6 +71,16 @@ function buildFetcher(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('fetchFriends', () => {
+  it('turns an expired second factor on the probe into an auth error, not a failed roster', async () => {
+    const paths: string[] = []
+    const fetcher: VrcFetcher = async <T>(path: string, schema: z.ZodType<T>): Promise<T> => {
+      paths.push(path)
+      return schema.parse({ requiresTwoFactorAuth: ['totp', 'otp'] })
+    }
+    await expect(fetchFriends(fetcher)).rejects.toMatchObject({ name: 'AuthError', status: 401 })
+    expect(paths).toEqual(['/auth/user'])
+  })
+
   it.each(['/auth/user', 'offline=false', 'offline=true'])(
     'propagates a rate limit at %s without later pages or an empty success',
     async (stage) => {

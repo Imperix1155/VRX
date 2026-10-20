@@ -77,6 +77,17 @@ afterEach(() => {
 })
 
 describe('LinkedDestinationChooser', () => {
+  it('says why Join is unavailable when joining is turned off in Settings', () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, allowJoinInstances: false },
+      dirty: false
+    })
+    render(
+      <LinkedDestinationChooser accounts={[friend('vrchat', 'usr_a', 'Amy')]} onClose={() => {}} />
+    )
+    expect(screen.getByText('Joining is disabled in Settings')).toBeTruthy()
+  })
+
   it('renders zero or one reviewed choice without inventing an offline destination', () => {
     const unavailable: Friend = {
       ...friend('vrchat', 'offline', 'Offline'),

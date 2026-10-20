@@ -522,7 +522,7 @@
   },
   "explore": {
     "heading": "探索",
-    "popularNow": "人気のワールド",
+    "popularNow": "いま人気",
     "worldsShown": "表示するワールド",
     "worldsShownAria": "表示するワールド数",
     "openWorldAria": "{{platform}} の {{world}} の表示可能なルームを開く",
