@@ -1295,9 +1295,16 @@ export default function FriendsList(): React.JSX.Element {
           {isError && !friends && sourceFailures.length === 0 && (
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
+          {/* An empty list with a fetch in flight is usually the [] placeholder a
+          sign-in or account switch leaves while the new roster loads, so it
+          says loading rather than claiming nobody is online. */}
           {filteredFriends && filteredFriends.length === 0 && (
             <p className="text-sm text-[var(--text-faint)]">
-              {searchActive ? t('friends.searchNoResults') : t('friends.empty')}
+              {searchActive
+                ? t('friends.searchNoResults')
+                : isFetching
+                  ? t('friends.loading')
+                  : t('friends.empty')}
             </p>
           )}
           {friends && friends.length > 0 && sections && (
