@@ -13,21 +13,27 @@ import { describe, expect, it, vi } from 'vitest'
 const captured = vi.hoisted(() => ({
   lastTemplate: [] as unknown[],
   trayListeners: new Map<string, () => void>(),
-  quit: vi.fn()
+  quit: vi.fn(),
+  trayImages: [] as unknown[]
 }))
 vi.mock('electron', () => ({
   app: { quit: captured.quit },
   Menu: { buildFromTemplate: (t: unknown[]) => (captured.lastTemplate = t) },
   Tray: class {
+    constructor(image: unknown) {
+      captured.trayImages.push(image)
+    }
     setToolTip = vi.fn()
     setContextMenu = vi.fn()
     on(event: string, cb: () => void): void {
       captured.trayListeners.set(event, cb)
     }
   },
-  nativeImage: { createFromPath: () => ({ resize: (): object => ({}) }) }
+  nativeImage: { createFromPath: (path: string) => ({ path }) }
 }))
-vi.mock('../../resources/icon.png?asset', () => ({ default: '/fake/icon.png' }))
+vi.mock('../../resources/icon.ico?asset&asarUnpack', () => ({ default: '/fake/icon.ico' }))
+vi.mock('../../resources/icon-16.png?asset&asarUnpack', () => ({ default: '/fake/icon-16.png' }))
+vi.mock('../../resources/icon-24.png?asset&asarUnpack', () => ({ default: '/fake/icon-24.png' }))
 
 import { buildTrayMenuTemplate, createTray } from './tray'
 
@@ -138,5 +144,22 @@ describe('createTray — click-time window resolution (Codex regression, PR #118
     createTray(() => only as never)
     expect(() => captured.trayListeners.get('double-click')!()).not.toThrow()
     expect(only.show).not.toHaveBeenCalled()
+  })
+})
+
+describe('native tray artwork', () => {
+  it.each([
+    ['win32', '/fake/icon.ico'],
+    ['darwin', '/fake/icon-16.png'],
+    ['linux', '/fake/icon-24.png']
+  ])('uses the optical export for %s', (platform, path) => {
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      createTray(() => null)
+      expect(captured.trayImages.at(-1)).toEqual(platform === 'win32' ? path : { path })
+    } finally {
+      Object.defineProperty(process, 'platform', descriptor)
+    }
   })
 })

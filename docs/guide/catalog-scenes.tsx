@@ -24,6 +24,9 @@ import {
   worlds
 } from './fixtures'
 import TypeInspector from './type-inspector'
+import appIcon from '../../build/icon.png'
+import smallIcon from '../../resources/icon-16.png'
+import mediumIcon from '../../resources/icon-24.png'
 import { sourceModesFor } from './scenarios'
 
 export interface CatalogSceneProps {
@@ -43,6 +46,34 @@ function FixtureLabel({ children }: { children: React.ReactNode }): React.JSX.El
 
 function SceneFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
   return <section className="fixture-scene glass p-[var(--space-4)]">{children}</section>
+}
+
+function IconScene(): React.JSX.Element {
+  return (
+    <SceneFrame>
+      <FixtureLabel>Static sample · shipped VRX icon assets</FixtureLabel>
+      <div className="fixture-app-icon">
+        <img src={appIcon} width={128} height={128} alt="VRX app icon" />
+        <div className="fixture-app-icon__sizes">
+          {[16, 24, 32, 48, 64].map((size) => (
+            <figure key={size}>
+              <img
+                src={size === 16 ? smallIcon : size === 24 ? mediumIcon : appIcon}
+                width={size}
+                height={size}
+                alt={`VRX at ${size} pixels`}
+              />
+              <figcaption>{size} px</figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+      <p className="fixture-label">
+        Blue V at left, silver R above orange X. The clipped smoked-glass case keeps its colored
+        rails and gently rounded chamfer transitions.
+      </p>
+    </SceneFrame>
+  )
 }
 
 function ExploreScene({ variant }: { variant: string }): React.JSX.Element {
@@ -319,6 +350,8 @@ export default function CatalogScene({ scene, variant }: CatalogSceneProps): Rea
   const key = `${scene}:${variant}`
   return useMemo(() => {
     switch (scene) {
+      case 'icons':
+        return <IconScene key={key} />
       case 'explore':
         return <ExploreScene key={key} variant={variant} />
       case 'materials':

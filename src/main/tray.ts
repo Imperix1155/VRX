@@ -7,7 +7,9 @@
  * whenReady.
  */
 import { app, Menu, Tray, nativeImage, type MenuItemConstructorOptions } from 'electron'
-import icon from '../../resources/icon.png?asset'
+import windowsIcon from '../../resources/icon.ico?asset&asarUnpack'
+import macIcon from '../../resources/icon-16.png?asset&asarUnpack'
+import linuxIcon from '../../resources/icon-24.png?asset&asarUnpack'
 import { mt } from './i18n'
 
 export interface TrayMenuCallbacks {
@@ -49,12 +51,12 @@ export interface TrayHandle {
  * review, PR #118). Null/destroyed → the action no-ops safely.
  */
 export function createTray(getWindow: () => Electron.BrowserWindow | null): TrayHandle {
-  // macOS tray icons render at their source size — a 512px app icon would fill
-  // the whole menu bar, so shrink to the conventional 16x16 tray size there.
-  // Windows/Linux tray icons are fine at a larger size, so only macOS resizes.
-  const trayIcon = nativeImage.createFromPath(icon)
+  // Windows selects the matching ICO frame. PNG paths on macOS/Linux load
+  // their matching @2x representations without shrinking the large app master.
   const image =
-    process.platform === 'darwin' ? trayIcon.resize({ width: 16, height: 16 }) : trayIcon
+    process.platform === 'win32'
+      ? windowsIcon
+      : nativeImage.createFromPath(process.platform === 'darwin' ? macIcon : linuxIcon)
 
   const tray = new Tray(image)
   tray.setToolTip('VRX')
