@@ -2,9 +2,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { AuthStatus, Platform } from '@shared/types'
 
 /** Per-platform query key for auth status (mirrors `friendsQueryKey`, VRX-37). */
-export function authStatusQueryKey(
-  platform: Platform = 'vrchat'
-): readonly ['auth-status', Platform] {
+export function authStatusQueryKey(platform: Platform): readonly ['auth-status', Platform] {
   return ['auth-status', platform] as const
 }
 
@@ -12,7 +10,7 @@ export function authStatusQueryKey(
  * Fetch auth status over the IPC bridge. Guards `window.vrx` being absent
  * (Preview/test env), mirroring the friends query pattern.
  */
-export async function fetchAuthStatus(platform: Platform = 'vrchat'): Promise<AuthStatus> {
+export async function fetchAuthStatus(platform: Platform): Promise<AuthStatus> {
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   return window.vrx.getAuthStatus({ platform })
 }
@@ -29,7 +27,7 @@ export async function fetchAuthStatus(platform: Platform = 'vrchat'): Promise<Au
  *   staleTime. The 30s window only suppresses mount-driven refetch bursts when
  *   tabs are flipped (2026-07 audit OP-A3).
  */
-export function useAuthStatus(platform: Platform = 'vrchat'): UseQueryResult<AuthStatus, Error> {
+export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Error> {
   return useQuery({
     queryKey: authStatusQueryKey(platform),
     queryFn: () => fetchAuthStatus(platform),

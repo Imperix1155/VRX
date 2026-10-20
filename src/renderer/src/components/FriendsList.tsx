@@ -35,6 +35,7 @@ import { Avatar } from './Avatar'
 import { instancePillFor, type OpennessTier } from '../utils/instancePill'
 import { isWorldHidden } from '../utils/statusRing'
 import { splitByMatch } from '../utils/splitByMatch'
+import { inPlatformOrder } from '../utils/platformOrder'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { readPixelDesignToken, RENDERER_PIXEL_TOKENS } from '../utils/designTokens'
@@ -464,7 +465,7 @@ const FriendRow = memo(function FriendRow({
             tabIndex={isFullyVisible ? undefined : -1}
             // The diagonal halves carry each location's access tier in color;
             // the tooltip (and accessible description) spells both out.
-            title={destinations
+            title={inPlatformOrder(destinations)
               .map(
                 (account) =>
                   `${t(account.platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')}: ${t(instancePillFor(account.instance!, labelScheme).labelKey)}`
