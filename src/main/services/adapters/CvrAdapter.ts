@@ -91,8 +91,12 @@ export interface CvrLiveWiring {
   captureRosterRevision?: () => number
   socketFactory?: (url: string, headers: Record<string, string>) => PipelineSocket
   log?: (level: 'info' | 'warn' | 'debug', message: string, meta?: unknown) => void
-  /** Main-process hook for clearing account-scoped consumers such as FriendAlerts. */
-  onSessionBoundary?: () => void
+  /**
+   * Main-process hook for clearing account-scoped consumers such as FriendAlerts.
+   * `identityRetained` marks a mid-session access-key rotation for the same
+   * account: requests are still fenced, but nothing account-scoped changed.
+   */
+  onSessionBoundary?: (boundary: { identityRetained: boolean }) => void
   /** Publishes the current platform identity after adapter state settles. */
   onIdentity?: (accountId: string | null) => void
 }
@@ -935,14 +939,18 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     }
   }
 
-  private adoptSession(credentials: CVRCredentials, restartPipeline = true): void {
+  private adoptSession(
+    credentials: CVRCredentials,
+    restartPipeline = true,
+    identityRetained = false
+  ): void {
     this.session = credentials
     this.setCredentials(credentials)
     this.displayName = credentials.username
     this.accountId = null
     this.validated = false
     this.live?.onIdentity?.(null)
-    this.bumpSessionGeneration(restartPipeline)
+    this.bumpSessionGeneration(restartPipeline, identityRetained)
   }
 
   private persist(): boolean {
@@ -1067,7 +1075,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     }
     // CVR rotated the key on reauth: adopt and persist it exactly as restore
     // validation does, or the old key would die under the running session.
-    this.adoptSession({ username, accessKey }, false)
+    // The same account keeps its roster, notes and dialogs (identityRetained).
+    const sameAccount = username === checked.username && parsed.data.data.userId === this.accountId
+    this.adoptSession({ username, accessKey }, false, sameAccount)
     this.displayName = username
     this.accountId = parsed.data.data.userId
     if (!this.persist()) {
@@ -1120,7 +1130,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   }
 
   /** Reset every account-scoped cache and replace a running socket pipeline. */
-  private bumpSessionGeneration(restartPipeline = true): void {
+  private bumpSessionGeneration(restartPipeline = true, identityRetained = false): void {
     this.sessionAbort.abort()
     this.rosterRefresh.clear()
     this.sessionAbort = new AbortController()
@@ -1136,7 +1146,7 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     this.latestBackgroundResolutionSequence.clear()
     this.latestInteractiveResolutionSequence.clear()
     this.rosterWarmStarted = false
-    this.live?.onSessionBoundary?.()
+    this.live?.onSessionBoundary?.({ identityRetained })
 
     if (restartPipeline) {
       this.restartPipeline()
