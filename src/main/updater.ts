@@ -325,7 +325,12 @@ export class UpdaterService {
   }
 
   private handleDownloadError(): void {
-    this.setState({ state: 'error', failure: 'download-write' })
+    // The update is still there to download, so keep offering it (with the
+    // failure shown) instead of dropping back to "Check for updates".
+    this.setState({
+      state: this.state.availableVersion != null ? 'update-available' : 'error',
+      failure: 'download-write'
+    })
     this.logUpdaterWarning('autoUpdater: download failed')
   }
 

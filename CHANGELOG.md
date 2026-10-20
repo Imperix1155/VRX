@@ -175,6 +175,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and voiced kana forms find the same names.
 - An offline VRChat friend never shows an old custom status.
 - An empty friends list no longer flashes "Loading…" every time it refreshes.
+- In a linked profile, switching to one account and back keeps keyboard focus
+  in the profile panel. An offline friend's profile panel no longer shows an
+  old custom status.
+- A VRChat two-factor code pasted with spaces (like "123 456") is accepted.
+- "Use my sign-in from VRCX" says to quit VRCX first. VRX can't read VRCX's
+  saved sign-in while VRCX is running, even from the tray.
+- Signing in keeps keyboard focus after a failed attempt, both for the
+  password form and the "Use my sign-in" button. World and group names show
+  right away after signing in that way.
+- Typing a shared note back to its saved text while the previous edit was
+  still saving now saves that text too.
+- A failed update download can be retried straight away from the sidebar or
+  Settings → About, instead of the update button disappearing.
+- Check for updates and the Identities controls keep keyboard focus while
+  they work.
+- Clicking a hot-instance alert opens Hot Instances even when that page is
+  hidden from the sidebar.
+- A routine ChilloutVR sign-in refresh no longer makes the next friend note
+  save fail with Retry.
 
 ## [1.0.0-beta.2] - 2026-10-19
 

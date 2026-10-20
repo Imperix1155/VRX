@@ -164,6 +164,18 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(scoped.getByText('Trust: Known User')).toBeTruthy()
   })
 
+  it('hides an offline friend’s old custom status', () => {
+    mockFriends([
+      { ...joinableFriend, presence: { state: 'offline' }, status: null, instance: null }
+    ])
+    render(<FriendsList />)
+    fireEvent.click(screen.getByRole('button', { name: /^Offline \(1\)$/ }))
+    openDrawerFor('Alex')
+
+    const panel = screen.getByRole('dialog', { name: 'Alex' })
+    expect(within(panel).queryByText('come thru')).toBeNull()
+  })
+
   it('opennessUnknown renders neutral Unknown pills instead of the degraded typed label (VRX-244)', () => {
     const unknown: Friend = {
       ...cvrFriend,

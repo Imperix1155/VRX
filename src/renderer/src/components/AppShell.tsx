@@ -17,12 +17,16 @@ import ExploreRoute from './ExploreRoute'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
 
 /** A page the user turned off falls back to the Dashboard before paint, so a
- *  stale tab (or a link from an older entry point) never shows a hidden page. */
+ *  stale tab (or a link from an older entry point) never shows a hidden page.
+ *  A hot-instance alert click is the one way in: the alert outlives the page. */
 function useHiddenPageFallback(): void {
   const activeTab = useUiStore((s) => s.activeTab)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
-  const shown = isPageShown(activeTab, { showHotInstancesPage, showExplorePage })
+  const hotOpenedFromAlert = useUiStore((s) => s.hotOpenedFromAlert)
+  const shown =
+    isPageShown(activeTab, { showHotInstancesPage, showExplorePage }) ||
+    (activeTab === 'hot' && hotOpenedFromAlert)
   useLayoutEffect(() => {
     if (!shown) useUiStore.getState().setActiveTab('dashboard')
   }, [shown])

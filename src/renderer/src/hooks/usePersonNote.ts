@@ -352,15 +352,17 @@ export function usePersonNote(personId: string | null): UseFriendNoteResult {
     (isRetry: boolean) => {
       if (personId === null || !isWritable || coordinator.epoch !== epoch) return
       const current = coordinator.drafts.get(key)
-      if (current === undefined || !current.dirty) return
+      if (current === undefined) return
       const failed = coordinator.failedDrafts.has(key)
-      if (failed && !isRetry) return
       const active = coordinator.saveStates.get(key)
       const queued = { note: current.value, intentVersion: current.intentVersion }
+      // Queued even when it matches the old saved text: typing back to it
+      // while a save runs must still replace what that save writes.
       if (active?.saving) {
         if (!failed || isRetry) active.queued = queued
         return
       }
+      if (!current.dirty || (failed && !isRetry)) return
       const state: SaveState = { saving: true, queued: null }
       coordinator.saveStates.set(key, state)
       void runWriter(queryClient, key, personId, epoch, queued)

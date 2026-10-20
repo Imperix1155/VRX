@@ -143,6 +143,58 @@ describe('LoginScreen (W6)', () => {
     expect(alert.textContent).toContain(msg('settings.accounts.error.importNotFoundChilloutvr'))
   })
 
+  it('keeps focus on the PC sign-in button through a failed attempt', async () => {
+    let settle: (value: unknown) => void = () => {}
+    const importSession = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    setBridge({ login: vi.fn(), verify2fa: vi.fn(), importSession })
+    renderLogin()
+
+    const button = screen.getByRole('button', { name: msg('settings.accounts.import.vrchat') })
+    button.focus()
+    fireEvent.click(button)
+    await waitFor(() => expect(importSession).toHaveBeenCalledTimes(1))
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button).toHaveProperty('disabled', false)
+    fireEvent.click(button)
+    expect(importSession).toHaveBeenCalledTimes(1)
+
+    settle({ ok: false, needs2fa: false, error: SESSION_IMPORT_NOT_FOUND })
+    await screen.findByRole('alert')
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('puts focus back in the form after a failed password sign-in', async () => {
+    let settle: (value: unknown) => void = () => {}
+    const login = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    setBridge({ login, verify2fa: vi.fn() })
+    renderLogin()
+    fillCredentials()
+
+    const password = screen.getByLabelText(msg('login.password'))
+    password.focus()
+    fireEvent.submit(password.closest('form')!)
+    await waitFor(() => expect(login).toHaveBeenCalledTimes(1))
+    expect(password).toHaveProperty('disabled', true)
+    // Chromium drops focus from a field once it is disabled; jsdom keeps it.
+    const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
+    const refocus = vi.spyOn(password, 'focus')
+
+    settle({ ok: false, needs2fa: false, error: 'invalid_credentials' })
+    await screen.findByRole('alert')
+    await waitFor(() => expect(refocus).toHaveBeenCalled())
+    activeElement.mockRestore()
+  })
+
   it('surfaces a credential persistence failure without invalidating auth', async () => {
     setBridge({
       login: vi.fn().mockResolvedValue({
@@ -239,6 +291,30 @@ describe('LoginScreen (W6)', () => {
 
     await waitFor(() => expect(invalidate).toHaveBeenCalled())
     expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+  })
+
+  it('sends a pasted code without its spaces', async () => {
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    const code = screen.getByLabelText(msg('login.twoFactor.code'))
+    const verify = screen.getByRole('button', { name: msg('login.twoFactor.verify') })
+    fireEvent.change(code, { target: { value: '   ' } })
+    expect((verify as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(code, { target: { value: ' 123 456\n' } })
+    fireEvent.click(verify)
+
+    await waitFor(() =>
+      expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
   })
 
   it('keeps the 2FA form up with an error on a rejected code', async () => {

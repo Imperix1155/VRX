@@ -48,6 +48,19 @@ describe('VrcAdapter.importSession', () => {
     expect(adapter.getAuthCookieHeader()).toBe(IMPORTED)
   })
 
+  it("loads the account's saved world and group names straight away", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(ME)))
+    const binding = ownerBindingHarness<string>()
+    const load = vi.fn(() => null)
+    const adapter = new VrcAdapter(binding.store, instantAdmission(), {
+      metadataStore: { load, save: vi.fn() }
+    })
+
+    await expect(adapter.importSession(IMPORTED)).resolves.toEqual({ ok: true })
+
+    expect(load).toHaveBeenCalledWith(IMPORTED_ID)
+  })
+
   it.each([
     ['missing auth part', 'twoFactorAuth=only'],
     ['a foreign cookie', 'session=abc'],

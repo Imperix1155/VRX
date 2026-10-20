@@ -255,7 +255,7 @@
         "disconnect": "アカウントの接続を解除できませんでした。もう一度お試しください。",
         "credentialPersistence": "VRX がセッションを安全に保存できなかったため、サインインは完了しませんでした。OS の資格情報ストアのロックを解除または設定してから、もう一度お試しください。",
         "unknown": "サインインに失敗しました。入力内容と接続を確認して、もう一度お試しください。",
-        "importNotFoundVrchat": "この PC に VRCX のサインインが見つかりません。パスワードでサインインしてください。",
+        "importNotFoundVrchat": "この PC に VRCX のサインインが見つかりません。VRCX が開いている場合はトレイからも終了してもう一度試すか、パスワードでサインインしてください。",
         "importNotFoundChilloutvr": "この PC に ChilloutVR または CVRX のサインインが見つかりません。パスワードでサインインしてください。",
         "importRejectedVrchat": "VRCX が保存したサインインは VRChat で使えなくなっています。パスワードでサインインしてください。",
         "importRejectedChilloutvr": "この PC に保存されたサインインは ChilloutVR で使えなくなっています。パスワードでサインインしてください。"
@@ -269,7 +269,7 @@
       "import": {
         "vrchat": "VRCX のサインインを使う",
         "chilloutvr": "ChilloutVR のサインインを使う",
-        "vrchatHint": "読み取るだけで、変更はしません。",
+        "vrchatHint": "先に VRCX を終了してください。読み取るだけで、変更はしません。",
         "chilloutvrHint": "読み取るだけで、変更はしません。",
         "looking": "この PC を確認しています…"
       }

@@ -128,6 +128,26 @@ describe('linked drawer ownership', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to combined profile' }))
     expect(navigate).toHaveBeenCalledWith(person)
   })
+  it('keeps keyboard focus in the drawer when moving between the combined and account views', () => {
+    const account: ProfileTarget = {
+      kind: 'account',
+      personId: 'pair',
+      account: { platform: 'chilloutvr', friendId: cvr.platformUserId }
+    }
+    const view = render(drawer(person))
+    const cvrButton = screen.getByRole('button', { name: 'ChilloutVR' })
+    cvrButton.focus()
+    fireEvent.click(cvrButton)
+    view.rerender(drawer(account))
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Back to combined profile' })
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to combined profile' }))
+    view.rerender(drawer(person))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ChilloutVR' }))
+  })
+
   it('flushes the old shared owner when navigation removes the editor without a browser blur', async () => {
     const view = render(drawer(person))
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox')

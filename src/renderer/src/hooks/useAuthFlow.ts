@@ -183,7 +183,8 @@ export function useAuthFlow(
     e.preventDefault()
     await run((bridge) =>
       pending2fa
-        ? bridge.verify2fa({ platform, code: twoFactorCode })
+        ? // Authenticator apps often copy a code as "123 456".
+          bridge.verify2fa({ platform, code: twoFactorCode.replace(/\s+/g, '') })
         : bridge
             .login({ platform, credentials: { username, password } })
             // The secret leaves state the moment the login IPC settles — a
