@@ -21,7 +21,8 @@ Builds the design guide (`docs/design.html`) and isolated scenes
   evidence about live platform behavior.
 - `scenarios.ts` is the registry for selectable source, Explore sheet, drawer
   (including note load and save failure), and Friends failure states;
-  `scene-entry.tsx` adds updater, settings save-error, and login variants.
+  `scene-entry.tsx` adds updater, settings save-error, and login variants, and
+  `scene-renderer.tsx` the welcome-setup scene (`ready`, `signed-out`).
 
 ## Local Contracts
 

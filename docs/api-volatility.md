@@ -115,7 +115,7 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 | Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
 | Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
 | `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
-| Local files                              | None                                       | Not applicable                    | Not applicable                          |
+| VRCX sign-in file                        | Sign-in from this PC (button)              | Source-derived                    | No import, password sign-in             |
 
 ### Session cookies and headers
 

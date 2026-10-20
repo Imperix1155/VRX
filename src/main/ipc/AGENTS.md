@@ -53,6 +53,10 @@ Persistence, network, cache, and account-transition policy stay in services.
   direct ChilloutVR login is a normal path. They never log or return
   credentials. 2FA completes the adapter's pending session from the code
   alone. Failures that clear auth keep the typed `sessionCleared` result.
+  `import-session` takes only a validated platform and runs the injected
+  importer; success runs the same `onLoginSuccess` as `login`. `logout` runs
+  `onLogout` only after `clearSession()` succeeded, and logs a throwing
+  callback instead of failing the sign-out.
 - Account-scoped reads and writes (notes, linked profiles) capture a
   main-owned epoch or lease and recheck it before mutation. A stale request
   gets the documented `stale` result and never writes across accounts.
