@@ -96,6 +96,8 @@ interface State {
   candidateJob: Job | null
   worldJob: Job | null
   selectedRef: string | null
+  /** The open sheet's world while Explore is inactive, resumed on reactivation. */
+  suspendedRef: string | null
 }
 interface Job {
   platform: Platform
@@ -149,17 +151,39 @@ export class ExploreService {
       if (!next.has(platform)) {
         const state = this.states.get(platform)
         if (state) {
+          // Work cut short by hiding is not a spent attempt: coming back (or
+          // pressing Refresh) must be able to start it again at once.
+          if (state.candidateJob) state.candidateAttemptAt = null
+          if (state.worldJob) {
+            const ref = state.worldJob.worldRef
+            for (const world of state.worlds.values()) {
+              if (world.ref === ref) world.lastAttemptAt = null
+            }
+          }
           this.cancelJob(state.candidateJob)
           this.cancelJob(state.worldJob)
           state.candidateJob = null
           state.worldJob = null
+          state.suspendedRef = state.selectedRef
           state.selectedRef = null
           this.publish(platform)
         }
       }
     }
+    const resumed = [...next].filter((platform) => !this.active.has(platform))
     this.active.clear()
-    if (!this.disposed) for (const platform of next) this.active.add(platform)
+    if (this.disposed) return
+    for (const platform of next) this.active.add(platform)
+    for (const platform of resumed) {
+      // A world sheet that stayed open while the window was hidden picks up
+      // where it left off, as if it had just been opened.
+      const state = this.states.get(platform)
+      const ref = state?.suspendedRef ?? null
+      if (!state || ref === null) continue
+      state.suspendedRef = null
+      const world = this.findWorld(state, ref)
+      if (world) this.startWorld(platform, state, world, 'open')
+    }
   }
 
   getSnapshot(platform: Platform, reason: ExploreRefreshReason): Promise<ExplorePlatformSnapshot> {
@@ -185,6 +209,7 @@ export class ExploreService {
 
   cancelWorld(platform: Platform, worldRef: string): void {
     const state = this.state(platform)
+    if (state.suspendedRef === worldRef) state.suspendedRef = null
     if (state.selectedRef !== worldRef) return
     state.selectedRef = null
     if (state.worldJob?.worldRef === worldRef) {
@@ -346,7 +371,8 @@ export class ExploreService {
       candidateAttemptAt: null,
       candidateJob: null,
       worldJob: null,
-      selectedRef: null
+      selectedRef: null,
+      suspendedRef: null
     }
     this.states.set(platform, state)
     return state
