@@ -41,8 +41,8 @@ through `@shared`.
   identity migration from the previous version, so an older build cannot strip
   it during a downgrade. Keep the full migration chain.
 - `cvrSessionImportChoice` has no reader since the startup import was removed;
-  it stays in the schema so older builds keep their saved answer. Alerts and `autoUpdate` default off.
-  `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
+  it stays in the schema so older builds keep their saved answer. Alerts and
+  `autoUpdate` default off. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
   hide sidebar pages only. Missing or invalid `setupPending` is `false`, so
@@ -57,7 +57,8 @@ through `@shared`.
   replies list the covered IDs; only complete snapshots advance absence
   freshness. CVR complete snapshots remain arrays. `FriendEvent` carries a
   main-owned `rosterRevision`, never a timestamp or renderer value.
-- `CREDENTIAL_PERSISTENCE_FAILED` is the only login error with dedicated copy.
+- `CREDENTIAL_PERSISTENCE_FAILED`, `SESSION_IMPORT_NOT_FOUND`, and
+  `SESSION_IMPORT_REJECTED` are the login errors with dedicated copy.
   `AUTH_IDENTITY_UNAVAILABLE` is terminal with generic copy. `sessionCleared`
   means main discarded local auth state.
 - `Friend` keeps presence `state` separate from VRChat `status`. ChilloutVR
