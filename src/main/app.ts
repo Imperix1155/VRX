@@ -8,6 +8,7 @@ import {
   shell,
   BrowserWindow,
   dialog,
+  Menu,
   screen,
   session,
   Notification as NativeNotification,
@@ -46,6 +47,7 @@ import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
+import { isQuitShortcut } from './quitShortcut'
 import { FriendAlerts } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
@@ -202,6 +204,15 @@ function createWindow(): BrowserWindow {
   // window instead of quitting — the app keeps running in the tray. macOS
   // keeps its default close behavior (the app itself stays open via
   // window-all-closed below; the tray is just an extra affordance there).
+  // The default app menu is removed on Windows/Linux, so restore its Ctrl+Q.
+  if (process.platform !== 'darwin') {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (!isQuitShortcut(input)) return
+      event.preventDefault()
+      app.quit()
+    })
+  }
+
   mainWindow.on('close', (event) => {
     if (!quitting && process.platform !== 'darwin') {
       event.preventDefault()
@@ -334,6 +345,13 @@ app
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
     })
+    // Without an app menu Electron installs its default one. The window hides it
+    // (autoHideMenuBar), but Alt still revealed File/Edit/View/Window/Help with
+    // Reload and Toggle Developer Tools, which the shortcut guard above can't
+    // block. Windows/Linux text fields keep copy/paste without it, and
+    // createWindow restores Ctrl+Q; macOS keeps the default menu, which
+    // carries those editing commands.
+    if (process.platform !== 'darwin') Menu.setApplicationMenu(null)
 
     // The write-only credential-owner sidecar was removed (#371); delete any
     // file an older build left behind. Best-effort and never throws.

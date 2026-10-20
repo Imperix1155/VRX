@@ -58,10 +58,12 @@ in-app "What's new" screen.
 ## Running VRX
 
 - Closing the window on Windows or Linux keeps VRX running in the system tray.
-  Use the tray icon to show or hide the window, or **Quit** to close VRX.
+  Use the tray icon to show or hide the window, or **Quit** to close VRX. You
+  can also press Ctrl+Q while the window is focused to quit.
 - Some Linux desktops (for example GNOME without an AppIndicator extension)
   show no tray icon, so a closed VRX seems to vanish. Start VRX again and the
-  same window comes back; VRX never runs twice.
+  same window comes back; VRX never runs twice. Press Ctrl+Q in the window to
+  quit.
 - Your settings and saved sign-ins stay when you update or reinstall. To remove
   saved sign-ins, sign out of each platform in Settings → Accounts before you
   uninstall.

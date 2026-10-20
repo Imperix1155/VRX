@@ -328,6 +328,29 @@ describe.each([
 })
 
 describe('AccountCard — VRChat two-factor flow', () => {
+  it('lets a saved session that needs a fresh code be signed out', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    renderCard('vrchat', bridge)
+    expect(await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))).toBeTruthy()
+    bridge.getAuthStatus.mockResolvedValue({
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform: 'vrchat' }))
+    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+  })
+
   it('overrides an external 2FA status after persistence failure and clears the code', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',

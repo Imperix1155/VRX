@@ -69,6 +69,16 @@ describe('status badge (VRX-69 — empty colored dot, glyph retired)', () => {
     expect(found[0]?.getAttribute('style') ?? '').toContain(`var(${token})`)
   })
 
+  it.each([
+    ['🌸Sakura', '🌸'],
+    ['𝓙osh', '𝓙'],
+    ['  alice', 'A'],
+    ['   ', '?']
+  ])('shows a whole first character for %j', (displayName, initial) => {
+    render(<Avatar friend={{ ...friend, displayName, avatarUrl: null }} />)
+    expect(screen.getByText(initial)).toBeTruthy()
+  })
+
   it('renders an empty web-active badge on the presence palette', () => {
     const { container } = render(
       <Avatar friend={{ ...friend, status: null, presence: { state: 'active' } }} />
