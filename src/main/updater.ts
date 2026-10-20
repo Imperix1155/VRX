@@ -214,9 +214,11 @@ export class UpdaterService {
   private nativeStageGate: NativeStageGate | null = null
   private readonly claimedNativeStageScopes = new Set<string>()
   private hasUnscopedNativeFailureHistory = false
+  private autoUpdateEnabled: boolean
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = initialSnapshot(deps.app)
+    this.autoUpdateEnabled = deps.getSettings().autoUpdate
     this.bindAutoUpdater()
     if (this.state.state !== 'unsupported') {
       this.scheduleNextCheck()
@@ -438,6 +440,17 @@ export class UpdaterService {
     }
   }
 
+  /**
+   * Called after every settings save. Turning Automatic updates on while an
+   * update is already offered starts that download now, instead of at the
+   * next scheduled check hours later. Other saves never retry a download.
+   */
+  applySettings(settings: AutoUpdateSettings): void {
+    const turnedOn = settings.autoUpdate && !this.autoUpdateEnabled
+    this.autoUpdateEnabled = settings.autoUpdate
+    if (turnedOn) void this.download()
+  }
+
   async download(): Promise<void> {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'update-available') return
@@ -549,6 +562,11 @@ export function getUpdaterService(): UpdaterService {
     throw new Error('Updater service has not been initialized')
   }
   return updaterService
+}
+
+/** Forward a settings save to the updater once it has loaded. */
+export function applyUpdaterSettings(settings: AutoUpdateSettings): void {
+  updaterService?.applySettings(settings)
 }
 
 /** Before the service loads, its state is the one it would start in. */

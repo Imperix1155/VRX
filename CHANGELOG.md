@@ -78,6 +78,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   English uses "1 friend" and "1 hot instance" instead of "1 friends".
 - With Hot Instances first and none found, the Popular now heading no longer
   touches the empty-state card.
+- When VRChat's 2FA code expires while VRX is running, VRX asks for a new code
+  instead of showing a friends list that won't load.
+- If VRX starts offline or while VRChat or ChilloutVR is down, it keeps checking
+  once a minute and loads your friends when the platform is reachable again,
+  instead of staying broken until you press Retry.
+- Switching pages opens the new page at the top instead of partway down.
+- Turning on Automatic updates while an update is offered starts the download
+  right away instead of hours later.
+- A failed Join on a Hot Instance card or sheet shows its message under the
+  button instead of covering it.
+- A linked person's Join choices say "Joining is disabled in Settings" when
+  joining is off, instead of being greyed out with no reason.
+- A few closed rooms or removed worlds in Explore no longer stop the friends
+  list from refreshing for a minute.
+- One private world or group no longer stops world and group names loading for
+  other friends, and private ChilloutVR instances are not re-requested on every
+  status update.
+- ChilloutVR sign-in no longer depends on reply fields VRX doesn't use, so a
+  small ChilloutVR change can't block every sign-in.
+- Japanese uses the same name for Popular now in Settings and on the Dashboard.
 
 ## [1.0.0-beta.2] - 2026-10-19
 

@@ -160,9 +160,11 @@ export default function HotInstanceCard({
               world: worldName
             })}
           />
+          {/* Its own line under the pill (as on friend rows): failures stay until
+              the next attempt, so an overlay would cover Join and clip. */}
           <span
             role="status"
-            className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-[var(--space-1)] text-[12px] text-[var(--text-dim)]"
+            className="block text-center text-[12px] leading-snug break-words text-[var(--text-dim)] [&:not(:empty)]:mt-[var(--space-1)]"
           >
             {joinFailure ? t(joinFailureMessageKey(joinFailure)) : ''}
           </span>

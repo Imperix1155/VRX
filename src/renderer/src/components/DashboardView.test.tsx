@@ -1213,7 +1213,7 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
     expect(sheet.querySelector('.h-\\[24px\\]')).not.toBeNull()
   })
 
-  it('renders the join-denial blip as an inset-0 overlay (no negative offsets)', () => {
+  it('renders the join-failure message on its own line, not over the Join button', () => {
     try {
       useSettingsStore.setState({
         settings: { ...DEFAULT_SETTINGS, confirmJoin: false }
@@ -1234,8 +1234,10 @@ describe('HotInstanceSheet live truth + presentation (VRX-250 review)', () => {
       // immediately and shows the attributed blip.
       fireEvent.click(joinBtn)
       const blip = within(sheet).getByRole('status')
+      expect(blip.textContent).not.toBe('')
       const className = blip.className
-      expect(className).toContain('inset-0')
+      expect(className).not.toContain('absolute')
+      expect(className).not.toContain('truncate')
       expect(className).not.toContain('-bottom-')
     } finally {
       useSettingsStore.setState({ settings: DEFAULT_SETTINGS })

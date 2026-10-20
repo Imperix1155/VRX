@@ -530,6 +530,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       signal: context.signal,
       priority: context.priority,
       retry: 'none',
+      // A closed room or removed world is an expected Explore answer. Three in
+      // a row must not open the shared circuit and stall the friends list.
+      recordCircuitFailure: false,
       beforeDispatch: context.beforeDispatch
     }
   }
