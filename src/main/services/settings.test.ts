@@ -94,8 +94,10 @@ describe('loadSettings (W7 M1)', () => {
       expect(kept).toBeDefined()
       expect(readFileSync(join(userData.dir, kept!), 'utf8')).toBe('{"theme": "light",')
 
-      // The fresh store reads no file (conf returns an empty object for ENOENT).
+      // The fresh store reads no file (conf returns an empty object for ENOENT),
+      // but this is not a new install, so the welcome setup stays off.
       storeState.throwOnRead = false
+      expect(loadSettings().setupPending).toBe(false)
       const saved = saveSettings({ theme: 'light' })
       flushPendingSettingsSave()
       await expect(saved).resolves.toMatchObject({ theme: 'light' })
