@@ -164,20 +164,39 @@ export default function AccountCard({ platform }: { platform: Platform }): React
           formClassName="relative mt-[var(--space-4)]"
         />
       ) : (
-        <TwoFactorForm
-          idPrefix={platform}
-          copy={ACCOUNT_COPY}
-          method={flow.pending2fa}
-          code={flow.twoFactorCode}
-          isSubmitting={flow.isSubmitting}
-          errorKey={flow.errorKey}
-          onCodeChange={flow.setTwoFactorCode}
-          onSubmit={(e) => void flow.handleSubmit(e)}
-          onBack={flow.handleBack}
-          inputFocusClass={config.focusClass}
-          submitClassName={`rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 motion-safe:transition-opacity ${config.actionClass}`}
-          formClassName="relative mt-[var(--space-4)]"
-        />
+        <>
+          <TwoFactorForm
+            idPrefix={platform}
+            copy={ACCOUNT_COPY}
+            method={flow.pending2fa}
+            code={flow.twoFactorCode}
+            isSubmitting={flow.isSubmitting}
+            errorKey={flow.errorKey}
+            onCodeChange={flow.setTwoFactorCode}
+            onSubmit={(e) => void flow.handleSubmit(e)}
+            onBack={flow.handleBack}
+            inputFocusClass={config.focusClass}
+            submitClassName={`rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 motion-safe:transition-opacity ${config.actionClass}`}
+            formClassName="relative mt-[var(--space-4)]"
+          />
+          {/* A saved session that needs a fresh code stays saved (and asks again
+              every launch) until it is verified or signed out, so it gets the
+              same Sign out as the other saved-session states. */}
+          {authStatus?.state === 'needs-2fa' ? (
+            <div className="relative mt-[var(--space-3)]">
+              <button
+                type="button"
+                onClick={() => void handleDisconnect()}
+                disabled={isDisconnecting || flow.isSubmitting}
+                className="rounded-control border border-[var(--border)] px-[var(--space-4)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+              >
+                {isDisconnecting
+                  ? t('settings.accounts.disconnecting')
+                  : t('settings.accounts.signOut')}
+              </button>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   )

@@ -95,6 +95,32 @@ describe('FriendsList search (VRX-65)', () => {
     expect(screen.getByText('José').className).toContain('color-mix')
   })
 
+  it('highlights matches for a query with surrounding spaces', async () => {
+    render(<FriendsList />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search friends' }), {
+      target: { value: ' jose ' }
+    })
+    await finishDebounce()
+
+    expect(screen.queryByText('Alice')).toBeNull()
+    expect(screen.getByText('José').className).toContain('color-mix')
+  })
+
+  it('keeps collapsed sections collapsed for a spaces-only query', async () => {
+    mockFriends([friend('Zed', 'offline'), friend('Alice')])
+    render(<FriendsList />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search friends' }), {
+      target: { value: '   ' }
+    })
+    await finishDebounce()
+
+    const offlineHeader = screen.getByRole<HTMLButtonElement>('button', {
+      name: /^Offline \(1\)$/
+    })
+    expect(offlineHeader.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Zed')).toBeNull()
+  })
+
   it('shows no-results copy and clearing restores the full list immediately', async () => {
     render(<FriendsList />)
     fireEvent.change(screen.getByRole('textbox', { name: 'Search friends' }), {
