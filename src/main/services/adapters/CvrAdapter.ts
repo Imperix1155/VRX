@@ -9,7 +9,11 @@ import type {
   JoinMode,
   LoginResult
 } from '@shared/types'
-import { CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import {
+  CREDENTIAL_PERSISTENCE_FAILED,
+  SESSION_IMPORT_NOT_FOUND,
+  SESSION_IMPORT_REJECTED
+} from '@shared/types'
 import { z } from 'zod'
 import type { FriendRoster, IPlatformAdapter, Unsubscribe } from './IPlatformAdapter'
 import type { PipelineSocket } from './ReconnectingPipeline'
@@ -331,6 +335,72 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
   verify2fa(): Promise<LoginResult> {
     // Platforms without a 2-leg 2FA flow reject this (IPlatformAdapter contract).
     return Promise.resolve({ ok: false, needs2fa: false, error: 'unsupported_2fa' })
+  }
+
+  /**
+   * "Use my sign-in from this PC": an access key read from the game's
+   * auto-login profile or CVRX. It is a login like any other, so it supersedes
+   * older login work, but it authenticates by ACCESS_KEY (AuthType 1). Nothing
+   * is installed or persisted until CVR accepts the key and names its owner; a
+   * rejected or unreadable reply leaves the current session untouched.
+   */
+  async importSession(imported: CVRCredentials): Promise<LoginResult> {
+    const operationGeneration = ++this.loginOperationGeneration
+    this.loginAbort.abort()
+    this.loginAbort = new AbortController()
+    const lease: RequestLease = {
+      generation: operationGeneration,
+      signal: this.loginAbort.signal,
+      isCurrent: () => this.isLoginOperationCurrent(operationGeneration)
+    }
+    if (!isValidCvrSession(imported.username, imported.accessKey)) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_NOT_FOUND }
+    }
+    // Deliberate, like login: a breaker opened by background trouble must not
+    // fast-fail this press.
+    this.resetCircuit()
+
+    let response: Response
+    try {
+      response = await this.authenticateRaw(1, imported.username, imported.accessKey, {
+        priority: 'interactive',
+        lease
+      })
+    } catch {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+      this.live?.log?.('warn', 'cvr session import: request failed')
+      return { ok: false, needs2fa: false, error: 'network_error' }
+    }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_REJECTED }
+    }
+    if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+      return { ok: false, needs2fa: false, error: 'bad_response' }
+    }
+    if (!this.isLoginOperationCurrent(operationGeneration)) return this.supersededLoginResult()
+    const parsed = cvrCurrentUserSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+    const { username, accessKey, userId } = parsed.data.data
+    if (!isValidCvrSession(username, accessKey)) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_REJECTED }
+    }
+
+    // CVR may rotate the key on reauth; the one it returned is the session.
+    this.adoptSession({ username, accessKey }, false)
+    this.accountId = userId
+    if (!this.persist()) return this.persistenceFailure()
+    this.validated = true
+    this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
+    return { ok: true }
   }
 
   async getAuthStatus(): Promise<AuthStatus> {

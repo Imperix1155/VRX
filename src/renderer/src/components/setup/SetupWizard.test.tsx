@@ -103,8 +103,7 @@ describe('SetupWizard', () => {
   it('skipping before sign-in goes to sign-in only, and cannot open VRX without an account', async () => {
     renderWizard(signedOut)
     fireEvent.click(button('setup.skip'))
-    await screen.findByText(msg('setup.signin.none'))
-    expect(screen.getByText(msg('setup.signin.skipLead'))).toBeTruthy()
+    await screen.findByText(msg('setup.signin.skipLead'))
     // No progress bar or second Skip: the next stop after sign-in is the app.
     expect(screen.queryByRole('navigation', { name: msg('setup.progress.aria') })).toBeNull()
     expect(screen.queryByRole('button', { name: msg('setup.skip') })).toBeNull()
@@ -120,7 +119,7 @@ describe('SetupWizard', () => {
   it('requires one ready account to continue past sign-in', async () => {
     renderWizard(signedOut)
     await goToSignIn()
-    await screen.findByText(msg('setup.signin.none'))
+    await screen.findByText(msg('setup.signin.lead'))
     expect((button('setup.continue') as HTMLButtonElement).disabled).toBe(true)
     // Both sign-in cards show, side by side, as in Settings → Accounts.
     expect(screen.getAllByLabelText(msg('settings.accounts.password'))).toHaveLength(2)

@@ -77,20 +77,24 @@ etiquette rules apply in full; this file adds local detail.
   A failed save ends the login with `CREDENTIAL_PERSISTENCE_FAILED` and clears
   the session. Do not reintroduce a separate owner store.
 
-**CVR session import** (`cvrImportConsent.ts`, `cvrSessionImport.ts`)
+**Sign-in from this PC** (`sessionImport.ts`, `vrcxSessionImport.ts`,
+`cvrSessionImport.ts`)
 
-- A valid stored VRX session wins. An unreadable stored session or the
-  signed-out marker skips import. Otherwise `cvrSessionImportChoice` consent
-  (`ask`/`skip`/`import`) precedes any source I/O. A failed consent save is
-  shown to the user and fails closed.
+- Discovery runs only from the `import-session` IPC, which the "Use my sign-in
+  from this PC" button calls; the press is the consent. Startup restores VRX's
+  own stored sessions only and never looks at VRCX, CVRX, or game files.
+- Importers only read and return material; they never persist. The adapter's
+  `importSession` checks it with the platform (VRChat `/auth/user`, CVR
+  `AuthType: 1`) before it replaces anything, binds the owner, then persists.
+  A dead, unreadable, or ownerless import leaves the current session as it was.
 - Discovery is read-only and bounded in time, file size, entry and profile
   counts. Accept only local absolute paths; reject symlinks, sources that change
-  during the read, XML DTD/CDATA, and ambiguous credential sets. Persist only a
-  validated pair through `credentials.ts`.
-- `vrcxSessionImport.ts` (not wired yet) follows the same rules: read-only,
-  snapshot the VRCX database into private temp files, treat a non-empty `-wal`,
-  `-shm`, or `-journal` file as VRCX running, and never create or change files in a
-  VRCX folder. Wiring it needs the same consent and sign-out checks.
+  during the read, XML DTD/CDATA, and ambiguous credential sets. The VRCX reader
+  snapshots the database into private temp files, treats a non-empty `-wal`,
+  `-shm`, or `-journal` file as VRCX running, and never creates or changes files
+  in a VRCX folder.
+- The signed-out marker is still written on ChilloutVR sign-out so an older
+  build that still imports at startup keeps honoring the sign-out.
 
 **Stores**
 
