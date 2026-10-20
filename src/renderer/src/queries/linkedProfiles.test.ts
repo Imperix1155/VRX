@@ -72,6 +72,23 @@ describe('linked profile snapshots', () => {
     dispose()
     client.clear()
   })
+  it('refreshes fallback names when a friend is added or removed', () => {
+    vi.stubGlobal('window', {})
+    const client = new QueryClient()
+    const first = fullFriend('First', 'vrchat')
+    const second = { ...fullFriend('Second', 'vrchat'), platformUserId: 'usr_second' }
+    client.setQueryData(['friends', 'vrchat'], [first])
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const dispose = subscribeLinkedProfiles(client)
+    client.setQueryData(['friends', 'vrchat'], [first, second])
+    expect(invalidate).toHaveBeenCalledTimes(1)
+    client.setQueryData(['friends', 'vrchat'], [second])
+    expect(invalidate).toHaveBeenCalledTimes(2)
+    client.setQueryData(['friends', 'vrchat'], [{ ...second, presence: { state: 'offline' } }])
+    expect(invalidate).toHaveBeenCalledTimes(2)
+    dispose()
+    client.clear()
+  })
   it('does not let an earlier read roll back a committed mutation', async () => {
     let finish!: (value: unknown) => void
     const newer = { profiles: [], lease: 'lease', storeRevision: 2 }
