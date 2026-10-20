@@ -6,6 +6,7 @@ import type { Friend } from '@shared/types'
 import { useJoinInstance } from '../hooks/useJoinInstance'
 import { useSettingsStore } from '../stores/settings'
 import { instancePillFor } from '../utils/instancePill'
+import { inPlatformOrder } from '../utils/platformOrder'
 import { policySpaceFor } from '../utils/instancePolicySpace'
 import InstancePill from './InstancePill'
 import LinkedDialog from './LinkedDialog'
@@ -56,7 +57,7 @@ export default function LinkedDestinationChooser({
   onClose: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const reviewed = useState(() => captureDestinations(accounts))[0]
+  const reviewed = useState(() => captureDestinations(inPlatformOrder(accounts)))[0]
   const hadAccounts = useRef(accounts.length > 0)
   const invalidatedRef = useRef(false)
   const [invalidated, setInvalidated] = useState<string | null>(null)
