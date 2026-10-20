@@ -126,6 +126,11 @@ etiquette rules apply in full; this file adds local detail.
   redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
   API hops share platform admission. The VRChat cookie goes only to
   `api.vrchat.cloud`, under a captured account lease.
+- `ImageDiskStore` is `AvatarCache`'s disk tier for `api.vrchat.cloud` images
+  only, under `app.getPath('userData')/image-cache`. Keep it bounded (entries,
+  bytes, 14-day TTL), validate every read like a network body (exact URL, MIME,
+  size), write only lease-current results, never log URLs or paths, and clear
+  it on an explicit VRChat sign-out. A disk hit never makes a request.
 
 **Network and logging**
 

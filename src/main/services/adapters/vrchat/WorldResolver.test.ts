@@ -365,3 +365,50 @@ describe('WorldResolver cache bound', () => {
     expect(resolver.peek('wrld_c')).toEqual(VALID_WORLD_META)
   })
 })
+
+describe('WorldResolver stored entries', () => {
+  const meta = { name: 'The Grid', thumbnailUrl: null, capacity: 32, shortName: null }
+
+  it('seeds unexpired entries without fetching or notifying, and never overwrites', async () => {
+    let now = 1000
+    const fetcher = vi.fn().mockResolvedValue({ name: 'Fetched' })
+    const onChange = vi.fn()
+    const resolver = new WorldResolver(fetcher, () => now, undefined, undefined, onChange)
+    await resolver.resolve('wrld_live')
+    onChange.mockClear()
+    resolver.seed([
+      { id: 'wrld_seed', meta, expiresAt: now + 10 },
+      { id: 'wrld_old', meta, expiresAt: now },
+      { id: 'wrld_future', meta, expiresAt: now + WORLD_CACHE_TTL_MS + 1 },
+      { id: 'wrld_live', meta, expiresAt: now + 10 }
+    ])
+    expect(resolver.peek('wrld_seed')).toEqual(meta)
+    expect(resolver.peek('wrld_old')).toBeUndefined()
+    expect(resolver.peek('wrld_future')).toBeUndefined()
+    expect(resolver.peek('wrld_live')?.name).toBe('Fetched')
+    expect(onChange).not.toHaveBeenCalled()
+    now += 10
+    expect(resolver.peek('wrld_seed')).toBeUndefined()
+  })
+
+  it('snapshots only unexpired successes and notifies on each new success', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ name: 'Good' })
+      .mockRejectedValueOnce(new Error('gone'))
+    const onChange = vi.fn()
+    const resolver = new WorldResolver(fetcher, () => 0, undefined, undefined, onChange)
+    await resolver.resolve('wrld_good')
+    await resolver.resolve('wrld_gone')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(resolver.snapshot()).toEqual([
+      {
+        id: 'wrld_good',
+        meta: { name: 'Good', thumbnailUrl: null, capacity: null, shortName: null },
+        expiresAt: WORLD_CACHE_TTL_MS
+      }
+    ])
+    resolver.clear()
+    expect(resolver.snapshot()).toEqual([])
+  })
+})
