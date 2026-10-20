@@ -241,6 +241,30 @@ describe('LoginScreen (W6)', () => {
     expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
   })
 
+  it('sends a pasted code without its spaces', async () => {
+    const verify2fa = vi.fn().mockResolvedValue({ ok: true })
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    const code = screen.getByLabelText(msg('login.twoFactor.code'))
+    const verify = screen.getByRole('button', { name: msg('login.twoFactor.verify') })
+    fireEvent.change(code, { target: { value: '   ' } })
+    expect((verify as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(code, { target: { value: ' 123 456\n' } })
+    fireEvent.click(verify)
+
+    await waitFor(() =>
+      expect(verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
+  })
+
   it('keeps the 2FA form up with an error on a rejected code', async () => {
     setBridge({
       login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
