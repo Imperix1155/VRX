@@ -108,8 +108,8 @@ describe('FriendsList search (VRX-65)', () => {
 
   it('shows a custom status only for friends who are not offline', async () => {
     mockFriends([
-      { ...friend('Zed', 'offline'), statusDescription: 'Away for lunch' },
-      { ...friend('Amy'), statusDescription: 'Building worlds' }
+      { ...friend('Zed', 'offline'), statusDescription: 'Away for lunch' } as Friend,
+      { ...friend('Amy'), statusDescription: 'Building worlds' } as Friend
     ])
     render(<FriendsList />)
     fireEvent.click(screen.getByRole('button', { name: /^Offline \(1\)$/ }))
