@@ -1,5 +1,6 @@
 import { Notification as NativeNotification } from 'electron'
 import type { Settings } from '@shared/settings'
+import type { Platform } from '@shared/types'
 import type { FriendAlert, FriendAlertType } from './services/friendAlerts'
 import { mt } from './i18n'
 
@@ -15,7 +16,8 @@ export interface NotificationPresentation {
 export interface FriendNotificationOptions {
   icon: string
   focusMainWindow: () => void
-  focusDashboard: () => void
+  /** Open Hot Instances so the clicked alert's platform is in view. */
+  focusDashboard: (platform: Platform) => void
   logFailure: () => void
 }
 
@@ -68,11 +70,11 @@ export function createFriendNotificationNotifier({
   focusDashboard,
   logFailure
 }: FriendNotificationOptions): (alert: FriendAlert) => void {
-  const retained = new Map<NativeNotification, ReturnType<typeof setTimeout>>()
+  const retained = new Map<NativeNotification, ReturnType<typeof setTimeout> | null>()
 
   const release = (notification: NativeNotification): void => {
     const timer = retained.get(notification)
-    if (timer !== undefined) clearTimeout(timer)
+    if (timer !== undefined && timer !== null) clearTimeout(timer)
     retained.delete(notification)
   }
 
@@ -82,15 +84,26 @@ export function createFriendNotificationNotifier({
     try {
       const { title, body } = notificationPresenter(alert)
       const notification = new NativeNotification({ title, body, icon })
-      notification.on('click', alert.type === 'hot-instance' ? focusDashboard : focusMainWindow)
+      const hot = alert.type === 'hot-instance'
+      notification.on('click', hot ? () => focusDashboard(alert.platform) : focusMainWindow)
       const cleanup = (): void => release(notification)
-      notification.once('close', cleanup)
+      notification.on('close', (details) => {
+        // A hot alert that timed out still sits in the notification centre, and
+        // only its own click handler opens Hot Instances (the generic
+        // activation handler just focuses the window), so keep it alive. The
+        // 20-entry cap still bounds what is kept.
+        if (hot && details?.reason === 'timedOut') return
+        cleanup()
+      })
       notification.once('failed', () => {
         logFailure()
         cleanup()
       })
-      const cleanupTimer = setTimeout(cleanup, FRIEND_NOTIFICATION_RETENTION_MS)
-      cleanupTimer.unref()
+      let cleanupTimer: ReturnType<typeof setTimeout> | null = null
+      if (!hot) {
+        cleanupTimer = setTimeout(cleanup, FRIEND_NOTIFICATION_RETENTION_MS)
+        cleanupTimer.unref()
+      }
       retained.set(notification, cleanupTimer)
       if (retained.size > MAX_RETAINED_FRIEND_NOTIFICATIONS) {
         const oldest = retained.keys().next().value

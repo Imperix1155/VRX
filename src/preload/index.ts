@@ -93,7 +93,7 @@ const vrx = {
     return () => ipcRenderer.removeListener('identity-boundary', listener)
   },
   /** Native hot-instance toast click → Dashboard (VRX-85). */
-  onNavigateToDashboard: (callback: () => void) => {
+  onNavigateToDashboard: (callback: (event: IpcEvents['navigate-to-dashboard']) => void) => {
     // Stop buffering: from here the renderer's own listener receives pushes
     // directly (leaving the buffer attached would re-arm the flag on every
     // live push and replay a phantom navigation to a later re-subscriber).
@@ -101,11 +101,15 @@ const vrx = {
     // Deliver a push that arrived before the renderer mounted its listener
     // (React installs it in a passive effect AFTER did-finish-load; a click on
     // a toast for a cold/recreated window would otherwise be lost).
-    if (pendingDashboardNavigation) {
-      pendingDashboardNavigation = false
-      callback()
+    if (pendingDashboardNavigation !== null) {
+      const pending = pendingDashboardNavigation
+      pendingDashboardNavigation = null
+      callback(pending)
     }
-    const listener = (): void => callback()
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: IpcEvents['navigate-to-dashboard']
+    ): void => callback(payload)
     ipcRenderer.on('navigate-to-dashboard', listener)
     return () => ipcRenderer.removeListener('navigate-to-dashboard', listener)
   },
@@ -122,9 +126,12 @@ const vrx = {
 
 // Preload runs before the page, so this buffer catches the main-process replay
 // fired on did-finish-load; the renderer collects it on first subscription.
-let pendingDashboardNavigation = false
-const bufferDashboardNavigation = (): void => {
-  pendingDashboardNavigation = true
+let pendingDashboardNavigation: IpcEvents['navigate-to-dashboard'] | null = null
+const bufferDashboardNavigation = (
+  _event: Electron.IpcRendererEvent,
+  payload: IpcEvents['navigate-to-dashboard']
+): void => {
+  pendingDashboardNavigation = payload
 }
 ipcRenderer.on('navigate-to-dashboard', bufferDashboardNavigation)
 

@@ -19,6 +19,7 @@ import type { AuthStatus, Platform } from '@shared/types'
 import i18n from './i18n'
 import App from './App'
 import { useSettingsStore } from './stores/settings'
+import { useFriendsStore } from './stores/friends'
 import { useUiStore } from './stores/ui'
 
 const useAuthStatusMock = vi.hoisted(() => vi.fn())
@@ -92,13 +93,13 @@ function stubSettingsLoad(promise: Promise<Settings>, notifyRendererHydrated?: (
   })
 }
 
-let navigateToDashboard: (() => void) | undefined
+let navigateToDashboard: ((event: { platform: 'vrchat' | 'chilloutvr' }) => void) | undefined
 
 function stubDashboardNavigation(): void {
   Object.assign(window, {
     vrx: {
       getSettings: () => Promise.resolve({ ...DEFAULT_SETTINGS }),
-      onNavigateToDashboard: (callback: () => void) => {
+      onNavigateToDashboard: (callback: (event: { platform: 'vrchat' | 'chilloutvr' }) => void) => {
         navigateToDashboard = callback
         return () => {
           navigateToDashboard = undefined
@@ -272,10 +273,27 @@ describe('App auth gate (VRX-173, platform parity)', () => {
     )
     renderApp()
 
-    act(() => navigateToDashboard?.())
+    act(() => navigateToDashboard?.({ platform: 'vrchat' }))
 
     // The page stays available when Settings → Dashboard hides the hot section.
     expect(useUiStore.getState().activeTab).toBe('hot')
+  })
+
+  it('widens the platform filter when the clicked alert is for the hidden platform', () => {
+    stubDashboardNavigation()
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    mockAuthStatuses(
+      { platform: 'vrchat', state: 'authenticated', accountId: 'usr_neo', displayName: 'Neo' },
+      cvrUnauthenticated
+    )
+    renderApp()
+
+    act(() => navigateToDashboard?.({ platform: 'vrchat' }))
+    expect(useFriendsStore.getState().platformFilter).toBe('vrchat')
+    act(() => navigateToDashboard?.({ platform: 'chilloutvr' }))
+    expect(useFriendsStore.getState().platformFilter).toBe('all')
+    expect(useUiStore.getState().activeTab).toBe('hot')
+    useFriendsStore.setState({ platformFilter: 'all' })
   })
 })
 

@@ -86,8 +86,11 @@ let exploreWindowService: ExploreService | undefined
 let bootstrapReadyForFocus = false
 let secondInstanceFocusPending = false
 const rendererReadyWindows = new WeakSet<BrowserWindow>()
+let hotNavigationPlatform: Platform = 'vrchat'
 const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
-  if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
+  if (!window.isDestroyed()) {
+    window.webContents.send('navigate-to-dashboard', { platform: hotNavigationPlatform })
+  }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
 
@@ -252,7 +255,8 @@ function focusMainWindow(): BrowserWindow {
   return window
 }
 
-function focusDashboard(): void {
+function focusDashboard(platform: Platform): void {
+  hotNavigationPlatform = platform
   const window = focusMainWindow()
   dashboardNavigation.request(window, rendererReadyWindows.has(window))
 }
