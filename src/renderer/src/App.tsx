@@ -44,11 +44,13 @@ function App(): React.JSX.Element {
   useLiveFriendEvents()
   useLinkedProfileEvents()
   // Native hot-instance toast clicks focus the window in main, then push this
-  // one-shot navigation request through the preload bridge (VRX-85).
+  // one-shot navigation request through the preload bridge (VRX-85). The
+  // channel keeps its original name, but it opens the Hot Instances page: the
+  // Dashboard's hot section can be switched off while the alert stays on.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.onNavigateToDashboard) return
     return window.vrx.onNavigateToDashboard(() => {
-      useUiStore.getState().setActiveTab('dashboard')
+      useUiStore.getState().setActiveTab('hot')
     })
   }, [])
 

@@ -466,6 +466,28 @@ describe('migration runner', () => {
     })
   })
 
+  it.each([
+    [true, false, false],
+    [true, true, true],
+    [false, false, false],
+    [false, true, false]
+  ])(
+    'migrates v11 → v12 hot alerts (alert %s, Hot Instances %s → alert %s)',
+    (notifyHotInstance, hotInstancesEnabled, expected) => {
+      const v11 = { ...DEFAULT_SETTINGS, version: 11, notifyHotInstance, hotInstancesEnabled }
+      expect(parseSettings(v11)).toMatchObject({
+        version: SETTINGS_VERSION,
+        notifyHotInstance: expected,
+        hotInstancesEnabled
+      })
+    }
+  )
+
+  it('carries a muted hot alert from v10 (0.23.0) through to current', () => {
+    const v10 = { version: 10, notifyHotInstance: true, hotInstancesEnabled: false }
+    expect(parseSettings(v10).notifyHotInstance).toBe(false)
+  })
+
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {
     const fromFuture = { version: 99, theme: 'light', futureSetting: 'x' }
     const s = parseSettings(fromFuture)

@@ -179,7 +179,7 @@ Main sends each push to every non-destroyed window. Preload removes the listener
 | `identity-boundary`       | [`app.ts`](../src/main/app.ts) `onSessionBoundary` for each adapter                       | `onIdentityBoundary`      | `{ platform }`. The account changed or signed out: the renderer clears that platform's roster and notes, closes or fences account-bound dialogs, then refetches. Not sent for a VRChat data-path 401 (`identityRetained`). |
 | `explore-changed`         | [`ExploreService`](../src/main/services/exploreService.ts) `onChanged`, wired in `app.ts` | `onExploreChanged`        | `{ platform }`. Snapshot invalidation. `useExploreCoordinator` refreshes the platform and `useExploreWorldSelection` refreshes an open world sheet.                                                                        |
 | `linked-profiles-changed` | [`links.ts`](../src/main/ipc/links.ts) `onChanged`, wired in `app.ts`                     | `onLinkedProfilesChanged` | No payload. Sent after a committed change or a default-name refresh. [`queries/linkedProfiles.ts`](../src/renderer/src/queries/linkedProfiles.ts) refetches.                                                               |
-| `navigate-to-dashboard`   | [`app.ts`](../src/main/app.ts) after a hot-instance notification click                    | `onNavigateToDashboard`   | No payload. [`PendingNavigation`](../src/main/pendingNavigation.ts) holds one intent until the window finishes loading, and preload buffers it until `App` subscribes. `App` opens the Dashboard.                          |
+| `navigate-to-dashboard`   | [`app.ts`](../src/main/app.ts) after a hot-instance notification click                    | `onNavigateToDashboard`   | No payload. [`PendingNavigation`](../src/main/pendingNavigation.ts) holds one intent until the window finishes loading, and preload buffers it until `App` subscribes. `App` opens Hot Instances.                          |
 | `updater:state-changed`   | `UpdaterService` in [`src/main/updater.ts`](../src/main/updater.ts)                       | `onUpdaterStateChanged`   | `UpdaterSnapshot`, sent on every state change. `useUpdater` renders from it.                                                                                                                                               |
 
 | Notify channel      | Handler                                                                   | Bridge                   | Purpose                                                                                                                                                       |
@@ -347,7 +347,7 @@ Boot order: [`main.tsx`](../src/renderer/src/main.tsx) installs
 `useSettingsPersistence`, `usePlatformFilterSettings`, `useApplyTheme`,
 `useApplyGlow`, `useLiveFriendEvents` and `useLinkedProfileEvents`, calls
 `notifyRendererHydrated` once settings hydrate, and routes a hot-instance
-notification click (`onNavigateToDashboard`) to the Dashboard. It shows
+notification click (`onNavigateToDashboard`) to Hot Instances. It shows
 `BootSplash` until settings hydrate, `AppShell` when either platform is
 `authenticated` or `error` (or its auth check failed), `BootSplash` while
 auth is still pending, and `LoginScreen` otherwise.
