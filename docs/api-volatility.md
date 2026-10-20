@@ -88,6 +88,11 @@ only note where they differ.
   `image/avif` and at most 3 MiB.
 - Successes are cached for 1 h and failures for 30 s, within 200 entries and
   48 MiB. Any failure shows the letter placeholder.
+- `api.vrchat.cloud` images are also kept on disk for 14 days (4,000 entries,
+  128 MiB). This assumes VRChat file URLs are versioned
+  (`/image/{fileId}/{version}/{size}`, `/file/{fileId}/{version}/file`), so a
+  URL's picture never changes. If VRChat starts reusing a URL for new content,
+  a stale picture can show for up to 14 days; shorten `IMAGE_DISK_TTL_MS`.
 
 ## VRChat
 

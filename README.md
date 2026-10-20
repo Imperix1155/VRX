@@ -69,6 +69,10 @@ screen, update channels, the tray, and how to report a problem.
   or Allow; changes apply the next time VRX starts. VRX never changes those
   files, and signing out of ChilloutVR in VRX stops any import until you sign
   in again.
+- To show VRChat friends' pictures and worlds right away, VRX keeps a copy of
+  the pictures it loaded from VRChat (for up to 14 days) and of world and group
+  names (for up to a day) in its private app files. Signing out of VRChat in
+  VRX deletes them.
 - Friends set to Ask Me or Do Not Disturb keep their location hidden
   everywhere in VRX, notifications included.
 - VRX has no telemetry or analytics. It talks to VRChat, ChilloutVR, and
