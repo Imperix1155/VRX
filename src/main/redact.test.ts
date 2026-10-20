@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { redact } from './redact'
+import { afterEach, describe, it, expect } from 'vitest'
+import { redact, setRedactedHomeDirectory } from './redact'
 
 // OS-agnostic fixtures only (no path separators, no \n/\r\n assumptions) — CI runs
 // this on both ubuntu and windows (VRX-10).
@@ -443,5 +443,41 @@ describe('redact', () => {
 
   it('keeps a genuinely empty plain object as {}', () => {
     expect(redact({})).toBe('[unrepresentable diagnostic]')
+  })
+})
+
+describe('home folder masking', () => {
+  afterEach(() => setRedactedHomeDirectory(''))
+
+  it('masks a Windows home folder in a stack trace, case-insensitively', () => {
+    setRedactedHomeDirectory(String.raw`C:\Users\dev`, 'win32')
+    const stack = String.raw`Error: boom
+    at f (c:\users\mika\AppData\Local\Programs\vrx\resources\app.asar\out\main\app.js:1:1)
+    at g (file:///C:/Users/dev/AppData/Local/Programs/vrx/resources/app.asar/out/main/app.js:2:2)`
+    const out = redact(stack) as string
+    expect(out).not.toMatch(/mika/i)
+    expect(out).toContain(String.raw`~\AppData\Local`)
+    expect(out).toContain('file:///~/AppData/Local')
+  })
+
+  it('masks a POSIX home folder in an fs error message, and an encoded one', () => {
+    setRedactedHomeDirectory('/home/Jo Doe/', 'linux')
+    expect(redact("EACCES: permission denied, open '/home/Jo Doe/.config/VRX/accounts.json'")).toBe(
+      "EACCES: permission denied, open '~/.config/VRX/accounts.json'"
+    )
+    expect(redact('file:///home/Jo%20Doe/.config/VRX')).toBe('file://~/.config/VRX')
+  })
+
+  it('does not mask a longer folder that only starts with the home path', () => {
+    setRedactedHomeDirectory('/home/jo', 'linux')
+    expect(redact('/home/joan/file')).toBe('/home/joan/file')
+  })
+
+  it('masks error stacks and messages inside objects', () => {
+    setRedactedHomeDirectory('/home/jo', 'linux')
+    const error = new Error("ENOENT: no such file, open '/home/jo/x'")
+    const out = redact(error) as { message: string; stack: string }
+    expect(out.message).toBe("ENOENT: no such file, open '~/x'")
+    expect(out.stack).not.toContain('/home/jo/')
   })
 })
