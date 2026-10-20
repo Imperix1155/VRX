@@ -46,6 +46,7 @@ import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance
 import { useFriendNote } from '../hooks/useFriendNote'
 import { usePersonNote } from '../hooks/usePersonNote'
 import { ringFor } from '../utils/statusRing'
+import { inPlatformOrder } from '../utils/platformOrder'
 import { Avatar } from './Avatar'
 import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
@@ -311,7 +312,7 @@ export default function FriendDrawer({
                 )}
                 {combined && onNavigate ? (
                   <div className="mt-[var(--space-1)] flex gap-[var(--space-2)]">
-                    {selection.profile?.members.map((member) => {
+                    {inPlatformOrder(selection.profile?.members ?? []).map((member) => {
                       const available = selection.accounts.some(
                         (account) =>
                           account.platform === member.platform &&

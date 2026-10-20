@@ -239,6 +239,7 @@
       "retrying": "Retrying…",
       "signOut": "Sign out",
       "username": "Username or email",
+      "email": "Email address",
       "usernamePlaceholder": "you@example.com",
       "password": "Password",
       "passwordPlaceholder": "••••••••",
@@ -516,7 +517,7 @@
     "passwordPlaceholder": "••••••••",
     "signIn": "Sign In",
     "signingIn": "Signing in…",
-    "disclaimer": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
+    "disclaimerVrchat": "Connects to VRChat on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery.",
     "error": {
       "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
       "unknown": "Sign-in failed. Check your details and connection, then try again."

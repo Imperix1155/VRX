@@ -222,7 +222,7 @@ export default function LoginScreen({
           />
 
           <p className="mt-[var(--space-6)] text-center text-xs text-[var(--text-dim)]">
-            {t(platform === 'vrchat' ? 'login.disclaimer' : 'login.disclaimerChilloutvr')}
+            {t(platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr')}
           </p>
           {/* Names both platforms in one line on either tab (equal weight). */}
           <p className="mt-[var(--space-2)] text-center text-xs text-[var(--text-faint)]">
