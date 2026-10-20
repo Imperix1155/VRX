@@ -20,14 +20,14 @@ describe('main-process i18n', () => {
   })
 
   it('interpolates variables and leaves unknown placeholders intact', () => {
-    expect(mt('notify.online.body', { name: 'Aimi' })).toBe('Aimi came online')
+    expect(mt('notify.online.body', { name: 'Mika' })).toBe('Mika came online')
     expect(mt('notify.online.body')).toBe('{{name}} came online')
   })
 
   it('switches native copy to Japanese for a Japanese OS locale', () => {
     setMainLocale('ja-JP')
     expect(getMainLocale()).toBe('ja')
-    expect(mt('notify.online.body', { name: 'Aimi' })).toBe('Aimiがオンラインになりました')
+    expect(mt('notify.online.body', { name: 'Mika' })).toBe('Mikaがオンラインになりました')
     expect(mt('recovery.reload')).toBe('再読み込み')
     const labels = buildTrayMenuTemplate({
       isVisible: false,
