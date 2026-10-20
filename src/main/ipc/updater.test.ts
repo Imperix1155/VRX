@@ -29,7 +29,9 @@ const service = vi.hoisted(() => ({
   install: vi.fn()
 }))
 vi.mock('../updater', () => ({
-  getUpdaterService: () => service
+  getUpdaterService: () => service,
+  getUpdaterSnapshot: () => service.snapshot(),
+  initAutoUpdater: () => Promise.resolve(service)
 }))
 
 import { registerUpdaterHandlers } from './updater'

@@ -223,10 +223,14 @@ export default function HotInstanceCard({
             style={{
               color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
               borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)',
-              background: 'color-mix(in srgb, var(--bg-base) 55%, transparent)'
+              // Same small backing as other pills over a picture (PictureBackedPill),
+              // so the word reads on bright art too.
+              background: 'color-mix(in srgb, var(--glass-information) 78%, transparent)'
             }}
           >
-            <span aria-hidden="true">{isVrc ? 'VRC' : 'CVR'}</span>
+            <span aria-hidden="true">
+              {t(isVrc ? 'friends.platform.vrchatShort' : 'friends.platform.chilloutvrShort')}
+            </span>
             <span className="sr-only">{platformName}</span>
           </span>
         </div>

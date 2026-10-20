@@ -26,6 +26,7 @@ vi.mock('./security', () => ({
 }))
 
 const service = vi.hoisted(() => ({
+  getSettingsSnapshot: vi.fn(),
   loadSettings: vi.fn(),
   hasPendingSettingsSave: vi.fn(),
   saveSettings: vi.fn()
@@ -98,5 +99,35 @@ describe('save-settings', () => {
       throw new Error('settings: refusing to overwrite settings written by a newer version')
     })
     expect(() => call('save-settings', { patch: { theme: 'dark' } })).toThrow('newer version')
+  })
+})
+
+describe('save-settings onApplied', () => {
+  const onApplied = vi.fn()
+  beforeEach(() => {
+    onApplied.mockReset()
+    handlers.clear()
+    service.getSettingsSnapshot.mockReset().mockReturnValue({ ...DEFAULT_SETTINGS, theme: 'light' })
+    registerSettingsHandlers(onApplied)
+  })
+
+  it('reports the in-memory settings after a save', () => {
+    call('save-settings', { patch: { theme: 'light' } })
+    expect(onApplied).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, theme: 'light' })
+  })
+
+  it('still reports when the write is refused, since the patch is live in memory', () => {
+    service.saveSettings.mockImplementation(() => {
+      throw new Error('settings: refusing to overwrite settings written by a newer version')
+    })
+    expect(() => call('save-settings', { patch: { theme: 'light' } })).toThrow('newer version')
+    expect(onApplied).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not run for a rejected sender or a malformed patch', () => {
+    expect(() => call('save-settings', 'nope')).toThrow('patch must be an object')
+    trusted.value = false
+    expect(() => call('save-settings', { patch: { theme: 'light' } })).toThrow('Untrusted')
+    expect(onApplied).not.toHaveBeenCalled()
   })
 })
