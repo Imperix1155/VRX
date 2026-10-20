@@ -212,8 +212,15 @@ export default function HotInstanceSheet({
                   alt=""
                   aria-hidden="true"
                   className="h-full w-full object-cover"
-                  style={{ filter: 'brightness(0.66)' }}
+                  style={{ filter: 'var(--hot-sheet-banner-image-filter)' }}
                   onError={() => setFailedBannerKey(bannerImageKey)}
+                />
+              )}
+              {showBannerImage && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0"
+                  style={{ backgroundImage: 'var(--hot-sheet-banner-scrim)' }}
                 />
               )}
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-[var(--space-3)] p-[var(--space-3)]">
@@ -319,8 +326,15 @@ export default function HotInstanceSheet({
                         alt=""
                         aria-hidden="true"
                         className="h-full w-full object-cover"
-                        style={{ filter: 'brightness(0.6)' }}
+                        style={{ filter: 'var(--hot-sheet-group-image-filter)' }}
                         onError={() => setFailedGroupKey(groupImageKey)}
+                      />
+                    )}
+                    {showGroupImage && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0"
+                        style={{ backgroundImage: 'var(--hot-sheet-banner-scrim)' }}
                       />
                     )}
                     <div className="absolute inset-x-0 bottom-0 p-[var(--space-2)]">

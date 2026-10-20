@@ -55,7 +55,7 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
             {t('error.heading')}
           </p>
 
-          <p className="mb-[var(--space-6)] text-xs text-[var(--text-faint)]">{t('error.hint')}</p>
+          <p className="mb-[var(--space-6)] text-xs text-[var(--text-dim)]">{t('error.hint')}</p>
 
           <div className="flex flex-col gap-[var(--space-2)]">
             <button
@@ -68,7 +68,7 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
             <button
               type="button"
               onClick={copyDiagnostics}
-              className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-xs text-[var(--text-faint)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+              className="rounded-control border border-[var(--border)] bg-[var(--control-fill)] px-[var(--space-4)] py-[var(--space-2)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
             >
               {t('error.copyDiagnostics')}
             </button>

@@ -174,17 +174,17 @@ function UpdaterSettingsRow(): React.JSX.Element {
           {t('updater.settings.description')}
         </p>
         {isUnsupported && (
-          <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t('updater.settings.unsupportedNote')}
           </p>
         )}
         {actionFailed && (
-          <p role="alert" className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+          <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t('updater.settings.actionFailed')}
           </p>
         )}
         {state.failure != null && (
-          <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+          <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t(UPDATER_FAILURE_KEYS[state.failure])}
           </p>
         )}
@@ -242,7 +242,7 @@ function LogsSettingsRow(): React.JSX.Element {
           {t('settings.logs.description')}
         </p>
         {failed && (
-          <p role="alert" className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+          <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
             {t('settings.logs.error')}
           </p>
         )}
@@ -552,10 +552,6 @@ export default function SettingsView(): React.JSX.Element {
                 />
               </div>
             </SettingCard>
-
-            {/* Automatic updates row (VRX-113) */}
-            <UpdaterSettingsRow />
-            <LogsSettingsRow />
           </section>
         )}
 
@@ -667,6 +663,19 @@ export default function SettingsView(): React.JSX.Element {
               </p>
             </div>
             <p className="text-xs text-[var(--text-faint)]">{t('shell.unofficialNotice')}</p>
+          </section>
+        )}
+
+        {/* ── About page: the app's own upkeep (version, updates, logs). Moved
+            out of Behavior so every page fits the default window (§8). ── */}
+        {category === 'about' && (
+          <section className="settings-cards" aria-labelledby="settings-about-heading">
+            <h2 id="settings-about-heading" className="sr-only">
+              {t('settings.about.heading')}
+            </h2>
+            {/* Automatic updates row (VRX-113) */}
+            <UpdaterSettingsRow />
+            <LogsSettingsRow />
           </section>
         )}
       </div>

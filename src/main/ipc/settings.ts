@@ -1,7 +1,12 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
 import type { Settings } from '@shared/settings'
-import { hasPendingSettingsSave, loadSettings, saveSettings } from '../services/settings'
+import {
+  getSettingsSnapshot,
+  hasPendingSettingsSave,
+  loadSettings,
+  saveSettings
+} from '../services/settings'
 import { isTrustedIpcSender } from './security'
 
 /**
@@ -11,8 +16,11 @@ import { isTrustedIpcSender } from './security'
  * `save-settings` settles after main's coalesced disk write and propagates a
  * newer-version refusal or write failure as a rejected invoke (the renderer
  * leaves the store dirty and carries on in-memory).
+ *
+ * `onApplied` sees the in-memory settings after every save attempt, so main
+ * process state that mirrors a setting (the native window theme) follows it.
  */
-export function registerSettingsHandlers(): void {
+export function registerSettingsHandlers(onApplied?: (settings: Settings) => void): void {
   ipcMain.handle('get-settings', (event): IpcInvoke['get-settings']['res'] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     const settings = loadSettings()
@@ -30,7 +38,13 @@ export function registerSettingsHandlers(): void {
       if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
         throw new Error('save-settings: patch must be an object')
       }
-      return saveSettings(patch)
+      try {
+        return saveSettings(patch)
+      } finally {
+        // saveSettings applies the patch in memory before touching disk, so it
+        // is live even when the write is refused or fails.
+        onApplied?.(getSettingsSnapshot())
+      }
     }
   )
 }
