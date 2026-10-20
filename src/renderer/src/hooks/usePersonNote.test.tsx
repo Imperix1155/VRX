@@ -189,6 +189,41 @@ describe('usePersonNote', () => {
     act(() => replies[1]?.(success('Three', 3, 'lease-3')))
   })
 
+  it('saves a revert typed while the edit before it is still saving', async () => {
+    const replies: Array<() => void> = []
+    changeLinkedProfile.mockImplementation(
+      ({ change }) =>
+        new Promise((resolve) => {
+          replies.push(() =>
+            resolve({
+              ok: true,
+              value: snapshot('lease-1', 'p1', change.patch.sharedNote, change.expectedRevision + 1)
+            })
+          )
+        })
+    )
+    const client = createClient()
+    const { result } = renderHook(() => usePersonNote('p1'), { wrapper: wrapper(client) })
+    await waitFor(() => expect(result.current.value).toBe('Saved'))
+
+    act(() => result.current.setValue('Edited'))
+    act(() => result.current.onBlur())
+    await waitFor(() => expect(changeLinkedProfile).toHaveBeenCalledTimes(1))
+    act(() => result.current.setValue('Saved'))
+    act(() => result.current.onBlur())
+
+    act(() => replies[0]?.())
+    await waitFor(() => expect(changeLinkedProfile).toHaveBeenCalledTimes(2))
+    expect(changeLinkedProfile.mock.calls[1]?.[0].change.patch).toEqual({ sharedNote: 'Saved' })
+    act(() => replies[1]?.())
+    await waitFor(() =>
+      expect(client.getQueryData<LinkSnapshot>(linkedProfilesKey)?.profiles[0]?.sharedNote).toBe(
+        'Saved'
+      )
+    )
+    expect(result.current.value).toBe('Saved')
+  })
+
   it('stops queued auto-saves after failure and retries the newest draft explicitly', async () => {
     let failFirst: (value: { ok: false; reason: 'storage' }) => void = () => {}
     changeLinkedProfile
