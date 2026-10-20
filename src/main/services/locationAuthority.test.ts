@@ -595,6 +595,25 @@ describe('LocationAuthority', () => {
     })
   })
 
+  it('does not revive a CVR friend who left the online set before the first roster read', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const seed = authority.captureSeedRevision('chilloutvr')
+    const live = friend('chilloutvr', 'cvr_1', 'i+left-room').instance!
+    authority.consume({
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [{ platformUserId: 'cvr_1', presence: { state: 'in-game' }, instance: live }]
+    })
+    authority.consume({ type: 'presence-snapshot', platform: 'chilloutvr', entries: [] })
+    authority.seed('chilloutvr', [cvrRestRow('cvr_1')], seed)
+
+    expect(authority.resolve('chilloutvr', 'cvr_1')).toMatchObject({
+      ok: true,
+      friend: { presence: { state: 'offline' }, instance: null }
+    })
+  })
+
   it('does not carry CVR presence from before a reconnect over a newer roster read', () => {
     const authority = new LocationAuthority()
     authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
