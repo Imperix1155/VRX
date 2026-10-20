@@ -168,8 +168,11 @@ export class WorldResolver {
       // it propagates so VrcAdapter can emit auth-invalidated from its background
       // enrichment boundary (VRX-197/214). Every OTHER failure still
       // degrades to null so world resolution never breaks the friend list.
+      // A 403 is a denial on this one world on a live session (VRChat's
+      // boundary rule), so it falls through to the negative cache below
+      // instead of stopping the rest of the enrichment batch.
       if (
-        error instanceof AuthError ||
+        (error instanceof AuthError && error.status !== 403) ||
         error instanceof RateLimitError ||
         error instanceof RequestCancelledError ||
         error instanceof RequestQueueFullError
