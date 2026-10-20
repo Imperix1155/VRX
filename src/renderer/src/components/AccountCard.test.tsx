@@ -351,6 +351,28 @@ describe('AccountCard — VRChat two-factor flow', () => {
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
   })
 
+  it('locks Verify while a saved 2FA session is signing out', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'needs-2fa',
+      accountId: null,
+      displayName: null,
+      twoFactorMethod: 'totp'
+    })
+    bridge.logout.mockReturnValue(new Promise(() => {}))
+    renderCard('vrchat', bridge)
+    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.twoFactor.code')), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
+    await waitFor(() => expect(bridge.logout).toHaveBeenCalled())
+    const verify = screen
+      .getByLabelText(msg('settings.accounts.twoFactor.code'))
+      .closest('form')!
+      .querySelector<HTMLButtonElement>('button[type="submit"]')!
+    expect(verify.disabled).toBe(true)
+  })
+
   it('overrides an external 2FA status after persistence failure and clears the code', async () => {
     const bridge = bridgeFor({
       platform: 'vrchat',
