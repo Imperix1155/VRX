@@ -269,7 +269,7 @@
       "import": {
         "vrchat": "VRCX のサインインを使う",
         "chilloutvr": "ChilloutVR のサインインを使う",
-        "vrchatHint": "先に VRCX をトレイからも終了してください。読み取るだけで、変更はしません。",
+        "vrchatHint": "先に VRCX を終了してください。読み取るだけで、変更はしません。",
         "chilloutvrHint": "読み取るだけで、変更はしません。",
         "looking": "この PC を確認しています…"
       }

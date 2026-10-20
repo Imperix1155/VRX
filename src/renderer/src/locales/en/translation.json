@@ -271,7 +271,7 @@
       "import": {
         "vrchat": "Use my sign-in from VRCX",
         "chilloutvr": "Use my sign-in from ChilloutVR",
-        "vrchatHint": "Quit VRCX first, also from the tray. Only reads it, never changes it.",
+        "vrchatHint": "Quit VRCX first. Only reads it, never changes it.",
         "chilloutvrHint": "Only reads it, never changes it.",
         "looking": "Looking on this PC…"
       }
