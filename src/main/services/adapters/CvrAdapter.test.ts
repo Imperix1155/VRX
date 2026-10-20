@@ -1485,6 +1485,27 @@ describe('CvrAdapter', () => {
         expect((await adapter.getAuthStatus()).state).toBe('authenticated')
       })
 
+      it('marks a same-account key rotation as identity-retained', async () => {
+        const boundaries: Array<{ identityRetained: boolean }> = []
+        const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
+        const adapter = new CvrAdapter(store, instantAdmission(), {
+          socketFactory: () => ({ on: () => {}, close: () => {} }),
+          onSessionBoundary: (boundary) => boundaries.push(boundary)
+        })
+        markSessionEstablishedForTest(adapter)
+        Object.assign(adapter as unknown as { accountId: string }, {
+          accountId: authPayload().userId
+        })
+        boundaries.length = 0
+        routed([() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' }))))])
+
+        await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
+        await vi.waitFor(() =>
+          expect(store.saved).toContainEqual({ username: 'trinity', accessKey: 'key-2' })
+        )
+        expect(boundaries).toEqual([{ identityRetained: true }])
+      })
+
       it('still signs out at once on a 401, without a reauth', async () => {
         const { adapter, store } = setup()
         const fetchMock = vi.fn(() =>

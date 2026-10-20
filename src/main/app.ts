@@ -511,7 +511,11 @@ app
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)
       },
-      onSessionBoundary: () => {
+      onSessionBoundary: ({ identityRetained }) => {
+        // A same-account key rotation changes nothing account-scoped. Clearing
+        // here would make Join report stale until the next roster read, and the
+        // renderer boundary would refetch the roster and drop note drafts.
+        if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
