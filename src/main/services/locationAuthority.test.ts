@@ -562,6 +562,60 @@ describe('LocationAuthority', () => {
     expect(resolved.ok && resolved.friend.instance?.instanceId).toBe('i+live-instance')
   })
 
+  // The CVR REST roster has no presence: every row arrives offline with no
+  // instance (fetchCvrFriends). Live presence only comes from the pipeline.
+  const cvrRestRow = (id: string): CvrFriend => ({
+    ...friend('chilloutvr', id),
+    presence: { state: 'offline' },
+    instance: null
+  })
+
+  it('keeps CVR live presence when a roster read starts after the snapshot', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const live = friend('chilloutvr', 'cvr_1', 'i+live-instance').instance!
+    authority.consume({
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [{ platformUserId: 'cvr_1', presence: { state: 'in-game' }, instance: live }]
+    })
+    const firstSeed = authority.captureSeedRevision('chilloutvr')
+    authority.seed('chilloutvr', [cvrRestRow('cvr_1'), cvrRestRow('cvr_2')], firstSeed)
+    // A later reconcile (5-minute tick, roster-changed, Refresh) reads REST again.
+    const reconcile = authority.captureSeedRevision('chilloutvr')
+    authority.seed('chilloutvr', [cvrRestRow('cvr_1'), cvrRestRow('cvr_2')], reconcile)
+
+    expect(authority.resolve('chilloutvr', 'cvr_1')).toMatchObject({
+      ok: true,
+      friend: { presence: { state: 'in-game' }, instance: { instanceId: 'i+live-instance' } }
+    })
+    expect(authority.resolve('chilloutvr', 'cvr_2')).toMatchObject({
+      ok: true,
+      friend: { presence: { state: 'offline' }, instance: null }
+    })
+  })
+
+  it('does not carry CVR presence from before a reconnect over a newer roster read', () => {
+    const authority = new LocationAuthority()
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const before = friend('chilloutvr', 'cvr_1', 'i+before-drop').instance!
+    authority.consume({
+      type: 'presence-snapshot',
+      platform: 'chilloutvr',
+      entries: [{ platformUserId: 'cvr_1', presence: { state: 'in-game' }, instance: before }]
+    })
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'reconnecting' })
+    authority.consume({ type: 'connection', platform: 'chilloutvr', health: 'live' })
+    const seed = authority.captureSeedRevision('chilloutvr')
+    authority.seed('chilloutvr', [cvrRestRow('cvr_1')], seed)
+
+    // Until the reconnect's full set arrives, the safe baseline is offline.
+    expect(authority.resolve('chilloutvr', 'cvr_1')).toMatchObject({
+      ok: true,
+      friend: { presence: { state: 'offline' }, instance: null }
+    })
+  })
+
   it('keeps an explicit pre-seed offline location null after the roster seed', () => {
     const authority = new LocationAuthority()
     authority.consume({ type: 'connection', platform: 'vrchat', health: 'live' })

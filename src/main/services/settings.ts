@@ -10,6 +10,9 @@
  * electron-store@11 is ESM-only, so it is bundled into the main process (not
  * externalized) — see `externalizeDepsPlugin` exclude in `electron.vite.config.ts`.
  */
+import { renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { app } from 'electron'
 import Store from 'electron-store'
 import {
   parseSettings,
@@ -43,11 +46,25 @@ function getStore(): Store<Record<string, unknown>> {
 }
 
 /**
+ * Move an unparseable settings.json aside (renamed, never deleted, so its bytes
+ * stay recoverable) and drop the cached store. conf rethrows the JSON
+ * SyntaxError on every read, so without this every save failed and every
+ * launch fell back to defaults until the user found and deleted the file.
+ */
+function moveCorruptSettingsFileAside(): void {
+  const dir = app.getPath('userData')
+  renameSync(join(dir, 'settings.json'), join(dir, `settings.corrupt-${Date.now()}.json`))
+  store = undefined
+}
+
+/**
  * Load settings from disk, migrating + validating on read. Tidies legacy/older
  * files by writing the normalized form back — but NEVER overwrites a file written
  * by a newer build (that would strip its forward fields and lose data on a
  * rollback). Never throws — falls back to in-memory defaults if the store or a
- * migration fails, leaving the on-disk file intact. A normalization write failure
+ * migration fails. A file that is not valid JSON is renamed to
+ * `settings.corrupt-<time>.json` so later saves can start a fresh file; any other
+ * failure leaves the on-disk file intact. A normalization write failure
  * retains the loaded settings as unsaved for an explicit retry or quit flush.
  */
 export function loadSettings(): Settings {
@@ -68,9 +85,22 @@ export function loadSettings(): Settings {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
     // redaction hook's object-walk can't see inside an Error (house pattern).
     log.warn(
-      'settings: load failed; using in-memory defaults, on-disk file left intact',
+      'settings: load failed; using in-memory defaults',
       err instanceof Error ? err.message : String(err)
     )
+    // Only a JSON syntax error proves the file is corrupt. Any other read
+    // failure (permissions, I/O) leaves the file untouched.
+    if (err instanceof SyntaxError) {
+      try {
+        moveCorruptSettingsFileAside()
+        log.warn('settings: corrupt file kept as settings.corrupt-*.json; saves start fresh')
+      } catch (moveErr) {
+        log.warn(
+          'settings: could not move the corrupt file aside',
+          moveErr instanceof Error ? moveErr.message : String(moveErr)
+        )
+      }
+    }
     settingsSnapshot = { ...DEFAULT_SETTINGS }
     return settingsSnapshot
   }

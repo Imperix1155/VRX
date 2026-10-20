@@ -44,6 +44,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - On beta and rc builds, the sidebar's update button no longer covers the end of
   the version number. The version moves to its own line while the button shows.
+- Clicking a hot-instance notification opens the Hot Instances page instead of
+  the Dashboard.
+- An open Popular now world sheet on the Dashboard no longer closes by itself
+  when your friends finish loading.
+- Explore says worlds haven't loaded yet (and to use Refresh) instead of showing
+  an empty page, and a failed game launch from a world sheet says so plainly.
+- ChilloutVR friends who are online in an instance no longer flicker to offline
+  (losing their Join button) when a friends-list refresh lands just after their
+  live status.
+- A damaged settings file is set aside as `settings.corrupt-<time>.json` so VRX
+  can save settings again, instead of resetting them on every launch.
+- People upgrading from beta.1 or older who had turned Hot Instances off no
+  longer start getting hot-instance alerts.
+- The friends list says "Loading..." rather than "No friends online" while a
+  new friends list is still loading, for example right after switching
+  accounts.
+- VRChat friends who come online on the website now update right away.
+- A saved VRChat sign-in that needs a 2FA code now has a Sign out button in
+  Settings → Accounts.
+- Friend notes, person notes, and linked profiles save even when Windows or
+  Linux reports no internet connection.
+- Profile placeholders show a whole emoji or styled first letter instead of a
+  broken character.
+- Searching friends with a leading or trailing space finds and highlights the
+  same people as the trimmed search.
+- Windows and Linux builds no longer show Electron's default File/Edit/View menu
+  bar. Ctrl+Q still quits VRX, which matters on Linux desktops without a tray
+  icon.
+- Logs replace your home folder path with `~`, so a shared log doesn't show your
+  computer account name.
 - In light theme the VRX logo and other text on glass no longer look washed out,
   and the Hot Instance sheet's world name is readable over bright pictures.
 - The Explore room sheet's close button no longer sits on top of the picture.
