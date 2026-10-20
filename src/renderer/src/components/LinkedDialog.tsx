@@ -60,6 +60,27 @@ export default function LinkedDialog({
       else search?.focus({ preventScroll: true })
     }
   }, [])
+  // A save disables every control, which drops focus out of the dialog. When
+  // it settles, focus goes back to the control last used, or to Close.
+  const lastFocused = useRef<HTMLElement | null>(null)
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true
+      return
+    }
+    if (!wasBusy.current) return
+    wasBusy.current = false
+    const panel = dialog.current
+    const active = document.activeElement
+    if (panel === null || (active !== null && panel.contains(active))) return
+    const previous = lastFocused.current
+    const target =
+      previous?.isConnected && panel.contains(previous) && !previous.matches(':disabled')
+        ? previous
+        : closeButton.current
+    target?.focus({ preventScroll: true })
+  }, [busy])
   return (
     <dialog
       ref={dialog}
@@ -69,6 +90,9 @@ export default function LinkedDialog({
       aria-busy={busy}
       className="fixed m-auto max-h-[calc(100vh-var(--space-6)*2)] w-[min(440px,calc(100vw-var(--space-8)))] overflow-y-auto border-0 bg-transparent p-0 text-[var(--text)] [&::backdrop]:bg-[var(--scrim-soft)]"
       onKeyDown={(event) => event.stopPropagation()}
+      onFocus={(event) => {
+        if (event.target instanceof HTMLElement) lastFocused.current = event.target
+      }}
       onPointerDown={(event) => {
         event.stopPropagation()
         if (!busy && event.target === event.currentTarget) onClose()
