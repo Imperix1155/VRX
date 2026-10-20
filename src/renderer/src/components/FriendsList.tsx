@@ -224,7 +224,12 @@ const FriendRow = memo(function FriendRow({
   const { isJoining, joinFailureFor, join } = useJoinInstance()
 
   // Custom status — VRChat only; sits BESIDE the name for every status (§9.1).
-  const customStatus = friend.platform === 'vrchat' ? (friend.statusDescription ?? null) : null
+  // Offline friends carry no status (the live offline event clears it; a full
+  // roster refresh may still include the old one).
+  const customStatus =
+    friend.platform === 'vrchat' && friend.presence.state !== 'offline'
+      ? (friend.statusDescription ?? null)
+      : null
 
   // Ask Me / DND hide the world entirely (§5 R6); the world is the subline otherwise.
   const hideWorld = isWorldHidden(pillFriend ?? friend)

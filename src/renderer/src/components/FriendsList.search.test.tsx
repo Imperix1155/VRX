@@ -106,6 +106,18 @@ describe('FriendsList search (VRX-65)', () => {
     expect(screen.getByText('José').className).toContain('color-mix')
   })
 
+  it('shows a custom status only for friends who are not offline', async () => {
+    mockFriends([
+      { ...friend('Zed', 'offline'), statusDescription: 'Away for lunch' },
+      { ...friend('Amy'), statusDescription: 'Building worlds' }
+    ])
+    render(<FriendsList />)
+    fireEvent.click(screen.getByRole('button', { name: /^Offline \(1\)$/ }))
+    expect(screen.getByText('Zed')).toBeTruthy()
+    expect(screen.queryByText('Away for lunch')).toBeNull()
+    expect(screen.getByText('Building worlds')).toBeTruthy()
+  })
+
   it('keeps collapsed sections collapsed for a spaces-only query', async () => {
     mockFriends([friend('Zed', 'offline'), friend('Alice')])
     render(<FriendsList />)
