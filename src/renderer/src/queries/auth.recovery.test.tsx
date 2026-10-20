@@ -120,3 +120,37 @@ it('still reads the sign-in state while the OS reports offline', async () => {
     client.clear()
   }
 })
+
+it('does not re-check a settled sign-in when a page mounts later; invalidation still does', async () => {
+  vi.useFakeTimers()
+  try {
+    const getAuthStatus = vi.fn<() => Promise<AuthStatus>>().mockResolvedValue({
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'usr_a',
+      displayName: 'A'
+    })
+    Object.assign(window, { vrx: { getAuthStatus } })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (page: boolean): React.JSX.Element => (
+      <QueryClientProvider client={client}>
+        <Gate />
+        {page && <NewObserver />}
+      </QueryClientProvider>
+    )
+    const { rerender } = render(view(false))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getAuthStatus).toHaveBeenCalledOnce()
+    // A page switch long after the first check mounts another observer. Each
+    // VRChat check is a real GET /auth/user, so it must not send one.
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    rerender(view(true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getAuthStatus).toHaveBeenCalledOnce()
+    await client.invalidateQueries({ queryKey: ['auth-status'] })
+    expect(getAuthStatus).toHaveBeenCalledTimes(2)
+    client.clear()
+  } finally {
+    vi.useRealTimers()
+  }
+})

@@ -37,7 +37,7 @@ describe('settings schema', () => {
       notifyFriendOffline: false,
       notifyHotInstance: false,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m',
+      reconcileInterval: '1h',
       drawerOpener: 'card',
       allowJoinInstances: true,
       confirmJoin: true,
@@ -95,14 +95,15 @@ describe('settings schema', () => {
     expect(parseSettings({ backgroundGlow: 1 }).backgroundGlow).toBe('standard')
   })
 
-  it('reconcileInterval: accepts every cadence, defaults missing/invalid to 5m', () => {
+  it('reconcileInterval: accepts every cadence, defaults missing/invalid to 1h', () => {
     expect(parseSettings({ reconcileInterval: '5m' }).reconcileInterval).toBe('5m')
     expect(parseSettings({ reconcileInterval: '10m' }).reconcileInterval).toBe('10m')
     expect(parseSettings({ reconcileInterval: '30m' }).reconcileInterval).toBe('30m')
+    expect(parseSettings({ reconcileInterval: '1h' }).reconcileInterval).toBe('1h')
     expect(parseSettings({ reconcileInterval: 'manual' }).reconcileInterval).toBe('manual')
-    expect(parseSettings({ theme: 'dark' }).reconcileInterval).toBe('5m')
-    expect(parseSettings({ reconcileInterval: '1m' }).reconcileInterval).toBe('5m')
-    expect(parseSettings({ reconcileInterval: 5 }).reconcileInterval).toBe('5m')
+    expect(parseSettings({ theme: 'dark' }).reconcileInterval).toBe('1h')
+    expect(parseSettings({ reconcileInterval: '1m' }).reconcileInterval).toBe('1h')
+    expect(parseSettings({ reconcileInterval: 5 }).reconcileInterval).toBe('1h')
   })
 
   it('drawerOpener: accepts both surfaces, defaults missing/invalid to card (VRX-228)', () => {
@@ -148,6 +149,7 @@ describe('settings schema', () => {
       '5m': 300_000,
       '10m': 600_000,
       '30m': 1_800_000,
+      '1h': 3_600_000,
       manual: false
     })
   })
@@ -268,7 +270,7 @@ describe('migration runner', () => {
       showExplorePage: true,
       setupPending: false,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m',
+      reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -307,7 +309,7 @@ describe('migration runner', () => {
       showExplorePage: true,
       setupPending: false,
       backgroundGlow: 'standard',
-      reconcileInterval: '5m',
+      reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -346,7 +348,7 @@ describe('migration runner', () => {
       showHotInstancesPage: true,
       showExplorePage: true,
       setupPending: false,
-      reconcileInterval: '5m',
+      reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
@@ -508,6 +510,24 @@ describe('migration runner', () => {
   it('carries a muted hot alert from v10 (0.23.0) through to current', () => {
     const v10 = { version: 10, notifyHotInstance: true, hotInstancesEnabled: false }
     expect(parseSettings(v10).notifyHotInstance).toBe(false)
+  })
+
+  it.each([
+    ['5m', '1h'],
+    ['10m', '10m'],
+    ['30m', '30m'],
+    ['manual', 'manual']
+  ] as const)('migrates v13 → v14 background re-sync (%s → %s)', (stored, expected) => {
+    const v13 = { ...DEFAULT_SETTINGS, version: 13, reconcileInterval: stored }
+    expect(parseSettings(v13)).toMatchObject({
+      version: SETTINGS_VERSION,
+      reconcileInterval: expected
+    })
+  })
+
+  it('keeps a 5-minute re-sync chosen after the v14 default change', () => {
+    const v14 = { ...DEFAULT_SETTINGS, version: 14, reconcileInterval: '5m' }
+    expect(parseSettings(v14).reconcileInterval).toBe('5m')
   })
 
   it('preserves a newer-version file in memory without down-leveling (rollback-safe)', () => {

@@ -51,6 +51,7 @@ const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
   '5m': 'settings.reconcileInterval.5m',
   '10m': 'settings.reconcileInterval.10m',
   '30m': 'settings.reconcileInterval.30m',
+  '1h': 'settings.reconcileInterval.1h',
   manual: 'settings.reconcileInterval.manual'
 }
 
