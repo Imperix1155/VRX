@@ -25,9 +25,13 @@ export default function ImportSignInAction({
     <div className="flex flex-col gap-[var(--space-1)]">
       <button
         type="button"
-        onClick={onImport}
-        disabled={isSubmitting}
-        className="self-start rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+        // aria-disabled, not disabled: disabling the pressed button drops
+        // keyboard focus to the page, and a failed attempt leaves it there.
+        onClick={() => {
+          if (!isSubmitting) onImport()
+        }}
+        aria-disabled={isSubmitting || undefined}
+        className="self-start rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs font-medium text-[var(--text)] hover:bg-[var(--surface-hover)] aria-disabled:opacity-50 motion-safe:transition-colors"
       >
         {isImporting ? t('settings.accounts.import.looking') : t(config.importLabelKey)}
       </button>
