@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The welcome setup's Look step also asks which instance labels to use
+  (VRChat, Per platform or ChilloutVR). Skipping setup keeps VRChat labels.
+
 ## [1.0.0-beta.3] - 2026-10-20
 
 ### Added

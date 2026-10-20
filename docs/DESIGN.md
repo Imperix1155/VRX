@@ -446,7 +446,8 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off) until changed. Skip setup is a visible button on every screen before the
+off, VRChat instance labels) until changed. Look also asks for the instance
+label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
 neutral text-colored fill, so neither platform color leads. Settings →

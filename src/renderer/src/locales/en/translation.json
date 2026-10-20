@@ -688,6 +688,7 @@
     "look": {
       "title": "Pick a look",
       "lead": "It changes as you pick, so you can see it right away.",
+      "labelsDescription": "The words on instance tags, like Friends+ (VRChat) or Friends of Friends (ChilloutVR).",
       "aria": "Theme",
       "system": "Match my PC"
     },
