@@ -1,18 +1,20 @@
 # App icon
 
-The approved launcher mark is a packed VRX monogram: a blue V on the left,
-with a silver R above an orange X. Its smoked-glass case has diagonal cuts,
-gently rounded chamfer transitions, and blue/orange rails. The letters and
-case keep their colors against the desktop background. The app's horizontal
-VT323 wordmark remains the in-app brand treatment.
+The approved launcher mark is the VRX monogram in one row: a blue V, a silver R
+and an orange X at the same size, so neither platform color outweighs the other
+(the owner's platform-parity rule). Its smoked-glass case has diagonal cuts,
+gently rounded chamfer transitions, and blue/orange rails. The letters and case
+keep their colors against the desktop background. The app's horizontal VT323
+wordmark remains the in-app brand treatment.
 
 ## Source artwork
 
 - [`build/icon.svg`](../build/icon.svg) is the scalable master, on a 64-unit grid.
 - [`build/icon-16.svg`](../build/icon-16.svg) and
   [`build/icon-24.svg`](../build/icon-24.svg) retain the same arrangement with
-  optical letter drawings for small sizes. Keep the R counter and the space
-  between R and X open. Do not derive these by shrinking the large PNG.
+  pixel-aligned letter drawings for small sizes. Keep the V and X the same
+  size, the R counter open, and a clear pixel between letters. Do not derive
+  these by shrinking the large PNG.
 - Blue `#2b7ce8`, silver `#e8e8f0`, and orange `#f3711e` match the app's identity
   tokens in `src/renderer/src/assets/main.css`. These fixed-color icon assets
   do not switch with the app theme. Their outer corners remain transparent.

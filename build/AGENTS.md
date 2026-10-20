@@ -15,10 +15,11 @@ resources. The root contract still controls security and release authority.
 
 ## Local Contracts
 
-Preserve the packed VRX layout, blue V, silver R, orange X, clipped glass case,
-colored rails, and softened chamfer joins. Keep transparent outer corners and
-the dedicated small letter drawings. The maintenance procedure and output map
-live in [`docs/APP-ICON.md`](../docs/APP-ICON.md).
+Preserve the one-row VRX layout (blue V, silver R, orange X at equal size, so
+neither platform outweighs the other), clipped glass case, colored rails, and
+softened chamfer joins. Keep transparent outer corners and the dedicated small
+letter drawings. The maintenance procedure and output map live in
+[`docs/APP-ICON.md`](../docs/APP-ICON.md).
 
 ## Work Guidance
 

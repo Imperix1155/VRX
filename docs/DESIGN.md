@@ -34,17 +34,19 @@ neutral bridge color on R. Keep page titles specific to the active view. Use
 official platform assets when a platform logo is needed; do not invent or trace
 a substitute.
 
-The launcher icon is the approved packed VRX monogram: blue V at left, silver R
-above orange X, in a smoked-glass case with colored rails. Preserve the straight
-diagonal cuts and gently rounded chamfer transitions. Its opaque case and fixed
-letter colors stay independent of the desktop background in both themes.
+The launcher icon is the approved VRX monogram: blue V, silver R and orange X in
+one row at equal size (platform parity), in a smoked-glass case with colored
+rails. Preserve the straight diagonal cuts and gently rounded chamfer
+transitions. Its opaque case and fixed letter colors stay independent of the
+desktop background in both themes.
 
 `build/icon.svg` is the scalable source. The 16px and 24px SVGs keep dedicated
-optical lettering, open R counters, and clear R/X separation. Regenerate the
-native Windows ICO, macOS ICNS, Linux PNG, and runtime/tray representations
-together with `npm run icons:generate`; verify with `npm run icons:check`.
-The visual guide imports those packaged images. File ownership, sizes, font
-provenance, and native verification are in [App icon](APP-ICON.md).
+optical lettering, equal V/X size, open R counters, and clear letter separation.
+Regenerate the native Windows ICO, macOS ICNS, Linux PNG, and runtime/tray
+representations together with `npm run icons:generate`; verify with
+`npm run icons:check`. The visual guide imports those packaged images. File
+ownership, sizes, font provenance, and native verification are in
+[App icon](APP-ICON.md).
 
 Sources: [`Sidebar.tsx`](../src/renderer/src/components/Sidebar.tsx),
 [`LoginScreen.tsx`](../src/renderer/src/components/LoginScreen.tsx),

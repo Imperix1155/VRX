@@ -289,8 +289,8 @@ export default function Guide(): React.JSX.Element {
 
         <Section id="identity" kicker="Identity · app icon" title="The VRX launcher mark">
           <p className="design-guide__lead">
-            The launcher icon packs a blue V on the left and a silver R above an orange X. Its
-            smoked-glass case retains the diagonal cuts and colored rails, with softly rounded
+            The launcher icon sets a blue V, a silver R and an orange X in one row at equal size.
+            Its smoked-glass case retains the diagonal cuts and colored rails, with softly rounded
             transitions. The horizontal VT323 wordmark inside the app stays distinct.
           </p>
           <Scene
