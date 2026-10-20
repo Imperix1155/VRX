@@ -5,6 +5,7 @@ import type { Friend } from '@shared/types'
 import { useAvatar } from '../hooks/useAvatar'
 import { useSettingsStore } from '../stores/settings'
 import { instancePillFor } from '../utils/instancePill'
+import { inPlatformOrder } from '../utils/platformOrder'
 import InstancePill from './InstancePill'
 
 function RowWorld({ friend }: { friend: Friend }): React.JSX.Element {
@@ -86,10 +87,9 @@ export default function LinkedWorlds({
   accounts: Friend[]
   variant: 'row' | 'drawer'
 }): React.JSX.Element | null {
-  const worlds = accounts
-    .filter((friend) => friend.presence.state === 'in-game')
-    .sort((a, b) => (a.platform === b.platform ? 0 : a.platform === 'vrchat' ? -1 : 1))
-    .slice(0, 2)
+  const worlds = inPlatformOrder(
+    accounts.filter((friend) => friend.presence.state === 'in-game')
+  ).slice(0, 2)
   if (worlds.length === 0) return null
   if (variant === 'row')
     return (

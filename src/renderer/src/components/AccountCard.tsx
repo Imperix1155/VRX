@@ -10,7 +10,7 @@ import { useAuthFlow } from '../hooks/useAuthFlow'
 import CredentialsForm from './auth/CredentialsForm'
 import TwoFactorForm from './auth/TwoFactorForm'
 import ErrorBanner from './auth/ErrorBanner'
-import { ACCOUNT_COPY } from './auth/copy'
+import { accountCopy } from './auth/copy'
 
 export default function AccountCard({ platform }: { platform: Platform }): React.JSX.Element {
   const { t } = useTranslation()
@@ -151,7 +151,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         <CredentialsForm
           idPrefix={platform}
           autocompleteSection={platform}
-          copy={ACCOUNT_COPY}
+          copy={accountCopy(platform)}
           username={flow.username}
           password={flow.password}
           isSubmitting={flow.isSubmitting}
@@ -167,7 +167,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         <>
           <TwoFactorForm
             idPrefix={platform}
-            copy={ACCOUNT_COPY}
+            copy={accountCopy(platform)}
             method={flow.pending2fa}
             code={flow.twoFactorCode}
             isSubmitting={flow.isSubmitting}
