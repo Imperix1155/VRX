@@ -41,6 +41,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
+import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
@@ -112,6 +113,9 @@ function createWindow(): BrowserWindow {
     // <title> — which is "VRX", but only after the page loads; set it here so
     // the window says VRX from creation, not "Electron" for the first frame.
     title: 'VRX',
+    // The app canvas color, painted before the page and on resize, so the
+    // window never flashes white (DESIGN.md §2).
+    backgroundColor: windowBackgroundColor(),
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -315,6 +319,10 @@ app
     // once it boots (VRX-184); this early load tidies the file and logs the state.
     const settings = loadSettings()
     log.info('settings loaded', { version: settings.version, theme: settings.theme })
+    // Native chrome (title bar, menus, window background) follows the Theme
+    // setting, including OS switches while it is System.
+    applyWindowTheme(settings.theme)
+    watchSystemTheme()
 
     // Set app user model id for windows — must match electron-builder `appId`
     // so Windows groups the taskbar entry and update notifications fire.
@@ -549,6 +557,7 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      onSettingsApplied: (saved) => applyWindowTheme(saved.theme),
       accountRegistry,
       accountSession,
       socialStore,

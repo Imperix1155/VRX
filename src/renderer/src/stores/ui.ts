@@ -19,7 +19,8 @@ export const SETTINGS_CATEGORIES = [
   'dashboard',
   'behavior',
   'notifications',
-  'accounts'
+  'accounts',
+  'about'
 ] as const
 export type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]
 
