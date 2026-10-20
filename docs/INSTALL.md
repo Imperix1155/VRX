@@ -37,11 +37,11 @@ unsigned apps. Ask your administrator instead of changing security settings.
 
 VRX checks for updates when it starts and every few hours while it runs. When
 one is available, an **Update** button appears at the bottom of the sidebar,
-and Settings → Behavior shows the same choice. Nothing downloads or installs
+and Settings → About shows the same choice. Nothing downloads or installs
 until you say so, unless you turn on **Automatic updates**. Automatic updates
 download in the background and install when VRX closes.
 
-The portable Windows build can't update itself. Settings → Behavior links to
+The portable Windows build can't update itself. Settings → About links to
 the releases page instead.
 
 Which updates you get depends on the version you installed:
@@ -75,7 +75,7 @@ Open a [GitHub issue](https://github.com/Imperix1155/VRX/issues) with:
 - what you did, what you expected, and what happened, including any message
   on screen.
 
-Settings → Behavior → **Open logs folder** shows VRX's log file. VRX removes
+Settings → About → **Open logs folder** shows VRX's log file. VRX removes
 passwords and session tokens from its logs, but read the log before sharing
 it and remove friend names or account details you don't want public. Never
 share passwords, session tokens, or credential files.

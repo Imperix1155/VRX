@@ -30,6 +30,6 @@ What you expected to happen instead.
 ## Additional context
 
 Screenshots or anything else that helps. To find logs, open Settings →
-Behavior → Open logs folder. Credentials are redacted in logs, but read them
+About → Open logs folder. Credentials are redacted in logs, but read them
 before sharing and remove anything personal. **Do not paste passwords, codes,
 or tokens.**

@@ -119,6 +119,7 @@ Information panels over the canvas use `.glass glass-information`. Add
 `.glass-frosted` for a sheet or drawer and `.glass-frosted-heavy` for a true
 confirmation modal. The information modifier puts an opaque neutral backing
 under the existing gradients; decorative chrome may keep translucent `.glass`.
+The sheen lights the pane behind its content, never over text or logos.
 
 Information-bearing cards and panels keep their intended colors no matter
 what the background does. That covers statistics, Popular now, Explore, Hot
@@ -264,14 +265,17 @@ Don't design a mobile layout from a narrow documentation viewport.
 Settings. Activity and Groups are not planned pages and never appear as
 placeholders.
 
-**Top bar.** It holds the page's single heading. Its platform filter reads
+**Top bar.** It holds the page's single heading; panels below it, the
+Friends list included, keep their section headings for screen readers only.
+Its platform filter reads
 VRC / ALL / CVR and filters the current social view; the sidebar's active
 marker echoes it. The filter stays in the same horizontal position on
 Dashboard, Hot Instances, Friends, and Explore, even when a scrollbar appears;
 nothing else may take its place. The connection indicator pairs color with
 shape: a pulsing dot is live, a hollow ring is reconnecting, a square is
 down, and its label names each platform. Settings replaces the filter with
-its category control.
+its category control, on its own row under the title, so the online count
+stays on the title row as on every other page.
 
 **Segmented controls.** Use
 [`SegmentedControl`](../src/renderer/src/components/SegmentedControl.tsx) and
@@ -282,19 +286,22 @@ neutral option sits between the two platform options. On/off settings use
 visible On and Off labels with the same sliding control and keyboard
 behavior. Reduced motion is respected.
 
-**Settings** has five categories, each its own page with no scrolling at the
-default window size: Appearance, Dashboard, Behavior, Notifications, and
-Accounts. Each setting sits on a compact neutral card.
+**Settings** has six categories, each its own page with no scrolling at the
+default window size: Appearance, Dashboard, Behavior, Notifications,
+Accounts, and About. Each setting sits on a compact neutral card.
 
 - Dashboard: Section order, Popular now, Hot Instances, and Hot instance
   threshold, as separate rows.
-- Behavior includes Allow joining friends, which contains Confirm before
-  joining and Join in. Turning a parent off collapses its card with a 220 ms
+- Behavior: Friend details open from (whole card or avatar only), Friends
+  background re-sync, and Allow joining friends, which contains Confirm
+  before joining and Join in. Turning a parent off collapses its card with a 220 ms
   height transition (instant under reduced motion). Hidden children are inert
   and hidden from assistive technology, focus returns to the parent control
   when needed, and their saved choices survive.
 - Notifications: Friend comes online, Friend joins a world, Friend goes
   offline, and Hot instance. Each is independent and off by default.
+- About: the app's own upkeep. Automatic updates with the installed version,
+  and Open logs folder.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save
@@ -337,7 +344,7 @@ automatically.
 
 The avatar opens friend details. By default the whole card opens them too,
 except the Join control and text selection; the "Avatar only" choice in
-Settings → Appearance → Friend details open from keeps the row body inert.
+Settings → Behavior → Friend details open from keeps the row body inert.
 The instance pill's Join stays a separate control with the normal
 confirmation and denial behavior.
 
@@ -351,7 +358,10 @@ threshold; it starts closed and exposes its state to assistive technology.
 Each Dashboard section shows two cards, chosen as in "Locked for 1.0". The
 second section's bars show the world picture behind a same-color scrim with
 the platform tint on top, so the platform color still reads at a glance;
-pills over a picture get a small backing in the card color. The Hot Instances
+pills over a picture get a small backing in the card color. Card grids follow
+the card style, not the section order: picture cards sit two across when the
+area is at least 440 px wide (as in Explore), and bars two across from 620 px.
+The Hot Instances
 section adds a quiet "See all N" button that opens the Hot Instances page,
 which lists every hot instance as a picture card, most friends first, with the
 same header, empty state, and sheet. The access pill on a hot card is a
@@ -381,8 +391,11 @@ Cancel, respects permission denials, reviews the live target, and handles
 session changes and in-flight states. The main process has the final say, and
 confirmation preferences never bypass permission or target checks.
 
-Explore and Hot Instance sheets are contained and non-modal. Close stays
-reachable outside the scrolling area. Escape, a click outside, and Close
+Explore and Hot Instance sheets are contained and non-modal and share one
+layout: platform stripe, grab bar, then the picture starting below Close.
+Close stays reachable outside the scrolling area. In the light theme a sheet
+banner keeps the photo at full brightness and lays a soft card-colored scrim
+under the title instead of darkening it. Escape, a click outside, and Close
 return focus to the opener or a stable fallback. A confirmation modal owns
 dismissal while open, and the Dashboard never shows both sheet types at once.
 
