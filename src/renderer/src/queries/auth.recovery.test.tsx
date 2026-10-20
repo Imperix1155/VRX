@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AUTH_ERROR_RECHECK_MS, useAuthStatus } from './auth'
 import type { AuthStatus } from '@shared/types'
 function NewObserver(): React.JSX.Element {
@@ -87,5 +87,36 @@ it('re-checks an error status once a minute until it recovers, and stops after',
     client.clear()
   } finally {
     vi.useRealTimers()
+  }
+})
+
+it('still reads the sign-in state while the OS reports offline', async () => {
+  const getAuthStatus = vi.fn<() => Promise<AuthStatus>>().mockResolvedValue({
+    platform: 'vrchat',
+    state: 'unauthenticated',
+    accountId: null,
+    displayName: null
+  })
+  Object.assign(window, { vrx: { getAuthStatus } })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <Gate />
+    </QueryClientProvider>
+  )
+  expect(await screen.findByText('unauthenticated')).toBeTruthy()
+  onlineManager.setOnline(false)
+  try {
+    getAuthStatus.mockResolvedValue({
+      platform: 'vrchat',
+      state: 'authenticated',
+      accountId: 'usr_test',
+      displayName: 'Tester'
+    })
+    await client.invalidateQueries({ queryKey: ['auth-status'] })
+    expect(await screen.findByText('authenticated')).toBeTruthy()
+  } finally {
+    onlineManager.setOnline(true)
+    client.clear()
   }
 })
