@@ -49,6 +49,9 @@ etiquette rules apply in full; this file adds local detail.
   Explore, flushes settings, and tears down adapter wiring; a throwing teardown
   must not skip the flag. Hide, minimize, close, and renderer loss stop Explore
   discovery.
+- Windows and Linux have no app menu (`Menu.setApplicationMenu(null)`), so
+  Alt cannot reveal Reload or developer tools; `createWindow` restores Ctrl+Q
+  through `isQuitShortcut`. macOS keeps its default menu.
 - Tray artwork is `resources/icon.ico` on Windows, the 16 px PNG on macOS, and
   the 24 px PNG on Linux, each with `@2x` files, imported as
   `?asset&asarUnpack`. Never reduce the 512 px master for tray use.
@@ -104,7 +107,8 @@ etiquette rules apply in full; this file adds local detail.
   refuse to overwrite a newer-version file, and reject failed writes. Read
   fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
   settings file yet) loads `freshInstallSettings`, which queues the welcome
-  setup; an unreadable or older file never does.
+  setup; an unreadable or older file never does. A file that is not valid JSON
+  is renamed to `settings.corrupt-<time>.json`, never deleted.
 - Account registry, social store, and link graph validate bounded data and
   check account/epoch or reviewed revisions before mutation. They write a
   cloned snapshot, publish memory only after the write succeeds, and refuse
@@ -135,6 +139,9 @@ etiquette rules apply in full; this file adds local detail.
   bytes, 14-day TTL), validate every read like a network body (exact URL, MIME,
   size), write only lease-current results, never log URLs or paths, and clear
   it on an explicit VRChat sign-out. A disk hit never makes a request.
+  `VrcMetadataStore` (`userData/vrchat-metadata`) keeps world and group names
+  the same way: one validated file per account, atomic writes, entries keep
+  their 24-hour expiry, and `clearAll()` on an explicit VRChat sign-out.
 
 **Network and logging**
 
@@ -149,7 +156,8 @@ etiquette rules apply in full; this file adds local detail.
   prereleases; `-beta.N` and `-rc.N` builds keep electron-updater's channel.
 - Log through `logger.ts` (redaction hook). Never log tokens, friend names,
   identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
-  `pathConvention.test.ts` rejects hardcoded user paths. Native copy goes
+  `pathConvention.test.ts` rejects hardcoded user paths. Redaction also masks
+  the home folder as `~` (`setRedactedHomeDirectory`). Native copy goes
   through `mt()` with en and ja strings.
 
 ## Work Guidance

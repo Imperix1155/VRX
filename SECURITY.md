@@ -46,11 +46,14 @@ out of scope; report those to the platforms.
   browser, blocks navigation away from the app, and ships a Content Security
   Policy without `unsafe-inline`.
 - **Logs.** Passwords, tokens, and cookies are removed before anything is
-  written to the log file.
+  written to the log file, and your home folder path is replaced with `~`.
 - **Other apps' data.** VRX never writes to VRCX, ChilloutVR or CVRX files. It
   reads the sign-in VRCX, ChilloutVR or CVRX saved on this PC only when you
   press "Use my sign-in from VRCX" or "Use my sign-in from ChilloutVR", and the
   platform checks that sign-in before VRX saves it.
+- **Saved pictures and names.** VRX keeps VRChat pictures (up to 14 days) and
+  world and group names (up to a day) in its private app files so they show
+  at once on the next launch. Signing out of VRChat in VRX deletes them.
 - **Updates.** Updates come only from this repository's GitHub Releases and
   never install without your consent.
 - **Repository.** CI scans every pull request and every push to `main` for

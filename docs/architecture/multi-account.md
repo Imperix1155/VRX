@@ -89,13 +89,19 @@ checks ownership at the point of the write:
 
 All files live under `app.getPath('userData')`.
 
-| File               | Owner                                                           | Scope                                        |
-| ------------------ | --------------------------------------------------------------- | -------------------------------------------- |
-| `accounts.json`    | [`AccountRegistry`](../../src/main/services/accountRegistry.ts) | Keyed by `accountKey`                        |
-| `social.json`      | [`SocialStore`](../../src/main/services/socialStore.ts)         | Keyed by `accountKey`                        |
-| `link-graph.json`  | [`LinkGraphStore`](../../src/main/services/linkGraphStore.ts)   | Installation-wide, account-qualified members |
-| `credentials.json` | [`credentials.ts`](../../src/main/services/credentials.ts)      | One slot per platform, not per account       |
-| `settings.json`    | [`settings.ts`](../../src/main/services/settings.ts)            | Global                                       |
+| File               | Owner                                                                | Scope                                               |
+| ------------------ | -------------------------------------------------------------------- | --------------------------------------------------- |
+| `accounts.json`    | [`AccountRegistry`](../../src/main/services/accountRegistry.ts)      | Keyed by `accountKey`                               |
+| `social.json`      | [`SocialStore`](../../src/main/services/socialStore.ts)              | Keyed by `accountKey`                               |
+| `link-graph.json`  | [`LinkGraphStore`](../../src/main/services/linkGraphStore.ts)        | Installation-wide, account-qualified members        |
+| `credentials.json` | [`credentials.ts`](../../src/main/services/credentials.ts)           | One slot per platform, not per account              |
+| `settings.json`    | [`settings.ts`](../../src/main/services/settings.ts)                 | Global                                              |
+| `image-cache/`     | [`imageDiskStore.ts`](../../src/main/services/imageDiskStore.ts)     | Installation-wide, VRChat API-host pictures         |
+| `vrchat-metadata/` | [`vrcMetadataStore.ts`](../../src/main/services/vrcMetadataStore.ts) | One file per VRChat account (world and group names) |
+
+An explicit VRChat sign-out deletes both folders' contents. A session boundary
+without a sign-out leaves them; the adapter seeds names only for the account
+that owns the file.
 
 The renderer's friends cache is in `localStorage` (`vrx-query-cache`), keyed by
 platform only. It is kept correct by the identity-boundary clear above and

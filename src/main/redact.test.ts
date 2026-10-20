@@ -457,9 +457,9 @@ describe('home folder masking', () => {
   afterEach(() => setRedactedHomeDirectory(''))
 
   it('masks a Windows home folder in a stack trace, case-insensitively', () => {
-    setRedactedHomeDirectory([drive, 'Users', 'dev'].join(bs), 'win32')
+    setRedactedHomeDirectory([drive, 'Users', 'Mika'].join(bs), 'win32')
     const native = [drive.toLowerCase(), 'users', 'mika', 'AppData', 'Local', 'app.js'].join(bs)
-    const url = `file:///${[drive, 'Users', 'dev', 'AppData', 'Local', 'app.js'].join('/')}`
+    const url = `file:///${[drive, 'Users', 'Mika', 'AppData', 'Local', 'app.js'].join('/')}`
     const stack = `Error: boom\n    at f (${native}:1:1)\n    at g (${url}:2:2)`
     const out = redact(stack) as string
     expect(out).not.toMatch(/mika/i)

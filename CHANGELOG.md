@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A welcome setup greets new installs. It walks through signing in to VRChat
   and ChilloutVR side by side, then which pages to show, what the Dashboard
   shows, desktop alerts, and the look, with each choice applied right away.
-  Skip setup is on every screen. Settings → Appearance has Run setup again.
+  Skip setup is on every screen before the summary. Settings → Appearance has
+  Run setup again.
 - Settings → Appearance can hide the Hot Instances and Explore pages from the
   sidebar. Their Dashboard sections and alerts keep their own switches.
 - "Use my sign-in from VRCX" and "Use my sign-in from ChilloutVR" sit under
@@ -41,7 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already loaded (pictures for up to 14 days, names for a day) instead of
   asking VRChat for each one again, one per second, on every launch. Signing
   out of VRChat deletes them.
-
 - Replaced the default Electron app icon with a VRX monogram: a blue V, silver
   R, and orange X at equal size in a smoked-glass case, with colored rails and
   softened chamfers. Windows, Linux, macOS, and tray assets now share that
