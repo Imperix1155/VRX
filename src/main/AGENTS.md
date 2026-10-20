@@ -39,10 +39,12 @@ etiquette rules apply in full; this file adds local detail.
   `isAllowedUrl` links go to the browser.
 - The shipped CSP lives in `src/renderer/index.html`. The default session
   grants only `clipboard-sanitized-write`. Do not widen either.
-- The window minimum is 900x670, clamped to the display work area. It reveals
+- The window minimum is 900x670, clamped to the work area of the display the
+  window is on now (`windowMinimumSize.ts`, re-applied on move). It reveals
   after the renderer reports hydration (3 s fallback). Second-instance and
   notification activation focus the current window, recreating it if
-  destroyed; tray actions resolve the window at click time. One recovery dialog
+  destroyed; tray actions resolve the window at click time, and tray Show goes
+  through the same focus path. One recovery dialog
   per window handles crashes and hangs.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; macOS keeps native close. `before-quit` disposes
@@ -106,8 +108,9 @@ etiquette rules apply in full; this file adds local detail.
   retryable, never defaults. Saves apply in memory, coalesce disk writes,
   refuse to overwrite a newer-version file, and reject failed writes. Read
   fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
-  settings file yet) loads `freshInstallSettings`, which queues the welcome
-  setup; an unreadable or older file never does. A file that is not valid JSON
+  settings file yet, and no set-aside `settings.corrupt-*.json`) loads
+  `freshInstallSettings`, which queues the welcome setup; an unreadable,
+  damaged or older file never does. A file that is not valid JSON
   is renamed to `settings.corrupt-<time>.json`, never deleted.
 - Account registry, social store, and link graph validate bounded data and
   check account/epoch or reviewed revisions before mutation. They write a
