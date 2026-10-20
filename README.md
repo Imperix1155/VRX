@@ -7,7 +7,7 @@ window, so you don't need VRCX and CVRX open side by side. It runs on your own
 computer, signs in as you, and shows both platforms with equal weight. Live
 presence comes from each platform's own live connection, not from polling.
 VRX never writes VRCX or CVRX data. It reads their saved sign-in only when
-you press "Use my sign-in from this PC", described below.
+you press a "Use my sign-in from" button, described below.
 
 ## What it does
 

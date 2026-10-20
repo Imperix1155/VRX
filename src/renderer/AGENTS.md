@@ -38,8 +38,14 @@ or launch authority.
   shell; pending auth keeps the splash, so login never flashes over a restored
   session.
 - The login screen remounts its form per platform tab and locks the tabs while
-  submitting. Only `CREDENTIAL_PERSISTENCE_FAILED` gets dedicated copy. A
+  submitting. `CREDENTIAL_PERSISTENCE_FAILED` and the two sign-in-from-this-PC
+  results (per platform, `importErrorKey`) get dedicated copy. A
   `sessionCleared` result sets known unauthenticated state.
+- Auth status is invalidation-driven. The only interval re-checks an `error`
+  status once a minute (`AUTH_ERROR_RECHECK_MS`).
+- While `setupPending` is true the welcome setup replaces the shell and login.
+  Only Hot Instances and Explore can be hidden (`isPageShown`); a hidden
+  active page falls back to the Dashboard.
 
 **State**
 

@@ -46,9 +46,10 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    cards: the top one per platform when both have one, otherwise the top two.
    The Popular now and Hot Instances switches, both on by default, only hide
    their Dashboard section (§8, §9.1).
-8. **Hot Instances page.** The sidebar always has a Hot Instances page listing
-   every hot instance, most friends first. The Dashboard section's "See all"
-   button opens it (§9.1).
+8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
+   hot instance, most friends first. It shows by default and can be hidden in
+   Settings → Appearance (§8). While it shows, the Dashboard section's "See
+   all" button opens it (§9.1).
 9. **Privacy first.** Friends set to Ask Me or Do Not Disturb never reveal
    their world or instance anywhere, including notifications (§5).
 10. **Liquid glass.** Glass is the material, with a blue top-left and orange
@@ -264,7 +265,8 @@ Don't design a mobile layout from a narrow documentation viewport.
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Explore,
 Settings. Hot Instances and Explore can be hidden in Settings → Appearance or
 the welcome setup; a hidden page leaves the sidebar and its links, while its
-Dashboard section and alerts keep their own switches. Activity and Groups are
+Dashboard section and alerts keep their own switches. A hidden page that is
+open, or that a hot-instance alert asks for, falls back to the Dashboard. Activity and Groups are
 not planned pages and never appear as placeholders.
 
 **Top bar.** It holds the page's single heading; panels below it, the
@@ -292,6 +294,8 @@ behavior. Reduced motion is respected.
 default window size: Appearance, Dashboard, Behavior, Notifications,
 Accounts, and About. Each setting sits on a compact neutral card.
 
+- Appearance: Theme, Background glow, Instance labels, Hot Instances page,
+  Explore page, and Welcome setup (Run setup again).
 - Dashboard: Section order, Popular now, Hot Instances, and Hot instance
   threshold, as separate rows.
 - Behavior: Friend details open from (whole card or avatar only), Friends
@@ -302,6 +306,8 @@ Accounts, and About. Each setting sits on a compact neutral card.
   when needed, and their saved choices survive.
 - Notifications: Friend comes online, Friend joins a world, Friend goes
   offline, and Hot instance. Each is independent and off by default.
+- Accounts: the VRChat and ChilloutVR account cards side by side, then the
+  unofficial-app line.
 - About: the app's own upkeep. Automatic updates with the installed version,
   and Open logs folder.
 
@@ -364,7 +370,8 @@ pills over a picture get a small backing in the card color. Card grids follow
 the card style, not the section order: picture cards sit two across when the
 area is at least 440 px wide (as in Explore), and bars two across from 620 px.
 The Hot Instances
-section adds a quiet "See all N" button that opens the Hot Instances page,
+section adds a quiet "See all N" button, shown only while the page is, that
+opens the Hot Instances page,
 which lists every hot instance as a picture card, most friends first, with the
 same header, empty state, and sheet. The access pill on a hot card is a
 discreet Join shortcut; don't turn it into a prominent Join button. The Hot
@@ -439,8 +446,8 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off) until changed. Skip setup is a visible button on every screen, never a
-small link, so setup never feels like a forced tour; skipping before any
+off) until changed. Skip setup is a visible button on every screen before the
+summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
 neutral text-colored fill, so neither platform color leads. Settings →
 Appearance offers Run setup again.
