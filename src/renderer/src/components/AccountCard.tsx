@@ -171,6 +171,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
             method={flow.pending2fa}
             code={flow.twoFactorCode}
             isSubmitting={flow.isSubmitting}
+            locked={isDisconnecting}
             errorKey={flow.errorKey}
             onCodeChange={flow.setTwoFactorCode}
             onSubmit={(e) => void flow.handleSubmit(e)}
