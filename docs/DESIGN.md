@@ -262,8 +262,10 @@ fixed and the main content scrolls. The default and minimum window is
 Don't design a mobile layout from a narrow documentation viewport.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Explore,
-Settings. Activity and Groups are not planned pages and never appear as
-placeholders.
+Settings. Hot Instances and Explore can be hidden in Settings → Appearance or
+the welcome setup; a hidden page leaves the sidebar and its links, while its
+Dashboard section and alerts keep their own switches. Activity and Groups are
+not planned pages and never appear as placeholders.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
@@ -426,6 +428,18 @@ any files. The choice is remembered, can be changed in Accounts, and applies
 on the next launch. Signing out of ChilloutVR in VRX sticks: nothing is
 imported again until the next VRX sign-in. Direct sign-in is always
 available.
+
+**Welcome setup.** A brand-new install opens one centered information card
+before the app: a welcome screen, five labeled steps (Sign in, Pages,
+Dashboard, Alerts, Look), then a summary. Step state reads from position,
+weight and a check, not color. Sign-in shows the two Accounts cards side by
+side at equal size; one ready account is enough to continue. Every other step
+changes the real settings as the user picks and keeps the defaults (all alerts
+off) until changed. Skip setup is a visible button on every screen, never a
+small link, so setup never feels like a forced tour; skipping before any
+account is ready shows sign-in only, then opens the app. The main button is a
+neutral text-colored fill, so neither platform color leads. Settings →
+Appearance offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
 local-key fallback, and never promises keychain protection everywhere. The
