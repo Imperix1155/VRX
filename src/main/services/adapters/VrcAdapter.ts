@@ -213,7 +213,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   } | null = null
   /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
   private readonly worldResolver = new WorldResolver((worldId) =>
-    this.get(`/worlds/${worldId}`, z.unknown(), { retry: 'none' })
+    this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), { retry: 'none' })
   )
   /**
    * WorldIds with an enrichment fetch in flight (the CvrAdapter
