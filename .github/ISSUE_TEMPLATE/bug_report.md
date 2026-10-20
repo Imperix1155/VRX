@@ -22,10 +22,14 @@ What you expected to happen instead.
 
 ## Environment
 
-- VRX version:
-- OS (Windows / macOS / Linux):
-- Platform (VRChat / ChilloutVR):
+- VRX version (shown at the bottom of the sidebar):
+- How you installed VRX (Windows installer / Windows portable / Linux AppImage / Linux deb):
+- Operating system and version:
+- Platform affected (VRChat / ChilloutVR / both):
 
 ## Additional context
 
-Logs, screenshots, or anything else that helps. **Do not paste credentials or tokens.**
+Screenshots or anything else that helps. To find logs, open Settings →
+About → Open logs folder. Credentials are redacted in logs, but read them
+before sharing and remove anything personal. **Do not paste passwords, codes,
+or tokens.**

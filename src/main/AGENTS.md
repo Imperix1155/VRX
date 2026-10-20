@@ -2,164 +2,178 @@
 
 ## Purpose
 
-Own Electron's privileged process: startup, windows, IPC registration, local
-services, credentials, platform adapters, and external launches. Keep privileged state
-and Node/Electron access on this side of the process boundary.
+Electron's privileged process: startup, windows, tray, updater, IPC
+registration, main-only services, credentials, platform adapters, and external
+launches. Node and Electron access and all privileged state stay on this side
+of the process boundary. The [root contract](../../AGENTS.md) security and API
+etiquette rules apply in full; this file adds local detail.
 
 ## Ownership
 
-- `index.ts` obtains the single-instance lock before importing `app.ts`. Keep it
-  Electron-only: a losing duplicate must exit before loading credentials,
-  logging, sockets, or a window.
-- `app.ts` wires live adapters, services, IPC, the window, tray, updater, and
-  shutdown disposal. It is the composition root, not a second implementation
-  of adapter or IPC policy.
-- `ipc/` owns renderer-facing handlers. [`docs/INTERNAL-API.md` sections 1-3](../../docs/INTERNAL-API.md)
-  define the bridge, typed channels, and live events.
+- `index.ts` takes the single-instance lock, then dynamically imports `app.ts`.
+  Keep it Electron-only so a losing duplicate exits before logging, keychain
+  reads, sockets, or a window exist.
+- `app.ts` is the composition root. It wires adapters, services, IPC, window,
+  tray, updater, alerts, and quit cleanup. Adapter and IPC policy do not live
+  here.
+- `ipc/` owns renderer-facing handlers (child contract).
 - `services/` owns main-only state, persistence, policy, and coordination.
-  `services/adapters/` owns platform HTTP and WebSocket integration. Its
-  contracts are in [`docs/INTERNAL-API.md` sections 3, 4, and 6](../../docs/INTERNAL-API.md).
-- [`../preload/index.ts`](../preload/index.ts) is part of this boundary. Its
-  public bridge must remain a narrow, typed projection of `@shared/ipc`; see
-  the IPC child contract.
+  `services/adapters/` owns platform HTTP and WebSocket transport, shared
+  request admission, and reconnect logic.
+- Top-level modules own cross-cutting concerns: event fan-out
+  (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
+  logging and redaction, main-process copy (`i18n.ts`), sockets, and window
+  reveal (`showGate.ts`).
+- [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
+  exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
+  child contract.
+- Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 
 ## Local Contracts
 
-- Keep `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`,
-  web security enabled, and untrusted renderer navigation blocked. Allow
-  external URLs only through the allowlist. Do not expose game schemes through
-  renderer `open-url`.
-- Keep the renderer CSP and default-session permission policy restrictive. Do
-  not broaden network sources or add `unsafe-inline`; deny permission requests
-  except the existing sanitized clipboard write needed for local diagnostics.
-- Use `isTrustedIpcSender` at every renderer-to-main entry. Validate untrusted
-  shapes before use and keep all IPC types in `@shared/ipc`. New or changed
-  callable channels require the matching catalog update.
-- Main owns account identity, sessions, current friend locations, action
-  policy, game URL construction, and `shell.openExternal`. Renderer values may
-  request an action and compare an expected target, but never authorize an
-  instance, URL, account, or host.
-- Credentials use OS-backed `safeStorage` when available. If it is not, use
-  the approved authenticated local fallback with a random installation key.
-  Never use Electron `basic_text`, hardcoded keys, plaintext storage, or
-  renderer-visible tokens. Clear memory and durable state when a session is
-  invalidated.
-- Credential persistence stays behind `services/credentials.ts`: allowlist
-  credential keys and write an invalidation marker before replacement or
-  deletion. A failed write fails closed and cannot revive old auth. Persist a
-  credential only after the adapter has validated its authenticated owner. There
-  is no separate owner store (#371); future offline ownership belongs inside the
-  same credential record.
-- Log through `electron-log` and redaction. Do not log credentials, tokens,
-  friend data, URLs containing identifiers, or raw upstream payloads. Use
-  `app.getPath()` for application files. Do not write VRCX or CVRX paths.
-- `AvatarCache` is the only renderer image proxy. Keep HTTPS host, redirect,
-  MIME, URL-length, body-size, LRU (entry count and byte budget), and TTL validation; API hops share platform
-  admission while CDN body work stays bounded. Send a VRChat cookie only to
-  `api.vrchat.cloud`, fence cache publication to the account lease, and never
-  make the renderer fetch a vendor image directly.
-- Settings load through migration and validation; only an empty store (a new
-  install) loads `freshInstallSettings` to queue the welcome setup. They retain
-  valid parsed choices if normalization persistence fails, coalesce writes, flush before quit, and refuse
-  to overwrite a newer-version file. Failed normalization remains visibly unsaved
-  and retryable; it must not replace parsed settings with defaults. Account, social,
-  and linked-profile stores validate bounded data and account/epoch ownership before
-  mutation. They write cloned, revision-checked snapshots; link-graph public
-  operations reject same-realm reentry. Account registry writes publish memory only
-  after persistence succeeds, so an identical retry after failure still attempts
-  the durable write. Failed or stale
-  writes must not corrupt or cross account data.
-- External CVR session discovery requires explicit remembered consent before any
-  source I/O. Valid VRX sessions bypass import; declined consent preserves direct
-  login. A failed consent write fails closed and is disclosed to the user.
-  Never import over an unreadable stored session or after an explicit sign-out
-  (the signed-out credential marker); only a never-signed-in or automatically
-  invalidated slot may import.
-- Session importers are read-only. Bound path discovery, directory traversal,
-  file size, parsing time, and accepted credential shape; reject aliases,
-  symlinks, changing sources, ambiguity, and active database sidecars. Persist
-  only a validated import through `services/credentials.ts` and never write a
-  source directory.
-- Feed each accepted adapter event to `LocationAuthority` before alerts and
-  renderer fan-out. Identity boundaries clear the affected account-scoped
-  authority and renderer data. A VRChat data-path 401 keeps the account
-  (`identityRetained`): clear main state, but leave the renderer to the
-  following `auth-invalidated` quarantine instead of an identity boundary. One failing event consumer must not block the
-  other consumers.
-- Platform requests use shared admission, backoff, timeout, and circuit rules.
-  One request per second is the ceiling. Prefer VRChat Pipeline and CVR
-  `/users/ws`; never poll social presence or add mass actions. Unknown upstream
-  values must degrade safely. Record changed API assumptions in
-  [`docs/api-volatility.md`](../../docs/api-volatility.md) and policy changes in
-  [`docs/api-policy.md`](../../docs/api-policy.md).
-- Every physical retry reacquires admission and observes the latest shared 429
-  cooldown. Cancellation, queue overflow, and a tentative session are control
-  flow: stop later pages or enrichment, do not count them as circuit failures,
-  and do not negative-cache them.
-- Shared code stays pure. Do not add Electron or Node imports under `src/shared`.
-  Avoid `any` and `@ts-ignore`; an unavoidable exception needs an explanation.
-- Keep window visibility recoverable. The window must stay within its display's
-  work area, tray and second-instance actions must focus the current window,
-  and renderer failure recovery must not create duplicate recovery dialogs. On
-  Windows and Linux, close hides to the tray until `before-quit` sets the sole
-  quit flag; macOS keeps its native close behavior.
-- Tray artwork uses the multi-size Windows ICO or native 16px macOS/24px Linux
-  PNGs, including matching `@2x` files. Resolve native asset paths through
-  electron-vite's `asset&asarUnpack` handling; keep runtime resources unpacked.
-  Do not shrink the 512px app master into the small tray glyphs.
-- Native friend alerts are settings-gated at dispatch and bounded in memory and
-  rate. A disabled hot-instance feature suppresses hot alerts without erasing
-  its saved notification preference. Alert payloads and failure logs stay free
-  of private location data.
-- Stable builds exclude prereleases; beta/rc builds retain the locked updater
-  channel selection. No implicit channel selector or rc-to-stable promotion.
-- Updates remain consent-based: no silent download, no raw updater error passed
-  to the renderer, and a restart only installs a verified staged update.
+**Window and process**
+
+- Besides the root window flags, keep `webSecurity: true` and
+  `allowRunningInsecureContent: false`. `navigationGuards.ts` denies every
+  `window.open` and every frame navigation away from the renderer entry. Only
+  `isAllowedUrl` links go to the browser.
+- The shipped CSP lives in `src/renderer/index.html`. The default session
+  grants only `clipboard-sanitized-write`. Do not widen either.
+- The window minimum is 900x670, clamped to the display work area. It reveals
+  after the renderer reports hydration (3 s fallback). Second-instance and
+  notification activation focus the current window, recreating it if
+  destroyed; tray actions resolve the window at click time. One recovery dialog
+  per window handles crashes and hangs.
+- On Windows and Linux, close hides to the tray until `before-quit` sets the
+  single `quitting` flag; macOS keeps native close. `before-quit` disposes
+  Explore, flushes settings, and tears down adapter wiring; a throwing teardown
+  must not skip the flag. Hide, minimize, close, and renderer loss stop Explore
+  discovery.
+- Tray artwork is `resources/icon.ico` on Windows, the 16 px PNG on macOS, and
+  the 24 px PNG on Linux, each with `@2x` files, imported as
+  `?asset&asarUnpack`. Never reduce the 512 px master for tray use.
+
+**Authority**
+
+- Main owns account identity, sessions and epochs, `LocationAuthority` friend
+  locations, settings policy, opaque Explore references, launch URLs, and
+  `shell.openExternal`. The renderer submits friend IDs, opaque references, and
+  expected targets for comparison only.
+- Launch in two steps: resolve current main-owned data, then build the URL and
+  check it with `isAllowedLaunchUrl` immediately before opening it.
+  `JoinCoordinator` allows one launch per platform at a time.
+
+**Credentials**
+
+- `services/credentials.ts` is the only credential store. It accepts only
+  `CREDENTIAL_KEYS`, writes an invalidation marker before any replacement or
+  deletion, and writes a signed-out marker on explicit sign-out. A failed write
+  fails closed and cannot revive old auth.
+- OS `safeStorage` comes first; the Linux `basic_text` backend counts as
+  unavailable. The `localCredentialEncryption.ts` fallback is used only when OS
+  encryption is unavailable or fails. An OS-protected credential that cannot be
+  decrypted is never re-encrypted locally.
+- Adapters persist a credential only after validating its authenticated owner.
+  A failed save ends the login with `CREDENTIAL_PERSISTENCE_FAILED` and clears
+  the session. Do not reintroduce a separate owner store.
+
+**CVR session import** (`cvrImportConsent.ts`, `cvrSessionImport.ts`)
+
+- A valid stored VRX session wins. An unreadable stored session or the
+  signed-out marker skips import. Otherwise `cvrSessionImportChoice` consent
+  (`ask`/`skip`/`import`) precedes any source I/O. A failed consent save is
+  shown to the user and fails closed.
+- Discovery is read-only and bounded in time, file size, entry and profile
+  counts. Accept only local absolute paths; reject symlinks, sources that change
+  during the read, XML DTD/CDATA, and ambiguous credential sets. Persist only a
+  validated pair through `credentials.ts`.
+- `vrcxSessionImport.ts` (not wired yet) follows the same rules: read-only,
+  snapshot the VRCX database into private temp files, treat a non-empty `-wal`,
+  `-shm`, or `-journal` file as VRCX running, and never create or change files in a
+  VRCX folder. Wiring it needs the same consent and sign-out checks.
+
+**Stores**
+
+- `services/settings.ts` migrates and validates through `@shared/settings`. A
+  failed normalization write keeps the parsed settings as unsaved and
+  retryable, never defaults. Saves apply in memory, coalesce disk writes,
+  refuse to overwrite a newer-version file, and reject failed writes. Read
+  fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
+  settings file yet) loads `freshInstallSettings`, which queues the welcome
+  setup; an unreadable or older file never does.
+- Account registry, social store, and link graph validate bounded data and
+  check account/epoch or reviewed revisions before mutation. They write a
+  cloned snapshot, publish memory only after the write succeeds, and refuse
+  newer-format or unloadable files. Link-graph operations reject reentry.
+
+**Events, alerts, images**
+
+- `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
+  `FriendAlerts`, then the broadcast, isolating each consumer. The broadcast
+  stamps `rosterRevision` from the same monotonic counter as roster seeds;
+  event revisions never move per-friend location fences.
+- A session boundary clears that platform's alerts, location authority, and
+  Explore state, then sends `identity-boundary`. A VRChat data-path 401 sets
+  `identityRetained`: clear main state but send no identity boundary; the
+  following `auth-invalidated` quarantines the renderer.
+- Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
+  defaults off). Hot alerts gate only on `notifyHotInstance`;
+  `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded
+  and rate limited. Ask Me and DND friends never count toward hot alerts, and
+  no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
+  logs carry no names or locations.
+- `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
+  redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
+  API hops share platform admission. The VRChat cookie goes only to
+  `api.vrchat.cloud`, under a captured account lease.
+
+**Network and logging**
+
+- Requests go through `BaseAdapter` and the shared per-platform
+  `ApiAdmissionController`. Every physical retry reacquires admission and
+  honors the latest 429 cooldown. Cancellation, queue overflow, and a tentative
+  session are control flow: stop later pages or enrichment, and never count or
+  negative-cache them as failures.
+- Updates stay consent-based: no automatic download unless the user enabled
+  `autoUpdate` (default off), install only a `downloaded` update, and send only
+  typed `UpdaterFailure` codes to the renderer. Stable versions exclude
+  prereleases; `-beta.N` and `-rc.N` builds keep electron-updater's channel.
+- Log through `logger.ts` (redaction hook). Never log tokens, friend names,
+  identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
+  `pathConvention.test.ts` rejects hardcoded user paths. Native copy goes
+  through `mt()` with en and ja strings.
 
 ## Work Guidance
 
-- Check [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md) before adding a
-  service, event, channel, parser, or shared constant. Reuse a documented
-  boundary when one exists and update its entry in the same change.
-- Keep adapter transport code Electron-free and dependency-injected. Auth,
-  HTTP retries, request admission, and WebSocket reconnection have one owner;
-  do not duplicate them in feature code.
-- Fence interactive authentication at every await. A later login supersedes an
-  earlier one, logout cancels active and queued work, and tentative replacement
-  credentials cannot serve data, persist an identity, or borrow an old account.
-- Treat API data as hostile. Validate envelopes and individual records, preserve
-  usable partial rosters where their completeness contract permits it, and do
-  not turn schema drift into a crash or an absent-means-removed deletion.
-- Keep game launching two-step: resolve current main-owned data, then validate
-  the main-built URL immediately before launch. Do not trust a renderer-supplied
-  location or URL.
-- Keep lifecycle cleanup explicit: unsubscribe sockets and event wiring, stop
-  visible discovery work when the window is hidden or destroyed, flush pending
-  settings, and dispose owned timers and listeners on quit.
+- Check the API catalog before adding a service, event, channel, parser, or
+  constant. Reuse a documented boundary and update its entry in the same change.
+- Adapter transport stays Electron-free and dependency-injected. Auth, HTTP
+  retry, admission, and WebSocket reconnect each have one owner.
+- Fence interactive auth at every await: a later login supersedes an earlier
+  one, logout cancels active and queued work, and a tentative credential cannot
+  serve data, persist, or borrow an old account.
+- Treat API data as hostile. Keep usable partial rosters where their
+  completeness contract allows; schema drift must not crash or delete friends.
+- Before editing `services/adapters/VrcAdapter.ts` or `VrcApiClient.ts`, read
+  the VRChat contract; for `CvrAdapter.ts` or `CvrApiClient.ts`, read the CVR
+  contract. Their platform rules cover those files.
 
 ## Verification
 
-- Follow the canonical project gate in `docs/DEVELOPMENT.md` and the
-  repository review procedure in `docs/REVIEW.md`.
-- Run focused unit tests for the changed boundary. IPC changes need trust,
-  validation, rate-limit, and allowlist coverage as applicable. Lifecycle or
-  event changes need a probe that proves ordering, cleanup, and failure
-  isolation. Credential changes need persistence, invalidation, and plaintext
-  absence coverage.
-- Inspect the diff for exposed secrets, raw IPC additions, `console` use, and
-  new Electron imports in shared code. Perform the DOX pass; update the API,
-  volatility, policy, or user-visible documentation when the change requires it.
+- Run the root gate and focused tests for the changed boundary. IPC changes
+  need trust, validation, rate-limit, and allowlist cases. Credential changes
+  need persistence, invalidation, and plaintext-absence cases. Lifecycle and
+  event changes need ordering, cleanup, and consumer-isolation cases.
+- Inspect the diff for secrets, raw IPC additions, `console` use, and Electron
+  imports in shared code. Update the API, volatility, policy, or changelog docs
+  the root matrix names.
 
 ## Child DOX Index
 
-- [`ipc/AGENTS.md`](ipc/AGENTS.md): typed renderer-to-main handlers and URL
-  policy.
-- [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md):
-  ChilloutVR parsing, discovery, and pipeline code.
+- [`ipc/AGENTS.md`](ipc/AGENTS.md): typed handlers, sender trust, rate limits,
+  URL policy, and the preload bridge.
 - [`services/adapters/vrchat/AGENTS.md`](services/adapters/vrchat/AGENTS.md):
-  VRChat parsing, metadata, and pipeline code.
-
-- Roster seed captures and published friend events share LocationAuthority’s
-  monotonic revision order. VRChat IPC returns bounded per-read provenance,
-  preserving earlier rows on partial follow-up; publication revisions do not
-  change per-friend location fences.
+  VRChat parsers, roster, resolvers, Pipeline, and `VrcAdapter` rules.
+- [`services/adapters/cvr/AGENTS.md`](services/adapters/cvr/AGENTS.md):
+  ChilloutVR parsers, roster, instance resolver, `/users/ws`, and `CvrAdapter`
+  rules.

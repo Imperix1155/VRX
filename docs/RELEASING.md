@@ -1,114 +1,105 @@
 # Releasing VRX
 
 This procedure works from a fresh clone with Git, the documented Node/npm
-toolchain, and authorized GitHub access. No personal release skill or Mac
-artifact is required. [Review](REVIEW.md) and [Development](DEVELOPMENT.md)
-remain the prerequisites.
+toolchain, and GitHub access to the repository. No personal release skill or
+Mac build is needed. [Review](REVIEW.md) and [Development](DEVELOPMENT.md)
+come first.
 
-An implementation request alone does not authorize merging, publishing, or
-replacing someone's installed app. Carry an explicit delivery grant through
-its covered steps without asking repeatedly. Keep any other steps pending.
+A request to implement something doesn't authorize merging, publishing, or
+replacing someone's installed app. When the owner grants a delivery step,
+carry that grant through the steps it covers without asking again, and leave
+every other step pending.
 
 ## 1. Prepare a version PR
 
-1. Fetch current `main`, inspect open PRs and the last public release, and
-   establish the intended release scope. Include all intervening user-visible
-   changes, not just the latest private test build.
-2. On a feature branch, choose a SemVer bump. Features normally increment MINOR;
-   compatible fixes increment PATCH. Before 1.0, approved breaking changes may
-   use MINOR, with their impact disclosed. Do not reuse an already published tag.
-3. Run `npm version X.Y.Z --no-git-tag-version`, substituting the chosen version.
-   Check `package.json`, the lockfile root version, and its root package version
-   agree. The version-only operation must not change the dependency graph.
-4. Move all applicable `[Unreleased]` entries into
-   `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md`. Leave a new Unreleased heading.
-   Do this for private owner test builds too so their packaged notes match.
-   There is currently no in-app What's New viewer.
-5. Run `node scripts/extract-changelog.mjs X.Y.Z` and verify nonempty notes
-   covering the release. The workflow leaves the existing body unchanged if
-   extraction is empty or fails; it does **not** generate replacement notes.
-6. Run the full development gate, review the exact diff, open the version PR,
-   and wait for required final-head CI. Merge only under the applicable grant:
-   **merging a version PR publishes that version** (section 2). Do not commit
-   version changes directly to protected `main`.
+1. Fetch the current `main`. Check open PRs and the last published release,
+   and settle what the release includes: every user-visible change since the
+   last public release, not only the latest test build.
+2. On a feature branch, pick a [SemVer](https://semver.org/) version. New
+   features bump MINOR; compatible fixes bump PATCH; breaking changes bump
+   MAJOR. Use `-beta.N` or `-rc.N` for a test build (section 2). Never reuse a
+   version that was already published.
+3. Run `npm version X.Y.Z --no-git-tag-version` with your version. Check that
+   `package.json` and both root version fields in `package-lock.json` agree,
+   and that nothing else in the lockfile changed.
+4. In `CHANGELOG.md`, move every applicable `[Unreleased]` entry under
+   `## [X.Y.Z] - YYYY-MM-DD` and leave a fresh empty `[Unreleased]` heading. Do
+   this for owner test builds too, so their packaged notes are right.
+5. Run `node scripts/extract-changelog.mjs X.Y.Z` and check that it prints the
+   notes for this release. If extraction is empty or fails, the workflow leaves
+   the release body unchanged; it never writes notes for you.
+6. Run the full [development gate](DEVELOPMENT.md#verification), review the
+   exact diff, open the version PR, and wait for CI on its final head.
+   **Merging a version PR publishes that version** (section 2), so merge it
+   only with the owner's permission to release in that channel. Never commit a
+   version change directly to `main`.
 
-Public changelog/release text describes user-visible changes and limitations.
-Keep owner-specific click instructions and synthetic test details in a private
-handoff, using the authorized task or linked private tracker when available.
-A missing private tracker does not prevent making that handoff in the task.
+Public changelog and release text describe user-visible changes and known
+limits. Keep owner-specific test steps and sample data out of it; put them in
+the task or a private tracker.
 
 ## 2. Tag and publish
 
-The tag is created automatically. When a push to `main` changes the
-`package.json` version and no `v<version>` tag exists yet,
-[release.yml](../.github/workflows/release.yml) creates that tag at the merged
-commit and builds and publishes it in the same run. A tag created by the
-workflow's own token does not start a second run. Pushes that leave the version
-unchanged (dependency bumps, workflow edits) never publish.
+The tag is created for you. When a push to `main` changes the `package.json`
+version and no `v<version>` tag exists yet,
+[release.yml](../.github/workflows/release.yml) creates that tag at the merge
+commit, then builds and publishes it in the same run. A tag the workflow
+creates doesn't start a second run. Pushes that leave the version unchanged
+(dependency bumps, workflow edits) never publish.
 
-**CI gate.** Before it creates or uses any tag, the workflow requires the
-commit to be on `main` and CI's `ci-success` check (from GitHub Actions) to have
-passed on that exact commit
-([scripts/require-green-ci.mjs](../scripts/require-green-ci.mjs)). On a merge CI
-and Release start together, so `prepare tag` waits up to 60 minutes for CI. A
-red, cancelled or missing `ci-success` stops the run before anything is tagged
-or built. Fix the cause on `main` with a new version, or, when CI passes on a
-re-run of that commit, re-run the Release run's failed jobs. CI runs for `main`
-pushes are never cancelled by a newer push, so every merge commit gets a result.
+**CI gate.** Before it creates or uses a tag, the workflow requires the commit
+to be on `main` with a passing `ci-success` check on that exact commit
+([scripts/require-green-ci.mjs](../scripts/require-green-ci.mjs)). After a
+merge, CI and Release start together, so `prepare tag` waits up to 60 minutes
+for CI. A failed, cancelled, or missing `ci-success` stops the run before
+anything is tagged or built. Fix the cause on `main` with a new version, or,
+if CI passes on a re-run of the same commit, re-run the Release run's failed
+jobs. CI runs for `main` are never cancelled by a newer push, so every merge
+commit gets a result.
 
-Merging the version PR is therefore publication authority. Merge it only when
-the release in that tag's channel is authorized. Never move an existing public
-tag to repair a release; ship an approved new version instead.
-
-After merging, find the Release run for the merge commit and confirm its
-`prepare tag` job created `vX.Y.Z` at the intended SHA. If a build job fails,
-fix the cause and re-run that run's failed jobs. The manual **Run workflow**
-button (workflow_dispatch) publishes `main`'s current version only when its tag
-does not exist yet, for example when the automatic run never fired. It is a
-publication like any other and needs the same authorization.
-
-Pushing a tag manually still works for a commit already on `main`:
+After merging, find the Release run for the merge commit and confirm that
+`prepare tag` created `vX.Y.Z` at the intended commit. If a build job fails,
+fix the cause and re-run that run's failed jobs. The **Run workflow** button
+publishes `main`'s current version only when its tag doesn't exist yet, for
+example if the automatic run never started. It is a publication like any
+other and needs the same permission. Pushing a tag yourself also works for a
+commit already on `main`:
 
 ```bash
 git tag vX.Y.Z MERGED_COMMIT_SHA
 git push origin vX.Y.Z
 ```
 
-Replace both placeholders before running.
+Never move an existing public tag to repair a release; ship a new version.
 
-The workflow verifies tag/package agreement, builds Windows and Linux, and lets
-electron-builder create the draft. It resolves that draft by release ID,
-verifies the exact asset set, writes changelog notes, and publishes with
-`draft: false` and a tag-derived `prerelease` flag. It does not build a public
-macOS release. Supported tag forms (exactly matching the package version) are:
+The workflow checks that the tag matches the package version, builds Windows
+and Linux, and lets electron-builder create a draft release. It then finds that
+draft by its ID, checks the exact asset list, writes the changelog notes, and
+publishes it. No macOS build is published. The tag decides the channel:
 
-| Tag             | GitHub prerelease | Updater metadata                 |
-| --------------- | ----------------- | -------------------------------- |
-| `vX.Y.Z`        | false             | `latest.yml`, `latest-linux.yml` |
-| `vX.Y.Z-beta.N` | true              | `beta.yml`, `beta-linux.yml`     |
-| `vX.Y.Z-rc.N`   | true              | `rc.yml`, `rc-linux.yml`         |
+| Tag             | Marked pre-release | Updater files                    |
+| --------------- | ------------------ | -------------------------------- |
+| `vX.Y.Z`        | No                 | `latest.yml`, `latest-linux.yml` |
+| `vX.Y.Z-beta.N` | Yes                | `beta.yml`, `beta-linux.yml`     |
+| `vX.Y.Z-rc.N`   | Yes                | `rc.yml`, `rc-linux.yml`         |
 
-`N` is a nonnegative integer without leading zeroes. Other suffixes and build
-metadata are rejected. `scripts/release-channel.mjs` owns validation and the
-exact asset list; the build explicitly passes its channel to electron-builder.
-This plumbing does not declare 1.0 shipped or authorize a stable release.
-Historical releases with plain versions were marked prerelease; future tags use
-this explicit policy. Stable installs exclude prereleases. Beta installs keep
-the locked updater's beta/stable eligibility; rc installs stay on rc, including
-newer rc version lines. Moving an rc installation to stable currently requires
-an intentional stable installer download. Do not promise automatic rc-to-stable
-promotion; a different policy needs an owner decision.
-Do not pre-create a competing draft or toggle release settings to skip this flow.
+`N` is a whole number with no leading zeros. Any other suffix or build
+metadata is rejected. [scripts/release-channel.mjs](../scripts/release-channel.mjs)
+owns this validation and the asset list. Normal installs ignore pre-releases.
+Beta installs get newer betas and normal releases. Release-candidate installs
+stay on release candidates, including later version lines, until someone
+installs a normal release by hand; changing that needs an owner decision.
+Don't create a competing draft or change release settings to skip this flow.
 
 ## 3. Verify publication
 
-Monitor the workflow for the exact tag and SHA with a bounded deadline. Check
-all jobs, including Linux package inspection and final publication. Failure,
-timeout, missing results, or an ambiguous release is not success.
+Watch the workflow for the exact tag and commit, with a deadline. Check every
+job, including the Linux package inspection and the final publish. A failure,
+timeout, missing result, or unclear release is not a success.
 
-Read back the published release, preferably by its resolved numeric ID. Check
-its tag/commit, public URL, `draft: false`, the tag-appropriate `prerelease` flag, body, and these
-seven nonempty assets for the chosen version:
+Read the published release back, preferably by its ID. Check its tag and
+commit, public URL, that it is not a draft, the right pre-release flag, the
+notes, and these seven non-empty assets:
 
 - `vrx-X.Y.Z-setup.exe`
 - `vrx-X.Y.Z-setup.exe.blockmap`
@@ -118,66 +109,68 @@ seven nonempty assets for the chosen version:
 - `CHANNEL.yml`
 - `CHANNEL-linux.yml`
 
-Use `latest`, `beta`, or `rc` from the table above for `CHANNEL`.
+`CHANNEL` is `latest`, `beta`, or `rc` from the table above. Keep
+`scripts/release-channel.mjs`, `electron-builder.yml`, and this list in step
+when packaging targets change. Check that the updater files name the same
+version with matching sizes and hashes. The Linux job unpacks the AppImage
+and deb and checks the launcher, desktop entry, 512 px icon, package type,
+and updater metadata before publishing. That proves what is in the package,
+not that it launches on every desktop.
 
-The exact list is owned by `scripts/release-channel.mjs` and `electron-builder.yml`; keep both
-and this guide aligned when packaging targets change. Verify updater manifests
-identify the same version and matching package sizes/hashes. The Linux job
-extracts AppImage and deb contents and checks launcher identity, desktop
-metadata, 512px RGBA icon, package type, and updater metadata before publication.
-Those checks prove package contents, not GNOME/KDE launch behavior.
+Never re-run an already published tag as if it were a fresh draft:
+electron-builder may skip uploads and leave old files behind. Stop and find
+the cause. Don't delete releases, overwrite assets, or turn a public release
+back into a draft under ordinary re-run permission. Ship a fix as a new patch
+version.
 
-An already published tag cannot be safely rerun as if it were a fresh draft:
-electron-builder can skip uploads and leave stale binaries. Stop and diagnose;
-do not delete releases, overwrite assets, or re-draft a public release under
-ordinary rerun authority. Prefer an approved new patch version for a shipped fix.
+## 4. Optional local packaging
 
-## 4. Optional local packaging and installation
-
-After the canonical gate, package on the corresponding operating system:
+After the full gate, package on the matching operating system:
 
 ```bash
 npm run build:win
-npm run build:mac
 npm run build:linux
+npm run build:mac
 ```
 
-Choose the target command, not all three. macOS and Linux packaging scripts do
-not repeat the full typecheck/test gate. Public Windows/Linux packages come
-from the tag workflow; a local Mac build is a separate artifact.
+Run only the one you need. Public Windows and Linux packages come from the
+release workflow; a local Mac build is a separate, unpublished artifact. Mac
+notarization is off, so never call that build notarized.
 
-Inspect the packaged version, required production modules/resources, font
-licenses, and absence of test/guide bundles. Never count bundling or signing
-alone as proof the app launches. Record host OS, architecture, source SHA,
-package path, observed launch result, and any untested target. Current Mac
-configuration disables notarization; do not describe that artifact as notarized.
-Do not loosen sandbox, CSP, signing, or credential rules to make it launch.
+Check the packaged version, the required production modules and resources,
+the font licenses, and that no tests, design guide, or repository docs are
+inside. Packaging or signing alone never proves the app launches. Record the
+OS, architecture, source commit, package path, what happened at launch, and
+anything untested. Never loosen the sandbox, CSP, signing, or credential rules
+to make a build launch.
 
-Replace an installed app only when explicitly requested. Quit the running app,
-keep a rollback copy outside application-search locations, replace the existing
-installation rather than creating duplicates, and preserve user data/settings.
-Verify there is one intended installed entry with the correct version, then
-check launch. Real-account testing requires the task's appropriate authorization;
-never publish private screenshots or credentials in release evidence.
+Replace an installed app only when asked. Quit it, keep a rollback copy
+outside places where the OS looks for apps, replace the existing install
+instead of adding a second one, and keep user data and settings. Then check
+that one install with the right version exists and that it launches. Testing
+with real accounts needs the task's permission; never publish private
+screenshots or credentials as release evidence.
 
-## 5. Public 1.0 acceptance still required
+## 5. Before the first stable release (1.0.0)
 
-Windows is the primary 1.0 target. On a clean supported Windows machine, verify
-NSIS install, launch, login/session restart, tray recovery, consented update from
-a prior installer, retained settings/data, uninstall, and portable launch. Use
-only authorized test accounts. Confirm stable does not offer a beta/rc release
-and beta/rc manifests download the intended installer. Check signing/SmartScreen
-behavior from the actual distributed artifact; do not assume signing exists.
-These real-install checks are not replaced by Mac tests or packaging CI.
+Windows is the main target. On a clean, supported Windows machine, check:
+installer, launch, sign-in and session restore after restart, tray recovery,
+a consented update from an earlier installer, settings and data kept after
+the update, uninstall, and the portable build. Use only authorized test
+accounts. Confirm that a normal install isn't offered a beta or release
+candidate, and that beta and release-candidate updater files download the
+right installer. Check signing and SmartScreen behavior on the file people
+will actually download. Mac tests and packaging CI don't replace these checks.
 
-Linux AppImage/deb are experimental until target-desktop launch, credential
-persistence and update acceptance is recorded. macOS is a local development
-build, not a public release target. See the user [install guide](INSTALL.md).
+Linux AppImage and deb packages stay marked as less tested until launch,
+saved-session persistence, and updates are checked on target desktops. macOS
+is a local development build, not a release target. See the
+[install guide](INSTALL.md).
 
 ## 6. Handoff
 
-Report the version, merged source SHA, release URL, verified asset targets,
-verification evidence, and material limitations. Provide a short test checklist
-for the changed user flows and record owner feedback separately from automated
-checks. Update the linked issue, if any, when access is available. Do not claim
-an OS or live-account scenario was tested merely because CI packaged it.
+Report the version, merge commit, release URL, verified assets, the evidence
+you collected, and known limits. Give the owner a short test list for the
+changed features, and record their feedback separately from automated checks.
+Update the linked issue when there is one. Never claim an OS or live-account
+scenario was tested just because CI packaged it.

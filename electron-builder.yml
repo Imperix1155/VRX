@@ -18,7 +18,13 @@ files:
   - '!scripts/credential-persistence-probe.ts'
   - '!scripts/credential-persistence-probe-contract.test.ts'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml}'
+  # Repository docs, contributor tooling and CI config are not part of the app.
+  # LICENSE stays; CHANGELOG.md ships separately through extraResources.
+  - '!*.md'
+  - '!docs/**'
+  - '!scripts/**'
+  - '!{.coderabbit.yaml,.fallowrc.json,.gitleaks.toml,.nvmrc,vitest.config.ts}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:

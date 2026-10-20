@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   readable in both themes, and status words in friend details are easier to
   read in dark mode. Hints and error messages that must be read use the
   stronger secondary text color.
+- The installed app no longer carries the project's developer documents,
+  contributor tooling, and old planning notes, which never had a use inside it.
 
 ### Fixed
 
