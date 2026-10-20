@@ -34,7 +34,9 @@
     "guide:build": "npm run guide:typecheck && vite build --config docs/guide/vite.config.ts",
     "guide:preview": "vite preview --config docs/guide/vite.config.ts",
     "test:credential-persistence-local": "sh -c 'if [ \"$#\" -ne 1 ]; then printf \"%s\\n\" ASSERT_ARGUMENTS >&2; exit 1; fi; if ! npm --silent run build:credential-persistence-probe >/dev/null 2>&1; then printf \"%s\\n\" ASSERT_PROBE_BUILD >&2; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js write \"$1\" >/dev/null; then if [ ! -f \"$1/.vrx-credential-persistence-probe\" ]; then printf \"%s\\n\" ASSERT_PROBE_EXECUTION >&2; else printf \"%s\\n\" ASSERT_PROBE_WRITE >&2; fi; exit 1; fi; if ! env VRX_CREDENTIAL_PROBE_STORAGE=local ./node_modules/.bin/electron --password-store=basic out/credential-probe/index.js read \"$1\" >/dev/null; then printf \"%s\\n\" ASSERT_PROBE_READ >&2; exit 1; fi' --",
-    "prebuild": "node scripts/patch-http-cache.mjs --check"
+    "prebuild": "node scripts/patch-http-cache.mjs --check",
+    "icons:generate": "node scripts/generate-app-icons.mjs",
+    "icons:check": "node scripts/generate-app-icons.mjs --check"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -58,6 +60,7 @@
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/asar": "^4.3.1",
     "@noble/hashes": "2.4.0",
+    "@resvg/resvg-js": "2.6.2",
     "@tailwindcss/node": "4.3.3",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.3",
