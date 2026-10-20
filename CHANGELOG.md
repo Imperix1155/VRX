@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The login screen now opens on the platform you last signed in to, instead of
+  always opening on VRChat. First run still starts on VRChat.
+
 ## [1.0.0-beta.3] - 2026-10-20
 
 ### Added

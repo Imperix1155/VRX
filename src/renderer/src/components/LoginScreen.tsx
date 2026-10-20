@@ -4,6 +4,7 @@ import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
 import { ACCOUNT_CARD_CONFIG, importErrorKey } from '../utils/accountCard'
 import { mapLoginError } from '../utils/loginError'
+import { readLastLoginPlatform } from '../utils/lastLoginPlatform'
 import SegmentedControl from './SegmentedControl'
 import CredentialsForm from './auth/CredentialsForm'
 import ImportSignInAction from './auth/ImportSignInAction'
@@ -18,8 +19,9 @@ import { loginCopy } from './auth/copy'
  * Tab control: the shared segmented radiogroup (roving tabindex, measured
  * sliding bubble) with the platform color on the WORD per the §9.1 filter
  * precedent — the tab words are the R12 non-color signifier, never a filled
- * color block. VRChat is preselected; the §8 center-neutral rule is silent for
- * a pure two-platform enum (no "both" option exists).
+ * color block. The screen opens on the platform signed in to last (VRChat on
+ * first run), so neither platform is always first; the §8 center-neutral rule
+ * is silent for a pure two-platform enum (no "both" option exists).
  *
  * The legacy-named `initialTwoFactor` prop (VRX-173) is the reactive
  * VRChat-only reprompt state from the auth gate. When the session needs a fresh
@@ -141,8 +143,11 @@ export default function LoginScreen({
   initialTwoFactor?: TwoFactorMethod | null
 }): React.JSX.Element {
   const { t } = useTranslation()
-  // VRChat preselected — also the reprompt tab (initialTwoFactor is VRChat-only).
-  const [platform, setPlatform] = useState<Platform>('vrchat')
+  // Opens on the last signed-in platform, except a VRChat 2FA reprompt, which
+  // needs the VRChat tab (initialTwoFactor is VRChat-only).
+  const [platform, setPlatform] = useState<Platform>(() =>
+    initialTwoFactor === null ? readLastLoginPlatform() : 'vrchat'
+  )
   // Lifted from the active form: true while its login/verify IPC is in flight.
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [previousInitialTwoFactor, setPreviousInitialTwoFactor] = useState<TwoFactorMethod | null>(
