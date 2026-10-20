@@ -22,7 +22,8 @@
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
  *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
- *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path)
+ *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path;
+ *                            1h default matches VRCX, v14)
  *   drawerOpener           → friend-drawer pointer opener surface (VRX-228; whole-card default, owner ruling 2026-07-27)
  *   allowJoinInstances     → whether VRX may launch a friend's instance (VRX-39; default ON)
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
@@ -54,7 +55,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 13 as const
+export const SETTINGS_VERSION = 14 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -109,7 +110,7 @@ export const SettingsSchema = z.object({
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default. */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
   /** Friends-list background reconcile cadence (VRX-77). The WebSocket remains the live path. */
-  reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('5m'),
+  reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('1h'),
   /** Friend-drawer POINTER opener surface (VRX-228): `card` = the whole row opens
    *  (default, owner ruling 2026-07-27 — Join pill still wins), `avatar` = the
    *  VRX-225 avatar-only behavior. Values from `@shared/types` DRAWER_OPENERS. */
@@ -157,7 +158,15 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
     ...prev,
     notifyHotInstance: prev.notifyHotInstance === true && prev.hotInstancesEnabled !== false
   }),
-  12: (prev) => ({ ...prev })
+  12: (prev) => ({ ...prev }),
+  // v13 → v14: the background re-sync default moved from 5 minutes to 1 hour
+  // to match VRCX's friend-list cadence. Settings save every field, so a stored
+  // `5m` is almost always the old default rather than a choice; move it too.
+  // The user can still pick 5 minutes again.
+  13: (prev) => ({
+    ...prev,
+    reconcileInterval: prev.reconcileInterval === '5m' ? '1h' : prev.reconcileInterval
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

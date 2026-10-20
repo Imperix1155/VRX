@@ -133,17 +133,21 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 | On connect        | One REST roster read to catch up                                              | One REST roster read to catch up; a roster-changed message also triggers one |
 
 Full REST rosters run on first load, on manual refresh, after a socket
-reconnects, and on the background reconcile timer. The timer defaults to 5
-minutes, can be set to 10 or 30 minutes or manual, and varies ±10% per run. It
-is a safety net, not a presence poll. Concurrent roster requests in one session
-share a single run. Events that arrive during that run add at most one final
-read.
+reconnects, and on the background reconcile timer. The timer defaults to 1
+hour, the cadence VRCX uses for its full friend list. It can be set to 5, 10
+or 30 minutes or manual, and varies ±10% per run. Settings files from before
+schema v14 that held the old 5-minute default move to 1 hour. It is a safety
+net, not a presence poll. A VRChat reconcile re-reads every online and offline
+roster page, so a short cadence costs the most for large friend lists.
+Concurrent roster requests in one session share a single run. Events that
+arrive during that run add at most one final read.
 
-Sign-in status is checked on demand, never on a timer, with one exception: a
-status of `error` (the check could not reach the platform, for example when
-VRX starts offline) is checked again once a minute (`AUTH_ERROR_RECHECK_MS`)
-until a check succeeds. Each check is one request through the admission
-queue.
+Sign-in status is checked on demand, never on a timer and never because a page
+opened: the renderer keeps a settled status until a sign-in, sign-out or
+`auth-invalidated` event replaces it. The one exception: a status of `error`
+(the check could not reach the platform, for example when VRX starts offline)
+is checked again once a minute (`AUTH_ERROR_RECHECK_MS`) until a check
+succeeds. Each check is one request through the admission queue.
 
 ## Explore limits
 

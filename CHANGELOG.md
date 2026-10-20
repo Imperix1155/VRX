@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The login screen now opens on the platform you last signed in to, instead of
   always opening on VRChat. First run still starts on VRChat.
+- Friends background re-sync now defaults to once an hour, the same pace VRCX
+  uses for its full friend list, instead of every 5 minutes. Live updates still
+  arrive instantly; the re-sync is only a safety net. Settings → Behavior has a
+  new 1h choice, and anyone on the old 5-minute default moves to it (you can
+  still pick 5m).
+- VRX no longer re-checks your VRChat sign-in each time you switch between
+  Friends, Hot Instances and Dashboard. Sign-in, sign-out and an expired
+  session still update it right away.
 - The unofficial-app notice now names ChilloutVR's current owner, Disconeering
   LLC, instead of Alpha Blend Interactive. It also names VRChat Inc. so both
   platforms are named the same way.

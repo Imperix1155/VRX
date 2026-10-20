@@ -158,6 +158,7 @@
       "5m": "5m",
       "10m": "10m",
       "30m": "30m",
+      "1h": "1h",
       "manual": "Manual only"
     },
     "labelScheme": {
