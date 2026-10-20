@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.3] - 2026-10-20
+
 ### Added
 
 - A welcome setup greets new installs. It walks through signing in to VRChat
