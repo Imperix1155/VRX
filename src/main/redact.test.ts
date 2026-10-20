@@ -457,12 +457,12 @@ describe('home folder masking', () => {
   afterEach(() => setRedactedHomeDirectory(''))
 
   it('masks a Windows home folder in a stack trace, case-insensitively', () => {
-    setRedactedHomeDirectory([drive, 'Users', 'Impy'].join(bs), 'win32')
-    const native = [drive.toLowerCase(), 'users', 'impy', 'AppData', 'Local', 'app.js'].join(bs)
-    const url = `file:///${[drive, 'Users', 'Impy', 'AppData', 'Local', 'app.js'].join('/')}`
+    setRedactedHomeDirectory([drive, 'Users', 'Mika'].join(bs), 'win32')
+    const native = [drive.toLowerCase(), 'users', 'mika', 'AppData', 'Local', 'app.js'].join(bs)
+    const url = `file:///${[drive, 'Users', 'Mika', 'AppData', 'Local', 'app.js'].join('/')}`
     const stack = `Error: boom\n    at f (${native}:1:1)\n    at g (${url}:2:2)`
     const out = redact(stack) as string
-    expect(out).not.toMatch(/impy/i)
+    expect(out).not.toMatch(/mika/i)
     expect(out).toContain([tilde, 'AppData', 'Local'].join(bs))
     expect(out).toContain(`file:///${[tilde, 'AppData', 'Local'].join('/')}`)
   })

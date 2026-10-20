@@ -78,8 +78,9 @@ Open a [GitHub issue](https://github.com/Imperix1155/VRX/issues) with:
   on screen.
 
 Settings → About → **Open logs folder** shows VRX's log file. VRX removes
-passwords and session tokens from its logs, but read the log before sharing
-it and remove friend names or account details you don't want public. Never
-share passwords, session tokens, or credential files.
+passwords and session tokens from its logs and replaces your home folder path
+with `~`, but read the log before sharing it and remove friend names or account
+details you don't want public. Never share passwords, session tokens, or
+credential files.
 
 Report security problems privately, as described in [Security](../SECURITY.md).
