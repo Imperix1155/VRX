@@ -73,6 +73,10 @@ describe.each([
   ['vrchat', 'Neo'],
   ['chilloutvr', 'Trinity']
 ] as const)('AccountCard — %s parity', (platform, displayName) => {
+  // ChilloutVR signs in with an email, VRChat with a username (same as login).
+  const idLabel = (): string =>
+    msg(platform === 'chilloutvr' ? 'settings.accounts.email' : 'settings.accounts.username')
+
   it('keeps initial IPC rejection visible with explicit retry, never a credential form', async () => {
     const bridge = bridgeFor({
       platform,
@@ -110,7 +114,7 @@ describe.each([
     })
     renderCard(platform, bridge)
 
-    const username = await screen.findByLabelText(msg('settings.accounts.username'))
+    const username = await screen.findByLabelText(idLabel())
     const password = screen.getByLabelText(msg('settings.accounts.password'))
     fireEvent.change(username, { target: { value: 'user@example.com' } })
     fireEvent.change(password, { target: { value: 'secret' } })
@@ -139,7 +143,7 @@ describe.each([
     })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockReturnValue(heldInvalidations)
 
-    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.username')), {
+    fireEvent.change(await screen.findByLabelText(idLabel()), {
       target: { value: 'user@example.com' }
     })
     const password = screen.getByLabelText<HTMLInputElement>(msg('settings.accounts.password'))
@@ -169,7 +173,7 @@ describe.each([
     const queryClient = renderCard(platform, bridge)
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
-    fireEvent.change(await screen.findByLabelText(msg('settings.accounts.username')), {
+    fireEvent.change(await screen.findByLabelText(idLabel()), {
       target: { value: 'user@example.com' }
     })
     fireEvent.change(screen.getByLabelText(msg('settings.accounts.password')), {
@@ -262,7 +266,7 @@ describe.each([
     fireEvent.click(disconnect)
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
-    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(await screen.findByLabelText(idLabel())).toBeTruthy()
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
     // The settled [] observer must not wake a doomed unauthenticated refetch.
     expect(queryClient.isFetching({ queryKey: friendsQueryKey(platform) })).toBe(0)
@@ -318,7 +322,7 @@ describe.each([
     expect(screen.getByRole('button', { name: msg('settings.accounts.signOut') })).toBeTruthy()
     // The session may be alive — a Connect form here would invite a duplicate
     // login. It must NOT render.
-    expect(screen.queryByLabelText(msg('settings.accounts.username'))).toBeNull()
+    expect(screen.queryByLabelText(idLabel())).toBeNull()
     expect(screen.queryByLabelText(msg('settings.accounts.password'))).toBeNull()
   })
 
@@ -355,7 +359,7 @@ describe.each([
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     // Once signed out, the card settles to the normal Connect form.
-    expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
+    expect(await screen.findByLabelText(idLabel())).toBeTruthy()
   })
 
   it('surfaces a durable-logout failure and keeps the connected card visible', async () => {
