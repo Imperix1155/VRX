@@ -441,6 +441,69 @@ describe('ExploreService integration bounds', () => {
     expect(adapter.physical.rooms).toBe(0)
   })
 
+  it('lets a first load cut short by hiding start again at once, automatically or by Refresh', async () => {
+    const h = harness()
+    const adapter = h.adapters.get('vrchat')!
+    const first = deferred<Omit<ExploreWorld, 'worldRef'>[]>()
+    adapter.nextCandidate = first.promise
+    await h.service.getSnapshot('vrchat', 'automatic')
+    expect(adapter.physical.candidates).toBe(1)
+    h.service.setActive([])
+    adapter.nextCandidate = null
+    adapter.candidates = [vrcWorld(1)]
+    h.service.setActive(['vrchat'])
+    h.now.value += 10_000
+    await h.service.getSnapshot('vrchat', 'automatic')
+    await vi.waitFor(() => expect(adapter.physical.candidates).toBe(2))
+    await vi.waitFor(async () =>
+      expect((await h.service.getSnapshot('vrchat', 'snapshot')).worlds).toHaveLength(1)
+    )
+    first.resolve([])
+  })
+
+  it('resumes the open world sheet when Explore becomes active again', async () => {
+    const h = harness()
+    const adapter = h.adapters.get('vrchat')!
+    const world = vrcWorld(1)
+    adapter.candidates = [world]
+    await load(h, 'vrchat')
+    const ref = (await h.service.getSnapshot('vrchat', 'snapshot')).worlds[0]!.worldRef
+    const pending = deferred<{
+      world: Omit<ExploreWorld, 'worldRef'>
+      roomIds: string[]
+      roomsComplete: boolean
+    } | null>()
+    adapter.nextWorld = pending.promise
+    await h.service.getWorld('vrchat', ref, 'open')
+    expect(adapter.physical.worlds).toBe(1)
+    h.service.setActive([])
+    adapter.nextWorld = null
+    adapter.details.set(world.worldId, { world, roomIds: [], roomsComplete: true })
+    h.service.setActive(['vrchat'])
+    await vi.waitFor(() => expect(adapter.physical.worlds).toBe(2))
+    await vi.waitFor(async () =>
+      expect((await h.service.getWorld('vrchat', ref, 'snapshot'))!.status).not.toBe('idle')
+    )
+    pending.resolve(null)
+  })
+
+  it('does not resume a sheet that was closed while Explore was hidden', async () => {
+    const h = harness()
+    const adapter = h.adapters.get('vrchat')!
+    const world = vrcWorld(1)
+    adapter.candidates = [world]
+    await load(h, 'vrchat')
+    const ref = (await h.service.getSnapshot('vrchat', 'snapshot')).worlds[0]!.worldRef
+    adapter.nextWorld = deferred<null>().promise
+    await h.service.getWorld('vrchat', ref, 'open')
+    h.service.setActive([])
+    h.service.cancelWorld('vrchat', ref)
+    adapter.nextWorld = null
+    h.service.setActive(['vrchat'])
+    await settled()
+    expect(adapter.physical.worlds).toBe(1)
+  })
+
   it('does not request inactive/offscreen images and limits visible image work to two outstanding operations', async () => {
     const h = harness()
     const adapter = h.adapters.get('vrchat')!

@@ -226,6 +226,32 @@ describe('ExploreRoute world sheet', () => {
     expect(query.requestExploreImage).toHaveBeenCalledWith('vrchat', 'renewed-ref')
   })
 
+  it('keeps an open sheet when its reference expires before the next Explore change', async () => {
+    const renewedWorld = { ...world, worldRef: 'renewed-ref' }
+    query.readExploreSnapshot.mockResolvedValue({ ...source, worlds: [renewedWorld] })
+    worldReads
+      .mockResolvedValueOnce(ready)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...ready, world: renewedWorld })
+    render(<ExploreRoute />)
+    fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
+    expect(await screen.findByRole('button', { name: 'Join' })).toBeTruthy()
+
+    await act(async () => {
+      changed?.({ platform: 'vrchat' })
+      await Promise.resolve()
+    })
+    await waitFor(() =>
+      expect(worldReads).toHaveBeenLastCalledWith({
+        platform: 'vrchat',
+        worldRef: 'renewed-ref',
+        reason: 'open'
+      })
+    )
+    expect(screen.getByRole('dialog', { name: /Visible public rooms/ })).toBeTruthy()
+    expect(window.vrx!.cancelExploreWorld).not.toHaveBeenCalled()
+  })
+
   it('closes the sheet if the renewed-ref open rejects', async () => {
     query.readExploreSnapshot.mockResolvedValue({
       ...source,
