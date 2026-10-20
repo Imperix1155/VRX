@@ -10,6 +10,7 @@ import { useAuthFlow } from '../hooks/useAuthFlow'
 import CredentialsForm from './auth/CredentialsForm'
 import TwoFactorForm from './auth/TwoFactorForm'
 import ErrorBanner from './auth/ErrorBanner'
+import ImportSignInAction from './auth/ImportSignInAction'
 import { ACCOUNT_COPY } from './auth/copy'
 
 export default function AccountCard({ platform }: { platform: Platform }): React.JSX.Element {
@@ -162,6 +163,15 @@ export default function AccountCard({ platform }: { platform: Platform }): React
           inputFocusClass={config.focusClass}
           submitClassName={`mt-[var(--space-1)] self-start rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 motion-safe:transition-opacity ${config.actionClass}`}
           formClassName="relative mt-[var(--space-4)]"
+          submitBusy={flow.isSubmitting && !flow.isImporting}
+          secondaryAction={
+            <ImportSignInAction
+              platform={platform}
+              isSubmitting={flow.isSubmitting}
+              isImporting={flow.isImporting}
+              onImport={() => void flow.handleImport()}
+            />
+          }
         />
       ) : (
         <>

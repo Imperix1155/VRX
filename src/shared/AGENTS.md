@@ -40,8 +40,8 @@ through `@shared`.
 - Every additive persisted setting bumps `SETTINGS_VERSION` and registers an
   identity migration from the previous version, so an older build cannot strip
   it during a downgrade. Keep the full migration chain.
-- Missing or invalid `cvrSessionImportChoice` falls back to `ask` and never
-  grants external-session consent. Alerts and `autoUpdate` default off.
+- `cvrSessionImportChoice` has no reader since the startup import was removed;
+  it stays in the schema so older builds keep their saved answer. Alerts and `autoUpdate` default off.
   `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`)

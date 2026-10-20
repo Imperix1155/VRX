@@ -35,8 +35,8 @@ const ORDER_LABEL_KEYS = {
 
 export const StepHeading = forwardRef<
   HTMLHeadingElement,
-  { title: string; lead?: string; centered?: boolean }
->(function StepHeading({ title, lead, centered = false }, ref) {
+  { title: string; lead?: string; centered?: boolean; leadLive?: boolean }
+>(function StepHeading({ title, lead, centered = false, leadLive = false }, ref) {
   return (
     <div className={centered ? 'text-center' : undefined}>
       {/* Focus lands here on every step change so screen readers announce it. */}
@@ -50,6 +50,7 @@ export const StepHeading = forwardRef<
       </h2>
       {lead && (
         <p
+          role={leadLive ? 'status' : undefined}
           className={`mt-[var(--space-1)] text-[13px] leading-[1.45] text-[var(--text-dim)]${centered ? ' mx-auto max-w-[44ch]' : ''}`}
         >
           {lead}
@@ -145,28 +146,23 @@ export const WelcomeStep = forwardRef<HTMLHeadingElement>(function WelcomeStep(_
 export const SignInStep = forwardRef<HTMLHeadingElement, { skipping: boolean; readyCount: number }>(
   function SignInStep({ skipping, readyCount }, ref) {
     const { t } = useTranslation()
-    const status =
+    // The lead doubles as the live status, so the step fits without scrolling
+    // once both cards carry the "sign-in from this PC" button.
+    const lead =
       readyCount === 0
-        ? t('setup.signin.none')
+        ? t(skipping ? 'setup.signin.skipLead' : 'setup.signin.lead')
         : readyCount === 1
           ? t('setup.signin.one')
           : t('setup.signin.both')
     return (
       <div className="flex flex-col gap-[var(--space-3)]">
-        <StepHeading
-          ref={ref}
-          title={t('setup.signin.title')}
-          lead={t(skipping ? 'setup.signin.skipLead' : 'setup.signin.lead')}
-        />
+        <StepHeading ref={ref} title={t('setup.signin.title')} lead={lead} leadLive />
         {/* The same cards as Settings → Accounts: equal size, side by side. */}
-        <div className="grid grid-cols-2 items-start gap-[var(--space-3)]">
+        <div className="grid grid-cols-2 gap-[var(--space-3)]">
           {SETUP_PLATFORMS.map((platform) => (
             <AccountCard key={platform} platform={platform} />
           ))}
         </div>
-        <p role="status" className="text-xs text-[var(--text-dim)]">
-          {status}
-        </p>
         <p className={FINE_PRINT}>{t('setup.signin.storage')}</p>
       </div>
     )

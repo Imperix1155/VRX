@@ -32,17 +32,7 @@ const en = {
   'recovery.hang.detail': 'The window may be busy. You can wait or reload it.',
   'recovery.reload': 'Reload',
   'recovery.dismiss': 'Dismiss',
-  'recovery.wait': 'Wait',
-  'cvrImport.title': 'ChilloutVR session import',
-  'cvrImport.message': 'Allow VRX to find and use an existing ChilloutVR session?',
-  'cvrImport.detail':
-    'VRX will read local ChilloutVR game profiles and CVRX files, copy a session into VRX, and sign in on your behalf. Source files are never changed. Sessions use OS-backed encryption when available; otherwise a weaker local installation key is stored alongside the encrypted data. Access to both permits session recovery. VRX remembers your choice. You can change it in Settings → Accounts; direct sign-in remains available.',
-  'cvrImport.deny': 'Use direct sign-in',
-  'cvrImport.allow': 'Allow session import',
-  'cvrImport.saveFailed.message': 'Your session import choice could not be saved.',
-  'cvrImport.saveFailed.detail':
-    'No external session was read. You can sign in directly. VRX may ask again on the next launch.',
-  'cvrImport.saveFailed.continue': 'Continue to sign-in'
+  'recovery.wait': 'Wait'
 } as const
 
 export type MainStringKey = keyof typeof en
@@ -72,17 +62,7 @@ const ja: Record<MainStringKey, string> = {
   'recovery.hang.detail': 'ウィンドウが処理中の可能性があります。待つか、再読み込みしてください。',
   'recovery.reload': '再読み込み',
   'recovery.dismiss': '閉じる',
-  'recovery.wait': '待つ',
-  'cvrImport.title': 'ChilloutVR セッションのインポート',
-  'cvrImport.message': 'VRX が既存の ChilloutVR セッションを検出して使用することを許可しますか？',
-  'cvrImport.detail':
-    'VRX はローカルの ChilloutVR ゲームプロファイルと CVRX ファイルを読み取り、セッションを VRX にコピーして、あなたの代わりにサインインします。元のファイルが変更されることはありません。セッションは利用可能な場合 OS の暗号化で保護されます。利用できない場合は、より弱いローカルのインストールキーが暗号化データと一緒に保存されます。両方にアクセスできるとセッションを復元できます。VRX はこの選択を記憶します。設定 → アカウントでいつでも変更でき、直接サインインも引き続き利用できます。',
-  'cvrImport.deny': '直接サインインする',
-  'cvrImport.allow': 'セッションのインポートを許可',
-  'cvrImport.saveFailed.message': 'セッションのインポートの選択を保存できませんでした。',
-  'cvrImport.saveFailed.detail':
-    '外部のセッションは読み取られていません。直接サインインできます。次回の起動時にもう一度確認される場合があります。',
-  'cvrImport.saveFailed.continue': 'サインインに進む'
+  'recovery.wait': '待つ'
 }
 
 const TABLES: Record<MainLocale, Record<MainStringKey, string>> = { en, ja }

@@ -39,6 +39,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   login: { max: 6, windowMs: 60_000 },
   // Short-code retries are human-paced but get extra room for mistypes/expiry.
   'verify-2fa': { max: 10, windowMs: 60_000 },
+  // "Use my sign-in from this PC" is a deliberate button press, like login.
+  'import-session': { max: 6, windowMs: 60_000 },
   // Sign-out is a deliberate human action and normally happens once.
   logout: { max: 6, windowMs: 60_000 },
   // Existing 3s per-friend cooldown permits at most 20 successful joins/minute.
@@ -76,6 +78,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
   switch (channel) {
     case 'login':
     case 'verify-2fa':
+    case 'import-session':
       return { ok: false, needs2fa: false, error: 'rate_limited' }
     case 'join-instance':
     case 'join-explore-room':

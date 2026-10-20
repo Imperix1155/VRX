@@ -255,7 +255,11 @@
       "error": {
         "disconnect": "Could not disconnect this account. Please try again.",
         "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
-        "unknown": "Sign-in failed. Check your details and connection, then try again."
+        "unknown": "Sign-in failed. Check your details and connection, then try again.",
+        "importNotFoundVrchat": "No VRCX sign-in found on this PC. Sign in with your password instead.",
+        "importNotFoundChilloutvr": "No ChilloutVR or CVRX sign-in found on this PC. Sign in with your password instead.",
+        "importRejectedVrchat": "VRChat no longer accepts the sign-in VRCX saved. Sign in with your password instead.",
+        "importRejectedChilloutvr": "ChilloutVR no longer accepts the sign-in saved on this PC. Sign in with your password instead."
       },
       "vrchat": {
         "label": "VRChat"
@@ -263,12 +267,12 @@
       "chilloutvr": {
         "label": "ChilloutVR"
       },
-      "sessionImport": {
-        "label": "External ChilloutVR session",
-        "skip": "Never",
-        "ask": "Ask",
-        "import": "Allow",
-        "description": "When VRX has no saved ChilloutVR session, allow reading local game profiles and CVRX files to copy a session and sign in on your behalf. Source files are unchanged. Takes effect on the next app launch; existing VRX sessions and direct sign-in are unaffected."
+      "import": {
+        "vrchat": "Use my sign-in from VRCX",
+        "chilloutvr": "Use my sign-in from ChilloutVR",
+        "vrchatHint": "Only reads it, never changes it.",
+        "chilloutvrHint": "Only reads it, never changes it.",
+        "looking": "Looking on this PC…"
       }
     },
     "about": {
@@ -650,7 +654,6 @@
       "title": "Sign in",
       "lead": "Connect one platform or both. You can add the other one later in Settings → Accounts.",
       "skipLead": "Sign in to at least one platform, then VRX opens with the usual settings.",
-      "none": "Sign in to at least one platform to continue.",
       "one": "One connected. Continue, or connect the other one too.",
       "both": "Both connected.",
       "storage": "VRX signs in to each platform on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."

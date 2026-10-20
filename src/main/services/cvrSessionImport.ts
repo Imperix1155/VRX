@@ -27,15 +27,6 @@ interface CvrxConfig {
   executablePath: string | null
 }
 
-interface LoadStoredOrImportedOptions {
-  requestImportConsent: () => Promise<boolean>
-  loadStored: () => CVRCredentials | undefined
-  /** True after an explicit VRX sign-out; import waits for the next login. */
-  signedOut?: () => boolean
-  importSession: () => Promise<CVRCredentials | null>
-  persistImported: (credentials: CVRCredentials) => void
-}
-
 interface ImportContext {
   controller: AbortController
   deadline: number
@@ -596,35 +587,4 @@ export async function importCvrSession(
     clearTimeout(deadlineTimer)
     controller.abort()
   }
-}
-
-/**
- * Preserve an existing valid VRX session. Invalid stored material is treated as
- * absent. Unreadable material (a locked or unavailable keychain) is NOT: it may
- * be a valid session that unlocks later, so nothing is imported over it. After
- * an explicit sign-out nothing is imported either, so signing out sticks across
- * launches. Explicit consent precedes ALL external discovery. A newly imported
- * session becomes usable only after encrypted credential persistence.
- */
-export async function loadStoredOrImportedCvrSession(
-  options: LoadStoredOrImportedOptions
-): Promise<CVRCredentials | undefined> {
-  let stored: CVRCredentials | undefined
-  try {
-    stored = options.loadStored()
-  } catch {
-    return undefined
-  }
-  if (stored !== undefined && isValidCvrSession(stored.username, stored.accessKey)) return stored
-  if (options.signedOut?.() === true) return undefined
-
-  if ((await options.requestImportConsent()) !== true) return undefined
-
-  const imported = await options.importSession()
-  if (imported === null || !isValidCvrSession(imported.username, imported.accessKey)) {
-    return undefined
-  }
-  const credentials = { username: imported.username, accessKey: imported.accessKey }
-  options.persistImported(credentials)
-  return credentials
 }

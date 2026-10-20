@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform, TwoFactorMethod } from '@shared/types'
 import { useAuthFlow } from '../hooks/useAuthFlow'
-import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
+import { ACCOUNT_CARD_CONFIG, importErrorKey } from '../utils/accountCard'
 import { mapLoginError } from '../utils/loginError'
 import SegmentedControl from './SegmentedControl'
 import CredentialsForm from './auth/CredentialsForm'
+import ImportSignInAction from './auth/ImportSignInAction'
 import TwoFactorForm from './auth/TwoFactorForm'
 import { loginCopy } from './auth/copy'
 
@@ -72,7 +73,7 @@ function PlatformLoginForm({
   const { t } = useTranslation()
   const config = ACCOUNT_CARD_CONFIG[platform]
   const flow = useAuthFlow(platform, {
-    errorKeyForCode: mapLoginError,
+    errorKeyForCode: (code) => importErrorKey(platform, code) ?? mapLoginError(code),
     // The needs-2fa reprompt seed is VRChat-only (CVR has no 2FA — a stray
     // needs2fa there falls back to the generic error inside the hook).
     externalTwoFactor: platform === 'vrchat' ? initialTwoFactor : null,
@@ -105,6 +106,15 @@ function PlatformLoginForm({
       inputFocusClass={config.focusClass}
       submitClassName={`mt-[var(--space-1)] ${submitClassName}`}
       ariaLabel={formAriaLabel}
+      submitBusy={flow.isSubmitting && !flow.isImporting}
+      secondaryAction={
+        <ImportSignInAction
+          platform={platform}
+          isSubmitting={flow.isSubmitting}
+          isImporting={flow.isImporting}
+          onImport={() => void flow.handleImport()}
+        />
+      }
     />
   ) : (
     <TwoFactorForm
