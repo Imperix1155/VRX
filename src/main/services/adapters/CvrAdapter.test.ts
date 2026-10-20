@@ -1487,16 +1487,19 @@ describe('CvrAdapter', () => {
 
       it('marks a same-account key rotation as identity-retained', async () => {
         const boundaries: Array<{ identityRetained: boolean }> = []
+        const identities: Array<string | null> = []
         const store = fakeStore({ username: 'trinity', accessKey: 'key-1' })
         const adapter = new CvrAdapter(store, instantAdmission(), {
           socketFactory: () => ({ on: () => {}, close: () => {} }),
-          onSessionBoundary: (boundary) => boundaries.push(boundary)
+          onSessionBoundary: (boundary) => boundaries.push(boundary),
+          onIdentity: (id) => identities.push(id)
         })
         markSessionEstablishedForTest(adapter)
         Object.assign(adapter as unknown as { accountId: string }, {
           accountId: authPayload().userId
         })
         boundaries.length = 0
+        identities.length = 0
         routed([() => Promise.resolve(jsonResponse(envelope(authPayload({ accessKey: 'key-2' }))))])
 
         await expect(adapter.getFriends()).rejects.toBeInstanceOf(CVRAuthError)
@@ -1504,6 +1507,8 @@ describe('CvrAdapter', () => {
           expect(store.saved).toContainEqual({ username: 'trinity', accessKey: 'key-2' })
         )
         expect(boundaries).toEqual([{ identityRetained: true }])
+        // Never passes through "no account", which would expire saved-note revisions.
+        expect(identities).not.toContain(null)
       })
 
       it('still signs out at once on a 401, without a reauth', async () => {

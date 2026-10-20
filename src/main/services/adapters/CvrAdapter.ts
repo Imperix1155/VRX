@@ -1019,7 +1019,9 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     this.displayName = credentials.username
     this.accountId = null
     this.validated = false
-    this.live?.onIdentity?.(null)
+    // A same-account rotation keeps its identity, so account-scoped state
+    // (note revisions, the linked-profile lease) stays valid.
+    if (!identityRetained) this.live?.onIdentity?.(null)
     this.bumpSessionGeneration(restartPipeline, identityRetained)
   }
 
