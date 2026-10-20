@@ -184,6 +184,11 @@ A pipeline `friend-add` carries the full User; VRX reads its `state`
 older `active` assumption only when that field is missing (🟡 inferred from the
 User schema and VRCX, not observed on the wire by VRX).
 
+A pipeline `friend-active` spells its id `userid` (lowercase), unlike the
+`userId` of every other friend event (🟡 VRChat community docs and VRCX, which
+reads `content.user.id`; not observed on the wire by VRX). VRX accepts either
+spelling and falls back to `user.id`.
+
 **What VRX depends on:**
 
 - Access tags: `~hidden(usr_x)` (Friends+), `~friends(usr_x)` (Friends), `~private(usr_x)` (Invite), `~canRequestInvite` (Invite+)
