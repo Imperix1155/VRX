@@ -21,7 +21,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useUpdater } from '../hooks/useUpdater'
 import type { Settings } from '@shared/settings'
-import { RELEASES_URL } from '@shared/constants'
+import { releasesUrlFor } from '@shared/constants'
 import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
@@ -120,7 +120,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
 
   const handleButtonClick = (): void => {
     if (state.state === 'unsupported') {
-      void window.vrx?.openUrl({ url: RELEASES_URL })
+      void window.vrx?.openUrl({ url: releasesUrlFor(__APP_VERSION__) })
       return
     }
     if (state.state === 'update-available') {
