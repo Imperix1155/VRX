@@ -4,6 +4,7 @@ import type { Query, QueryKey } from '@tanstack/react-query'
 import { dehydrate, QueryClient } from '@tanstack/react-query'
 import type { PersistedClient } from '@tanstack/react-query-persist-client'
 import type { Friend } from '@shared/types'
+import { MAX_FRIENDS } from '@shared/constants'
 import { fullFriend } from '../test-utils/friendFixture'
 import {
   buildCacheBuster,
@@ -45,6 +46,14 @@ describe('shouldDehydrateQuery', () => {
     expect(query).toBeTruthy()
     expect(query!.state.status).toBe('success')
     expect(shouldDehydrateQuery(query!)).toBe(true)
+  })
+
+  it('skips a roster too large to be restored', () => {
+    client.setQueryData(
+      ['friends', 'chilloutvr'],
+      Array.from({ length: MAX_FRIENDS + 1 }, (_, index) => ({ id: String(index) }))
+    )
+    expect(shouldDehydrateQuery(findQuery(['friends', 'chilloutvr'])!)).toBe(false)
   })
 
   it('excludes instance queries until they have a platform key and eviction contract', () => {
@@ -289,6 +298,28 @@ describe('deserializePersistedQueryCache — data-age bound (VRX-253)', () => {
     const restored = deserializePersistedQueryCache(serialized)
     expect(restored.clientState.queries).toHaveLength(1)
     expect(restored.clientState.queries[0]!.queryKey).toEqual(['friends', 'vrchat'])
+  })
+
+  it('an oversized roster drops only that platform, not the other', () => {
+    const big = Array.from({ length: MAX_FRIENDS + 1 }, (_, index) =>
+      fullFriend(`cvr${index}`, 'chilloutvr')
+    )
+    const serialized = buildPersistedClientEnvelope([
+      { platform: 'vrchat', dataUpdatedAt: now - 1000 },
+      { platform: 'chilloutvr', dataUpdatedAt: now - 1000, friends: big }
+    ])
+    const restored = deserializePersistedQueryCache(serialized)
+    expect(restored.clientState.queries.map((query) => query.queryKey)).toEqual([
+      ['friends', 'vrchat']
+    ])
+  })
+
+  it('a duplicated platform drops both copies but keeps the other platform', () => {
+    const serialized = buildPersistedClientEnvelope([
+      { platform: 'chilloutvr', dataUpdatedAt: now - 1000 },
+      { platform: 'chilloutvr', dataUpdatedAt: now - 1000 }
+    ])
+    expect(deserializePersistedQueryCache(serialized).clientState.queries).toHaveLength(0)
   })
 
   it('restores a query just inside the 24h boundary and drops one just outside', () => {
