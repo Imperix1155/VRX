@@ -14,7 +14,7 @@
 import log from 'electron-log/node'
 import { app } from 'electron'
 import { join } from 'path'
-import { redact } from './redact'
+import { redact, setRedactedHomeDirectory } from './redact'
 
 type LogLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly'
 const LEVELS: readonly LogLevel[] = ['error', 'warn', 'info', 'verbose', 'debug', 'silly']
@@ -37,7 +37,9 @@ export function initLogger(): void {
   log.transports.file.level = resolveLevel()
   log.transports.console.level = app.isPackaged ? 'info' : 'debug'
 
-  // Redact every argument before it is written to any transport.
+  // Redact every argument before it is written to any transport. Absolute paths
+  // under the home folder (stack traces, fs errors) embed the OS account name.
+  setRedactedHomeDirectory(app.getPath('home'))
   log.hooks.push((message) => {
     message.data = message.data.map((d) => redact(d))
     return message
