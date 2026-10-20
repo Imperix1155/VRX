@@ -22,7 +22,9 @@ export default function CredentialsForm({
   inputFocusClass,
   submitClassName,
   formClassName,
-  ariaLabel
+  ariaLabel,
+  submitBusy,
+  secondaryAction
 }: {
   idPrefix: string
   /**
@@ -44,6 +46,11 @@ export default function CredentialsForm({
   formClassName?: string
   /** Announces the form's platform association (e.g. "VRChat sign-in"). */
   ariaLabel?: string
+  /** Busy label for the submit button; defaults to isSubmitting. False while
+   *  another action (the PC sign-in import) is the one running. */
+  submitBusy?: boolean
+  /** A quieter alternative under the main button (type="button" only). */
+  secondaryAction?: React.ReactNode
 }): React.JSX.Element {
   const { t } = useTranslation()
   // This form replaces the one that held focus (a submit asking for a code, or
@@ -110,8 +117,11 @@ export default function CredentialsForm({
           disabled={isSubmitting || !username || !password}
           className={submitClassName}
         >
-          {isSubmitting ? t(copy.credentials.submitting) : t(copy.credentials.submit)}
+          {(submitBusy ?? isSubmitting)
+            ? t(copy.credentials.submitting)
+            : t(copy.credentials.submit)}
         </button>
+        {secondaryAction}
       </div>
     </form>
   )

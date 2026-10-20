@@ -103,6 +103,9 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         error: 'credential_persistence_failed',
         sessionCleared: true
       }),
+    // The guide never reads this PC: the button shows its not-found copy.
+    importSession: () =>
+      Promise.resolve({ ok: false, needs2fa: false, error: 'session_import_not_found' }),
     logout: () => Promise.resolve(),
     joinInstance: () => Promise.resolve(denied),
     selfInvite: () => Promise.resolve(denied),

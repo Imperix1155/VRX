@@ -656,32 +656,25 @@ describe('Settings dependency cards', () => {
   })
 })
 
-describe('external CVR import preference', () => {
-  it('shows the remembered choice and lets the user revoke it without importing', () => {
-    useSettingsStore.setState({
-      settings: { ...DEFAULT_SETTINGS, cvrSessionImportChoice: 'import' },
-      dirty: false
+describe('Accounts sign-in from this PC', () => {
+  it('offers the same explicit button on both platform cards and no startup import choice', async () => {
+    setBridge({
+      getAuthStatus: vi.fn(({ platform }: { platform: string }) =>
+        Promise.resolve({ platform, state: 'unauthenticated', accountId: null, displayName: null })
+      ),
+      login: vi.fn(),
+      verify2fa: vi.fn(),
+      logout: vi.fn()
     })
     useUiStore.setState({ settingsCategory: 'accounts' })
     renderSettings()
-    const choice = screen.getByRole('radiogroup', {
-      name: msg('settings.accounts.sessionImport.label')
-    })
     expect(
-      within(choice)
-        .getByRole('radio', { name: msg('settings.accounts.sessionImport.import') })
-        .getAttribute('aria-checked')
-    ).toBe('true')
-    const statusesBefore = screen.queryAllByRole('status').length
-    fireEvent.click(
-      within(choice).getByRole('radio', { name: msg('settings.accounts.sessionImport.skip') })
-    )
-    expect(useSettingsStore.getState().settings.cvrSessionImportChoice).toBe('skip')
-    // Save state is reported once, app-wide, by RecoveryNotices — never inline here,
-    // so a dirty store must not add a live region or any unsaved copy to Settings.
-    expect(useSettingsStore.getState().dirty).toBe(true)
-    expect(screen.queryAllByRole('status')).toHaveLength(statusesBefore)
-    expect(screen.queryByText(/unsaved|not yet saved/i)).toBeNull()
+      await screen.findByRole('button', { name: msg('settings.accounts.import.vrchat') })
+    ).toBeTruthy()
+    expect(
+      await screen.findByRole('button', { name: msg('settings.accounts.import.chilloutvr') })
+    ).toBeTruthy()
+    expect(screen.queryAllByRole('radiogroup')).toHaveLength(0)
   })
 })
 

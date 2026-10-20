@@ -163,8 +163,10 @@ profiles.
 - `saveCredential` writes a non-secret invalidation marker before any step that
   can fail, then the new ciphertext. A failed save can never restore the old
   account.
-- An explicit ChilloutVR sign-out writes a signed-out marker so the next launch
-  skips external session import. A VRChat sign-out deletes the slot.
+- An explicit ChilloutVR sign-out writes a signed-out marker (older builds read
+  it to skip their startup import). A VRChat sign-out deletes the slot. An
+  imported sign-in replaces the slot only after the adapter validates its
+  owner, like a password login.
 - Before a VRChat replacement account's two-factor prompt is shown, the old
   slot is deleted. A failed delete fails the sign-in.
 - **No owner is stored.** The adapter learns the owner from the platform during

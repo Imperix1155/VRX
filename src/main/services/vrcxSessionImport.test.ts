@@ -24,7 +24,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getPath: vi.fn<(name: string) => string>(),
-  saveCredential: vi.fn<(key: string, value: string) => void>(),
   copyOpenFile: vi.fn<typeof import('./vrcxSnapshotCopy').copyOpenFile>(),
   realCopyOpenFile: undefined as typeof import('./vrcxSnapshotCopy').copyOpenFile | undefined
 }))
@@ -36,10 +35,6 @@ vi.mock('./vrcxSnapshotCopy', async (importOriginal) => {
   mocks.copyOpenFile.mockImplementation(actual.copyOpenFile)
   return { copyOpenFile: mocks.copyOpenFile }
 })
-vi.mock('./credentials', () => ({
-  CREDENTIAL_KEYS: { VRCHAT_PRIMARY: 'vrchat:primary' },
-  saveCredential: mocks.saveCredential
-}))
 
 import { importVrcxSession } from './vrcxSessionImport'
 
@@ -106,26 +101,22 @@ describe('VRCX session import', () => {
     await expect(importVrcxSession()).resolves.toBeNull()
 
     expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
     expect(await readdir(tempPath)).toEqual([])
   }
 
   async function expectRejectedBeforeCopy(): Promise<void> {
     await expect(importVrcxSession()).resolves.toBeNull()
     expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   }
 
   async function expectRetryThenNull(): Promise<void> {
     await expect(importVrcxSession()).resolves.toBeNull()
     expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   }
 
   async function expectSingleRejectedCopy(): Promise<void> {
     await expect(importVrcxSession()).resolves.toBeNull()
     expect(mocks.copyOpenFile).toHaveBeenCalledTimes(1)
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   }
 
   async function copySnapshotThen(
@@ -154,7 +145,6 @@ describe('VRCX session import', () => {
       if (name === 'temp') return tempPath
       throw new Error(`Unexpected Electron path: ${name}`)
     })
-    mocks.saveCredential.mockClear()
     mocks.copyOpenFile.mockClear()
     if (mocks.realCopyOpenFile === undefined) {
       throw new Error('snapshot copy mock was not initialized')
@@ -170,14 +160,13 @@ describe('VRCX session import', () => {
     const path = await createDatabase()
     const before = digest(await readFile(path))
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    // The header is returned for the adapter to validate; nothing is saved here.
+    await expect(importVrcxSession()).resolves.toBe(
+      'auth=authcookie_primary; twoFactorAuth=twofactor_secondary'
+    )
 
     expect(mocks.getPath).toHaveBeenCalledWith('appData')
     expect(mocks.getPath).toHaveBeenCalledWith('temp')
-    expect(mocks.saveCredential).toHaveBeenCalledWith(
-      'vrchat:primary',
-      'auth=authcookie_primary; twoFactorAuth=twofactor_secondary'
-    )
     expect(digest(await readFile(path))).toBe(before)
     expect(await readdir(tempPath)).toEqual([])
   })
@@ -208,7 +197,6 @@ describe('VRCX session import', () => {
       expect(digest(await readFile(`${path}-wal`))).toBe(beforeWal)
       expect(await readdir(tempPath)).toEqual([])
       expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-      expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       writer.close()
     }
@@ -216,7 +204,6 @@ describe('VRCX session import', () => {
 
   it('returns null when VRCX is not installed', async () => {
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('returns null for a malformed SQLite database', async () => {
@@ -225,7 +212,6 @@ describe('VRCX session import', () => {
     await writeFile(path, 'not a SQLite database')
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
     expect(mocks.copyOpenFile).not.toHaveBeenCalled()
   })
 
@@ -259,7 +245,6 @@ describe('VRCX session import', () => {
     expect(digest(await readFile(path))).toBe(beforeMain)
     expect(await readdir(dirname(path))).toEqual(beforeEntries)
     expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('does not scavenge a marked temp root containing the VRCX source tree', async () => {
@@ -278,7 +263,6 @@ describe('VRCX session import', () => {
     expect(digest(await readFile(path))).toBe(beforeMain)
     expect(await readdir(markedRoot)).toContain('app-data')
     expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it.runIf(process.platform !== 'win32')(
@@ -303,7 +287,6 @@ describe('VRCX session import', () => {
     database.close()
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -329,7 +312,6 @@ describe('VRCX session import', () => {
     database.close()
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects invalid UTF-8 anywhere in the cookie collection', async () => {
@@ -343,7 +325,6 @@ describe('VRCX session import', () => {
     await createDatabase(malformed)
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -355,7 +336,6 @@ describe('VRCX session import', () => {
     await createDatabase(value)
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -372,7 +352,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects cookies from a non-VRChat domain', async () => {
@@ -381,7 +360,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects ambiguous duplicate auth cookies', async () => {
@@ -393,7 +371,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects cookie delimiter injection inside a stored value', async () => {
@@ -408,7 +385,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects a cookie collection containing malformed entries', async () => {
@@ -417,7 +393,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects an oversized SQLite cookie value before import', async () => {
@@ -429,7 +404,6 @@ describe('VRCX session import', () => {
     )
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('does not materialize an oversized non-target key while locating default', async () => {
@@ -440,8 +414,7 @@ describe('VRCX session import', () => {
     )
     database.close()
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
-    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
   })
 
   it('rejects more than 64 cookies while accepting exactly 64', async () => {
@@ -453,17 +426,15 @@ describe('VRCX session import', () => {
     }))
 
     await createDatabase(encodeCookies([auth, ...unrelated.slice(0, 63)]))
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     const database = new DatabaseSync(databasePath())
     database
       .prepare('UPDATE cookies SET `value` = ? WHERE `key` = ?')
       .run(encodeCookies([auth, ...unrelated]), 'default')
     database.close()
-    mocks.saveCredential.mockClear()
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('rejects duplicate default rows in a malformed database', async () => {
@@ -477,7 +448,6 @@ describe('VRCX session import', () => {
     database.close()
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('accepts at most 64 rows in the external cookies table', async () => {
@@ -487,17 +457,15 @@ describe('VRCX session import', () => {
     for (let index = 0; index < 63; index += 1) insert.run(`unrelated-${index}`, 'ignored')
     database.close()
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     const oversized = new DatabaseSync(path)
     oversized
       .prepare('INSERT INTO cookies (`key`, `value`) VALUES (?, ?)')
       .run('unrelated-64', 'ignored')
     oversized.close()
-    mocks.saveCredential.mockClear()
 
     await expect(importVrcxSession()).resolves.toBeNull()
-    expect(mocks.saveCredential).not.toHaveBeenCalled()
   })
 
   it('retries once and fails closed while the source database has an exclusive lock', async () => {
@@ -509,7 +477,6 @@ describe('VRCX session import', () => {
       expect((await lstat(`${path}-shm`)).size).toBeGreaterThan(0)
       await expect(importVrcxSession()).resolves.toBeNull()
       expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-      expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       locker.exec('ROLLBACK')
       locker.close()
@@ -527,7 +494,7 @@ describe('VRCX session import', () => {
     )
     await writeFile(join(staleSnapshot, 'VRCX.sqlite3'), COOKIE_PAYLOAD)
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     expect(await readdir(tempPath)).toEqual([])
   })
@@ -538,7 +505,7 @@ describe('VRCX session import', () => {
     await mkdir(unrelatedRoot)
     await writeFile(join(unrelatedRoot, 'keep.txt'), 'user data')
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     expect(await readFile(join(unrelatedRoot, 'keep.txt'), 'utf8')).toBe('user data')
     expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-Zy98Xw'])
@@ -554,7 +521,7 @@ describe('VRCX session import', () => {
     )
     await writeFile(join(activeRoot, 'keep.txt'), 'active snapshot')
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     expect(await readFile(join(activeRoot, 'keep.txt'), 'utf8')).toBe('active snapshot')
   })
@@ -566,7 +533,7 @@ describe('VRCX session import', () => {
     await mkdir(attackerPath)
     await symlink(attackerPath, plantedRoot, process.platform === 'win32' ? 'junction' : 'dir')
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
 
     expect(await readdir(attackerPath)).toEqual([])
     expect(await readdir(tempPath)).toEqual(['vrx-vrcx-session-import-Qw12Er'])
@@ -613,7 +580,7 @@ describe('VRCX session import', () => {
         await operation
       }
 
-      expect(outcome).toBe('imported')
+      expect(outcome).toMatch(/^auth=/)
       expect(await readdir(plantedRoot)).toEqual(['.vrx-vrcx-session-import-root'])
     }
   )
@@ -636,10 +603,9 @@ describe('VRCX session import', () => {
       return copiedSnapshot
     })
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toBe('auth=authcookie_new')
 
     expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
-    expect(mocks.saveCredential).toHaveBeenCalledWith('vrchat:primary', 'auth=authcookie_new')
   })
 
   it('rejects a snapshot pathname replaced after its exclusive copy', async () => {
@@ -726,9 +692,8 @@ describe('VRCX session import', () => {
     const busy = Object.assign(new Error('busy'), { code: 'EBUSY' })
     mocks.copyOpenFile.mockRejectedValueOnce(busy)
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
     expect(mocks.copyOpenFile).toHaveBeenCalledTimes(2)
-    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
   })
 
   it('returns null after exactly one retry when sharing remains unavailable', async () => {
@@ -751,7 +716,6 @@ describe('VRCX session import', () => {
     try {
       await expect(importVrcxSession()).resolves.toBeNull()
       expect(mocks.copyOpenFile).not.toHaveBeenCalled()
-      expect(mocks.saveCredential).not.toHaveBeenCalled()
     } finally {
       writer.exec('ROLLBACK')
       writer.close()
@@ -762,9 +726,8 @@ describe('VRCX session import', () => {
     const path = await createDatabase()
     await writeFile(`${path}-journal`, Buffer.alloc(0))
 
-    await expect(importVrcxSession()).resolves.toBe('imported')
+    await expect(importVrcxSession()).resolves.toMatch(/^auth=/)
     expect(mocks.copyOpenFile).toHaveBeenCalledTimes(1)
-    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
   })
 
   it('rejects an oversized source database before copying it', async () => {
@@ -781,7 +744,9 @@ describe('VRCX session import', () => {
     const second = importVrcxSession()
 
     expect(second).toBe(first)
-    await expect(Promise.all([first, second])).resolves.toEqual(['imported', 'imported'])
-    expect(mocks.saveCredential).toHaveBeenCalledTimes(1)
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      'auth=authcookie_primary; twoFactorAuth=twofactor_secondary',
+      'auth=authcookie_primary; twoFactorAuth=twofactor_secondary'
+    ])
   })
 })

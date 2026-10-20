@@ -93,8 +93,9 @@ those components with sample data. A known defect is never a design rule.
   the shipped CSP. Only the Vite dev server may relax `style-src` for HMR
   (`scripts/dev-style-csp.ts`, serve-only, never in a build).
 - Never log credentials, tokens, or personal data. Never write to VRCX or
-  ChilloutVR folders; read local ChilloutVR or CVRX files only through the
-  consented session import.
+  ChilloutVR folders; read local VRCX, ChilloutVR or CVRX files only through
+  the "Use my sign-in from this PC" import, which runs only on that button
+  press.
 - Never commit secrets. Keep the gitleaks and dependency/security CI gates.
   Allowlist only confirmed fake fixture values, never whole paths.
 - Keep repository docs, tooling, and tests out of the packaged app

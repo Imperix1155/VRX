@@ -2,7 +2,7 @@
 
 VRChat and ChilloutVR do not publish a supported API for third-party desktop
 clients. VRX depends on unofficial REST endpoints, WebSocket messages, deep
-links, image hosts and, for the optional ChilloutVR session import, local files.
+links, image hosts and, for "Use my sign-in from this PC", local files.
 Any of them can change without notice.
 
 This file lists every platform surface VRX uses. For each one it records what
@@ -17,6 +17,7 @@ source of truth:
   [`CvrAdapter.ts`](../src/main/services/adapters/CvrAdapter.ts),
   [`cvr/`](../src/main/services/adapters/cvr/AGENTS.md) and
   [`cvrSessionImport.ts`](../src/main/services/cvrSessionImport.ts).
+- VRCX sign-in: [`vrcxSessionImport.ts`](../src/main/services/vrcxSessionImport.ts).
 
 Request pacing, 429 cooldowns, retries, the User-Agent, Explore budgets and the
 "no polling, no mass actions" rules live in [API policy](api-policy.md). This
@@ -88,6 +89,11 @@ only note where they differ.
   `image/avif` and at most 3 MiB.
 - Successes are cached for 1 h and failures for 30 s, within 200 entries and
   48 MiB. Any failure shows the letter placeholder.
+- `api.vrchat.cloud` images are also kept on disk for 14 days (4,000 entries,
+  128 MiB). This assumes VRChat file URLs are versioned
+  (`/image/{fileId}/{version}/{size}`, `/file/{fileId}/{version}/file`), so a
+  URL's picture never changes. If VRChat starts reusing a URL for new content,
+  a stale picture can show for up to 14 days; shorten `IMAGE_DISK_TTL_MS`.
 
 ## VRChat
 
@@ -450,9 +456,25 @@ are Synthetic.
 - **When it breaks:** the join is denied with `invalid-url` before
   `shell.openExternal`.
 
-### Local files
+### VRCX sign-in file
 
-VRX reads no local VRChat or VRCX files. VRChat sign-in is always direct.
+"Use my sign-in from VRCX" reads VRCX's saved VRChat cookies
+([vrcxSessionImport.ts](../src/main/services/vrcxSessionImport.ts)), only when
+the user presses it. VRX never writes any VRCX file.
+
+- **Location:** `<appData>/VRCX/VRCX.sqlite3`, the `cookies` table, row
+  `default`: base64 JSON of cookie records `{ Name, Value, Domain }`.
+- **Source-derived (VRCX):** the shape follows VRCX's own cookie storage; not a
+  documented format.
+- **Defensive parsing:** the database is copied into a private temp folder and
+  opened read-only. A non-empty `-wal`, `-shm` or `-journal` file counts as VRCX
+  running and imports nothing. Symlinks, hard links, a changing source, more
+  than 64 rows, 256 KiB of cookie data or 64 cookies import nothing. Exactly one
+  `auth` cookie (and at most one `twoFactorAuth`) for `vrchat.cloud` is accepted.
+- **After import:** `VrcAdapter.importSession` checks the cookie with
+  `GET /auth/user` before it replaces anything. `requiresTwoFactorAuth` opens
+  the normal code prompt; a 401 reports "no longer accepted".
+- **When it breaks:** nothing is imported and password sign-in stays available.
 
 ## ChilloutVR
 
@@ -472,7 +494,7 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
 | `/users/ws` WebSocket             | Live presence                            | Live 2026-07-07                       | Friends stay offline          |
 | Image hosts                       | Pictures                                 | Live 2026-07-16                       | Placeholder                   |
 | `chilloutvr://instance/join` link | Join                                     | Documented                            | Join denied before launch     |
-| Local session files               | Optional session import                  | Source-derived, checked 2026-08-24    | No import, direct sign-in     |
+| Local session files               | Sign-in from this PC (button)            | Source-derived, checked 2026-08-24    | No import, direct sign-in     |
 
 ### Session values and headers
 
@@ -710,11 +732,9 @@ path. Each read is one request with no retry. They are Synthetic.
 
 ### Local session import files
 
-VRX can copy an existing ChilloutVR session from local files
-([cvrSessionImport.ts](../src/main/services/cvrSessionImport.ts)). It runs at
-startup only when VRX has no valid stored session, the user has not signed out,
-and the **External ChilloutVR session** setting allows it (Never, Ask or Allow;
-Ask by default, and the answer is saved). VRX never writes either source.
+"Use my sign-in from ChilloutVR" reads an existing ChilloutVR session from
+local files ([cvrSessionImport.ts](../src/main/services/cvrSessionImport.ts)),
+only when the user presses it. VRX never writes either source.
 
 | Source           | Location                                             | Assumed shape                                                   |
 | ---------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
@@ -747,9 +767,9 @@ Ask by default, and the answer is saved). VRX never writes either source.
     import before any read.
   - Timeouts, budget overruns and files or folders that change identity during
     the read disable the profile source; VRX then uses CVRX only.
-- **After import:** both values must be printable ASCII. The pair is saved through
-  credential storage, then checked with `AuthType: 1` before any REST or socket
-  use.
+- **After import:** both values must be printable ASCII. `CvrAdapter.importSession`
+  checks the pair with `AuthType: 1`, then saves the key CVR returns with its
+  owner. A rejected pair changes nothing.
 - **When it breaks:** any drift imports nothing and direct sign-in stays
   available. VRX does not migrate or repair either source.
 

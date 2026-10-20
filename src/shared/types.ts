@@ -296,6 +296,13 @@ export const CREDENTIAL_PERSISTENCE_FAILED = 'credential_persistence_failed'
 /** Login completed 2FA but VRChat could not establish the session owner. */
 export const AUTH_IDENTITY_UNAVAILABLE = 'auth_identity_unavailable'
 
+/** "Use my sign-in from this PC" found no usable sign-in in VRCX (VRChat) or
+ *  ChilloutVR/CVRX (ChilloutVR). Nothing was read beyond those apps' files. */
+export const SESSION_IMPORT_NOT_FOUND = 'session_import_not_found'
+
+/** A sign-in was found on this PC, but the platform no longer accepts it. */
+export const SESSION_IMPORT_REJECTED = 'session_import_rejected'
+
 /** Result of a login attempt — drives the 2FA flow. */
 export type LoginResult =
   | { ok: true }

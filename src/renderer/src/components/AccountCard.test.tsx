@@ -3,7 +3,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
-import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import {
+  AUTH_IDENTITY_UNAVAILABLE,
+  CREDENTIAL_PERSISTENCE_FAILED,
+  SESSION_IMPORT_NOT_FOUND,
+  SESSION_IMPORT_REJECTED
+} from '@shared/types'
 import { friendsQueryKey } from '../queries/friends'
 import { authStatusQueryKey } from '../queries/auth'
 import { deserializePersistedQueryCache, QUERY_CACHE_STORAGE_KEY } from '../queries/cache'
@@ -17,6 +22,7 @@ type TestBridge = {
   login: ReturnType<typeof vi.fn>
   verify2fa: ReturnType<typeof vi.fn>
   logout: ReturnType<typeof vi.fn>
+  importSession?: ReturnType<typeof vi.fn>
 }
 
 const msg = (key: string, options?: Record<string, string>): string => i18n.t(key, options)
@@ -41,7 +47,8 @@ function bridgeFor(status: AuthStatus): TestBridge {
     getAuthStatus: vi.fn().mockResolvedValue(status),
     login: vi.fn().mockResolvedValue({ ok: true }),
     verify2fa: vi.fn().mockResolvedValue({ ok: true }),
-    logout: vi.fn().mockResolvedValue(undefined)
+    logout: vi.fn().mockResolvedValue(undefined),
+    importSession: vi.fn().mockResolvedValue({ ok: true })
   }
 }
 
@@ -177,6 +184,57 @@ describe.each([
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(msg('settings.accounts.error.credentialPersistence'))
     expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('signs in from this PC only on an explicit press, without sending a typed password', async () => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    const queryClient = renderCard(platform, bridge)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const importButton = await screen.findByRole('button', {
+      name: msg(`settings.accounts.import.${platform}`)
+    })
+    expect(bridge.importSession).not.toHaveBeenCalled()
+    expect(screen.getByText(msg(`settings.accounts.import.${platform}Hint`))).toBeTruthy()
+    const password = screen.getByLabelText<HTMLInputElement>(msg('settings.accounts.password'))
+    fireEvent.change(password, { target: { value: 'typed-secret' } })
+
+    fireEvent.click(importButton)
+
+    await waitFor(() => expect(bridge.importSession).toHaveBeenCalledWith({ platform }))
+    expect(bridge.login).not.toHaveBeenCalled()
+    expect(password.value).toBe('')
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: authStatusQueryKey(platform) })
+    )
+  })
+
+  it.each([
+    [SESSION_IMPORT_NOT_FOUND, 'importNotFound'],
+    [SESSION_IMPORT_REJECTED, 'importRejected']
+  ])('explains an import result of %s in the card, naming where VRX looked', async (code, key) => {
+    const bridge = bridgeFor({
+      platform,
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.importSession?.mockResolvedValue({ ok: false, needs2fa: false, error: code })
+    renderCard(platform, bridge)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg(`settings.accounts.import.${platform}`) })
+    )
+
+    const suffix = platform === 'vrchat' ? 'Vrchat' : 'Chilloutvr'
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(msg(`settings.accounts.error.${key}${suffix}`))
+    // The password form stays available as the main way in.
+    expect(screen.getByRole('button', { name: msg('settings.accounts.connect') })).toBeTruthy()
   })
 
   it('shows a neutral connected check, connected name, and a working Disconnect', async () => {
@@ -489,6 +547,30 @@ describe('AccountCard — VRChat two-factor flow', () => {
     )
     expect(await screen.findByLabelText(msg('settings.accounts.username'))).toBeTruthy()
     expect(screen.queryByLabelText(msg('settings.accounts.twoFactor.code'))).toBeNull()
+  })
+
+  it('turns an imported VRCX sign-in with an expired second factor into the code prompt', async () => {
+    const bridge = bridgeFor({
+      platform: 'vrchat',
+      state: 'unauthenticated',
+      accountId: null,
+      displayName: null
+    })
+    bridge.importSession?.mockResolvedValue({ ok: false, needs2fa: true, method: 'email' })
+    renderCard('vrchat', bridge)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.accounts.import.vrchat') })
+    )
+
+    const code = await screen.findByLabelText(msg('settings.accounts.twoFactor.code'))
+    expect(screen.getByText(msg('settings.accounts.twoFactor.promptEmail'))).toBeTruthy()
+    fireEvent.change(code, { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.twoFactor.verify') }))
+    await waitFor(() =>
+      expect(bridge.verify2fa).toHaveBeenCalledWith({ platform: 'vrchat', code: '123456' })
+    )
+    expect(bridge.login).not.toHaveBeenCalled()
   })
 
   it('uses the existing verify-2fa second leg without resending the password', async () => {

@@ -21,16 +21,10 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
 import { applyUpdaterSettings, initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
-import {
-  flushPendingSettingsSave,
-  getSettingsSnapshot,
-  loadSettings,
-  saveSettings
-} from './services/settings'
+import { flushPendingSettingsSave, getSettingsSnapshot, loadSettings } from './services/settings'
 import {
   CREDENTIAL_KEYS,
   clearCredential,
-  isCredentialSignedOut,
   loadCredential,
   removeLegacyCredentialOwnerStore,
   saveCredential,
@@ -43,7 +37,13 @@ import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
-import { avatarCache } from './services/avatarCache'
+import {
+  AVATAR_ALLOWED_MIME_TYPES,
+  AVATAR_MAX_BODY_BYTES,
+  avatarCache
+} from './services/avatarCache'
+import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
+import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
@@ -62,9 +62,10 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
-import { requestCvrImportConsent } from './services/cvrImportConsent'
-import { importCvrSession, loadStoredOrImportedCvrSession } from './services/cvrSessionImport'
-import { mt, setMainLocale } from './i18n'
+import { importCvrSession } from './services/cvrSessionImport'
+import { importVrcxSession } from './services/vrcxSessionImport'
+import { createSessionImporter } from './services/sessionImport'
+import { setMainLocale } from './i18n'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -313,7 +314,7 @@ app.on('second-instance', () => {
 // Some APIs can only be used after this event occurs.
 app
   .whenReady()
-  .then(async () => {
+  .then(() => {
     // Structured logging first, so anything below is captured (VRX-15).
     initLogger()
     // Same source as the renderer's navigator.language, so dialogs, tray and
@@ -388,7 +389,14 @@ app
     })
     const vrcAdmission = new ApiAdmissionController()
     const cvrAdmission = new ApiAdmissionController()
+    // World and group names wait in the same one-per-second line as everything
+    // else; keep them per account so the first roster after launch has them.
+    const vrcMetadataStore = new VrcMetadataStore({
+      directory: join(app.getPath('userData'), VRC_METADATA_DIRECTORY),
+      log: (message, meta) => log.warn(message, meta)
+    })
     const vrcAdapter = new VrcAdapter(vrcCredentials, vrcAdmission, {
+      metadataStore: vrcMetadataStore,
       captureRosterRevision: () => locationAuthority.captureSeedRevision('vrchat'),
       // handshakeTimeout bounds a black-holed connect so the reconnect backoff
       // can retry instead of waiting for the OS default (~1-2 min).
@@ -418,19 +426,12 @@ app
       }
     })
     // CVR session = { username, accessKey } persisted as ONE encrypted credential
-    // (VRX-37/174/56). With no valid stored session, explicit remembered consent
-    // precedes discovery of game profiles or CVRX sessions. Imported material is printable-ASCII
-    // validated and encrypted here before CvrAdapter can adopt or re-auth it.
+    // (VRX-37/174/56). Startup only restores VRX's own stored session; it never
+    // looks for game profiles or CVRX. Those are read only when the user presses
+    // "Use my sign-in from this PC" (sessionImport.ts), and CvrAdapter validates
+    // the imported key and its owner before persisting it.
     const loadStoredCvrCredentials = (): CVRCredentials | undefined => {
-      let raw: string | undefined
-      try {
-        raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
-      } catch (error) {
-        // Unreadable (for example a locked keychain): keep the slot untouched.
-        // loadStoredOrImportedCvrSession then skips import instead of replacing it.
-        log.warn('CVR stored session unreadable; session import skipped')
-        throw error
-      }
+      const raw = loadCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY)
       if (!raw) return undefined
       try {
         const parsed: unknown = JSON.parse(raw)
@@ -449,53 +450,10 @@ app
     }
     let initialCvrCredentials: CVRCredentials | undefined
     try {
-      initialCvrCredentials = await loadStoredOrImportedCvrSession({
-        loadStored: loadStoredCvrCredentials,
-        signedOut: () => isCredentialSignedOut(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY),
-        requestImportConsent: () =>
-          requestCvrImportConsent({
-            choice: getSettingsSnapshot().cvrSessionImportChoice,
-            prompt: async () => {
-              const result = await dialog.showMessageBox({
-                type: 'question',
-                title: mt('cvrImport.title'),
-                message: mt('cvrImport.message'),
-                detail: mt('cvrImport.detail'),
-                buttons: [mt('cvrImport.deny'), mt('cvrImport.allow')],
-                defaultId: 0,
-                cancelId: 0,
-                noLink: true
-              })
-              return result.response === 1
-            },
-            saveChoice: async (cvrSessionImportChoice) => {
-              try {
-                await saveSettings({ cvrSessionImportChoice })
-              } catch (error) {
-                await dialog.showMessageBox({
-                  type: 'warning',
-                  title: mt('cvrImport.title'),
-                  message: mt('cvrImport.saveFailed.message'),
-                  detail: mt('cvrImport.saveFailed.detail'),
-                  buttons: [mt('cvrImport.saveFailed.continue')]
-                })
-                throw error
-              }
-            }
-          }),
-        importSession: () =>
-          importCvrSession({
-            appDataPath: app.getPath('appData'),
-            homePath: app.getPath('home'),
-            platform: process.platform,
-            environment: process.env
-          }),
-        persistImported: (credentials) =>
-          saveCredential(CREDENTIAL_KEYS.CHILLOUTVR_PRIMARY, JSON.stringify(credentials))
-      })
+      initialCvrCredentials = loadStoredCvrCredentials()
     } catch {
-      // A locked keychain or unreadable external source must not block app boot.
-      log.warn('CVR session restore or import unavailable')
+      // A locked keychain must not block app boot; the slot stays untouched.
+      log.warn('CVR stored session unreadable')
     }
     const cvrCredentials: CvrCredentialStore = {
       load: () => initialCvrCredentials,
@@ -561,6 +519,16 @@ app
     // endpoint 401s unauthenticated). Each operation captures its own session lease.
     avatarCache.setApiAdmission(vrcAdmission)
     avatarCache.setVrcSessionProvider(() => vrcAdapter.getAvatarRequestLease())
+    // VRChat pictures each cost a slot in the one-per-second line; keep them on
+    // disk so the next launch shows them without requests (imageDiskStore.ts).
+    avatarCache.setDiskStore(
+      new ImageDiskStore({
+        directory: join(app.getPath('userData'), IMAGE_DISK_DIRECTORY),
+        allowedMimeTypes: AVATAR_ALLOWED_MIME_TYPES,
+        maxBodyBytes: AVATAR_MAX_BODY_BYTES,
+        log: (message, meta) => log.warn(message, meta)
+      })
+    )
 
     const joinCoordinator = new JoinCoordinator()
     const explore = new ExploreService({
@@ -604,6 +572,23 @@ app
         }
       },
       appStatus,
+      importSession: createSessionImporter({
+        discoverVrchat: importVrcxSession,
+        discoverChilloutvr: () =>
+          importCvrSession({
+            appDataPath: app.getPath('appData'),
+            homePath: app.getPath('home'),
+            platform: process.platform,
+            environment: process.env
+          }),
+        vrchat: vrcAdapter,
+        chilloutvr: cvrAdapter
+      }),
+      onLogout: (platform) => {
+        if (platform !== 'vrchat') return
+        vrcMetadataStore.clearAll()
+        void avatarCache.clearStoredImages()
+      },
       onAuthStatus: (status) => {
         if (
           status.state === 'authenticated' &&
