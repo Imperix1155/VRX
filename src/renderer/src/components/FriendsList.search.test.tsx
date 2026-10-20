@@ -130,9 +130,12 @@ describe('FriendsList search (VRX-65)', () => {
 
     expect(screen.getByText('No friends match your search')).toBeTruthy()
     const clear = screen.getByRole('button', { name: 'Clear search' })
+    clear.focus()
     fireEvent.click(clear)
 
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+    // The button removed itself; focus stays in the search field.
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Search friends' }))
     expect(screen.getByText('José')).toBeTruthy()
     expect(screen.getByText('Alice')).toBeTruthy()
   })

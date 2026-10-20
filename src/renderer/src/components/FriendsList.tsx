@@ -459,9 +459,12 @@ const FriendRow = memo(function FriendRow({
           <button
             type="button"
             data-join-pill
-            className="linked-location-button disabled:opacity-50"
-            onClick={joinFriend}
-            disabled={isJoining}
+            className="linked-location-button aria-disabled:opacity-50"
+            onClick={(event) => {
+              if (isJoining) event.stopPropagation()
+              else joinFriend(event)
+            }}
+            aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
             // The diagonal halves carry each location's access tier in color;
             // the tooltip (and accessible description) spells both out.
@@ -1242,10 +1245,13 @@ export default function FriendsList(): React.JSX.Element {
         ) : null}
         <button
           type="button"
-          onClick={() => void refetch()}
-          disabled={isFetching}
+          // aria-disabled keeps keyboard focus here through a refresh.
+          onClick={() => {
+            if (!isFetching) void refetch()
+          }}
+          aria-disabled={isFetching || undefined}
           aria-label={t('friends.refresh')}
-          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:opacity-50 motion-safe:transition-colors"
+          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] aria-disabled:opacity-50 motion-safe:transition-colors"
         >
           {t('friends.refresh')}
         </button>
@@ -1268,7 +1274,11 @@ export default function FriendsList(): React.JSX.Element {
         {search.length > 0 && (
           <button
             type="button"
-            onClick={() => updateSearch('')}
+            onClick={() => {
+              updateSearch('')
+              // The button goes away with the search; keep focus in the field.
+              searchInputRef.current?.focus()
+            }}
             aria-label={t('friends.clearSearch')}
             className="absolute top-1/2 right-[var(--space-2)] grid h-[24px] w-[24px] -translate-y-1/2 place-items-center rounded-control text-base leading-none text-[var(--text-dim)] hover:bg-[var(--surface-hover)] motion-safe:transition-colors"
           >
