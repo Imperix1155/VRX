@@ -1,7 +1,7 @@
 import { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AuthState, BackgroundGlow, Platform, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS } from '@shared/types'
+import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
+import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS, LABEL_SCHEMES } from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
@@ -26,6 +26,12 @@ const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
   muted: 'settings.backgroundGlow.muted',
   standard: 'settings.backgroundGlow.standard',
   vivid: 'settings.backgroundGlow.vivid'
+}
+
+const SCHEME_LABEL_KEYS: Record<LabelScheme, string> = {
+  vrchat: 'settings.labelScheme.vrchat',
+  chilloutvr: 'settings.labelScheme.chilloutvr',
+  'platform-native': 'settings.labelScheme.platformNative'
 }
 
 const ORDER_LABEL_KEYS = {
@@ -315,6 +321,7 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
   const { t } = useTranslation()
   const theme = useSettingsStore((s) => s.settings.theme)
   const glow = useSettingsStore((s) => s.settings.backgroundGlow)
+  const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -372,6 +379,17 @@ export const LookStep = forwardRef<HTMLHeadingElement>(function LookStep(_props,
           labelKeys={GLOW_LABEL_KEYS}
           ariaLabel={t('settings.backgroundGlow.aria')}
           onChange={(value) => update({ backgroundGlow: value })}
+        />
+      </Row>
+      {/* Asked here so new users pick their terms (owner, 2026-10-20); leaving
+          setup before this step keeps the VRChat default. */}
+      <Row label={t('settings.labelScheme.label')} description={t('setup.look.labelsDescription')}>
+        <SegmentedControl
+          values={LABEL_SCHEMES}
+          active={labelScheme}
+          labelKeys={SCHEME_LABEL_KEYS}
+          ariaLabel={t('settings.labelScheme.aria')}
+          onChange={(value) => update({ labelScheme: value })}
         />
       </Row>
     </div>
@@ -442,7 +460,8 @@ export const DoneStep = forwardRef<
     ['setup.done.pages', pages],
     ['setup.done.dashboard', dashboard],
     ['setup.done.alerts', alerts],
-    ['setup.done.look', look]
+    ['setup.done.look', look],
+    ['settings.labelScheme.label', t(SCHEME_LABEL_KEYS[s.labelScheme])]
   ]
   return (
     <div className="flex flex-col gap-[var(--space-3)]">

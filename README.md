@@ -31,7 +31,8 @@ you press a "Use my sign-in from" button, described below.
   platform's words the instance labels use. Hot Instances and Explore can be
   hidden from the sidebar in Settings → Appearance.
 - **Welcome setup**: a new install starts with a short, skippable setup for
-  sign-in, pages, the Dashboard, alerts, and the look. Run it again any time
+  sign-in, pages, the Dashboard, alerts, and the look (including instance
+  labels). Run it again any time
   from Settings → Appearance.
 - **Tray and updates**: closing the window keeps VRX in the system tray. The
   installed Windows app and the Linux AppImage can update from inside VRX.

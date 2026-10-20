@@ -683,6 +683,7 @@
     "look": {
       "title": "見た目を選ぶ",
       "lead": "選ぶとすぐに切り替わるので、その場で確認できます。",
+      "labelsDescription": "インスタンスのタグに出る言葉です。例：Friends+（VRChat）、フレンドのフレンド（ChilloutVR）。",
       "aria": "テーマ",
       "system": "PCに合わせる"
     },
