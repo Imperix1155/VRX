@@ -20,7 +20,7 @@ import { pathToFileURL } from 'node:url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
-import { initAutoUpdater } from './updater'
+import { initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
 import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
@@ -674,18 +674,22 @@ app
       NativeNotification.handleActivation(focusMainWindow)
     }
 
-    // Check GitHub Releases for updates on startup (packaged builds only).
-    // Own try/catch: a sync throw here would otherwise reach the bootstrap
-    // .catch and exit an app whose window ALREADY WORKS — auto-update failure
-    // is never worth killing a healthy session (audit W7 review).
-    try {
-      const updater = initAutoUpdater()
-      void updater.check()
-    } catch (error) {
-      log.warn('autoUpdater init failed', {
-        message: error instanceof Error ? error.message : String(error)
-      })
-    }
+    // Check GitHub Releases for updates shortly after startup (packaged builds
+    // only). The delay keeps electron-updater's module load off the path to the
+    // first window and the first account reads. A failed load is logged, never
+    // thrown: auto-update failure is never worth killing a healthy session
+    // (audit W7 review).
+    setTimeout(() => {
+      initAutoUpdater()
+        .then((updater) => {
+          void updater.check()
+        })
+        .catch((error: unknown) => {
+          log.warn('autoUpdater init failed', {
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+    }, STARTUP_CHECK_DELAY_MS)
 
     app.on('activate', function () {
       // On macOS it's common to re-create a window in the app when the

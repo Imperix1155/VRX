@@ -240,6 +240,11 @@ describe('ExploreService integration bounds', () => {
       )
     )
     expect(adapter.contexts).toHaveLength(13)
+    // The candidate list queues with roster work; qualification stays background.
+    expect(adapter.contexts.map((context) => context.priority)).toEqual([
+      'default',
+      ...Array<string>(12).fill('background')
+    ])
     expect(adapter.contexts.every((context) => context.lease === adapter.lease)).toBe(true)
     expect(adapter.captureCount).toBe(1)
     expect((await h.service.getSnapshot('chilloutvr', 'snapshot')).worlds).toHaveLength(6)

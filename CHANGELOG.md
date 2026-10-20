@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- VRX opens faster: the window appears about a fifth sooner (about 0.47s
+  instead of 0.59s in a test run), and the app's screen code is about half its
+  previous size. The update check now starts a few seconds after launch.
+- The friend list sorts much faster with many friends (about 2ms instead of
+  40-70ms for 1,000 friends), so live status changes and tab switches feel
+  smoother. Saved friends are also rewritten to disk less often.
+- VRChat's Popular now list loads earlier after opening the app. It now waits
+  in line with the friend list and world names instead of behind every
+  picture. VRX still sends at most one VRChat request per second.
+
 - Replaced the default Electron app icon with a VRX monogram: a blue V, silver
   R, and orange X at equal size in a smoked-glass case, with colored rails and
   softened chamfers. Windows, Linux, macOS, and tray assets now share that
