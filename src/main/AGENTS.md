@@ -107,8 +107,8 @@ and Node/Electron access on this side of the process boundary.
   electron-vite's `asset&asarUnpack` handling; keep runtime resources unpacked.
   Do not shrink the 512px app master into the small tray glyphs.
 - Native friend alerts are settings-gated at dispatch and bounded in memory and
-  rate. A disabled hot-instance feature suppresses hot alerts without erasing
-  its saved notification preference. Alert payloads and failure logs stay free
+  rate. Only the alert's own Notifications switch gates it; hiding the
+  Dashboard's hot section does not. Alert payloads and failure logs stay free
   of private location data.
 - Stable builds exclude prereleases; beta/rc builds retain the locked updater
   channel selection. No implicit channel selector or rc-to-stable promotion.
