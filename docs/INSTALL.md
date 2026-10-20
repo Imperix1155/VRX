@@ -1,67 +1,85 @@
 # Install and support
 
-VRX is preparing for a Windows-first 1.0. This guide does not announce that 1.0
-has shipped. Choose an available version from the official
-[GitHub Releases](https://github.com/Imperix1155/VRX/releases) and read its notes.
+Download VRX only from the official
+[GitHub Releases](https://github.com/Imperix1155/VRX/releases) page. Each
+release has notes describing what changed. Releases marked **Pre-release** are
+beta or release-candidate test builds.
 
-## Windows
+## Choose a download
 
-- Use `vrx-VERSION-setup.exe` for an installed app and consent-based updates.
-- Use `VRX-VERSION.exe` for portable use. Portable builds do not support the
-  in-app updater; download a newer portable executable manually.
-- The release workflow currently targets x64. Do not assume native ARM64 support.
-- Installer signing and SmartScreen acceptance must be checked on the actual
-  release. Do not disable Windows security protections to work around a warning.
+| System  | File                          | Updates                                                   |
+| ------- | ----------------------------- | --------------------------------------------------------- |
+| Windows | `vrx-VERSION-setup.exe`       | In-app updates                                            |
+| Windows | `VRX-VERSION.exe` (portable)  | Download each new version yourself                        |
+| Linux   | `vrx-VERSION-x86_64.AppImage` | In-app updates                                            |
+| Linux   | `vrx_VERSION_amd64.deb`       | Install each new package with your system's package tools |
 
-### "Windows protected your PC"
+Releases are built for 64-bit x86 (x64) only. There is no native ARM build.
+Linux packages are checked automatically when they are built but are less
+tested than Windows on real desktops. No macOS builds are published.
 
-VRX releases are not code-signed yet, so Windows SmartScreen may warn the first
-time you run a new download. Only continue for a file you downloaded yourself
-from the official [GitHub Releases](https://github.com/Imperix1155/VRX/releases)
+## Windows: "Windows protected your PC"
+
+VRX isn't code-signed yet, so Windows SmartScreen may warn you the first time
+you run a new download. Only continue for a file you downloaded yourself from
+the official [GitHub Releases](https://github.com/Imperix1155/VRX/releases)
 page:
 
 1. On the blue "Windows protected your PC" screen, select **More info**.
-2. Check that the file name matches the release you downloaded
-   (for example `vrx-VERSION-setup.exe`).
+2. Check that the file name matches the release you downloaded (for example
+   `vrx-VERSION-setup.exe`).
 3. Select **Run anyway**.
 
-If there is no **Run anyway** button, your organization's policy blocks unsigned
-apps; ask your administrator instead of changing security settings. Updates
-installed from inside VRX do not show this screen again.
+If there is no **Run anyway** button, your organization's policy blocks
+unsigned apps. Ask your administrator instead of changing security settings.
 
-Quit VRX before manually replacing it and preserve its existing user data.
-Use Settings for available app preferences and update actions. Release notes
-are on GitHub and in the packaged changelog; there is no in-app What's New view.
+## Updates
 
-## Update channels
+VRX checks for updates when it starts and every few hours while it runs. When
+one is available, an **Update** button appears at the bottom of the sidebar,
+and Settings → About shows the same choice. Nothing downloads or installs
+until you say so, unless you turn on **Automatic updates**. Automatic updates
+download in the background and install when VRX closes.
 
-Plain `X.Y.Z` versions use stable updates and exclude prereleases. A deliberately
-installed `X.Y.Z-beta.N` build follows the updater's beta/stable channel behavior.
-`X.Y.Z-rc.N` follows rc releases, including newer rc version lines; install stable
-manually to leave rc. There is no channel-selector UI. Historical plain-version
-releases were marked prerelease on GitHub; check each release's label and notes.
-Update download/install remains controlled by the existing user settings/actions.
+The portable Windows build can't update itself. Settings → About links to
+the releases page instead.
 
-## Other operating systems
+Which updates you get depends on the version you installed:
 
-Linux AppImage and deb artifacts are experimental. Package checks do not prove
-GNOME/KDE launch, credential persistence, or update behavior on every distro.
-AppImage updates depend on its runtime environment; deb users should use the
-system package installer for manual package upgrades when needed.
+- A normal version (for example `1.2.0`) gets normal releases only, never test
+  builds.
+- A beta (for example `1.2.0-beta.1`) gets newer betas and normal releases.
+- A release candidate (for example `1.2.0-rc.1`) gets newer release candidates
+  only. To leave that track, install a normal release yourself.
 
-Closing the window keeps VRX running in the system tray. Some desktops (for
-example GNOME without an AppIndicator extension) show no tray icon, so a closed
-VRX seems to vanish. Launch VRX again to bring the same window back; it never
-starts a second copy. Quit from the tray menu where a tray is available.
+There is no setting to switch tracks. Release notes are on GitHub; VRX has no
+in-app "What's new" screen.
 
-The public workflow does not publish macOS installers. Local development builds
-are not notarized under the current configuration and are not a supported public
-1.0 distribution. Developer setup is in [Development](DEVELOPMENT.md).
+## Running VRX
+
+- Closing the window on Windows or Linux keeps VRX running in the system tray.
+  Use the tray icon to show or hide the window, or **Quit** to close VRX. You
+  can also press Ctrl+Q while the window is focused to quit.
+- Some Linux desktops (for example GNOME without an AppIndicator extension)
+  show no tray icon, so a closed VRX seems to vanish. Start VRX again and the
+  same window comes back; VRX never runs twice. Press Ctrl+Q in the window to
+  quit.
+- Your settings and saved sign-ins stay when you update or reinstall. To remove
+  saved sign-ins, sign out of each platform in Settings → Accounts before you
+  uninstall.
 
 ## Report a problem
 
-Use [GitHub Issues](https://github.com/Imperix1155/VRX/issues) for ordinary bugs.
-Include VRX version, OS/architecture, installer versus portable format, steps,
-and the visible error. Remove account identifiers and private social data from
-logs or screenshots; never include passwords, session tokens, or credential
-files. Report suspected vulnerabilities privately using [Security](../SECURITY.md).
+Open a [GitHub issue](https://github.com/Imperix1155/VRX/issues) with:
+
+- the VRX version (shown at the bottom of the sidebar),
+- your system and which download you used,
+- what you did, what you expected, and what happened, including any message
+  on screen.
+
+Settings → About → **Open logs folder** shows VRX's log file. VRX removes
+passwords and session tokens from its logs, but read the log before sharing
+it and remove friend names or account details you don't want public. Never
+share passwords, session tokens, or credential files.
+
+Report security problems privately, as described in [Security](../SECURITY.md).
