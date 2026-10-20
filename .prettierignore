@@ -2,8 +2,6 @@ out
 dist
 /coverage/
 /release/
-pnpm-lock.yaml
-LICENSE.md
 tsconfig.json
 tsconfig.*.json
 # Hand-tuned living design references — formatting is owner-authored, and

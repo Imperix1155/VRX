@@ -1,558 +1,779 @@
-# VRX — API Volatile-Surface Registry
-
-> **Companion to [`docs/api-policy.md`](./api-policy.md).**
->
-> Both the VRChat and ChilloutVR APIs are **unofficial and undocumented**. They drift without notice. This registry catalogs the API surfaces VRX depends on and documents how VRX degrades gracefully when they change.
-
-## Introduction
-
-VRX relies on two unofficial, undocumented APIs:
-
-- **VRChat** (`https://api.vrchat.cloud/api/1`) — endpoint-level documentation exists in community wikis; official schema is absent.
-- **ChilloutVR** (`https://api.abinteractive.net/1`) — normal auth/friend API;
-  no public documentation; reverse-engineered from community libraries and live
-  observation. Bounded Explore discovery uses the separately versioned
-  `https://api.chilloutvr.net` routes documented below; this is not a migration
-  of the normal auth/friend host.
-
-Both APIs are subject to **breaking changes without warning**. This document enumerates the critical surfaces and VRX's resilience strategy.
-
-**Related:** [`docs/api-policy.md`](./api-policy.md) documents rate-limit etiquette and the broader compliance posture; see that doc for the User-Agent policy, batch-stop and retry policy, and "no mass actions" rules.
-
----
-
-## Local traffic safeguards (VRX-218)
-
-September 2026 synthetic-clock/transport tests verify shared admission, account
-leases, batch termination, roster coalescing and upgrade cooldown handling.
-A disposable loopback test also verifies real `ws` rejected-response disposal.
-These tests establish local behavior; they do not establish vendor rate quotas,
-new endpoint contracts, or live-account compatibility. Existing live-verification
-labels below keep their original meaning. API-backed image hops share VRChat
-admission and their original durable session lease; redirected CDN bodies remain
-host-bounded and cookie-free. Explore adds only the bounded, main-owned discovery
-traffic recorded in `api-policy.md`; normal CVR auth/friend traffic remains on
-`api.abinteractive.net/1`.
-
-## Volatile Surfaces at a Glance
-
-| Endpoint / Field                                                                     | What VRX uses it for                                                                                                                                                                             | Verification                                                                                                                                                                                                                                                                                                                                                | Degradation if changed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /auth/user` (auth branch)                                                       | 2FA detection, user ID, display name                                                                                                                                                             | 🟡 Login branch verified; the VRX-173 reprompt branch (200+`requiresTwoFactorAuth` on a live session with expired 2FA cookie, and verify accepting a stale `twoFactorAuth` part in the Cookie header) matches VRChat web-client behavior but is mock-verified only — confirm on the owner's first live reprompt                                             | `requiresTwoFactorAuth` on a live session → `needs-2fa` reprompt (code only, no password — VRX-173); if the API 401s instead, behavior degrades to today's full re-login (safe); a 200 with an unparseable/drifted body → `error` WITHOUT clearing the session — the cookie was accepted, only the reply was unreadable (VRX-201)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `GET /auth/user` (success branch)                                                    | User ID, display name, presence buckets                                                                                                                                                          | ✅ Verified                                                                                                                                                                                                                                                                                                                                                 | Missing fields → partial login; empty buckets → all friends appear offline. Platform-issued `auth` / `twoFactorAuth` cookie values must be printable ASCII; any non-printable byte fails authentication before header use or persistence (VRX-38)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `GET /auth/user/friends` (paginated)                                                 | Friend list, status, avatar, trust tags                                                                                                                                                          | 🟡 Verified endpoint, field drift observed                                                                                                                                                                                                                                                                                                                  | Unknown fields ignored; unknown status → `'online'`; empty tags → `'visitor'` trust                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `GET /api/1/image/{fileId}/{version}/{size}`                                         | Avatar thumbnails (VRX-202)                                                                                                                                                                      | 🟡 Requires the auth cookie (401 unauthenticated); 302s to a signed CDN URL on hosts VRChat rotates freely                                                                                                                                                                                                                                                  | Redirect followed only when issued by `api.vrchat.cloud` (≤2 hops); any failure → letter placeholder + 30s negative cache, never a crash                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `/auth/user/friends` — `status` string                                               | VRChat status folded into an in-game avatar ring; the drawer writes the status in words                                                                                                          | ✅ Verified                                                                                                                                                                                                                                                                                                                                                 | Unknown string → defaults to `'online'` and uses the Online ring/wording                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `/auth/user/friends` — `tags` array                                                  | Trust rank (visitor, new, user, known, trusted, nuisance)                                                                                                                                        | ✅ Verified mapping, field names                                                                                                                                                                                                                                                                                                                            | Unknown tags ignored; no match → `'visitor'`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `instanceId` / location string                                                       | Instance access type (public, friends, invite, group, etc.)                                                                                                                                      | ✅ Verified tag grammar                                                                                                                                                                                                                                                                                                                                     | Unknown tags → `'public'` (most open); unknown access type → most restrictive default                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `GET /instances/{worldId}:{instanceId}`                                              | Instance details (capacity, player count, closed status)                                                                                                                                         | 🟡 Endpoint verified, schema drift possible                                                                                                                                                                                                                                                                                                                 | Missing fields → defaults or skipped (non-critical for UI)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `GET /worlds/{worldId}`                                                              | World name, description, thumbnail, capacity                                                                                                                                                     | 🟡 Endpoint verified, field drift observed                                                                                                                                                                                                                                                                                                                  | Missing name → blank; missing thumbnail → placeholder; missing capacity → unknown. Enrichment runs after `getFriends()` returns and on live pipeline events via `enrichPipelineEvent`; a 401 invalidates auth asynchronously, leaving a residual window where `LocationAuthority` can resolve from the just-seeded roster until `auth-invalidated` is consumed. The renderer additionally guards the REST roster write so a cold-resolver refetch cannot clobber already-known world names (VRX-258): `worldName`/`thumbnailUrl` are preserved independently, only for the same `platform:platformUserId` within the same `worldId` (never across a world move), and fresh non-null values always win.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `GET /groups/{groupId}`                                                              | Group name and icon for group-instance enrichment (VRX-260)                                                                                                                                      | 🟡 Contract inferred from community references; `name` is required, `iconUrl` degrades to null                                                                                                                                                                                                                                                              | Missing/unparseable `name` → negative-cache to null for 60 s; missing `iconUrl` → null. Runs on the default-lane after `getFriends()` and on pipeline boundary enrichment; 401 propagates to `auth-invalidated`; 403 is mapped to `AuthError` by `BaseAdapter` and also propagates (never negative-cached); other failures negative-cache silently.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `POST /auth/twofactorauth/{totp\|emailotp}/verify`                                   | 2FA code verification — **route by code type, never interchangeable** (`otp/verify` = recovery codes ONLY; email codes there are always rejected — VRX-229; full table in the 2FA section below) | ✅ totp live-tested (VRX-42); ✅ emailotp triple-confirmed + live-confirmed 2026-07-28 (spec + live probe + VRCX + the external tester's successful v0.11.1 login)                                                                                                                                                                                          | Unexpected `verified` value → login fails (safe default)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **CVR: no second factor exists** (auth response carries no 2FA field)                | Login is single-leg; `CvrAdapter.verify2fa` rejects by contract                                                                                                                                  | ✅ As of 2026-07 (live logins + community libraries show no 2FA)                                                                                                                                                                                                                                                                                            | If CVR ADDS 2FA: login starts failing or a new response field appears → wire the seam documented in `CvrAdapter.login()` (mirror VrcAdapter's pending-method flow; probe CVR's verify endpoint against ITS contract first)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `GET /users/{userId}`                                                                | User profile (used for bulk enrichment)                                                                                                                                                          | 🟡 Endpoint verified, rarely called                                                                                                                                                                                                                                                                                                                         | Missing fields → partial user data; non-critical for presence UI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **VRChat deep link** `vrchat://launch?ref=vrchat.com&id=<worldId>:<instanceId>`      | Launch the client into an authority-resolved friend instance                                                                                                                                     | 🟡 Existing VRCX/VRChat client contract; mock-verified by builder + strict validator tests                                                                                                                                                                                                                                                                  | Invalid/changed grammar fails closed before `shell.openExternal`. The URI cannot select desktop vs VR: `JoinMode` is intentionally a no-op and the VRChat client setting governs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Pipeline WS** `wss://pipeline.vrchat.cloud/?authToken=…`                           | Real-time friend events: `{type, content}` envelope with DOUBLE-ENCODED content; friend-online/active/offline/location/add/delete/update types; `GET /auth` token exchange                       | 🟡 Wire format verified vs community docs + VRChat's dev blog; mock-verified in code (VRX-146) — confirm event shapes on first live session                                                                                                                                                                                                                 | Unknown event types → logged + ignored; malformed frames dropped; undecodable content dropped; connect failure → capped jittered backoff; reset only after a 60-second sustained open; upgrade 429 → server/fallback wait shared with platform admission, presence degrades to the slow REST reconcile (VRX-22)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **CVR `POST /users/auth`**                                                           | Login response (username, accessKey, userId, avatar, home world)                                                                                                                                 | 🟡 Endpoint verified, schema drift possible                                                                                                                                                                                                                                                                                                                 | Missing accessKey → login fails; missing userId → non-functional. Returned or rotated Username/AccessKey session values must be printable ASCII; otherwise authentication fails before header use or persistence (VRX-38)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **CVR local session files**                                                          | First-run reuse of a game or CVRX session (VRX-56)                                                                                                                                               | 🟡 Game `autologin*.profile` uses `LoginProfile > Username/AccessKey`; CVRX wraps `CVRConfigs/config.json` and `credentials.json` in `{FileVersion:1,data}`. Verified against [CVRX `server/config.js`](https://github.com/AstroDogeDX/CVRX/blob/main/server/config.js), 2026-08-24                                                                         | Source A is preferred. A unique game profile wins even when CVRX names another active account. Unknown versions, stalled, malformed, oversized, over-budget, or path-swapped files, unsafe characters, relative or Windows network/device paths, unsafe Electron roots, and unresolved account ambiguity are ignored; unsafe roots are rejected before source I/O. Directory device/inode/change-time and file-handle identity checks detect ordinary concurrent replacement; a hostile same-user process with mount or filesystem control remains outside this local-import boundary. Steam discovery and bounded CVRX reads share one second and overlap so neither source starves another; profile directories stop at entry 513. Source A still wins selection. No usable source returns null. VRX never writes either source and persists only the selected username/accessKey through OS-first credential storage with the approved local fallback before AuthType 1 re-auth; the live pipeline receives no credential headers until that validation succeeds, then restarts without another auth request |
-| **CVR data envelope**                                                                | `{message, data: T}` wrapper on all responses                                                                                                                                                    | ✅ Verified live 2026-07-08 — **`message` is nullable/optional** (`/friends` returns `message:null`); we discard it, so `z.string().nullish()`                                                                                                                                                                                                              | Requiring `message:string` rejected every `/friends` fetch → circuit-breaker lockout (fixed). Shape change beyond `message` → Zod fails, request treated as failed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **CVR `GET /friends` roster `imageUrl` CDN host**                                    | Friend profile pictures (VRX-62)                                                                                                                                                                 | ✅ Verified LIVE 2026-07-16 — a real roster served all 166 `imageUrl`s from **`files.chilloutvr.net`**, not the `files.abidata.io` host CVRX's sources pointed at (both stay allowlisted)                                                                                                                                                                   | A host outside the avatar allowlist is silently refused → letter placeholder (the shipped 0.9.x CVR-no-pictures bug). A future CDN move needs one allowlist line; failures never crash                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **CVR `instanceSettingPrivacy` / WS `Instance.Privacy`**                             | Instance access level; `GET /1/instances/{id}` also exposes the hosting `group: {id, name, image}` for group instances (`null` otherwise)                                                        | ✅ WS wire is a **NUMERIC enum** (live 2026-07-08): `0`=public, `2`=friends, `7`=group confirmed live; `1`=friends, `3`/`6`=group, `4`/`5`=private from the owner's prior app. **`GET /1/instances/{id}` sends PascalCase STRINGS** (`Public`, `Friends`, `GroupPlus` observed live 2026-08-12). String form also accepted (CVRX docs)                      | `parseCvrPrivacy` maps both number + string; unknown → MOST RESTRICTIVE (`owner-must-invite`) plus `opennessUnknown:true`. Unverified numbers understate (safe); the UI labels the degraded pathway unknown. New enum value → same tagged restrictive default (VRX-147/240). A malformed `group` object degrades to `null` without failing the resolve (VRX-263)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **CVR WS** `wss://api.chilloutvr.net/1/users/ws`                                     | Real-time friend presence: header auth on upgrade; `{ResponseType, Data}` clean-JSON envelope; outgoing `{RequestType, Data}` actions                                                            | ✅ Verified LIVE 2026-07-08. **ONLINE_FRIENDS (10) is a FULL set on connect, then 1-entry DELTAS** (not a full snapshot each time — merged in the pipeline). Entries are **PascalCase** (`Id`/`IsOnline`/`Instance{Id,Name,Privacy}`), `Privacy` numeric. Open: does a full-offline friend get an explicit `IsOnline:false` delta or just vanish? (VRX-193) | Unknown ResponseTypes → logged + ignored; malformed/non-GUID entries skipped per-entry (a non-empty frame with no usable or carried-over entry emits nothing (warn-logged); on the post-reconnect full set, a malformed entry with a readable GUID keeps that friend's pre-reconnect online state with no instance, never the old join target; if nothing in the connect's full set is usable or carried over, the pipeline reconnects through normal backoff for a fresh one, at most `MAX_UNUSABLE_FULL_SET_RESYNCS` (2) times in a row, since CVR has no resend request); both casings accepted; deltas merge into a running online-set (cleared on reconnect); connect failure → capped jittered backoff; reset only after a 60-second sustained open; upgrade 429 → server/fallback wait shared with platform admission                                                                                                                                                                                                                                                                                    |
-| **CVR deep link** `chilloutvr://instance/join?instanceId=<encoded>&startInVR=<bool>` | Launch the client into an authority-resolved friend instance                                                                                                                                     | ✅ [Official ChilloutVR deep-link documentation](https://docs.chilloutvr.net/chilloutvr/game/deep-link/) specifies `i+…` ids (`+` encoded as `%2B`) and `startInVR=false\|true`                                                                                                                                                                             | Exact grammar, parameter names, id shape, and boolean are validated; any drift fails closed before launch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-
----
-
-## Detailed Volatile Surfaces
-
-### VRChat Authentication (`/auth/user`)
-
-**Endpoint:** `GET /auth/user` with HTTP Basic auth (username:password in base64)
-
-**What VRX depends on:**
-
-- 2FA detection: `requiresTwoFactorAuth: string[]` (when 2FA is required, _instead_ of the success response)
-- User ID + display name: `id: string`, `displayName: string` (on successful login)
-- Presence buckets: `onlineFriends: string[]`, `activeFriends: string[]`, `offlineFriends: string[]` (friend IDs grouped by presence state)
-- A direct HTTP Basic login response that requires 2FA must issue a valid
-  replacement `auth` cookie for that attempt. A current-user success body must
-  also issue one when the account changes. VRX rejects either response without
-  the required cookie rather than submit a code with, or bind an identity to,
-  the prior account's cookie; only a same-account current-user response may
-  reuse an already-proven cookie.
-
-**Verification:** ✅ Verified in VRX code and live against production API (VRX-42, VRX-43).
-
-**Degradation if changed:**
-
-- **Missing 2FA shape:** If `requiresTwoFactorAuth` becomes a different field
-  name or structure, login cannot safely detect the 2FA requirement. VRX
-  abandons the tentative session and returns a terminal unexpected-response
-  error. Safe fallback: the user restarts the full sign-in flow.
-- **Changed Basic-login cookie behavior:** If VRChat stops returning an `auth`
-  cookie for a 2FA challenge or an account-changing successful Basic-login
-  response, VRX fails that login instead of creating a dead prompt or an
-  account/session mismatch. A same-account current-user response can retain its
-  already-proven cookie; all other no-cookie responses require a retry after
-  the API contract is confirmed.
-- **Presence-bucket probe unavailable:** A non-auth failure fetching `/auth/user`
-  produces an explicit degraded/partial result. `VrcAdapter.getFriends` rejects
-  it, so the renderer retains its last known roster/presence instead of
-  replacing every friend with fabricated offline state. Authentication errors
-  still propagate through the existing invalidation boundary.
-- **Fresh auth bucket reuse (synthetic verification only):** The immediately
-  following roster may reuse all three strictly parsed arrays from successful,
-  owner-persisted status validation once, within five seconds of request start.
-  Account/session replacement, another status probe, or a Pipeline event clears
-  that evidence. Omitted/malformed auth arrays disable reuse without rejecting
-  valid authentication. This saves one admitted request, not an auth ownership
-  check; subsequent roster reads retain their existing probe. Live latency and
-  real-account payload coverage have not been measured for this optimization.
-- **Missing or malformed roster-probe buckets (synthetic verification):** All
-  three arrays must validate. An omitted array, null, wrong type, or invalid
-  member takes the degraded-presence path without friend pagination; explicit
-  empty arrays remain valid. Auth identity remains usable while the roster read
-  reports unavailable data. No live omission of these fields is claimed.
-- **Missing `id` or `displayName`:** Zod validation fails; entire login fails with an auth error. Safe: user is prompted to log in again.
-
-**Code reference:** `/src/main/services/adapters/VrcAdapter.ts` (lines 28–31: schemas with defensive `.object()` and no required-field gotchas).
-
----
-
-### VRChat Friend List (`GET /auth/user/friends`)
-
-**Endpoint:** `GET /auth/user/friends?offset=0&n=100&offline=false` (paginated, online + offline passes)
-
-**What VRX depends on:**
-
-- Friend ID: `id: string` (used as platform identifier and for membership in presence buckets)
-- Display name: `displayName: string` (shown in friend row)
-- Profile icon: `iconUrl: string | null | undefined`, falling back to legacy
-  `userIcon`, `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`,
-  then `currentAvatarImageUrl`. Recognized current-field VRChat file URLs are
-  converted to `/api/1/image/{fileId}/{version}/256`; other URLs retain the
-  existing image-cache validation and 3 MiB limit. No extra profile requests.
-- Status string: `status: string | null | undefined` (e.g., `"join me"`, `"active"`, `"busy"`, `"offline"`)
-- Status description: `statusDescription: string | null | undefined` (custom status text ≤32 chars)
-- Trust tags: `tags: string[]` (e.g., `["system_trust_known"]`, `["system_probable_troll"]`, empty → no tag)
-
-**Verification:** 🟡 Endpoint verified; field drift observed in past updates (e.g., avatar field handling). Community confirms pagination, offline flag, and tag semantics.
-
-VRX-283, 2026-09-24: the current [friend schema](https://github.com/vrchatapi/specification/blob/c5f467d17087fc56f4f3dbc4e7f5b11d941ecd9a/openapi/components/schemas/LimitedUserFriend.yaml)
-contains `iconUrl` and `currentAvatarImageUrl`. The specification
-[removed the three legacy picture fields on September 16](https://github.com/vrchatapi/specification/commit/2a62f547e7e1b407ca04efc826ba6b4e1b78a421)
-and restored `currentAvatarImageUrl` on September 20. VRX's old schema discarded
-the current fields, yielding null images. A read-only local 0.21.0 cache check
-found all 194 VRChat avatar URLs null while all 163 CVR URLs were populated.
-Synthetic REST, Pipeline and image-cache tests reproduce and cover this mismatch.
-This is source/schema evidence plus local persisted output, not a fresh live
-response capture or proof of rendered pictures on either affected machine.
-
-**Degradation if changed:**
-
-- **Unknown `status` value (e.g., `"idle"` added by API):** Defensive mapping in `parsePresence()` falls back to `'online'`. For an in-game VRChat friend, the avatar uses the Online ring and the drawer uses Online wording. See `/src/main/services/adapters/vrchat/parsePresence.ts`.
-- **Missing `status` field:** Defaults to `null`. An in-game friend uses the Online ring; an active or offline friend uses the presence ring. The drawer still provides the written status. Non-breaking.
-- **New trust tags (e.g., `"system_trust_troll"`):** `parseTrustRank()` ignores unknown tags and returns `'visitor'` (safe default, most permissive). Existing tags continue to work. See `/src/main/services/adapters/vrchat/parseTrustRank.ts` lines 40–48.
-- **Empty or null `tags` array:** Defaults to `'visitor'` rank. Safe; user is rendered as a fresh visitor, not as an error.
-- **Missing avatar URL:** Zod `.nullable().optional()` defaults to `null`; UI renders a placeholder. Non-breaking.
-- **New optional fields added by API:** Zod ignores them. VRX silently accepts and proceeds. Safe tolerance for benign drift.
-- **A malformed friend record (breaking drift on one entry):** Skipped and counted (`skippedRecords`); the other records on the page survive. The resulting roster is marked `partial`, so downstream LocationAuthority seeds known entries but does not treat omitted friends as removed. Records are validated individually, not as an all-or-nothing page (2026-07 audit W4).
-- **A failed page fetch (network blip, transient 5xx):** Counted (`failedPages`) and the window skipped; the pass continues to the next page, giving up only after 3 consecutive failures. The resulting roster is marked `partial`, so absences cannot tombstone previously known friends. If NOTHING was fetched and anything failed or drifted, `getFriends` throws instead of returning a misleading empty list.
-- **429 during bucket/page fetch:** Stop both passes immediately and suppress uncached enrichment. Useful records return as partial; main and renderer retain omitted cached friends without removal/offline inference. No usable records raises `RateLimitError`, sanitized to `rate_limited` at IPC with no query retry. The shared cooldown suppresses later batch launches; expiry does not replay the batch.
-- **Session replacement while queued or reading:** The original lease cancels; old headers cannot be rebound to the new account and late results are discarded. A new account requires a fresh caller-owned read.
-- **The safety cap is reached:** The roster is also marked `partial`; reaching `MAX_FRIENDS` cannot prove that the snapshot is exhaustive.
-
-**Code references:**
-
-- `/src/main/services/adapters/vrchat/fetchFriends.ts` (`rawFriendSchema` with `.default([])`/`.nullable().optional()`; per-record `safeParse` skip+count; `MAX_CONSECUTIVE_PAGE_FAILURES`)
-- `/src/main/services/adapters/vrchat/parsePresence.ts` (unknown status mapping)
-- `/src/main/services/adapters/vrchat/parseTrustRank.ts` (unknown tag handling)
-
----
-
-### VRChat Instance Access Type (from location/instanceId)
-
-**Endpoint:** Data extracted from the `location` field in friend objects or instance details (not an endpoint itself).
-
-**Format:** `wrld_<worldId>:<nonce>[~tag(value)]...` or empty/`private`/`offline`/`traveling`.
-VRChat (and VRCX's parser) also use colon-form placeholders such as
-`traveling:traveling`, `private:private` and `offline:offline`; `parseLocation`
-accepts an instance only when the part before the colon starts with `wrld_`.
-
-A pipeline `friend-add` carries the full User; VRX reads its `state`
-(`online` → in-game with `user.location`, `active`, `offline`) and keeps the
-older `active` assumption only when that field is missing (🟡 inferred from the
-User schema and VRCX, not observed on the wire by VRX).
-
-**What VRX depends on:**
-
-- Access tags: `~hidden(usr_x)` (Friends+), `~friends(usr_x)` (Friends), `~private(usr_x)` (Invite), `~canRequestInvite` (Invite+)
-- Group tags: `~group(grp_x)~groupAccessType(public|plus|members)` (group instance variants)
-- Absence of tags → public instance
-
-**Verification:** ✅ Verified. Tag names and semantics confirmed in VRX-45 implementation and VRCX source.
-
-**Degradation if changed:**
-
-- **New access tag added (e.g., `~restricted(…)`):** `parseInstanceType()` does not recognize it; falls through to `'public'` (line 73). Rendered as the most open type; user can attempt to join. Safe fallback for unknown future tags.
-- **Tag name changes (e.g., `~hidden` becomes `~friends-plus`):** Old tag is not recognized; instance is rendered as public. Worst case: user sees a public instance but it's actually restricted; join attempt fails gracefully at the game level (not VRX's responsibility).
-- **Missing or malformed location string:** Returns `'public'` (line 52). Non-breaking.
-
-**Code reference:** `/src/main/services/adapters/vrchat/parseInstanceType.ts` (full implementation, lines 51–74; every unknown tag degrades to public or most-restrictive default).
-
----
-
-### VRChat Trust Rank (from user tags)
-
-**Endpoint:** Field `tags: string[]` from user objects.
-
-**What VRX depends on:**
-
-- Rank tags: `system_trust_basic` → new, `system_trust_known` → user, `system_trust_trusted` → known, `system_trust_veteran` → trusted
-- Nuisance flag: `system_probable_troll` → nuisance (separate from rank hierarchy)
-- Absence of tags → visitor (default)
-
-**Verification:** ✅ Verified. Tag semantics confirmed in VRX-49 implementation.
-
-**Degradation if changed:**
-
-- **New trust tag (e.g., `system_trust_elder`):** Not in the rank map; falls through to `'visitor'`. User is rendered at the lowest trust tier. Safe; does not crash.
-- **Nuisance tag is renamed (e.g., `system_account_flagged`):** New tag is not recognized as nuisance; user is rendered with a normal rank (depends on other tags). Worst case: a flagged user shows as trusted if other tags are present. Non-critical; nuisance is a social signal, not a security boundary.
-- **Tag is removed from API:** Empty `tags` array defaults to `'visitor'`. Non-breaking.
-
-**Code reference:** `/src/main/services/adapters/vrchat/parseTrustRank.ts` (lines 18–63; hierarchical fallback to visitor).
-
----
-
-### VRChat 2FA Verification Response
-
-**Endpoints — three distinct routes, one per code type (VRX-229):**
-
-| Code type            | Endpoint                                                            |
-| -------------------- | ------------------------------------------------------------------- |
-| Authenticator (TOTP) | `POST /auth/twofactorauth/totp/verify`                              |
-| Emailed code         | `POST /auth/twofactorauth/emailotp/verify`                          |
-| Recovery/backup code | `POST /auth/twofactorauth/otp/verify` (VRX does not use this today) |
-
-⚠️ **These are NOT interchangeable** — a valid email code posted to `otp/verify` is always rejected. VRX shipped exactly that (v0.9.x–v0.11.0, VRX-229): every email-2FA user failed login while the owner's TOTP account worked, and the unit test pinned the wrong endpoint because it asserted our implementation instead of this contract. When touching these routes, verify against THIS table + a live unauthenticated probe (existing endpoint → 401 "Missing Credentials"; wrong path → 404), and cross-check VRCX (`src/api/auth.js`).
-
-**What VRX depends on:**
-
-- Success signal: `verified: boolean` (true = verified; false or absent = verification failed)
-
-**Verification:** ✅ totp: VRX-42 live testing. ✅ emailotp: contract triple-confirmed 2026-07-28 (API reference + live 401-not-404 probe + VRCX source) AND end-to-end confirmed 2026-07-28 — the external tester (Linux/AppImage, email 2FA) signed in successfully on v0.11.1.
-
-**Degradation if changed:**
-
-- **`verified` field is renamed or removed:** Zod schema expects `verified: boolean` (`twoFactorVerifySchema` in `VrcAdapter.ts`). If the field is missing or the response shape changes entirely, validation fails and login fails. Safe: user is prompted to re-authenticate.
-- **Unexpected `verified` value (e.g., `"pending"` or `null`):** Zod coerces to the nearest type; if not boolean, validation fails. Safe.
-
-**Code reference:** `/src/main/services/adapters/VrcAdapter.ts` (`twoFactorVerifySchema` + the endpoint ternary in `verifyTwoFactor`).
-
----
-
-### VRChat World Metadata (`GET /worlds/{worldId}`)
-
-**Endpoint:** `GET /worlds/{worldId}`
-
-**What VRX depends on:**
-
-- World name: `name: string`
-- World thumbnail: `imageUrl: string`
-- Capacity: `capacity: int`
-- Publish status: to detect if a world is still public
-
-**Verification:** 🟡 Endpoint verified; field names and presence subject to drift.
-
-**Degradation if changed:**
-
-- **Missing `name`:** The one critical field — the whole world resolves to `null` (nothing to show without a name); friends still render with `worldName: null`. Non-breaking.
-- **Missing or wrong-typed `thumbnailImageUrl` / `capacity` / `shortName`:** Each enrichment field independently degrades to `null` via Zod `.catch(null)` — one drifted field never nulls the rest of the world (2026-07 audit W4).
-- **New metadata fields added (e.g., `averageRating`):** Zod ignores them. Non-breaking.
-- **Failed/deleted/private world, garbage response, or non-2xx/3xx status (except 401/403/429):** Negative-cached for 60 s; both `getFriends()` reconcile and live `enrichPipelineEvent` suppress re-fetches inside that window. A transient API blip self-heals on the next reconcile/event after the window expires.
-- **Rate limits, cancellation or admission overflow:** Propagate without negative caching; background metadata ends and later valid triggers may resolve again.
-- **Inaccessible worlds and the 403 assumption:** VRX assumes an inaccessible world returns HTTP 403, which `WorldResolver` maps to `AuthError` and rethrows (never negative-cached). If the API actually returns 404 for inaccessible worlds, the 403-specific handling is moot and the 404 path negative-caches for 60 s instead.
-
-**Code reference:** `/src/main/services/adapters/vrchat/WorldResolver.ts` (`WorldApiSchema`: only `name` required; enrichment fields use `.catch(null)`; `WORLD_NEGATIVE_CACHE_TTL_MS`).
-
----
-
-### VRChat Group Metadata (`GET /groups/{groupId}`)
-
-**Endpoint:** `GET /groups/{groupId}`
-
-**What VRX depends on:**
-
-- Group display name: `name: string` (required — a group without a usable name is treated as unresolved)
-- Group icon: `iconUrl: string | null` (optional enrichment for the hot-instance sheet group card)
-
-**Verification:** 🟡 Contract inferred from community references and VRCX-like sources; live-verification needed on the owner's first group-instance session.
-
-**Degradation if changed:**
-
-- **Missing or wrong-typed `name`:** The resolver treats the response as unresolvable and negative-caches to `null` for 60 s. The UI degrades to the parser's `groupName: null`; `JoinConfirmDialog` keeps its generic platform/policy-space explanation, and `HotInstanceSheet` omits the group card until a usable name is available.
-- **Missing or wrong-typed `iconUrl`:** Degrades to `null` via Zod `.catch(null).optional()`; the group card renders the gradient placeholder instead of an image.
-- **New metadata fields:** Zod ignores them. Non-breaking.
-- **Rate limits, cancellation or admission overflow:** Propagate without negative caching; background metadata ends and later valid triggers may resolve again.
-- **Non-auth failure (404, 5xx, private/deleted group):** Negative-cached to `null` for 60 s; repeated roster/snapshot cycles do not hammer the API.
-- **Auth failure (401):** Propagates as `AuthError` so `VrcAdapter` can emit `auth-invalidated`; never negative-cached.
-- **Inaccessible groups and the 403 assumption:** VRX assumes an inaccessible group returns HTTP 403, which `BaseAdapter` maps to `AuthError` and rethrows (never negative-cached). If the API actually returns 404 for inaccessible groups, the 403-specific handling is moot and the 404 path negative-caches for 60 s instead.
-
-**Code reference:** `/src/main/services/adapters/vrchat/GroupResolver.ts` (`rawGroupSchema`: `name` required, `iconUrl` defensive; `GROUP_CACHE_TTL_MS`, `GROUP_NEGATIVE_TTL_MS`, `GROUP_CACHE_MAX`).
-
----
-
-### VRChat Instance Details (`GET /instances/{worldId}:{instanceId}`)
-
-**Endpoint:** `GET /instances/{worldId}:{instanceId}`
-
-**Observed fields and VRX validation:**
-
-- Occupancy: a non-negative integer `n_users`, with `userCount` as the fallback
-- Capacity: a non-negative integer `capacity`
-- Identity: required `worldId` and `instanceId`; optional `id` and `location` must match the requested room
-- Action evidence: response access must match the requested public or Group Public identifier. `active`, `full`, `hasCapacityForYou`, `roleRestricted`, `ageGate`, `closedAt`, and `hardClose` must all be own fields before the parser can report an eligible room. Eligibility requires `active:true`, `full:false`, `hasCapacityForYou:true`, `roleRestricted:false`, `ageGate:false`, `closedAt:null`, and `hardClose:null`.
-
-**Verification:** 🟡 Endpoint verified; response shape subject to drift.
-
-**Degradation if changed:**
-
-- **Missing or invalid player count or capacity:** the parser reports unknown occupancy or capacity. It does not invent a value.
-- **Missing action-evidence fields:** the parser reports unknown eligibility. It does not permit joining.
-- **`closedAt` or `hardClose` becomes non-null:** the parser reports unavailable. If either field is missing, inherited, or `undefined`, eligibility remains unknown.
-- **New or renamed fields:** unneeded fields are ignored. Required identity or action evidence missing from a response degrades to unknown or rejects the room.
-
-**Code reference:** `VrcAdapter` fetches this detail only for Explore and parses
-it through the bounded Explore parsers. `parseVrcExploreRoom`
-requires matching world and instance identities, known public access, and safe
-occupancy fields; malformed evidence stays unknown or is omitted.
-
----
-
-### ChilloutVR Authentication (`POST /users/auth`)
-
-**Endpoint:** `POST /users/auth` with JSON body `{AuthType, Username, Password}`
-
-**What VRX depends on:**
-
-- Access key: `accessKey: string` (session token; reused on every authenticated request)
-- User ID: `userId: string` (platform identifier)
-- Username: `username: string` (for re-authentication)
-- Current avatar: `currentAvatar: string` (URI or ID)
-- Current home world: `currentHomeWorld: string` (world URI or ID)
-
-**Two auth legs (VRX-37):** `AuthType 2` = interactive password login; `AuthType 1` = re-auth with the stored `accessKey` (session validation on boot/refetch). Both use a breaker-free raw path so a failing validation can't lock out login (VRX-189 tracks the residual network sub-case). CVR may **rotate** the `accessKey` on re-auth — VRX persists the rotation; if it ever stops rotating, no impact (same key re-persisted). A 401 on re-auth = dead session → cleared everywhere (no zombie restore). A **403 on a data call** (friends, instance, Explore) is not trusted as a dead key on its own: VRX re-auths once with the same key and signs out only if that is rejected too, since a 403 can be a per-resource permission denial.
-
-**Verification:** 🟡 Endpoint verified; response shape from reverse-engineering and live observation.
-
-**Degradation if changed:**
-
-- **Missing `accessKey`:** Zod validation fails (required field). Login fails. Safe: user is prompted to re-authenticate.
-- **Missing `userId`:** Zod validation fails. Login fails. Safe.
-- **New response fields (e.g., `friendCount`):** Zod ignores. Non-breaking.
-- **Field name changes (e.g., `access_key` instead of `accessKey`):** Validation fails. Login fails. Requires code update.
-
-**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (lines 16–25: `cvrUserAuthSchema`).
-
----
-
-### ChilloutVR Data Envelope
-
-**Endpoint:** All authenticated CVR endpoints return `{message, data: T}`.
-
-**What VRX depends on:**
-
-- Message: **`message: string | null` (nullable/optional)** — status/debug message, **discarded** by VRX. Live 2026-07-08: `/friends` returns `message: null`. The schema is `z.string().nullish()`; validating the payload only depends on `data`.
-- Data: `data: T` (the actual response payload, validated against an inner schema)
-
-**Verification:** ✅ Verified live 2026-07-08. Earlier the schema required `message: string`, which rejected the (valid) `/friends` response whose `message` was `null` — every fetch failed validation and tripped the shared circuit breaker into a "cannot load" lockout. Fixed by making `message` nullish (we never read it).
-
-**Degradation if changed:**
-
-- **Envelope structure changes (e.g., `{status, result}` instead of `{message, data}`):** All CVR requests fail validation. Entire adapter is broken until code is updated.
-- **`message` type drift (string/null/absent):** Non-breaking — `nullish()` tolerates all three, and the value is discarded.
-- **429 on `/friends` or background instance enrichment:** Stop the batch on its first response, share the platform cooldown, and do not negative-cache the rate limit or replay at expiry. Concurrent roster callers and name warming share a session-owned result.
-- **A malformed `/friends` record:** The record is skipped and counted while valid records survive. The resulting roster is marked `partial`, so LocationAuthority and the renderer apply valid entries without removing friends omitted from that ChilloutVR sync.
-
-**Code reference:** `/src/main/services/adapters/CvrApiClient.ts` (`requestData` envelope + `cvrAuthEnvelopeSchema`); `/src/main/services/adapters/cvr/fetchCvrFriends.ts` (per-record validation); `/src/main/services/adapters/CvrAdapter.ts` (`RosterCompleteness`).
-
----
-
-### ChilloutVR Instance Privacy (`instanceSettingPrivacy`)
-
-**Endpoint:** Present in user, instance, and friend response objects. `GET /1/instances/{id}` is the source of truth for the hosting world and group.
-
-**What VRX depends on:**
-
-- Privacy value: **numeric enum on the WS wire** (`Instance.Privacy: number`); **`GET /1/instances/{id}` sends PascalCase strings** (`Public`, `Friends`, `GroupPlus` observed live 2026-08-12). `parseCvrPrivacy` accepts both numbers and strings, case/punctuation-insensitive.
-- Hosting group identity: `group: { id, name, image }` on group instances from `GET /1/instances/{id}`; `null` on non-group instances. Extra group keys (e.g. `moderators`) are ignored.
-
-**Numeric enum (the live WS wire):**
-
-- `0` → public — **live-confirmed 2026-07-08**
-- `1` → friends — reference (owner's prior app: `1|2`=friends); no live capture
-- `2` → friends — **live-confirmed**
-- `3`, `6` → group (members-only + group chip) — reference
-- `4`, `5` → private/invite (`owner-must-invite`) — reference (prior app: `4|5`=private)
-- `7` → group — **live-confirmed** (newer than the prior app's 0–6)
-
-**String values (`GET /1/instances/{id}` + CVRX docs, case/punctuation-insensitive):** `public`, `friendsoffriends`, `friends`, `groupsonly`, `groupplus`, `everyonecaninvite`, `ownermustinvite`.
-
-**Offline representation:** no raw CVR value is verified to normalize to the shared `offline` instance type. In the current implementation, an unrecognized `Privacy: "Offline"` value takes the tagged restrictive fallback (`owner-must-invite` + `opennessUnknown:true`), while `IsOnline:false` removes the friend from the pipeline's online set and renderer reconciliation clears the instance. The shared type, persisted-cache schema, and renderer still accept `offline` defensively for restored or future-compatible data; if that value reaches the policy classifier, it is a private space. Do not add a parser mapping without a live capture.
-
-**Verification:** ✅ `0`/`2`/`7` confirmed live 2026-07-08 against known WS instances (owner ground truth); ✅ `Public`/`Friends`/`GroupPlus` confirmed live 2026-08-12 on `GET /1/instances/{id}`; the rest follow the owner's working prior app and **understate on doubt** (the safe direction — friends narrower than friends-of-friends, private narrower than everyone-can-invite). KNOWN divergence: string `groupplus` maps to friends-of-members/friends-plus (observed semantics) while numeric `6` stays members-only/invite — never live-captured as 6; reconcile only on a live numeric-6 capture (VRX-264).
-
-**Degradation if changed:**
-
-- **Unknown number/string:** → MOST RESTRICTIVE (`owner-must-invite`) with `opennessUnknown:true`, never crashes. The instance still shows, but both the access and policy-space pills render neutral **Unknown** rather than claiming the fallback as fact.
-- **New enum value:** treated as tagged unknown → restrictive. Non-breaking; capture it live and add to the map.
-
-**Code reference:** `/src/main/services/adapters/cvr/parseCvrPrivacy.ts` (`PRIVACY_MAP_NUMERIC` + string map).
-
----
-
-## VRX's Resilience Strategy
-
-### Explore discovery (September 2026; bounded production integration)
-
-Image admission recovery (VRX-275) distinguishes local two-outstanding or
-six-start/minute refusal from unknown/unavailable upstream art. A typed bounded
-local delay allows at most two later attempts while the same reference/session
-has a visible observer. Terminal transport/null results stay placeholders.
-The main URL allowlist, image MIME/size validation, admission, account leases and
-request ceilings are unchanged. This is verified with synthetic clocks and
-transports; it is not a new claim about either platform's live image availability
-or server retry policy.
-
-Explore uses the existing authenticated transport, admission and session-lease
-boundaries. Its main-only adapter capability makes one no-retry request per
-method and rejects malformed outer envelopes or identity-mismatched world/room
-responses as `ExploreDataError`; known non-public room evidence may be omitted.
-The service owns cache, refresh eligibility, opaque references, budgets and
-publication. It never retains raw member payloads.
-
-- VRC cards retain aggregate `occupants`; tuple counts have separate provenance.
-  Public/Group Public identifiers use a bounded modifier allowlist, independent
-  of the friend parser's public fallback. Known non-public access is excluded;
-  malformed/unknown access leaves enumeration partial with a null visible-room
-  count. Room `worldId` and `instanceId` must
-  match the requested identity. The community schema names both `id` and
-  `instanceId`, while a source response demonstrates a qualified `id`; an
-  optional `id` must therefore match the instance or qualified location, and
-  an optional `location` must match the qualified location. See the
-  [community schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml)
-  and [source response report](https://github.com/vrchatapi/specification/issues/328).
-  Response access and explicit eligibility flags must agree before the parser
-  reports eligibility. Missing or inherited closure fields stay unknown;
-  they cannot prove a room is unavailable. The 25/22 fixture retains `n_users` precedence over
-  `userCount`; missing or invalid counts are unknown, never admission evidence.
-- CVR category discovery is the fixed
-  `GET https://api.chilloutvr.net/2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending`
-  route. World and instance reads are respectively fixed to
-  `/1/worlds/{worldId}` and `/1/instances/{instanceId}` on that same host.
-  `CvrApiClient` accepts only its typed closed routes and validates IDs before
-  constructing a path; renderer values cannot select a host or URL. The normal
-  `https://api.abinteractive.net/1` auth/friend base is unchanged.
-  Category payloads are the already-unwrapped `data` object with `entries`.
-  World `instances` are unqualified candidates; room details bind `id` and
-  nested `world.id`. Only exact Public/GroupPublic strings qualify. Conflicting,
-  missing or unknown privacy is incomplete evidence, while a verified known
-  non-public room may be omitted. Numeric friend-privacy mappings do not apply.
-  Full qualifying rooms remain eligible. Public totals sum unique same-world
-  room-detail counts; incomplete coverage, wrong provenance and unsafe
-  arithmetic cannot produce a displayed total.
-
-These are synthetic-transport and parser-verified assumptions, not new live
-observations. The fixed limits, host separation and no-retry policy are in
-[`api-policy.md`](./api-policy.md). Real-account compatibility and visual
-acceptance remain separate consent-dependent checks.
-
-### 1. Defensive Zod Schemas
-
-Every API response is validated against a Zod schema **before** being used. Schemas are designed to tolerate benign drift:
-
-- **`.nullable()`** on fields that may be `null` (avatar URL, status description)
-- **`.optional()`** on fields that may be absent (new fields added by API)
-- **`.default([])` or `.default('')`** on fields that should never crash if missing (tags, description)
-- **Unions and string literals** for known enum values (e.g., `status` field); unknown values fall through to a safe default
-
-### 2. Unknown Enum Values → Safe Defaults
-
-When an unknown enum value is encountered:
-
-- **Unknown `status` string** → `'online'`; an in-game VRChat friend gets the Online avatar ring and drawer wording
-- **Unknown instance-access tag** → `'public'` (most open interpretation; join-attempt may fail gracefully at game level)
-- **Unknown trust tag** → ignored; final rank is either a known tag or `'visitor'` (never crashes)
-- **Unknown CVR privacy value** → restrictively degraded and tagged `opennessUnknown:true`; rendered with neutral **Unknown** access and policy-space pills (non-critical for core UI)
-
-### 3. Graceful Degradation on Parse Failure
-
-If a Zod schema validation fails on a single response:
-
-- **Paginated friend fetch:** Ordinary transient failures skip a bounded page window; rate limits instead stop both passes immediately. VRX returns all friends collected so far + a failure count for logging.
-- **World metadata fetch:** Missing fields → defaults (blank name, placeholder image, unknown capacity). Non-critical data is rendered as "unknown".
-- **Login/auth responses:** If the response shape is unexpected, the entire login fails and the user is re-prompted.
-
-### 4. Single-Field Tolerance
-
-Zod tolerance is field-level, not page-level:
-
-- A friend object with an unknown `status` value is still parsed; only that field uses the safe default.
-- A world object with a missing `capacity` field is still parsed; only that field is blank.
-- A parse failure on one optional field does not kill the whole response.
-
----
-
-## Known Volatile Areas (Watch List)
-
-### VRCX local session database
-
-VRX-54 depends on VRCX's local SQLite session shape, verified against upstream VRCX source on 2026-08-24:
-
-- Electron's `appData` directory contains `VRCX/VRCX.sqlite3` on Windows and Linux.
-- The active .NET `CookieContainer` is a base64-encoded JSON array in `cookies.value` where `cookies.key = 'default'`.
-- VRChat entries use `Name`, `Value`, and `Domain`; VRX accepts only `auth` and `twoFactorAuth` for `vrchat.cloud`.
-
-`importVrcxSession()` accepts only this WAL-format main database when no nonempty WAL, shared-memory lock, or rollback journal is active. SQLite does not strongly bind an offline WAL to its main file, so active sidecars are treated as running/locked VRCX: one transient retry, then `null` rather than risking a stale or foreign session. Symlinked or hard-linked main and sidecar entries are rejected before open. For a checkpointed database, header validation and the capped 512 MiB copy use one generation-bound source handle; platforms that expose `O_NOFOLLOW` and `O_NONBLOCK` receive those flags as an additional guard. The resolved temp and VRCX trees must be disjoint. The destination is created exclusively below that atomically random-named, owner-only root, with no-follow semantics where supported, and its handle stays open through SQLite parsing. Before the read-only parse, VRX changes only the private copy's SQLite header from WAL to rollback mode so SQLite ignores snapshot WAL sidecars. Source-handle/path, VRCX-directory, app-data-directory, and source-sidecar generations are checked around the copy; destination-handle/path and snapshot-directory/root generations are checked around parsing. These prevent path aliases or swaps from changing the imported file, hiding active source sidecars, or redirecting VRX writes into VRCX. Crash scavenging removes only roots with the exact generated-name form, VRX's private marker, and a recorded process that is no longer running; unrelated prefix matches and active roots are preserved. The temp root is removed before credential persistence. Before evaluating external values, the importer requires an ordinary rowid `cookies` table with stored `key`/`value` columns and at most 64 rows; metadata-only `octet_length()` bounds candidate keys and `cookies/default` to 256 KiB before materialization. Its one unambiguous row, fatal-valid UTF-8 CookieCollection, exact VRChat domain/name set, and RFC cookie-octet values then reach the shared ASCII validator and `saveCredential`. Any drift returns `null` without logging external values or errors and falls through to direct login once VRX-35 wires the importer into the hybrid-auth flow. VRX-54 queries no VRCX history table and never writes VRCX.
-
-### VRChat
-
-- **Presence bucket structure:** The `onlineFriends`, `activeFriends`, `offlineFriends` arrays in `/auth/user` are core to the two-axis presence model (VRX-44). If the API removes or renames these, presence parsing breaks and requires a code update.
-- **Status enum values:** New values like `"idle"` or `"in-flight"` may be added. VRX degrades to `'online'`, which is safe but loses semantic precision.
-- **Trust tag namespace:** If VRChat phases out visible trust (as suggested in API research), the `tags` field may be deprecated or replaced. VRX currently falls back to `'visitor'` if tags are missing; this is safe but not future-proof.
-
-### ChilloutVR
-
-- **Data envelope structure:** All CVR endpoints depend on `{message, data}`. If this changes, all authenticated requests break.
-- **Missing `instanceSettingPrivacy` mapping:** 4 of 10 known values are still unverified (VRX-130). When captured, the mapping will be completed and this watch item will close.
-- **Access key lifetime & refresh:** No refresh mechanism is documented. If access keys expire, VRX must detect expiry (via 401 or similar) and trigger re-authentication. Currently handled by treating a 401 as auth failure; safe but not optimized.
-- **Local session file shapes:** ChilloutVR and CVRX may rename the auto-login elements, wrapper fields, or configured executable key. VRX treats drift as no import and leaves direct login available. It does not attempt schema migration or write repaired files.
-
----
-
-## Future Work
-
-### Active Breakage Detection
-
-Currently, VRX degrades gracefully on known schema drift but does not **detect or alert** when an API change occurs. Future work (post-v1.0):
-
-- **Telemetry:** Track failed parses and unknown enum values; alert on novel drift.
-- **API version pinning:** Confirm which API versions VRX supports (if versioning exists).
-- **Community feedback loop:** Integrate user-reported breaking changes (from GitHub Issues) into the degradation logic.
-
-### Complete CVR Privacy Mapping
-
-Capture the 4 unknown `instanceSettingPrivacy` values from live CVR API responses and map them to VRX privacy tiers (VRX-130).
-
-### Upstream Monitoring
-
-Monitor VRCX, CVRX, and official community changelogs for breaking-change announcements. Update this registry and code accordingly.
-
----
-
-## References
-
-- **VRChat API:** Community-maintained `vrchatapi` repository ([GitHub](https://github.com/vrchatapi/api)) — last checked 2026.
-- **ChilloutVR API:** Reverse-engineered from `chilloutvr_rs` Rust crate ([archived repo](https://github.com/jaquadro/chilloutvr_rs)) and live API observation.
-- **VRX Code:** See `/src/main/services/adapters/` for all adapter and parser implementations.
-- **Compliance Policy:** [`docs/api-policy.md`](./api-policy.md) — rate limits, User-Agent, backoff, and etiquette rules.
+# API volatility
+
+VRChat and ChilloutVR do not publish a supported API for third-party desktop
+clients. VRX depends on unofficial REST endpoints, WebSocket messages, deep
+links, image hosts and, for the optional ChilloutVR session import, local files.
+Any of them can change without notice.
+
+This file lists every platform surface VRX uses. For each one it records what
+VRX assumes, how the code parses it defensively, what is uncertain or has
+changed, and what VRX does when the assumption breaks. The adapter code is the
+source of truth:
+
+- VRChat: [`VrcApiClient.ts`](../src/main/services/adapters/VrcApiClient.ts),
+  [`VrcAdapter.ts`](../src/main/services/adapters/VrcAdapter.ts) and
+  [`vrchat/`](../src/main/services/adapters/vrchat/AGENTS.md).
+- ChilloutVR: [`CvrApiClient.ts`](../src/main/services/adapters/CvrApiClient.ts),
+  [`CvrAdapter.ts`](../src/main/services/adapters/CvrAdapter.ts),
+  [`cvr/`](../src/main/services/adapters/cvr/AGENTS.md) and
+  [`cvrSessionImport.ts`](../src/main/services/cvrSessionImport.ts).
+
+Request pacing, 429 cooldowns, retries, the User-Agent, Explore budgets and the
+"no polling, no mass actions" rules live in [API policy](api-policy.md). This
+file does not repeat them.
+
+## Evidence labels
+
+| Label          | Meaning                                                                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live `<date>`  | Someone saw this shape in a real response, socket frame or local file on that date.                                                                      |
+| Live           | Shipped builds use this surface against the real service. No single dated capture is recorded.                                                           |
+| Documented     | The platform's own public documentation describes it.                                                                                                    |
+| Source-derived | Taken from community specifications, open-source clients (vrchatapi, VRCX, CVRX, chilloutvr_rs) or the owner's earlier working app. Not captured by VRX. |
+| Synthetic      | Only VRX tests with fixtures exercise the shape. Real-account compatibility is unverified.                                                               |
+
+## Shared handling
+
+Both adapters inherit these rules from
+[`BaseAdapter.ts`](../src/main/services/adapters/BaseAdapter.ts),
+[`ReconnectingPipeline.ts`](../src/main/services/adapters/ReconnectingPipeline.ts)
+and [`avatarCache.ts`](../src/main/services/avatarCache.ts). Platform sections
+only note where they differ.
+
+**REST responses**
+
+- Requests use `redirect: 'error'` and a 15 s timeout (`API_TIMEOUT_MS`). A
+  redirect from a REST endpoint is a failed request.
+- 401 and 403 become `AuthError` (`CVRAuthError` on ChilloutVR). Other non-2xx
+  statuses, unreadable JSON and schema mismatches become `NetworkError`.
+- A 429 sets the platform cooldown from `Retry-After` (seconds or an HTTP date)
+  or a growing fallback. Roster pages and background metadata stop at once;
+  other requests follow the bounded retry policy in [API policy](api-policy.md).
+- Three consecutive failed typed requests open a per-adapter circuit for 60 s.
+  Sign-in and re-auth read raw responses, so their HTTP statuses never count,
+  and sign-in resets the circuit first. The VRChat status probe and Pipeline
+  token exchange, ChilloutVR restore checks and ChilloutVR instance lookups do
+  not count at all. VRChat counts 403s; ChilloutVR does not, because it confirms
+  403s itself.
+- Responses are validated with Zod. Lists are validated record by record: a
+  malformed record is skipped and counted, and its valid siblings survive.
+- A roster with any skipped record, failed page or cap hit is `partial`. A
+  partial roster never removes cached friends or marks absent friends offline. A
+  roster with nothing usable throws instead of returning an empty list.
+- Cancellation, admission overflow and a not-yet-durable session
+  (`AuthSessionPendingError`) propagate as control flow. They are never
+  negative-cached, never count as failures and never sign the user out.
+- Every account boundary bumps a session generation. Late responses from an
+  older session are discarded and cannot write caches.
+
+**WebSocket pipelines**
+
+- Reconnect backoff starts at 1 s and doubles to 60 s, plus up to 250 ms of
+  jitter. It resets only after a socket stayed open for 60 s.
+- An upgrade answered with 429 shares the platform cooldown. Any other upgrade
+  rejection is an ordinary failed attempt. It never signs the user out; dead
+  sessions surface on REST.
+- VRX sends no application heartbeat. Each successful open makes the renderer
+  refetch the roster once over REST.
+- Decoders never throw on wire data. Unknown or malformed frames are dropped and
+  debug-logged without payload contents.
+
+**Images**
+
+- Friend pictures, world thumbnails, group icons and Explore art are all fetched
+  in main by the image cache and returned to the renderer as data URLs.
+- A URL must be HTTPS on the default port, carry no credentials, be at most 2048
+  characters and use an allowlisted host (listed per platform below).
+- The body must be `image/png`, `image/jpeg`, `image/webp`, `image/gif` or
+  `image/avif` and at most 3 MiB.
+- Successes are cached for 1 h and failures for 30 s, within 200 entries and
+  48 MiB. Any failure shows the letter placeholder.
+
+## VRChat
+
+REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
+`wss://pipeline.vrchat.cloud/` (`VRC_PIPELINE_URL`).
+
+| Surface                                  | Used for                                   | Evidence                          | When it breaks                          |
+| ---------------------------------------- | ------------------------------------------ | --------------------------------- | --------------------------------------- |
+| Session cookies and headers              | Every authenticated call                   | Live                              | Sign-in fails closed                    |
+| `GET /auth/user` (Basic auth)            | Sign-in                                    | Live                              | Error result, tentative session cleared |
+| `POST /auth/twofactorauth/{type}/verify` | Second factor                              | Live; email route Live 2026-07-28 | Retryable invalid-code result           |
+| `GET /auth/user` (cookie)                | Session status, identity, presence buckets | Live                              | `error` state, session kept             |
+| `GET /auth`                              | Pipeline token                             | Source-derived                    | Raw cookie value used instead           |
+| `GET /auth/user/friends`                 | Friend roster                              | Live                              | Partial roster                          |
+| `GET /worlds/{worldId}` (friends)        | World name and thumbnail                   | Live                              | No world metadata                       |
+| `GET /groups/{groupId}`                  | Group name and icon                        | Source-derived                    | No group metadata                       |
+| Explore routes                           | Public-world discovery                     | Synthetic                         | Explore problem state                   |
+| `POST /invite/myself/to/{location}`      | Self-invite                                | Source-derived                    | `invite-failed`                         |
+| Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
+| Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
+| `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
+| Local files                              | None                                       | Not applicable                    | Not applicable                          |
+
+### Session cookies and headers
+
+- **Assumes:** sign-in and verify responses set `auth` and `twoFactorAuth`
+  cookies through `Set-Cookie`. VRX sends them back as one `Cookie` header,
+  `auth=…; twoFactorAuth=…`. Every request carries the VRX `User-Agent`.
+- **Parses:** only the first `name=value` pair of each `Set-Cookie` line is
+  read. `isValidVrcSessionCookie` accepts only `auth` and `twoFactorAuth` parts
+  with printable-ASCII values. The cookie stays in main and never reaches the
+  renderer.
+- **Persistence:** a cookie is saved only after its owner is known. A restored
+  cookie is held back from REST, the Pipeline and images until a status probe
+  re-establishes its owner.
+- **Uncertain:** cookie lifetimes are not documented. The `twoFactorAuth` cookie
+  expires after some weeks; the status probe then returns the 2FA branch.
+- **When it breaks:** a malformed issued cookie fails sign-in with
+  `invalid_credentials`. A malformed stored cookie is ignored at start.
+
+### Sign-in: `GET /auth/user` with Basic auth
+
+- **Assumes:** `Authorization: Basic base64(urlencode(user):urlencode(pass))`. A
+  401 means wrong credentials. A 200 body is either
+  `{ requiresTwoFactorAuth: string[] }` or the current user `{ id, displayName }`.
+  A 2FA reply sets a fresh `auth` cookie for that attempt.
+- **Method codes (Source-derived, vrchatapi and VRCX):** authenticator accounts
+  send `['totp', 'otp']`, where `otp` means recovery codes. Email accounts send
+  `['emailOtp']`. Any list containing `emailOtp` (any case) routes to email;
+  everything else routes to the authenticator.
+- **Parses:** `id` must be `usr_<lowercase UUID>` or a conservative legacy id
+  (no `usr_` prefix, 1 to 64 characters, no whitespace, control characters or
+  colon). Credentials containing control characters are rejected locally. Sign-in
+  resets the circuit first, so a deliberate attempt always reaches the network.
+- **When it breaks:**
+  - Other non-2xx statuses return `http_<status>`.
+  - An unreadable or unmatched body returns `bad_response` or
+    `unexpected_response`. Any cookie installed by that reply is discarded and the
+    stored credential is deleted.
+  - A 2FA reply without its own `auth` cookie returns `unexpected_response`. VRX
+    never submits a code with an earlier account's cookie.
+  - A success reply without a cookie is accepted only when the current cookie is
+    already bound to the same account id.
+
+### Second factor: `POST /auth/twofactorauth/{type}/verify`
+
+| Code type            | Route                                             |
+| -------------------- | ------------------------------------------------- |
+| Authenticator (TOTP) | `/auth/twofactorauth/totp/verify`                 |
+| Email code           | `/auth/twofactorauth/emailotp/verify`             |
+| Recovery code        | `/auth/twofactorauth/otp/verify`, not used by VRX |
+
+- **Assumes:** body `{ code }`. Success is a 2xx reply with `{ verified: true }`
+  that sets `twoFactorAuth` and may rotate `auth`.
+- **Has changed before (VRX-229):** the routes are not interchangeable. An email
+  code posted to `otp/verify` is always rejected. The email route was confirmed
+  on 2026-07-28 against the API reference, an unauthenticated probe (401, not
+  404), VRCX and a real email-2FA sign-in. Check this table and a live probe
+  before touching these routes.
+- **Parses:** a non-2xx status, an unreadable body, `verified: false` or a
+  non-boolean `verified` returns `invalid_2fa_code`. The prompt stays retryable
+  and nothing is persisted. VRX keeps only the `auth` part of the old cookie, so
+  a stale `twoFactorAuth` is never sent twice.
+- **When it breaks:** after a verified code VRX reads `GET /auth/user` to bind the
+  owner. If no owner is returned, the result is `AUTH_IDENTITY_UNAVAILABLE` and
+  the tentative session is cleared.
+
+### Session status: `GET /auth/user` with the cookie
+
+- **Assumes:** the same two 200 branches as sign-in. The current-user branch may
+  carry `onlineFriends`, `activeFriends` and `offlineFriends` id arrays.
+- **Parses and reacts:**
+
+  | Reply                                                   | VRX state                                                 |
+  | ------------------------------------------------------- | --------------------------------------------------------- |
+  | 401                                                     | `unauthenticated`; cookie cleared in memory and storage   |
+  | 200 `requiresTwoFactorAuth`                             | `needs-2fa` with the method; code-only reprompt (VRX-173) |
+  | 200 current user                                        | `authenticated`; a restored cookie is bound and persisted |
+  | Other status, network error, unreadable or drifted body | `error`; session kept                                     |
+
+- **2FA reprompt:** the cookie and stored credential stay, but REST, image and
+  Pipeline consumers are revoked until the code verifies.
+- **Bucket reuse (Synthetic):** when all three arrays parse, the next roster read
+  may reuse them once, within 5 s, for the same owner and session. A new probe,
+  any Pipeline event or a session boundary discards them. Missing or malformed
+  arrays only disable reuse; they never fail authentication.
+
+### Pipeline token: `GET /auth`
+
+- **Assumes (Source-derived, VRCX pattern):** the reply is `{ token: string }`.
+  The token goes in the Pipeline URL.
+- **When it breaks:** a failed exchange or another shape falls back to the raw
+  `auth` cookie value (everything after the first `=`). Without a durable session
+  there is no token and the Pipeline waits. Failures never count toward the
+  circuit.
+
+### Friend roster: `GET /auth/user/friends`
+
+- **Bucket probe:** each read first needs the three bucket arrays from
+  `GET /auth/user`, unless fresh reused buckets exist. All three must be arrays
+  of strings; explicitly empty arrays are valid.
+- **Pages:** `?offset=<n>&n=100&offline=false`, then the same with
+  `offline=true`. A page must be a JSON array. Records are validated one by one.
+- **Record schema:** `id` and `displayName` are required. `tags` defaults to
+  `[]`. `iconUrl`, `currentAvatarImageUrl`, `userIcon`,
+  `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`, `location`,
+  `status` and `statusDescription` are optional and nullable. Drift in `iconUrl`
+  or `currentAvatarImageUrl` becomes null without dropping the friend. Unknown
+  fields are ignored.
+- **Limits:** at most 5000 friends (`MAX_FRIENDS`). A failed page is skipped; a
+  pass stops after three consecutive failed pages. A friend listed in both
+  passes keeps the later record and makes the roster partial, because the pages
+  may have shifted.
+- **Complete only when:** no page failed, no record was skipped, no friend was
+  duplicated and the cap was not reached.
+- **When it breaks:**
+  - Bucket probe fails for a non-auth reason or returns malformed arrays: the
+    read throws. The renderer keeps the last known roster and presence; VRX never
+    invents an offline baseline.
+  - A 401 anywhere emits `auth-invalidated` and keeps the cookie for the
+    2FA-aware status check. A 403 is an ordinary error and never signs out.
+  - A 429 stops both passes. Friends already read return as a partial roster with
+    the cooldown attached; with none read, a `RateLimitError` is thrown.
+
+### Friend fields: presence, status, trust and location
+
+Presence `state` and VRChat `status` are separate axes
+([parsePresence.ts](../src/main/services/adapters/vrchat/parsePresence.ts)).
+`state` comes from bucket membership: `onlineFriends` is `in-game`,
+`activeFriends` is `active`, anything else is `offline`.
+
+| `status` (any case) | VRX status |
+| ------------------- | ---------- |
+| `join me`           | `join-me`  |
+| `active`            | `online`   |
+| `ask me`            | `ask-me`   |
+| `busy`              | `dnd`      |
+| `offline`, missing  | none       |
+| anything else       | `online`   |
+
+Trust comes from `tags`
+([parseTrustRank.ts](../src/main/services/adapters/vrchat/parseTrustRank.ts)):
+`system_trust_basic` is `new`, `system_trust_known` is `user`,
+`system_trust_trusted` is `known` and `system_trust_veteran` is `trusted`. The
+highest rank wins. `system_probable_troll` is `nuisance` and overrides rank. No
+recognized tag is `visitor`. Unknown tags are ignored.
+
+**Pictures.** The first non-empty value wins, in this order: `iconUrl`,
+`userIcon`, `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`,
+`currentAvatarImageUrl`. VRChat uses `""` for unset. A
+`https://api.vrchat.cloud/api/1/file/<file_id>/<version>[/file]` URL in `iconUrl`
+or `currentAvatarImageUrl` is rewritten to the bounded
+`/api/1/image/<file_id>/<version>/256` rendition. The full-size
+`profilePicOverride` is not read because it can exceed the 3 MiB image limit.
+Source-derived, checked 2026-09-24: the community
+[friend schema](https://github.com/vrchatapi/specification/blob/c5f467d17087fc56f4f3dbc4e7f5b11d941ecd9a/openapi/components/schemas/LimitedUserFriend.yaml)
+lists `iconUrl` and `currentAvatarImageUrl` but no longer lists `userIcon`,
+`profilePicOverrideThumbnail` or `currentAvatarThumbnailImageUrl`. VRX keeps
+those three only as fallbacks for older payloads.
+
+**Location**
+([parseLocation.ts](../src/main/services/adapters/vrchat/parseLocation.ts)).
+The format is `<worldId>:<instanceId>[~tag(value)…]`. No instance is produced
+when there is no colon, either part is empty, or the world part does not start
+with `wrld_`. That covers `""`, `private`, `offline`, `traveling` and colon forms
+such as `traveling:traveling`. `~region(x)` gives the region and `~group(x)` the
+group id.
+
+| Access tags                                               | Instance type  |
+| --------------------------------------------------------- | -------------- |
+| No recognized access tag                                  | `public`       |
+| `~hidden(usr_…)`                                          | `friends-plus` |
+| `~friends(usr_…)`                                         | `friends`      |
+| `~private(usr_…)`                                         | `invite`       |
+| `~private(usr_…)~canRequestInvite`                        | `invite-plus`  |
+| `~group(grp_…)~groupAccessType(public)`                   | `group-public` |
+| `~group(grp_…)~groupAccessType(plus)`                     | `group-plus`   |
+| `~group(grp_…)` with `members`, missing or unknown access | `group`        |
+
+- **Fallbacks:** an unknown non-group tag falls back to `public`. Unknown group
+  access falls back to the restrictive `group`. Parsing never authorizes a join:
+  main-owned `LocationAuthority` and strict launch validation still apply.
+- **When it breaks:** a renamed access tag would label a restricted instance
+  Public, and the game decides whether the join works. Do not widen the parser
+  until the new format is known.
+
+### World metadata: `GET /worlds/{worldId}`
+
+- **Used:** in the background after a roster read and for an unseen world in a
+  live event. At most 10 lookups run at once through normal admission, with no
+  retry.
+- **Schema:** `name` is required. `thumbnailImageUrl`, `capacity` (integer) and
+  `shortName` each degrade to null on their own.
+- **Cache:** 24 h for success, 60 s for failure, cleared at account boundaries.
+  Each answer emits a `world-metadata` event that applies only to friends still in
+  that world. On a cold start the renderer keeps cached names and thumbnails for
+  friends still in the same world until fresh values arrive
+  ([mergeKnownInstanceMetadata.ts](../src/renderer/src/utils/mergeKnownInstanceMetadata.ts)).
+- **Uncertain:** whether VRChat answers an inaccessible world with 403 or 404.
+- **When it breaks:**
+  - A non-auth failure, a malformed body or a missing name resolves to null and is
+    negative-cached for 60 s.
+  - A 401 emits `auth-invalidated`.
+  - A 403 is an `AuthError`. It is not negative-cached, ends the rest of that
+    enrichment batch and counts toward the circuit. It never signs out.
+  - Rate limits, cancellation and admission overflow end the batch without
+    caching.
+  - Residual auth window: the roster returns before these lookups settle. A
+    background 401 invalidates the session after the caller may already have
+    seeded `LocationAuthority` from that roster.
+
+### Group metadata: `GET /groups/{groupId}`
+
+- **Assumes (Source-derived):** `name` is a non-empty string after trimming.
+  `iconUrl` is optional. The group id is URI-encoded.
+- **Cache:** 24 h for success, 60 s for failure, at most 512 entries. Answers
+  emit `group-metadata` events for friends still in that group.
+- **Uncertain:** the response shape has not been captured live, and the same
+  403-or-404 question applies as for worlds.
+- **When it breaks:** a missing name resolves to null and the UI shows no group
+  name. A missing or drifted `iconUrl` becomes null and the card uses its
+  placeholder. 401, 403 and other failures behave exactly as for worlds.
+
+### Explore routes
+
+All Explore reads use the durable session lease, one request each and no retry
+([parseExplore.ts](../src/main/services/adapters/vrchat/parseExplore.ts)). They
+are Synthetic.
+
+| Route                                | Assumed shape                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `GET /worlds/active?n=12`            | Array of worlds. First 12 parsed.                                                   |
+| `GET /worlds/{worldId}`              | World with `instances` as `[instanceId, userCount, object]` tuples. First 100 kept. |
+| `GET /worlds/{worldId}/{instanceId}` | One room. Both ids validated, then URI-encoded.                                     |
+
+- **Worlds:** `id` must be `wrld_<UUID>` and `name` non-empty. `occupants`
+  (non-negative integer), `thumbnailImageUrl` and `popularity` are optional.
+  Duplicates are dropped. A world detail must echo the requested `id`. More than
+  100 tuples makes the visible-room count partial.
+- **Strict public grammar for room ids:** the base is `[A-Za-z0-9_-]{1,80}` and
+  not a sentinel such as `private`. Each modifier may appear once. Allowed
+  modifiers are `region` (`us`, `use`, `usw`, `eu`, `jp`), `nonce` (with a
+  value), `ageGate`, `group` (`grp_<UUID>`), `groupAccessType` (`public`, `plus`,
+  `members`), `hidden`, `friends`, `private` (each with a value) and
+  `canRequestInvite`. Public means no owner tag, no group and no
+  `canRequestInvite`. Group Public means `group` plus `groupAccessType(public)`.
+  Known non-public rooms are excluded. Anything unrecognized leaves coverage
+  incomplete. The friend parser's public fallback does not apply here.
+- **Room identity:** `worldId` and `instanceId` must equal the target. If
+  present, `id` must be the instance id or `<worldId>:<instanceId>`, and
+  `location` must be `<worldId>:<instanceId>`. The qualified `id` form follows a
+  [source response report](https://github.com/vrchatapi/specification/issues/328);
+  the field list follows the community
+  [instance schema](https://github.com/vrchatapi/specification/blob/master/openapi/components/schemas/Instance.yaml).
+- **Room evidence:** occupancy prefers `n_users`, then `userCount`. `capacity`,
+  `region` and `groupName` are optional. A room is joinable only when the
+  response `type` and `groupAccessType` agree with the id's access, the id is not
+  age-gated, and these own fields hold exactly: `active: true`, `full: false`,
+  `hasCapacityForYou: true`, `roleRestricted: false`, `ageGate: false`,
+  `closedAt: null`, `hardClose: null`. Otherwise the room is full, restricted,
+  unavailable or unknown. A missing or inherited closure field stays unknown.
+- **When it breaks:** a malformed outer shape or identity mismatch raises
+  `ExploreDataError` (shown as invalid data). A 401 or 403 marks the read
+  unavailable, and a 401 also emits `auth-invalidated`. Rate limits end the
+  batch. The last displayed snapshot is kept.
+
+### Self-invite: `POST /invite/myself/to/{location}`
+
+- **Assumes (Source-derived):** body `{}`. The response is ignored.
+- **Parses:** the location must match `^wrld_[A-Za-z0-9_-]+:[^/?#\\\s]+$` before
+  it enters the path. Public instances are rejected locally.
+- **Reachability:** the main `self-invite` handler and preload bridge exist, but
+  no 1.0 renderer control calls them.
+- **When it breaks:** a 401 emits `auth-invalidated`. Any failure returns
+  `invite-failed`.
+
+### Images
+
+- **Hosts:** `api.vrchat.cloud`, `files.vrchat.cloud`, `assets.vrchat.com`.
+- **Assumes:** `api.vrchat.cloud` image URLs need the session cookie (401
+  without it) and redirect to a signed CDN URL on hosts VRChat rotates.
+- **Rules:** only `api.vrchat.cloud` may redirect, at most 2 hops. The target must
+  be HTTPS on the default port, with no credentials, and not an IP literal or
+  localhost name. The target may not redirect again and never receives the
+  cookie. API hops share VRChat admission and the session lease, and no API image
+  loads before the session is durable.
+- **When it breaks:** the letter placeholder shows. Cached failures are dropped
+  at each VRChat session boundary so a new session retries them.
+
+### Pipeline WebSocket
+
+- **Connects to** `wss://pipeline.vrchat.cloud/?authToken=<encoded token>` with
+  the VRX `User-Agent` and a 15 s handshake timeout. VRX never sends on this
+  socket. The URL carries the token, so it is never logged.
+- **Envelope (Source-derived):** `{ type: string, content }`. A string `content`
+  is JSON-parsed again (double encoding). An object `content` is used as is.
+
+| `type`                               | Content                       | VRX event                                                       |
+| ------------------------------------ | ----------------------------- | --------------------------------------------------------------- |
+| `friend-online`, `friend-location`   | `{ userId, user, location? }` | `friend-presence`, in game. Event `location` wins when present. |
+| `friend-active`                      | `{ userId, user }`            | `friend-presence`, active, no instance                          |
+| `friend-offline`                     | `{ userId }`                  | `friend-offline`                                                |
+| `friend-add`                         | `{ userId, user }`            | `friend-added`; state from `user.state`                         |
+| `friend-delete`                      | `{ userId }`                  | `friend-removed`                                                |
+| `friend-update`                      | `{ userId, user }`            | `friend-updated`; profile only, presence and instance kept      |
+| Self, content and notification types | Any                           | Dropped after decoding                                          |
+| Anything else                        | Any                           | Dropped                                                         |
+
+- **Dropped types:** `user-update`, `user-location`, `user-badge-assigned`,
+  `content-refresh` and the `notification`, `notification-v2*`,
+  `response-notification`, `see-notification`, `hide-notification` and
+  `clear-notification` family are recognized but not routed in 1.0.
+- **Parses:** `user` uses the roster record schema and the same normalizer.
+  `friend-add` maps `user.state` `online` to in game and `offline` to offline;
+  anything else or a missing state keeps the `active` fallback (Source-derived
+  from the User schema and VRCX). A `traveling` location shows no instance until
+  the next `friend-location`. `travelingToLocation` is accepted but unused.
+- **Assumes:** `userId` equals `user.id`. The event sets presence for `userId`,
+  while normalization looks up `user.id`; if they ever differ, the friend
+  normalizes as offline.
+- **Uncertain:** the double encoding and the `friend-add` state come from
+  community sources and have not been captured by VRX.
+- **When it breaks:** malformed frames and payloads are dropped. If the socket
+  cannot connect, presence comes only from the bucket arrays at each REST
+  reconcile.
+
+### Launch link: `vrchat://launch`
+
+- **Builds** `vrchat://launch?ref=vrchat.com&id=<worldId>:<instanceId>` from
+  main-owned instance data
+  ([buildJoinUrl.ts](../src/main/services/adapters/vrchat/buildJoinUrl.ts)). The
+  instance tags are not re-encoded. The link cannot choose desktop or VR; the
+  VRChat client setting decides.
+- **Validates** ([url-allowlist.ts](../src/main/ipc/url-allowlist.ts)): at most
+  2048 characters, no `#` or `%`, only the `id` and `ref` parameters, `ref` equal
+  to `vrchat.com`, and `id` matching
+  `^wrld_[A-Za-z0-9_-]{1,128}:[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$`.
+- **When it breaks:** the join is denied with `invalid-url` before
+  `shell.openExternal`.
+
+### Local files
+
+VRX reads no local VRChat or VRCX files. VRChat sign-in is always direct.
+
+## ChilloutVR
+
+REST base `https://api.abinteractive.net/1` (`CVR_API_BASE`). Explore uses the
+main-only base `https://api.chilloutvr.net`. The WebSocket is
+`wss://api.chilloutvr.net/1/users/ws` (`CVR_WS_URL`).
+
+| Surface                           | Used for                                 | Evidence                              | When it breaks                |
+| --------------------------------- | ---------------------------------------- | ------------------------------------- | ----------------------------- |
+| Session values and headers        | Every authenticated call                 | Source-derived                        | Sign-in fails closed          |
+| `{ message, data }` envelope      | Every REST reply                         | Live 2026-07-08                       | Request fails                 |
+| `POST /users/auth`                | Sign-in, restore check, 403 confirmation | Live                                  | Error result or `error` state |
+| `GET /friends`                    | Friend roster                            | Live                                  | Partial roster                |
+| `GET /instances/{id}`             | World, group and player count            | Live 2026-08-12                       | Socket values kept            |
+| Privacy values                    | Access labels                            | Partly Live 2026-07-08 and 2026-08-12 | Unknown access, restrictive   |
+| Explore routes                    | Public-world discovery                   | Synthetic                             | Explore problem state         |
+| `/users/ws` WebSocket             | Live presence                            | Live 2026-07-07                       | Friends stay offline          |
+| Image hosts                       | Pictures                                 | Live 2026-07-16                       | Placeholder                   |
+| `chilloutvr://instance/join` link | Join                                     | Documented                            | Join denied before launch     |
+| Local session files               | Optional session import                  | Source-derived, checked 2026-08-24    | No import, direct sign-in     |
+
+### Session values and headers
+
+- **Assumes:** a session is `{ username, accessKey }`. Every REST call and the
+  WebSocket upgrade send the VRX `User-Agent`, `Platform: pc_standalone`,
+  `CompatibleVersions: 0,1,2` and `MatureContentDlc: false`. Authenticated calls
+  add `Username` and `AccessKey`. The server-side meaning of the fixed values is
+  not documented; `pc_standalone` follows CVRX.
+- **Parses:** both session values must be printable ASCII (`isValidCvrSession`)
+  before header use or persistence. Headers are built after admission. The
+  password is never stored.
+- **When it breaks:** invalid issued values fail sign-in with
+  `invalid_credentials` or sign out a restored session.
+
+### Response envelope `{ message, data }`
+
+- **Assumes:** every REST reply wraps its payload as `{ message, data }`. VRX
+  validates `data` and discards `message`.
+- **Live 2026-07-08:** `/friends` returns `message: null`, so `message` is
+  accepted as a string, null or missing.
+- **When it breaks:** any other envelope makes every REST call fail validation
+  with `CVRNetworkError`.
+
+### Sign-in and re-auth: `POST /users/auth`
+
+- **Assumes:** body `{ AuthType, Username, Password }`. `AuthType: 2` signs in
+  with the typed sign-in name (an email address) and password. `AuthType: 1`
+  re-authenticates with the stored username and the access key as `Password`.
+  A reply may rotate the access key.
+- **Schema:** `data` requires `username`, `accessKey`, `userId` (a GUID),
+  `currentAvatar`, `currentHomeWorld`, `videoUrlResolverExecutable`,
+  `videoUrlResolverHashes` (strings) and `blockedUsers` (string array). VRX uses
+  only `username`, `accessKey` and `userId`.
+- **No second factor:** as of 2026-07 the reply has no 2FA field.
+  `verify2fa` returns `unsupported_2fa`. If ChilloutVR adds 2FA, follow the seam
+  described in `CvrAdapter.login`.
+- **Sign-in results:** 401 or 403 is `invalid_credentials`. Other non-2xx
+  statuses are `http_<status>`. An unreadable body is `bad_response`, and a
+  schema mismatch is `unexpected_response`. Sign-in resets the circuit.
+- **Restore:** a stored session is checked once per launch with `AuthType: 1`,
+  because repeated re-auth can rotate or rate-limit the key. Later status checks
+  trust it. 401 or 403 clears the session. Network errors, other statuses and
+  unreadable or drifted replies report `error` and keep it. These checks never
+  count toward the circuit. A rotated key is persisted before use.
+- **Data-path auth failures:**
+  - A 401 on any data call signs out at once and emits `auth-invalidated`.
+  - A 403 can be a per-resource denial. VRX runs one confirming `AuthType: 1`
+    request and signs out only if that is rejected or returns invalid values.
+    Network trouble or an unreadable reply keeps the session. A rotated key is
+    adopted. After a confirmed key, later 403s in that session do not re-check.
+  - A 5xx never clears the session.
+- **Uncertain:** access-key lifetime and how often rotation happens.
+
+### Friend roster: `GET /friends`
+
+- **Assumes:** `data` is one flat array of `{ id, name, imageUrl, categories }`.
+  It carries no presence or instance data.
+- **Parses:** `id` must be a GUID; it is trimmed and lowercased, the same as on
+  the WebSocket. `name` is required. A drifted `imageUrl` becomes null.
+  `categories` is ignored. One request per refresh, no retry.
+- **Defaults:** every friend starts offline with no instance, status or trust
+  rank. Main keeps the latest names so id-only socket entries can produce
+  readable notifications.
+- **When it breaks:** a bad record is skipped and the roster is partial. If every
+  record is skipped, the read throws. A transport or envelope failure throws.
+
+### Instance detail: `GET /instances/{id}`
+
+- **Used:** in the background for each distinct instance id in a presence
+  snapshot that is not cached. The id is URI-encoded.
+- **Schema:** `id` is required. `name` (the creator-set label, which may end in
+  `(#tag)`), `world: { id, name, imageUrl }`, `group: { id, name, image }`,
+  `currentPlayerCount` and `instanceSettingPrivacy` each degrade to null. Unknown
+  keys are ignored.
+- **Live 2026-08-12:** group instances carry `group: { id, name, image }`
+  (null otherwise), and `instanceSettingPrivacy` is a PascalCase string such as
+  `Public`, `Friends` or `GroupPlus`.
+- **Merge:** world id, name and image, player count and group come from REST.
+  Privacy stays the socket value because it is fresher. Until a lookup succeeds,
+  the socket label is the world-name fallback and the instance id stands in for
+  the world id.
+- **Cache:** 5 min for success (`INSTANCE_CACHE_TTL_MS`), 60 s for failure, at
+  most 512 entries. Lookups never count toward the circuit.
+- **Uncertain:** which status ChilloutVR returns for a private or closed instance.
+- **When it breaks:**
+  - A non-auth failure resolves to null, is negative-cached and re-emits the
+    socket fallback.
+  - A 401 signs out.
+  - A 403 is not negative-cached. It starts the 403 confirmation and is requested
+    again on the next snapshot that still lists the id.
+
+### Privacy values
+
+[parseCvrPrivacy.ts](../src/main/services/adapters/cvr/parseCvrPrivacy.ts) maps
+both forms. The socket sends numbers; `GET /instances/{id}` sends strings.
+
+| Number | Type                       | Openness | Evidence                     |
+| ------ | -------------------------- | -------- | ---------------------------- |
+| 0      | `public`                   | public   | Live 2026-07-08              |
+| 1      | `friends`                  | friends  | Source-derived (earlier app) |
+| 2      | `friends`                  | friends  | Live 2026-07-08              |
+| 3, 6   | `members-only`, group chip | invite   | Source-derived (earlier app) |
+| 4, 5   | `owner-must-invite`        | invite   | Source-derived (earlier app) |
+| 7      | `members-only`, group chip | invite   | Live 2026-07-08              |
+
+Strings ignore case and punctuation but keep digits: `public`,
+`friendsoffriends` (friends-of-friends), `friends`, `everyonecaninvite`
+(everyone-can-invite), `ownermustinvite` (owner-must-invite), `groupsonly`
+(members-only, group) and `groupplus` (friends-of-members, group).
+
+- **Known divergence (VRX-264):** the string `GroupPlus` maps to
+  friends-of-members, while number 6 stays members-only. Reconcile them only after
+  a live capture of 6.
+- **Unverified numbers understate access:** friends rather than friends of
+  friends, owner-must-invite rather than everyone-can-invite.
+- **Unknown or missing values** map to `owner-must-invite` with
+  `opennessUnknown: true`. The UI then shows neutral Unknown access and policy
+  pills instead of the fallback.
+- **`GroupPublic`** is recognized only by Explore. In the friend map it is
+  unknown. Presence always shows the socket number; the REST string is read only
+  by `getInstanceDetails`, which has no 1.0 caller.
+- **Offline instances:** no raw value maps to the shared `offline` type. The type
+  stays accepted for restored or future data. `IsOnline: false` removes the
+  friend from the online set instead. Do not add a mapping without a live
+  capture.
+
+### Explore routes
+
+Explore uses typed routes on `https://api.chilloutvr.net` with the normal session
+headers ([parseExplore.ts](../src/main/services/adapters/cvr/parseExplore.ts)).
+Ids are validated before a URL is built, and the renderer cannot choose a host or
+path. Each read is one request with no retry. They are Synthetic.
+
+| Route                                                                   | Assumed shape                                                |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `GET /2/worlds/list/wrldactive?page=0&sort=Default&direction=Ascending` | `data.entries` array of worlds. First 12 parsed.             |
+| `GET /1/worlds/{worldId}`                                               | World with an `instances` array of `{ id }`. First 100 kept. |
+| `GET /1/instances/{instanceId}`                                         | One room with `world.id` and privacy fields.                 |
+
+- **Worlds:** `id` must be a GUID and `name` non-empty. The image comes from
+  `imageUrl`, then `thumbnailUrl`. Category data gives no occupancy. A world
+  detail must echo the requested `id`. Room ids must match the
+  `i+<16 hex>-<6 hex>-<6 hex>-<8 hex>` grammar; any other entry makes coverage
+  incomplete.
+- **Rooms:** `id` and `world.id` must equal the target. Access comes from
+  `instanceSettingPrivacy`, `privacy` or both. Only the exact strings `Public` and
+  `GroupPublic` qualify, in any case. When both fields exist they must agree.
+  `currentPlayerCount`, `maxPlayer`, `region` and `group.name` are optional.
+  ChilloutVR has no capacity gate, so a full qualifying room stays joinable.
+- **Known non-public rooms:** when every present privacy value is a recognized
+  non-public string, the room is omitted. Numbers, unknown strings and conflicts
+  raise `ExploreDataError`.
+- **Totals:** a public player total sums unique qualifying rooms only when room
+  coverage and every room count are complete; otherwise it is partial and not
+  shown.
+- **When it breaks:** shape or identity mismatches show as invalid data. Auth
+  errors follow the data-path rules above. Rate limits end the batch. The last
+  displayed snapshot is kept.
+
+### WebSocket `/users/ws`
+
+- **Connects** with the session headers on the upgrade and a 15 s handshake
+  timeout. A restored session waits until its `AuthType: 1` check succeeds; with
+  no session the loop waits and retries.
+- **Envelope:** clean JSON, not double-encoded:
+  `{ ResponseType, Data }` or `{ responseType, data }`. Both casings are
+  accepted because the envelope casing has not been confirmed live.
+
+| `ResponseType`              | VRX event                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------- |
+| 10 `ONLINE_FRIENDS`         | `presence-snapshot` with the merged online set                                                     |
+| 11 `FRIEND_LIST_UPDATED`    | `roster-changed`; the roster is refetched over REST                                                |
+| 0, 1, 2, 15, 20, 25, 30, 50 | Dropped after decoding (notifications, invites, requests, mature-content and group-invite updates) |
+| Anything else               | Dropped                                                                                            |
+
+- **Live 2026-07-07:** entries use PascalCase `Id`, `IsOnline` and
+  `Instance: { Id, Name, Privacy }` with a numeric `Privacy`. The first
+  `ONLINE_FRIENDS` frame after a connect is the full online set; later frames are
+  one-entry deltas.
+- **Merge:** the online set is cleared on each connect. Deltas merge into it,
+  `IsOnline: false` removes a friend, and every emit is the full merged set. Both
+  casings are accepted for entries too. Ids are GUIDs, trimmed and lowercased.
+  The world id equals the instance id until REST enrichment. ChilloutVR has no
+  active state, status or trust rank, and VRX never invents them.
+- **Defensive parsing:**
+  - A malformed instance becomes null and the friend shows as in a private
+    instance.
+  - A malformed entry is skipped. In the connect frame, a skipped entry with a
+    readable GUID keeps that friend online with no instance, never the old join
+    target.
+  - A non-empty frame with no usable entry emits nothing and logs a warning. If
+    it was the connect frame, VRX reconnects for a fresh full set, at most
+    `MAX_UNUSABLE_FULL_SET_RESYNCS` (2) times in a row.
+- **Outgoing:** `{ RequestType, Data }` senders exist for friend requests,
+  unfriend, invites and blocking (types 5, 6, 7, 8, 10, 15, 30, 31). The payload
+  shapes are Source-derived from CVRX notes. Nothing calls them in 1.0, and they
+  never queue while disconnected.
+- **Keepalive:** VRX sends none and relies on server pings, which `ws` answers
+  with protocol pongs. The `RequestType 0` keepalive that CVRX reportedly sends
+  is omitted until a live session shows it is needed.
+- **Uncertain:** whether a friend who goes fully offline always gets an
+  `IsOnline: false` delta. If not, that friend stays online until the next
+  reconnect.
+- **When it breaks:** without the socket, REST friends stay offline and the UI has
+  no ChilloutVR presence.
+
+### Image hosts
+
+- **Hosts:** `files.chilloutvr.net`, `files.abidata.io`,
+  `files.abinteractive.net`.
+- **Live 2026-07-16:** a real `/friends` roster served all 166 `imageUrl`
+  values from `files.chilloutvr.net`. `files.abidata.io` stays for older URLs
+  named in CVRX sources.
+- **Rules:** CDN requests carry no cookie or session header and never follow
+  redirects. Each host has its own cooldown, and at most 4 bodies download at
+  once across CDN hosts.
+- **When it breaks:** a URL on a new host is refused and shows the placeholder
+  until one allowlist entry is added.
+
+### Launch link: `chilloutvr://instance/join`
+
+- **Documented:** the official
+  [deep-link documentation](https://docs.chilloutvr.net/chilloutvr/game/deep-link/)
+  specifies `chilloutvr://instance/join?instanceId=<id>&startInVR=true|false`,
+  with the `+` in `i+…` ids encoded as `%2B`.
+- **Builds** the link only when the id matches
+  `^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$` (any case)
+  ([buildCvrJoinUrl.ts](../src/main/services/adapters/cvr/buildCvrJoinUrl.ts)).
+  `startInVR` follows the chosen join mode.
+- **Validates:** exactly those two parameters, in that order and encoding, with
+  `startInVR` equal to `true` or `false`.
+- **When it breaks:** the join is denied with `invalid-url` before
+  `shell.openExternal`.
+
+### Local session import files
+
+VRX can copy an existing ChilloutVR session from local files
+([cvrSessionImport.ts](../src/main/services/cvrSessionImport.ts)). It runs at
+startup only when VRX has no valid stored session, the user has not signed out,
+and the **External ChilloutVR session** setting allows it (Never, Ask or Allow;
+Ask by default, and the answer is saved). VRX never writes either source.
+
+| Source           | Location                                             | Assumed shape                                                   |
+| ---------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+| Game profile     | `ChilloutVR_Data/autologin*.profile` (folders below) | XML root `LoginProfile` with one `Username` and one `AccessKey` |
+| CVRX config      | `<appData>/CVRX/CVRConfigs/config.json`              | `{ FileVersion: 1, data: { ActiveUsername, CVRExecutable } }`   |
+| CVRX credentials | `<appData>/CVRX/CVRConfigs/credentials.json`         | `{ FileVersion: 1, data: { <key>: { Username, AccessKey } } }`  |
+
+- **Game folders:** each Steam library's
+  `steamapps/common/ChilloutVR/ChilloutVR_Data`, plus the `ChilloutVR_Data`
+  folder next to the CVRX `CVRExecutable` when it is an absolute local path to
+  `ChilloutVR.exe` or `ChilloutVR` (any case).
+- **Steam libraries:** Windows uses `Steam` under the Program Files folders,
+  Linux uses `~/.local/share/Steam` and `~/.steam/steam`, and macOS uses
+  `<appData>/Steam`. Each Steam root is a library, and extra libraries come
+  from `"path"` entries in its `steamapps/libraryfolders.vdf`.
+- **Source-derived, checked 2026-08-24:** the CVRX wrapper and field names follow
+  [CVRX `server/config.js`](https://github.com/AstroDogeDX/CVRX/blob/main/server/config.js).
+- **Selection:** one unique profile pair wins. Several profiles are narrowed to
+  the CVRX `ActiveUsername`. Otherwise one unique CVRX credential is used,
+  matching `ActiveUsername` when it is set. Any remaining ambiguity imports
+  nothing.
+- **Defensive parsing:**
+  - A DOCTYPE, CDATA, processing instruction, nested element or duplicate field
+    invalidates a profile.
+  - Limits: JSON 1 MiB, profile 128 KiB, `libraryfolders.vdf` 1 MiB, 512
+    directory entries, 128 CVRX records, 16 game data folders, 32 profile files,
+    750 ms per file operation and 1 s overall.
+  - Symlinked, non-regular or oversized files are skipped. Relative and network
+    (UNC) paths are ignored, and an unsafe app-data or home root stops the
+    import before any read.
+  - Timeouts, budget overruns and files or folders that change identity during
+    the read disable the profile source; VRX then uses CVRX only.
+- **After import:** both values must be printable ASCII. The pair is saved through
+  credential storage, then checked with `AuthType: 1` before any REST or socket
+  use.
+- **When it breaks:** any drift imports nothing and direct sign-in stays
+  available. VRX does not migrate or repair either source.
+
+## Open questions
+
+| Platform   | Question                                                           | Current safe behavior                                                |
+| ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| VRChat     | Does an inaccessible world or group return 403 or 404?             | 404 is negative-cached; 403 is retried and counts toward the circuit |
+| VRChat     | Is Pipeline `content` always double-encoded?                       | Both string and object accepted                                      |
+| VRChat     | Does `friend-add` always carry `user.state`?                       | Missing state falls back to active                                   |
+| ChilloutVR | What do numbers 1, 3, 4, 5 and 6 mean on the live socket?          | Earlier-app mapping, understating access                             |
+| ChilloutVR | Does a friend going offline always get an `IsOnline: false` delta? | Online set is rebuilt on every reconnect                             |
+| ChilloutVR | Which status does a private or closed instance return?             | Non-auth failures negative-cached; 403 confirmed once                |
+| ChilloutVR | How long does an access key live, and when does it rotate?         | Rotations persisted; dead keys surface as 401                        |
+
+## How to update this doc
+
+- When an observed shape, status code, host or value changes, or an open question
+  is answered, update that surface's entry: the assumption, the parsing, the
+  evidence label with its date, and the behavior when it breaks.
+- Record a new observed shape here before broadening a parser. Do not widen a
+  parser only because a value looks plausible.
+- Replace superseded observations instead of appending history. Keep one dated
+  line per observation that still explains current code.
+- A new image or launch host needs an allowlist change and an entry here in the
+  same pull request.
+- Describe shapes, never paste raw payloads, credentials or personal data.
+- Policy changes (pacing, retries, cooldowns, User-Agent, Explore budgets,
+  etiquette) also update [API policy](api-policy.md).
+- Keep both platforms at the same structure and level of detail.
