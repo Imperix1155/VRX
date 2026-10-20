@@ -99,7 +99,9 @@ const updaterService = vi.hoisted(() => ({
   install: vi.fn()
 }))
 vi.mock('../updater', () => ({
-  getUpdaterService: () => updaterService
+  getUpdaterService: () => updaterService,
+  getUpdaterSnapshot: () => updaterService.snapshot(),
+  initAutoUpdater: () => Promise.resolve(updaterService)
 }))
 
 import { registerIpcHandlers } from './index'
@@ -153,13 +155,16 @@ beforeEach(() => {
 })
 
 describe('registerIpcHandlers rate limiting', () => {
-  it('wraps updater:check with the real rate limiter and denies past budget', () => {
+  it('wraps updater:check with the real rate limiter and denies past budget', async () => {
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
     const check = electron.invokeHandlers.get('updater:check')!
 
+    const accepted: unknown[] = []
     for (let request = 0; request < 6; request += 1) {
-      check(invokeEvent)
+      accepted.push(check(invokeEvent))
     }
+    // The handler awaits the shared lazy updater load before delegating.
+    await Promise.all(accepted)
     expect(updaterService.check).toHaveBeenCalledTimes(6)
 
     expect(() => check(invokeEvent)).toThrowError('rate_limited')
