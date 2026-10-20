@@ -48,6 +48,7 @@ import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
+import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
@@ -103,6 +104,8 @@ function createWindow(): BrowserWindow {
   // work area (review F2): Electron does not clamp min sizes itself, and an
   // unclamped 670 floor would leave small/DPI-scaled displays (e.g. 1366x768
   // at 125%) with the window bottom permanently off-screen and no recovery.
+  // keepMinimumSizeOnScreen re-applies the clamp for whichever display the
+  // window is on later.
   const { workAreaSize } = screen.getPrimaryDisplay()
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -200,10 +203,8 @@ function createWindow(): BrowserWindow {
     recovery.unresponsive()
   })
 
-  // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
-  // window instead of quitting — the app keeps running in the tray. macOS
-  // keeps its default close behavior (the app itself stays open via
-  // window-all-closed below; the tray is just an extra affordance there).
+  keepMinimumSizeOnScreen(mainWindow)
+
   // The default app menu is removed on Windows/Linux, so restore its Ctrl+Q.
   if (process.platform !== 'darwin') {
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -213,6 +214,10 @@ function createWindow(): BrowserWindow {
     })
   }
 
+  // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
+  // window instead of quitting — the app keeps running in the tray. macOS
+  // keeps its default close behavior (the app itself stays open via
+  // window-all-closed below; the tray is just an extra affordance there).
   mainWindow.on('close', (event) => {
     if (!quitting && process.platform !== 'darwin') {
       event.preventDefault()
