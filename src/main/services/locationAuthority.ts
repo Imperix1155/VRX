@@ -289,7 +289,12 @@ export class LocationAuthority {
       case 'presence-snapshot': {
         const ids = new Set(event.entries.map((entry) => entry.platformUserId))
         for (const [id, current] of state.friends) {
-          if (!ids.has(id) && current.friend !== null) markOffline(id)
+          if (ids.has(id)) continue
+          // Pending entries (seen live before the first roster read) leave the
+          // online set too; otherwise a roster read could revive a stale room.
+          const pendingOnline =
+            current.pending !== undefined && current.pending.presence.state !== 'offline'
+          if (current.friend !== null || pendingOnline) markOffline(id)
         }
         for (const entry of event.entries) {
           const current = state.friends.get(entry.platformUserId)?.friend
