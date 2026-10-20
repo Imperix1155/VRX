@@ -411,6 +411,20 @@
   --scanline-blend: overlay;
   --scanline-opacity: 0.6;
 
+  /* WELCOME SETUP theme pictures. Each one shows the theme it picks, not the
+     theme showing now, so these stay fixed and the light block never
+     overrides them. Values echo each theme's base and aurora. */
+  --setup-picture-dark-bg:
+    radial-gradient(80% 90% at 10% 0%, rgba(43, 124, 232, 0.35), transparent 70%),
+    radial-gradient(80% 90% at 100% 100%, rgba(243, 113, 30, 0.28), transparent 70%), #08080b;
+  --setup-picture-dark-panel: rgba(255, 255, 255, 0.09);
+  --setup-picture-dark-edge: rgba(255, 255, 255, 0.1);
+  --setup-picture-light-bg:
+    radial-gradient(80% 90% at 10% 0%, rgba(31, 111, 211, 0.2), transparent 70%),
+    radial-gradient(80% 90% at 100% 100%, rgba(216, 95, 24, 0.18), transparent 70%), #eef3f8;
+  --setup-picture-light-panel: rgba(255, 255, 255, 0.85);
+  --setup-picture-light-edge: rgba(40, 48, 68, 0.14);
+
   /* SCROLLBAR */
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
 }
@@ -798,5 +812,155 @@ body::after {
     .setting-row {
       flex-wrap: wrap;
     }
+  }
+}
+
+/* Welcome setup (owner, 2026-10-20). State lives in attributes (data-state,
+   aria-checked), which utilities cannot target as one rule set. */
+@layer components {
+  .setup-progress-step {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 6px;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--text-faint);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+  }
+  .setup-progress-step:disabled {
+    cursor: default;
+  }
+  .setup-progress-step:focus-visible {
+    outline: 2px solid var(--text-dim);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  .setup-progress-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+  }
+  .setup-progress-step[data-state='done'] {
+    color: var(--text-dim);
+  }
+  .setup-progress-step[data-state='done'] .setup-progress-bar {
+    background: var(--text-dim);
+  }
+  .setup-progress-step[data-state='current'] {
+    color: var(--text);
+    font-weight: 700;
+  }
+  .setup-progress-step[data-state='current'] .setup-progress-bar {
+    background: var(--text);
+  }
+
+  .setup-theme-choice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--glass-information);
+    background-image: var(--glass-sheen);
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .setup-theme-choice:hover {
+    border-color: var(--text-faint);
+  }
+  .setup-theme-choice[aria-checked='true'] {
+    border-color: var(--text);
+    color: var(--text);
+  }
+  .setup-theme-choice:focus-visible {
+    outline: 2px solid var(--text-dim);
+    outline-offset: 2px;
+  }
+  .setup-radio {
+    display: inline-grid;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    place-items: center;
+    border: 1.5px solid var(--text-faint);
+    border-radius: 50%;
+  }
+  [aria-checked='true'] .setup-radio {
+    border-color: var(--text);
+  }
+  [aria-checked='true'] .setup-radio::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text);
+  }
+  .setup-theme-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    border-radius: 9px;
+  }
+  .setup-theme-split .setup-theme-picture {
+    border-radius: 0;
+  }
+  .setup-theme-split .setup-theme-picture-light .setup-theme-picture-side {
+    display: none;
+  }
+  .setup-theme-picture {
+    display: flex;
+    gap: 4px;
+    height: 64px;
+    padding: 6px;
+    border-radius: 9px;
+  }
+  .setup-theme-picture-dark {
+    background: var(--setup-picture-dark-bg);
+  }
+  .setup-theme-picture-light {
+    background: var(--setup-picture-light-bg);
+  }
+  .setup-theme-picture-side {
+    width: 22%;
+    border-radius: 5px;
+  }
+  .setup-theme-picture-main {
+    display: grid;
+    flex: 1;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 4px;
+  }
+  .setup-theme-picture-main span {
+    border-radius: 4px;
+  }
+  .setup-theme-picture-dark .setup-theme-picture-side,
+  .setup-theme-picture-dark .setup-theme-picture-main span {
+    border: 1px solid var(--setup-picture-dark-edge);
+    background: var(--setup-picture-dark-panel);
+  }
+  .setup-theme-picture-light .setup-theme-picture-side,
+  .setup-theme-picture-light .setup-theme-picture-main span {
+    border: 1px solid var(--setup-picture-light-edge);
+    background: var(--setup-picture-light-panel);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .setup-step {
+      animation: setup-step-in 220ms ease-out;
+    }
+  }
+}
+
+@keyframes setup-step-in {
+  from {
+    transform: translateX(10px);
+    opacity: 0.5;
   }
 }

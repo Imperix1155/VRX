@@ -305,6 +305,21 @@
       "description": "Diagnostic logs for troubleshooting. Credentials are redacted; review before sharing.",
       "open": "Open logs folder",
       "error": "Couldn't open the logs folder."
+    },
+    "pages": {
+      "hot": {
+        "label": "Hot Instances page",
+        "description": "Show the Hot Instances page in the sidebar. The Dashboard section and alerts stay available."
+      },
+      "explore": {
+        "label": "Explore page",
+        "description": "Show the Explore page in the sidebar. Popular now on the Dashboard stays available."
+      }
+    },
+    "setup": {
+      "label": "Welcome setup",
+      "description": "Go through the first-launch steps again: pages, Dashboard, alerts and look.",
+      "run": "Run setup again"
     }
   },
   "error": {
@@ -589,6 +604,99 @@
         "stagedInstall": "Couldn't install the staged update. Download it again and try once more."
       },
       "actionFailed": "Couldn't reach the updater. Try again in a moment."
+    }
+  },
+  "setup": {
+    "skip": "Skip setup",
+    "back": "Back",
+    "continue": "Continue",
+    "getStarted": "Get started",
+    "finish": "Open VRX",
+    "progress": {
+      "aria": "Setup steps",
+      "count": "Step {{current}} of {{total}}",
+      "done": "{{step}}, done"
+    },
+    "steps": {
+      "signin": "Sign in",
+      "pages": "Pages",
+      "dashboard": "Dashboard",
+      "alerts": "Alerts",
+      "look": "Look"
+    },
+    "welcome": {
+      "title": "Welcome to VRX",
+      "lead": "Your social VR companion for VRChat and ChilloutVR. A few quick steps and you’re in. Prefer to look around yourself? Skip setup any time.",
+      "friends": {
+        "title": "One friends list",
+        "body": "Your VRChat and ChilloutVR friends together, live."
+      },
+      "hot": {
+        "title": "Hot Instances",
+        "body": "See where several friends are hanging out right now."
+      },
+      "explore": {
+        "title": "Explore",
+        "body": "Popular and new worlds on both platforms."
+      }
+    },
+    "signin": {
+      "title": "Sign in",
+      "lead": "Connect one platform or both. You can add the other one later in Settings → Accounts.",
+      "skipLead": "Sign in to at least one platform, then VRX opens with the usual settings.",
+      "none": "Sign in to at least one platform to continue.",
+      "one": "One connected. Continue, or connect the other one too.",
+      "both": "Both connected.",
+      "storage": "VRX signs in to each platform on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."
+    },
+    "pages": {
+      "title": "Pick your pages",
+      "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
+      "hot": "Every instance where several friends are together.",
+      "explore": "Popular and new worlds on both platforms.",
+      "hotAria": "Show the Hot Instances page",
+      "exploreAria": "Show the Explore page"
+    },
+    "dashboard": {
+      "title": "Your Dashboard",
+      "lead": "The Dashboard is your home page. Choose what it shows under your friend counts.",
+      "popular": "Popular worlds from both platforms.",
+      "hot": "Where your friends are gathering right now.",
+      "popularAria": "Show Popular now on the Dashboard",
+      "hotAria": "Show Hot Instances on the Dashboard",
+      "order": {
+        "label": "Which comes first?",
+        "description": "The first one gets the big pictures."
+      }
+    },
+    "alerts": {
+      "title": "Desktop alerts",
+      "lead": "VRX can pop up an alert on your desktop. Every alert stays off unless you turn it on.",
+      "allOn": "Turn all on",
+      "allOff": "Turn all off"
+    },
+    "look": {
+      "title": "Pick a look",
+      "lead": "It changes as you pick, so you can see it right away.",
+      "aria": "Theme",
+      "system": "Match my PC"
+    },
+    "done": {
+      "title": "You’re all set",
+      "lead": "Here’s what you picked. You can change any of it later in Settings.",
+      "accounts": "Accounts",
+      "pages": "Pages",
+      "dashboard": "Dashboard",
+      "alerts": "Alerts",
+      "look": "Look",
+      "connected": "{{platform}} connected",
+      "notConnected": "{{platform}} not connected",
+      "unreachable": "{{platform}} can’t be reached right now",
+      "dashboardNone": "Friend counts only",
+      "dashboardBoth": "{{first}}, then {{second}}",
+      "alertsOff": "All off",
+      "alertsSome": "{{count}} of {{total}} on",
+      "lookValue": "{{theme}}, {{glow}} glow"
     }
   }
 }

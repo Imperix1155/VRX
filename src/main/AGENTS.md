@@ -58,8 +58,9 @@ and Node/Electron access on this side of the process boundary.
   admission while CDN body work stays bounded. Send a VRChat cookie only to
   `api.vrchat.cloud`, fence cache publication to the account lease, and never
   make the renderer fetch a vendor image directly.
-- Settings load through migration and validation, retain valid parsed choices if
-  normalization persistence fails, coalesce writes, flush before quit, and refuse
+- Settings load through migration and validation; only an empty store (a new
+  install) loads `freshInstallSettings` to queue the welcome setup. They retain
+  valid parsed choices if normalization persistence fails, coalesce writes, flush before quit, and refuse
   to overwrite a newer-version file. Failed normalization remains visibly unsaved
   and retryable; it must not replace parsed settings with defaults. Account, social,
   and linked-profile stores validate bounded data and account/epoch ownership before

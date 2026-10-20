@@ -3,6 +3,7 @@ import type { AuthState } from '@shared/types'
 import AppShell from './components/AppShell'
 import LoginScreen from './components/LoginScreen'
 import BootSplash from './components/BootSplash'
+import SetupWizard from './components/setup/SetupWizard'
 import { useAuthStatus } from './queries/auth'
 import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
@@ -23,6 +24,7 @@ function App(): React.JSX.Element {
   // Apply the stored background-glow level before any view renders.
   useApplyGlow()
   const hydrated = useSettingsStore((s) => s.hydrated)
+  const setupPending = useSettingsStore((s) => s.settings.setupPending)
   const notifiedHydrated = useRef(false)
   // This passive effect is declared after both attribute layout effects, so
   // main cannot reveal the CSS canvas until the persisted look is in place.
@@ -75,6 +77,12 @@ function App(): React.JSX.Element {
   // load has resolved. An empty tree keeps the default dark canvas visible, so
   // a saved light theme or non-standard glow is applied before anything renders.
   if (!hydrated) return <BootSplash />
+
+  // Welcome setup (owner, 2026-10-20): a brand-new install, or "Run setup
+  // again" from Settings. It carries its own sign-in step (the Settings
+  // account cards), so it comes before the shell and login gates. Finishing
+  // or skipping clears the flag and those gates take over unchanged.
+  if (setupPending) return <SetupWizard />
 
   if (
     entersShell(vrcAuthStatus?.state) ||

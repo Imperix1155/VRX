@@ -231,7 +231,10 @@ On smaller work areas, the window floor yields so the app stays recoverable.
 Do not invent a mobile app layout from a narrow documentation viewport.
 
 Primary navigation contains Dashboard, Hot Instances, Friends, Explore, and
-Settings, in that order. Activity and Groups are deferred concepts, not visible placeholders or
+Settings, in that order. Hot Instances and Explore can be turned off in
+Settings → Appearance (or the welcome setup); a hidden page leaves the sidebar
+and its links, while its Dashboard section and alerts keep their own switches.
+Dashboard, Friends, and Settings always show. Activity and Groups are deferred concepts, not visible placeholders or
 current release commitments. Existing notifications and group-instance metadata
 remain available through their implemented features.
 
@@ -390,6 +393,19 @@ the weaker local-key fallback; it must not promise universal OS-keychain
 protection. The sign-in screen (on both tabs) and Accounts show one
 unofficial-app line that names VRChat and Alpha Blend Interactive (ChilloutVR)
 together in plain faint text, so neither platform gets more weight.
+
+A brand-new install opens the welcome setup before the app: one centered
+information card with a labeled five-step progress row (Sign in, Pages,
+Dashboard, Alerts, Look) between a welcome screen and a summary. Step state reads
+from position, weight, and a check, not color. Sign-in shows the two Accounts
+cards side by side at equal size; one ready account is enough to continue.
+Every other step edits the real settings as the user picks and keeps today's
+defaults (all alerts off) until changed. Skip setup is a visible button on every
+screen, never a small link, so setup never feels like a forced tour; skipping
+before any account is ready shows sign-in only, then opens the app. The primary
+button is a neutral text-colored fill, so neither platform color leads. Settings
+→ Appearance offers Run setup again. Sources:
+[`components/setup`](../src/renderer/src/components/setup/).
 
 Auth examples use the actual credentials and method-specific 2FA forms. Secure
 storage failure keeps the dedicated production error copy. Fixtures accept only

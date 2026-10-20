@@ -681,3 +681,33 @@ describe('external CVR import preference', () => {
     expect(screen.queryByText(/unsaved|not yet saved/i)).toBeNull()
   })
 })
+
+describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)', () => {
+  it('turns the Hot Instances and Explore pages off independently', () => {
+    renderSettings()
+    for (const [label, key] of [
+      ['settings.pages.hot.label', 'showHotInstancesPage'],
+      ['settings.pages.explore.label', 'showExplorePage']
+    ] as const) {
+      const group = screen.getByRole('radiogroup', { name: msg(label) })
+      fireEvent.click(within(group).getByRole('radio', { name: msg('settings.boolean.off') }))
+      expect(useSettingsStore.getState().settings[key]).toBe(false)
+    }
+    // Hiding a page leaves its Dashboard section alone.
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      dashboardPopularNow: true,
+      hotInstancesEnabled: true
+    })
+  })
+
+  it('Run setup again queues the welcome setup without changing other choices', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, theme: 'light' } })
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.setup.run') }))
+    expect(useSettingsStore.getState().settings).toEqual({
+      ...DEFAULT_SETTINGS,
+      theme: 'light',
+      setupPending: true
+    })
+  })
+})

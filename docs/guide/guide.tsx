@@ -547,6 +547,16 @@ export default function Guide(): React.JSX.Element {
               { value: 'email', label: 'Email code' }
             ]}
           />
+          <Scene
+            name="setup"
+            title="Welcome setup"
+            note="Interactive fixture. A brand-new install sees this before the app. Skip setup is on every screen; choices change the synthetic settings only. Signed out shows the sign-in step as a new user meets it."
+            source="components/setup"
+            variants={[
+              { value: 'ready', label: 'Accounts connected' },
+              { value: 'signed-out', label: 'Signed out' }
+            ]}
+          />
         </Section>
 
         <Section id="donot" kicker="09 · contributor checks" title="Before changing a component">

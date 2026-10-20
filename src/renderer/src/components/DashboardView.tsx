@@ -116,6 +116,8 @@ function DashboardContent(): React.JSX.Element {
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
+  // "See all" leads to the Hot Instances page, so it goes when that page is off.
+  const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const [exploreDismissSignal, setExploreDismissSignal] = useState(0)
   // The card form follows the ORDER setting, not visibility: hiding the first
   // section never restyles the other one.
@@ -232,7 +234,7 @@ function DashboardContent(): React.JSX.Element {
           />
         }
         extra={
-          allHotCount > 0 ? (
+          allHotCount > 0 && showHotInstancesPage ? (
             <button
               type="button"
               aria-label={t('dashboard.seeAllAria', { count: allHotCount })}

@@ -19,8 +19,11 @@ The platform filter and 2/4/6 world choice persist; Join uses the existing
 confirmation and permission settings. Current behavior is documented in the
 [design contract](docs/DESIGN.md) and [API catalog](docs/INTERNAL-API.md).
 
-Navigation contains Dashboard, Hot Instances, Friends, Explore, and Settings. Activity and
-Groups are deferred concepts and do not appear as unfinished tabs.
+Navigation contains Dashboard, Hot Instances, Friends, Explore, and Settings;
+Hot Instances and Explore can be hidden. Activity and Groups are deferred
+concepts and do not appear as unfinished tabs. A new install starts with a
+skippable welcome setup that covers sign-in, pages, the Dashboard, alerts, and
+the look.
 
 ## Unofficial
 
