@@ -7,6 +7,12 @@ Neither platform publishes the APIs VRX uses. They can change,
 throttle, or disappear without notice, and features built on them can break
 without warning.
 
+ChilloutVR's terms (§8, third-party applications) require apps that use its
+services to show: "This application is not created by or affiliated with
+ChilloutVR or the ChilloutVR team in any way." VRX shows that sentence word for
+word in its unofficial-app notice (`shell.unofficialNotice`), next to a matching
+VRChat sentence. Keep it word for word when editing the notice.
+
 This page states how VRX uses those APIs and the limits it holds itself to. The
 code is the source of truth. Observed response shapes and uncertain assumptions
 live in [API volatility](./api-volatility.md).

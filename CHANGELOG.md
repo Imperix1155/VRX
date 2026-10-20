@@ -24,9 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - VRX no longer re-checks your VRChat sign-in each time you switch between
   Friends, Hot Instances and Dashboard. Sign-in, sign-out and an expired
   session still update it right away.
-- The unofficial-app notice now names ChilloutVR's current owner, Disconeering
-  LLC, instead of Alpha Blend Interactive. It also names VRChat Inc. so both
-  platforms are named the same way.
+- The unofficial-app notice now uses the exact disclaimer ChilloutVR's terms ask
+  third-party apps to show, with a matching sentence for VRChat. It no longer
+  names Alpha Blend Interactive, which no longer runs ChilloutVR (Disconeering
+  LLC does now).
 
 ## [1.0.0-beta.3] - 2026-10-20
 
