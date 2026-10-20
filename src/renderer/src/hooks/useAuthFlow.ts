@@ -7,6 +7,7 @@ import {
   type TwoFactorMethod
 } from '@shared/types'
 import { authStatusQueryKey } from '../queries/auth'
+import { rememberLoginPlatform } from '../utils/lastLoginPlatform'
 
 /**
  * Shared credentials/2FA auth state machine (VRX-221) — the single owner of a
@@ -132,6 +133,8 @@ export function useAuthFlow(
       const result = await request(bridge)
 
       if (result.ok) {
+        // LoginScreen reopens on the platform signed in to last.
+        rememberLoginPlatform(platform)
         // Invalidate so the auth gate / card re-checks and transitions. The 2FA
         // state is cleared only AFTER the invalidations settle: clearing it
         // first would flash the credentials form while the gate refetches.
