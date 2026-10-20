@@ -1,123 +1,234 @@
-# VRX — API Policy Stance
+# API policy
 
-## What VRX is (and is not)
+VRX is an unofficial desktop companion for VRChat and ChilloutVR. It is not
+affiliated with, endorsed by, or approved by VRChat Inc. or Alpha Blend
+Interactive. Neither platform publishes the APIs VRX uses. They can change,
+throttle, or disappear without notice, and features built on them can break
+without warning.
 
-VRX is an **unofficial** desktop companion app for VRChat and ChilloutVR. It is **not** affiliated with, endorsed by, or approved by VRChat or Alpha Blend Interactive (the developers of ChilloutVR). The VRChat and ChilloutVR APIs that VRX relies on are **unofficial** — they are not publicly documented by either platform and may change or be withdrawn at any time without notice. Features that depend on these APIs can break without warning.
+This page states how VRX uses those APIs and the limits it holds itself to. The
+code is the source of truth. Observed response shapes and uncertain assumptions
+live in [API volatility](./api-volatility.md).
 
-VRX authenticates **as the user** on the user's own machine. It reads only that user's own social data: friend list, presence/location, instance details, and notifications. VRX is not a bot, not a server, not a mass-invite tool, and does not upload content on behalf of users.
+## Scope
 
-## Etiquette VRX follows
+The policy covers every request VRX's main process sends to either platform:
+REST calls, WebSockets, and images fetched from platform hosts. The renderer
+never talks to a platform directly. App updates come from GitHub Releases and
+are outside the platform queues.
 
-### Compliant User-Agent
+## What VRX does
 
-Every outbound request carries a descriptive `User-Agent` header identifying the app and providing a contact URL so either platform can reach the project if needed:
+VRX signs in as the user, on the user's own machine, and reads that user's own
+social data: friends, presence, locations, instance details, and public worlds
+for Explore. It launches the game through local URL schemes.
 
+| Area                  | VRChat                                                                                  | ChilloutVR                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| REST base             | `https://api.vrchat.cloud/api/1`                                                        | `https://api.abinteractive.net/1`; Explore reads use `https://api.chilloutvr.net` |
+| Live presence         | VRChat Pipeline, `wss://pipeline.vrchat.cloud/`                                         | `wss://api.chilloutvr.net/1/users/ws`                                             |
+| Socket auth           | `authToken` query value from `GET /auth`, falling back to the stored `auth` cookie      | `Username` and `AccessKey` upgrade headers, the same headers REST uses            |
+| Socket traffic        | Receive-only                                                                            | Receive-only today; outgoing sender methods exist but nothing calls them          |
+| Roster read           | `GET /auth/user`, then `GET /auth/user/friends` pages of 100, online then offline       | One `GET /friends`                                                                |
+| Metadata enrichment   | `GET /worlds/{id}` and `GET /groups/{id}`, cached 24 hours (failures 60 seconds)        | `GET /instances/{id}`, cached 5 minutes (failures 60 seconds)                     |
+| Stored session        | The `auth` cookie, plus `twoFactorAuth` when issued                                     | Username and access key                                                           |
+| Platform write action | Self-invite, `POST /invite/myself/to/{location}`, for a non-public friend instance only | None                                                                              |
+| Join                  | Local `vrchat://launch` URL; no API call                                                | Local `chilloutvr://instance/join` URL; no API call                               |
+| API-host images       | `api.vrchat.cloud` image hops share VRChat admission                                    | None; ChilloutVR images come from CDN hosts                                       |
+
+VRX never stores a password. A sign-in exchanges the password once for the
+session material in the table, which [`credentials.ts`](../src/main/services/credentials.ts)
+encrypts at rest.
+
+## What VRX refuses to do
+
+- **No bots.** VRX does not automate social actions, run unattended, or act for
+  anyone except the signed-in user.
+- **No presence polling.** Live presence comes only from the two sockets above.
+  VRX never polls a friend's status or location.
+- **No mass actions.** No bulk invites, friend requests, messages, or blocks.
+  The only platform write is one user-initiated VRChat self-invite at a time.
+- **No crawling.** VRChat roster pagination stops at 5,000 friends, and
+  ChilloutVR returns its roster in one read. Explore stops at fixed budgets and
+  reports incomplete coverage instead of reading further.
+- **No VRCX or CVRX writes.** VRX never writes to VRCX, CVRX, or game folders.
+  The optional ChilloutVR session import opens files read-only and runs only
+  after the user consents.
+- **No invented data.** Unknown or missing values degrade to a safe default.
+  Missing data is never a status, a removal, or a join target.
+
+## Request admission
+
+[`ApiAdmissionController`](../src/main/services/adapters/ApiAdmissionController.ts)
+is the one queue per platform. Main creates one for VRChat and one for
+ChilloutVR; they never share pacing or cooldowns. Sign-in, REST data, retries,
+Explore reads, and VRChat API-host image hops all pass through it.
+
+| Rule            | Value                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Spacing         | At least 1,000 ms between starts (`API_REQUEST_MIN_INTERVAL_MS`), plus 0–99 ms jitter                             |
+| Ceiling         | One request per second per platform. This is VRX's own limit, not a vendor allowance                              |
+| Queue size      | 256 pending requests; the last 16 places are reserved for interactive work                                        |
+| Order           | Retries holding a 429 deadline, then interactive, then default, then background                                   |
+| Overflow        | `RequestQueueFullError`. The request fails once and is never replayed                                             |
+| Header timing   | Request headers, including credentials, are built only after admission and the session check pass                 |
+| Request timeout | 15,000 ms per attempt (`API_TIMEOUT_MS`); REST redirects are refused                                              |
+| Circuit breaker | After 3 consecutive failures, that platform's requests fail fast until 60 s after the last one. 429s do not count |
+
+An interactive sign-in resets the circuit breaker so a user with correct
+credentials is not blocked by earlier background failures. Pacing and 429
+cooldowns still apply to it.
+
+## 429 handling, backoff, and cooldowns
+
+- A 429 sets a shared platform cooldown. VRX honors `Retry-After` as whole
+  seconds or an HTTP date. Without a valid header it waits 1 s × 2ⁿ, where n
+  counts 429s since the last success, capped at 30 seconds, plus 0–99 ms
+  jitter. A cooldown only ever grows.
+- Every attempt, including every retry, re-enters admission and waits for the
+  latest cooldown before it can send.
+- **Batch work stops at the first 429.** Roster pages, world, group, and
+  instance enrichment, background CVR instance lookups, and Explore reads use
+  no-retry admission. A 429 ends the batch, rejects its queued requests, and
+  stops later pages. A cooldown expiring never resumes the old batch.
+  Completed data still publishes. An interrupted roster is marked partial, and
+  friends it missed stay from the cache.
+- **Other requests retry a 429 at most 3 times.** This covers sign-in, session
+  checks, the VRChat pipeline token exchange, the VRChat self-invite, and
+  interactive CVR instance lookups.
+- **Sockets share the cooldown.** A rejected socket upgrade with status 429
+  extends the platform's REST cooldown, and every socket connect waits for that
+  cooldown first. Sockets do not take an admission slot.
+- Cancellation, queue overflow, and a not-yet-saved session are control flow.
+  They never count as circuit failures and are never cached as missing data.
+
+## Identification
+
+Every REST request, socket upgrade, and platform image request carries:
+
+```text
+User-Agent: VRX/<app version> (https://github.com/Imperix1155/VRX)
 ```
-VRX/<app version> (https://github.com/Imperix1155/VRX)
-```
 
-### Rate limiting
+The version comes from `package.json` at build time. The contact is the public
+repository; no personal data is sent. ChilloutVR requests and its socket upgrade
+also send `Platform: pc_standalone`, `CompatibleVersions: 0,1,2`, and
+`MatureContentDlc: false`.
 
-- One main-owned controller per platform spaces API attempts by at least one
-  second plus jitter. Auth, REST, eligible retries and API-backed image hops
-  share that admission path. VRChat and ChilloutVR remain independent. This is
-  VRX's conservative local policy, not a vendor-published allowance or a promise
-  that requests at this rate cannot be restricted.
-- A 429 monotonically extends the affected cooldown using valid `Retry-After`
-  seconds or an HTTP date. Missing or invalid headers use growing jittered
-  fallback. Every later attempt rechecks the deadline and normal pacing.
-- Roster pagination and background metadata stop at the first 429, even with
-  a zero-delay Retry-After from another request sharing the platform controller.
-  Pending pages, enrichment and refresh follow-ups cannot resume the old run.
-  Successfully completed data may publish; interrupted rosters remain partial
-  and missing entries are retained from cache. These batches do not
-  sleep and replay, and cooldown expiry does not trigger a burst. Other existing
-  request kinds retain their bounded retry policy; every allowed retry re-enters
-  admission under its original session lease. No additional action retries are
-  introduced by this policy.
-- Queued requests are bounded. Logout, account changes and superseded login
-  attempts cancel obsolete work before dispatch; stale responses cannot publish
-  into a replacement session. Headers are built only after admission and lease
-  validation. Tentative/restored credentials remain quarantined until ready.
-- CDN image bodies have separate bounded concurrency and host cooldowns. A
-  credentialed API image hop still uses platform admission; redirects keep their
-  original lease and never forward the API cookie to the CDN. Updater downloads
-  are outside these platform queues.
+## Live presence and recovery
 
-### Public-world discovery
+Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/ReconnectingPipeline.ts).
 
-Explore is an on-demand, session-memory discovery feature. Discovery JSON has no
-polling timer, saved cache, direct renderer transport, or automatic continuation
-when a cooldown or budget window expires. Image admission recovery is the
-separate, finite exception described below. Main coalesces the
-visible platform work, cancels it when the view hides or the account changes,
-and preserves the last display snapshot when a refresh cannot finish. Identical
-world/room reads share pending work only inside one account session. Cancelling
-one consumer preserves work needed by another; losing every consumer aborts it.
-Sharing never renews the original transport lease, deadline or attempt budget.
+| Rule              | VRChat Pipeline                                                               | ChilloutVR `/users/ws`                                                       |
+| ----------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Handshake timeout | 15,000 ms                                                                     | 15,000 ms                                                                    |
+| Reconnect backoff | 1 s × 2ⁿ per failed or short connection, capped at 60 s, plus 0–249 ms jitter | Same                                                                         |
+| Backoff reset     | After a connection stays open for 60 seconds                                  | Same                                                                         |
+| Keepalive         | None sent                                                                     | None sent; the `ws` library answers server pings                             |
+| Extra reconnects  | None                                                                          | At most 2 when a connect's full online set cannot be read                    |
+| On connect        | One REST roster read to catch up                                              | One REST roster read to catch up; a roster-changed message also triggers one |
 
-- Every Explore JSON attempt uses the existing platform admission controller,
-  original session lease, no-retry policy and pre-dispatch budget guard. A 429,
-  queue refusal, malformed outer response or account boundary ends the current
-  batch; it does not schedule a retry.
-- The rolling per-platform cap is 20 Explore JSON starts per 60 seconds. A cold
-  VRChat candidate pass is one active-world page of at most 12 records. A cold
-  ChilloutVR pass is at most 13 reads: one category, six world details and six
-  room details. A selected world uses at most seven reads: one world detail and
-  six rooms. Enumeration retains at most 100 room IDs and reports incomplete
-  coverage rather than crawling further.
-- Explore image work reuses the authenticated image cache: at most six new
-  image operations per platform per 60 seconds and two outstanding. Cached
-  images do not consume a new operation. Main distinguishes only local image
-  admission deferral from terminal missing/invalid/stale/failed artwork. Current
-  visible card/sheet observers may make at most two later recovery attempts per
-  retained world reference/session, coalescing shared observers. Capacity hints
-  wait 2.0–2.75 seconds; rolling-window hints wait for the earliest retained start
-  to expire with bounded jitter. Hints are clamped to 250–60,000 ms on both sides.
-  Losing the last visible observer or document visibility cancels the timer;
-  returning visibility can use only the remaining retained budget. Identity and
-  reference changes fence dispatch and publication. Terminal null/unknown
-  transport failures never schedule recovery. This adds bounded later image
-  opportunities within the same hard ceilings, not a discovery or presence poll.
-  Adapter/server cooldown metadata and URL authority remain main-only. Exhausted
-  recovery stays a placeholder; no guaranteed eventual fetch or live-server
-  verification is claimed (VRX-275).
-- Discovery evidence is fresh for 60 seconds. Automatic candidate starts wait
-  at least five minutes since the last candidate attempt; manual candidate and
-  world refreshes wait at least 60 seconds. These are eligibility checks, not
-  scheduled wakeups.
-- Join remains main-owned. Opaque world and selection references expire after
-  five minutes; stale room evidence disables joining. VRChat may revalidate one
-  eligible room with no retry. ChilloutVR never calls `/join` or probes capacity;
-  a fresh qualifying Public/GroupPublic room remains eligible even when full.
+Full REST rosters run on first load, on manual refresh, after a socket
+reconnects, and on the background reconcile timer. The timer defaults to 5
+minutes, can be set to 10 or 30 minutes or manual, and varies ±10% per run. It
+is a safety net, not a presence poll. Concurrent roster requests in one session
+share a single run. Events that arrive during that run add at most one final
+read.
 
-### Real-time data and recovery
+## Explore limits
 
-WebSockets remain the live presence/location source. Full REST rosters serve
-initial load, manual refresh, reconnect recovery and the existing jittered
-recovery interval. Concurrent callers, including CVR name warming, share one
-refresh per session. Events during its first read request at most one final
-read; later events and recovery remain available. No new presence poll is added.
+Explore discovery is on demand and lives only in memory for the current account.
+It has no polling timer. It stops when the window is hidden or minimized, and it
+is cleared when the account changes. All Explore reads use the platform's
+admission queue with no retries.
 
-Socket reconnect backoff grows through brief opens and resets after a sustained
-open of at least 60 seconds. Rejected-upgrade 429s share the platform cooldown.
-Waits honor extensions and cancel when the pipeline stops; no additional
-heartbeat protocol or socket is used.
+| Limit                             | Value                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Explore read starts               | 20 per platform per rolling 60 seconds, shared across accounts                                                                                                            |
+| VRChat candidate refresh          | 1 read, at most 12 worlds                                                                                                                                                 |
+| ChilloutVR candidate refresh      | At most 13 reads: 1 active-worlds list, 6 world details, 6 room details                                                                                                   |
+| Opening a world                   | At most 7 reads: 1 world detail and 6 rooms                                                                                                                               |
+| Rooms tracked per world           | 100; beyond that coverage is reported as partial                                                                                                                          |
+| Job deadline                      | 45 seconds                                                                                                                                                                |
+| Freshness                         | Evidence is fresh for 60 seconds                                                                                                                                          |
+| Refresh eligibility               | Automatic candidate refresh at most every 5 minutes; manual candidate or world refresh at most every 60 seconds                                                           |
+| Explore images                    | 6 new image fetches per platform per 60 seconds, 2 outstanding                                                                                                            |
+| Deferred image retries (renderer) | At most 2 per visible world. A full queue waits 2.0–2.75 s; a full window waits until its oldest start expires, plus up to 750 ms. Every wait is clamped to 250–60,000 ms |
 
-### No mass actions
+Joining from Explore stays main-owned and requires fresh room evidence.
+VRChat may re-check one stale room once before launch. ChilloutVR never
+re-checks; a stale room is not joinable.
 
-VRX does not send bulk invites, does not automate social actions on the user's behalf, and does not perform any action that would constitute botting under either platform's community guidelines.
+## Local action limits
 
-### Defensive parsing
+Main also rate-limits the renderer's requests before any network work starts.
 
-Responses containing unknown enum values, unexpected fields, or missing optional data degrade gracefully — unknown values are ignored or mapped to a safe default. VRX never crashes on an API change it hasn't seen before. See [`docs/api-volatility.md`](./api-volatility.md) for the catalog of volatile API surfaces and resilience strategies.
+| Action                   | Limit                                                                                     |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| Sign-in                  | 6 per minute                                                                              |
+| Two-factor code          | 10 per minute                                                                             |
+| Roster request           | 12 per 30 seconds                                                                         |
+| Join a friend's instance | 20 per minute; one launch per platform at a time; 3 s cooldown per friend and destination |
+| VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                |
+| Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination            |
 
-## Risk disclosure
+The full table is `IPC_RATE_LIMIT_BUDGETS` in
+[`rate-limit.ts`](../src/main/ipc/rate-limit.ts). Every join also respects the
+**Allow joining friends** setting.
 
-Because both APIs are unofficial and undocumented:
+## Cancellation across sessions
 
-- Either platform may change its API at any time, breaking VRX features without prior notice.
-- Either platform may restrict or block third-party API access in the future.
-- Account risk: although VRX is designed to behave like a well-mannered first-party client, neither VRChat Inc. nor Alpha Blend Interactive officially sanction third-party API access. Use VRX at your own risk.
+Each adapter keeps a session generation and an abort signal. Sign-out, a new
+sign-in, an account change, or an invalidated session advances the generation
+and aborts the signal. That cancels queued requests, in-flight rosters,
+enrichment, and Explore jobs, clears per-session caches, and restarts or stops
+the socket.
 
-VRX's posture is **feature-maximum parity within the constraints of safe, respectful API use** — never at the cost of getting users' accounts flagged or blocked.
+- Every authenticated request carries a lease. The lease is checked before
+  admission, after admission, and after the response. A stale lease raises
+  `RequestCancelledError` and nothing publishes.
+- A newer interactive sign-in supersedes an older one at its next await.
+- A restored or tentative session cannot send authenticated REST, open a
+  socket, or fetch an API-host image until the adapter has validated its
+  owner and saved it.
+- An API-host image request captures the session when it starts, and a
+  response from an old session is discarded. The VRChat cookie is sent only to
+  `api.vrchat.cloud`, never to a CDN redirect target.
+
+[Multi-account architecture](./architecture/multi-account.md) describes the
+account identity and epoch rules behind these fences.
+
+## Risk to user accounts
+
+Both platforms can restrict third-party access. Neither VRChat Inc. nor Alpha
+Blend Interactive sanctions VRX, so using it carries some risk to the user's
+account. VRX limits that risk by:
+
+- behaving like one careful client: one request per second at most, server
+  waits honored, batches stopped at the first 429;
+- using the platforms' own sockets for live data instead of polling;
+- limiting writes to one user-initiated VRChat self-invite at a time;
+- never storing passwords, and keeping session material in main, encrypted at
+  rest and invisible to the renderer;
+- validating a restored ChilloutVR session once per launch, and confirming a
+  data-path 403 with at most one re-authentication per session, so VRX does not
+  churn access keys;
+- identifying itself honestly with a User-Agent and contact URL.
+
+VRX aims for feature parity with first-party clients only within these limits.
+It never trades a user's account safety for a feature.
+
+## When to update this policy
+
+Update this page in the same change when you:
+
+- add an endpoint, socket, host, or socket message VRX sends;
+- add a platform write or social action, or wire the ChilloutVR socket senders;
+- add anything that reads the network on a timer, or change the reconcile
+  choices;
+- change a number on this page, a retry mode, a priority class, or the queue;
+- change the User-Agent or the platform headers;
+- read a new external source, such as another app's session files.
+
+Changes to response shapes or API assumptions go in
+[API volatility](./api-volatility.md).
