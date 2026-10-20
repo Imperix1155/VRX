@@ -2,89 +2,90 @@
 
 ## Purpose
 
-Implement the narrow, typed renderer-to-main boundary. `index.ts` registers
-handlers; domain files validate requests and call main-owned services.
+The narrow, typed renderer-to-main boundary. `index.ts` registers every
+handler; each domain file validates its requests and calls main-owned services.
+Persistence, network, cache, and account-transition policy stay in services.
 
 ## Ownership
 
-- [`@shared/ipc`](../../../src/shared/ipc.ts) is the source of truth for invoke,
-  notification, and push types. [`docs/INTERNAL-API.md` sections 1-3](../../../docs/INTERNAL-API.md)
-  list callable contracts and event meanings.
-- `index.ts` is the only registration point. It owns the trust-first,
-  per-channel limiter shell and removes unused third-party listener bootstrap.
-- Domain modules own handler-specific request validation. `security.ts` owns
-  sender admission; `url-allowlist.ts` owns pure renderer-link and main-built
-  launch URL validation.
-- Preload exposes only typed bridge methods and subscriptions. It may normalize
-  the documented `rate_limited` error but must not add authority or policy.
+- [`@shared/ipc`](../../shared/ipc.ts) defines invoke, notification, and push
+  types. [`docs/INTERNAL-API.md`](../../../docs/INTERNAL-API.md) catalogs each
+  channel and event.
+- `index.ts` is the only registration point. It wraps each `ipcMain.handle` as
+  sender check, then per-channel limiter, then domain handler; guards the
+  `renderer-hydrated` notification the same way; and removes electron-store's
+  unused `electron-store-get-data` listener.
+- `security.ts` owns `isTrustedIpcSender`. `rate-limit.ts` owns budgets and
+  denial shapes. `url-allowlist.ts` owns the pure `isAllowedUrl` and
+  `isAllowedLaunchUrl` predicates.
+- The preload bridge ([`index.ts`](../../preload/index.ts),
+  [`index.d.ts`](../../preload/index.d.ts)) exposes typed methods and
+  subscriptions only. It may normalize the `rate_limited` error. It adds no
+  authority or policy, and every subscription returns an unsubscribe.
 
 ## Local Contracts
 
-- Unpackaged built preview admits only the exact `out/renderer/index.html`
-  top-level document when no Vite server is configured; never admit arbitrary
-  local files as a preview workaround.
-- Every handler calls `isTrustedIpcSender` first. Register it through the
-  `index.ts` shell before its limiter. Deny malformed, oversized, unknown, and
-  stale requests without logging sensitive request data.
-- Keep push channels main-to-renderer only. Do not make a push event callable
-  from the renderer, and unsubscribe listeners in preload.
-- Main owns account identity, session epoch, location authority, settings,
-  action policy, opaque references, and final URL construction. A renderer may
-  submit `expectedTarget` world and instance IDs only for comparison with the
-  current main-owned location. It never supplies URL authority.
-- `join-instance` checks the main-owned allow-join setting before lookup or URL
-  building, checks joinability, compares `expectedTarget`, validates the
-  main-built URL, then launches under the shared coordinator. `self-invite` has
-  its own lock and cooldown. Keep denial logs to platform and reason.
-- `open-url` accepts only allowlisted HTTPS web links. Custom game schemes are
-  reachable only from main-owned join paths after strict URL validation.
-- `get-avatar` admits only a bounded URL string and delegates to `AvatarCache`.
-  Return its CSP-safe `data:` result or `null`; do not expose fetch, cookies,
-  redirects, or vendor image URLs to the renderer as an authority.
-- Authentication handlers never log or return credentials. Complete 2FA with
-  the adapter's pending session, not a resent password. Failure paths that
-  clear auth must preserve the typed session-cleared result contract.
-- Route `login` and `verify-2fa` by the validated request platform. A direct
-  CVR login is a normal authentication path; do not hardcode VRChat at this
-  boundary or require the app's initial screen to choose the platform.
-- `get-app-status` returns `AppStatusService.snapshot()`. Do not replace this
-  live connection and reconcile status with a fixed success value.
-- Account-scoped reads and writes capture a main-owned lease and recheck it
-  before mutation. A stale account or epoch returns the documented stale result,
-  never writes across accounts.
-- Rate limits are timer-free sliding windows with a monotonic clock. Keep the
-  per-channel policy table, warning suppression, and error mapping in one
-  place. Do not return retry timing or request payloads to the renderer.
+- Every handler first calls `isTrustedIpcSender(event.senderFrame)` and throws
+  for an untrusted sender. The `index.ts` shell repeats the check before the
+  limiter so untrusted calls never spend the trusted budget. Dev trusts the
+  exact `ELECTRON_RENDERER_URL` origin. Packaged and built-preview runs trust
+  only the top-level `out/renderer/index.html` under the app path; never admit
+  another local file or a subframe.
+- Validate shape before use: allowlisted platform, string types, length caps,
+  and rejected prototype keys. Explore and links use strict zod schemas. Log no
+  request data; denial logs carry platform and reason only.
+- Every invoke and notification channel has an `IPC_RATE_LIMIT_BUDGETS` entry
+  (`satisfies` enforces it). Windows are timer-free, use a monotonic clock, and
+  warn once per window. Action channels return their typed denial; query
+  channels throw `rate_limited`. Never return retry timing or payloads.
+- Push channels are main-to-renderer only. Never make one callable.
+- `join-instance` order: allow-join setting, `LocationAuthority` lookup,
+  `isFriendJoinable`, `expectedTarget` comparison by `hotInstanceKey` (never
+  launch input), adapter URL build, `isAllowedLaunchUrl`, then launch under
+  `JoinCoordinator`.
+  `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown.
+- `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
+  only from main-built join paths. `open-logs-folder` takes no input.
+- `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,
+  and returns a `data:` result or `null`. It never exposes fetch, cookies, or
+  redirects.
+- Auth handlers route `login` and `verify-2fa` by the validated platform; a
+  direct ChilloutVR login is a normal path. They never log or return
+  credentials. 2FA completes the adapter's pending session from the code
+  alone. Failures that clear auth keep the typed `sessionCleared` result.
+- Account-scoped reads and writes (notes, linked profiles) capture a
+  main-owned epoch or lease and recheck it before mutation. A stale request
+  gets the documented `stale` result and never writes across accounts.
+- `get-friends` seeds `LocationAuthority` before returning and passes the
+  authority's merged rows to alerts. Only a complete roster may reconcile
+  missing friends; a failed read seeds nothing. VRChat replies carry
+  provenance: a base revision, deduplicated `coveredIds` for partial reads, and
+  follow-up override IDs, without duplicating rows or leaking rate-limit
+  timing. Admission rate limits and queue overflow surface as `rate_limited`.
+- `save-settings` accepts only a plain-object patch and rejects a newer-file or
+  durable-write failure, so the renderer never reports an unsaved preference as
+  saved. `get-settings` marks a pending save as `unsaved`.
+- Explore accepts only bounded main-issued references and delegates discovery,
+  admission, caching, and launch to `ExploreService`.
 
 ## Work Guidance
 
 - Add a channel only when no catalogued channel fits. Change `@shared/ipc`,
-  preload types, registration, handler tests, and `docs/INTERNAL-API.md`
-  together.
-- Keep URL predicates pure and test them without Electron. Keep IPC handlers
-  thin; put persistence, network, cache, and account-transition policy in
-  services.
-- Preserve roster completeness and location revisions through `get-friends`.
-  Only a complete roster may reconcile missing friends. Partial results preserve
-  cached omissions; failed reads do not seed authority. VRChat responses expose
-  seed revisions, unique actual partial coverage IDs, and IDs replaced by a follow-up,
-  without duplicating friend payloads or leaking rate-limit timing. Deduplicate
-  coverage IDs even when online/offline pagination returns overlapping rows.
-- Settings reads migrate and validate in main. A save must reject a newer-file
-  overwrite or durable-write failure so the renderer does not report an
-  unsaved preference as durable.
-- Explore accepts only bounded main-issued opaque references. It delegates
-  discovery, admission, caching, and launch decisions to `ExploreService`.
+  preload `index.ts` and `index.d.ts`, registration, the budget table, handler
+  tests, and the catalog together.
+- Keep URL predicates pure and tested without Electron. `get-app-status`
+  returns the live `AppStatusService.snapshot()`, never a fixed value.
 
 ## Verification
 
-- Follow `docs/DEVELOPMENT.md` and `docs/REVIEW.md`. Run focused handler tests
-  and `ipc/index.test.ts` when registration changes.
-- Exercise trusted and untrusted senders, invalid request shapes, stale account
-  leases, rate limits, and denial paths that apply to the changed handler.
-  URL or launch changes need exact allowlist and target-mismatch tests.
-- Confirm registration enumerates only the typed expected channels and no
-  handler leaks credentials, raw errors, locations, or URLs in logs.
+- Follow the root gate. Run the changed handler's tests, plus
+  `index.test.ts` and `src/preload/index.test.ts` when registration or the
+  bridge changes.
+- Cover trusted and untrusted senders, invalid shapes, stale leases, rate
+  limits, and denial paths that apply. URL or launch changes need exact
+  allowlist and target-mismatch cases.
+- Confirm registration lists only the typed channels and no handler leaks
+  credentials, raw errors, locations, or URLs in logs.
 
 ## Child DOX Index
 
