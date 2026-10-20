@@ -261,6 +261,8 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
         return getFriendNote({ platform, friendId })
       },
       staleTime: Infinity,
+      // Notes are local IPC: never pause them while the browser reports offline.
+      networkMode: 'always',
       enabled: getFriendNote !== null && friendId !== ''
     },
     queryClient
@@ -330,6 +332,9 @@ export function useFriendNote({ platform, friendId }: UseFriendNoteOptions): Use
 
   const { mutate } = useMutation(
     {
+      // Local IPC: a save must not sit paused (and be lost on quit) while the
+      // browser reports offline.
+      networkMode: 'always',
       mutationFn: async (save: SaveVariables) => {
         const saveQueryKey = ['friend-note', save.platform, save.friendId, save.epoch] as const
         const stateKey = save.key
