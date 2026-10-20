@@ -119,7 +119,10 @@ describe('persisted roster under disabled auth', () => {
       </PersistQueryClientProvider>
     )
 
-    await waitFor(() => expect(screen.getByText('No friends online')).toBeTruthy())
+    // A VRChat session waiting for a fresh code reads as not connected.
+    await waitFor(() =>
+      expect(screen.getByText('Connect VRChat to see your friends here')).toBeTruthy()
+    )
     expect(screen.queryByText('Stale In-Game Friend')).toBeNull()
     expect(getFriends).not.toHaveBeenCalled()
   })

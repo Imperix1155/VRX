@@ -283,5 +283,14 @@ describe('persisted cache boundaries', () => {
     })
     expect(screen.queryByText('Loading...')).toBeNull()
     expect(screen.getByText('No friends online')).toBeTruthy()
+
+    // A background refresh of that verified empty roster keeps saying so.
+    await act(async () => {
+      void queryClient.invalidateQueries({ queryKey: friendsQueryKey('vrchat') })
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(queryClient.isFetching({ queryKey: friendsQueryKey('vrchat') })).toBe(1)
+    expect(screen.queryByText('Loading...')).toBeNull()
+    expect(screen.getByText('No friends online')).toBeTruthy()
   })
 })

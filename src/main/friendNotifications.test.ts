@@ -3,7 +3,7 @@ import { isFriendAlertEnabled } from './friendNotifications'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FriendAlert } from './services/friendAlerts'
 
-type NotificationListener = () => void
+type NotificationListener = (details?: unknown) => void
 
 const electron = vi.hoisted(() => {
   class MockNotification {
@@ -34,13 +34,13 @@ const electron = vi.hoisted(() => {
       return this
     }
 
-    emit(event: string): void {
+    emit(event: string, details?: unknown): void {
       const registrations = this.listeners.get(event) ?? []
       this.listeners.set(
         event,
         registrations.filter(({ once }) => !once)
       )
-      for (const { listener } of registrations) listener()
+      for (const { listener } of registrations) listener(details)
     }
 
     private addListener(event: string, listener: NotificationListener, once: boolean): void {
@@ -180,6 +180,29 @@ describe('createFriendNotificationNotifier', () => {
     electron.MockNotification.instances[1]?.emit('click')
     expect(focusMainWindow).toHaveBeenCalledOnce()
     expect(focusDashboard).toHaveBeenCalledOnce()
+    expect(focusDashboard).toHaveBeenCalledWith('vrchat')
+  })
+
+  it('keeps a timed-out hot alert clickable from the notification centre', () => {
+    const focusDashboard = vi.fn()
+    const notify = createFriendNotificationNotifier({
+      icon: '/packaged/icon.png',
+      focusMainWindow: vi.fn(),
+      focusDashboard,
+      logFailure: vi.fn()
+    })
+    for (let index = 0; index < 20; index += 1) notify(transitionAlert('online'))
+    notify(hotAlert(3, 'The Great Pug'))
+    const hot = electron.MockNotification.instances[20]!
+    // The cap evicted the oldest alert; of the rest, only the hot one has no
+    // release timer, and a timeout close does not release it either.
+    expect(vi.getTimerCount()).toBe(19)
+    hot.emit('close', { reason: 'timedOut' })
+    vi.advanceTimersByTime(120_000)
+    expect(vi.getTimerCount()).toBe(0)
+    hot.emit('click')
+    expect(focusDashboard).toHaveBeenCalledWith('vrchat')
+    hot.emit('close', { reason: 'userCanceled' })
   })
 
   it('releases retained timers on close and failure without logging private native errors', () => {

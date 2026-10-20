@@ -48,6 +48,7 @@ import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
 import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
+import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
@@ -86,8 +87,11 @@ let exploreWindowService: ExploreService | undefined
 let bootstrapReadyForFocus = false
 let secondInstanceFocusPending = false
 const rendererReadyWindows = new WeakSet<BrowserWindow>()
+let hotNavigationPlatform: Platform = 'vrchat'
 const dashboardNavigation = new PendingNavigation<BrowserWindow>((window) => {
-  if (!window.isDestroyed()) window.webContents.send('navigate-to-dashboard')
+  if (!window.isDestroyed()) {
+    window.webContents.send('navigate-to-dashboard', { platform: hotNavigationPlatform })
+  }
 })
 const rendererHydrationGates = new WeakMap<WebContents, ShowGate>()
 
@@ -104,6 +108,8 @@ function createWindow(): BrowserWindow {
   // work area (review F2): Electron does not clamp min sizes itself, and an
   // unclamped 670 floor would leave small/DPI-scaled displays (e.g. 1366x768
   // at 125%) with the window bottom permanently off-screen and no recovery.
+  // keepMinimumSizeOnScreen re-applies the clamp for whichever display the
+  // window is on later.
   const { workAreaSize } = screen.getPrimaryDisplay()
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -201,10 +207,8 @@ function createWindow(): BrowserWindow {
     recovery.unresponsive()
   })
 
-  // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
-  // window instead of quitting — the app keeps running in the tray. macOS
-  // keeps its default close behavior (the app itself stays open via
-  // window-all-closed below; the tray is just an extra affordance there).
+  keepMinimumSizeOnScreen(mainWindow)
+
   // The default app menu is removed on Windows/Linux, so restore its Ctrl+Q.
   if (process.platform !== 'darwin') {
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -214,6 +218,10 @@ function createWindow(): BrowserWindow {
     })
   }
 
+  // Close-to-tray (VRX-112): on Windows/Linux the close button hides the
+  // window instead of quitting — the app keeps running in the tray. macOS
+  // keeps its default close behavior (the app itself stays open via
+  // window-all-closed below; the tray is just an extra affordance there).
   mainWindow.on('close', (event) => {
     if (!quitting && process.platform !== 'darwin') {
       event.preventDefault()
@@ -248,7 +256,8 @@ function focusMainWindow(): BrowserWindow {
   return window
 }
 
-function focusDashboard(): void {
+function focusDashboard(platform: Platform): void {
+  hotNavigationPlatform = platform
   const window = focusMainWindow()
   dashboardNavigation.request(window, rendererReadyWindows.has(window))
 }
@@ -464,7 +473,11 @@ app
       onIdentity: (accountId) => {
         accountSession.setIdentity('chilloutvr', accountId)
       },
-      onSessionBoundary: () => {
+      onSessionBoundary: ({ identityRetained }) => {
+        // A same-account key rotation changes nothing account-scoped. Clearing
+        // here would make Join report stale until the next roster read, and the
+        // renderer boundary would refetch the roster and drop note drafts.
+        if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
@@ -649,7 +662,14 @@ app
     // reuse it instead of spawning a duplicate the tray never wires (Kimi
     // review, VRX-230).
     currentWindow = getOrCreateMainWindow()
-    trayHandle = createTray(() => currentWindow)
+    // Tray Show goes through focusMainWindow so it also restores a minimized
+    // window and recreates one macOS destroyed on close.
+    trayHandle = createTray(
+      () => currentWindow,
+      () => {
+        focusMainWindow()
+      }
+    )
     trayHandle.wireWindow(currentWindow)
     bootstrapReadyForFocus = true
     if (secondInstanceFocusPending) {

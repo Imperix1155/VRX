@@ -215,6 +215,25 @@ describe('not-connected social states (VRX-192)', () => {
   it.each([
     ['Friends list', FriendsList],
     ['Dashboard', DashboardView]
+  ] as const)('%s points to Accounts when VRChat needs a new 2FA code', (_name, Component) => {
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    setQueries(failedQuery(), failedQuery())
+    useAuthStatusMock.mockReturnValue({
+      data: { platform: 'vrchat', state: 'needs-2fa', accountId: null, displayName: null },
+      isPending: false,
+      isSuccess: true,
+      isFetching: false
+    })
+
+    render(<Component />)
+
+    expect(screen.getByText('Connect VRChat to see your friends here')).toBeTruthy()
+    expect(screen.getByRole('button', { name: accountCta })).toBeTruthy()
+  })
+
+  it.each([
+    ['Friends list', FriendsList],
+    ['Dashboard', DashboardView]
   ] as const)('%s opens Accounts from the VRChat CTA', (_name, Component) => {
     useFriendsStore.setState({ platformFilter: 'vrchat' })
     setQueries(failedQuery(), failedQuery())

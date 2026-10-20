@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TwoFactorMethod } from '@shared/types'
 import AuthInput from './AuthInput'
@@ -18,6 +19,7 @@ export default function TwoFactorForm({
   method,
   code,
   isSubmitting,
+  locked = false,
   errorKey,
   onCodeChange,
   onSubmit,
@@ -33,6 +35,8 @@ export default function TwoFactorForm({
   method: TwoFactorMethod
   code: string
   isSubmitting: boolean
+  /** Disable the form without the submitting label (another action is running). */
+  locked?: boolean
   errorKey: string | null
   onCodeChange: (value: string) => void
   onSubmit: (e: React.FormEvent) => void
@@ -45,6 +49,14 @@ export default function TwoFactorForm({
   ariaLabel?: string
 }): React.JSX.Element {
   const { t } = useTranslation()
+  // This form replaces the one that held focus (a submit asking for a code, or
+  // Back). Without this, focus falls to the page and typing goes nowhere.
+  useEffect(() => {
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
+    }
+  }, [idPrefix])
   return (
     <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">
@@ -71,7 +83,7 @@ export default function TwoFactorForm({
             required
             value={code}
             onChange={(e) => onCodeChange(e.target.value)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || locked}
             focusClass={inputFocusClass}
             placeholder={t(copy.twoFactor.placeholder)}
           />
@@ -79,11 +91,20 @@ export default function TwoFactorForm({
 
         <ErrorBanner errorKey={errorKey} />
 
-        <button type="submit" disabled={isSubmitting || !code} className={submitClassName}>
+        <button
+          type="submit"
+          disabled={isSubmitting || locked || !code}
+          className={submitClassName}
+        >
           {isSubmitting ? t(copy.credentials.submitting) : t(copy.twoFactor.verify)}
         </button>
 
-        <button type="button" onClick={onBack} disabled={isSubmitting} className={BACK_CLASS}>
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={isSubmitting || locked}
+          className={BACK_CLASS}
+        >
           {t(copy.twoFactor.back)}
         </button>
       </div>

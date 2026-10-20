@@ -62,11 +62,20 @@ export default function InstancePill({
       <button
         data-instance-pill=""
         type="button"
-        onClick={onJoin}
-        disabled={disabled}
+        // aria-disabled, not disabled: a focused pill that turned itself off
+        // while its join ran would drop keyboard focus to the page.
+        onClick={(event) => {
+          if (!disabled) {
+            onJoin(event)
+            return
+          }
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        aria-disabled={disabled || undefined}
         aria-label={ariaLabel}
         tabIndex={tabIndex}
-        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter,color]`}
+        className={`${pillClass} cursor-pointer hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] aria-disabled:cursor-default aria-disabled:opacity-50 aria-disabled:hover:brightness-100 motion-safe:transition-[filter,color]`}
         style={style}
       >
         {label}

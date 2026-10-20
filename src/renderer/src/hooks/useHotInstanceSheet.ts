@@ -51,10 +51,19 @@ export function useHotInstanceSheet(
   // setState-in-effect is intentional and bounded.
   useEffect(() => {
     if (selectedGroupKey !== null && selectedInstance === null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      closeSheet()
+      // Restore focus only if it fell to <body> with the sheet. If it is in the
+      // join confirmation (mounted at shell level) or the user tabbed elsewhere,
+      // leave it there instead of pulling it behind an open dialog.
+      const active = document.activeElement
+      if (active === null || active === document.body) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        closeSheet()
+      } else {
+        openerRef.current = null
+        clearSelection()
+      }
     }
-  }, [selectedGroupKey, selectedInstance, closeSheet])
+  }, [selectedGroupKey, selectedInstance, closeSheet, clearSelection])
 
   return { selectedInstance, openSheet, closeSheet, clearSelection, fallbackFocusRef }
 }

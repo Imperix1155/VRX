@@ -387,6 +387,36 @@ describe('Explore automatic eligibility', () => {
     expect(getExplore).toHaveBeenCalledOnce()
   })
 
+  it('loads again when shown after hiding cut the first load short', async () => {
+    const getExplore = vi.fn().mockResolvedValue({
+      ...snapshot,
+      status: 'loading',
+      isStale: true,
+      updatedAt: null
+    })
+    window.vrx = {
+      setExploreActive: vi.fn().mockResolvedValue(undefined),
+      getExplore,
+      onExploreChanged: () => () => {},
+      onIdentityBoundary: () => () => {},
+      onFriendEvent: () => () => {}
+    } as unknown as Window['vrx']
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Coordinator />
+      </QueryClientProvider>
+    )
+    await act(async () => undefined)
+    expect(getExplore).toHaveBeenCalledOnce()
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    expect(getExplore).toHaveBeenCalledOnce()
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    expect(getExplore).toHaveBeenCalledTimes(2)
+  })
+
   it('permits a later visible focus only after the elapsed five-minute gate', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(100_000)

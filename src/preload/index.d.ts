@@ -64,7 +64,9 @@ type VrxBridge = {
   /** Per-platform identity changes clear renderer-owned account data (VRX-24). */
   onIdentityBoundary: (callback: (event: IpcEvents['identity-boundary']) => void) => () => void
   /** Native hot-instance toast click → Dashboard (VRX-85). */
-  onNavigateToDashboard: (callback: () => void) => () => void
+  onNavigateToDashboard: (
+    callback: (event: IpcEvents['navigate-to-dashboard']) => void
+  ) => () => void
   /** Live updater state pushes from main (VRX-113). Returns an unsubscribe. */
   onUpdaterStateChanged: (
     callback: (event: IpcEvents['updater:state-changed']) => void

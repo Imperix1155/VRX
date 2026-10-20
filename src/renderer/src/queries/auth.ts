@@ -44,6 +44,9 @@ export function useAuthStatus(platform: Platform): UseQueryResult<AuthStatus, Er
       query.state.data?.state === 'error' ? AUTH_ERROR_RECHECK_MS : false,
     // Recovery surfaces mount after failure; mounting them must not restart
     // the initial check and send App back through its pending gate.
-    retryOnMount: false
+    retryOnMount: false,
+    // A local IPC read: main decides reachability. Pausing it while the OS
+    // reports offline left sign-in and sign-out results off screen.
+    networkMode: 'always'
   })
 }
