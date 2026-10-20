@@ -90,7 +90,7 @@ export default function HotInstancesView(): React.JSX.Element {
           <HotInstancesEmpty threshold={threshold} />
         ) : (
           <div className="hotwrap">
-            <div className="hot-grid">
+            <div className="hot-grid hot-grid--picture">
               {hotInstances.map((inst) => (
                 <HotInstanceCard
                   key={inst.groupKey}

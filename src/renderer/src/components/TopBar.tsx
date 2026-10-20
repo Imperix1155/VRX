@@ -21,9 +21,9 @@ import { projectLinkedFriends } from '../utils/projectLinkedFriends'
 // two platforms, so it reads between them (DESIGN.md §8/§9.1). Labels are text-only
 // acronyms; the platform color is applied to the WORD itself (no glyph chip).
 const SEG_ITEMS: Array<{ id: PlatformFilter; key: string; color: string | null }> = [
-  { id: 'vrchat', key: 'shell.seg.vrchatShort', color: 'var(--vrc)' },
+  { id: 'vrchat', key: 'shell.seg.vrchatShort', color: 'var(--plat-vrc-word)' },
   { id: 'all', key: 'shell.seg.allShort', color: null },
-  { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--cvr)' }
+  { id: 'chilloutvr', key: 'shell.seg.chilloutvrShort', color: 'var(--plat-cvr-word)' }
 ]
 
 // Category nav labels reuse the settings section-heading keys — one string per
@@ -33,7 +33,8 @@ const CATEGORY_LABEL_KEYS: Record<SettingsCategory, string> = {
   dashboard: 'settings.dashboard.heading',
   behavior: 'settings.behavior.heading',
   notifications: 'settings.notifications.heading',
-  accounts: 'settings.accounts.heading'
+  accounts: 'settings.accounts.heading',
+  about: 'settings.about.heading'
 }
 
 const STATUS_POLL_MS = 7_500
@@ -237,6 +238,36 @@ export default function TopBar(): React.JSX.Element {
           (friend) => friend.presence.state === 'active' || friend.presence.state === 'in-game'
         ).length
 
+  // Reserve a three-digit cell so the contextual dock stays fixed as the live
+  // count changes. Tabular figures and right alignment mirror the
+  // NumberStepper's stable value cell.
+  const status = (
+    <div
+      role="status"
+      className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
+    >
+      {/* Shape repeats the color for colorblind users: a pulsing dot is
+          live, a hollow ring is reconnecting, a square is down. */}
+      <span
+        role="img"
+        data-health={worstHealth}
+        className={[
+          'box-border w-[8px] h-[8px] flex-none',
+          worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full',
+          worstHealth === 'live' ? 'motion-safe:animate-pulse' : ''
+        ].join(' ')}
+        style={
+          worstHealth === 'reconnecting'
+            ? { border: `2px solid ${healthColor}`, boxShadow: `0 0 10px ${healthColor}` }
+            : { background: healthColor, boxShadow: `0 0 10px ${healthColor}` }
+        }
+        aria-label={connectionLabel}
+        title={connectionLabel}
+      />
+      {t('shell.onlineCount', { count: onlineCount })}
+    </div>
+  )
+
   return (
     <div
       className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
@@ -246,15 +277,16 @@ export default function TopBar(): React.JSX.Element {
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 
-      {/* The contextual control and count share one right dock, so a longer
-          title cannot move either. Settings intentionally occupies this same
-          slot with its category nav (owner confirmation pending, VRX-188). */}
-      <div className="ml-auto flex items-center gap-[18px]">
-        {/* CONTEXTUAL SLOT (owner, VRX-186): the top-bar control belongs to the
-            active view. Settings has no use for a platform filter — it shows the
-            settings CATEGORY nav here instead (mini-pages, §8 no-scroll rule). */}
-        <div data-testid="topbar-contextual-dock" className="shrink-0">
-          {activeTab === 'settings' ? (
+      {activeTab === 'settings' ? (
+        <>
+          {/* Settings keeps the count on the title row, where every view shows
+              it, and gives its six-category nav a row of its own: side by side
+              they do not fit the default 900px window (§8). */}
+          <div className="ml-auto">{status}</div>
+          {/* CONTEXTUAL SLOT (owner, VRX-186): Settings has no use for a
+              platform filter, so the settings CATEGORY nav takes its place
+              (mini-pages, §8 no-scroll rule). */}
+          <div data-testid="topbar-contextual-dock" className="flex basis-full justify-end">
             <SegmentedControl
               values={SETTINGS_CATEGORIES}
               active={settingsCategory}
@@ -262,38 +294,19 @@ export default function TopBar(): React.JSX.Element {
               ariaLabel={t('settings.categories.aria')}
               onChange={setSettingsCategory}
             />
-          ) : (
+          </div>
+        </>
+      ) : (
+        // The contextual control and count share one right dock, so a longer
+        // title cannot move either (CONTEXTUAL SLOT, owner, VRX-186: the
+        // top-bar control belongs to the active view).
+        <div className="ml-auto flex items-center gap-[18px]">
+          <div data-testid="topbar-contextual-dock" className="shrink-0">
             <PlatformFilter platform={platform} onChange={setPlatform} />
-          )}
+          </div>
+          {status}
         </div>
-        {/* Reserve a three-digit cell so the contextual dock stays fixed as the
-            live count changes. Tabular figures and right alignment mirror the
-            NumberStepper's stable value cell. */}
-        <div
-          role="status"
-          className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
-        >
-          {/* Shape repeats the color for colorblind users: a pulsing dot is
-              live, a hollow ring is reconnecting, a square is down. */}
-          <span
-            role="img"
-            data-health={worstHealth}
-            className={[
-              'box-border w-[8px] h-[8px] flex-none',
-              worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full',
-              worstHealth === 'live' ? 'motion-safe:animate-pulse' : ''
-            ].join(' ')}
-            style={
-              worstHealth === 'reconnecting'
-                ? { border: `2px solid ${healthColor}`, boxShadow: `0 0 10px ${healthColor}` }
-                : { background: healthColor, boxShadow: `0 0 10px ${healthColor}` }
-            }
-            aria-label={connectionLabel}
-            title={connectionLabel}
-          />
-          {t('shell.onlineCount', { count: onlineCount })}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

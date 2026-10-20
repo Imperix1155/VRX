@@ -107,13 +107,14 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     expect(screen.queryByText(msg('settings.theme.label'))).toBeNull()
   })
 
-  it('the category list reads appearance/behavior/notifications/accounts (VRX-231)', () => {
+  it('the category list reads appearance/dashboard/behavior/notifications/accounts/about', () => {
     expect([...SETTINGS_CATEGORIES]).toEqual([
       'appearance',
       'dashboard',
       'behavior',
       'notifications',
-      'accounts'
+      'accounts',
+      'about'
     ])
   })
 
@@ -262,7 +263,7 @@ describe('SettingsView updater failures (VRX-268)', () => {
         failure
       }
 
-      useUiStore.setState({ settingsCategory: 'behavior' })
+      useUiStore.setState({ settingsCategory: 'about' })
       renderSettings()
 
       expect(screen.getByText(msg(key))).toBeTruthy()
@@ -278,7 +279,7 @@ describe('SettingsView updater failures (VRX-268)', () => {
       progressPercent: 0,
       failure: 'download-write'
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     expect(
@@ -424,8 +425,8 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
 })
 
 describe('SettingsView — Automatic updates row (VRX-113)', () => {
-  it('renders on the Behavior page and binds the toggle to autoUpdate', () => {
-    useUiStore.setState({ settingsCategory: 'behavior' })
+  it('renders on the About page and binds the toggle to autoUpdate', () => {
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     expect(screen.getByText(msg('updater.settings.label'))).toBeTruthy()
@@ -442,7 +443,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
   })
 
   it('idle/error state shows "Check for updates" and triggers a check', () => {
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     const button = screen.getByRole('button', { name: msg('updater.settings.check') })
@@ -458,7 +459,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 0,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     const button = screen.getByRole('button', { name: msg('updater.settings.checking') })
@@ -473,7 +474,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 0,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     const button = screen.getByRole('button', {
@@ -491,7 +492,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 37,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     const button = screen.getByRole('button', {
@@ -508,7 +509,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 0,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     expect(screen.queryByRole('button', { name: msg('updater.settings.check') })).toBeNull()
@@ -525,7 +526,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 0,
       failure: 'check-network'
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     expect(screen.getByText(msg('updater.settings.failure.checkNetwork'))).toBeTruthy()
@@ -539,7 +540,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 100,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     const button = screen.getByRole('button', { name: msg('updater.settings.restart') })
@@ -563,7 +564,7 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
       progressPercent: 0,
       failure: null
     }
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     expect(screen.getByText(msg('updater.settings.unsupportedNote'))).toBeTruthy()
@@ -585,7 +586,7 @@ describe('Settings logs row', () => {
       logout: vi.fn(),
       openLogsFolder
     } as unknown as VrxBridge)
-    useUiStore.setState({ settingsCategory: 'behavior' })
+    useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()
 
     fireEvent.click(screen.getByRole('button', { name: msg('settings.logs.open') }))
