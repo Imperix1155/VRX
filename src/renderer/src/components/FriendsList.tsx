@@ -752,21 +752,24 @@ export default function FriendsList(): React.JSX.Element {
   const collapsedSections = useSettingsStore((s) => s.settings.collapsedFriendSections)
   const density = useSettingsStore((s) => s.settings.density)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
+  // One trimmed query drives filtering, highlighting and the section lock, so
+  // "alex " still highlights and a spaces-only query doesn't lock sections open.
+  const searchQuery = appliedSearch.trim()
   const { filteredFriends, searchActive, personCount } = useMemo(() => {
-    const searchActive = appliedSearch.length > 0
+    const searchActive = searchQuery.length > 0
     const projected = projectLinkedFriends({
       friends: allFriends,
       profiles: links.data?.profiles ?? [],
       accountIds,
       filter: platformFilter,
-      search: appliedSearch
+      search: searchQuery
     })
     const rows = projected.rows.map((row) =>
       row.target.personId === null ? { ...row, key: friendRowKey(row.accounts[0]!) } : row
     )
     const filteredFriends = friends === undefined ? undefined : rows
     return { filteredFriends, searchActive, personCount: projected.personCount }
-  }, [friends, allFriends, links.data, accountIds, platformFilter, appliedSearch])
+  }, [friends, allFriends, links.data, accountIds, platformFilter, searchQuery])
   const stableRows = useStableLinkedRows(
     filteredFriends ?? EMPTY_LINKED_ROWS,
     interactionView === viewIdentity ? (focusedLinkedRowKey ?? hoveredRowKey) : null
@@ -1400,7 +1403,7 @@ export default function FriendsList(): React.JSX.Element {
                     accountIds={accountIds}
                     onChoose={setChooserTarget}
                     onRowHover={setHoveredRowKey}
-                    searchQuery={appliedSearch}
+                    searchQuery={searchQuery}
                     onOpen={openDrawer}
                     isRovingStop={row.key === renderedRovingKey}
                     isFullyVisible={fullyVisibleFriendKeySet.has(row.key)}
