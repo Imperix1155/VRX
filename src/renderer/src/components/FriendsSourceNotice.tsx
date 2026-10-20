@@ -45,9 +45,12 @@ export default function FriendsSourceNotice({
               <span>{t(SOURCE_STATE_KEY[failure.kind], { platform })}</span>
               <button
                 type="button"
-                disabled={failure.isFetching}
-                onClick={failure.retry}
-                className="shrink-0 rounded-control border border-[var(--border)] px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+                // aria-disabled keeps keyboard focus on Retry while it runs.
+                aria-disabled={failure.isFetching || undefined}
+                onClick={() => {
+                  if (!failure.isFetching) failure.retry()
+                }}
+                className="shrink-0 rounded-control border border-[var(--border)] px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--surface-hover)] aria-disabled:opacity-50 motion-safe:transition-colors"
               >
                 {t(
                   failure.isFetching ? 'friends.sourceState.retrying' : 'friends.sourceState.retry',

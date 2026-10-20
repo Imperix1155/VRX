@@ -21,6 +21,25 @@ describe('splitByMatch', () => {
     ])
   })
 
+  it('keeps Japanese voicing marks: ば does not match は, and ガ does not match カ', () => {
+    expect(splitByMatch('はなこ', 'ば')).toEqual([{ text: 'はなこ', isMatch: false }])
+    expect(splitByMatch('カズ', 'ガ')).toEqual([{ text: 'カズ', isMatch: false }])
+    expect(splitByMatch('ばなな', 'ば')[0]).toEqual({ text: 'ば', isMatch: true })
+    expect(splitByMatch('ガズ', 'ガ')[0]).toEqual({ text: 'ガ', isMatch: true })
+  })
+
+  it('matches full-width and half-width forms', () => {
+    expect(splitByMatch('ＶＲＣｈａｔ太郎', 'vrchat')).toEqual([
+      { text: 'ＶＲＣｈａｔ', isMatch: true },
+      { text: '太郎', isMatch: false }
+    ])
+    expect(splitByMatch('ﾀﾛｳ', 'タロウ')).toEqual([{ text: 'ﾀﾛｳ', isMatch: true }])
+    expect(splitByMatch('ｶﾞｽ', 'ガ')).toEqual([
+      { text: 'ｶﾞ', isMatch: true },
+      { text: 'ｽ', isMatch: false }
+    ])
+  })
+
   it('splits every non-overlapping occurrence', () => {
     expect(splitByMatch('Banana', 'an')).toEqual([
       { text: 'B', isMatch: false },

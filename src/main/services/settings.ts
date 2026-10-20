@@ -10,7 +10,7 @@
  * electron-store@11 is ESM-only, so it is bundled into the main process (not
  * externalized) — see `externalizeDepsPlugin` exclude in `electron.vite.config.ts`.
  */
-import { renameSync } from 'node:fs'
+import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import Store from 'electron-store'
@@ -52,6 +52,17 @@ function isEmptyStore(raw: unknown): boolean {
   )
 }
 
+/** A damaged file set aside earlier proves this is not a brand-new install. */
+function hasCorruptSettingsFile(): boolean {
+  try {
+    return readdirSync(app.getPath('userData')).some((name) =>
+      /^settings\.corrupt-\d+\.json$/.test(name)
+    )
+  } catch {
+    return false
+  }
+}
+
 /**
  * Move an unparseable settings.json aside (renamed, never deleted, so its bytes
  * stay recoverable) and drop the cached store. conf rethrows the JSON
@@ -90,7 +101,10 @@ export function loadSettings(): Settings {
     // No settings file yet (electron-store reads it as empty) means a brand-new
     // install: queue the welcome setup. Every launch writes the normalized file
     // below, so an existing install never reaches this branch again.
-    settings = isEmptyStore(raw) ? freshInstallSettings() : parseSettings(raw)
+    // A file that was damaged and set aside also reads as empty; that user has
+    // been here before, so they get defaults without the setup.
+    settings =
+      isEmptyStore(raw) && !hasCorruptSettingsFile() ? freshInstallSettings() : parseSettings(raw)
   } catch (err) {
     // Plain string, not the raw Error: message/stack are non-enumerable, so the log
     // redaction hook's object-walk can't see inside an Error (house pattern).

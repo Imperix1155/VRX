@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import AuthInput from './AuthInput'
 import ErrorBanner from './ErrorBanner'
@@ -52,6 +53,14 @@ export default function CredentialsForm({
   secondaryAction?: React.ReactNode
 }): React.JSX.Element {
   const { t } = useTranslation()
+  // This form replaces the one that held focus (a submit asking for a code, or
+  // Back). Without this, focus falls to the page and typing goes nowhere.
+  useEffect(() => {
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      document.getElementById(`${idPrefix}-username`)?.focus({ preventScroll: true })
+    }
+  }, [idPrefix])
   return (
     <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">

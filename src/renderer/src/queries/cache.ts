@@ -77,6 +77,8 @@ export function shouldDehydrateQuery(query: Query<unknown, Error, unknown, Query
   if (!Array.isArray(key) || key.length === 0) return false
   const namespace: unknown = key[0]
   if (typeof namespace !== 'string') return false
+  // A roster over the restore cap could never be read back; skip writing it.
+  if (Array.isArray(query.state.data) && query.state.data.length > MAX_FRIENDS) return false
   return PERSISTED_NAMESPACES.includes(namespace as (typeof PERSISTED_NAMESPACES)[number])
 }
 
@@ -202,36 +204,43 @@ const persistedClientSchema = z
     clientState: z
       .object({
         mutations: z.array(z.never()).length(0),
-        queries: z.array(persistedQuerySchema).max(platformSchema.options.length)
+        // Each entry is checked on its own below, so one bad platform's
+        // roster cannot discard the other's.
+        queries: z.array(z.unknown()).max(platformSchema.options.length)
       })
       .strict()
   })
   .strict()
-  .superRefine((client, context) => {
-    const keys = client.clientState.queries.map((query) => query.queryKey[1])
-    if (new Set(keys).size !== keys.length) {
-      context.addIssue({ code: 'custom', message: 'duplicate friends query' })
-    }
-  })
 
 function discardedPersistedClient(): PersistedClient {
   return { timestamp: 0, buster: '', clientState: { mutations: [], queries: [] } }
 }
 
 /**
- * Parse the persisted cache as untrusted input; any mismatch discards it whole.
- * After schema validation, each query is also dropped if its `dataUpdatedAt` is
- * missing or older than `MAX_QUERY_AGE_MS`, so one stale platform cannot poison
- * a fresh envelope written by an unrelated cache event.
+ * Parse the persisted cache as untrusted input. A bad envelope discards it
+ * whole; a bad query entry drops only that entry, as does a duplicate platform
+ * (both copies). Each query is also dropped if its `dataUpdatedAt` is missing or
+ * older than `MAX_QUERY_AGE_MS`, so one stale platform cannot poison a fresh
+ * envelope written by an unrelated cache event.
  */
 export function deserializePersistedQueryCache(serialized: string): PersistedClient {
   try {
     const parsed = persistedClientSchema.safeParse(JSON.parse(serialized) as unknown)
     if (!parsed.success) return discardedPersistedClient()
+    const valid = parsed.data.clientState.queries.flatMap((entry) => {
+      const query = persistedQuerySchema.safeParse(entry)
+      return query.success ? [query.data] : []
+    })
+    const counts = new Map<string, number>()
+    for (const query of valid) {
+      counts.set(query.queryKey[1], (counts.get(query.queryKey[1]) ?? 0) + 1)
+    }
     const now = Date.now()
-    const freshQueries = parsed.data.clientState.queries.filter(
+    const freshQueries = valid.filter(
       (query) =>
-        query.state.dataUpdatedAt > 0 && now - query.state.dataUpdatedAt <= MAX_QUERY_AGE_MS
+        counts.get(query.queryKey[1]) === 1 &&
+        query.state.dataUpdatedAt > 0 &&
+        now - query.state.dataUpdatedAt <= MAX_QUERY_AGE_MS
     )
     return {
       ...parsed.data,

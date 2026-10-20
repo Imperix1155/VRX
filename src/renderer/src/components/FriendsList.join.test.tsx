@@ -208,14 +208,16 @@ describe('FriendsList join pill (VRX-166)', () => {
     fireEvent.click(button)
 
     expect(joinInstance).toHaveBeenCalledOnce()
-    expect((button as HTMLButtonElement).disabled).toBe(true)
+    // aria-disabled, not disabled, so a keyboard user's focus stays on the pill.
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect((button as HTMLButtonElement).disabled).toBe(false)
 
     await act(async () => {
       resolveJoin({ ok: true })
       await Promise.resolve()
     })
 
-    expect((button as HTMLButtonElement).disabled).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBeNull()
     expect(
       screen.queryByText(
         "Couldn't join. Check the game and connection, then use Join to try again."

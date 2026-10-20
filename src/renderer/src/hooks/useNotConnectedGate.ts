@@ -8,7 +8,7 @@ export interface NotConnectedGate {
   selectedPlatform: Platform | null
   /** Filtered platform's auth query hasn't produced ANY status yet → show loading. */
   isAuthStatusPending: boolean
-  /** Settled, successful, non-refetching `unauthenticated` → show the Connect CTA. */
+  /** Settled, successful, non-refetching `unauthenticated` or `needs-2fa` → show the Connect CTA. */
   isNotConnected: boolean
   /** Navigate to Settings → Accounts (the CTA's action). */
   openAccounts: () => void
@@ -36,7 +36,9 @@ export function useNotConnectedGate(platformFilter: PlatformFilter): NotConnecte
     isNotConnected:
       selectedPlatform !== null &&
       authStatus.isSuccess &&
-      authStatus.data.state === 'unauthenticated' &&
+      // A saved VRChat session waiting for a fresh 2FA code is not connected
+      // either; Accounts is where the code is entered.
+      (authStatus.data.state === 'unauthenticated' || authStatus.data.state === 'needs-2fa') &&
       !authStatus.isFetching,
     openAccounts: (): void => {
       setActiveTab('settings')

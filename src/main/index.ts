@@ -24,10 +24,17 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
   app.exit(0)
 } else {
-  import('./app').catch((error: unknown) => {
+  import('./app').catch(async (error: unknown) => {
     // Without the app chunk there is no logger and no window — surface the
     // failure natively and exit nonzero (same policy as a bootstrap failure).
-    dialog.showErrorBox('VRX failed to start', String(error))
+    // The title is inlined (not from i18n.ts) so the entry stays electron-only;
+    // the locale is read after ready, which Windows requires.
+    await app.whenReady().catch(() => undefined)
+    const japanese = app.getLocale().toLowerCase().startsWith('ja')
+    dialog.showErrorBox(
+      japanese ? 'VRX を起動できませんでした' : 'VRX failed to start',
+      String(error)
+    )
     app.exit(1)
   })
 }
