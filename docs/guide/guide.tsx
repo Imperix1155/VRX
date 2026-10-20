@@ -525,8 +525,8 @@ export default function Guide(): React.JSX.Element {
             remain readable below row controls until another attempt or account boundary; use the
             existing Join control to retry through the same safety checks. Login uses the same app
             language and never places credentials in a fixture. Sign-in copy explains OS-backed
-            encryption and the weaker local-key fallback; Accounts shows the remembered, revocable
-            external ChilloutVR import choice.
+            encryption and the weaker local-key fallback; every sign-in form has the same quieter
+            Use my sign-in from… button for both platforms, which reads this PC only when pressed.
           </p>
           <Scene
             name="feedback"
@@ -550,7 +550,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="setup"
             title="Welcome setup"
-            note="Interactive fixture. A brand-new install sees this before the app. Skip setup is on every screen; choices change the synthetic settings only. Signed out shows the sign-in step as a new user meets it."
+            note="Interactive fixture. A brand-new install sees this before the app. Skip setup is on every screen before the summary; choices change the synthetic settings only. Signed out shows the sign-in step as a new user meets it."
             source="components/setup"
             variants={[
               { value: 'ready', label: 'Accounts connected' },
