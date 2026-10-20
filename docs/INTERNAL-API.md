@@ -187,8 +187,11 @@ session's ownership. Boundary snapshots clear the map along with profiles and le
 App mounts the event hook once. Identity boundaries cancel reads, clear mounted
 snapshots and invalidate for the current account. Stale write replies cannot
 restore the previous lease; destructive commands are never automatically retried.
-Friend-cache name changes also invalidate linked snapshots; presence-only changes
-do not. This refresh uses existing local data and does not request platform data.
+Friend-cache name changes (including added or removed friends) also invalidate
+linked snapshots; presence-only changes do not. The check compares rosters row by
+row and skips rows whose object identity survived structural sharing, rather than
+serializing each roster per event. This refresh uses existing local data and does
+not request platform data.
 
 `utils/projectLinkedFriends.ts` exports `projectLinkedFriends`, `resolveLinkedProfile`,
 and the `ProfileTarget`, `LinkedRow`, and `ResolvedProfile` types. Projection groups
@@ -205,7 +208,9 @@ flush the last committed owner's callback; same-person presence changes do not s
 drafts retained after navigation, and can route back through `onReviewNote(profile)`.
 
 `components/IdentitiesDialog.tsx` owns the local picker, preferences and scoped
-review flow. `LinkConfirmDialog` consumes captured `LinkReview` plus qualified
+review flow. The picker is virtualized (TanStack Virtual in its own scroller,
+rows carry `aria-posinset`/`aria-setsize`), so it mounts only rows near the
+viewport at any roster size. `LinkConfirmDialog` consumes captured `LinkReview` plus qualified
 old-identity labels and unqualified selected labels; every affected revision is
 submitted together, with explicit shared-note-loss acknowledgement. New links
 have no deletion acknowledgement. The review-only `accountIds` map never enters
