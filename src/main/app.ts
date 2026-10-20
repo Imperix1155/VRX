@@ -19,7 +19,7 @@ import { pathToFileURL } from 'node:url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import log, { initLogger } from './logger'
-import { initAutoUpdater } from './updater'
+import { initAutoUpdater, STARTUP_CHECK_DELAY_MS } from './updater'
 import {
   flushPendingSettingsSave,
   getSettingsSnapshot,
@@ -41,6 +41,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
+import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import { avatarCache } from './services/avatarCache'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
@@ -112,6 +113,9 @@ function createWindow(): BrowserWindow {
     // <title> — which is "VRX", but only after the page loads; set it here so
     // the window says VRX from creation, not "Electron" for the first frame.
     title: 'VRX',
+    // The app canvas color, painted before the page and on resize, so the
+    // window never flashes white (DESIGN.md §2).
+    backgroundColor: windowBackgroundColor(),
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
@@ -315,6 +319,10 @@ app
     // once it boots (VRX-184); this early load tidies the file and logs the state.
     const settings = loadSettings()
     log.info('settings loaded', { version: settings.version, theme: settings.theme })
+    // Native chrome (title bar, menus, window background) follows the Theme
+    // setting, including OS switches while it is System.
+    applyWindowTheme(settings.theme)
+    watchSystemTheme()
 
     // Set app user model id for windows — must match electron-builder `appId`
     // so Windows groups the taskbar entry and update notifications fire.
@@ -549,6 +557,7 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      onSettingsApplied: (saved) => applyWindowTheme(saved.theme),
       accountRegistry,
       accountSession,
       socialStore,
@@ -647,18 +656,22 @@ app
       NativeNotification.handleActivation(focusMainWindow)
     }
 
-    // Check GitHub Releases for updates on startup (packaged builds only).
-    // Own try/catch: a sync throw here would otherwise reach the bootstrap
-    // .catch and exit an app whose window ALREADY WORKS — auto-update failure
-    // is never worth killing a healthy session (audit W7 review).
-    try {
-      const updater = initAutoUpdater()
-      void updater.check()
-    } catch (error) {
-      log.warn('autoUpdater init failed', {
-        message: error instanceof Error ? error.message : String(error)
-      })
-    }
+    // Check GitHub Releases for updates shortly after startup (packaged builds
+    // only). The delay keeps electron-updater's module load off the path to the
+    // first window and the first account reads. A failed load is logged, never
+    // thrown: auto-update failure is never worth killing a healthy session
+    // (audit W7 review).
+    setTimeout(() => {
+      initAutoUpdater()
+        .then((updater) => {
+          void updater.check()
+        })
+        .catch((error: unknown) => {
+          log.warn('autoUpdater init failed', {
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+    }, STARTUP_CHECK_DELAY_MS)
 
     app.on('activate', function () {
       // On macOS it's common to re-create a window in the app when the

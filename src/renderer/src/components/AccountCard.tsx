@@ -94,7 +94,9 @@ export default function AccountCard({ platform }: { platform: Platform }): React
         </p>
       ) : isConnected ? (
         <div className="relative mt-[var(--space-4)]">
-          <div className="flex items-center justify-between gap-[var(--space-6)]">
+          {/* Wraps the button under the name in a narrow card instead of
+              squeezing "Connected as …" into a tall column. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-[var(--space-4)] gap-y-[var(--space-3)]">
             <p className="flex items-center gap-[var(--space-2)] text-sm text-[var(--text)]">
               <span aria-hidden="true">✓</span>
               <span>

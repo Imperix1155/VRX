@@ -217,7 +217,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
             aria-expanded={moreOpen}
             disabled={isJoining}
             onClick={() => setMoreOpen((open) => !open)}
-            className="text-xs text-[var(--text-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-dim)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            className="text-xs text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.moreToggle')}
           </button>
@@ -237,9 +237,9 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
             onChange={setMode}
           />
         ) : world.platform === 'vrchat' ? (
-          <p className="text-xs text-[var(--text-faint)]">{t('joinConfirm.vrchatModeNote')}</p>
+          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
         ) : joinMode !== 'ask' ? (
-          <p className="text-xs text-[var(--text-faint)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
+          <p className="text-xs text-[var(--text-dim)]">{t(WILL_LAUNCH_KEYS[joinMode])}</p>
         ) : null}
         <div className="mt-[var(--space-1)] flex items-center justify-end gap-[var(--space-2)]">
           <button
@@ -271,7 +271,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
           type="button"
           onClick={() => void joinAndNeverAskAgain()}
           disabled={isJoining || room.action.state !== 'available'}
-          className="self-center text-[11px] text-[var(--text-faint)] hover:text-[var(--text-dim)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+          className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
         >
           {t('joinConfirm.dontAskAgain')}
         </button>
@@ -656,7 +656,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             aria-expanded={moreOpen}
             disabled={isJoining}
             onClick={() => setMoreOpen((open) => !open)}
-            className="text-xs text-[var(--text-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--text-dim)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            className="text-xs text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.moreToggle')}
           </button>
@@ -700,11 +700,11 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             onChange={setMode}
           />
         ) : isVrc ? (
-          <p className="text-xs text-[var(--text-faint)]">{t('joinConfirm.vrchatModeNote')}</p>
+          <p className="text-xs text-[var(--text-dim)]">{t('joinConfirm.vrchatModeNote')}</p>
         ) : (
           // CVR with an explicit preference: no picker, but the dialog still
           // says what confirming will do. ('ask' is the picker branch above.)
-          <p className="text-xs text-[var(--text-faint)]">
+          <p className="text-xs text-[var(--text-dim)]">
             {t(WILL_LAUNCH_KEYS[joinMode === 'ask' ? 'desktop' : joinMode])}
           </p>
         )}
@@ -740,7 +740,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             type="button"
             onClick={onReview}
             disabled={isJoining}
-            className="self-center text-[11px] text-[var(--text-faint)] hover:text-[var(--text-dim)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.review')}
           </button>
@@ -750,7 +750,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
             type="button"
             onClick={() => void joinAndNeverAskAgain()}
             disabled={isInert}
-            className="self-center text-[11px] text-[var(--text-faint)] hover:text-[var(--text-dim)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
+            className="self-center text-[11px] text-[var(--text-dim)] hover:text-[var(--text)] hover:underline underline-offset-2 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] motion-safe:transition-colors disabled:pointer-events-none disabled:opacity-50"
           >
             {t('joinConfirm.dontAskAgain')}
           </button>

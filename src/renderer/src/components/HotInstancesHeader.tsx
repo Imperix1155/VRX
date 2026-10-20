@@ -78,7 +78,7 @@ export function HotInstancesEmpty({ threshold }: { threshold: number }): React.J
   return (
     <div className="glass glass-information flex flex-col items-center justify-center text-center p-[var(--space-10)] min-h-[180px]">
       <p className="text-[var(--text-dim)] text-sm font-semibold">{t('dashboard.emptyHeading')}</p>
-      <p className="text-[var(--text-faint)] text-xs mt-[var(--space-1)]">
+      <p className="text-[var(--text-dim)] text-xs mt-[var(--space-1)]">
         {/* `threshold` (not `count`) — interpolation only, no plural-suffix lookup. */}
         {t('dashboard.emptyHint', { threshold })}
       </p>

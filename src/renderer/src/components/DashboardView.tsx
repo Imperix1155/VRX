@@ -248,14 +248,18 @@ function DashboardContent(): React.JSX.Element {
       />
 
       {shownHot.length === 0 ? (
-        <HotInstancesEmpty threshold={hotThreshold} />
+        // Same gap below as the card grid, so a following Popular now heading
+        // (Hot Instances first) never touches the empty card.
+        <div className="mb-[26px]">
+          <HotInstancesEmpty threshold={hotThreshold} />
+        </div>
       ) : (
         // `.hotwrap` = the container-query context (grid-only, so its `contain:
         // layout` never touches the heading/stepper); `.hot-grid` = max 2 columns
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className="hot-grid">
+          <div className={hotFirst ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}

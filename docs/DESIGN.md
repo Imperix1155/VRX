@@ -80,6 +80,7 @@ Use `.glass glass-information` for information panels over the canvas. Add
 confirmation modal. The information modifier gives these surfaces an opaque
 neutral backing beneath their existing gradients. Decorative chrome may keep
 the translucent `.glass` material. Preserve neutral sheen, borders, and depth.
+The sheen lights the pane behind its content, never over text or logos.
 
 Information-bearing foreground cards and panels must keep their intended colors
 independent of the ambient background. This includes statistics, Popular now,
@@ -238,12 +239,15 @@ Dashboard, Friends, and Settings always show. Activity and Groups are deferred c
 current release commitments. Existing notifications and group-instance metadata
 remain available through their implemented features.
 
-The top bar owns the page's single heading. Its social selector reads
+The top bar owns the page's single heading; panels below it (the Friends list
+included) keep their section headings for screen readers only. Its social selector reads
 VRC / ALL / CVR and filters the relevant social view. The active sidebar spine
 echoes that filter. Connection-health copy is real state, not decoration.
 The connection indicator pairs its color with shape: a pulsing dot is live, a
 hollow ring is reconnecting, and a square is down; its label names each platform.
-Settings replaces the social selector with its category control. Keep the platform
+Settings replaces the social selector with its category control on a row of
+its own below the title, so the online count stays on the title row as on every
+other page. Keep the platform
 filter in the same horizontal position across Dashboard, Friends, and Explore,
 including when a scrollbar appears or disappears. No page-specific shortcut may
 enter that dock or displace the filter.
@@ -266,8 +270,9 @@ and Retry, never a signed-out credentials form. A healthy platform may reveal
 the shell while the other is pending. Panel failures are scoped to the active
 tab; navigating to a healthy tab recovers without concealing repeated faults.
 
-Settings has Appearance, Dashboard, Behavior, Notifications, and Accounts
-categories. Each top-level setting has a compact neutral information card over
+Settings has Appearance, Dashboard, Behavior, Notifications, Accounts, and
+About categories. About holds the app's own upkeep: the installed version,
+automatic updates, and the logs folder. Each top-level setting has a compact neutral information card over
 the backing panel. Dashboard lists Section order, Popular now, Hot Instances,
 and the hot instance threshold as separate rows; Allow joining contains
 confirmation and launch mode.
@@ -330,7 +335,9 @@ to assistive technology. Each Dashboard section shows two cards: the top one per
 platform when both platforms have one, otherwise the top two. Hot Instances adds
 a quiet “See all” button that opens the Hot Instances page, which lists every hot
 instance, most friends first, as picture cards with the same header, empty state,
-and sheet. The Hot card's access pill is an intentional discreet Join shortcut in
+and sheet. Card grids follow card style, not section order: picture cards sit two
+across whenever the area is at least 440px wide (as in Explore), compact bars
+two across from 620px. The Hot card's access pill is an intentional discreet Join shortcut in
 both layouts; do not turn it into a prominent Join label. The actual Hot Instance sheet supplies details;
 do not add placeholder actions.
 
@@ -356,8 +363,11 @@ Cancel, permission denials, live-target review, session boundaries, and disabled
 in-flight behavior. Main remains the final authority. Confirmation preferences
 must not bypass the shared permission or target checks.
 
-Explore and Hot Instance sheets stay contained and non-modal. Close remains
-reachable outside the scrolling room/details area. Escape/outside/Close restore
+Explore and Hot Instance sheets stay contained and non-modal and share one
+anatomy: platform stripe, grab bar, then the picture starting below Close. Close
+remains reachable outside the scrolling room/details area. In light theme a
+sheet banner keeps the photo at full brightness and lays a soft card-colored
+scrim under the title instead of darkening it. Escape/outside/Close restore
 their opener or a stable fallback. A confirmation modal owns dismissal while
 open. Dashboard's two sheet types remain mutually exclusive.
 

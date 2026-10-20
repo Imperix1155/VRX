@@ -189,9 +189,9 @@ export default function FriendDrawer({
   // ── Derived content (mirrors the row's logic — single source in utils) ────
   const ring = shown ? ringFor(shown) : null
   const sc = ring?.colorVar ?? '--offline'
-  // Status word color: the --st-* tokens have darker light-mode companions
-  // (§2A law — light status text MUST use them; identical to the hue in dark).
-  const wordColor = sc.startsWith('--st-') ? `var(${sc}-text)` : `var(${sc})`
+  // Status word color: every ring token has a `-text` companion tuned to read
+  // on the band in both themes (§2A law — status text MUST use them).
+  const wordColor = `var(${sc}-text)`
   const descriptorKey = ring ? STATUS_DESCRIPTOR_KEY[ring.labelKey] : undefined
 
   const trustAccount = shownAccounts.find((account) => account.platform === 'vrchat')

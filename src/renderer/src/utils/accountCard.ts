@@ -15,7 +15,7 @@ export const ACCOUNT_CARD_CONFIG: Record<Platform, AccountCardConfig> = {
     tintClass: 'tint-vrc',
     focusClass: 'focus:ring-[var(--vrc)]',
     actionClass:
-      'border-[var(--vrc)] bg-[color-mix(in_srgb,var(--vrc)_16%,transparent)] text-[var(--vrc)]'
+      'border-[var(--vrc)] bg-[color-mix(in_srgb,var(--vrc)_16%,transparent)] text-[var(--plat-vrc-word)]'
   },
   chilloutvr: {
     platform: 'chilloutvr',
@@ -23,7 +23,7 @@ export const ACCOUNT_CARD_CONFIG: Record<Platform, AccountCardConfig> = {
     tintClass: 'tint-cvr',
     focusClass: 'focus:ring-[var(--cvr)]',
     actionClass:
-      'border-[var(--cvr)] bg-[color-mix(in_srgb,var(--cvr)_16%,transparent)] text-[var(--cvr)]'
+      'border-[var(--cvr)] bg-[color-mix(in_srgb,var(--cvr)_16%,transparent)] text-[var(--plat-cvr-word)]'
   }
 }
 

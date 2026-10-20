@@ -233,6 +233,9 @@
 
 /* ── §2 Tokens — dark (default) ───────────────────────────────────────────── */
 :root {
+  /* Native controls (checkboxes, selects, radios) and default scrollbars in the
+     drawer, sheets and dialogs follow the theme instead of staying light. */
+  color-scheme: dark;
   --linked-world-corner: 14px;
   --linked-world-name-max: 145px;
   --linked-world-pair-max: 370px;
@@ -278,10 +281,15 @@
   --st-online: #43c95a;
   --st-askme: #ff9a3d;
   --st-dnd: #e5484b;
-  --st-joinme-text: var(--st-joinme);
+  /* Status/state words (drawer status band): DND red and Join Me blue are
+     lifted, offline gray made readable, so every word clears 4.5:1 on its band. */
+  --st-joinme-text: color-mix(in srgb, var(--st-joinme) 85%, white);
   --st-online-text: var(--st-online);
   --st-askme-text: var(--st-askme);
-  --st-dnd-text: var(--st-dnd);
+  --st-dnd-text: color-mix(in srgb, var(--st-dnd) 68%, white);
+  --ingame-text: var(--ingame);
+  --active-text: var(--active);
+  --offline-text: color-mix(in srgb, var(--offline) 60%, white);
 
   /* OPENNESS — instance-type pill ladder (§6, owner-approved 2026-07-01).
      Friend ladder: green (open) → orange (locked). Groups: purple, lighter = more
@@ -340,6 +348,12 @@
   --hot-sheet-shadow: 0 -12px 44px rgba(0, 0, 0, 0.34);
   --hot-sheet-banner-title-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
   --hot-sheet-banner-subtitle-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  /* Pictures behind banner text: dark dims the picture under light text; light
+     (override below) keeps the picture and lays a backing-color scrim under its
+     dark text instead, the same recipe as the Dashboard bar cards. */
+  --hot-sheet-banner-image-filter: brightness(0.66);
+  --hot-sheet-group-image-filter: brightness(0.6);
+  --hot-sheet-banner-scrim: none;
 
   --glass-blur: blur(26px) saturate(165%);
 
@@ -372,12 +386,17 @@
      #14131c ink-family value measures 6.31:1 on --cvr. */
   --text-on-cvr: #14131c;
 
-  /* LOGIN TAB words (12.5px on the tinted glass card, VRX-217) — AA-verified
-     against the worst card background (strong tint corner over --bg-base):
-     raw --vrc fails (3.69:1) → the lifted ghost companion (5.65:1); raw --cvr
-     passes (5.16:1) and keeps its full hue. */
-  --login-tab-vrc: var(--plat-vrc-ghost-text);
-  --login-tab-cvr: var(--cvr);
+  /* LOGIN TAB words (12.5px on the tinted glass card, VRX-217): raw --vrc
+     fails there, so the tabs share the AA-checked platform words below. */
+  --login-tab-vrc: var(--plat-vrc-word);
+  --login-tab-cvr: var(--plat-cvr-word);
+
+  /* PLATFORM WORDS — "VRC"/"CVR"/"VRChat" set in the platform color on glass
+     controls (top-bar filter, login tabs, Accounts sign-in button). Lifted so
+     each reads at 4.5:1 even on the active segment bubble, and balanced so
+     neither platform's word looks heavier than the other's. */
+  --plat-vrc-word: color-mix(in srgb, var(--vrc) 60%, white);
+  --plat-cvr-word: color-mix(in srgb, var(--cvr) 66%, white);
 
   /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — dark */
   --control-active-bg: linear-gradient(
@@ -431,6 +450,7 @@
 
 /* ── §2A Tokens — light (override only; same semantic names) ───────────────── */
 [data-theme='light'] {
+  color-scheme: light;
   --bg-base: #eef3f8;
   --text: #14131c;
   --text-dim: rgba(30, 28, 42, 0.72);
@@ -458,6 +478,9 @@
   --st-online-text: #0f6e35;
   --st-askme-text: #91480e;
   --st-dnd-text: #8d2428;
+  --ingame-text: color-mix(in srgb, var(--ingame) 75%, black);
+  --active-text: color-mix(in srgb, var(--active) 75%, black);
+  --offline-text: color-mix(in srgb, var(--offline) 70%, black);
 
   /* OPENNESS — light: darkened hues (tint/border) + darker text for contrast */
   --op-public: #1fae4e;
@@ -514,11 +537,26 @@
   /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
   --text-on-cvr: #14131c;
 
-  /* LOGIN TAB words — light: BOTH raw hues fail on the light card (vrc 3.57:1,
-     cvr 2.74:1). vrc takes the ghost companion (5.40:1); cvr needs a darker
-     70% mix (4.90:1 — the 76% ghost reaches only 4.33:1 here). */
-  --login-tab-vrc: var(--plat-vrc-ghost-text);
-  --login-tab-cvr: color-mix(in srgb, var(--cvr) 70%, black);
+  /* LOGIN TAB / PLATFORM words — light: BOTH raw hues fail on light glass (vrc
+     3.57:1, cvr 2.74:1). vrc takes the ghost companion (5.40:1); cvr needs a
+     darker 70% mix (4.90:1 — the 76% ghost reaches only 4.33:1 here). */
+  --login-tab-vrc: var(--plat-vrc-word);
+  --login-tab-cvr: var(--plat-cvr-word);
+  --plat-vrc-word: var(--plat-vrc-ghost-text);
+  --plat-cvr-word: color-mix(in srgb, var(--cvr) 70%, black);
+
+  /* HOT-INSTANCE SHEET — light: dark text needs a light scrim, not a dimmed
+     picture and black shadows (that left the world name unreadable). */
+  --hot-sheet-banner-title-shadow: 0 1px 8px var(--glass-information);
+  --hot-sheet-banner-subtitle-shadow: none;
+  --hot-sheet-banner-image-filter: none;
+  --hot-sheet-group-image-filter: none;
+  --hot-sheet-banner-scrim: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--glass-information) 92%, transparent) 0%,
+    color-mix(in srgb, var(--glass-information) 78%, transparent) 50%,
+    color-mix(in srgb, var(--glass-information) 24%, transparent) 100%
+  );
 
   /* ACTIVE CONTROL surfaces (§8 nav active, §9 segmented bubble) — light overrides */
   --control-active-bg: linear-gradient(
@@ -667,6 +705,8 @@ body::after {
      the WebKit property, which Electron 44 no longer recognizes. */
   .glass {
     position: relative;
+    /* Own stacking context so the sheen below can sit under the content. */
+    isolation: isolate;
     background: var(--glass-bg);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
@@ -675,9 +715,13 @@ body::after {
     box-shadow: var(--glass-shadow);
   }
 
+  /* The sheen lights the pane, not its content: z-index -1 paints it above the
+     glass background but beneath every child, so it never washes out text,
+     brand colors, or pictures in the top-left corner (most visible in light). */
   .glass::before {
     content: '';
     position: absolute;
+    z-index: -1;
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
@@ -749,6 +793,28 @@ body::after {
 /* A single hot instance fills the full row instead of sitting half-width. */
 .hot-grid > :only-child {
   grid-column: 1 / -1;
+}
+
+/* The 620px rule above is for BAR cards, which need width for their 25px title;
+   Popular now's bar cards use it too, so both sections lay bars out alike.
+   PICTURE cards follow Explore/Popular now instead: two columns down to the
+   window floor, the same gap, and a lone card keeps its half-width. */
+.hot-grid--flush {
+  margin-bottom: 0;
+}
+
+.hot-grid--picture {
+  gap: var(--space-4);
+}
+
+@container (min-width: 440px) {
+  .hot-grid--picture {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.hot-grid--picture > :only-child {
+  grid-column: auto;
 }
 
 /**
