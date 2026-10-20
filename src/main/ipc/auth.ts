@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import type { IpcInvoke } from '@shared/ipc'
-import type { AuthStatus, Platform } from '@shared/types'
+import type { AuthStatus, LoginResult, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import log from '../logger'
 import { isTrustedIpcSender } from './security'
@@ -10,6 +10,12 @@ const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 export interface AuthHandlerOptions {
   onLoginSuccess?: (platform: Platform) => void
   onAuthStatus?: (status: AuthStatus) => void
+  /**
+   * "Use my sign-in from this PC". The click is the consent: main reads VRCX
+   * (VRChat) or ChilloutVR/CVRX (ChilloutVR) read-only and hands the material
+   * to the adapter, which validates its owner before anything is persisted.
+   */
+  importSession?: (platform: Platform) => Promise<LoginResult>
   /** After an explicit sign-out succeeded; a throwing callback is logged, not surfaced. */
   onLogout?: (platform: Platform) => void
 }
@@ -70,6 +76,24 @@ export function registerAuthHandlers(
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
     return adapter.verify2fa(req.code).then((result) => {
+      if (result.ok) {
+        try {
+          options.onLoginSuccess?.(req.platform)
+        } catch {
+          log.warn(`onLoginSuccess callback failed for ${req.platform}`)
+        }
+      }
+      return result
+    })
+  })
+
+  ipcMain.handle('import-session', (event, req: IpcInvoke['import-session']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    if (!req || !VALID_PLATFORMS.has(req.platform))
+      throw new Error('Invalid import-session request')
+    const importSession = options.importSession
+    if (!importSession) throw new Error('Session import unavailable')
+    return importSession(req.platform).then((result) => {
       if (result.ok) {
         try {
           options.onLoginSuccess?.(req.platform)

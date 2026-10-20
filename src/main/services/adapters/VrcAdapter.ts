@@ -2,7 +2,12 @@ import { RosterRefresh } from './RosterRefresh'
 import { ApiAdmissionController } from './ApiAdmissionController'
 import { z } from 'zod'
 import { VRC_API_BASE } from '@shared/constants'
-import { AUTH_IDENTITY_UNAVAILABLE, CREDENTIAL_PERSISTENCE_FAILED } from '@shared/types'
+import {
+  AUTH_IDENTITY_UNAVAILABLE,
+  CREDENTIAL_PERSISTENCE_FAILED,
+  SESSION_IMPORT_NOT_FOUND,
+  SESSION_IMPORT_REJECTED
+} from '@shared/types'
 import type {
   AuthStatus,
   Credentials,
@@ -427,6 +432,87 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    */
   verify2fa(code: string): Promise<LoginResult> {
     return this.runAuthOperation((operationId) => this.verifyTwoFactor(code, operationId))
+  }
+
+  /**
+   * "Use my sign-in from this PC": a session cookie read from VRCX. It runs as
+   * an auth operation like login. The cookie is checked against /auth/user
+   * BEFORE it replaces anything, so a dead or unreadable import leaves the
+   * current session as it was. A live cookie whose second factor expired
+   * becomes the same pending 2FA session a password login produces; otherwise
+   * the owner named by VRChat is bound and persisted before any consumer runs.
+   */
+  importSession(cookie: string): Promise<LoginResult> {
+    return this.runAuthOperation((operationId) => this.performImport(cookie, operationId))
+  }
+
+  private async performImport(cookie: string, operationId: number): Promise<LoginResult> {
+    if (!isValidVrcSessionCookie(cookie) || !cookiePart(cookie, 'auth')) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_NOT_FOUND }
+    }
+    this.resetCircuit()
+
+    let response: Response
+    try {
+      response = await this.rawRequest(
+        `${VRC_API_BASE}/auth/user`,
+        () => ({
+          method: 'GET',
+          headers: { Cookie: cookie, 'User-Agent': VRC_USER_AGENT }
+        }),
+        { priority: 'interactive', lease: this.authRequestLease(operationId) }
+      )
+    } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      return { ok: false, needs2fa: false, error: 'network_error' }
+    }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    if (response.status === 401) {
+      return { ok: false, needs2fa: false, error: SESSION_IMPORT_REJECTED }
+    }
+    if (!response.ok) return { ok: false, needs2fa: false, error: `http_${response.status}` }
+
+    let body: unknown
+    try {
+      body = await response.json()
+    } catch {
+      if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+      return { ok: false, needs2fa: false, error: 'bad_response' }
+    }
+    if (!this.isAuthOperationCurrent(operationId)) return this.supersededAuthResult()
+    const parsed = authUserResponseSchema.safeParse(body)
+    if (!parsed.success) return { ok: false, needs2fa: false, error: 'unexpected_response' }
+
+    // From here the imported cookie replaces the account boundary. Nothing
+    // below awaits, so no other operation can observe a half-installed session.
+    this.authPersistencePending = true
+    this.setCookie(cookie)
+    this.displayName = null
+    this.accountId = null
+    this.pendingTwoFactorMethod = null
+    this.live?.onIdentity?.(null)
+    this.bumpSessionGeneration(false)
+
+    if ('requiresTwoFactorAuth' in parsed.data) {
+      // Same rule as a password login's challenge: the previous account's disk
+      // slot goes before the prompt shows, so quitting mid-flow cannot bring
+      // that account back. The code then verifies against this cookie.
+      try {
+        this.credentials.delete()
+      } catch {
+        return this.persistenceFailure()
+      }
+      this.pendingTwoFactorMethod = mapTwoFactorMethod(parsed.data.requiresTwoFactorAuth)
+      return { ok: false, needs2fa: true, method: this.pendingTwoFactorMethod }
+    }
+
+    this.displayName = parsed.data.displayName
+    this.accountId = parsed.data.id
+    if (!this.persist()) return this.persistenceFailure()
+    this.authPersistencePending = false
+    this.live?.onIdentity?.(this.accountId)
+    this.restartPipeline()
+    return { ok: true }
   }
 
   private async verifyTwoFactor(code: string, operationId: number): Promise<LoginResult> {

@@ -52,8 +52,8 @@ encrypts at rest.
   ChilloutVR returns its roster in one read. Explore stops at fixed budgets and
   reports incomplete coverage instead of reading further.
 - **No VRCX or CVRX writes.** VRX never writes to VRCX, CVRX, or game folders.
-  The optional ChilloutVR session import opens files read-only and runs only
-  after the user consents.
+  "Use my sign-in from this PC" opens VRCX, CVRX, and game files read-only and
+  runs only when the user presses that button.
 - **No invented data.** Unknown or missing values degrade to a safe default.
   Missing data is never a status, a removal, or a join target.
 
