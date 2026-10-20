@@ -96,6 +96,11 @@ describe('main single-instance lock (VRX-230)', () => {
     expect(staticImports).toEqual(["import { app, dialog } from 'electron'"])
   })
 
+  it('entry shows the startup-failure title in the OS language', () => {
+    expect(entrySource).toContain("app.getLocale().toLowerCase().startsWith('ja')")
+    expect(entrySource).toContain("'VRX を起動できませんでした'")
+  })
+
   it('app chunk foregrounds the surviving window on second-instance', () => {
     expect(source).toContain("app.on('second-instance'")
     // Reuses focusMainWindow (restore → show → focus), but queues a duplicate
