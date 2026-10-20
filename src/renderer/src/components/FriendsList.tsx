@@ -715,7 +715,7 @@ export default function FriendsList(): React.JSX.Element {
     () => [...(vrcFriends.data ?? []), ...(cvrFriends.data ?? [])],
     [vrcFriends.data, cvrFriends.data]
   )
-  const { friends, isPending, isError, isFetching, refetch, sourceFailures } =
+  const { friends, isPending, isError, isFetching, isLoadingPlaceholder, refetch, sourceFailures } =
     useCombineFriendQueries(platformFilter, vrcFriends, cvrFriends)
 
   // Presence-section grouping (VRX-67): In-Game → Online → Offline, alphabetical
@@ -1316,14 +1316,14 @@ export default function FriendsList(): React.JSX.Element {
           {isError && !friends && sourceFailures.length === 0 && (
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
-          {/* An empty list with a fetch in flight is usually the [] placeholder a
-          sign-in or account switch leaves while the new roster loads, so it
-          says loading rather than claiming nobody is online. */}
+          {/* The [] placeholder a sign-in or account switch leaves says loading
+          while the new roster loads; a verified empty roster that is merely
+          refreshing keeps saying nobody is online. */}
           {filteredFriends && filteredFriends.length === 0 && (
             <p className="text-sm text-[var(--text-dim)]">
               {searchActive
                 ? t('friends.searchNoResults')
-                : isFetching
+                : isLoadingPlaceholder
                   ? t('friends.loading')
                   : t('friends.empty')}
             </p>
