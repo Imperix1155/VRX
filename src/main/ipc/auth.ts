@@ -16,6 +16,8 @@ export interface AuthHandlerOptions {
    * to the adapter, which validates its owner before anything is persisted.
    */
   importSession?: (platform: Platform) => Promise<LoginResult>
+  /** After an explicit sign-out succeeded; a throwing callback is logged, not surfaced. */
+  onLogout?: (platform: Platform) => void
 }
 
 export function registerAuthHandlers(
@@ -108,6 +110,12 @@ export function registerAuthHandlers(
     if (!req || !VALID_PLATFORMS.has(req.platform)) throw new Error('Invalid logout request')
     const adapter = adapters.get(req.platform)
     if (!adapter) throw new Error(`No adapter registered for platform: ${req.platform}`)
-    return adapter.clearSession()
+    adapter.clearSession()
+    try {
+      options.onLogout?.(req.platform)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      log.warn(`onLogout callback failed for ${req.platform}: ${message}`)
+    }
   })
 }

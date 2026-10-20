@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "Link an account" picker opens and searches quickly even with thousands
   of friends, because it only draws the rows near what you can see. Live
   status changes also do less work checking linked-profile names.
+- VRChat friend and world pictures, and the names of the worlds and groups
+  friends are in, show right away when you open VRX. VRX now remembers what it
+  already loaded (pictures for up to 14 days, names for a day) instead of
+  asking VRChat for each one again, one per second, on every launch. Signing
+  out of VRChat deletes them.
 
 - Replaced the default Electron app icon with a VRX monogram: a blue V, silver
   R, and orange X at equal size in a smoked-glass case, with colored rails and

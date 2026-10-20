@@ -231,6 +231,34 @@ describe('logout handler boundary', () => {
     expect(vrcAdapter.clearSession).not.toHaveBeenCalled()
   })
 
+  it('reports a completed sign-out to onLogout, and never a failed one', () => {
+    const onLogout = vi.fn()
+    handlers.clear()
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), { onLogout })
+
+    expect(call('logout', { platform: 'vrchat' })).toBeUndefined()
+    expect(onLogout).toHaveBeenCalledWith('vrchat')
+
+    onLogout.mockClear()
+    vi.mocked(adapter.clearSession).mockImplementation(() => {
+      throw new Error('credential deletion failed')
+    })
+    expect(() => call('logout', { platform: 'vrchat' })).toThrow('credential deletion failed')
+    expect(onLogout).not.toHaveBeenCalled()
+  })
+
+  it('keeps a sign-out successful when onLogout throws', () => {
+    handlers.clear()
+    registerAuthHandlers(new Map<Platform, IPlatformAdapter>([['vrchat', adapter]]), {
+      onLogout: () => {
+        throw new Error('disk busy')
+      }
+    })
+
+    expect(call('logout', { platform: 'vrchat' })).toBeUndefined()
+    expect(log.warn).toHaveBeenCalledWith('onLogout callback failed for vrchat: disk busy')
+  })
+
   it('propagates credential deletion failure so the renderer invoke rejects', () => {
     vi.mocked(adapter.clearSession).mockImplementation(() => {
       throw new Error('credential deletion failed')

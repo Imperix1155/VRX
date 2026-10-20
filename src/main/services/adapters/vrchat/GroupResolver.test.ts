@@ -153,3 +153,31 @@ describe('GroupResolver', () => {
     expect(resolver.peek('grp_epoch')).toEqual({ name: 'Fresh Name', iconUrl: null })
   })
 })
+
+describe('GroupResolver stored entries', () => {
+  it('seeds within bounds, snapshots successes, and notifies only on fetched successes', async () => {
+    const now = 1000
+    const onChange = vi.fn()
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ name: 'Fetched' })
+      .mockRejectedValueOnce(new Error('private'))
+    const resolver = createGroupResolver({ fetcher, clock: () => now, maxEntries: 3, onChange })
+    resolver.seed([
+      { id: 'grp_a', meta: { name: 'A', iconUrl: null }, expiresAt: now + 5 },
+      { id: 'grp_old', meta: { name: 'Old', iconUrl: null }, expiresAt: now }
+    ])
+    expect(onChange).not.toHaveBeenCalled()
+    expect(resolver.peek('grp_a')).toEqual({ name: 'A', iconUrl: null })
+    expect(resolver.peek('grp_old')).toBeUndefined()
+    await resolver.resolve('grp_new')
+    await resolver.resolve('grp_private')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(resolver.snapshot().map((entry) => entry.id)).toEqual(['grp_a', 'grp_new'])
+    resolver.seed([
+      { id: 'grp_b', meta: { name: 'B', iconUrl: null }, expiresAt: now + 5 },
+      { id: 'grp_c', meta: { name: 'C', iconUrl: null }, expiresAt: now + 5 }
+    ])
+    expect(resolver.snapshot().length).toBeLessThanOrEqual(3)
+  })
+})
