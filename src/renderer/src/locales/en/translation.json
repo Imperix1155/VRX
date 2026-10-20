@@ -257,7 +257,7 @@
         "disconnect": "Could not disconnect this account. Please try again.",
         "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
         "unknown": "Sign-in failed. Check your details and connection, then try again.",
-        "importNotFoundVrchat": "No VRCX sign-in found on this PC. Sign in with your password instead.",
+        "importNotFoundVrchat": "No VRCX sign-in found on this PC. If VRCX is open, quit it (also from the tray) and try again, or sign in with your password.",
         "importNotFoundChilloutvr": "No ChilloutVR or CVRX sign-in found on this PC. Sign in with your password instead.",
         "importRejectedVrchat": "VRChat no longer accepts the sign-in VRCX saved. Sign in with your password instead.",
         "importRejectedChilloutvr": "ChilloutVR no longer accepts the sign-in saved on this PC. Sign in with your password instead."
@@ -271,7 +271,7 @@
       "import": {
         "vrchat": "Use my sign-in from VRCX",
         "chilloutvr": "Use my sign-in from ChilloutVR",
-        "vrchatHint": "Only reads it, never changes it.",
+        "vrchatHint": "Quit VRCX first, also from the tray. Only reads it, never changes it.",
         "chilloutvrHint": "Only reads it, never changes it.",
         "looking": "Looking on this PC…"
       }
