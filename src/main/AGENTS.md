@@ -98,7 +98,9 @@ etiquette rules apply in full; this file adds local detail.
   failed normalization write keeps the parsed settings as unsaved and
   retryable, never defaults. Saves apply in memory, coalesce disk writes,
   refuse to overwrite a newer-version file, and reject failed writes. Read
-  fire-time policy from `getSettingsSnapshot()`.
+  fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
+  settings file yet) loads `freshInstallSettings`, which queues the welcome
+  setup; an unreadable or older file never does.
 - Account registry, social store, and link graph validate bounded data and
   check account/epoch or reviewed revisions before mutation. They write a
   cloned snapshot, publish memory only after the write succeeds, and refuse

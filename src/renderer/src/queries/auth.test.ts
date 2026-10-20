@@ -21,7 +21,7 @@ afterEach(() => {
 describe('query bridge guards', () => {
   it('fetchAuthStatus throws bridge_unavailable without window.vrx', async () => {
     setBridge(undefined)
-    await expect(fetchAuthStatus()).rejects.toThrow('bridge_unavailable')
+    await expect(fetchAuthStatus('vrchat')).rejects.toThrow('bridge_unavailable')
   })
 
   it('fetchFriends throws bridge_unavailable without window.vrx', async () => {
@@ -38,7 +38,7 @@ describe('query bridge guards', () => {
     })
     setBridge({ getAuthStatus })
 
-    await expect(fetchAuthStatus()).resolves.toMatchObject({ state: 'authenticated' })
+    await expect(fetchAuthStatus('vrchat')).resolves.toMatchObject({ state: 'authenticated' })
     expect(getAuthStatus).toHaveBeenCalledWith({ platform: 'vrchat' })
   })
 
