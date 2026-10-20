@@ -9,7 +9,8 @@ or launch authority.
 ## Ownership
 
 - `index.html` holds the shipped CSP. `src/App.tsx` owns the settings
-  hydration gate, the auth gate, and the app-wide subscriptions it mounts once
+  hydration gate, the welcome-setup gate (`components/setup`, before the shell
+  and login), the auth gate, and the app-wide subscriptions it mounts once
   (`useLiveFriendEvents`, `useLinkedProfileEvents`, dashboard navigation).
 - `src/components`, `hooks`, `queries` (TanStack Query), `stores` (Zustand),
   `utils` (pure helpers), `i18n` with `locales/en` and `locales/ja`, and

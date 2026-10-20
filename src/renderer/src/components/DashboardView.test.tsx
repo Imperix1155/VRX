@@ -1474,6 +1474,17 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
     expect(useUiStore.getState().activeTab).toBe('hot')
   })
 
+  it('drops See all when the Hot Instances page is turned off, keeping the section', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false } })
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: crowd('chilloutvr', 'Big', 5), isPending: false }
+    )
+    render(<DashboardView />)
+    expect(hotCardNames()).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /dashboard\.seeAll|See all/ })).toBeNull()
+  })
+
   it('shows the top two of one platform when the other has none', () => {
     stubQueries(
       { data: [], isPending: false },

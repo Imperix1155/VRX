@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUiStore } from '../stores/ui'
+import { useSettingsStore } from '../stores/settings'
+import { isPageShown } from '../utils/pages'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
@@ -13,6 +15,18 @@ import RecoveryNotices from './RecoveryNotices'
 import JoinConfirmDialog from './JoinConfirmDialog'
 import ExploreRoute from './ExploreRoute'
 import { useExploreCoordinator } from '../hooks/useExploreCoordinator'
+
+/** A page the user turned off falls back to the Dashboard before paint, so a
+ *  stale tab (or a link from an older entry point) never shows a hidden page. */
+function useHiddenPageFallback(): void {
+  const activeTab = useUiStore((s) => s.activeTab)
+  const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
+  const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const shown = isPageShown(activeTab, { showHotInstancesPage, showExplorePage })
+  useLayoutEffect(() => {
+    if (!shown) useUiStore.getState().setActiveTab('dashboard')
+  }, [shown])
+}
 
 function MainContent(): React.JSX.Element {
   const activeTab = useUiStore((s) => s.activeTab)
@@ -61,6 +75,7 @@ function MainContent(): React.JSX.Element {
 export default function AppShell(): React.JSX.Element {
   const { t } = useTranslation()
   const activeTab = useUiStore((s) => s.activeTab)
+  useHiddenPageFallback()
   const mainRef = useRef<HTMLElement>(null)
   useExploreCoordinator()
 

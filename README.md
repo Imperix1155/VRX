@@ -28,7 +28,11 @@ ChilloutVR session import described below.
   a world, or goes offline, or when a hot instance forms. All are off until you
   turn them on in Settings → Notifications.
 - **Your look**: Theme (System, Light, or Dark), Background glow, and which
-  platform's words the instance labels use.
+  platform's words the instance labels use. Hot Instances and Explore can be
+  hidden from the sidebar in Settings → Appearance.
+- **Welcome setup**: a new install starts with a short, skippable setup for
+  sign-in, pages, the Dashboard, alerts, and the look. Run it again any time
+  from Settings → Appearance.
 - **Tray and updates**: closing the window keeps VRX in the system tray. The
   installed Windows app and the Linux AppImage can update from inside VRX.
 
