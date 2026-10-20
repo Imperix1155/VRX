@@ -21,7 +21,10 @@ export default defineConfig({
   main: {
     // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v11), so a
     // require() from the CJS main bundle would throw at runtime — bundle it instead (VRX-23).
-    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })],
+    // zod is bundled for startup time: its CommonJS entry loads all 64 locale
+    // files before the window can open, while the bundle keeps only the parts
+    // main uses (measured ~45ms -> ~7ms of the pre-window main-process load).
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store', 'zod'] })],
     // Same version injection as the renderer below (VRX-218 audit): the API
     // clients' User-Agent was hardcoded 'VRX/0.1.0' while the app shipped
     // 0.10.0 — the exact drift class the renderer define already prevents.
@@ -30,6 +33,9 @@ export default defineConfig({
     define: {
       __APP_VERSION__: JSON.stringify(appVersion)
     },
+    // Lazy externals (electron-updater, loaded after startup) load through the
+    // same require() as the static ones, not Node's ESM loader.
+    build: { rollupOptions: { output: { dynamicImportInCjs: false } } },
     resolve: {
       alias: {
         '@shared': shared
@@ -53,6 +59,15 @@ export default defineConfig({
         '@shared': shared
       }
     },
+    // electron-vite leaves the renderer unminified by default. Minifying the
+    // script roughly halves what the window parses at every launch (1.65 MB ->
+    // 0.76 MB). keepNames keeps component and function names readable in the
+    // stack that ErrorBoundary's "copy details" puts in bug reports. CSS stays
+    // as Tailwind emits it: minifying it saves ~13 KB and could rewrite glass styles.
+    // One local entry chunk by design (no network download), so Vite's
+    // 500 kB web-download warning does not apply.
+    build: { minify: true, cssMinify: false, chunkSizeWarningLimit: 1024 },
+    esbuild: { keepNames: true },
     // devStyleCspPlugin: dev server only (#369); production keeps style-src 'self'.
     plugins: [react(), tailwindcss(), devStyleCspPlugin()]
   }

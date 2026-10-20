@@ -1602,8 +1602,8 @@ describe('CVR explicit mode preference (no picker) still says what Confirm does'
 
 describe('people-count pluralization', () => {
   it('count:1 renders the SINGULAR and other counts the plural', () => {
-    expect(i18n.t('joinConfirm.peopleCount', { count: 1 })).toBe('· 1 person')
-    expect(i18n.t('joinConfirm.peopleCount', { count: 7 })).toBe('· 7 people')
+    expect(i18n.t('joinConfirm.peopleCount', { count: 1 })).toBe('1 person')
+    expect(i18n.t('joinConfirm.peopleCount', { count: 7 })).toBe('7 people')
   })
 })
 

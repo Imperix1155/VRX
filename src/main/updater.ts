@@ -13,7 +13,6 @@ import {
   BrowserWindow,
   type Event as ElectronEvent
 } from 'electron'
-import electronUpdater from 'electron-updater'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
 import { getSettingsSnapshot } from './services/settings'
@@ -69,9 +68,21 @@ export interface UpdaterServiceDeps {
 export const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
 export const MAX_JITTER_MS = 30 * 60 * 1000 // 0–30 minutes
 export const NATIVE_STAGE_TIMEOUT_MS = 5 * 60 * 1000
+/** The launch check waits until the window and first account reads are underway. */
+export const STARTUP_CHECK_DELAY_MS = 5_000
 
 function isPortable(): boolean {
   return !!process.env.PORTABLE_EXECUTABLE_DIR
+}
+
+function initialSnapshot(electronApp: Pick<typeof app, 'getVersion'>): UpdaterSnapshot {
+  return {
+    state: isPortable() ? 'unsupported' : 'idle',
+    currentVersion: electronApp.getVersion(),
+    availableVersion: null,
+    progressPercent: 0,
+    failure: null
+  }
 }
 
 /** electron-updater diagnostics are third-party payloads: discard them wholesale. */
@@ -205,13 +216,7 @@ export class UpdaterService {
   private hasUnscopedNativeFailureHistory = false
 
   constructor(private readonly deps: UpdaterServiceDeps) {
-    this.state = {
-      state: isPortable() ? 'unsupported' : 'idle',
-      currentVersion: deps.app.getVersion(),
-      availableVersion: null,
-      progressPercent: 0,
-      failure: null
-    }
+    this.state = initialSnapshot(deps.app)
     this.bindAutoUpdater()
     if (this.state.state !== 'unsupported') {
       this.scheduleNextCheck()
@@ -516,9 +521,16 @@ export class UpdaterService {
 }
 
 let updaterService: UpdaterService | undefined
+let updaterServiceLoad: Promise<UpdaterService> | undefined
 
-export function initAutoUpdater(): UpdaterService {
-  if (!updaterService) {
+/**
+ * electron-updater and its fs-extra/js-yaml/semver graph cost ~55ms to load,
+ * so they load on first use instead of before the window can open. Idempotent:
+ * every caller shares one load, and a failed load stays failed for the session,
+ * as a failed synchronous init did before.
+ */
+export function initAutoUpdater(): Promise<UpdaterService> {
+  updaterServiceLoad ??= import('electron-updater').then(({ default: electronUpdater }) => {
     updaterService = new UpdaterService({
       app,
       autoUpdater: electronUpdater.autoUpdater,
@@ -527,8 +539,9 @@ export function initAutoUpdater(): UpdaterService {
       browserWindow: BrowserWindow,
       nativeStageUpdater: process.platform === 'darwin' ? nativeAutoUpdater : undefined
     })
-  }
-  return updaterService
+    return updaterService
+  })
+  return updaterServiceLoad
 }
 
 export function getUpdaterService(): UpdaterService {
@@ -536,4 +549,9 @@ export function getUpdaterService(): UpdaterService {
     throw new Error('Updater service has not been initialized')
   }
   return updaterService
+}
+
+/** Before the service loads, its state is the one it would start in. */
+export function getUpdaterSnapshot(): UpdaterSnapshot {
+  return updaterService?.snapshot() ?? initialSnapshot(app)
 }

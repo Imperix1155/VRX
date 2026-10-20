@@ -150,7 +150,8 @@ export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): 
   let displayed = state.displayed
   // Query combiners may allocate an equivalent array during this render.
   // Do not schedule render-phase state updates for reference-only changes.
-  const equivalent =
+  // Only a held row reads the comparison, so skip the per-row work otherwise.
+  const equivalent = (): boolean =>
     state.input === rows ||
     (state.input.length === rows.length &&
       state.input.every((row, index) => {
@@ -166,7 +167,7 @@ export function useStableLinkedRows(rows: LinkedRow[], heldKey: string | null): 
           row.accounts.every((account, i) => account === next.accounts[i])
         )
       }))
-  if ((heldKey !== null && !equivalent) || state.heldKey !== heldKey) {
+  if (state.heldKey !== heldKey || (heldKey !== null && !equivalent())) {
     const next = nextState(state, rows, heldKey)
     setState(next)
     displayed = next.displayed

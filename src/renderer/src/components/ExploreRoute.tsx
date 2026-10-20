@@ -235,6 +235,14 @@ export function ExploreDashboardPreviewRoute({
     snapshots.every((source) => source.status === 'ready' || source.status === 'idle')
   )
     return null
+  const cards = worlds.map((world) => (
+    <ResolvedCard
+      key={`${world.platform}:${world.worldId}`}
+      world={world}
+      onOpen={openWorld}
+      layout={cardLayout}
+    />
+  ))
   return (
     <section className="mb-[var(--space-6)]" aria-labelledby="dashboard-popular-heading">
       <h2
@@ -246,16 +254,17 @@ export function ExploreDashboardPreviewRoute({
       <div className="mt-[var(--space-2)]">
         <ExploreSourceState sources={snapshots} hasUsableCards={worlds.length > 0} />
       </div>
-      <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-        {worlds.map((world) => (
-          <ResolvedCard
-            key={`${world.platform}:${world.worldId}`}
-            world={world}
-            onOpen={openWorld}
-            layout={cardLayout}
-          />
-        ))}
-      </div>
+      {cardLayout === 'bar' ? (
+        // Bar cards share the Hot Instances bar grid (main.css), so the second
+        // Dashboard section lays out the same whichever section it is.
+        <div className="hotwrap mt-[var(--space-3)]">
+          <div className="hot-grid hot-grid--flush">{cards}</div>
+        </div>
+      ) : (
+        <div className="mt-[var(--space-3)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
+          {cards}
+        </div>
+      )}
       <ExploreWorldSheet
         snapshot={sheet}
         image={image}

@@ -467,7 +467,7 @@ const FriendRow = memo(function FriendRow({
             title={destinations
               .map(
                 (account) =>
-                  `${account.platform === 'vrchat' ? 'VRChat' : 'ChilloutVR'}: ${t(instancePillFor(account.instance!, labelScheme).labelKey)}`
+                  `${t(account.platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')}: ${t(instancePillFor(account.instance!, labelScheme).labelKey)}`
               )
               .join(' · ')}
             style={Object.fromEntries(
@@ -1222,15 +1222,17 @@ export default function FriendsList(): React.JSX.Element {
       }}
       className="glass-information rounded-panel border border-[var(--border)] p-[var(--space-4)]"
     >
-      <div className="mb-[var(--space-3)] flex items-center justify-between gap-[var(--space-2)]">
-        <h2
-          id="friends-list-heading"
-          className="font-mono text-sm tracking-widest text-[var(--text-dim)] uppercase"
-        >
+      <div className="mb-[var(--space-3)] flex items-center justify-end gap-[var(--space-2)]">
+        {/* Names the section for assistive tech; the top bar already shows the
+            page's one visible "Friends" heading (DESIGN.md §8). */}
+        <h2 id="friends-list-heading" className="sr-only">
           {t('friends.title')}
         </h2>
         {links.data?.profiles.length ? (
-          <span data-testid="linked-person-count" className="text-xs text-[var(--text-dim)]">
+          <span
+            data-testid="linked-person-count"
+            className="ml-auto text-xs text-[var(--text-dim)]"
+          >
             {t('linking.people', { count: personCount })}
           </span>
         ) : null}
@@ -1239,7 +1241,7 @@ export default function FriendsList(): React.JSX.Element {
           onClick={() => void refetch()}
           disabled={isFetching}
           aria-label={t('friends.refresh')}
-          className="rounded-control px-[var(--space-2)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--surface-hover)] disabled:opacity-50 motion-safe:transition-colors"
+          className="rounded-control bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text-dim)] hover:bg-[var(--control-fill-hover)] hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--text-dim)] disabled:opacity-50 motion-safe:transition-colors"
         >
           {t('friends.refresh')}
         </button>
@@ -1296,7 +1298,7 @@ export default function FriendsList(): React.JSX.Element {
             <p className="text-sm text-[var(--error)]">{t('friends.error')}</p>
           )}
           {filteredFriends && filteredFriends.length === 0 && (
-            <p className="text-sm text-[var(--text-faint)]">
+            <p className="text-sm text-[var(--text-dim)]">
               {searchActive ? t('friends.searchNoResults') : t('friends.empty')}
             </p>
           )}
