@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.4] - 2026-10-22
+
 ### Added
 
 - The welcome setup's Look step also asks which instance labels to use
