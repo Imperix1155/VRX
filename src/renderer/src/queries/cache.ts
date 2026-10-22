@@ -293,12 +293,15 @@ function normalizeDehydratedState(clientState: DehydratedState): DehydratedState
 
 /**
  * Throttle for the automatic save. Each save stringifies every persisted roster
- * on the renderer thread (~10ms at 1,000 friends per platform), and live
- * presence changes the roster constantly. Identity and auth boundaries write
- * synchronously through `persistQueryCacheNow`, and a restored roster is always
- * revalidated, so a longer window only bounds how warm the next cold paint is.
+ * on the renderer thread (~10ms at 1,000 friends per platform) and rewrites
+ * about a megabyte of browser storage, and live presence changes the roster
+ * constantly, so a tray app running all day would rewrite it hundreds of times
+ * an hour. Identity and auth boundaries write synchronously through
+ * `persistQueryCacheNow`, the page writes once more when it closes
+ * (`persistQueryCacheOnPageHide`), and a restored roster is always revalidated,
+ * so a longer window only bounds how warm the next cold paint is after a crash.
  */
-export const QUERY_CACHE_PERSIST_THROTTLE_MS = 5_000
+export const QUERY_CACHE_PERSIST_THROTTLE_MS = 60_000
 
 /** What a save would write that can change: the persisted queries and their data. */
 function persistedDataIdentity(client: PersistedClient): unknown[] {
@@ -394,4 +397,15 @@ export function persistQueryCacheNow(queryClient: QueryClient): void {
 export function onPersistRestore(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: ['friends'] })
   // A future instance query must include platform in its key and define its own eviction shape.
+}
+
+/**
+ * Write the latest roster once more when the window's page goes away (quit,
+ * reload, renderer recovery), so the throttled save never loses the last minute.
+ */
+export function persistQueryCacheOnPageHide(queryClient: QueryClient): () => void {
+  if (typeof window === 'undefined') return () => undefined
+  const persist = (): void => persistQueryCacheNow(queryClient)
+  window.addEventListener('pagehide', persist)
+  return () => window.removeEventListener('pagehide', persist)
 }

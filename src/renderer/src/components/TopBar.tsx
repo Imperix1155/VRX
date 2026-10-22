@@ -189,11 +189,19 @@ export default function TopBar(): React.JSX.Element {
 
     void refreshStatus()
     // Local IPC only: this never touches either platform's wire API, so a short
-    // fixed interval is safe and keeps reconnect state responsive.
-    const interval = window.setInterval(() => void refreshStatus(), STATUS_POLL_MS)
+    // fixed interval is safe and keeps reconnect state responsive. A hidden
+    // window (closed to the tray) skips it and refreshes as soon as it shows.
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void refreshStatus()
+    }, STATUS_POLL_MS)
+    const onVisibilityChange = (): void => {
+      if (!document.hidden) void refreshStatus()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
     return () => {
       active = false
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [])
 

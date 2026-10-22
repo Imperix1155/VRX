@@ -41,7 +41,9 @@ afterEach(() => {
 
 it('returns preserved settings as unsaved after normalization fails and clears metadata after a durable retry', async () => {
   vi.useFakeTimers()
+  // A missing field makes the loaded file need a normalizing write.
   storage.data = { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }
+  delete storage.data.density
   const original = structuredClone(storage.data)
   registerSettingsHandlers()
   const event = { senderFrame: {} } as unknown as IpcMainInvokeEvent
