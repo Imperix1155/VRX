@@ -257,6 +257,17 @@ jobs:
           node "$GITHUB_WORKSPACE/scripts/verify-linux-update-metadata.mjs" \
             "$MANIFEST" "$APPIMAGE" "$DEB" "$APPIMAGE_UPDATE" "$DEB_UPDATE"
 
+      # The Windows updater manifest must name this version and the exact setup
+      # installer (size and SHA-512) before the publish job can make it public.
+      - name: Verify Windows updater metadata
+        if: matrix.platform == 'win'
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          CHANNEL="$(node scripts/release-channel.mjs "$TAG" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
+          node scripts/verify-windows-update-metadata.mjs \
+            "dist/$CHANNEL.yml" "dist/vrx-$VERSION-setup.exe"
+
   publish-release:
     name: publish release
     needs: [prepare, build]
@@ -290,6 +301,8 @@ jobs:
           METADATA="$(node scripts/release-channel.mjs "$TAG")"
           EXPECTED="$(echo "$METADATA" | jq -c .assets)"
           PRERELEASE="$(echo "$METADATA" | jq -r .prerelease)"
+          # Only the stable channel becomes the repository's latest release.
+          MAKE_LATEST="$(echo "$METADATA" | jq -r 'if .channel == "latest" then "true" else "false" end')"
 
           # `gh api --paginate` streams one JSON array PER PAGE; `jq -s add`
           # flattens the pages into a single array (and is a no-op for the common
@@ -363,13 +376,13 @@ jobs:
           # this is an edge).
           if node scripts/extract-changelog.mjs "${TAG#v}" > /tmp/release-notes.md && [ -s /tmp/release-notes.md ]; then
             echo "Using CHANGELOG notes for ${TAG#v}."
-            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" --rawfile body /tmp/release-notes.md '{draft:false, prerelease:$prerelease, body:$body}')"
+            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" --arg make_latest "$MAKE_LATEST" --rawfile body /tmp/release-notes.md '{draft:false, prerelease:$prerelease, make_latest:$make_latest, body:$body}')"
           else
             echo "No CHANGELOG section for ${TAG#v} (or extractor failed) — publishing without changing the body." >&2
-            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" '{draft:false, prerelease:$prerelease}')"
+            PATCH="$(jq -n --argjson prerelease "$PRERELEASE" --arg make_latest "$MAKE_LATEST" '{draft:false, prerelease:$prerelease, make_latest:$make_latest}')"
           fi
 
-          # Publish BY ID: un-draft with the verified tag channel.
+          # Publish BY ID: un-draft with the verified tag channel and latest flag.
           echo "$PATCH" | gh api -X PATCH "repos/$REPO/releases/$TARGET_ID" --input - --jq '"Published: \(.html_url) (draft=\(.draft), prerelease=\(.prerelease))"'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
