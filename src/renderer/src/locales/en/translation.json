@@ -1,5 +1,6 @@
 {
   "appName": "VRX",
+  "listSeparator": ", ",
   "linking": {
     "chooser": {
       "none": "No joinable locations are currently available."
@@ -475,7 +476,7 @@
     "waiting": "Waiting for updated location…",
     "confirm": "Join",
     "cancel": "Cancel",
-    "dontAskAgain": "Don't ask again (Settings › re-enable anytime)"
+    "dontAskAgain": "Don't ask again (turn it back on in Settings → Behavior)"
   },
   "hotSheet": {
     "ariaLabel": "{{world}} hot instance details",
@@ -507,7 +508,7 @@
     "hotHelp": {
       "label": "About Hot Instances",
       "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the top instance from each platform, and the Hot Instances page shows all of them, with the most friends first.",
-      "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you enable them in Settings."
+      "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
     "seeAll": "See all {{count}}",
     "seeAllAria_one": "See {{count}} hot instance",
@@ -698,7 +699,6 @@
       "lead": "Here’s what you picked. You can change any of it later in Settings.",
       "accounts": "Accounts",
       "pages": "Pages",
-      "listSeparator": ", ",
       "dashboard": "Dashboard",
       "alerts": "Alerts",
       "look": "Look",

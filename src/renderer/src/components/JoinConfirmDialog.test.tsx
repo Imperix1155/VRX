@@ -910,6 +910,28 @@ describe("who's-there row", () => {
     expect(within(dialog).getByText('+1')).toBeTruthy() // 5 same-instance, NOT +2
   })
 
+  it("lists the friends' names with the UI language's punctuation", async () => {
+    const pair = ['Amy', 'Bea'].map((name, i) => ({
+      ...joinableFriend,
+      platformUserId: `usr_${i}`,
+      displayName: name
+    }))
+    mockFriends(pair)
+    await i18n.changeLanguage('ja')
+    try {
+      render(
+        <>
+          <OpenJoin friend={pair[0]!} />
+          <JoinConfirmDialog />
+        </>
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'open join' }))
+      expect(within(screen.getByRole('dialog')).getByLabelText(/Amy、Bea/)).toBeTruthy()
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('CVR mid-enrichment: an enriched roster member (real world.id) still matches the parked unresolved instance (VRX-237)', () => {
     // The parked friend's instance still carries CVR's unresolved fallback
     // (worldId === instanceId) while a roster member's copy already enriched
@@ -1016,7 +1038,7 @@ describe('never-show-again footnote', () => {
     await act(async () => {
       fireEvent.click(
         within(confirmDialog()).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()
@@ -1300,7 +1322,7 @@ describe('footnote persists a PICKED mode (CVR picker only)', () => {
     await act(async () => {
       fireEvent.click(
         within(dialog).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()
@@ -1341,7 +1363,7 @@ describe('footnote persists a PICKED mode (CVR picker only)', () => {
     await act(async () => {
       fireEvent.click(
         within(confirmDialog()).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()
