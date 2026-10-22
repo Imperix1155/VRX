@@ -164,10 +164,11 @@ describe('loadSettings (W7 M1)', () => {
   )
 
   it('preserves loaded preferences when a later unrelated edit retries failed normalization', async () => {
-    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }
+    storeState.data = { ...currentWithoutDensity, theme: 'light', allowJoinInstances: false }
     storeState.throwOnWrite = true
     loadSettings()
     storeState.throwOnWrite = false
+    expect(hasPendingSettingsSave()).toBe(true)
 
     const pending = saveSettings({ density: 'compact' })
     flushPendingSettingsSave()
