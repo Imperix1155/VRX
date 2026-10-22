@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worlds that are popular right now.
 - The welcome setup's summary lists pages with Japanese punctuation in Japanese,
   and its "Instance labels" row no longer breaks the label onto two lines.
+- Friend names listed on Hot Instances cards and in the join dialog use
+  Japanese punctuation in Japanese.
+- The join dialog's "Don't ask again" option and the Hot Instances help now
+  name the exact Settings section to change them in (Behavior, Notifications).
 
 ## [1.0.0-beta.3] - 2026-10-20
 

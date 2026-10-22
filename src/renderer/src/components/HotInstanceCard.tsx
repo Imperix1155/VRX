@@ -88,7 +88,7 @@ export default function HotInstanceCard({
   const overflow = instance.friendCount - shownNames.length
   const whoHereAria = t('dashboard.friendsHereAria', {
     count: instance.friendCount,
-    names: instance.friendNames.join(', ')
+    names: instance.friendNames.join(t('listSeparator'))
   })
 
   function joinCardTarget(event: React.MouseEvent<HTMLButtonElement>): void {
@@ -181,7 +181,9 @@ export default function HotInstanceCard({
         className={`${placement} flex min-w-0 items-baseline text-[13.5px] leading-[1.2]`}
         aria-label={whoHereAria}
       >
-        <span className="min-w-0 truncate text-[var(--names-lift)]">{shownNames.join(', ')}</span>
+        <span className="min-w-0 truncate text-[var(--names-lift)]">
+          {shownNames.join(t('listSeparator'))}
+        </span>
         {overflow > 0 && (
           <span className="ml-[4px] shrink-0 font-bold text-[var(--text)]">
             {t('dashboard.friendsOverflow', { count: overflow })}

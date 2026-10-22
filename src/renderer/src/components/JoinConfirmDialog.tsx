@@ -564,7 +564,7 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const overflow = present.length - shown.length
   const whoHereAria = t('dashboard.friendsHereAria', {
     count: present.length,
-    names: present.map((f) => f.displayName).join(', ')
+    names: present.map((f) => f.displayName).join(t('listSeparator'))
   })
 
   async function joinAndNeverAskAgain(): Promise<void> {

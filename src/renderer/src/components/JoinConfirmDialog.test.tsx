@@ -1016,7 +1016,7 @@ describe('never-show-again footnote', () => {
     await act(async () => {
       fireEvent.click(
         within(confirmDialog()).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()
@@ -1300,7 +1300,7 @@ describe('footnote persists a PICKED mode (CVR picker only)', () => {
     await act(async () => {
       fireEvent.click(
         within(dialog).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()
@@ -1341,7 +1341,7 @@ describe('footnote persists a PICKED mode (CVR picker only)', () => {
     await act(async () => {
       fireEvent.click(
         within(confirmDialog()).getByRole('button', {
-          name: "Don't ask again (Settings › re-enable anytime)"
+          name: "Don't ask again (turn it back on in Settings → Behavior)"
         })
       )
       await Promise.resolve()

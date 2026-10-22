@@ -198,7 +198,7 @@ function DashboardContent(): React.JSX.Element {
       )
     }
     // Manual retry (same affordance as FriendsList's Refresh) — without it the
-    // only recovery is the 5-minute reconcile tick or a view remount.
+    // only recovery is the background re-sync (hourly by default) or a view remount.
     return (
       <div>
         <div className="flex items-center gap-[var(--space-3)]">

@@ -430,7 +430,7 @@ export const DoneStep = forwardRef<
   )
     .filter(([, shown]) => shown)
     .map(([key]) => t(key))
-    .join(t('setup.done.listSeparator'))
+    .join(t('listSeparator'))
 
   const sections = [
     s.dashboardPopularNow && t('settings.dashboard.popular.label'),
