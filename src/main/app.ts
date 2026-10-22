@@ -68,6 +68,7 @@ import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
 import { setMainLocale } from './i18n'
+import { showFatalErrorBox } from './fatalErrorBox'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -281,6 +282,7 @@ process.on('uncaughtException', (error: Error) => {
   if (crashing) return
   crashing = true
   log.error('uncaughtException — terminating', { message: error.message, stack: error.stack })
+  showFatalErrorBox('runtime')
   app.exit(1)
 })
 
@@ -725,6 +727,8 @@ app
     const message = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
     log.error('bootstrap failed — terminating', { message, stack })
+    // Without a window the user would see nothing at all.
+    showFatalErrorBox('startup')
     app.exit(1)
   })
 
