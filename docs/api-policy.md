@@ -10,7 +10,7 @@ ChilloutVR's terms (§8, third-party applications) require apps that use its
 services to show: "This application is not created by or affiliated with
 ChilloutVR or the ChilloutVR team in any way." VRX shows that sentence word for
 word in its unofficial-app notice (`shell.unofficialNotice`), next to a matching
-VRChat sentence. The login screen and Settings → About show the full notice;
+VRChat sentence. The login screen and Settings → Accounts show the full notice;
 the welcome setup shows a one-line summary with the full notice under Show
 more. Keep it word for word when editing the notice. App text,
 README and docs name the platforms only, never the companies that run them.
