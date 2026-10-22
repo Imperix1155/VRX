@@ -15,7 +15,7 @@ vi.mock('ws', async () => {
   return { WebSocket: WebSocketMock }
 })
 
-import { createCvrSocket, createVrcSocket } from './socketFactory'
+import { SOCKET_MAX_PAYLOAD_BYTES, createCvrSocket, createVrcSocket } from './socketFactory'
 
 describe('production WebSocket factories', () => {
   beforeEach(() => {
@@ -46,12 +46,17 @@ describe('production WebSocket factories', () => {
     }
   )
 
+  it('caps a single socket message at 16 MiB', () => {
+    expect(SOCKET_MAX_PAYLOAD_BYTES).toBe(16 * 1024 * 1024)
+  })
+
   it('bounds the VRChat Pipeline handshake with the API timeout', () => {
     createVrcSocket('wss://pipeline.example')
 
     expect(WebSocketMock).toHaveBeenCalledWith('wss://pipeline.example', {
       headers: { 'User-Agent': expect.stringMatching(/^VRX\//) },
-      handshakeTimeout: API_TIMEOUT_MS
+      handshakeTimeout: API_TIMEOUT_MS,
+      maxPayload: SOCKET_MAX_PAYLOAD_BYTES
     })
   })
 
@@ -67,7 +72,8 @@ describe('production WebSocket factories', () => {
 
     expect(WebSocketMock).toHaveBeenCalledWith('wss://cvr.example', {
       headers,
-      handshakeTimeout: API_TIMEOUT_MS
+      handshakeTimeout: API_TIMEOUT_MS,
+      maxPayload: SOCKET_MAX_PAYLOAD_BYTES
     })
   })
 })
