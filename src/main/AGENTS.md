@@ -106,7 +106,9 @@ etiquette rules apply in full; this file adds local detail.
 - `services/settings.ts` migrates and validates through `@shared/settings`. A
   failed normalization write keeps the parsed settings as unsaved and
   retryable, never defaults. Saves apply in memory, coalesce disk writes,
-  refuse to overwrite a newer-version file, and reject failed writes. Read
+  refuse to overwrite a newer-version file, and reject failed writes. After an
+  unreadable load, a save re-reads the file first and is refused while it stays
+  unreadable, so defaults never replace the user's file. Read
   fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
   settings file yet, and no set-aside `settings.corrupt-*.json`) loads
   `freshInstallSettings`, which queues the welcome setup; an unreadable,

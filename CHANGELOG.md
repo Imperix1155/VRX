@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the full notice and how sign-ins are stored) sit behind Show more. The
   Dashboard and Alerts steps have shorter intros too.
 
+### Fixed
+
+- A brief file lock at startup can no longer reset your settings.
+
 ## [1.0.0-beta.4] - 2026-10-22
 
 ### Added
