@@ -62,3 +62,31 @@ describe('packaged application file boundary', () => {
     expect(filter(resolve(root, file), fileStat)).toBe(true)
   })
 })
+
+describe('packaged Electron fuses', () => {
+  it('pins the packaged runtime fuses', () => {
+    expect(config.electronFuses).toEqual({
+      runAsNode: false,
+      enableNodeOptionsEnvironmentVariable: false,
+      enableNodeCliInspectArguments: false,
+      enableCookieEncryption: true,
+      onlyLoadAppFromAsar: true,
+      grantFileProtocolExtraPrivileges: true
+    })
+  })
+})
+
+describe('macOS packaging metadata', () => {
+  it('declares no unused privacy usage descriptions', () => {
+    expect(config.mac.extendInfo).toBeUndefined()
+  })
+
+  it('keeps the inherited entitlements minimal', () => {
+    const entitlements = readFileSync('build/entitlements.mac.plist', 'utf8')
+    const keys = [...entitlements.matchAll(/<key>([^<]+)<\/key>/g)].map((match) => match[1])
+    expect(keys).toEqual([
+      'com.apple.security.cs.allow-jit',
+      'com.apple.security.cs.allow-unsigned-executable-memory'
+    ])
+  })
+})

@@ -4795,6 +4795,7 @@ describe('VrcAdapter', () => {
       'wrld_abc:11111?invite=all', // query injection
       'wrld_abc:11111#frag', // fragment
       'wrld_abc:11111 has space', // whitespace
+      'wrld_abc:11111%2F..%2Fauth',
       'not-a-location' // missing wrld_ prefix
     ])('rejects unsafe/malformed location %j with NO API call (VRX-51 security)', async (bad) => {
       const fetchMock = vi.fn()
