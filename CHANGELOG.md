@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The welcome setup says less. The welcome screen is one line plus a one-line
+  unofficial-app notice, the sign-in note is one line, and the longer details
+  (the full notice and how sign-ins are stored) sit behind Show more. The
+  Dashboard and Alerts steps have shorter intros too.
+
 ## [1.0.0-beta.4] - 2026-10-22
 
 ### Added

@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
 import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS, LABEL_SCHEMES } from '@shared/types'
@@ -57,7 +57,7 @@ export const StepHeading = forwardRef<
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}
-          className={`mt-[var(--space-1)] text-[13px] leading-[1.45] text-[var(--text-dim)]${centered ? ' mx-auto max-w-[44ch]' : ''}`}
+          className={`mt-[var(--space-1)] text-[13px] leading-[1.45] text-[var(--text-dim)]${centered ? ' mx-auto max-w-[44ch] text-balance [word-break:auto-phrase]' : ''}`}
         >
           {lead}
         </p>
@@ -101,6 +101,43 @@ function Row({
 
 const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-faint)]'
 
+/**
+ * Simple by default, more on demand (owner, 2026-10-22): one short line of
+ * fine print that swaps to the full text in place, so opening it adds only a
+ * line or two.
+ */
+function FinePrint({
+  summary,
+  full,
+  centered = false
+}: {
+  summary: string
+  full: string
+  centered?: boolean
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const textId = useId()
+  return (
+    <p
+      id={textId}
+      aria-live="polite"
+      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance [word-break:auto-phrase]' : ''}`}
+    >
+      {open ? full : summary}{' '}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={textId}
+        onClick={() => setOpen((value) => !value)}
+        className="whitespace-nowrap text-[var(--text-dim)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors"
+      >
+        {t(open ? 'setup.showLess' : 'setup.showMore')}
+      </button>
+    </p>
+  )
+}
+
 // ─── Welcome ─────────────────────────────────────────────────────────────────
 
 export const WelcomeStep = forwardRef<HTMLHeadingElement>(function WelcomeStep(_props, ref) {
@@ -142,7 +179,9 @@ export const WelcomeStep = forwardRef<HTMLHeadingElement>(function WelcomeStep(_
           </li>
         ))}
       </ul>
-      <p className={`${FINE_PRINT} max-w-[52ch] text-center`}>{t('shell.unofficialNotice')}</p>
+      {/* The full notice carries ChilloutVR's required sentence word for word
+          (docs/api-policy.md); the login screen and Settings → Accounts show it too. */}
+      <FinePrint centered summary={t('setup.welcome.notice')} full={t('shell.unofficialNotice')} />
     </div>
   )
 })
@@ -169,7 +208,7 @@ export const SignInStep = forwardRef<HTMLHeadingElement, { skipping: boolean; re
             <AccountCard key={platform} platform={platform} />
           ))}
         </div>
-        <p className={FINE_PRINT}>{t('setup.signin.storage')}</p>
+        <FinePrint summary={t('setup.signin.storage')} full={t('setup.signin.storageFull')} />
       </div>
     )
   }

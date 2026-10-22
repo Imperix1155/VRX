@@ -70,6 +70,28 @@ afterEach(() => {
 })
 
 describe('SetupWizard', () => {
+  it('keeps the fine print short and puts the full text behind Show more', async () => {
+    renderWizard(signedOut)
+    // Welcome: one short notice; the full notice (with ChilloutVR's required
+    // sentence) is one press away.
+    expect(screen.getByText(msg('setup.welcome.notice'))).toBeTruthy()
+    expect(screen.queryByText(msg('shell.unofficialNotice'))).toBeNull()
+    const more = button('setup.showMore')
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(more)
+    expect(screen.getByText(msg('shell.unofficialNotice'))).toBeTruthy()
+    expect(screen.queryByText(msg('setup.welcome.notice'))).toBeNull()
+    expect(button('setup.showLess').getAttribute('aria-expanded')).toBe('true')
+
+    // Sign in: the storage detail starts hidden too.
+    await goToSignIn()
+    const storageFull = msg('setup.signin.storageFull')
+    expect(screen.getByText(msg('setup.signin.storage'))).toBeTruthy()
+    expect(screen.queryByText(storageFull)).toBeNull()
+    fireEvent.click(button('setup.showMore'))
+    expect(screen.getByText(storageFull)).toBeTruthy()
+  })
+
   it('offers a real Skip setup button on every step before the summary', async () => {
     renderWizard(signedIn)
     expect(screen.getByRole('heading', { name: msg('setup.welcome.title') })).toBeTruthy()

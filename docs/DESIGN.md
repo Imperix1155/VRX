@@ -55,6 +55,11 @@ These decisions are settled. Changing one needs the owner's explicit approval.
 10. **Liquid glass.** Glass is the material, with a blue top-left and orange
     bottom-right aurora, restrained scanlines, and retro type accents. Theme
     defaults to System (§0, §3, §4).
+11. **Simple by default, more on demand.** Each screen shows only what most
+    people need, in as few words as possible. Longer explanations, fine print
+    and power-user options sit behind a Show more or ? control, in Settings, or
+    in About, where people who go looking find them. Required notices stay
+    reachable, never dropped (§9.4).
 
 ## §0 Direction and authority
 
@@ -451,11 +456,14 @@ off, VRChat instance labels) until changed. Look also asks for the instance
 label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
-neutral text-colored fill, so neither platform color leads. Settings → About
-offers Run setup again.
+neutral text-colored fill, so neither platform color leads. Each screen keeps to a
+short line or two; the welcome's unofficial-app notice and the sign-in storage
+note are one short line each, with the full text behind Show more (Locked
+rule 11). Settings → About offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
-local-key fallback, and never promises keychain protection everywhere. The
+local-key fallback (in setup, behind Show more), and never promises keychain
+protection everywhere. The
 sign-in screen (both tabs) and Accounts show one unofficial-app notice in plain
 faint text: a VRChat sentence and ChilloutVR's required disclaimer, worded the
 same way (see [API policy](./api-policy.md)).

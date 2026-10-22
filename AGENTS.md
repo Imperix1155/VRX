@@ -68,6 +68,9 @@ those components with sample data. A known defect is never a design rule.
 - VRChat and ChilloutVR are equal: the same treatment, wording weight, and
   feature parity wherever both platforms support a feature. Flag anything that
   favors one, including the app icon.
+- Simple by default, more on demand: show what most people need in few words,
+  and put longer explanations, fine print and power-user options behind a Show
+  more or ? control, Settings, or About. Required notices stay reachable.
 - Background color must not change information-bearing cards or panels.
   Neutral sheen can vary; decorative chrome such as the sidebar may take on
   ambient color.
