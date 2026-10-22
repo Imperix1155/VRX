@@ -14,6 +14,7 @@ import {
   deserializePersistedQueryCache,
   MAX_QUERY_AGE_MS,
   persistQueryCacheNow,
+  persistQueryCacheOnPageHide,
   QUERY_CACHE_PERSIST_THROTTLE_MS,
   QUERY_CACHE_STORAGE_KEY,
   shouldDehydrateQuery
@@ -185,6 +186,46 @@ describe('persistQueryCacheNow — outage survival (round-4 F-A regression)', ()
       (q) => JSON.stringify(q.queryKey) === JSON.stringify(['friends', 'chilloutvr'])
     )
     expect((cvrRestored?.state.data as Friend[] | undefined)?.[0]?.displayName).toBe('CvrFriend')
+    client.clear()
+  })
+})
+
+describe('persistQueryCacheOnPageHide', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('writes the latest roster when the page goes away, and stops after cleanup', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const remove = persistQueryCacheOnPageHide(client)
+    client.setQueryData(['friends', 'vrchat'], [fullFriend('Latest', 'vrchat')])
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+
+    window.dispatchEvent(new Event('pagehide'))
+    const restored = deserializePersistedQueryCache(
+      window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)!
+    )
+    const roster = restored.clientState.queries[0]?.state.data as Friend[] | undefined
+    expect(roster?.[0]?.displayName).toBe('Latest')
+
+    remove()
+    window.localStorage.clear()
+    window.dispatchEvent(new Event('pagehide'))
+    expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
+    client.clear()
+  })
+
+  it('keeps one listener when installed twice', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const remove = persistQueryCacheOnPageHide(client)
+    expect(persistQueryCacheOnPageHide(client)).toBe(remove)
+
+    window.dispatchEvent(new Event('pagehide'))
+    expect(setItem).toHaveBeenCalledTimes(1)
+
+    remove()
+    setItem.mockRestore()
     client.clear()
   })
 })

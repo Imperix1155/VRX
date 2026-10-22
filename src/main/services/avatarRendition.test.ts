@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   AVATAR_RENDITION_EDGE,
-  AVATAR_RENDITION_MIN_SOURCE_BYTES,
   createAvatarRenditionMaker,
   type RenditionImage
 } from './avatarRendition'
 
-const LARGE = Buffer.alloc(AVATAR_RENDITION_MIN_SOURCE_BYTES + 1)
+const LARGE = Buffer.alloc(64 * 1024)
 
 function fakeImage(
   width: number,
@@ -48,10 +47,15 @@ describe('createAvatarRenditionMaker', () => {
     expect(make({ contentType: 'image/png', bytes: LARGE })?.contentType).toBe('image/png')
   })
 
-  it('keeps the original for small files, small pictures, other formats and failures', () => {
+  it('scales a large picture even when its file is small', () => {
+    const make = createAvatarRenditionMaker(() => fakeImage(1024, 1024, { encoded: 2048 }))
+    const rendition = make({ contentType: 'image/png', bytes: Buffer.alloc(1024) })
+    expect(rendition?.contentType).toBe('image/jpeg')
+  })
+
+  it('keeps the original for small pictures, other formats and failures', () => {
     const decode = vi.fn(() => fakeImage(1024, 1024))
     const make = createAvatarRenditionMaker(decode)
-    expect(make({ contentType: 'image/png', bytes: Buffer.alloc(10) })).toBeNull()
     expect(make({ contentType: 'image/gif', bytes: LARGE })).toBeNull()
     expect(make({ contentType: 'image/webp', bytes: LARGE })).toBeNull()
     expect(decode).not.toHaveBeenCalled()
@@ -69,7 +73,7 @@ describe('createAvatarRenditionMaker', () => {
       })
     ).toBeNull()
     expect(
-      createAvatarRenditionMaker(() => fakeImage(1024, 1024, { encoded: LARGE.byteLength }))({
+      createAvatarRenditionMaker(() => fakeImage(1024, 1024, { encoded: 0 }))({
         contentType: 'image/png',
         bytes: LARGE
       })

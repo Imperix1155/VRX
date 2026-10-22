@@ -128,6 +128,18 @@ describe('ImageDiskStore', () => {
     expect(await disk.read(URL_C)).not.toBeNull()
   })
 
+  it('reads nothing while a clear waits behind a write, so nothing is written back', async () => {
+    const disk = store()
+    await disk.write(URL_A, png('a'))
+    const writing = disk.write(URL_B, png('b'))
+    const clearing = disk.clear()
+    const read = await disk.read(URL_A)
+    expect(read).toBeNull()
+    await Promise.all([writing, clearing])
+    expect(await readdir(directory)).toEqual([])
+    expect(await store().read(URL_A)).toBeNull()
+  })
+
   // Creating symlinks needs extra privileges on Windows.
   it.skipIf(process.platform === 'win32')(
     'ignores symlinks and leftover temp files when indexing',

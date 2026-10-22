@@ -13,8 +13,6 @@ import type { StoredImage } from './imageDiskStore'
 
 /** Short-side length of an avatar rendition: the 64 px drawer avatar at 3x. */
 export const AVATAR_RENDITION_EDGE = 192
-/** Pictures this small are kept as they are; decoding them would save nothing. */
-export const AVATAR_RENDITION_MIN_SOURCE_BYTES = 32 * 1024
 /** JPEG quality for opaque renditions. */
 export const AVATAR_RENDITION_JPEG_QUALITY = 88
 
@@ -42,14 +40,15 @@ function isOpaque(bitmap: Buffer): boolean {
 /**
  * Build the rendition maker over an image decoder (`nativeImage.createFromBuffer`
  * in the app). It returns null, keeping the original, for formats it cannot
- * decode, small or already small pictures, and when the copy would not be smaller.
+ * decode and for pictures already within the rendition size. The file size is
+ * not a guide: a flat 1,024 px icon can be a few kilobytes on disk and still
+ * decode to a 4 MB bitmap, so any picture with more pixels is scaled down.
  */
 export function createAvatarRenditionMaker(
   decode: (bytes: Buffer) => RenditionImage
 ): AvatarRenditionMaker {
   return (image: StoredImage): StoredImage | null => {
     if (!DECODABLE.has(image.contentType)) return null
-    if (image.bytes.byteLength <= AVATAR_RENDITION_MIN_SOURCE_BYTES) return null
     const source = decode(image.bytes)
     if (source.isEmpty()) return null
     const { width, height } = source.getSize()
@@ -66,7 +65,6 @@ export function createAvatarRenditionMaker(
     const rendition: StoredImage = isOpaque(resized.toBitmap())
       ? { contentType: 'image/jpeg', bytes: resized.toJPEG(AVATAR_RENDITION_JPEG_QUALITY) }
       : { contentType: 'image/png', bytes: resized.toPNG() }
-    if (rendition.bytes.byteLength === 0) return null
-    return rendition.bytes.byteLength < image.bytes.byteLength ? rendition : null
+    return rendition.bytes.byteLength === 0 ? null : rendition
   }
 }

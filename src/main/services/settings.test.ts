@@ -60,6 +60,11 @@ import {
   saveSettings
 } from './settings'
 
+/** Current version, missing one field, so loading must normalize and write it. */
+const currentWithoutDensity: Record<string, unknown> = Object.fromEntries(
+  Object.entries(DEFAULT_SETTINGS).filter(([key]) => key !== 'density')
+)
+
 beforeEach(() => {
   storeState.throwOnRead = false
   storeState.readError = null
@@ -128,7 +133,9 @@ describe('loadSettings (W7 M1)', () => {
   })
 
   it.each([
-    ['current', { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }],
+    // A current-version file that still needs normalizing (one field missing);
+    // an already-normalized file is never rewritten at launch.
+    ['current', { ...currentWithoutDensity, theme: 'light', allowJoinInstances: false }],
     ['legacy', { theme: 'light', allowJoinInstances: false }]
   ])(
     'preserves %s settings when normalization cannot be written, with an explicit flush retry',
@@ -157,10 +164,11 @@ describe('loadSettings (W7 M1)', () => {
   )
 
   it('preserves loaded preferences when a later unrelated edit retries failed normalization', async () => {
-    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light', allowJoinInstances: false }
+    storeState.data = { ...currentWithoutDensity, theme: 'light', allowJoinInstances: false }
     storeState.throwOnWrite = true
     loadSettings()
     storeState.throwOnWrite = false
+    expect(hasPendingSettingsSave()).toBe(true)
 
     const pending = saveSettings({ density: 'compact' })
     flushPendingSettingsSave()
@@ -177,7 +185,7 @@ describe('loadSettings (W7 M1)', () => {
   })
 
   it('does not let a failed normalization retry overwrite a newer-version file', () => {
-    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
+    storeState.data = { ...currentWithoutDensity, theme: 'light' }
     storeState.throwOnWrite = true
     loadSettings()
     storeState.throwOnWrite = false
@@ -220,6 +228,17 @@ describe('loadSettings (W7 M1)', () => {
     expect(settings.theme).toBe('light')
     expect(storeState.written).toHaveLength(1)
     expect(storeState.written[0]).toEqual(settings)
+  })
+
+  it('does not rewrite a file that is already in normalized form', () => {
+    storeState.data = { theme: 'light' }
+    const normalized = loadSettings()
+    expect(storeState.written).toHaveLength(1)
+
+    storeState.data = structuredClone(normalized)
+    storeState.written = []
+    expect(loadSettings()).toEqual(normalized)
+    expect(storeState.written).toHaveLength(0)
   })
 
   it('does NOT overwrite a file written by a newer build (forward fields preserved)', () => {

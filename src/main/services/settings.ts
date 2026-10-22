@@ -12,6 +12,7 @@
  */
 import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { app } from 'electron'
 import Store from 'electron-store'
 import {
@@ -99,8 +100,8 @@ export function loadSettings(): Settings {
     // on every launch until the file was hand-deleted.
     raw = getStore().store
     // No settings file yet (electron-store reads it as empty) means a brand-new
-    // install: queue the welcome setup. Every launch writes the normalized file
-    // below, so an existing install never reaches this branch again.
+    // install: queue the welcome setup. The first launch writes the normalized
+    // file below, so an existing install never reaches this branch again.
     // A file that was damaged and set aside also reads as empty; that user has
     // been here before, so they get defaults without the setup.
     settings =
@@ -130,7 +131,9 @@ export function loadSettings(): Settings {
   }
 
   settingsSnapshot = settings
-  if (shouldPersistSettings(raw)) {
+  // An already-normalized file needs no rewrite; skipping it keeps an atomic
+  // write and fsync off every launch's path to the first window.
+  if (shouldPersistSettings(raw) && !isDeepStrictEqual(raw, settings)) {
     try {
       getStore().store = settings
     } catch (err) {

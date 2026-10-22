@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a live update for one friend no longer redraws every visible row, and solid
   panels skip a background blur that was never visible. Nothing looks
   different, and VRX makes no extra requests to VRChat or ChilloutVR.
+- VRX does less background disk work. It saves its offline copy of your
+  friends and worlds at most once a minute (and always when it closes), only
+  rewrites its settings file when something in it changed, and pauses the
+  game-status check in the top bar while the window is hidden.
 
 ### Fixed
 
