@@ -366,67 +366,6 @@ export default function SettingsView(): React.JSX.Element {
                 onChange={(value) => updateSettings({ labelScheme: value })}
               />
             </div>
-
-            {/* Optional pages (owner, 2026-10-20): hiding a page keeps its
-                Dashboard section and alerts. Dashboard, Friends and Settings
-                always show. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.pages.hot.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.pages.hot.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={showHotInstancesPage}
-                ariaLabel={t('settings.pages.hot.label')}
-                onChange={(checked) => updateSettings({ showHotInstancesPage: checked })}
-              />
-            </div>
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.pages.explore.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.pages.explore.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={showExplorePage}
-                ariaLabel={t('settings.pages.explore.label')}
-                onChange={(checked) => updateSettings({ showExplorePage: checked })}
-              />
-            </div>
-
-            {/* Welcome setup again (owner, 2026-10-20): the wizard replaces the
-                shell until it is finished or skipped; nothing else changes. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.setup.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                  {t('settings.setup.description')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => updateSettings({ setupPending: true })}
-                className={[
-                  'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
-                  'border border-[var(--border)]',
-                  'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
-                  'text-[var(--text)]',
-                  'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
-                  'cursor-pointer'
-                ].join(' ')}
-              >
-                {t('settings.setup.run')}
-              </button>
-            </div>
           </section>
         )}
 
@@ -518,6 +457,45 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-behavior-heading" className="sr-only">
               {t('settings.behavior.heading')}
             </h2>
+
+            {/* Optional pages (owner, 2026-10-20; moved here from Appearance):
+                hiding a page keeps its Dashboard section and alerts. Dashboard,
+                Friends and Settings always show. One card with the
+                allow-joining divider keeps Behavior inside the 900x670 window. */}
+            <div className="setting-card">
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.pages.hot.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.pages.hot.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={showHotInstancesPage}
+                  ariaLabel={t('settings.pages.hot.label')}
+                  onChange={(checked) => updateSettings({ showHotInstancesPage: checked })}
+                />
+              </div>
+              <div className="setting-children">
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.pages.explore.label')}
+                    </p>
+                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                      {t('settings.pages.explore.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={showExplorePage}
+                    ariaLabel={t('settings.pages.explore.label')}
+                    onChange={(checked) => updateSettings({ showExplorePage: checked })}
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Drawer-opener row (VRX-228, moved here from Appearance in
                 VRX-231): whole-card pointer opener (default, owner ruling
@@ -708,7 +686,7 @@ export default function SettingsView(): React.JSX.Element {
           </section>
         )}
 
-        {/* ── About page: the app's own upkeep (version, updates, logs). Moved
+        {/* ── About page: the app's own upkeep (version, updates, setup, logs). Moved
             out of Behavior so every page fits the default window (§8). ── */}
         {category === 'about' && (
           <section className="settings-cards" aria-labelledby="settings-about-heading">
@@ -717,6 +695,33 @@ export default function SettingsView(): React.JSX.Element {
             </h2>
             {/* Automatic updates row (VRX-113) */}
             <UpdaterSettingsRow />
+            {/* Welcome setup again (owner, 2026-10-20; moved here from
+                Appearance): the wizard replaces the shell until it is finished
+                or skipped; nothing else changes. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.setup.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                  {t('settings.setup.description')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateSettings({ setupPending: true })}
+                className={[
+                  'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+                  'border border-[var(--border)]',
+                  'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+                  'text-[var(--text)]',
+                  'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+                  'cursor-pointer'
+                ].join(' ')}
+              >
+                {t('settings.setup.run')}
+              </button>
+            </div>
             <LogsSettingsRow />
           </section>
         )}

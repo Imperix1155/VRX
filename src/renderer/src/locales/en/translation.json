@@ -318,11 +318,11 @@
     "pages": {
       "hot": {
         "label": "Hot Instances page",
-        "description": "Show the Hot Instances page in the sidebar. The Dashboard section and alerts stay available."
+        "description": "Show it in the sidebar. Its Dashboard section and alert stay."
       },
       "explore": {
         "label": "Explore page",
-        "description": "Show the Explore page in the sidebar. Popular now on the Dashboard stays available."
+        "description": "Show it in the sidebar. Popular now on the Dashboard stays."
       }
     },
     "setup": {
