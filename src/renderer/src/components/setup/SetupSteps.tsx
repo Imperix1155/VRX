@@ -418,6 +418,7 @@ export const DoneStep = forwardRef<
     )
   }).join(' · ')
 
+  // The UI language's own list punctuation ("A, B" in English, "A、B" in Japanese).
   const pages = (
     [
       ['shell.nav.dashboard', true],
@@ -429,7 +430,7 @@ export const DoneStep = forwardRef<
   )
     .filter(([, shown]) => shown)
     .map(([key]) => t(key))
-    .join(', ')
+    .join(t('setup.done.listSeparator'))
 
   const sections = [
     s.dashboardPopularNow && t('settings.dashboard.popular.label'),
@@ -470,7 +471,7 @@ export const DoneStep = forwardRef<
         {rows.map(([labelKey, value]) => (
           <div
             key={labelKey}
-            className="grid grid-cols-[110px_minmax(0,1fr)] gap-[var(--space-3)] px-[14px] py-[10px] text-[13px]"
+            className="grid grid-cols-[128px_minmax(0,1fr)] gap-[var(--space-3)] px-[14px] py-[10px] text-[13px]"
           >
             <dt className="font-semibold text-[var(--text-faint)]">{t(labelKey)}</dt>
             <dd className="text-[var(--text)]">{value}</dd>
