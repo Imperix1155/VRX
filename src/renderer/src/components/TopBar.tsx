@@ -7,6 +7,7 @@ import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useAuthStatus } from '../queries/auth'
 import { useLinkedProfiles } from '../queries/linkedProfiles'
 import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
+import { useWindowFocused } from '../hooks/useWindowFocused'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
@@ -151,6 +152,7 @@ export default function TopBar(): React.JSX.Element {
   const cvrFriends = useFriends('chilloutvr')
   const linkedSnapshot = useLinkedProfiles().data
   const [connectionHealth, setConnectionHealthState] = useState(defaultConnectionHealth)
+  const windowFocused = useWindowFocused()
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx?.getAppStatus) return
@@ -266,15 +268,17 @@ export default function TopBar(): React.JSX.Element {
       role="status"
       className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
     >
-      {/* Shape repeats the color for colorblind users: a pulsing dot is
-          live, a hollow ring is reconnecting, a square is down. */}
+      {/* Shape repeats the color for colorblind users: a dot is live, a hollow
+          ring is reconnecting, a square is down. The live dot pulses only
+          while VRX has focus: an endless animation keeps the window redrawing
+          every frame, even behind a game. */}
       <span
         role="img"
         data-health={worstHealth}
         className={[
           'box-border w-[8px] h-[8px] flex-none',
           worstHealth === 'down' ? 'rounded-[1px]' : 'rounded-full',
-          worstHealth === 'live' ? 'motion-safe:animate-pulse' : ''
+          worstHealth === 'live' && windowFocused ? 'motion-safe:animate-pulse' : ''
         ].join(' ')}
         style={
           worstHealth === 'reconnecting'

@@ -6,7 +6,7 @@
  * summed across BOTH platforms, with the i18next _one/_other plural applied.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import type { AuthStatus, Friend, Platform } from '@shared/types'
 import i18n from '../i18n'
 import { useUiStore } from '../stores/ui'
@@ -154,6 +154,7 @@ describe('TopBar connection health (VRX-223)', () => {
   }
 
   it('shows a green motion-safe pulse when every signed-in platform is live', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     stubFriends([], [])
     stubAppStatus('live', 'live')
     render(<TopBar />)
@@ -161,6 +162,26 @@ describe('TopBar connection health (VRX-223)', () => {
     const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
     expect(indicator.className).toContain('motion-safe:animate-pulse')
+    vi.mocked(document.hasFocus).mockRestore()
+  })
+
+  it('holds the live dot still while the window is not focused', async () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    stubFriends([], [])
+    stubAppStatus('live', 'live')
+    render(<TopBar />)
+
+    const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+    expect(indicator.className).toContain('rounded-full')
+    expect(indicator.className).not.toContain('animate-pulse')
+
+    hasFocus.mockReturnValue(true)
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(indicator.className).toContain('motion-safe:animate-pulse')
+    hasFocus.mockRestore()
   })
 
   it('shows amber for reconnecting and red when a signed-in platform is down', async () => {

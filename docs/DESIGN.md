@@ -276,8 +276,9 @@ VRC / ALL / CVR and filters the current social view; the sidebar's active
 marker echoes it. The filter stays in the same horizontal position on
 Dashboard, Hot Instances, Friends, and Explore, even when a scrollbar appears;
 nothing else may take its place. The connection indicator pairs color with
-shape: a pulsing dot is live, a hollow ring is reconnecting, a square is
-down, and its label names each platform. Settings replaces the filter with
+shape: a dot is live, a hollow ring is reconnecting, a square is down, and
+its label names each platform. The live dot pulses only while VRX has focus;
+an endless animation would keep the window redrawing behind a game. Settings replaces the filter with
 its category control, on its own row under the title, so the online count
 stays on the title row as on every other page.
 
