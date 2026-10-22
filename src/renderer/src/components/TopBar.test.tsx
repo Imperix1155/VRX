@@ -65,6 +65,7 @@ afterEach(() => {
   useAuthStatusMock.mockReset()
   Object.assign(window, { vrx: undefined })
   useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
+  if (vi.isMockFunction(document.hasFocus)) vi.mocked(document.hasFocus).mockRestore()
 })
 
 describe('TopBar onlineCount (W6)', () => {
@@ -162,7 +163,6 @@ describe('TopBar connection health (VRX-223)', () => {
     const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
     expect(indicator.className).toContain('motion-safe:animate-pulse')
-    vi.mocked(document.hasFocus).mockRestore()
   })
 
   it('holds the live dot still while the window is not focused', async () => {
@@ -181,7 +181,6 @@ describe('TopBar connection health (VRX-223)', () => {
       window.dispatchEvent(new Event('focus'))
     })
     expect(indicator.className).toContain('motion-safe:animate-pulse')
-    hasFocus.mockRestore()
   })
 
   it('shows amber for reconnecting and red when a signed-in platform is down', async () => {
