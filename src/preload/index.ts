@@ -41,7 +41,8 @@ const vrx = {
     return () => ipcRenderer.removeListener('explore-changed', listener)
   },
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
-  getAvatar: (url: string) => invoke('get-avatar', { url }),
+  getAvatar: (url: string, rendition?: 'avatar') =>
+    invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>

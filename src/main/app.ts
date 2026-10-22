@@ -9,6 +9,7 @@ import {
   BrowserWindow,
   dialog,
   Menu,
+  nativeImage,
   screen,
   session,
   Notification as NativeNotification,
@@ -43,6 +44,7 @@ import {
   avatarCache
 } from './services/avatarCache'
 import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
+import { createAvatarRenditionMaker } from './services/avatarRendition'
 import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
@@ -528,6 +530,11 @@ app
         maxBodyBytes: AVATAR_MAX_BODY_BYTES,
         log: (message, meta) => log.warn(message, meta)
       })
+    )
+    // Friend pictures show at most 64 px; keep a small copy instead of the
+    // full-size profile icon (avatarRendition.ts).
+    avatarCache.setAvatarRenditionMaker(
+      createAvatarRenditionMaker((bytes) => nativeImage.createFromBuffer(bytes))
     )
 
     const joinCoordinator = new JoinCoordinator()

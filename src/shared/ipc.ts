@@ -110,7 +110,11 @@ export interface IpcInvoke {
     // VRChat carries physical-read ordering; legacy/CVR complete results remain arrays.
     res: Friend[] | FriendRosterResponse
   }
-  'get-avatar': { req: { url: string }; res: { ok: true; dataUrl: string } | null }
+  /** `rendition: 'avatar'` asks for the small copy used by round friend pictures. */
+  'get-avatar': {
+    req: { url: string; rendition?: 'avatar' }
+    res: { ok: true; dataUrl: string } | null
+  }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }

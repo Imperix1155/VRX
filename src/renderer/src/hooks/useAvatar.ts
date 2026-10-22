@@ -62,31 +62,38 @@ export class AvatarDataCache {
 const avatarData = new AvatarDataCache()
 const avatarRequests = new Map<string, Promise<string | null>>()
 
-function requestAvatar(url: string): Promise<string | null> {
-  const cached = avatarData.get(url)
+/** `avatar` is the small copy for round friend pictures; banners keep the original. */
+export type AvatarRendition = 'original' | 'avatar'
+
+function requestAvatar(url: string, rendition: AvatarRendition): Promise<string | null> {
+  const key = rendition === 'avatar' ? `avatar\u0000${url}` : url
+  const cached = avatarData.get(key)
   if (cached) return Promise.resolve(cached)
 
-  const pending = avatarRequests.get(url)
+  const pending = avatarRequests.get(key)
   if (pending) return pending
 
   const request =
     typeof window === 'undefined' || typeof window.vrx === 'undefined'
       ? Promise.resolve(null)
-      : window.vrx
-          .getAvatar(url)
+      : (rendition === 'avatar' ? window.vrx.getAvatar(url, 'avatar') : window.vrx.getAvatar(url))
           .then((result) => {
             const dataUrl = result?.dataUrl ?? null
-            if (dataUrl !== null) avatarData.set(url, dataUrl)
+            if (dataUrl !== null) avatarData.set(key, dataUrl)
             return dataUrl
           })
           .catch(() => null)
-  avatarRequests.set(url, request)
-  void request.finally(() => avatarRequests.delete(url))
+  avatarRequests.set(key, request)
+  void request.finally(() => avatarRequests.delete(key))
   return request
 }
 
 /** Load an avatar only when its observed element enters the near viewport. */
-export function useAvatar(url: string | null, targetRef: RefObject<Element | null>): string | null {
+export function useAvatar(
+  url: string | null,
+  targetRef: RefObject<Element | null>,
+  rendition: AvatarRendition = 'original'
+): string | null {
   const [loaded, setLoaded] = useState<{ url: string; dataUrl: string | null } | null>(null)
 
   useEffect(() => {
@@ -100,7 +107,7 @@ export function useAvatar(url: string | null, targetRef: RefObject<Element | nul
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return
         observer.disconnect()
-        void requestAvatar(url).then((result) => {
+        void requestAvatar(url, rendition).then((result) => {
           if (!active) return
           setLoaded({ url, dataUrl: result })
           // A transient failure (network, rate limit, negative cache) resolves to
@@ -124,7 +131,7 @@ export function useAvatar(url: string | null, targetRef: RefObject<Element | nul
       if (retryTimer !== undefined) clearTimeout(retryTimer)
       observer.disconnect()
     }
-  }, [targetRef, url])
+  }, [rendition, targetRef, url])
 
   return loaded?.url === url ? loaded.dataUrl : null
 }

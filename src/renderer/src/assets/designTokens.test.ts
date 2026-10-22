@@ -512,4 +512,18 @@ describe('compiled glass material', () => {
       expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:var\(--glass-blur(?:-frosted)?\)/)
     }
   )
+
+  it('skips the hidden backdrop blur under the opaque information backing', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rules = [...code.matchAll(/\.glass-information\s*\{[^{}]*\}/g)]
+    expect(rules).toHaveLength(1)
+    const emitted = optimize(rules[0]![0], { minify: true }).code
+    expect(emitted).toMatch(/background-color:var\(--glass-information\)/)
+    expect(emitted).toMatch(/(?<!-webkit-)backdrop-filter:none/)
+    // Same specificity as the frost modifiers, so it must follow them to win.
+    const lastFrost = Math.max(
+      ...[...code.matchAll(/\.glass-frosted(?:-heavy)?\s*\{/g)].map((match) => match.index)
+    )
+    expect(rules[0]!.index).toBeGreaterThan(lastFrost)
+  })
 })

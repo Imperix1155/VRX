@@ -209,10 +209,9 @@ export default function ExploreWorldSheet({
         })}
         className={`fixed bottom-0 left-[var(--content-inset-left)] right-[var(--content-inset-right)] z-50 flex max-h-[55vh] flex-col rounded-t-[var(--radius-panel)] border border-[var(--glass-border)] shadow-[var(--hot-sheet-shadow)] motion-safe:transition-transform ${open ? 'translate-y-0' : 'translate-y-full'}`}
         style={{
+          // Opaque backing: a backdrop blur would never show (main.css .glass-information).
           backgroundColor: 'var(--glass-information)',
-          backgroundImage: 'var(--glass-bg)',
-          backdropFilter: 'var(--glass-blur-frosted)',
-          WebkitBackdropFilter: 'var(--glass-blur-frosted)'
+          backgroundImage: 'var(--glass-bg)'
         }}
       >
         <button
