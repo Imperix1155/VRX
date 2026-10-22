@@ -125,3 +125,14 @@ describe('key-existence scan (renderer source → en locale)', () => {
     expect(dynamicCoverageErrors).toEqual([])
   })
 })
+
+describe('unofficial-app notice', () => {
+  // ChilloutVR's terms (§8) require this sentence word for word in third-party
+  // apps; see docs/api-policy.md.
+  const CVR_DISCLAIMER =
+    'This application is not created by or affiliated with ChilloutVR or the ChilloutVR team in any way.'
+
+  it('keeps ChilloutVR’s required disclaimer word for word in en', () => {
+    expect(en.shell.unofficialNotice).toContain(CVR_DISCLAIMER)
+  })
+})
