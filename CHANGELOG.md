@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   friends and worlds at most once a minute (and always when it closes), only
   rewrites its settings file when something in it changed, and pauses the
   game-status check in the top bar while the window is hidden.
+- The live dot next to the online count now pulses only while VRX is the
+  focused window. When you're in a game it holds still, so VRX stops redrawing
+  itself 60 times a second in the background.
 
 ### Fixed
 
