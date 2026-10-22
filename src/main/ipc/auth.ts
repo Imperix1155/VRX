@@ -6,6 +6,13 @@ import log from '../logger'
 import { isTrustedIpcSender } from './security'
 
 const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
+const MAX_USERNAME_LENGTH = 256
+const MAX_PASSWORD_LENGTH = 1_024
+const MAX_TWO_FACTOR_CODE_LENGTH = 64
+
+function isBoundedString(value: unknown, maxLength: number): value is string {
+  return typeof value === 'string' && value.length <= maxLength
+}
 
 export interface AuthHandlerOptions {
   onLoginSuccess?: (platform: Platform) => void
@@ -45,10 +52,10 @@ export function registerAuthHandlers(
     if (
       !req ||
       !VALID_PLATFORMS.has(req.platform) ||
-      typeof req.credentials?.username !== 'string' ||
-      typeof req.credentials?.password !== 'string' ||
+      !isBoundedString(req.credentials?.username, MAX_USERNAME_LENGTH) ||
+      !isBoundedString(req.credentials?.password, MAX_PASSWORD_LENGTH) ||
       (req.credentials.twoFactorCode !== undefined &&
-        typeof req.credentials.twoFactorCode !== 'string')
+        !isBoundedString(req.credentials.twoFactorCode, MAX_TWO_FACTOR_CODE_LENGTH))
     ) {
       throw new Error('Invalid login request')
     }
@@ -70,7 +77,11 @@ export function registerAuthHandlers(
 
   ipcMain.handle('verify-2fa', (event, req: IpcInvoke['verify-2fa']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    if (!req || !VALID_PLATFORMS.has(req.platform) || typeof req.code !== 'string') {
+    if (
+      !req ||
+      !VALID_PLATFORMS.has(req.platform) ||
+      !isBoundedString(req.code, MAX_TWO_FACTOR_CODE_LENGTH)
+    ) {
       throw new Error('Invalid verify-2fa request')
     }
     const adapter = adapters.get(req.platform)

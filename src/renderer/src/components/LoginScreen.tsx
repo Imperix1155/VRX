@@ -178,8 +178,11 @@ export default function LoginScreen({
   const config = ACCOUNT_CARD_CONFIG[platform]
 
   return (
-    /* Full-screen centered layout */
-    <div className="flex min-h-screen items-center justify-center px-[var(--space-4)] py-[var(--space-10)]">
+    /* Full-screen centered layout. The body never scrolls (§8), so this
+       screen is its own scroller, and the card centers with auto margins
+       rather than align-items: a taller card (Japanese copy, an error or the
+       2FA prompt in a short window) scrolls instead of losing its bottom. */
+    <div className="flex h-screen overflow-y-auto px-[var(--space-4)] py-[var(--space-10)]">
       {/*
         Glass card with the active platform's tint (DESIGN.md §3 / §3A).
         .glass and .tint-vrc/.tint-cvr classes are defined in main.css; all rgba
@@ -187,7 +190,7 @@ export default function LoginScreen({
         parity is automatic.
       */}
       <div
-        className={`glass glass-information ${config.tintClass} relative w-full max-w-sm overflow-hidden p-[var(--space-8)]`}
+        className={`glass glass-information ${config.tintClass} relative m-auto w-full max-w-sm shrink-0 overflow-hidden p-[var(--space-8)]`}
       >
         {/*
           The .glass::before sheen is defined in CSS.

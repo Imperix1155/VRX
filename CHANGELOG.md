@@ -39,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   panels skip a background blur that was never visible. Nothing looks
   different, and VRX makes no extra requests to VRChat or ChilloutVR.
 
+### Fixed
+
+- The login screen scrolls when it doesn't fit the window, so the bottom of
+  the card (the notices, an error message) is no longer cut off in a short
+  window or in Japanese.
+- The welcome setup no longer says Explore shows "new" worlds; it shows the
+  worlds that are popular right now.
+- The welcome setup's summary lists pages with Japanese punctuation in Japanese,
+  and its "Instance labels" row no longer breaks the label onto two lines.
+
 ## [1.0.0-beta.3] - 2026-10-20
 
 ### Added

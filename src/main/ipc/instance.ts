@@ -13,6 +13,7 @@ const VALID_PLATFORMS = new Set<Platform>(['vrchat', 'chilloutvr'])
 const VALID_JOIN_MODES = new Set<JoinMode>(['desktop', 'vr'])
 const JOIN_COOLDOWN_MS = 3_000
 const MAX_TARGET_FIELD_LENGTH = 2_048
+const MAX_FRIEND_ID_LENGTH = 128
 type InstanceAction = 'join' | 'self-invite'
 
 type InstanceLog = (
@@ -53,6 +54,7 @@ export function registerInstanceHandlers(
       !VALID_PLATFORMS.has(req.platform) ||
       typeof req.friendId !== 'string' ||
       !req.friendId ||
+      req.friendId.length > MAX_FRIEND_ID_LENGTH ||
       !VALID_JOIN_MODES.has(req.mode) ||
       typeof req.expectedTarget !== 'object' ||
       req.expectedTarget === null ||
@@ -107,7 +109,13 @@ export function registerInstanceHandlers(
 
   ipcMain.handle('self-invite', async (event, req: IpcInvoke['self-invite']['req']) => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    if (!req || req.platform !== 'vrchat' || typeof req.friendId !== 'string' || !req.friendId) {
+    if (
+      !req ||
+      req.platform !== 'vrchat' ||
+      typeof req.friendId !== 'string' ||
+      !req.friendId ||
+      req.friendId.length > MAX_FRIEND_ID_LENGTH
+    ) {
       throw new Error('Invalid self-invite request')
     }
     const adapter = adapters.get(req.platform)
