@@ -663,7 +663,7 @@
       "one": "One connected. Continue, or connect the other one too.",
       "both": "Both connected.",
       "storage": "VRX signs in to each platform for you and keeps your sign-in encrypted on this device.",
-      "storageFull": "Your sign-in is kept in your system’s secure storage when available. Otherwise VRX uses a weaker local key: anyone with both that key and the encrypted data could recover it."
+      "storageFull": "When available, VRX encrypts your sign-in with your system’s protection. Otherwise it uses a weaker local key: anyone with both that key and the encrypted data could recover it."
     },
     "pages": {
       "title": "Pick your pages",
