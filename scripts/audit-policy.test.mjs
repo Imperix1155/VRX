@@ -120,13 +120,10 @@ describe('dependency audit policy', () => {
     ])
   })
 
-  it('retains the existing esbuild exception only outside production', () => {
-    const esbuild = {
-      severity: 'high',
-      via: [{ severity: 'high', url: 'https://github.com/advisories/GHSA-g7r4-m6w7-qqqr' }]
-    }
-    expect(evaluate(report({ esbuild }))).toEqual([])
-    expect(evaluate(report({ esbuild }), report({ esbuild }))).toEqual(['production:esbuild'])
+  it('no longer exempts the esbuild advisory now that the tree is fixed', () => {
+    const esbuildUrl = 'https://github.com/advisories/GHSA-g7r4-m6w7-qqqr'
+    const esbuild = { severity: 'high', via: [{ severity: 'high', url: esbuildUrl }] }
+    expect(evaluate(report({ esbuild }))).toEqual([`esbuild:${esbuildUrl}`])
   })
 
   it.each([{}, { error: { code: 'ENETWORK' } }, { ...report(), vulnerabilities: [] }])(
