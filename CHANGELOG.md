@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Build tooling no longer pulls in an affected `esbuild`
+  (GHSA-g7r4-m6w7-qqqr): Vite's `esbuild` is pinned to a fixed version. The `http-cache-semantics` exception
+  (GHSA-ch52-4w7c-c8xp) stays until 2027-01-31 because no fix exists yet.
+  Development-only; the installed app is unchanged.
+
 ### Added
 
 - The welcome setup's Look step also asks which instance labels to use

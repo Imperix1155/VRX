@@ -92,12 +92,26 @@ this section is the record of the owner's approval.
   **2027-01-31 00:00 UTC**. A further extension needs a new owner decision.
 - **Removal:** remove the exception as soon as a compatible fixed release
   removes this chain, or at once if the package ever reaches the installed app.
+- **Rechecked 2026-10-22** (Vigil report): still no fix. The advisory lists no
+  patched version, `npm audit fix` offers no non-breaking path, the newest
+  packaging tool on the 26.x line still uses `@electron/get` 3 → `got` 11, and
+  an override to 4.3.0 would only silence the audit (see above).
+
+### Dependency overrides
+
+`package.json` `overrides` holds one development-only pin. Remove it when
+Vite ships the fix itself.
+
+- **`esbuild` ^0.28.2 under `vite`:** fixes
+  [GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr)
+  (low, fixed in 0.28.1). Vite 7.3.7 accepts `^0.27.0 || ^0.28.0`. The Vite 8
+  upgrade (PR #379) makes this override unnecessary.
 
 The policy fails the audit on any other high or critical advisory, any
 production high or critical advisory, a changed version or dependency path,
-a critical severity, expiry, or a malformed report. Separately, the older
-`esbuild` advisory
-[GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr)
-remains excluded from the full (development) report only. No exception
+a critical severity, expiry, or a malformed report. No other advisory is
+excluded: the old `esbuild` exclusion for
+[GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr) was
+removed once an override moved Vite onto a fixed `esbuild`. No exception
 applies to production findings, and no branch protection or release approval
 is waived.
