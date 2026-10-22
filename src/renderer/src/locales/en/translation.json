@@ -621,6 +621,8 @@
   },
   "setup": {
     "skip": "Skip setup",
+    "showMore": "Show more",
+    "showLess": "Show less",
     "back": "Back",
     "continue": "Continue",
     "getStarted": "Get started",
@@ -639,7 +641,8 @@
     },
     "welcome": {
       "title": "Welcome to VRX",
-      "lead": "Your social VR companion for VRChat and ChilloutVR. A few quick steps and you’re in. Prefer to look around yourself? Skip setup any time.",
+      "lead": "Your social VR companion for VRChat and ChilloutVR.",
+      "notice": "VRX is an unofficial app, not created by or affiliated with VRChat or ChilloutVR.",
       "friends": {
         "title": "One friends list",
         "body": "Your VRChat and ChilloutVR friends together, live."
@@ -655,11 +658,12 @@
     },
     "signin": {
       "title": "Sign in",
-      "lead": "Connect one platform or both. You can add the other one later in Settings → Accounts.",
+      "lead": "Connect one platform or both. You can add the other later.",
       "skipLead": "Sign in to at least one platform, then VRX opens with the usual settings.",
       "one": "One connected. Continue, or connect the other one too.",
       "both": "Both connected.",
-      "storage": "VRX signs in to each platform on your behalf. Sessions are encrypted on this device using OS-backed storage when available. Otherwise VRX uses a weaker local installation key: access to both the key and encrypted data permits session recovery."
+      "storage": "VRX signs in to each platform for you and keeps your sign-in encrypted on this device.",
+      "storageFull": "Your sign-in is kept in your system’s secure storage when available. Otherwise VRX uses a weaker local key: anyone with both that key and the encrypted data could recover it."
     },
     "pages": {
       "title": "Pick your pages",
@@ -671,7 +675,7 @@
     },
     "dashboard": {
       "title": "Your Dashboard",
-      "lead": "The Dashboard is your home page. Choose what it shows under your friend counts.",
+      "lead": "This is your home page. Choose what shows under your friend counts.",
       "popular": "Popular worlds from both platforms.",
       "hot": "Where your friends are gathering right now.",
       "popularAria": "Show Popular now on the Dashboard",
@@ -683,7 +687,7 @@
     },
     "alerts": {
       "title": "Desktop alerts",
-      "lead": "VRX can pop up an alert on your desktop. Every alert stays off unless you turn it on.",
+      "lead": "Every alert stays off unless you turn it on.",
       "allOn": "Turn all on",
       "allOff": "Turn all off"
     },
