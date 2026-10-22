@@ -45,7 +45,8 @@ etiquette rules apply in full; this file adds local detail.
   notification activation focus the current window, recreating it if
   destroyed; tray actions resolve the window at click time, and tray Show goes
   through the same focus path. One recovery dialog
-  per window handles crashes and hangs.
+  per window handles crashes and hangs; a renderer killed from outside the app
+  counts as a crash unless the app is quitting.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; macOS keeps native close. `before-quit` disposes
   Explore, flushes settings, and tears down adapter wiring; a throwing teardown

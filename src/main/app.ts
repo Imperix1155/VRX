@@ -195,7 +195,8 @@ function createWindow(): BrowserWindow {
   const recovery = createRendererRecovery({
     window: mainWindow,
     showDialog: (options) => dialog.showMessageBox(mainWindow, options),
-    onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) })
+    onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) }),
+    isQuitting: () => quitting
   })
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])

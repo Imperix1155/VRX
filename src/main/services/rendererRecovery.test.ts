@@ -69,7 +69,6 @@ it('releases ownership after rejection and never acts on a destroyed window', as
 it('ignores intentional exits and suppresses the crash caused by its own hang reload', async () => {
   const x = new RecoveryHarness()
   x.recovery.crashed('clean-exit', 0)
-  x.recovery.crashed('killed', 0)
   expect(x.showDialog).not.toHaveBeenCalled()
   x.window.webContents.forcefullyCrashRenderer.mockImplementation(() =>
     x.recovery.crashed('killed', 0)
@@ -80,6 +79,45 @@ it('ignores intentional exits and suppresses the crash caused by its own hang re
   expect(x.window.webContents.forcefullyCrashRenderer).toHaveBeenCalledOnce()
   expect(x.window.reload).toHaveBeenCalledOnce()
   expect(x.showDialog).toHaveBeenCalledOnce()
+  // Only that one expected kill is absorbed; a later external kill is a crash.
+  x.recovery.crashed('killed', 1)
+  expect(x.showDialog).toHaveBeenCalledTimes(2)
+})
+
+it('offers reload when the renderer is killed from outside the app', async () => {
+  const x = new RecoveryHarness()
+  x.recovery.crashed('killed', 1)
+  expect(x.showDialog).toHaveBeenCalledOnce()
+  expect(x.showDialog.mock.calls[0]?.[0]).toMatchObject({ title: 'VRX — Renderer Crashed' })
+  x.resolve(0)
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(x.window.reload).toHaveBeenCalledOnce()
+  expect(x.window.webContents.forcefullyCrashRenderer).not.toHaveBeenCalled()
+})
+
+it('offers no recovery for a renderer lost while the app is quitting', () => {
+  let quitting = false
+  const window = {
+    isDestroyed: vi.fn(() => false),
+    reload: vi.fn(),
+    webContents: { forcefullyCrashRenderer: vi.fn() }
+  }
+  const showDialog = vi.fn(() => Promise.resolve({ response: 0 }))
+  const recovery = createRendererRecovery({
+    window,
+    showDialog,
+    onError: vi.fn(),
+    isQuitting: () => quitting
+  })
+  quitting = true
+  recovery.crashed('killed', 1)
+  recovery.crashed('oom', 1)
+  expect(showDialog).not.toHaveBeenCalled()
+  window.isDestroyed.mockReturnValue(true)
+  quitting = false
+  recovery.crashed('killed', 1)
+  expect(showDialog).not.toHaveBeenCalled()
 })
 
 it('dismisses a crash dialog without reloading or terminating the renderer', async () => {
