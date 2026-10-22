@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- If VRX's saved sign-in file gets damaged, VRX sets it aside so you can sign
+  in again.
 - A brief file lock at startup can no longer reset your settings.
 
 ## [1.0.0-beta.4] - 2026-10-22

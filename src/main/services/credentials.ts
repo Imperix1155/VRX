@@ -1,12 +1,13 @@
-import { safeStorage } from 'electron'
+import { app, safeStorage } from 'electron'
 import Store from 'electron-store'
-import { rmSync } from 'node:fs'
+import { renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   LOCAL_CREDENTIAL_PREFIX,
   encryptLocalCredential,
   decryptLocalCredential
 } from './localCredentialEncryption'
+import log from '../logger'
 
 const ENCRYPTION_UNAVAILABLE_MESSAGE = 'Credential encryption is unavailable'
 const MALFORMED_CREDENTIAL_MESSAGE = 'Stored credential is malformed'
@@ -45,11 +46,32 @@ let store: Store<Partial<Record<CredentialKey, string>>> | undefined
  */
 const LEGACY_CREDENTIAL_OWNER_STORE = 'credential-owners'
 
-function getStore(): Store<Partial<Record<CredentialKey, string>>> {
-  return (store ??= new Store<Partial<Record<CredentialKey, string>>>({
+function openStore(): Store<Partial<Record<CredentialKey, string>>> {
+  return new Store<Partial<Record<CredentialKey, string>>>({
     name: 'credentials',
     accessPropertiesByDotNotation: false
-  }))
+  })
+}
+
+/**
+ * conf rethrows a JSON SyntaxError from construction, so a damaged
+ * credentials.json failed every load and every later save until the file was
+ * hand-deleted. Move it aside (renamed, like settings.corrupt-*.json) and start
+ * an empty store: an unreadable file yields no credential, so this fails closed.
+ * Any other error (permissions, I/O) leaves the file alone and still throws.
+ */
+function getStore(): Store<Partial<Record<CredentialKey, string>>> {
+  if (store) return store
+  try {
+    store = openStore()
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err
+    const dir = app.getPath('userData')
+    renameSync(join(dir, 'credentials.json'), join(dir, `credentials.corrupt-${Date.now()}.json`))
+    store = openStore()
+    log.warn('credentials: damaged credentials file set aside; sign-in starts fresh')
+  }
+  return store
 }
 
 function requireEncryption(): void {
