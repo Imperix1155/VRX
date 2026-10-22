@@ -349,6 +349,41 @@ describe('DashboardView states (W5)', () => {
     expect(screen.getByText(msg('dashboard.platformVrc'))).toBeTruthy()
   })
 
+  it("hot card lists names with the UI language's punctuation", async () => {
+    const inWorld = (id: string, name: string): Friend =>
+      makeFriend({
+        platformUserId: id,
+        displayName: name,
+        instance: {
+          worldId: 'wrld_sun',
+          instanceId: 'wrld_sun:1~public',
+          worldName: 'SunDown',
+          thumbnailUrl: null,
+          type: 'public',
+          openness: 'public',
+          isGroup: false,
+          groupName: null,
+          groupId: null,
+          groupImageUrl: null,
+          region: 'us',
+          userCount: 2
+        }
+      })
+    stubQueries(
+      { data: [inWorld('usr_a', 'Amy'), inWorld('usr_b', 'Bea')], isPending: false },
+      { data: [], isPending: false }
+    )
+    await i18n.changeLanguage('ja')
+    try {
+      render(<DashboardView />)
+      // Visible names and the screen-reader label both use 、 in Japanese.
+      expect(screen.getByText('Amy、Bea')).toBeTruthy()
+      expect(screen.getByLabelText(/Amy、Bea/)).toBeTruthy()
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+
   it('hot grid follows the hotInstanceThreshold setting immediately (VRX-78)', () => {
     const solo = makeFriend({
       platformUserId: 'usr_solo',
