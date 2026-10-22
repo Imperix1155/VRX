@@ -88,6 +88,18 @@ describe('LoginScreen (W6)', () => {
     expect(screen.getByText(notice)).toBeTruthy()
   })
 
+  it('scrolls its own screen, so a tall card never loses its bottom', () => {
+    // The body never scrolls (§8). Centering with align-items clipped the
+    // card's bottom (the notices, an error) when it outgrew a short window.
+    renderLogin()
+    const card = screen.getByText(msg('shell.unofficialNotice')).closest('.glass')
+    const scroller = card?.parentElement
+    expect(scroller?.className).toContain('h-screen')
+    expect(scroller?.className).toContain('overflow-y-auto')
+    expect(scroller?.className).not.toContain('items-center')
+    expect(card?.className).toContain('m-auto')
+  })
+
   it('disables submit until both fields are filled', () => {
     setBridge({ login: vi.fn(), verify2fa: vi.fn() })
     renderLogin()

@@ -649,7 +649,7 @@
       },
       "explore": {
         "title": "Explore",
-        "body": "Popular and new worlds on both platforms."
+        "body": "Worlds that are popular right now on both platforms."
       }
     },
     "signin": {
@@ -664,7 +664,7 @@
       "title": "Pick your pages",
       "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
       "hot": "Every instance where several friends are together.",
-      "explore": "Popular and new worlds on both platforms.",
+      "explore": "Worlds that are popular right now on both platforms.",
       "hotAria": "Show the Hot Instances page",
       "exploreAria": "Show the Explore page"
     },
@@ -698,6 +698,7 @@
       "lead": "Here’s what you picked. You can change any of it later in Settings.",
       "accounts": "Accounts",
       "pages": "Pages",
+      "listSeparator": ", ",
       "dashboard": "Dashboard",
       "alerts": "Alerts",
       "look": "Look",
