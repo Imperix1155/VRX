@@ -45,8 +45,8 @@ export function Avatar({
   const ring = ringFor(friend)
   const initial = initialOf(friend.displayName)
   const avatarRef = useRef<HTMLSpanElement>(null)
-  const dataUrl = useAvatar(friend.avatarUrl, avatarRef)
-  const mergedDataUrl = useAvatar(mergedWith?.avatarUrl ?? null, avatarRef)
+  const dataUrl = useAvatar(friend.avatarUrl, avatarRef, 'avatar')
+  const mergedDataUrl = useAvatar(mergedWith?.avatarUrl ?? null, avatarRef, 'avatar')
   const [failedImageKey, setFailedImageKey] = useState<string | null>(null)
   const [failedMergedImageKey, setFailedMergedImageKey] = useState<string | null>(null)
   const imageKey = dataUrl ? `${friend.avatarUrl ?? ''}\u0000${dataUrl}` : null

@@ -72,6 +72,22 @@ describe('get-avatar handler boundary', () => {
       ok: true,
       dataUrl: 'data:image/png;base64,eA=='
     })
-    expect(service.get).toHaveBeenCalledWith(url)
+    expect(service.get).toHaveBeenCalledWith(url, 'original')
+  })
+
+  it('passes the avatar rendition through and rejects any other rendition', async () => {
+    const url = 'https://files.vrchat.cloud/avatar.png'
+    service.get.mockResolvedValue('data:image/jpeg;base64,eA==')
+    await expect(call({ url, rendition: 'avatar' })).resolves.toEqual({
+      ok: true,
+      dataUrl: 'data:image/jpeg;base64,eA=='
+    })
+    expect(service.get).toHaveBeenCalledWith(url, 'avatar')
+
+    service.get.mockClear()
+    for (const rendition of ['original', 'full', 42, null, {}]) {
+      await expect(call({ url, rendition })).rejects.toThrow('Invalid avatar rendition')
+    }
+    expect(service.get).not.toHaveBeenCalled()
   })
 })

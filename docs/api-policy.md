@@ -1,9 +1,8 @@
 # API policy
 
 VRX is an unofficial desktop companion for VRChat and ChilloutVR. It is not
-affiliated with, endorsed by, or approved by VRChat Inc. or Disconeering LLC,
-which runs ChilloutVR (it took over from Alpha Blend Interactive in 2026).
-Neither platform publishes the APIs VRX uses. They can change,
+affiliated with, endorsed by, or approved by VRChat or ChilloutVR. Neither
+platform publishes the APIs VRX uses. They can change,
 throttle, or disappear without notice, and features built on them can break
 without warning.
 
@@ -11,7 +10,8 @@ ChilloutVR's terms (§8, third-party applications) require apps that use its
 services to show: "This application is not created by or affiliated with
 ChilloutVR or the ChilloutVR team in any way." VRX shows that sentence word for
 word in its unofficial-app notice (`shell.unofficialNotice`), next to a matching
-VRChat sentence. Keep it word for word when editing the notice.
+VRChat sentence. Keep it word for word when editing the notice. App text,
+README and docs name the platforms only, never the companies that run them.
 
 This page states how VRX uses those APIs and the limits it holds itself to. The
 code is the source of truth. Observed response shapes and uncertain assumptions
@@ -221,8 +221,8 @@ account identity and epoch rules behind these fences.
 
 ## Risk to user accounts
 
-Both platforms can restrict third-party access. Neither VRChat Inc. nor
-Disconeering LLC sanctions VRX, so using it carries some risk to the user's
+Both platforms can restrict third-party access. Neither VRChat nor ChilloutVR
+sanctions VRX, so using it carries some risk to the user's
 account. VRX limits that risk by:
 
 - behaving like one careful client: one request per second at most, server

@@ -38,9 +38,9 @@ class IntersectionObserverStub implements IntersectionObserver {
 
 vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
 
-function Harness({ url }: { url: string }): React.JSX.Element {
+function Harness({ url, rendition }: { url: string; rendition?: 'avatar' }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
-  const dataUrl = useAvatar(url, ref)
+  const dataUrl = useAvatar(url, ref, rendition)
   return (
     <div ref={ref} data-testid="target">
       {dataUrl ?? 'placeholder'}
@@ -75,6 +75,32 @@ describe('useAvatar', () => {
     observers.at(-1)?.intersect(true)
     await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('data:image'))
     expect(getAvatar).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for the small avatar copy separately from the full picture', async () => {
+    const getAvatar = vi.fn((_url: string, rendition?: 'avatar') =>
+      Promise.resolve({
+        ok: true,
+        dataUrl:
+          rendition === 'avatar'
+            ? 'data:image/jpeg;base64,c21hbGw='
+            : 'data:image/png;base64,YmlnZw=='
+      })
+    )
+    window.vrx = { getAvatar } as unknown as Window['vrx']
+    const url = 'https://files.vrchat.cloud/avatar/rendition-test.png'
+
+    render(<Harness url={url} rendition="avatar" />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('image/jpeg'))
+    expect(getAvatar).toHaveBeenLastCalledWith(url, 'avatar')
+    cleanup()
+
+    render(<Harness url={url} />)
+    observers.at(-1)?.intersect(true)
+    await waitFor(() => expect(screen.getByTestId('target').textContent).toContain('image/png'))
+    expect(getAvatar).toHaveBeenLastCalledWith(url)
+    expect(getAvatar).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the placeholder when the preload bridge is absent', () => {

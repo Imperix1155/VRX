@@ -29,10 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Friends, Hot Instances and Dashboard. Sign-in, sign-out and an expired
   session still update it right away.
 - The unofficial-app notice now uses the exact disclaimer ChilloutVR's terms ask
-  third-party apps to show, with a matching sentence for VRChat. It no longer
-  names Alpha Blend Interactive, which no longer runs ChilloutVR (Disconeering
-  LLC does now).
+  third-party apps to show, with a matching sentence for VRChat. It names only
+  the platforms, not the companies behind them.
 - Security hardening, including an updated app runtime.
+- VRX uses less memory, CPU and graphics work. Friend pictures are kept as
+  small copies sized for the round avatars instead of full-size profile icons,
+  a live update for one friend no longer redraws every visible row, and solid
+  panels skip a background blur that was never visible. Nothing looks
+  different, and VRX makes no extra requests to VRChat or ChilloutVR.
 
 ### Fixed
 
