@@ -234,6 +234,10 @@ jobs:
           grep -Fx 'Icon=vrx' "$APPIMAGE_DESKTOP"
           grep -Fx 'StartupWMClass=com.imperix.vrx' "$APPIMAGE_DESKTOP"
           grep -Fx 'Categories=Network;' "$APPIMAGE_DESKTOP"
+          # Security hardening: the desktop entry passes no launch flags; AppRun
+          # keeps its own fallback for systems where the sandbox cannot start.
+          grep -Fx 'Exec=AppRun %U' "$APPIMAGE_DESKTOP"
+          grep -F 'unshare -Ur true' "$APPIMAGE_DIR/squashfs-root/AppRun"
           file "$APPIMAGE_DIR/squashfs-root/usr/share/icons/hicolor/512x512/apps/vrx.png" \
             | grep -F 'PNG image data, 512 x 512, 8-bit/color RGBA'
           APPIMAGE_UPDATE="$APPIMAGE_DIR/squashfs-root/resources/app-update.yml"
