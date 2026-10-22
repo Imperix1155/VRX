@@ -199,13 +199,13 @@ class StaleSessionError extends AuthError {
 /**
  * A well-formed VRChat instance location: `wrld_<id>:<instance>[~tags]`. Validated
  * BEFORE the value is interpolated into a request URL path so a crafted instanceId
- * can't carry URL-structural characters (`/ ? # \`), whitespace, or control chars
+ * can't carry URL-structural characters (`/ ? # \ %`), whitespace, or control chars
  * and rewrite the authenticated request path (VRX-51 security review). The instance
  * segment legitimately contains `~ ( ) :` — none URL-structural in a path segment —
  * so a denylist of structural characters preserves valid locations.
  */
 function isInstanceLocation(location: string): boolean {
-  return /^wrld_[A-Za-z0-9_-]+:[^/?#\\\s]+$/.test(location)
+  return /^wrld_[A-Za-z0-9_-]+:[^/?#\\\s%]+$/.test(location)
 }
 
 /**

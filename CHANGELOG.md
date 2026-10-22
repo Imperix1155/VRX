@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   third-party apps to show, with a matching sentence for VRChat. It no longer
   names Alpha Blend Interactive, which no longer runs ChilloutVR (Disconeering
   LLC does now).
+- Security hardening, including an updated app runtime.
 
 ## [1.0.0-beta.3] - 2026-10-20
 

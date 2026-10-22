@@ -96,6 +96,8 @@ those components with sample data. A known defect is never a design rule.
   ChilloutVR folders; read local VRCX, ChilloutVR or CVRX files only through
   the "Use my sign-in from this PC" import, which runs only on that button
   press.
+- Keep the packaged-app Electron fuses in `electron-builder.yml`
+  (`electronFuses`, checked by `scripts/package-files.test.mjs`).
 - Never commit secrets. Keep the gitleaks and dependency/security CI gates.
   Allowlist only confirmed fake fixture values, never whole paths.
 - Keep repository docs, tooling, and tests out of the packaged app
