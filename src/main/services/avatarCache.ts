@@ -48,6 +48,29 @@ export const AVATAR_MAX_URL_LENGTH = 2048
 export const AVATAR_NEGATIVE_CACHE_MS = 30_000
 export const AVATAR_POSITIVE_CACHE_MS = 60 * 60 * 1000
 
+/**
+ * `avatar` asks for a small copy sized for the round friend pictures (at most
+ * 64 px on screen). Full pictures such as world banners use `original`.
+ */
+export type ImageRendition = 'original' | 'avatar'
+
+/**
+ * Builds the small `avatar` copy of a downloaded image, or returns null to keep
+ * the original (unsupported format, already small, or no saving).
+ */
+export type AvatarRenditionMaker = (image: StoredImage) => StoredImage | null
+
+/**
+ * Cache key of a rendition. URLs are stored without a fragment, so the suffix
+ * cannot collide with a real URL, and the key still parses as that URL for
+ * host checks.
+ */
+const AVATAR_RENDITION_KEY_SUFFIX = '#vrx-avatar'
+
+function renditionKey(url: string, rendition: ImageRendition): string {
+  return rendition === 'avatar' ? url + AVATAR_RENDITION_KEY_SUFFIX : url
+}
+
 interface CacheEntry {
   dataUrl: string | null
   expiresAt: number
@@ -74,6 +97,8 @@ interface AvatarCacheOptions {
    * is ready; only a lease-current network result is written back.
    */
   diskStore?: ImageDiskStore | null
+  /** Optional builder for `avatar` renditions; without it they are the original. */
+  makeAvatarRendition?: AvatarRenditionMaker | null
 }
 
 function parseAllowedAvatarUrl(value: string): URL | null {
@@ -135,6 +160,7 @@ export class AvatarCache {
   private readonly apiFetchWaiters: Array<() => void> = []
   private vrcSessionProvider: (() => AvatarRequestLease | null) | null
   private diskStore: ImageDiskStore | null
+  private makeAvatarRendition: AvatarRenditionMaker | null
 
   constructor(options: AvatarCacheOptions = {}) {
     this.fetchFn = options.fetchFn ?? fetch
@@ -146,6 +172,7 @@ export class AvatarCache {
     this.maxConcurrency = options.maxConcurrency ?? AVATAR_FETCH_MAX_CONCURRENCY
     this.vrcSessionProvider = options.vrcSessionProvider ?? null
     this.diskStore = options.diskStore ?? null
+    this.makeAvatarRendition = options.makeAvatarRendition ?? null
     this.apiAdmission = options.apiAdmission ?? new ApiAdmissionController({ now: this.now })
   }
 
@@ -161,6 +188,10 @@ export class AvatarCache {
 
   setDiskStore(store: ImageDiskStore | null): void {
     this.diskStore = store
+  }
+
+  setAvatarRenditionMaker(maker: AvatarRenditionMaker | null): void {
+    this.makeAvatarRendition = maker
   }
 
   /** Explicit VRChat sign-out: forget every stored API image, on disk and in memory. */
@@ -183,51 +214,63 @@ export class AvatarCache {
     }
   }
 
-  get(value: string): Promise<string | null> {
+  get(value: string, rendition: ImageRendition = 'original'): Promise<string | null> {
     const parsed = parseAllowedAvatarUrl(value)
     if (!parsed) return Promise.resolve(null)
     const url = parsed.href
+    const key = renditionKey(url, rendition)
 
-    const cached = this.cache.get(url)
+    const cached = this.cache.get(key)
     if (cached) {
       if (cached.expiresAt > this.now()) {
         // Re-insert to mark most recently used (Map keeps insertion order).
-        this.cache.delete(url)
-        this.cache.set(url, cached)
+        this.cache.delete(key)
+        this.cache.set(key, cached)
         return Promise.resolve(cached.dataUrl)
       }
-      this.deleteEntry(url)
+      this.deleteEntry(key)
     }
 
     const lease = parsed.hostname === AVATAR_COOKIE_HOST ? this.vrcSessionProvider?.() : undefined
     // No durable session yet: no request, but an image already on disk can show.
-    if (lease === null) return this.readStored(url)
-    const pending = this.inFlight.get(url)
-    const pendingLease = this.inFlightLeases.get(url)
+    if (lease === null) return this.readStored(url, rendition)
+    const pending = this.inFlight.get(key)
+    const pendingLease = this.inFlightLeases.get(key)
     if (pending && (!pendingLease || (!pendingLease.signal.aborted && pendingLease.isCurrent())))
       return pending
 
     if (this.inFlight.size >= API_MAX_PENDING_ADMISSIONS) return Promise.resolve(null)
-    const request = this.fetchAndCache(url, lease)
-    this.inFlight.set(url, request)
-    if (lease) this.inFlightLeases.set(url, lease)
+    const request = this.fetchAndCache(url, rendition, lease)
+    this.inFlight.set(key, request)
+    if (lease) this.inFlightLeases.set(key, lease)
     void request.finally(() => {
-      if (this.inFlight.get(url) === request) {
-        this.inFlight.delete(url)
-        this.inFlightLeases.delete(url)
+      if (this.inFlight.get(key) === request) {
+        this.inFlight.delete(key)
+        this.inFlightLeases.delete(key)
       }
     })
     return request
   }
 
-  /** Disk-tier lookup; a hit is also kept in memory. Never makes a request. */
-  private async readStored(url: string): Promise<string | null> {
+  /**
+   * Disk-tier lookup; a hit is also kept in memory. Never makes a request. An
+   * `avatar` miss can still be built from an original an older build stored.
+   */
+  private async readStored(url: string, rendition: ImageRendition): Promise<string | null> {
     const store = this.storeFor(url)
     if (store === null) return null
-    const stored = await store.read(url).catch(() => null)
+    const key = renditionKey(url, rendition)
+    let stored = await store.read(key).catch(() => null)
+    if (stored === null && rendition === 'avatar') {
+      const original = await store.read(url).catch(() => null)
+      if (original !== null) {
+        stored = this.toRendition(original, rendition)
+        if (stored !== original) void store.write(key, stored)
+      }
+    }
     if (stored === null) return null
     const dataUrl = toDataUrl(stored)
-    this.setEntry(url, { dataUrl, expiresAt: this.now() + this.positiveCacheMs })
+    this.setEntry(key, { dataUrl, expiresAt: this.now() + this.positiveCacheMs })
     return dataUrl
   }
 
@@ -237,8 +280,22 @@ export class AvatarCache {
       : null
   }
 
-  private async fetchAndCache(url: string, lease?: AvatarRequestLease): Promise<string | null> {
-    const stored = await this.readStored(url)
+  /** The image to keep for a rendition; the original when no smaller copy is made. */
+  private toRendition(image: StoredImage, rendition: ImageRendition): StoredImage {
+    if (rendition !== 'avatar' || this.makeAvatarRendition === null) return image
+    try {
+      return this.makeAvatarRendition(image) ?? image
+    } catch {
+      return image
+    }
+  }
+
+  private async fetchAndCache(
+    url: string,
+    rendition: ImageRendition,
+    lease?: AvatarRequestLease
+  ): Promise<string | null> {
+    const stored = await this.readStored(url, rendition)
     if (stored !== null) return stored
 
     let image: StoredImage | null = null
@@ -250,9 +307,11 @@ export class AvatarCache {
     }
 
     if (lease && (lease.signal.aborted || !lease.isCurrent())) return null
-    const dataUrl = image === null ? null : toDataUrl(image)
-    if (image !== null) void this.storeFor(url)?.write(url, image)
-    this.setEntry(url, {
+    const kept = image === null ? null : this.toRendition(image, rendition)
+    const dataUrl = kept === null ? null : toDataUrl(kept)
+    const key = renditionKey(url, rendition)
+    if (kept !== null) void this.storeFor(url)?.write(key, kept)
+    this.setEntry(key, {
       dataUrl,
       expiresAt: this.now() + (dataUrl === null ? this.negativeCacheMs : this.positiveCacheMs)
     })

@@ -10,7 +10,7 @@ import { useSegmentedBubble } from '../hooks/useSegmentedBubble'
 import SegmentedControl from './SegmentedControl'
 import { focusRadioSibling, segArrowTarget } from '../utils/segmented'
 import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
-import { projectLinkedFriends } from '../utils/projectLinkedFriends'
+import { countOnlinePeople } from '../utils/projectLinkedFriends'
 
 // `PlatformFilter` (the segmented control's value type) is the store's canonical
 // union — imported, not redefined, so it can't drift (VRX-66). The type import
@@ -230,19 +230,19 @@ export default function TopBar(): React.JSX.Element {
   // queries are already cached (Friends/Dashboard views), so this re-uses them
   // rather than fetching again. Scoped to the platform filter (VRX-66) so the
   // count reflects whichever platform(s) the user is currently viewing.
-  // Memoized on the cached rosters: the Friends-tab count projects (and sorts)
-  // the whole roster, which must not rerun on unrelated re-renders.
+  // Memoized on the cached rosters: the Friends-tab count projects the whole
+  // roster (unsorted), which must not rerun on unrelated re-renders.
   const vrcData = vrcFriends.data
   const cvrData = cvrFriends.data
   const onlineCount = useMemo(() => {
     if (activeTab === 'friends') {
-      return projectLinkedFriends({
+      return countOnlinePeople({
         friends: [...(vrcData ?? []), ...(cvrData ?? [])],
         profiles: linkedSnapshot?.profiles ?? [],
         accountIds: linkedSnapshot?.accountIds ?? {},
         filter: platform,
         search: ''
-      }).onlinePeople
+      })
     }
     return scopeByPlatformFilter(platform, vrcData, cvrData)
       .flatMap((data) => data ?? [])

@@ -58,6 +58,19 @@ function friendRowKey(friend: Friend): string {
   return friend.platform + ':' + friend.platformUserId
 }
 
+// Projection keeps an unchanged friend's row object across live updates; keep
+// the re-keyed copy just as stable so that friend's memoized row is skipped.
+const keyedUnlinkedRows = new WeakMap<LinkedRow, LinkedRow>()
+
+function withFriendRowKey(row: LinkedRow): LinkedRow {
+  let keyed = keyedUnlinkedRows.get(row)
+  if (keyed === undefined) {
+    keyed = { ...row, key: friendRowKey(row.accounts[0]!) }
+    keyedUnlinkedRows.set(row, keyed)
+  }
+  return keyed
+}
+
 // ─── Status ring (DESIGN.md §9.1) ─────────────────────────────────────────────
 // The avatar's status-color ring + badge REPLACE the old presence-dot + status-
 // pill (§5/R6/R10 carve-out): the ring carries the hue and the avatar's
@@ -774,7 +787,7 @@ export default function FriendsList(): React.JSX.Element {
       search: searchQuery
     })
     const rows = projected.rows.map((row) =>
-      row.target.personId === null ? { ...row, key: friendRowKey(row.accounts[0]!) } : row
+      row.target.personId === null ? withFriendRowKey(row) : row
     )
     const filteredFriends = friends === undefined ? undefined : rows
     return { filteredFriends, searchActive, personCount: projected.personCount }
@@ -971,19 +984,29 @@ export default function FriendsList(): React.JSX.Element {
   const onRovingFocus = useCallback((key: string): void => {
     setRovingKey(key)
   }, [])
-  const onRowFocus = useCallback(
-    (key: string): void => {
-      focusedRowKeyRef.current = key
-      setFocusedLinkedRowKey(key.startsWith('person:') ? key : null)
-      focusedPersonRef.current =
-        stableRows.find((row) => row.key === key && row.target.personId !== null)?.personKey ?? null
-      // Join is a separate native control after the avatar in each row. If Tab
-      // reaches it, that row must also own the roving avatar stop so a live
-      // update that removes Join can hand focus back to the connected avatar.
-      setRovingKey(key)
-    },
-    [stableRows]
-  )
+  // Row callbacks read the current rows through this ref so their identity
+  // survives live updates; a new callback would re-render every mounted row.
+  const latestRowsRef = useRef({
+    stableRows,
+    friendKeys,
+    friendPositionByKey,
+    friendVirtualIndexByKey
+  })
+  useLayoutEffect(() => {
+    latestRowsRef.current = { stableRows, friendKeys, friendPositionByKey, friendVirtualIndexByKey }
+  }, [stableRows, friendKeys, friendPositionByKey, friendVirtualIndexByKey])
+  const onRowFocus = useCallback((key: string): void => {
+    focusedRowKeyRef.current = key
+    setFocusedLinkedRowKey(key.startsWith('person:') ? key : null)
+    focusedPersonRef.current =
+      latestRowsRef.current.stableRows.find(
+        (row) => row.key === key && row.target.personId !== null
+      )?.personKey ?? null
+    // Join is a separate native control after the avatar in each row. If Tab
+    // reaches it, that row must also own the roving avatar stop so a live
+    // update that removes Join can hand focus back to the connected avatar.
+    setRovingKey(key)
+  }, [])
   const onRowBlur = useCallback((key: string): void => {
     if (focusedRowKeyRef.current === key) focusedRowKeyRef.current = null
     setFocusedLinkedRowKey((current) => (current === key ? null : current))
@@ -996,6 +1019,7 @@ export default function FriendsList(): React.JSX.Element {
   }, [])
   const onArrowNavigate = useCallback(
     (key: string, direction: -1 | 1): void => {
+      const { friendKeys, friendPositionByKey, friendVirtualIndexByKey } = latestRowsRef.current
       const currentPosition = friendPositionByKey.get(key)
       if (currentPosition === undefined) return
       const targetPosition = Math.min(
@@ -1013,7 +1037,7 @@ export default function FriendsList(): React.JSX.Element {
       // visible, and performs the smallest necessary scroll at a window edge.
       rowVirtualizer.scrollToIndex(virtualIndex, { align: 'auto' })
     },
-    [friendPositionByKey, friendKeys, friendVirtualIndexByKey, rowVirtualizer]
+    [rowVirtualizer]
   )
 
   // Arrow navigation may target the next row just outside the current window.

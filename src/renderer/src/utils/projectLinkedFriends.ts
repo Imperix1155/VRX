@@ -159,10 +159,12 @@ function isMixedInGameAndOnline(accounts: ResolvedAccount[]): boolean {
 const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
 const keyCollator = new Intl.Collator()
 
+const SECTION_ORDER = new Map(FRIEND_SECTIONS.map((section, index) => [section, index]))
+
 function sortRows(rows: LinkedRow[]): LinkedRow[] {
   return rows.sort((left, right) => {
     const sectionOrder =
-      FRIEND_SECTIONS.indexOf(left.section) - FRIEND_SECTIONS.indexOf(right.section)
+      (SECTION_ORDER.get(left.section) ?? 0) - (SECTION_ORDER.get(right.section) ?? 0)
     if (sectionOrder !== 0) return sectionOrder
     const nameOrder = nameCollator.compare(left.name, right.name)
     return nameOrder === 0 ? keyCollator.compare(left.key, right.key) : nameOrder
@@ -170,14 +172,38 @@ function sortRows(rows: LinkedRow[]): LinkedRow[] {
 }
 
 /**
- * Projects account-shaped friend caches into roster rows without fabricating a
- * Friend. Links resolve only when their platform account, platform and friend
- * id all match the current cache scope.
+ * An unlinked friend's row depends only on that friend object and the owning
+ * account id. Friend objects are replaced, never mutated, when anything about
+ * them changes, so a live update for one friend keeps every other row's object
+ * identity and their memoized list rows skip re-rendering.
  */
-export function projectLinkedFriends(input: ProjectionInput): Projection {
+const unlinkedRowCache = new WeakMap<Friend, { accountId: string; row: LinkedRow }>()
+
+function unlinkedRow(friend: Friend, accountId: string): LinkedRow {
+  const cached = unlinkedRowCache.get(friend)
+  if (cached !== undefined && cached.accountId === accountId) return cached.row
+  const personKey = `account:${friend.platform}:${accountId}:${friend.platformUserId}`
+  const account = { platform: friend.platform, friendId: friend.platformUserId }
+  const row: LinkedRow = {
+    key: personKey,
+    personKey,
+    target: { kind: 'account', account, personId: null },
+    accounts: [friend],
+    name: friend.displayName,
+    section: sectionFor(friend),
+    platformMark: friend.platform
+  }
+  unlinkedRowCache.set(friend, { accountId, row })
+  return row
+}
+
+/** Rows for the input in no particular order. */
+function buildRows(input: ProjectionInput): LinkedRow[] {
   const friendsByKey = new Map<string, Friend>()
-  for (const friend of input.friends) {
-    friendsByKey.set(accountKey(friend.platform, friend.platformUserId), friend)
+  if (input.profiles.length > 0) {
+    for (const friend of input.friends) {
+      friendsByKey.set(accountKey(friend.platform, friend.platformUserId), friend)
+    }
   }
 
   const consumed = new Set<string>()
@@ -237,31 +263,42 @@ export function projectLinkedFriends(input: ProjectionInput): Projection {
     }
   }
 
+  const searching = input.search.trim() !== ''
   for (const friend of input.friends) {
-    const scopedKey = accountKey(friend.platform, friend.platformUserId)
-    if (consumed.has(scopedKey) || (input.filter !== 'all' && input.filter !== friend.platform))
+    if (input.filter !== 'all' && input.filter !== friend.platform) continue
+    if (consumed.size > 0 && consumed.has(accountKey(friend.platform, friend.platformUserId)))
       continue
-    if (!matchesSearch([friend.displayName], input.search)) continue
-    const accountId = input.accountIds[friend.platform] ?? ''
-    const personKey = `account:${friend.platform}:${accountId}:${friend.platformUserId}`
-    const account = { platform: friend.platform, friendId: friend.platformUserId }
-    rows.push({
-      key: personKey,
-      personKey,
-      target: { kind: 'account', account, personId: null },
-      accounts: [friend],
-      name: friend.displayName,
-      section: sectionFor(friend),
-      platformMark: friend.platform
-    })
+    if (searching && !matchesSearch([friend.displayName], input.search)) continue
+    rows.push(unlinkedRow(friend, input.accountIds[friend.platform] ?? ''))
   }
+  return rows
+}
 
-  const sortedRows = sortRows(rows)
+function countOnline(rows: LinkedRow[]): number {
+  const onlinePeople = new Set<string>()
+  for (const row of rows) {
+    if (row.accounts.some((friend) => friend.presence.state !== 'offline'))
+      onlinePeople.add(row.personKey)
+  }
+  return onlinePeople.size
+}
+
+/**
+ * Projects account-shaped friend caches into roster rows without fabricating a
+ * Friend. Links resolve only when their platform account, platform and friend
+ * id all match the current cache scope.
+ */
+export function projectLinkedFriends(input: ProjectionInput): Projection {
+  const sortedRows = sortRows(buildRows(input))
   const representedPeople = new Set(sortedRows.map((row) => row.personKey))
-  const onlinePeople = new Set(
-    sortedRows
-      .filter((row) => row.accounts.some((friend) => friend.presence.state !== 'offline'))
-      .map((row) => row.personKey)
-  )
-  return { rows: sortedRows, personCount: representedPeople.size, onlinePeople: onlinePeople.size }
+  return {
+    rows: sortedRows,
+    personCount: representedPeople.size,
+    onlinePeople: countOnline(sortedRows)
+  }
+}
+
+/** `projectLinkedFriends(input).onlinePeople` without building the sorted list. */
+export function countOnlinePeople(input: ProjectionInput): number {
+  return countOnline(buildRows(input))
 }

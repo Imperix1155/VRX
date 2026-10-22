@@ -747,8 +747,13 @@ body::after {
 
   /* Explicit foreground modifier. It composes with base and frosted glass;
      only information containers opt in, leaving shell and controls translucent. */
+  /* The backing is opaque, so a backdrop blur under it can never show; skipping
+     it saves the GPU a full-panel blur on every repaint, scroll and slide.
+     The WebKit longhand stays first, as for the other glass rules. */
   .glass-information {
     background-color: var(--glass-information);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

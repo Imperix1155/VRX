@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names Alpha Blend Interactive, which no longer runs ChilloutVR (Disconeering
   LLC does now).
 - Security hardening, including an updated app runtime.
+- VRX uses less memory, CPU and graphics work. Friend pictures are kept as
+  small copies sized for the round avatars instead of full-size profile icons,
+  a live update for one friend no longer redraws every visible row, and solid
+  panels skip a background blur that was never visible. Nothing looks
+  different, and VRX makes no extra requests to VRChat or ChilloutVR.
 
 ## [1.0.0-beta.3] - 2026-10-20
 

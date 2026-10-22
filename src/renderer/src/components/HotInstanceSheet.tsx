@@ -144,10 +144,9 @@ export default function HotInstanceSheet({
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
         style={{
+          // Opaque backing: a backdrop blur would never show (main.css .glass-information).
           backgroundColor: 'var(--glass-information)',
           backgroundImage: 'var(--glass-bg)',
-          backdropFilter: 'var(--glass-blur-frosted)',
-          WebkitBackdropFilter: 'var(--glass-blur-frosted)',
           borderTopLeftRadius: 'var(--radius-panel)',
           borderTopRightRadius: 'var(--radius-panel)',
           borderTop: '1px solid var(--glass-border)',

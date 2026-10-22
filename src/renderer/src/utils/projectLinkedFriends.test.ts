@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { LinkedProfile } from '@shared/linkedProfiles'
 import type { Friend, Platform, PresenceState } from '@shared/types'
-import { projectLinkedFriends } from './projectLinkedFriends'
+import {
+  countOnlinePeople,
+  projectLinkedFriends,
+  type LinkedRow,
+  type ProjectionInput
+} from './projectLinkedFriends'
 
 const ACCOUNT_IDS = { vrchat: 'vrc-account', chilloutvr: 'cvr-account' } as const
 
@@ -265,5 +270,58 @@ describe('projectLinkedFriends', () => {
     expect(result.rows).toHaveLength(2)
     expect(result.personCount).toBe(2)
     expect(result.rows.map((row) => row.target.kind)).toEqual(['account', 'account'])
+  })
+})
+
+describe('projection reuse', () => {
+  it('keeps an unchanged unlinked row object across a live update to another friend', () => {
+    const ann = friend('vrchat', 'ann', 'Ann', 'in-game')
+    const bob = friend('chilloutvr', 'bob', 'Bob', 'offline')
+    const input: Omit<ProjectionInput, 'friends'> = {
+      profiles: [],
+      accountIds: ACCOUNT_IDS,
+      filter: 'all',
+      search: ''
+    }
+    const first = projectLinkedFriends({ ...input, friends: [ann, bob] })
+    const movedBob = { ...bob, presence: { state: 'in-game' } } as Friend
+    const second = projectLinkedFriends({ ...input, friends: [ann, movedBob] })
+
+    const annRow = (rows: typeof first.rows): LinkedRow | undefined =>
+      rows.find((row) => row.accounts[0] === ann)
+    expect(annRow(second.rows)).toBe(annRow(first.rows))
+    const bobRow = second.rows.find((row) => row.accounts[0] === movedBob)
+    expect(bobRow?.section).toBe('in-game')
+    expect(bobRow).not.toBe(first.rows.find((row) => row.accounts[0] === bob))
+  })
+
+  it('does not reuse a row across an account change', () => {
+    const ann = friend('vrchat', 'ann', 'Ann', 'in-game')
+    const input: Omit<ProjectionInput, 'accountIds'> = {
+      friends: [ann],
+      profiles: [],
+      filter: 'all',
+      search: ''
+    }
+    const first = projectLinkedFriends({ ...input, accountIds: ACCOUNT_IDS })
+    const second = projectLinkedFriends({
+      ...input,
+      accountIds: { ...ACCOUNT_IDS, vrchat: 'other-account' }
+    })
+    expect(second.rows[0]).not.toBe(first.rows[0])
+    expect(second.rows[0]?.personKey).toBe('account:vrchat:other-account:ann')
+  })
+
+  it('counts online people exactly like the full projection', () => {
+    const friends = [
+      friend('vrchat', 'vrc-friend', 'Linked VRChat', 'in-game'),
+      friend('chilloutvr', 'cvr-friend', 'Linked CVR', 'active'),
+      friend('vrchat', 'solo', 'Solo', 'active'),
+      friend('chilloutvr', 'gone', 'Gone', 'offline')
+    ]
+    for (const filter of ['all', 'vrchat', 'chilloutvr'] as const) {
+      const input = { friends, profiles: [profile()], accountIds: ACCOUNT_IDS, filter, search: '' }
+      expect(countOnlinePeople(input)).toBe(projectLinkedFriends(input).onlinePeople)
+    }
   })
 })
