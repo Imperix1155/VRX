@@ -76,6 +76,8 @@ export class ImageDiskStore {
   private indexedBytes = 0
   private ready: Promise<boolean> | null = null
   private generation = 0
+  /** Clears requested but not finished; reads return nothing until they run. */
+  private pendingClears = 0
   /** Serializes writes and clears so eviction sees a consistent index. */
   private tail: Promise<void> = Promise.resolve()
 
@@ -105,6 +107,9 @@ export class ImageDiskStore {
 
   async read(url: string): Promise<StoredImage | null> {
     const generation = this.generation
+    // A clear waiting behind a write has not deleted anything yet; what is
+    // still on disk belongs to the signed-out account.
+    if (this.pendingClears > 0) return null
     if (!(await this.ensureReady())) return null
     const key = ImageDiskStore.keyFor(url)
     const indexed = this.index.get(key)
@@ -167,6 +172,7 @@ export class ImageDiskStore {
   /** Delete every stored image (explicit sign-out) and fence in-flight writes. */
   clear(): Promise<void> {
     this.generation += 1
+    this.pendingClears += 1
     return this.serialize(async () => {
       this.index.clear()
       this.indexedBytes = 0
@@ -180,6 +186,8 @@ export class ImageDiskStore {
       } catch (error) {
         if (errorCode(error) !== 'ENOENT')
           this.log('image disk clear failed', { code: errorCode(error) })
+      } finally {
+        this.pendingClears -= 1
       }
     })
   }
