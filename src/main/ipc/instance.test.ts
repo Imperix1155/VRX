@@ -210,6 +210,20 @@ describe('join-instance handler', () => {
     ).rejects.toThrow('Invalid join-instance request')
   })
 
+  it('schema-rejects a friendId longer than 128 characters', async () => {
+    await expect(
+      call('join-instance', {
+        platform: 'vrchat',
+        friendId: 'u'.repeat(129),
+        mode: 'vr',
+        expectedTarget: { worldId: 'w', instanceId: 'i' }
+      })
+    ).rejects.toThrow('Invalid join-instance request')
+    await expect(
+      call('self-invite', { platform: 'vrchat', friendId: 'u'.repeat(129) })
+    ).rejects.toThrow('Invalid self-invite request')
+  })
+
   it('accepts expectedTarget fields of exactly 2,048 characters', async () => {
     await expect(
       call('join-instance', {

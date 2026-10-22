@@ -80,6 +80,21 @@ describe('login handler boundary', () => {
     [
       'non-string twoFactorCode (W3)',
       { platform: 'vrchat', credentials: { username: 'x', password: 'y', twoFactorCode: 123456 } }
+    ],
+    [
+      'overlong username',
+      { platform: 'vrchat', credentials: { username: 'u'.repeat(257), password: 'y' } }
+    ],
+    [
+      'overlong password',
+      { platform: 'vrchat', credentials: { username: 'x', password: 'p'.repeat(1_025) } }
+    ],
+    [
+      'overlong twoFactorCode',
+      {
+        platform: 'vrchat',
+        credentials: { username: 'x', password: 'y', twoFactorCode: '1'.repeat(65) }
+      }
     ]
   ])('rejects %s', (_label, req) => {
     expect(() => call('login', req)).toThrow('Invalid login request')
@@ -120,6 +135,25 @@ describe('login handler boundary', () => {
 })
 
 describe('verify-2fa handler boundary', () => {
+  it('rejects an overlong code', () => {
+    expect(() => call('verify-2fa', { platform: 'vrchat', code: '1'.repeat(65) })).toThrow(
+      'Invalid verify-2fa request'
+    )
+    expect(adapter.verify2fa).not.toHaveBeenCalled()
+  })
+
+  it('accepts credentials at their length limits', async () => {
+    await call('login', {
+      platform: 'vrchat',
+      credentials: {
+        username: 'u'.repeat(256),
+        password: 'p'.repeat(1_024),
+        twoFactorCode: '1'.repeat(64)
+      }
+    })
+    expect(adapter.login).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects a non-string code', () => {
     expect(() => call('verify-2fa', { platform: 'vrchat', code: 123456 })).toThrow(
       'Invalid verify-2fa request'
