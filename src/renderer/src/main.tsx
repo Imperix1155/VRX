@@ -11,14 +11,18 @@ import { buildPersistOptions, onPersistRestore, persistQueryCacheOnPageHide } fr
 import { installDocumentDropGuard } from './installDocumentDropGuard'
 
 installDocumentDropGuard(document)
-persistQueryCacheOnPageHide(queryClient)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={buildPersistOptions()}
-      onSuccess={() => onPersistRestore(queryClient)}
+      onSuccess={() => {
+        // Armed only once the saved roster is back in memory (see the helper).
+        persistQueryCacheOnPageHide(queryClient)
+        onPersistRestore(queryClient)
+      }}
+      onError={() => persistQueryCacheOnPageHide(queryClient)}
     >
       <ErrorBoundary>
         <App />

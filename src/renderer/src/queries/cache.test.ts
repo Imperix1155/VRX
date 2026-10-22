@@ -214,6 +214,20 @@ describe('persistQueryCacheOnPageHide', () => {
     expect(window.localStorage.getItem(QUERY_CACHE_STORAGE_KEY)).toBeNull()
     client.clear()
   })
+
+  it('keeps one listener when installed twice', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const remove = persistQueryCacheOnPageHide(client)
+    expect(persistQueryCacheOnPageHide(client)).toBe(remove)
+
+    window.dispatchEvent(new Event('pagehide'))
+    expect(setItem).toHaveBeenCalledTimes(1)
+
+    remove()
+    setItem.mockRestore()
+    client.clear()
+  })
 })
 
 describe('write-path normalization — logout-after-outage (round-2 re-review F1+F2 regression)', () => {

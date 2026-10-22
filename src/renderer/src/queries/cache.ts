@@ -399,13 +399,25 @@ export function onPersistRestore(queryClient: QueryClient): void {
   // A future instance query must include platform in its key and define its own eviction shape.
 }
 
+const pageHideRemovers = new WeakMap<QueryClient, () => void>()
+
 /**
  * Write the latest roster once more when the window's page goes away (quit,
  * reload, renderer recovery), so the throttled save never loses the last minute.
+ * Call it only after the persisted cache was restored (or failed to restore):
+ * before that the client is still empty, and a quit during startup would
+ * overwrite the saved roster with nothing. Installing twice keeps one listener.
  */
 export function persistQueryCacheOnPageHide(queryClient: QueryClient): () => void {
   if (typeof window === 'undefined') return () => undefined
+  const existing = pageHideRemovers.get(queryClient)
+  if (existing !== undefined) return existing
   const persist = (): void => persistQueryCacheNow(queryClient)
   window.addEventListener('pagehide', persist)
-  return () => window.removeEventListener('pagehide', persist)
+  const remove = (): void => {
+    window.removeEventListener('pagehide', persist)
+    pageHideRemovers.delete(queryClient)
+  }
+  pageHideRemovers.set(queryClient, remove)
+  return remove
 }
