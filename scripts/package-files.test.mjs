@@ -76,6 +76,12 @@ describe('packaged Electron fuses', () => {
   })
 })
 
+describe('AppImage launch arguments', () => {
+  it('adds no arguments to the desktop entry', () => {
+    expect(config.appImage.executableArgs).toEqual([])
+  })
+})
+
 describe('macOS packaging metadata', () => {
   it('declares no unused privacy usage descriptions', () => {
     expect(config.mac.extendInfo).toBeUndefined()

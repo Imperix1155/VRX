@@ -81,6 +81,9 @@ linux:
       StartupNotify: 'true'
 appImage:
   artifactName: ${name}-${version}-${arch}.${ext}
+  # Security hardening. The generated AppRun still adapts the launch to the
+  # system (checked in release.yml and scripts/linux-packaging.test.mjs).
+  executableArgs: []
 npmRebuild: false
 publish:
   provider: github

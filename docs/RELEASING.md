@@ -77,11 +77,11 @@ and Linux, and lets electron-builder create a draft release. It then finds that
 draft by its ID, checks the exact asset list, writes the changelog notes, and
 publishes it. No macOS build is published. The tag decides the channel:
 
-| Tag             | Marked pre-release | Updater files                    |
-| --------------- | ------------------ | -------------------------------- |
-| `vX.Y.Z`        | No                 | `latest.yml`, `latest-linux.yml` |
-| `vX.Y.Z-beta.N` | Yes                | `beta.yml`, `beta-linux.yml`     |
-| `vX.Y.Z-rc.N`   | Yes                | `rc.yml`, `rc-linux.yml`         |
+| Tag             | Marked pre-release | Marked latest | Updater files                    |
+| --------------- | ------------------ | ------------- | -------------------------------- |
+| `vX.Y.Z`        | No                 | Yes           | `latest.yml`, `latest-linux.yml` |
+| `vX.Y.Z-beta.N` | Yes                | No            | `beta.yml`, `beta-linux.yml`     |
+| `vX.Y.Z-rc.N`   | Yes                | No            | `rc.yml`, `rc-linux.yml`         |
 
 `N` is a whole number with no leading zeros. Any other suffix or build
 metadata is rejected. [scripts/release-channel.mjs](../scripts/release-channel.mjs)
@@ -98,8 +98,8 @@ job, including the Linux package inspection and the final publish. A failure,
 timeout, missing result, or unclear release is not a success.
 
 Read the published release back, preferably by its ID. Check its tag and
-commit, public URL, that it is not a draft, the right pre-release flag, the
-notes, and these seven non-empty assets:
+commit, public URL, that it is not a draft, the right pre-release and latest
+flags, the notes, and these seven non-empty assets:
 
 - `vrx-X.Y.Z-setup.exe`
 - `vrx-X.Y.Z-setup.exe.blockmap`
@@ -112,9 +112,10 @@ notes, and these seven non-empty assets:
 `CHANNEL` is `latest`, `beta`, or `rc` from the table above. Keep
 `scripts/release-channel.mjs`, `electron-builder.yml`, and this list in step
 when packaging targets change. Check that the updater files name the same
-version with matching sizes and hashes. The Linux job unpacks the AppImage
-and deb and checks the launcher, desktop entry, 512 px icon, package type,
-and updater metadata before publishing. That proves what is in the package,
+version with matching sizes and hashes. The Windows job checks its updater
+file against the setup installer, and the Linux job unpacks the AppImage and
+deb and checks the launcher, desktop entry, 512 px icon, package type, and
+updater metadata before publishing. That proves what is in the package,
 not that it launches on every desktop.
 
 Never re-run an already published tag as if it were a fresh draft:

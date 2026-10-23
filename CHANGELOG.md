@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unofficial-app notice, the sign-in note is one line, and the longer details
   (the full notice and how sign-ins are stored) sit behind Show more. The
   Dashboard and Alerts steps have shorter intros too.
+- The install guide covers Linux setup, uninstalling, and where VRX keeps its
+  data.
+
+### Security
+
+- Security hardening.
 
 ### Fixed
 
