@@ -35,7 +35,8 @@ you press a "Use my sign-in from" button, described below.
   labels). Run it again any time
   from Settings → About.
 - **Tray and updates**: closing the window keeps VRX in the system tray. The
-  installed Windows app and the Linux AppImage can update from inside VRX.
+  Windows installer and the Linux AppImage and deb can update from inside VRX;
+  the portable Windows build can't.
 
 VRX follows your system language. English and Japanese are included; other
 languages show English.
@@ -49,18 +50,21 @@ Both APIs it uses are unofficial and can change without notice.
 
 ## Install
 
-Download VRX from [GitHub Releases](https://github.com/Imperix1155/VRX/releases).
-Releases marked **Pre-release** are test builds.
+Download the
+[latest release](https://github.com/Imperix1155/VRX/releases/latest) from
+GitHub. Test builds are marked **Pre-release** on the
+[Releases](https://github.com/Imperix1155/VRX/releases) page.
 
 - **Windows**: use the installer (`vrx-VERSION-setup.exe`) to get in-app
   updates, or the portable `VRX-VERSION.exe`, which you update by hand.
-- **Linux**: AppImage and deb packages are available and are less tested than
-  Windows.
+- **Linux**: AppImage and deb packages, both with in-app updates. They are
+  less tested than Windows.
 - **macOS**: no published builds. A Mac can run a local development build.
 
 VRX isn't code-signed yet, so Windows may show a "Windows protected your PC"
 screen the first time. [Install and support](docs/INSTALL.md) explains that
-screen, update channels, the tray, and how to report a problem.
+screen, Linux setup, update channels, the tray, uninstalling, and how to
+report a problem.
 
 ## Sessions and privacy
 
