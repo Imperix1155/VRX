@@ -188,7 +188,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
             {t(UPDATER_FAILURE_KEYS[state.failure])}
           </p>
         )}
-        <p className="text-xs text-[var(--text-faint)] mt-[var(--space-0-5)]">
+        <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
           {t('updater.settings.currentVersion', { version: state.currentVersion })}
         </p>
       </div>
@@ -682,7 +682,7 @@ export default function SettingsView(): React.JSX.Element {
               <AccountCard platform="vrchat" />
               <AccountCard platform="chilloutvr" />
             </div>
-            <p className="text-xs text-[var(--text-faint)]">{t('shell.unofficialNotice')}</p>
+            <p className="text-xs text-[var(--text-dim)]">{t('shell.unofficialNotice')}</p>
           </section>
         )}
 

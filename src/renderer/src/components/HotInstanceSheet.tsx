@@ -25,6 +25,7 @@ import { useSettingsStore } from '../stores/settings'
 import { joinFailureMessageKey, useJoinInstance } from '../hooks/useJoinInstance'
 import { instancePillFor } from '../utils/instancePill'
 import { Avatar } from './Avatar'
+import { PictureBackedPill } from './CardPictureBackdrop'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
 import PolicySpacePill from './PolicySpacePill'
@@ -237,8 +238,12 @@ export default function HotInstanceSheet({
                     className="mt-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)]"
                     style={{ textShadow: 'var(--hot-sheet-banner-subtitle-shadow)' }}
                   >
-                    <InstancePill label={typeLabel} tier={tier} />
-                    <PlatformPill platform={shown.platform} />
+                    <PictureBackedPill backed={showBannerImage}>
+                      <InstancePill label={typeLabel} tier={tier} />
+                    </PictureBackedPill>
+                    <PictureBackedPill backed={showBannerImage}>
+                      <PlatformPill platform={shown.platform} />
+                    </PictureBackedPill>
                   </div>
                 </div>
 
@@ -255,7 +260,11 @@ export default function HotInstanceSheet({
                       className="rounded-control border px-[var(--space-4)] py-[var(--space-2)] text-sm font-semibold hover:brightness-110 active:brightness-95 focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:cursor-default disabled:opacity-50 motion-safe:transition-[filter]"
                       style={{
                         borderColor: 'color-mix(in srgb, var(--op-public) 45%, transparent)',
-                        background: 'color-mix(in srgb, var(--op-public) 16%, transparent)',
+                        // Over the picture the tint sits on the same card-color
+                        // backing as the pills beside it, so Join stays readable.
+                        background: showBannerImage
+                          ? 'linear-gradient(color-mix(in srgb, var(--op-public) 16%, transparent), color-mix(in srgb, var(--op-public) 16%, transparent)) color-mix(in srgb, var(--glass-information) 78%, transparent)'
+                          : 'color-mix(in srgb, var(--op-public) 16%, transparent)',
                         color: 'var(--op-public-text)'
                       }}
                     >
@@ -283,7 +292,7 @@ export default function HotInstanceSheet({
                   <PolicySpacePill space={policySpace} />
                 </div>
                 <h3
-                  className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-faint)]"
+                  className="mb-[var(--space-2)] text-[10.5px] font-semibold uppercase tracking-[1.4px] text-[var(--text-dim)]"
                   style={{ letterSpacing: '1.4px' }}
                 >
                   {t('hotSheet.friendsHereHeading', { count: shown.friendCount })}
