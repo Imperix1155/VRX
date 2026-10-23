@@ -16,10 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The install guide covers Linux setup, uninstalling, and where VRX keeps its
   data.
 
-### Security
-
-- Security hardening.
-
 ### Fixed
 
 - On Windows, one click on the VRX tray icon now opens the window. When the
@@ -31,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If VRX's saved sign-in file gets damaged, VRX clears it so you can sign in
   again, instead of every sign-in failing.
 - A brief file lock at startup can no longer reset your settings.
+
+### Security
+
+- Security hardening.
 
 ## [1.0.0-beta.4] - 2026-10-22
 
