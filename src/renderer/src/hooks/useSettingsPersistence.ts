@@ -82,6 +82,9 @@ export function useSettingsPersistence(): void {
   // could not be read. Saves then carry only the user's edits, so those
   // defaults can never be written over the file once it is readable again.
   const fallbackBase = useRef<Settings | null>(null)
+  // Fields already sent in fallback mode. Later saves resend them even when
+  // reverted to the fallback value, since main has already applied them.
+  const fallbackSent = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx) {
@@ -94,6 +97,7 @@ export function useSettingsPersistence(): void {
       .then(({ unsaved, fallback, ...persisted }) => {
         if (cancelled) return
         fallbackBase.current = fallback ? persisted : null
+        fallbackSent.current = new Set()
         const state = useSettingsStore.getState()
         if (state.dirty) {
           // Edited during the load: what differs from the boot seed is the
@@ -129,14 +133,21 @@ export function useSettingsPersistence(): void {
     useSettingsStore.setState({ saving: true })
     const snapshot = settings
     const base = fallbackBase.current
+    let patch: Partial<Settings> = snapshot
+    if (base) {
+      const sent = fallbackSent.current
+      for (const key of Object.keys(editsSince(base, snapshot))) sent.add(key)
+      patch = Object.fromEntries(Object.entries(snapshot).filter(([key]) => sent.has(key)))
+    }
     const bridge = window.vrx
     void bridge
-      .saveSettings({ patch: base ? editsSince(base, snapshot) : snapshot })
+      .saveSettings({ patch })
       .then((saved) => {
         if (cancelled || useSettingsStore.getState().settings !== snapshot) return
         if (base && fallbackBase.current === base) {
           // Main saved the edits over the real file: adopt what it holds.
           fallbackBase.current = null
+          fallbackSent.current = new Set()
           useSettingsStore.getState().setSettings(saved)
         } else {
           useSettingsStore.getState().markSaved()
