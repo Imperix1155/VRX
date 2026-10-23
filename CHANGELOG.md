@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On Windows, one click on the VRX tray icon now opens the window. When the
+  window is minimized, the tray menu offers Show VRX instead of Hide VRX.
 - If VRX can't start, or hits a serious error and has to close, it now shows a
   short message instead of disappearing without a word.
 - If part of VRX is ended from outside (for example in Task Manager), VRX now

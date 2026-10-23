@@ -45,7 +45,8 @@ etiquette rules apply in full; this file adds local detail.
   after the renderer reports hydration (3 s fallback). Second-instance and
   notification activation focus the current window, recreating it if
   destroyed; tray actions resolve the window at click time, and tray Show goes
-  through the same focus path. One recovery dialog
+  through the same focus path, as does a single tray click on Windows. The tray
+  menu treats a minimized window as hidden. One recovery dialog
   per window handles crashes and hangs; a renderer killed from outside the app
   counts as a crash unless the app is quitting.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
