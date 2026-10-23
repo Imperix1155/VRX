@@ -1,5 +1,5 @@
 /**
- * Main-process copy (dialogs, native notifications, tray).
+ * Main-process copy (dialogs, native notifications, tray, fatal error boxes).
  *
  * The renderer picks its language from `navigator.language`, which Electron
  * derives from `app.getLocale()`. Main resolves the same locale once at startup
@@ -32,7 +32,11 @@ const en = {
   'recovery.hang.detail': 'The window may be busy. You can wait or reload it.',
   'recovery.reload': 'Reload',
   'recovery.dismiss': 'Dismiss',
-  'recovery.wait': 'Wait'
+  'recovery.wait': 'Wait',
+  'fatal.startup.title': 'VRX failed to start',
+  'fatal.startup.message': 'Something went wrong while VRX was starting. Try opening it again.',
+  'fatal.runtime.title': 'VRX has to close',
+  'fatal.runtime.message': 'Something went wrong and VRX has to close. Open it again to continue.'
 } as const
 
 export type MainStringKey = keyof typeof en
@@ -62,7 +66,11 @@ const ja: Record<MainStringKey, string> = {
   'recovery.hang.detail': 'ウィンドウが処理中の可能性があります。待つか、再読み込みしてください。',
   'recovery.reload': '再読み込み',
   'recovery.dismiss': '閉じる',
-  'recovery.wait': '待つ'
+  'recovery.wait': '待つ',
+  'fatal.startup.title': 'VRX を起動できませんでした',
+  'fatal.startup.message': 'VRX の起動中に問題が発生しました。もう一度開いてみてください。',
+  'fatal.runtime.title': 'VRX を終了します',
+  'fatal.runtime.message': '問題が発生したため、VRX を終了します。もう一度開いて続けてください。'
 }
 
 const TABLES: Record<MainLocale, Record<MainStringKey, string>> = { en, ja }

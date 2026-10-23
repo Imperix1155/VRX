@@ -43,6 +43,7 @@ function fakeWindow(): {
   focus: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   isVisible: () => boolean
+  isMinimized: () => boolean
   isDestroyed: () => boolean
   on: () => void
   destroyed: boolean
@@ -52,6 +53,7 @@ function fakeWindow(): {
     focus: vi.fn(),
     hide: vi.fn(),
     isVisible: () => true,
+    isMinimized: () => false,
     isDestroyed: () => win.destroyed,
     on: (): void => {},
     destroyed: false
@@ -130,12 +132,38 @@ describe('createTray — click-time window resolution (Codex regression, PR #118
     wireWindow(win as never)
     // Immediate sync: the menu was rebuilt with the visible-window label.
     expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
-    expect([...winListeners.keys()].sort()).toEqual(['closed', 'hide', 'show'])
+    expect([...winListeners.keys()].sort()).toEqual([
+      'closed',
+      'hide',
+      'minimize',
+      'restore',
+      'show'
+    ])
 
     // A hide event refreshes the menu to the hidden-window label.
     win.isVisible = () => false
     winListeners.get('hide')!()
     expect(captured.lastTemplate[0]).toMatchObject({ label: 'Show VRX' })
+  })
+
+  it('treats a minimized window as hidden and refreshes on minimize and restore', () => {
+    const win = fakeWindow()
+    const winListeners = new Map<string, () => void>()
+    win.on = ((event: string, cb: () => void): void => {
+      winListeners.set(event, cb)
+    }) as never
+    const { wireWindow } = createTray(() => win as never)
+    wireWindow(win as never)
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
+
+    // Electron still reports a minimized window as visible.
+    win.isMinimized = () => true
+    winListeners.get('minimize')!()
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Show VRX' })
+
+    win.isMinimized = () => false
+    winListeners.get('restore')!()
+    expect(captured.lastTemplate[0]).toMatchObject({ label: 'Hide VRX' })
   })
 
   it('a closed (destroyed) window flips the menu back to Show', () => {
@@ -163,6 +191,26 @@ describe('createTray — click-time window resolution (Codex regression, PR #118
 
     expect(showWindow).toHaveBeenCalledOnce()
     expect(gone.show).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['win32', true],
+    ['linux', false],
+    ['darwin', false]
+  ])('a single left click shows the window on %s: %s', (platform, shows) => {
+    const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { value: platform })
+    try {
+      captured.trayListeners.clear()
+      const showWindow = vi.fn()
+      createTray(() => null, showWindow)
+      const click = captured.trayListeners.get('click')
+      expect(click !== undefined).toBe(shows)
+      click?.()
+      expect(showWindow).toHaveBeenCalledTimes(shows ? 1 : 0)
+    } finally {
+      Object.defineProperty(process, 'platform', descriptor)
+    }
   })
 
   it('tray actions no-op safely when no live window exists', () => {

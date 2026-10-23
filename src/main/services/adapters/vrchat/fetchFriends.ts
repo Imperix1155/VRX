@@ -76,7 +76,8 @@ export const rawFriendSchema = z.object({
   location: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
   statusDescription: z.string().nullable().optional(),
-  tags: z.array(z.string()).default([])
+  // Trust rank only; null or drifted tags read as no tags, never a dropped friend.
+  tags: z.array(z.string()).catch([])
 })
 
 /**

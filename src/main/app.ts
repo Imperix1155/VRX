@@ -10,6 +10,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  powerMonitor,
   screen,
   session,
   Notification as NativeNotification,
@@ -64,10 +65,12 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
+import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
 import { setMainLocale } from './i18n'
+import { showFatalErrorBox } from './fatalErrorBox'
 
 // Set true by the before-quit handler below — the single source of truth for
 // every quit path (tray Quit, Cmd+Q, dock, app menu). before-quit always fires
@@ -195,7 +198,8 @@ function createWindow(): BrowserWindow {
   const recovery = createRendererRecovery({
     window: mainWindow,
     showDialog: (options) => dialog.showMessageBox(mainWindow, options),
-    onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) })
+    onError: (error) => log.warn('renderer recovery dialog rejected', { message: String(error) }),
+    isQuitting: () => quitting
   })
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     exploreWindowService?.setActive([])
@@ -280,6 +284,7 @@ process.on('uncaughtException', (error: Error) => {
   if (crashing) return
   crashing = true
   log.error('uncaughtException — terminating', { message: error.message, stack: error.stack })
+  showFatalErrorBox('runtime')
   app.exit(1)
 })
 
@@ -642,6 +647,10 @@ app
       friendAlerts,
       broadcast
     })
+    // A socket can look open after sleep while its connection is gone.
+    const stopWakeReconnect = reconnectLiveOnWake(powerMonitor, [vrcAdapter, cvrAdapter], {
+      logFailure: () => log.warn('live reconnect after wake failed')
+    })
     app.on('before-quit', () => {
       explore.dispose()
       // Renderer changes are handed to main immediately; force the latest
@@ -650,6 +659,7 @@ app
       // Close both sockets and halt the reconnect loops so quit is clean.
       // Wrapped: a throwing teardown must never skip the quitting flag.
       try {
+        stopWakeReconnect()
         teardownAdapterEvents()
       } catch (error) {
         log.warn('adapter teardown threw during before-quit', {
@@ -724,6 +734,8 @@ app
     const message = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
     log.error('bootstrap failed — terminating', { message, stack })
+    // Without a window the user would see nothing at all.
+    showFatalErrorBox('startup')
     app.exit(1)
   })
 

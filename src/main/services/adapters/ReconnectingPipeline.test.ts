@@ -8,6 +8,9 @@ class Socket extends EventEmitter {
   close = vi.fn(() => {
     this.emit('close')
   })
+  terminate = vi.fn(() => {
+    this.emit('close')
+  })
 }
 
 function rig(platform: 'vrchat' | 'chilloutvr'): {
@@ -163,6 +166,73 @@ describe.each(['vrchat', 'chilloutvr'] as const)('%s reconnect admission', (plat
     await vi.advanceTimersByTimeAsync(0)
     expect(vi.getTimerCount()).toBe(0)
     await vi.advanceTimersByTimeAsync(MAX_ADMISSION_SLEEP_MS * 2)
+    expect(r.sockets).toHaveLength(1)
+  })
+
+  it('reconnectNow drops an open socket at once and redials after the normal backoff', async () => {
+    const r = rig(platform)
+    r.pipeline.start()
+    await vi.advanceTimersByTimeAsync(0)
+    const socket = r.sockets[0]!
+    socket.emit('open')
+    // A laptop slept for an hour: the socket still looks open.
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    r.pipeline.reconnectNow()
+    expect(socket.terminate).toHaveBeenCalledOnce()
+    expect(socket.close).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(r.onEvent).toHaveBeenLastCalledWith({
+      type: 'connection',
+      platform,
+      health: 'reconnecting'
+    })
+    // The long open was healthy, so the backoff restarted at its 1 s base.
+    await vi.advanceTimersByTimeAsync(999)
+    expect(r.sockets).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(r.sockets).toHaveLength(2)
+    expect(r.provider).toHaveBeenCalledTimes(2)
+    r.pipeline.stop()
+  })
+
+  it('reconnectNow waits out the shared 429 cooldown before redialing', async () => {
+    const r = rig(platform)
+    r.pipeline.start()
+    await vi.advanceTimersByTimeAsync(0)
+    r.sockets[0]!.emit('open')
+    await vi.advanceTimersByTimeAsync(60_000)
+    r.admission.deferUntil(Date.now() + 30_000)
+    r.pipeline.reconnectNow()
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(r.sockets).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(r.sockets).toHaveLength(2)
+    r.pipeline.stop()
+  })
+
+  it('reconnectNow does nothing while connecting, without a session, or when stopped', async () => {
+    const r = rig(platform)
+    r.pipeline.reconnectNow()
+    r.pipeline.start()
+    await vi.advanceTimersByTimeAsync(0)
+    // Still dialing: a fresh connection attempt is left alone.
+    r.pipeline.reconnectNow()
+    expect(r.sockets[0]!.terminate).not.toHaveBeenCalled()
+    expect(r.sockets[0]!.close).not.toHaveBeenCalled()
+
+    // No session: the loop waits locally and reconnectNow adds no attempt.
+    r.provider.mockResolvedValue(null)
+    r.sockets[0]!.emit('close')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(r.provider).toHaveBeenCalledTimes(2)
+    r.pipeline.reconnectNow()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(r.provider).toHaveBeenCalledTimes(2)
+    expect(r.sockets).toHaveLength(1)
+
+    r.pipeline.stop()
+    r.pipeline.reconnectNow()
+    await vi.advanceTimersByTimeAsync(120_000)
     expect(r.sockets).toHaveLength(1)
   })
 })

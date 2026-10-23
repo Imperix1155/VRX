@@ -100,6 +100,76 @@ describe('useSettingsPersistence', () => {
     })
   })
 
+  it('saves only edits after a fallback load, then adopts the settings main saved', async () => {
+    // Main answered the load with defaults because the file could not be read.
+    // Once readable, it saves the edits over the real file and answers with it.
+    const onDisk: Settings = { ...DEFAULT_SETTINGS, theme: 'light' }
+    // The first save is still in flight when the second edit is made.
+    const first = deferred<Settings>()
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS, fallback: true }),
+      saveSettings: vi
+        .fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementation((req: { patch: Partial<Settings> }) =>
+          Promise.resolve({ ...onDisk, ...req.patch })
+        )
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+    await act(() => Promise.resolve())
+    act(() => useSettingsStore.getState().updateSettings({ labelScheme: 'platform-native' }))
+    await act(async () => first.resolve({ ...onDisk, density: 'compact' }))
+
+    await waitFor(() => expect(storeState().settings.theme).toBe('light'))
+    // Every save in fallback mode carried edits only, never the stale defaults.
+    expect(bridge.saveSettings.mock.calls.map(([req]) => req.patch)).toEqual([
+      { density: 'compact' },
+      { density: 'compact', labelScheme: 'platform-native' }
+    ])
+    expect(storeState().settings).toMatchObject({
+      density: 'compact',
+      labelScheme: 'platform-native'
+    })
+    expect(storeState().dirty).toBe(false)
+
+    // Back to whole snapshots once the real settings are adopted.
+    act(() => useSettingsStore.getState().updateSettings({ theme: 'dark' }))
+    await waitFor(() => expect(bridge.saveSettings).toHaveBeenCalledTimes(3))
+    expect(bridge.saveSettings).toHaveBeenLastCalledWith({
+      patch: expect.objectContaining({ theme: 'dark', density: 'compact' })
+    })
+  })
+
+  it('resends a field reverted to its fallback value while an earlier fallback save is in flight', async () => {
+    const onDisk: Settings = { ...DEFAULT_SETTINGS, theme: 'light' }
+    const first = deferred<Settings>()
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS, fallback: true }),
+      saveSettings: vi
+        .fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementation((req: { patch: Partial<Settings> }) =>
+          Promise.resolve({ ...onDisk, density: 'compact', ...req.patch })
+        )
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+    await act(() => Promise.resolve())
+    act(() => useSettingsStore.getState().updateSettings({ density: DEFAULT_SETTINGS.density }))
+    await act(async () => first.resolve({ ...onDisk, density: 'compact' }))
+
+    await waitFor(() => expect(storeState().settings.theme).toBe('light'))
+    expect(bridge.saveSettings.mock.calls.map(([req]) => req.patch)).toEqual([
+      { density: 'compact' },
+      { density: DEFAULT_SETTINGS.density }
+    ])
+    expect(storeState().settings.density).toBe(DEFAULT_SETTINGS.density)
+    expect(storeState().dirty).toBe(false)
+  })
+
   it('hands every rapid snapshot to main immediately, with the final state last', async () => {
     const bridge = stubBridge()
     render(<Probe />)

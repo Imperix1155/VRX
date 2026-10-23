@@ -57,6 +57,7 @@ import {
   getSettingsSnapshot,
   hasPendingSettingsSave,
   loadSettings,
+  isSettingsFallback,
   saveSettings
 } from './settings'
 
@@ -329,6 +330,51 @@ describe('loadSettings (W7 M1)', () => {
     expect(getSettingsSnapshot().notifyFriendOnline).toBe(false)
     expect(storeState.written).toHaveLength(0)
     expect(hasPendingSettingsSave()).toBe(false)
+  })
+
+  it('re-reads the file before saving after a transient read failure at startup', async () => {
+    vi.useFakeTimers()
+    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light', notifyFriendOnline: true }
+    storeState.throwOnRead = true
+    storeState.readError = new Error('EBUSY: resource busy or locked')
+    expect(loadSettings()).toEqual(DEFAULT_SETTINGS)
+
+    // The lock clears; the next save must merge over the user's file, not defaults.
+    storeState.throwOnRead = false
+    const saved = saveSettings({ notifyFriendOffline: true })
+    flushPendingSettingsSave()
+
+    await expect(saved).resolves.toMatchObject({
+      theme: 'light',
+      notifyFriendOnline: true,
+      notifyFriendOffline: true
+    })
+    expect(storeState.written.at(-1)).toMatchObject({
+      theme: 'light',
+      notifyFriendOnline: true,
+      notifyFriendOffline: true
+    })
+  })
+
+  it('does not persist when the file is still unreadable at save time', () => {
+    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
+    storeState.throwOnRead = true
+    storeState.readError = new Error('EPERM: operation not permitted')
+    loadSettings()
+
+    expect(() => saveSettings({ notifyFriendOffline: true })).toThrow(
+      'settings file cannot be read'
+    )
+    expect(getSettingsSnapshot().notifyFriendOffline).toBe(true)
+    expect(storeState.written).toHaveLength(0)
+    expect(hasPendingSettingsSave()).toBe(false)
+
+    expect(isSettingsFallback()).toBe(true)
+
+    // A later readable load ends the fallback.
+    storeState.throwOnRead = false
+    expect(loadSettings().theme).toBe('light')
+    expect(isSettingsFallback()).toBe(false)
   })
 
   it('keeps native policy aligned with the UI when a newer-version file refuses persistence', () => {

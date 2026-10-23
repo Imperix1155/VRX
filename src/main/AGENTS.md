@@ -22,8 +22,9 @@ etiquette rules apply in full; this file adds local detail.
   request admission, and reconnect logic.
 - Top-level modules own cross-cutting concerns: event fan-out
   (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
-  logging and redaction, main-process copy (`i18n.ts`), sockets, and window
-  reveal (`showGate.ts`).
+  logging and redaction, main-process copy (`i18n.ts`), sockets, live-socket
+  reconnect after wake (`wakeReconnect.ts`), window reveal (`showGate.ts`), and
+  the error box shown before a fatal exit (`fatalErrorBox.ts`).
 - [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
   exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
   child contract.
@@ -44,8 +45,10 @@ etiquette rules apply in full; this file adds local detail.
   after the renderer reports hydration (3 s fallback). Second-instance and
   notification activation focus the current window, recreating it if
   destroyed; tray actions resolve the window at click time, and tray Show goes
-  through the same focus path. One recovery dialog
-  per window handles crashes and hangs.
+  through the same focus path, as does a single tray click on Windows. The tray
+  menu treats a minimized window as hidden. One recovery dialog
+  per window handles crashes and hangs; a renderer killed from outside the app
+  counts as a crash unless the app is quitting.
 - On Windows and Linux, close hides to the tray until `before-quit` sets the
   single `quitting` flag; macOS keeps native close. `before-quit` disposes
   Explore, flushes settings, and tears down adapter wiring; a throwing teardown
@@ -73,7 +76,9 @@ etiquette rules apply in full; this file adds local detail.
 - `services/credentials.ts` is the only credential store. It accepts only
   `CREDENTIAL_KEYS`, writes an invalidation marker before any replacement or
   deletion, and writes a signed-out marker on explicit sign-out. A failed write
-  fails closed and cannot revive old auth.
+  fails closed and cannot revive old auth. A `credentials.json` that is not
+  valid JSON is deleted and the store
+  starts empty, so it restores nothing and the next sign-in can save.
 - OS `safeStorage` comes first; the Linux `basic_text` backend counts as
   unavailable. The `localCredentialEncryption.ts` fallback is used only when OS
   encryption is unavailable or fails. An OS-protected credential that cannot be
@@ -106,7 +111,9 @@ etiquette rules apply in full; this file adds local detail.
 - `services/settings.ts` migrates and validates through `@shared/settings`. A
   failed normalization write keeps the parsed settings as unsaved and
   retryable, never defaults. Saves apply in memory, coalesce disk writes,
-  refuse to overwrite a newer-version file, and reject failed writes. Read
+  refuse to overwrite a newer-version file, and reject failed writes. After an
+  unreadable load, a save re-reads the file first and is refused while it stays
+  unreadable, so defaults never replace the user's file. Read
   fire-time policy from `getSettingsSnapshot()`. Only an empty store (no
   settings file yet, and no set-aside `settings.corrupt-*.json`) loads
   `freshInstallSettings`, which queues the welcome setup; an unreadable,

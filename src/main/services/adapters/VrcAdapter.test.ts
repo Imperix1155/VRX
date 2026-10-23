@@ -3257,6 +3257,102 @@ describe('VrcAdapter', () => {
       unsub3()
     })
 
+    it('pipeline token: a GET /auth 401 invalidates the session and stops dialing', async () => {
+      const dialed: string[] = []
+      let authStatusAnswer: Response = jsonResponse({ error: 'unauthorized' }, 401)
+      const fetchMock = vi.fn((url: string) => {
+        if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ error: 'dead' }, 401))
+        if (url.endsWith('/auth/user')) return Promise.resolve(authStatusAnswer)
+        return Promise.reject(new Error(`unexpected: ${url}`))
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      const adapter = new VrcAdapter(
+        fakeStore('auth=authcookie_dead; twoFactorAuth=tf'),
+        instantAdmission(),
+        {
+          socketFactory: (url) => {
+            dialed.push(url)
+            return { on: () => {}, close: () => {} }
+          }
+        }
+      )
+      markSessionEstablished(adapter)
+      const events: string[] = []
+      const unsub = adapter.subscribe((event) =>
+        events.push(event.type === 'connection' ? `connection:${event.health}` : event.type)
+      )
+      await vi.waitFor(() => expect(events).toContain('auth-invalidated'))
+      await new Promise((r) => setImmediate(r))
+
+      // No socket with the rejected session, no repeat exchange: the 2FA-aware
+      // status check decides what happens next.
+      expect(dialed).toEqual([])
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(events).toEqual(['connection:down', 'auth-invalidated'])
+
+      // The status check still accepts the cookie: the pipeline restarts, and a
+      // repeat exchange 401 falls back to the raw cookie instead of looping.
+      authStatusAnswer = jsonResponse({
+        id: 'usr_aaaaaaaa-0000-0000-0000-000000000001',
+        displayName: 'Self'
+      })
+      expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+      await vi.waitFor(() => expect(dialed).toHaveLength(1))
+      expect(dialed[0]).toContain('authToken=authcookie_dead')
+      expect(events.filter((type) => type === 'auth-invalidated')).toHaveLength(1)
+      unsub()
+    })
+
+    it('reconnectNow drops the open Pipeline socket so it reconnects after a wake', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
+      )
+      const sockets: DrivableVrcSocket[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), instantAdmission(), {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      // Nothing to drop before a session's socket exists.
+      expect(() => adapter.reconnectNow()).not.toThrow()
+      markSessionEstablished(adapter)
+      const health: string[] = []
+      const unsub = adapter.subscribe((event) => {
+        if (event.type === 'connection') health.push(event.health)
+      })
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0]!.fire('open')
+
+      adapter.reconnectNow()
+      expect(sockets[0]!.closed).toBe(true)
+      await vi.waitFor(() => expect(health.at(-1)).toBe('reconnecting'))
+      unsub()
+    })
+
+    it('pipeline token: a GET /auth 5xx still falls back to the raw cookie', async () => {
+      const dialed: string[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ error: 'unavailable' }, 503)))
+      )
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_raw'), instantAdmission(), {
+        socketFactory: (url) => {
+          dialed.push(url)
+          return { on: () => {}, close: () => {} }
+        }
+      })
+      markSessionEstablished(adapter)
+      const events: AdapterEvent[] = []
+      const unsub = adapter.subscribe((event) => events.push(event))
+      await vi.waitFor(() => expect(dialed).toHaveLength(1))
+      expect(dialed[0]).toContain('authToken=authcookie_raw')
+      expect(events.some((event) => event.type === 'auth-invalidated')).toBe(false)
+      unsub()
+    })
+
     it('one throwing subscriber does not starve the others in the fan-out (CodeRabbit)', async () => {
       const received: string[] = []
       const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), instantAdmission(), {
@@ -3891,9 +3987,16 @@ describe('VrcAdapter', () => {
       adapter.subscribe((e) => events.push(e))
       boundaries.length = 0
 
+      // Only the roster read is rejected; the pipeline's token exchange is not under test.
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(jsonResponse({ error: 'x' }, { status: 401 }))
+        vi.fn((url: string) =>
+          Promise.resolve(
+            url.endsWith('/auth')
+              ? jsonResponse({ token: 'tok' })
+              : jsonResponse({ error: 'x' }, { status: 401 })
+          )
+        )
       )
       await expect(adapter.getFriends()).rejects.toBeInstanceOf(AuthError)
       expect(boundaries).toEqual([{ identityRetained: true }])
@@ -5403,5 +5506,102 @@ describe('live pipeline world enrichment (VRX-254)', () => {
       /Circuit open/
     )
     unsubscribe()
+  })
+
+  it('missing, failing or unreadable live-event worlds do not open the shared circuit', async () => {
+    const answers: Record<string, () => Response> = {
+      wrld_missing: () => jsonResponse({ error: 'not found' }, 404),
+      wrld_failing: () => jsonResponse({ error: 'server' }, 503),
+      wrld_unreadable: () => new Response('not json', { status: 200 })
+    }
+    let worldRequests = 0
+    let inviteRequests = 0
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      const worldId = /\/worlds\/([^/?]+)/.exec(url)?.[1]
+      if (worldId !== undefined && answers[worldId]) {
+        worldRequests += 1
+        return Promise.resolve(answers[worldId]())
+      }
+      if (url.includes('/invite/myself/to/')) {
+        inviteRequests += 1
+        return Promise.resolve(jsonResponse({ type: 'invite' }))
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    markSessionEstablished(adapter)
+    const unsubscribe = adapter.subscribe(() => {})
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    Object.keys(answers).forEach((worldId, i) => {
+      sockets[0]!.fire('message', onlineFrame(worldId, `inst${i}`))
+    })
+    await vi.waitFor(() => expect(worldRequests).toBe(3))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // Each answer is cached as "no metadata" for that world only.
+    const resolver = (adapter as unknown as { worldResolver: WorldResolver }).worldResolver
+    for (const worldId of Object.keys(answers)) expect(resolver.peek(worldId)).toBeNull()
+    await expect(
+      adapter.selfInvite('wrld_circuit:12345~private(usr_self)')
+    ).resolves.toBeUndefined()
+    expect(inviteRequests).toBe(1)
+    unsubscribe()
+  })
+
+  it('three missing roster worlds leave auth status and the next roster working', async () => {
+    const worldId = (n: number): string => `wrld_00000000-0000-0000-0000-00000000000${n}`
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/auth/user/friends')) {
+        const firstOnlinePage = !url.includes('offline=true') && url.includes('offset=0')
+        return Promise.resolve(
+          jsonResponse(
+            firstOnlinePage
+              ? [1, 2, 3].map((n) => ({
+                  id: `usr_${n}`,
+                  displayName: `Friend ${n}`,
+                  status: 'active',
+                  tags: [],
+                  location: `${worldId(n)}:1234~private(usr_x)`
+                }))
+              : []
+          )
+        )
+      }
+      if (url.includes('/worlds/')) return Promise.resolve(jsonResponse({ error: 'gone' }, 404))
+      return Promise.resolve(
+        jsonResponse({
+          id: 'usr_aaaaaaaa-0000-0000-0000-000000000001',
+          displayName: 'Self',
+          onlineFriends: ['usr_1', 'usr_2', 'usr_3'],
+          activeFriends: [],
+          offlineFriends: []
+        })
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+      socketFactory: () => ({ on: () => {}, close: () => {} })
+    })
+    expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+    expect((await adapter.getFriends()).friends).toHaveLength(3)
+    await vi.waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([url]) => url.includes('/worlds/'))).toHaveLength(3)
+    )
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect((await adapter.getAuthStatus()).state).toBe('authenticated')
+    expect((await adapter.getFriends()).friends).toHaveLength(3)
   })
 })

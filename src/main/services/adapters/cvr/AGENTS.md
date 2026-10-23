@@ -50,8 +50,9 @@ request transport, and published adapter events.
   most one confirming reauth runs per session. Network and 5xx errors keep the
   session. A key rotated by reauth is adopted and persisted.
 - `resolveCvrInstance` encodes the ID and keeps a bounded cache: success uses
-  `INSTANCE_CACHE_TTL_MS`, ordinary failures a short negative TTL. Auth,
-  rate-limit, cancellation, and queue-overflow errors propagate uncached.
+  `INSTANCE_CACHE_TTL_MS`, ordinary failures a short negative TTL. A 403 is
+  negative-cached too and still propagates for the one confirming reauth. A
+  401, rate-limit, cancellation, and queue-overflow errors propagate uncached.
   `clear()` fences in-flight writes. An interactive request may bypass a
   pending background one but still uses shared admission.
 - Resolved `world.id` is the world identity. The hot-instance key stays the

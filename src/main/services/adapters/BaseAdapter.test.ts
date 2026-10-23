@@ -758,6 +758,34 @@ describe('BaseAdapter', () => {
       await expect(adapter.fetch('http://api/x', schema)).resolves.toEqual({ id: 1 })
     })
 
+    it("counts only 401/403 answers from requests that record 'auth' failures", async () => {
+      // Metadata lookups: a missing world, a server error, an unreadable or
+      // drifted body, or a dropped connection is an ordinary answer for one item.
+      const adapter = new TestAdapter()
+      const lookup = { recordCircuitFailure: 'auth' } as const
+      fetchMock.mockResolvedValueOnce(makeResponse(404, {}))
+      fetchMock.mockResolvedValueOnce(makeResponse(500, {}))
+      fetchMock.mockResolvedValueOnce(makeResponse(200, { unexpected: true }))
+      fetchMock.mockResolvedValueOnce({
+        ...makeResponse(200, null),
+        json: () => Promise.reject(new SyntaxError('bad body'))
+      })
+      fetchMock.mockRejectedValueOnce(new TypeError('offline'))
+      for (let i = 0; i < 5; i++) {
+        await expect(
+          adapter.fetch('http://api/x', schema, undefined, lookup)
+        ).rejects.toBeInstanceOf(NetworkError)
+      }
+      fetchMock.mockResolvedValue(makeResponse(403, {}))
+      for (let i = 0; i < 3; i++) {
+        await expect(
+          adapter.fetch('http://api/x', schema, undefined, lookup)
+        ).rejects.toBeInstanceOf(AuthError)
+      }
+      await expect(adapter.fetch('http://api/x', schema)).rejects.toThrow('Circuit open')
+      expect(fetchMock).toHaveBeenCalledTimes(8)
+    })
+
     it('resets after a successful request', async () => {
       fetchMock
         .mockResolvedValueOnce(makeResponse(500, {}))

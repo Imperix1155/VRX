@@ -10,15 +10,25 @@ interface RecoveryDependencies {
   window: RecoveryWindow
   showDialog: (options: MessageBoxOptions) => Promise<{ response: number }>
   onError: (error: unknown) => void
+  /** True once the app is quitting: a renderer that goes away then needs no recovery. */
+  isQuitting?: () => boolean
 }
 
 /** One dialog owner per window, shared by hangs and crashes. */
-export function createRendererRecovery({ window, showDialog, onError }: RecoveryDependencies): {
+export function createRendererRecovery({
+  window,
+  showDialog,
+  onError,
+  isQuitting = () => false
+}: RecoveryDependencies): {
   crashed(reason: string, exitCode: number): void
   unresponsive(): void
 } {
   let active = false
   let pendingCrash: { reason: string; exitCode: number } | undefined
+  // Set while the hang path's own forced kill is on its way, so only that one
+  // 'killed' is expected. Any other kill (e.g. Task Manager) is a crash.
+  let expectingKill = false
 
   async function show(kind: 'hang' | 'crash'): Promise<void> {
     if (active || window.isDestroyed()) return
@@ -53,7 +63,10 @@ export function createRendererRecovery({ window, showDialog, onError }: Recovery
       )
       if (!window.isDestroyed() && response === 0) {
         // A crash supersedes a hang: never force-kill an already dead renderer.
-        if (kind === 'hang' && !pendingCrash) window.webContents.forcefullyCrashRenderer()
+        if (kind === 'hang' && !pendingCrash) {
+          expectingKill = true
+          window.webContents.forcefullyCrashRenderer()
+        }
         window.reload()
         reloaded = true
       }
@@ -69,7 +82,11 @@ export function createRendererRecovery({ window, showDialog, onError }: Recovery
 
   return {
     crashed(reason, exitCode) {
-      if (reason === 'clean-exit' || reason === 'killed' || window.isDestroyed()) return
+      if (reason === 'killed' && expectingKill) {
+        expectingKill = false
+        return
+      }
+      if (reason === 'clean-exit' || isQuitting() || window.isDestroyed()) return
       if (!active || !pendingCrash) pendingCrash = { reason, exitCode }
       void show('crash')
     },

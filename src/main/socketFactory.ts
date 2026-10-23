@@ -5,6 +5,24 @@ import { VRC_USER_AGENT } from './services/adapters/VrcApiClient'
 /** Largest single message either live socket accepts. */
 export const SOCKET_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
 
+/**
+ * TCP keepalive idle time. The operating system then probes a quiet
+ * connection and closes it when the peer is gone (after a network change),
+ * so the reconnect loop runs. Probes are TCP-level and reach no API.
+ */
+export const SOCKET_KEEPALIVE_DELAY_MS = 30_000
+
+function keepConnectionAlive(socket: WebSocket): WebSocket {
+  socket.once('upgrade', (response) => {
+    try {
+      response.socket?.setKeepAlive(true, SOCKET_KEEPALIVE_DELAY_MS)
+    } catch {
+      /* keepalive is best effort; the connection works without it */
+    }
+  })
+  return socket
+}
+
 function observeRejectedUpgrade(socket: WebSocket): WebSocket {
   socket.once('unexpected-response', (_request, response) => {
     const header = response.headers['retry-after']
@@ -26,22 +44,26 @@ function observeRejectedUpgrade(socket: WebSocket): WebSocket {
 
 /** Production VRChat socket: bounded upgrade plus the API-identifying header. */
 export function createVrcSocket(url: string): WebSocket {
-  return observeRejectedUpgrade(
-    new WebSocket(url, {
-      headers: { 'User-Agent': VRC_USER_AGENT },
-      handshakeTimeout: API_TIMEOUT_MS,
-      maxPayload: SOCKET_MAX_PAYLOAD_BYTES
-    })
+  return keepConnectionAlive(
+    observeRejectedUpgrade(
+      new WebSocket(url, {
+        headers: { 'User-Agent': VRC_USER_AGENT },
+        handshakeTimeout: API_TIMEOUT_MS,
+        maxPayload: SOCKET_MAX_PAYLOAD_BYTES
+      })
+    )
   )
 }
 
 /** Production CVR socket: preserve credential headers and bound the upgrade. */
 export function createCvrSocket(url: string, headers: Record<string, string>): WebSocket {
-  return observeRejectedUpgrade(
-    new WebSocket(url, {
-      headers,
-      handshakeTimeout: API_TIMEOUT_MS,
-      maxPayload: SOCKET_MAX_PAYLOAD_BYTES
-    })
+  return keepConnectionAlive(
+    observeRejectedUpgrade(
+      new WebSocket(url, {
+        headers,
+        handshakeTimeout: API_TIMEOUT_MS,
+        maxPayload: SOCKET_MAX_PAYLOAD_BYTES
+      })
+    )
   )
 }
