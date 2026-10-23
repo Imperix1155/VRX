@@ -77,7 +77,7 @@ etiquette rules apply in full; this file adds local detail.
   `CREDENTIAL_KEYS`, writes an invalidation marker before any replacement or
   deletion, and writes a signed-out marker on explicit sign-out. A failed write
   fails closed and cannot revive old auth. A `credentials.json` that is not
-  valid JSON is renamed to `credentials.corrupt-<time>.json` and the store
+  valid JSON is deleted and the store
   starts empty, so it restores nothing and the next sign-in can save.
 - OS `safeStorage` comes first; the Linux `basic_text` backend counts as
   unavailable. The `localCredentialEncryption.ts` fallback is used only when OS

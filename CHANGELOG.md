@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   short message instead of disappearing without a word.
 - If part of VRX is ended from outside (for example in Task Manager), VRX now
   offers to reload the window instead of leaving it blank.
-- If VRX's saved sign-in file gets damaged, VRX sets it aside so you can sign
-  in again.
+- If VRX's saved sign-in file gets damaged, VRX clears it so you can sign in
+  again, instead of every sign-in failing.
 - A brief file lock at startup can no longer reset your settings.
 
 ## [1.0.0-beta.4] - 2026-10-22

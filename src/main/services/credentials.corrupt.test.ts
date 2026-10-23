@@ -49,19 +49,19 @@ describe('damaged credentials file', () => {
     userData.dir = ''
   })
 
-  it('sets the damaged file aside so a new sign-in can be saved', async () => {
+  it('removes the damaged file so a new sign-in can be saved', async () => {
     writeFileSync(join(userData.dir, 'credentials.json'), DAMAGED)
     const { CREDENTIAL_KEYS, loadCredential, saveCredential } = await import('./credentials')
 
     expect(() => saveCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY, 'new-token')).not.toThrow()
     expect(loadCredential(CREDENTIAL_KEYS.VRCHAT_PRIMARY)).toBe('new-token')
 
-    const kept = readdirSync(userData.dir).find((name) =>
-      /^credentials\.corrupt-\d+\.json$/.test(name)
-    )
-    expect(kept).toBeDefined()
-    expect(readFileSync(join(userData.dir, kept!), 'utf8')).toBe(DAMAGED)
-    expect(readFileSync(join(userData.dir, 'credentials.json'), 'utf8')).not.toContain('new-token')
+    expect(readdirSync(userData.dir).filter((name) => name.startsWith('credentials'))).toEqual([
+      'credentials.json'
+    ])
+    const saved = readFileSync(join(userData.dir, 'credentials.json'), 'utf8')
+    expect(saved).not.toContain('new-token')
+    expect(saved).not.toContain(DAMAGED)
   })
 
   it('fails closed: a damaged file restores no credential', async () => {
