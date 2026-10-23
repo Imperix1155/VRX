@@ -89,7 +89,10 @@ Explore reads, and VRChat API-host image hops all pass through it.
 
 An interactive sign-in resets the circuit breaker so a user with correct
 credentials is not blocked by earlier background failures. Pacing and 429
-cooldowns still apply to it.
+cooldowns still apply to it. Lookups whose miss is an ordinary answer (world,
+group and instance metadata, Explore reads) do not open the breaker for a
+missing or unreadable item; [API volatility](api-volatility.md) lists exactly
+what each counts.
 
 ## 429 handling, backoff, and cooldowns
 
@@ -136,8 +139,8 @@ Both pipelines share [`ReconnectingPipeline`](../src/main/services/adapters/Reco
 | Handshake timeout | 15,000 ms                                                                     | 15,000 ms                                                                    |
 | Reconnect backoff | 1 s × 2ⁿ per failed or short connection, capped at 60 s, plus 0–249 ms jitter | Same                                                                         |
 | Backoff reset     | After a connection stays open for 60 seconds                                  | Same                                                                         |
-| Keepalive         | None sent                                                                     | None sent; the `ws` library answers server pings                             |
-| Extra reconnects  | None                                                                          | At most 2 when a connect's full online set cannot be read                    |
+| Keepalive         | None sent; TCP keepalive only (no API traffic)                                | None sent; the `ws` library answers server pings; TCP keepalive only         |
+| Extra reconnects  | One after the computer wakes or unlocks (at most one per 60 s)                | Same; also at most 2 when a connect's full online set cannot be read         |
 | On connect        | One REST roster read to catch up                                              | One REST roster read to catch up; a roster-changed message also triggers one |
 
 Full REST rosters run on first load, on manual refresh, after a socket

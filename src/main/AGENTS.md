@@ -22,8 +22,8 @@ etiquette rules apply in full; this file adds local detail.
   request admission, and reconnect logic.
 - Top-level modules own cross-cutting concerns: event fan-out
   (`adapterWiring.ts`), navigation guards, native notifications, tray, updater,
-  logging and redaction, main-process copy (`i18n.ts`), sockets, and window
-  reveal (`showGate.ts`).
+  logging and redaction, main-process copy (`i18n.ts`), sockets, live-socket
+  reconnect after wake (`wakeReconnect.ts`), and window reveal (`showGate.ts`).
 - [`../preload`](../preload/index.ts) belongs to this contract. `index.ts`
   exposes `window.vrx`; `index.d.ts` types it. Bridge rules are in the IPC
   child contract.
