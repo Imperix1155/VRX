@@ -100,6 +100,26 @@ describe('useSettingsPersistence', () => {
     })
   })
 
+  it('adopts the settings main saved when they hold values the snapshot did not', async () => {
+    // Main recovered a settings file that was unreadable at boot: it keeps the
+    // user's edit and answers with the recovered values too.
+    const bridge = stubBridge({
+      getSettings: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS }),
+      saveSettings: vi
+        .fn()
+        .mockImplementation((req: { patch: Settings }) =>
+          Promise.resolve({ ...req.patch, theme: 'light' })
+        )
+    })
+    render(<Probe />)
+    await waitFor(() => expect(storeState().hydrated).toBe(true))
+    act(() => useSettingsStore.getState().updateSettings({ density: 'compact' }))
+    await waitFor(() => expect(storeState().settings.theme).toBe('light'))
+    expect(storeState().settings.density).toBe('compact')
+    expect(storeState().dirty).toBe(false)
+    expect(bridge.saveSettings).toHaveBeenCalledOnce()
+  })
+
   it('hands every rapid snapshot to main immediately, with the final state last', async () => {
     const bridge = stubBridge()
     render(<Probe />)

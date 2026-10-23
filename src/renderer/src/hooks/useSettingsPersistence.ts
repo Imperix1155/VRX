@@ -58,6 +58,12 @@ async function loadSettingsWithRetry(
  *
  * Guards `window.vrx` absence (Preview/tests): everything stays in-memory.
  */
+function differsFrom(current: Settings, saved: Settings): boolean {
+  return (Object.keys(saved) as (keyof Settings)[]).some(
+    (key) => JSON.stringify(saved[key]) !== JSON.stringify(current[key])
+  )
+}
+
 export function useSettingsPersistence(): void {
   const setSettings = useSettingsStore((s) => s.setSettings)
   const hydrate = useSettingsStore((s) => s.hydrate)
@@ -114,8 +120,13 @@ export function useSettingsPersistence(): void {
     const bridge = window.vrx
     void bridge
       .saveSettings({ patch: snapshot })
-      .then(() => {
-        if (!cancelled && useSettingsStore.getState().settings === snapshot) {
+      .then((saved) => {
+        if (cancelled || useSettingsStore.getState().settings !== snapshot) return
+        // Main can answer with values this snapshot didn't hold (a settings
+        // file that was unreadable at boot and is readable again): adopt them.
+        if (saved && differsFrom(snapshot, saved)) {
+          useSettingsStore.getState().setSettings(saved)
+        } else {
           useSettingsStore.getState().markSaved()
         }
       })

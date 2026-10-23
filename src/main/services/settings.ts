@@ -30,6 +30,11 @@ let settingsSnapshot: Settings | undefined
 // read (lock, permissions, I/O). Saving then would replace the user's real file
 // with defaults plus one patch, so saveSettings re-reads the file first.
 let settingsUnloaded = false
+// The settings handed out while the file could not be read (defaults). The
+// renderer saves its whole snapshot, so after the file is readable again only
+// the fields it changed from this baseline are the user's edits; the rest are
+// stale defaults that must not replace the recovered file.
+let fallbackBaseline: Settings | undefined
 const SETTINGS_SAVE_DEBOUNCE_MS = 250
 
 interface SettingsSaveWaiter {
@@ -133,6 +138,7 @@ export function loadSettings(): Settings {
       }
     }
     settingsSnapshot = { ...DEFAULT_SETTINGS }
+    if (settingsUnloaded) fallbackBaseline ??= { ...DEFAULT_SETTINGS }
     return settingsSnapshot
   }
 
@@ -164,6 +170,16 @@ export function hasPendingSettingsSave(): boolean {
 
 /** Cheap fire-time view for hot paths. Startup's first load populates it; the
  *  fallback keeps direct/test callers safe without changing IPC behavior. */
+/**
+ * `loadSettings` for the renderer's `get-settings`. Settings read from disk
+ * replace any fallback the renderer held, so its later saves are whole again.
+ */
+export function loadSettingsForRenderer(): Settings {
+  const settings = loadSettings()
+  if (!settingsUnloaded) fallbackBaseline = undefined
+  return settings
+}
+
 export function getSettingsSnapshot(): Settings {
   return settingsSnapshot ?? loadSettings()
 }
@@ -185,6 +201,18 @@ export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
       settingsSnapshot = parseSettings({ ...(inMemory ?? DEFAULT_SETTINGS), ...patch })
       throw new Error('settings: refusing to save while the settings file cannot be read')
     }
+  }
+  if (fallbackBaseline) {
+    // Readable again after the renderer was given defaults. Keep only the
+    // fields it changed from them; the resolved settings carry the recovered
+    // values back so the renderer can adopt them.
+    const baseline = fallbackBaseline
+    fallbackBaseline = undefined
+    patch = Object.fromEntries(
+      Object.entries(patch).filter(
+        ([key, value]) => !isDeepStrictEqual(value, baseline[key as keyof Settings])
+      )
+    )
   }
   // The renderer has already accepted the patch locally before this call. Keep
   // native fire-time policy coherent even when persistence must be refused or

@@ -4,7 +4,7 @@ import type { Settings } from '@shared/settings'
 import {
   getSettingsSnapshot,
   hasPendingSettingsSave,
-  loadSettings,
+  loadSettingsForRenderer,
   saveSettings
 } from '../services/settings'
 import { isTrustedIpcSender } from './security'
@@ -23,7 +23,7 @@ import { isTrustedIpcSender } from './security'
 export function registerSettingsHandlers(onApplied?: (settings: Settings) => void): void {
   ipcMain.handle('get-settings', (event): IpcInvoke['get-settings']['res'] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
-    const settings = loadSettings()
+    const settings = loadSettingsForRenderer()
     return hasPendingSettingsSave() ? { ...settings, unsaved: true } : settings
   })
 
