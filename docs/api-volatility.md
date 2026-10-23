@@ -54,8 +54,9 @@ only note where they differ.
   Sign-in and re-auth read raw responses, so their HTTP statuses never count,
   and sign-in resets the circuit first. The VRChat status probe and Pipeline
   token exchange, ChilloutVR restore checks and ChilloutVR instance lookups do
-  not count at all. VRChat counts 403s; ChilloutVR does not, because it confirms
-  403s itself.
+  not count at all. VRChat world and group lookups count only 401 and 403
+  answers; a missing, failing or unreadable item never opens the circuit.
+  VRChat counts 403s; ChilloutVR does not, because it confirms 403s itself.
 - Responses are validated with Zod. Lists are validated record by record: a
   malformed record is skipped and counted, and its valid siblings survive.
 - A roster with any skipped record, failed page or cap hit is `partial`. A
@@ -76,6 +77,12 @@ only note where they differ.
   sessions surface on REST.
 - VRX sends no application heartbeat. Each successful open makes the renderer
   refetch the roster once over REST.
+- Dead-connection detection adds no API requests. Both sockets turn on TCP
+  keepalive (30 s idle, `SOCKET_KEEPALIVE_DELAY_MS`), and when the computer
+  resumes from sleep, main drops each open socket once (`reconnectNow`); a
+  screen unlock alone does not. The redial uses the normal backoff and 429
+  cooldown, and resumes within 60 s count once. No socket has a message-silence watchdog:
+  neither platform's server ping interval has been confirmed live.
 - Decoders never throw on wire data. Unknown or malformed frames are dropped and
   debug-logged without payload contents.
 
@@ -205,10 +212,14 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 
 - **Assumes (Source-derived, VRCX pattern):** the reply is `{ token: string }`.
   The token goes in the Pipeline URL.
-- **When it breaks:** a failed exchange or another shape falls back to the raw
-  `auth` cookie value (everything after the first `=`). Without a durable session
-  there is no token and the Pipeline waits. Failures never count toward the
-  circuit.
+- **When it breaks:** a network error, a non-401 error status or another shape
+  falls back to the raw `auth` cookie value (everything after the first `=`). A
+  401 means the session was rejected: VRX emits `auth-invalidated` like any
+  data-path 401, reports the socket down and stops dialing until the 2FA-aware
+  status check settles the session. If that check still accepts the cookie, the
+  Pipeline restarts and a repeat 401 falls back to the raw cookie instead of
+  invalidating again. Without a durable session there is no token and the
+  Pipeline waits. Failures never count toward the circuit.
 
 ### Friend roster: `GET /auth/user/friends`
 
@@ -217,8 +228,8 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
   of strings; explicitly empty arrays are valid.
 - **Pages:** `?offset=<n>&n=100&offline=false`, then the same with
   `offline=true`. A page must be a JSON array. Records are validated one by one.
-- **Record schema:** `id` and `displayName` are required. `tags` defaults to
-  `[]`. `iconUrl`, `currentAvatarImageUrl`, `userIcon`,
+- **Record schema:** `id` and `displayName` are required. Missing, null or
+  malformed `tags` become `[]` without dropping the friend. `iconUrl`, `currentAvatarImageUrl`, `userIcon`,
   `profilePicOverrideThumbnail`, `currentAvatarThumbnailImageUrl`, `location`,
   `status` and `statusDescription` are optional and nullable. Drift in `iconUrl`
   or `currentAvatarImageUrl` becomes null without dropping the friend. Unknown
@@ -317,8 +328,11 @@ group id.
   - A non-auth failure, a malformed body or a missing name resolves to null and is
     negative-cached for 60 s.
   - A 401 emits `auth-invalidated`.
-  - A 403 is an `AuthError`. It is not negative-cached, ends the rest of that
-    enrichment batch and counts toward the circuit. It never signs out.
+  - A 403 denies that one world on a live session. It resolves to null, is
+    negative-cached for 60 s like a missing world, and the rest of the batch
+    continues. It still counts toward the circuit and never signs out.
+  - Only 401 and 403 count toward the circuit. A 404, other error status,
+    network error or unreadable body does not.
   - Rate limits, cancellation and admission overflow end the batch without
     caching.
   - Residual auth window: the roster returns before these lookups settle. A
@@ -584,8 +598,9 @@ main-only base `https://api.chilloutvr.net`. The WebSocket is
   - A non-auth failure resolves to null, is negative-cached and re-emits the
     socket fallback.
   - A 401 signs out.
-  - A 403 is not negative-cached. It starts the 403 confirmation and is requested
-    again on the next snapshot that still lists the id.
+  - A 403 is negative-cached for 60 s, so later snapshots that still list the id
+    do not request it again. It also starts the 403 confirmation, which runs at
+    most once per session.
 
 ### Privacy values
 
@@ -775,15 +790,15 @@ only when the user presses it. VRX never writes either source.
 
 ## Open questions
 
-| Platform   | Question                                                           | Current safe behavior                                                |
-| ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| VRChat     | Does an inaccessible world or group return 403 or 404?             | 404 is negative-cached; 403 is retried and counts toward the circuit |
-| VRChat     | Is Pipeline `content` always double-encoded?                       | Both string and object accepted                                      |
-| VRChat     | Does `friend-add` always carry `user.state`?                       | Missing state falls back to active                                   |
-| ChilloutVR | What do numbers 1, 3, 4, 5 and 6 mean on the live socket?          | Earlier-app mapping, understating access                             |
-| ChilloutVR | Does a friend going offline always get an `IsOnline: false` delta? | Online set is rebuilt on every reconnect                             |
-| ChilloutVR | Which status does a private or closed instance return?             | Non-auth failures negative-cached; 403 confirmed once                |
-| ChilloutVR | How long does an access key live, and when does it rotate?         | Rotations persisted; dead keys surface as 401                        |
+| Platform   | Question                                                           | Current safe behavior                                               |
+| ---------- | ------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| VRChat     | Does an inaccessible world or group return 403 or 404?             | 404 and 403 are negative-cached; 403 also counts toward the circuit |
+| VRChat     | Is Pipeline `content` always double-encoded?                       | Both string and object accepted                                     |
+| VRChat     | Does `friend-add` always carry `user.state`?                       | Missing state falls back to active                                  |
+| ChilloutVR | What do numbers 1, 3, 4, 5 and 6 mean on the live socket?          | Earlier-app mapping, understating access                            |
+| ChilloutVR | Does a friend going offline always get an `IsOnline: false` delta? | Online set is rebuilt on every reconnect                            |
+| ChilloutVR | Which status does a private or closed instance return?             | Failures and 403 negative-cached; 403 confirmed once                |
+| ChilloutVR | How long does an access key live, and when does it rotate?         | Rotations persisted; dead keys surface as 401                       |
 
 ## How to update this doc
 

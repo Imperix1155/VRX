@@ -43,17 +43,21 @@ transport, and published adapter events.
   never authorizes a join.
 - The Pipeline is live state, not a polling replacement. It never sends,
   decodes the double-encoded payload defensively, ignores malformed or unknown
-  messages, and adds no heartbeat. Reconnect waits honor the shared 429
-  cooldown, recheck it after token preparation and before dialing, and cancel
-  on stop or session replacement.
+  messages, and adds no heartbeat. A token-exchange 401 is a data-path 401: it
+  invalidates the session and stops the Pipeline until the status check
+  settles it; other exchange failures use the raw cookie. Reconnect waits
+  honor the shared 429 cooldown, recheck it after token preparation and before
+  dialing, and cancel on stop or session replacement.
 - Metadata caches are TTL-bound and cleared at account boundaries; late writes
   from an older generation are fenced. `GroupResolver` is also size-capped.
   The launch-to-launch copy (`metadataStore`) is per account: seed only where a
   durable account is published, never extend an entry's expiry, and write only
   for the account and generation that owns the resolvers.
-  Ordinary lookup failures resolve `null` and are negative-cached briefly.
-  Auth, rate-limit, cancellation, and queue-overflow errors propagate and are
-  never negative-cached. Enrichment never fails a roster already returned and
+  Ordinary lookup failures resolve `null` and are negative-cached briefly. A
+  403 denies one world or group on a live session, so it is negative-cached
+  like a miss. A 401, rate-limit, cancellation, and queue-overflow errors
+  propagate and are never negative-cached. Lookups count only 401 and 403
+  answers toward the shared circuit. Enrichment never fails a roster already returned and
   emits narrow metadata events only for the current session generation.
 - Cancellation, admission overflow, and a tentative session stop later pages
   and batch work. They are not circuit failures. A later request never borrows

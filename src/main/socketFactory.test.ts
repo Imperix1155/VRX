@@ -15,7 +15,12 @@ vi.mock('ws', async () => {
   return { WebSocket: WebSocketMock }
 })
 
-import { SOCKET_MAX_PAYLOAD_BYTES, createCvrSocket, createVrcSocket } from './socketFactory'
+import {
+  SOCKET_KEEPALIVE_DELAY_MS,
+  SOCKET_MAX_PAYLOAD_BYTES,
+  createCvrSocket,
+  createVrcSocket
+} from './socketFactory'
 
 describe('production WebSocket factories', () => {
   beforeEach(() => {
@@ -43,6 +48,22 @@ describe('production WebSocket factories', () => {
       expect(response.destroy).toHaveBeenCalledOnce()
       expect(socket.terminate).toHaveBeenCalledOnce()
       expect(JSON.stringify(rejected.mock.calls)).not.toContain('fixture-secret')
+    }
+  )
+
+  it.each(['vrchat', 'chilloutvr'] as const)(
+    'turns on TCP keepalive for the upgraded %s connection',
+    (platform) => {
+      const socket =
+        platform === 'vrchat'
+          ? createVrcSocket('wss://fixture.example')
+          : createCvrSocket('wss://fixture.example', {})
+      const tcp = { setKeepAlive: vi.fn() }
+      socket.emit('upgrade', { socket: tcp })
+      expect(tcp.setKeepAlive).toHaveBeenCalledExactlyOnceWith(true, SOCKET_KEEPALIVE_DELAY_MS)
+      expect(SOCKET_KEEPALIVE_DELAY_MS).toBe(30_000)
+      // A connection without a reachable TCP socket still works.
+      expect(() => createVrcSocket('wss://fixture.example').emit('upgrade', {})).not.toThrow()
     }
   )
 

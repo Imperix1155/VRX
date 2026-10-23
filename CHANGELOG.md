@@ -32,6 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Security hardening.
 
+### Fixed
+
+- VRX reconnects right away after your PC wakes from sleep, so friends' status
+  doesn't freeze while VRX still says it's live.
+- A few VRChat worlds or groups that can't be loaded no longer make VRChat look
+  disconnected for a minute.
+- When your VRChat sign-in expires, VRX now notices as soon as the live
+  connection tries to reconnect and asks you to sign in again, instead of
+  retrying quietly until the next full re-sync.
+- A VRChat friend whose profile is missing its trust information no longer
+  disappears from your friends list.
+
 ## [1.0.0-beta.4] - 2026-10-22
 
 ### Added
