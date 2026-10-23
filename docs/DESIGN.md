@@ -105,7 +105,10 @@ existing semantic variables and the Tailwind scale; add a shared token only
 for an approved need that existing ones can't meet.
 
 - Text: `--text`, `--text-dim`, `--text-faint`. Don't use faint text for
-  anything a person must read.
+  anything a person must read: notices, fine print, labels, counters, versions
+  and loading lines use `--text-dim`. Faint is left for the wordmark subtitle,
+  the Dashboard section headings (§7), placeholders, disabled controls, and
+  technical identifiers such as the Hot Instance ID.
 - Errors: `--error` for missing data and failures.
 - Platforms: `--vrc`, `--cvr`, and their companion and ghost tokens.
 - Friend state: `--ingame`, `--active`, `--offline`; VRChat status: `--st-*`;
@@ -258,13 +261,19 @@ Fonts load from the licensed local WOFF2 files through `main.css`, with their
 provenance and license files kept. Never load remote fonts, add another
 display face, use negative letter spacing, or scale type with the viewport.
 
+Japanese text wraps at phrase boundaries, never mid-word: `main.css` sets
+`word-break: auto-phrase` on `body:lang(ja)` only, so English and other
+languages keep normal breaking. Don't add per-component copies.
+
 ## §8 Shell and controls
 
 Use [`AppShell`](../src/renderer/src/components/AppShell.tsx),
 [`Sidebar`](../src/renderer/src/components/Sidebar.tsx), and
 [`TopBar`](../src/renderer/src/components/TopBar.tsx). The sidebar stays
-fixed and the main content scrolls. The default and minimum window is
-900×670; on a smaller screen the minimum shrinks so the app stays usable.
+fixed and the main content scrolls. The default and minimum page size is
+900×670, measured inside the window frame (the title bar and borders are
+added around it); on a smaller screen the minimum shrinks so the app stays
+usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
 **Navigation**, in order: Dashboard, Hot Instances, Friends, Explore,
@@ -319,7 +328,8 @@ Accounts, and About. Each setting sits on a compact neutral card.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save
-succeeds. A normal save is silent; a notice appears only if the latest change
+succeeds. Shell notices are compact one-row strips with the action beside the
+text; the failure leads with a warning glyph as its non-color cue. A normal save is silent; a notice appears only if the latest change
 is still unsaved about two seconds later, and the timer restarts on every
 change. If the first sign-in check fails, VRX shows a platform-specific
 recovery message with Retry, never a signed-out form. A healthy platform can
@@ -346,8 +356,10 @@ nothing.
 ### §9.1 Friends, Dashboard, and Hot Instances
 
 The Friends list uses virtual rows and sticky, collapsible In-Game, Online,
-and Offline sections; Offline starts collapsed. Search shows matches without
-changing saved collapse settings. Roving focus moves between avatars, and
+and Offline sections; Offline starts collapsed. A pinned section header sits
+at the scroll area's top edge, with no strip of rows above it. Search shows
+matches without changing saved collapse settings; when nothing matches, only
+the no-results line shows, without empty section headers. Roving focus moves between avatars, and
 off-screen rows stay out of the Tab order. Compact rows are at least 60 px
 and are re-measured as join feedback appears or clears.
 
@@ -393,7 +405,8 @@ assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
 The order is: header, written status, Where, actions, Notes, Trust, and
-Identities. Where cards keep privacy rules, show neutral art when a picture is
+Identities. A long name wraps to two lines before it is cut, and its tooltip
+shows it in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,
 they stay read-only with Retry. A failed save keeps the draft and a warning;
@@ -410,7 +423,8 @@ Explore and Hot Instance sheets are contained and non-modal and share one
 layout: platform stripe, grab bar, then the picture starting below Close.
 Close stays reachable outside the scrolling area. In the light theme a sheet
 banner keeps the photo at full brightness and lays a soft card-colored scrim
-under the title instead of darkening it. Escape, a click outside, and Close
+under the title instead of darkening it. The banner's pills and Join sit on
+the same small card-colored backing as other pills over a picture. Escape, a click outside, and Close
 return focus to the opener or a stable fallback. A confirmation modal owns
 dismissal while open, and the Dashboard never shows both sheet types at once.
 
@@ -465,7 +479,7 @@ rule 11). Settings → About offers Run setup again.
 local-key fallback (in setup, behind Show more), and never promises keychain
 protection everywhere. The
 sign-in screen (both tabs) and Accounts show one unofficial-app notice in plain
-faint text: a VRChat sentence and ChilloutVR's required disclaimer, worded the
+dim text: a VRChat sentence and ChilloutVR's required disclaimer, worded the
 same way (see [API policy](./api-policy.md)).
 The real credential and two-factor forms are used in examples; a secure
 storage failure keeps its dedicated message. Guide fixtures accept only
