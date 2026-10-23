@@ -77,6 +77,8 @@ export const CVR_PLATFORM = 'pc_standalone' as const
 export const RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases/latest' as const
 /** All releases, newest first: `/latest` never lists a beta or rc. */
 export const ALL_RELEASES_URL = 'https://github.com/Imperix1155/VRX/releases' as const
+/** Where to report a problem with VRX (Settings → About → Legal). */
+export const ISSUES_URL = 'https://github.com/Imperix1155/VRX/issues' as const
 
 /** Where a build that can't update itself finds its next version: a test
  *  build's next version is usually another test build. */

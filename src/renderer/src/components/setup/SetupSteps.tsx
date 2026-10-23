@@ -179,9 +179,11 @@ export const WelcomeStep = forwardRef<HTMLHeadingElement>(function WelcomeStep(_
           </li>
         ))}
       </ul>
-      {/* The full notice carries ChilloutVR's required sentence word for word
-          (docs/api-policy.md); the login screen and Settings → Accounts show it too. */}
-      <FinePrint centered summary={t('setup.welcome.notice')} full={t('shell.unofficialNotice')} />
+      {/* One line; the full legal text lives in Settings → About → Legal
+          (docs/api-policy.md). */}
+      <p className={`${FINE_PRINT} max-w-[52ch] text-center text-balance`}>
+        {t('shell.unofficialNotice')}
+      </p>
     </div>
   )
 })

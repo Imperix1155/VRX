@@ -11,6 +11,7 @@ import { act, fireEvent, within, render, screen, cleanup } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import { ISSUES_URL, releasesUrlFor } from '@shared/constants'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
@@ -427,6 +428,31 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
   })
 })
 
+describe('SettingsView — Legal (About page)', () => {
+  it('starts closed and opens the full legal text in place', () => {
+    const openUrl = vi.fn(() => Promise.resolve())
+    setBridge({ openUrl } as unknown as VrxBridge)
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    const toggle = screen.getByRole('button', { name: msg('settings.legal.show') })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    const panel = document.getElementById(toggle.getAttribute('aria-controls')!)
+    expect(panel?.closest('[inert]')).toBeTruthy()
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.textContent).toBe(msg('settings.legal.hide'))
+    expect(panel?.closest('[inert]')).toBeNull()
+    for (const key of ['independent', 'vrchat', 'chilloutvr', 'support', 'privacy', 'license']) {
+      expect(within(panel!).getByText(msg(`settings.legal.${key}`))).toBeTruthy()
+    }
+
+    fireEvent.click(within(panel!).getByRole('button', { name: msg('settings.legal.report') }))
+    expect(openUrl).toHaveBeenCalledWith({ url: ISSUES_URL })
+  })
+})
+
 describe('SettingsView — Automatic updates row (VRX-113)', () => {
   it('renders on the About page and binds the toggle to autoUpdate', () => {
     useUiStore.setState({ settingsCategory: 'about' })
@@ -580,11 +606,9 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(screen.getByText(msg('updater.settings.unsupportedNote'))).toBeTruthy()
     const button = screen.getByRole('button', { name: msg('updater.settings.releases') })
     fireEvent.click(button)
-    // This build is a beta, so the link lists test builds too.
-    expect(__APP_VERSION__).toContain('-')
-    expect(openUrl).toHaveBeenCalledWith({
-      url: 'https://github.com/Imperix1155/VRX/releases'
-    })
+    // The link follows this build's channel: every release for a test build,
+    // the latest release for a full one (url-allowlist.test.ts pins both).
+    expect(openUrl).toHaveBeenCalledWith({ url: releasesUrlFor(__APP_VERSION__) })
   })
 })
 

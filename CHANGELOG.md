@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-23
+
+VRX 1.0 is the first full release: one window for your VRChat and ChilloutVR
+friends, so you don't need VRCX and CVRX open side by side. It is 1.0.0-beta.5
+plus a shorter notice, a new Legal section, and one onboarding line (below).
+Coming from 0.23.0, the [changelog](https://github.com/Imperix1155/VRX/blob/main/CHANGELOG.md)
+lists every change from the betas in detail.
+
+**Highlights**
+
+- **Both platforms, side by side.** Friends, presence, and instances from
+  VRChat and ChilloutVR, with equal weight and live updates from each
+  platform's own live connection.
+- **Dashboard and Hot Instances.** Friends online and in game at a glance,
+  instances where your friends gather, and Popular now worlds. You choose the
+  section order.
+- **Friends and linked profiles.** One list with search and friend details
+  (where they are, notes, and Join). You can link a friend's two accounts into
+  one person by hand.
+- **Explore.** Popular public worlds from both platforms, with room details.
+- **A short welcome setup.** Sign in, pick your pages and look, and turn on the
+  alerts you want. Every step can be skipped, and you can run it again from
+  Settings → About.
+- **Sign in your way.** Sign in with your password, or reuse a sign-in already
+  saved on this PC by VRCX or ChilloutVR. Saved sessions use your system's
+  secure storage when it is available.
+- **Gentle on the platforms.** VRX checks in no more often than VRCX and CVRX
+  do: a full friend re-sync once an hour, with live updates in between.
+- **Polish everywhere.** Readable text in light and dark themes, screen reader
+  support, English and Japanese, a tray icon, and in-app updates.
+
+**Known limits**
+
+- VRX isn't code-signed yet. Windows may show "Windows protected your PC" the
+  first time; choose More info → Run anyway. The install guide explains it.
+- Windows 10 or newer (64-bit) and x64 Linux only. There are no macOS builds.
+- Linux builds are less tested than Windows. The AppImage needs `libfuse2`
+  (`libfuse2t64` on newer Ubuntu), and some desktops (such as GNOME) need an
+  extension to show the tray icon.
+- The portable Windows build doesn't update itself. Use the installer for
+  in-app updates.
+- VRX is unofficial. Both platforms' APIs are unofficial and can change
+  without notice, which can break a feature until VRX is updated.
+
+### Added
+
+- Settings → About → Legal, closed until you open it: who makes VRX (and who
+  doesn't), where to report a problem, each platform's terms, privacy, and the
+  license.
+
+### Changed
+
+- The unofficial-app notice is now one line: VRX is not affiliated with the
+  VRChat team nor the ChilloutVR team.
+- The welcome setup mentions that you can link a friend's VRChat and ChilloutVR
+  accounts.
+
 ## [1.0.0-beta.5] - 2026-10-23
 
 ### Changed

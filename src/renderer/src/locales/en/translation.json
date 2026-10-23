@@ -108,7 +108,7 @@
   "shell": {
     "subtitle": "Social VR Companion",
     "footer": "Social VR Companion",
-    "unofficialNotice": "VRX is an unofficial app. It is not created by or affiliated with VRChat or the VRChat team in any way. This application is not created by or affiliated with ChilloutVR or the ChilloutVR team in any way.",
+    "unofficialNotice": "VRX is an unofficial app, not affiliated with the VRChat team nor the ChilloutVR team.",
     "nav": {
       "aria": "Main navigation",
       "dashboard": "Dashboard",
@@ -318,6 +318,25 @@
       "description": "Diagnostic logs for troubleshooting. Credentials are redacted; review before sharing.",
       "open": "Open logs folder",
       "error": "Couldn't open the logs folder."
+    },
+    "legal": {
+      "label": "Legal",
+      "description": "Who makes VRX, your privacy, and the license.",
+      "show": "Show",
+      "hide": "Hide",
+      "officialTitle": "Not an official app",
+      "independent": "VRX is an independent app made by fans. It is not made, published, endorsed, sponsored, supported, or reviewed by the VRChat team or the ChilloutVR team, and it is not affiliated with either team in any way.",
+      "vrchat": "This application is not created by or affiliated with VRChat or the VRChat team in any way.",
+      "chilloutvr": "This application is not created by or affiliated with ChilloutVR or the ChilloutVR team in any way.",
+      "helpTitle": "Getting help",
+      "support": "Since neither team makes VRX, they can’t help with it, so please don’t contact them about VRX. If something in VRX goes wrong, report it on VRX’s GitHub page instead.",
+      "report": "Report a problem",
+      "termsTitle": "Platforms and terms",
+      "terms": "VRChat and ChilloutVR are named only to say which platforms VRX works with. VRX uses each platform’s unofficial web services, which can change at any time. Each platform’s own terms of service still apply to your account while you use VRX.",
+      "privacyTitle": "Privacy",
+      "privacy": "VRX has no accounts of its own, no ads, and no telemetry or analytics. It talks only to VRChat, ChilloutVR, and GitHub (for updates). It never saves your password, and your sign-ins and settings stay on this PC.",
+      "licenseTitle": "License",
+      "license": "VRX is free, open-source software under the MIT License, provided “as is”, without warranty of any kind. It is built with open-source software, including Electron and React, each under its own license."
     },
     "pages": {
       "hot": {
@@ -658,10 +677,9 @@
     "welcome": {
       "title": "Welcome to VRX",
       "lead": "Your social VR companion for VRChat and ChilloutVR.",
-      "notice": "VRX is an unofficial app, not created by or affiliated with VRChat or ChilloutVR.",
       "friends": {
         "title": "One friends list",
-        "body": "Your VRChat and ChilloutVR friends together, live."
+        "body": "Your VRChat and ChilloutVR friends together, live, and you can link a friend’s two accounts."
       },
       "hot": {
         "title": "Hot Instances",

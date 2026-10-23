@@ -43,10 +43,14 @@ languages show English.
 
 ## Unofficial
 
-VRX is an unofficial app. It is not created by or affiliated with VRChat or the
-VRChat team in any way. This application is not created by or affiliated with
-ChilloutVR or the ChilloutVR team in any way. Neither platform endorses VRX.
-Both APIs it uses are unofficial and can change without notice.
+VRX is an independent app made by fans. It is not made, published, endorsed,
+sponsored, supported, or reviewed by the VRChat team or the ChilloutVR team.
+This application is not created by or affiliated with VRChat or the VRChat
+team in any way. This application is not created by or affiliated with
+ChilloutVR or the ChilloutVR team in any way. Please report problems with VRX
+on this repository's issues page, not to either platform. Both APIs it uses are
+unofficial and can change without notice. The app shows the same text under
+Settings → About → Legal.
 
 ## Install
 
