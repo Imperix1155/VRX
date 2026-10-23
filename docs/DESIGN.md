@@ -484,7 +484,9 @@ combines the accounts, and a single-platform view shows that account. The
 header prefers in-game, then active, then offline, with the preferred platform
 breaking ties. A merged picture changes artwork only, never the status source.
 Two locations use a hard, centered 45-degree split, VRChat upper-right and
-ChilloutVR lower-left.
+ChilloutVR lower-left. In the row, two joinable locations share one
+"2 locations" pill whose halves carry each access tier by color, so the world
+line names each tier in words after its platform tag.
 
 Combined Join always opens the destination chooser, even with one eligible
 choice, and never picks for the user. Single-platform views use the normal
