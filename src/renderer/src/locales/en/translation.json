@@ -174,7 +174,7 @@
     },
     "drawerOpener": {
       "label": "Friend details open from",
-      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. The Join pill always joins instead.",
+      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. Clicking the instance label, such as Public, always joins instead.",
       "aria": "Friend details opener selector",
       "card": "Whole card",
       "avatar": "Avatar only"
@@ -236,8 +236,7 @@
     "accounts": {
       "heading": "Accounts",
       "connectedAs": "Connected as {{name}}",
-      "disconnect": "Disconnect",
-      "disconnecting": "Disconnecting…",
+      "disconnecting": "Signing out…",
       "unreachable": "Can't reach {{platform}} right now — your session is safe.",
       "retry": "Retry",
       "retrying": "Retrying…",
@@ -258,7 +257,7 @@
         "back": "Back"
       },
       "error": {
-        "disconnect": "Could not disconnect this account. Please try again.",
+        "disconnect": "Could not sign out of this account. Please try again.",
         "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
         "unknown": "Sign-in failed. Check your details and connection, then try again.",
         "importNotFoundVrchat": "No VRCX sign-in found on this PC. If VRCX is open, quit it (also from the tray) and try again, or sign in with your password.",
@@ -345,8 +344,8 @@
   "greeting": "Welcome to VRX",
   "friends": {
     "title": "Friends",
-    "loading": "Loading...",
-    "empty": "No friends online",
+    "loading": "Loading…",
+    "empty": "No friends yet",
     "searchPlaceholder": "Search friends",
     "clearSearch": "Clear search",
     "searchNoResults": "No friends match your search",
@@ -489,7 +488,7 @@
     "hostedBy": "Hosted by {{group}}"
   },
   "dashboard": {
-    "loading": "Loading...",
+    "loading": "Loading…",
     "error": "Could not load your friends right now",
     "retry": "Retry",
     "notConnected": {
@@ -512,7 +511,7 @@
     "hotThresholdAria": "Hot instance threshold",
     "hotHelp": {
       "label": "About Hot Instances",
-      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the top instance from each platform, and the Hot Instances page shows all of them, with the most friends first.",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
     "seeAll": "See all {{count}}",

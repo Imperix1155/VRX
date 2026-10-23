@@ -1347,7 +1347,7 @@ export default function FriendsList(): React.JSX.Element {
           )}
           {/* The [] placeholder a sign-in or account switch leaves says loading
           while the new roster loads; a verified empty roster that is merely
-          refreshing keeps saying nobody is online. */}
+          refreshing keeps saying there are no friends yet. */}
           {filteredFriends && filteredFriends.length === 0 && (
             <p className="text-sm text-[var(--text-dim)]">
               {searchActive

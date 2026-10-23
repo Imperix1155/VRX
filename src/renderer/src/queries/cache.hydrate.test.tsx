@@ -370,7 +370,7 @@ describe('PersistQueryClientProvider hydrate', () => {
 
     mountFriendsListHydrate(queryClient)
 
-    await waitFor(() => expect(screen.getByText('No friends online')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('No friends yet')).toBeTruthy())
     expect(screen.queryByText('Malformed Friend')).toBeNull()
     expect(screen.queryByText('Something went wrong')).toBeNull()
   })

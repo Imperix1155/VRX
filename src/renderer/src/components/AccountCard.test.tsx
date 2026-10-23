@@ -237,7 +237,7 @@ describe.each([
     expect(screen.getByRole('button', { name: msg('settings.accounts.connect') })).toBeTruthy()
   })
 
-  it('shows a neutral connected check, connected name, and a working Disconnect', async () => {
+  it('shows a neutral connected check, connected name, and a working Sign out', async () => {
     let state: AuthStatus = {
       platform,
       state: 'authenticated',
@@ -258,7 +258,7 @@ describe.each([
     expect(connected.parentElement?.textContent).toContain('✓')
     expect(connected.parentElement?.className).toContain('text-[var(--text)]')
     expect(connected.parentElement?.className).not.toContain('--st-online-text')
-    const disconnect = screen.getByRole('button', { name: msg('settings.accounts.disconnect') })
+    const disconnect = screen.getByRole('button', { name: msg('settings.accounts.signOut') })
     expect(disconnect).toHaveProperty('disabled', false)
     // Cached social data for this platform must be emptied on logout (a later
     // login may be a different account) without removing the mounted query.
@@ -293,7 +293,7 @@ describe.each([
     const otherFriend = fullFriend('Other Friend', other)
     queryClient.setQueryData(friendsQueryKey(platform), [staleFriend])
     queryClient.setQueryData(friendsQueryKey(other), [otherFriend])
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.disconnect') }))
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.accounts.signOut') }))
 
     await waitFor(() => expect(bridge.logout).toHaveBeenCalledWith({ platform }))
     expect(queryClient.getQueryData(friendsQueryKey(platform))).toEqual([])
@@ -381,9 +381,7 @@ describe.each([
     bridge.logout.mockRejectedValue(new Error('credential deletion failed'))
     renderCard(platform, bridge)
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: msg('settings.accounts.disconnect') })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: msg('settings.accounts.signOut') }))
 
     expect((await screen.findByRole('alert')).textContent).toContain(
       msg('settings.accounts.error.disconnect')

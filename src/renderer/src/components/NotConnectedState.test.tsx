@@ -29,13 +29,13 @@ const socialSurfaces = [
   {
     name: 'Friends list',
     Component: FriendsList,
-    loading: 'Loading...',
+    loading: 'Loading…',
     error: 'Could not load friends'
   },
   {
     name: 'Dashboard',
     Component: DashboardView,
-    loading: 'Loading...',
+    loading: 'Loading…',
     error: 'Could not load your friends right now'
   }
 ] as const

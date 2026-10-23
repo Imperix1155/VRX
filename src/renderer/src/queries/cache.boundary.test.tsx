@@ -273,16 +273,16 @@ describe('persisted cache boundaries', () => {
     })
 
     // The [] placeholder is not a verified empty roster while the new one loads.
-    expect(screen.getByText('Loading...')).toBeTruthy()
-    expect(screen.queryByText('No friends online')).toBeNull()
+    expect(screen.getByText('Loading…')).toBeTruthy()
+    expect(screen.queryByText('No friends yet')).toBeNull()
 
     // The signed-out ChilloutVR query stays pending forever; it must not hold
     // the list in loading once the VRChat read settles.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
-    expect(screen.queryByText('Loading...')).toBeNull()
-    expect(screen.getByText('No friends online')).toBeTruthy()
+    expect(screen.queryByText('Loading…')).toBeNull()
+    expect(screen.getByText('No friends yet')).toBeTruthy()
 
     // A background refresh of that verified empty roster keeps saying so.
     await act(async () => {
@@ -290,7 +290,7 @@ describe('persisted cache boundaries', () => {
       await vi.advanceTimersByTimeAsync(100)
     })
     expect(queryClient.isFetching({ queryKey: friendsQueryKey('vrchat') })).toBe(1)
-    expect(screen.queryByText('Loading...')).toBeNull()
-    expect(screen.getByText('No friends online')).toBeTruthy()
+    expect(screen.queryByText('Loading…')).toBeNull()
+    expect(screen.getByText('No friends yet')).toBeTruthy()
   })
 })

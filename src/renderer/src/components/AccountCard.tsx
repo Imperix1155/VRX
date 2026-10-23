@@ -112,7 +112,7 @@ export default function AccountCard({ platform }: { platform: Platform }): React
             >
               {isDisconnecting
                 ? t('settings.accounts.disconnecting')
-                : t('settings.accounts.disconnect')}
+                : t('settings.accounts.signOut')}
             </button>
           </div>
           <ErrorBanner errorKey={flow.errorKey} className="mt-[var(--space-3)]" />
