@@ -28,12 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   again, instead of every sign-in failing.
 - A brief file lock at startup can no longer reset your settings.
 
-### Security
-
-- Security hardening.
-
-### Fixed
-
 - VRX reconnects right away after your PC wakes from sleep, so friends' status
   doesn't freeze while VRX still says it's live.
 - A few VRChat worlds or groups that can't be loaded no longer make VRChat look
@@ -43,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retrying quietly until the next full re-sync.
 - A VRChat friend whose profile is missing its trust information no longer
   disappears from your friends list.
+
+### Security
+
+- Security hardening.
 
 ## [1.0.0-beta.4] - 2026-10-22
 
