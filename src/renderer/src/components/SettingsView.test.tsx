@@ -11,6 +11,7 @@ import { act, fireEvent, within, render, screen, cleanup } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
+import { releasesUrlFor } from '@shared/constants'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
@@ -580,11 +581,9 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(screen.getByText(msg('updater.settings.unsupportedNote'))).toBeTruthy()
     const button = screen.getByRole('button', { name: msg('updater.settings.releases') })
     fireEvent.click(button)
-    // This build is a beta, so the link lists test builds too.
-    expect(__APP_VERSION__).toContain('-')
-    expect(openUrl).toHaveBeenCalledWith({
-      url: 'https://github.com/Imperix1155/VRX/releases'
-    })
+    // The link follows this build's channel: every release for a test build,
+    // the latest release for a full one (url-allowlist.test.ts pins both).
+    expect(openUrl).toHaveBeenCalledWith({ url: releasesUrlFor(__APP_VERSION__) })
   })
 })
 
