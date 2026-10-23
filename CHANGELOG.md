@@ -13,6 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unofficial-app notice, the sign-in note is one line, and the longer details
   (the full notice and how sign-ins are stored) sit behind Show more. The
   Dashboard and Alerts steps have shorter intros too.
+- Explore filtered to a platform you aren't signed in to shows the same
+  Connect card with Go to Accounts as the Dashboard. With All selected, a
+  platform you aren't signed in to no longer adds a line to Explore or Popular
+  now.
+- Room lists show region names (US East, Europe, Japan…) instead of codes, and
+  people counts use your language's number format.
+- A linked friend in two joinable places now shows each place's access, such as
+  Public, in words next to its platform tag, not only as color on the
+  "2 locations" button.
+- "Sign out" is the name for signing out everywhere in Accounts; the connected
+  card no longer says "Disconnect".
+- Clearer wording: an empty friends list says "No friends yet", the Hot
+  Instances help says the Dashboard shows the top instance from each platform
+  when both have one (otherwise the top two), and Japanese uses one spelling of
+  the app's subtitle.
+- Small text such as the unofficial-app notice, setup labels and step count,
+  the notes counter, the app version and loading lines is easier to read.
+  Instance labels and Join have more contrast in light mode, error messages
+  are brighter in dark mode, and the VRChat and ChilloutVR words on the
+  sign-in tabs and friend rows read equally well.
+- Long friend names wrap to a second line in friend details instead of being
+  cut off, and hovering the name shows it in full.
+- Japanese text no longer breaks in the middle of a word.
+- The "settings could not be saved" notice is a slim one-line strip with a
+  warning sign, so it takes far less room.
 - The install guide covers Linux setup, uninstalling, and where VRX keeps its
   data.
 
@@ -36,6 +61,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retrying quietly until the next full re-sync.
 - A VRChat friend whose profile is missing its trust information no longer
   disappears from your friends list.
+- A VRChat sign-in that needs a new code is no longer invisible while
+  ChilloutVR stays signed in: a short notice says so with a Go to Accounts
+  button, and the connection tooltip says "Needs code" instead of "Signed out".
+- Explore room details no longer say they are refreshing when nothing is. Older
+  results say "Showing saved results." next to Refresh, and rooms you could
+  join ask you to refresh first instead of saying "Unavailable".
+- A friend who moved or went offline before you joined now gets "No longer
+  joinable" instead of being told to check the game and connection.
+- Identities says why Link an account is unavailable instead of hiding the
+  reason in a tooltip.
+- Screen readers no longer announce every change to the online count or the
+  note counter, and more buttons say what they do: world cards and room Join
+  buttons describe their people count and room, join review notices are read
+  aloud, focus returns to the code field after a wrong sign-in code, and the
+  VRX logo and Hot Instance friend chips are named once.
+- The VRX window is now 900×670 inside its title bar and borders, so Settings
+  and sign-in fit without scrolling at the default size. The window can't be
+  shrunk below that either.
+- Searching friends with no matches shows only the "No friends match" line,
+  without three empty section headers under it.
+- The pinned section header in the friends list no longer lets a thin strip
+  of the rows scrolling past show above it.
 
 ### Security
 

@@ -50,14 +50,14 @@ export const StepHeading = forwardRef<
         ref={ref}
         id="setup-step-title"
         tabIndex={-1}
-        className="text-[22px] font-semibold leading-tight tracking-[-0.01em] text-[var(--text)] text-balance focus:outline-none"
+        className="text-[22px] font-semibold leading-tight text-[var(--text)] text-balance focus:outline-none"
       >
         {title}
       </h2>
       {lead && (
         <p
           role={leadLive ? 'status' : undefined}
-          className={`mt-[var(--space-1)] text-[13px] leading-[1.45] text-[var(--text-dim)]${centered ? ' mx-auto max-w-[44ch] text-balance [word-break:auto-phrase]' : ''}`}
+          className={`mt-[var(--space-1)] text-[13px] leading-[1.45] text-[var(--text-dim)]${centered ? ' mx-auto max-w-[44ch] text-balance' : ''}`}
         >
           {lead}
         </p>
@@ -99,7 +99,7 @@ function Row({
   )
 }
 
-const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-faint)]'
+const FINE_PRINT = 'text-[11.5px] leading-[1.45] text-[var(--text-dim)]'
 
 /**
  * Simple by default, more on demand (owner, 2026-10-22): one short line of
@@ -122,7 +122,7 @@ function FinePrint({
     <p
       id={textId}
       aria-live="polite"
-      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance [word-break:auto-phrase]' : ''}`}
+      className={`${FINE_PRINT}${centered ? ' max-w-[52ch] text-center text-balance' : ''}`}
     >
       {open ? full : summary}{' '}
       <button
@@ -512,7 +512,7 @@ export const DoneStep = forwardRef<
             key={labelKey}
             className="grid grid-cols-[128px_minmax(0,1fr)] gap-[var(--space-3)] px-[14px] py-[10px] text-[13px]"
           >
-            <dt className="font-semibold text-[var(--text-faint)]">{t(labelKey)}</dt>
+            <dt className="font-semibold text-[var(--text-dim)]">{t(labelKey)}</dt>
             <dd className="text-[var(--text)]">{value}</dd>
           </div>
         ))}

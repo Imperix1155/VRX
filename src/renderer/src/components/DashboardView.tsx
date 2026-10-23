@@ -56,7 +56,6 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
     <div className="glass glass-information p-[16px_18px]">
       <div
         className={`font-[family-name:var(--font-mono)] text-[38px] leading-none ${numberColor}`}
-        aria-live="polite"
       >
         {value}
       </div>
@@ -155,7 +154,7 @@ function DashboardContent(): React.JSX.Element {
     useHotInstanceSheet(hotInstances, dismissExplore)
 
   if (isAuthStatusPending) {
-    return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+    return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
@@ -192,7 +191,7 @@ function DashboardContent(): React.JSX.Element {
     if (enabled.some((q) => q.isPending)) {
       return (
         <div>
-          <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+          <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
           {[popularSection]}
         </div>
       )

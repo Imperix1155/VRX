@@ -183,6 +183,19 @@ describe('identity management', () => {
     }
   )
 
+  it('says why Link an account is off when the other platform is not signed in', () => {
+    render(dialog([source], { vrchat: 'v', chilloutvr: '' }))
+    const link = screen.getByRole<HTMLButtonElement>('button', { name: 'Link an account' })
+    expect(link.disabled).toBe(true)
+    const reason = screen.getByText(i18n.t('linking.manage.linkNeedsBoth'))
+    expect(link.getAttribute('aria-describedby')).toBe(reason.id)
+  })
+
+  it('shows no reason line while linking is possible', () => {
+    render(dialog())
+    expect(screen.queryByText(i18n.t('linking.manage.linkNeedsBoth'))).toBeNull()
+  })
+
   it('waits for the first lease without closing and still closes on a later lease change', async () => {
     client.removeQueries({ queryKey: linkedProfilesKey })
     let finish!: (result: { ok: true; value: LinkSnapshot }) => void

@@ -122,6 +122,11 @@ function createWindow(): BrowserWindow {
     height: 670,
     minWidth: Math.min(900, workAreaSize.width),
     minHeight: Math.min(670, workAreaSize.height),
+    // 900x670 is the page's own size, as the design is measured: without this
+    // the title bar and frame came out of it (about 884x631 on Windows), so
+    // Settings and sign-in scrolled at the default size. The minimum above
+    // applies to the page too.
+    useContentSize: true,
     show: false,
     // Window/taskbar name. Without this the title bar reads the renderer's
     // <title> — which is "VRX", but only after the page loads; set it here so

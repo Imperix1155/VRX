@@ -226,13 +226,16 @@ export default function TopBar(): React.JSX.Element {
       : worstHealth === 'reconnecting'
         ? 'var(--warning)'
         : 'var(--error)'
+  // A saved session waiting for a sign-in code is not signed out.
+  const notSignedInLabel = (state: string | undefined): string =>
+    t(state === 'needs-2fa' ? 'shell.connection.needsCode' : 'shell.connection.signedOut')
   const connectionLabel = t('shell.connection.label', {
     vrchat: vrcSignedIn
       ? t(HEALTH_LABEL_KEYS[connectionHealth.vrchat])
-      : t('shell.connection.signedOut'),
+      : notSignedInLabel(vrcAuth?.state),
     chilloutvr: cvrSignedIn
       ? t(HEALTH_LABEL_KEYS[connectionHealth.chilloutvr])
-      : t('shell.connection.signedOut')
+      : notSignedInLabel(cvrAuth?.state)
   })
 
   // Real online count for the §8 status indicator. Online = active OR in-game
@@ -262,18 +265,24 @@ export default function TopBar(): React.JSX.Element {
 
   // Reserve a three-digit cell so the contextual dock stays fixed as the live
   // count changes. Tabular figures and right alignment mirror the
-  // NumberStepper's stable value cell.
+  // NumberStepper's stable value cell. The count is not live: it changes with
+  // every friend's presence, and announcing each change would drown out
+  // everything else a screen reader says. Connection health is: a drop to
+  // reconnecting or down is read out from its own hidden status line.
   const status = (
     <div
-      role="status"
+      data-testid="topbar-status"
       className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
     >
       {/* Shape repeats the color for colorblind users: a dot is live, a hollow
           ring is reconnecting, a square is down. The live dot pulses only
           while VRX has focus: an endless animation keeps the window redrawing
           every frame, even behind a game. */}
+      <span role="status" className="sr-only">
+        {connectionLabel}
+      </span>
       <span
-        role="img"
+        aria-hidden="true"
         data-health={worstHealth}
         className={[
           'box-border w-[8px] h-[8px] flex-none',
@@ -285,7 +294,6 @@ export default function TopBar(): React.JSX.Element {
             ? { border: `2px solid ${healthColor}`, boxShadow: `0 0 10px ${healthColor}` }
             : { background: healthColor, boxShadow: `0 0 10px ${healthColor}` }
         }
-        aria-label={connectionLabel}
         title={connectionLabel}
       />
       {t('shell.onlineCount', { count: onlineCount })}
@@ -297,7 +305,7 @@ export default function TopBar(): React.JSX.Element {
       className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
     >
       {/* View title */}
-      <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
+      <h1 className="text-[25px] font-extrabold text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 

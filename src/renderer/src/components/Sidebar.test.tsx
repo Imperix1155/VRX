@@ -55,6 +55,7 @@ afterEach(() => {
 describe('Sidebar destinations (VRX-281)', () => {
   it('offers only the implemented views and activates each destination', () => {
     render(<Sidebar />)
+    expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
     const tabs = ['dashboard', 'hot', 'friends', 'explore', 'settings'] as const
     const buttons = within(nav).getAllByRole('button')

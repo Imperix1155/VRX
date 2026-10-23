@@ -1,4 +1,4 @@
-import type { Platform } from '@shared/types'
+import type { AuthStatus, Platform } from '@shared/types'
 import type { PlatformFilter } from '../stores/friends'
 import { useAuthStatus } from '../queries/auth'
 import { useUiStore } from '../stores/ui'
@@ -12,6 +12,24 @@ export interface NotConnectedGate {
   isNotConnected: boolean
   /** Navigate to Settings → Accounts (the CTA's action). */
   openAccounts: () => void
+}
+
+/**
+ * The discriminator itself, for a surface that reads auth from the cache
+ * instead of mounting a query observer (Explore).
+ */
+export function isNotConnectedAuth(auth: {
+  data: AuthStatus | undefined
+  isSuccess: boolean
+  isFetching: boolean
+}): boolean {
+  return (
+    auth.isSuccess &&
+    // A saved VRChat session waiting for a fresh 2FA code is not connected
+    // either; Accounts is where the code is entered.
+    (auth.data?.state === 'unauthenticated' || auth.data?.state === 'needs-2fa') &&
+    !auth.isFetching
+  )
 }
 
 /**
@@ -33,13 +51,7 @@ export function useNotConnectedGate(platformFilter: PlatformFilter): NotConnecte
     selectedPlatform,
     isAuthStatusPending:
       selectedPlatform !== null && authStatus.data === undefined && authStatus.isPending,
-    isNotConnected:
-      selectedPlatform !== null &&
-      authStatus.isSuccess &&
-      // A saved VRChat session waiting for a fresh 2FA code is not connected
-      // either; Accounts is where the code is entered.
-      (authStatus.data.state === 'unauthenticated' || authStatus.data.state === 'needs-2fa') &&
-      !authStatus.isFetching,
+    isNotConnected: selectedPlatform !== null && isNotConnectedAuth(authStatus),
     openAccounts: (): void => {
       setActiveTab('settings')
       setSettingsCategory('accounts')

@@ -11,6 +11,10 @@ describe('NOT_CONNECTED_KEY', () => {
       dashboard: {
         vrchat: 'dashboard.notConnected.vrchat',
         chilloutvr: 'dashboard.notConnected.chilloutvr'
+      },
+      explore: {
+        vrchat: 'explore.notConnected.vrchat',
+        chilloutvr: 'explore.notConnected.chilloutvr'
       }
     })
   })

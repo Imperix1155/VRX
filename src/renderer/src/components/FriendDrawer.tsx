@@ -324,7 +324,12 @@ export default function FriendDrawer({
                 }
               />
               <div className="min-w-0">
-                <h2 className="truncate text-[18px] font-bold text-[var(--text)]">
+                {/* Two lines, then clamped: a long name stays readable, and the
+                    title shows it in full. */}
+                <h2
+                  className="line-clamp-2 break-words text-[18px] leading-tight font-bold text-[var(--text)]"
+                  title={profileName || undefined}
+                >
                   {profileName || t('linking.unknownName')}
                 </h2>
                 {customStatus && (
@@ -478,7 +483,9 @@ export default function FriendDrawer({
                   value={noteValue}
                   readOnly={!noteWritable}
                   aria-describedby={
-                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : undefined
+                    noteLoadFailed || noteSaveFailed
+                      ? 'friend-notes-error friend-notes-counter'
+                      : 'friend-notes-counter'
                   }
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
@@ -514,9 +521,11 @@ export default function FriendDrawer({
                     </button>
                   </div>
                 )}
+                {/* Described by the field, not live: a live counter would speak on
+                    every keystroke. */}
                 <span
-                  aria-live="polite"
-                  className="text-right text-[11px] text-[var(--text-faint)]"
+                  id="friend-notes-counter"
+                  className="text-right text-[11px] text-[var(--text-dim)]"
                 >
                   {t('drawer.notes.counter', { current: noteValue.length })}
                 </span>

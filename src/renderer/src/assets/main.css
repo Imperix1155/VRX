@@ -127,6 +127,11 @@
   background: color-mix(in srgb, var(--bg-base) 42%, transparent);
   backdrop-filter: blur(10px);
 }
+/* Light pictures stay bright, so the light pill takes the card-color backing
+   other pills over a picture use (PictureBackedPill) and its word keeps 4.5:1. */
+[data-theme='light'] .linked-world-pill {
+  background: color-mix(in srgb, var(--glass-information) 78%, transparent);
+}
 .linked-identities,
 .linked-platform-rail {
   position: relative;
@@ -247,7 +252,8 @@
   --surface-hover: rgba(255, 255, 255, 0.05);
   --control-fill: rgba(255, 255, 255, 0.05);
   --control-fill-hover: rgba(255, 255, 255, 0.1);
-  --error: #f87171;
+  /* Lifted from #f87171, which fell to 3.7:1 on glass over the aurora. */
+  --error: #fca5a5;
   --warning: #f59e0b;
   --space-0-5: 2px;
   --space-1: 4px;
@@ -308,8 +314,9 @@
   --op-invite-plus-text: var(--op-invite-plus);
   --op-invite-text: var(--op-invite);
   --op-group-public-text: var(--op-group-public);
-  --op-group-plus-text: var(--op-group-plus);
-  /* Group's deep hue reads dim as text on the dark tint — lifted for readability */
+  /* Group+ and Group's deeper hues read dim as text on the dark tint — lifted
+     for readability (Group+ was 4.0:1 at its raw hue). */
+  --op-group-plus-text: #ac93f7;
   --op-group-text: #b795ff;
 
   /* POLICY SPACE — moderation context, independent of instance access (§6.2).
@@ -387,8 +394,10 @@
   --text-on-cvr: #14131c;
 
   /* LOGIN TAB words (12.5px on the tinted glass card, VRX-217): raw --vrc
-     fails there, so the tabs share the AA-checked platform words below. */
-  --login-tab-vrc: var(--plat-vrc-word);
+     fails there, so the tabs share the AA-checked platform words below. The
+     selected VRChat tab sits on a blue-tinted bubble, so its word is lifted
+     further (4.7:1, level with the selected ChilloutVR tab's 4.6:1). */
+  --login-tab-vrc: color-mix(in srgb, var(--vrc) 42%, white);
   --login-tab-cvr: var(--plat-cvr-word);
 
   /* PLATFORM WORDS — "VRC"/"CVR"/"VRChat" set in the platform color on glass
@@ -482,7 +491,9 @@
   --active-text: color-mix(in srgb, var(--active) 75%, black);
   --offline-text: color-mix(in srgb, var(--offline) 70%, black);
 
-  /* OPENNESS — light: darkened hues (tint/border) + darker text for contrast */
+  /* OPENNESS — light: darkened hues (tint/border) + darker text for contrast.
+     The friend-ladder words sit ~12% darker than their first pass so each one
+     clears 4.5:1 on its own tint over rows, cards and banner scrims. */
   --op-public: #1fae4e;
   --op-friends-plus: #7fa821;
   --op-friends: #b28a1d;
@@ -491,11 +502,11 @@
   --op-group-public: #7a5fd0;
   --op-group-plus: #6d4fc9;
   --op-group: #5f3fc4;
-  --op-public-text: #147a36;
-  --op-friends-plus-text: #5c7a16;
-  --op-friends-text: #82651a;
-  --op-invite-plus-text: #9a5c14;
-  --op-invite-text: #8f4c15;
+  --op-public-text: #126b30;
+  --op-friends-plus-text: #516b13;
+  --op-friends-text: #725917;
+  --op-invite-plus-text: #885112;
+  --op-invite-text: #7e4312;
   --op-group-public-text: #5b429e;
   --op-group-plus-text: #4f38a0;
   --op-group-text: #452f96;
@@ -510,7 +521,9 @@
      --cvr/--vrc are already darkened) so it stays legible on the light card;
      names-lift is a darker/more-opaque dim. WCAG AA re-verified in light. */
   --names-lift: rgba(30, 28, 42, 0.86);
-  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 76%, black);
+  /* CVR mixes darker (70%) than VRC: at 76% its rail and card labels fell to
+     4.2-4.4:1 while VRC read 5.0-5.4:1. */
+  --plat-cvr-ghost-text: color-mix(in srgb, var(--cvr) 70%, black);
   --plat-cvr-ghost-border: color-mix(in srgb, var(--cvr) 30%, transparent);
   --plat-vrc-ghost-text: color-mix(in srgb, var(--vrc) 76%, black);
   --plat-vrc-ghost-border: color-mix(in srgb, var(--vrc) 32%, transparent);
@@ -538,12 +551,12 @@
   --text-on-cvr: #14131c;
 
   /* LOGIN TAB / PLATFORM words — light: BOTH raw hues fail on light glass (vrc
-     3.57:1, cvr 2.74:1). vrc takes the ghost companion (5.40:1); cvr needs a
-     darker 70% mix (4.90:1 — the 76% ghost reaches only 4.33:1 here). */
+     3.57:1, cvr 2.74:1), so both take their ghost companions (vrc 5.40:1, cvr
+     at its darker 70% mix 4.90:1). */
   --login-tab-vrc: var(--plat-vrc-word);
   --login-tab-cvr: var(--plat-cvr-word);
   --plat-vrc-word: var(--plat-vrc-ghost-text);
-  --plat-cvr-word: color-mix(in srgb, var(--cvr) 70%, black);
+  --plat-cvr-word: var(--plat-cvr-ghost-text);
 
   /* HOT-INSTANCE SHEET — light: dark text needs a light scrim, not a dimmed
      picture and black shadows (that left the world name unreadable). */
@@ -611,6 +624,13 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden; /* §8: shell fixed; only .main scrolls */
+}
+/* Japanese wraps at phrase boundaries, never mid-word (Chromium's auto-phrase);
+   break-word still splits a phrase that cannot fit its line. Inherited, so any
+   element that sets its own word-break keeps it. Other languages are untouched. */
+body:lang(ja) {
+  word-break: auto-phrase;
+  overflow-wrap: break-word;
 }
 
 /* §4 Aurora — blue top-left + orange bottom-right over near-black.

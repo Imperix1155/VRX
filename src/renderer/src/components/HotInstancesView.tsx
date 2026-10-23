@@ -42,7 +42,7 @@ export default function HotInstancesView(): React.JSX.Element {
     useHotInstanceSheet(hotInstances)
 
   if (isAuthStatusPending) {
-    return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+    return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
@@ -62,7 +62,7 @@ export default function HotInstancesView(): React.JSX.Element {
   }
   if (!scoped.some((q) => q.data != null)) {
     if (enabled.some((q) => q.isPending)) {
-      return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+      return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
     }
     return (
       <div className="flex items-center gap-[var(--space-3)]">

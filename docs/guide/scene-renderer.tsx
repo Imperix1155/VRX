@@ -156,15 +156,29 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
       gcTime: Infinity
     }
   })
+  // `needs-code`: a saved VRChat session waiting for a fresh sign-in code
+  // while ChilloutVR stays signed in. Its roster is empty, as the app keeps it.
+  const needsCode = name === 'dashboard' && variant === 'needs-code'
   for (const platform of ['vrchat', 'chilloutvr'] as const) {
     queryClient.setQueryData(
       authStatusQueryKey(platform),
       // `signed-out` shows the setup sign-in step as a brand-new install sees it.
       name === 'setup' && variant === 'signed-out'
         ? { platform, state: 'unauthenticated' }
-        : fixtureAuth(platform)
+        : needsCode && platform === 'vrchat'
+          ? {
+              platform,
+              state: 'needs-2fa',
+              accountId: null,
+              displayName: null,
+              twoFactorMethod: 'totp'
+            }
+          : fixtureAuth(platform)
     )
-    queryClient.setQueryData(friendsQueryKey(platform), friends[platform])
+    queryClient.setQueryData(
+      friendsQueryKey(platform),
+      needsCode && platform === 'vrchat' ? [] : friends[platform]
+    )
     queryClient.setQueryData(exploreQueryKey(platform), getPlatformSnapshot(platform))
   }
   const rosterFailure = name === 'friends' ? friendsFailureFor(variant) : null

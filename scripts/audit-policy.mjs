@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const CACHE_ADVISORY = 'https://github.com/advisories/GHSA-ch52-4w7c-c8xp'
-const LEGACY_ESBUILD_ADVISORY = 'https://github.com/advisories/GHSA-g7r4-m6w7-qqqr'
 const CACHE_EXCEPTION_EXPIRES = Date.parse('2027-01-31T00:00:00Z')
 const severities = ['info', 'low', 'moderate', 'high', 'critical']
 const highRisk = (severity) => severity === 'high' || severity === 'critical'
@@ -95,7 +94,6 @@ export function auditFailures(full, production, lock, now = new Date()) {
         continue
       }
       if (!highRisk(advisory.severity)) continue
-      if (advisory.url === LEGACY_ESBUILD_ADVISORY) continue
       const allowedCacheAdvisory = isCacheException(name, entry, advisory, {
         production,
         lock,

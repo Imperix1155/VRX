@@ -42,7 +42,7 @@ const nav = [
 
 function Brand(): React.JSX.Element {
   return (
-    <span className="design-guide__brand" aria-label="VRX">
+    <span className="design-guide__brand" role="img" aria-label="VRX">
       <span>V</span>
       <span>R</span>
       <span>X</span>
@@ -264,7 +264,8 @@ export default function Guide(): React.JSX.Element {
             variant="popular-first"
             variants={[
               { value: 'popular-first', label: 'Popular now first' },
-              { value: 'hot-first', label: 'Hot Instances first' }
+              { value: 'hot-first', label: 'Hot Instances first' },
+              { value: 'needs-code', label: 'VRChat needs a code' }
             ]}
             height="tall"
             paired
@@ -350,7 +351,7 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="settings"
             title="Settings cards and Dashboard controls"
-            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow. All choices last only in this sample."
+            note="Interactive fixture. Try the Dashboard and Behavior categories: On/Off controls retain child choices while collapsing their cards. Dashboard settings independently hide Popular now and Hot Instances. The Dashboard’s bottom Settings button opens this category; its circular question mark reveals Hot Instances help without adding a permanent label to the selector. Appearance controls change the actual theme and glow. The Save error variant shows the compact failure strip with its warning glyph and Retry. All choices last only in this sample."
             source="assets/main.css · SettingsView.tsx"
             height="short"
           />

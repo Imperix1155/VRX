@@ -201,6 +201,7 @@ export default function LoginScreen({
           <div className="mb-[var(--space-6)] text-center">
             <div
               className="inline-block font-mono text-4xl leading-none tracking-wider"
+              role="img"
               aria-label="VRX"
             >
               <span style={{ color: 'var(--vrc)' }}>V</span>
@@ -243,7 +244,7 @@ export default function LoginScreen({
             {t(platform === 'vrchat' ? 'login.disclaimerVrchat' : 'login.disclaimerChilloutvr')}
           </p>
           {/* Names both platforms in one line on either tab (equal weight). */}
-          <p className="mt-[var(--space-2)] text-center text-xs text-[var(--text-faint)]">
+          <p className="mt-[var(--space-2)] text-center text-xs text-[var(--text-dim)]">
             {t('shell.unofficialNotice')}
           </p>
         </div>

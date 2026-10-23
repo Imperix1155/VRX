@@ -233,4 +233,10 @@ describe('main window minimum size (VRX-243)', () => {
     expect(source).toMatch(/^\s*minWidth: Math\.min\(900, workAreaSize\.width\),\s*$/m)
     expect(source).toMatch(/^\s*minHeight: Math\.min\(670, workAreaSize\.height\),\s*$/m)
   })
+
+  it('sizes the window by its page, so the frame never eats into 900x670', () => {
+    // Without useContentSize the title bar and borders came out of 900x670
+    // (about 884x631 on Windows) and Settings → Behavior scrolled.
+    expect(source).toMatch(/^\s*useContentSize: true,\s*$/m)
+  })
 })

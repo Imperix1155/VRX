@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
+import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
+// A compact one-row strip: text and its action share the row, so a notice
+// costs Settings (no scrolling at the default size, DESIGN.md §8) as little
+// height as possible.
 const buttonClass =
-  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
+  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
 const noticeClass =
-  'glass glass-information mb-[var(--space-3)] flex flex-wrap items-center justify-between gap-[var(--space-3)] p-[var(--space-3)] text-sm text-[var(--text-dim)]'
+  'glass glass-information mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
 
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -16,7 +20,7 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
   if (!isError) return null
   return (
     <div className={noticeClass} role="status">
-      <span>
+      <span className="min-w-0 flex-1">
         {t('settings.accounts.unreachable', {
           platform: t(ACCOUNT_CARD_CONFIG[platform].labelKey)
         })}
@@ -30,6 +34,41 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
         }}
       >
         {t(isFetching ? 'settings.accounts.retrying' : 'settings.accounts.retry')}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A saved session waiting for a fresh sign-in code (VRChat only today). Under
+ * All the other platform keeps the app usable, so without this line the
+ * platform would just look empty. Accounts is where the code is entered.
+ */
+function TwoFactorNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const needsCode = useAuthStatus(platform).data?.state === 'needs-2fa'
+  const onAccounts = useUiStore(
+    (s) => s.activeTab === 'settings' && s.settingsCategory === 'accounts'
+  )
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  if (!needsCode || onAccounts) return null
+  return (
+    <div className={noticeClass} role="status">
+      <span>
+        {t('settings.accounts.needsCode', {
+          platform: t(ACCOUNT_CARD_CONFIG[platform].labelKey)
+        })}
+      </span>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => {
+          setActiveTab('settings')
+          setSettingsCategory('accounts')
+        }}
+      >
+        {t('settings.accounts.openAccounts')}
       </button>
     </div>
   )
@@ -69,7 +108,15 @@ function SettingsPersistenceNotice(): React.JSX.Element | null {
   if (!dirty || (!saveError && !pendingTooLong)) return null
   return (
     <div className={noticeClass} role={saveError ? 'alert' : 'status'}>
-      <span>{t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}</span>
+      {/* The failure's non-color cue (R2): a warning glyph before its words. */}
+      {saveError && (
+        <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
+          ⚠
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        {t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}
+      </span>
       {saveError && (
         <button type="button" className={buttonClass} disabled={saving} onClick={retrySave}>
           {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
@@ -86,6 +133,8 @@ export default function RecoveryNotices(): React.JSX.Element {
       <SettingsPersistenceNotice />
       <AuthNotice platform="vrchat" />
       <AuthNotice platform="chilloutvr" />
+      <TwoFactorNotice platform="vrchat" />
+      <TwoFactorNotice platform="chilloutvr" />
     </>
   )
 }

@@ -3,13 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
+import { useUiStore } from '../stores/ui'
 import i18n from '../i18n'
 import RecoveryNotices, { SETTINGS_PENDING_NOTICE_DELAY_MS } from './RecoveryNotices'
 
 const refetch = vi.fn()
 let vrchatAuthError = true
+let vrchatState = 'authenticated'
 vi.mock('../queries/auth', () => ({
   useAuthStatus: (platform: string) => ({
+    data: { state: platform === 'vrchat' ? vrchatState : 'authenticated' },
     isError: platform === 'vrchat' && vrchatAuthError,
     isFetching: false,
     refetch
@@ -19,6 +22,8 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vrchatAuthError = true
+  vrchatState = 'authenticated'
+  useUiStore.setState({ activeTab: 'dashboard', settingsCategory: 'appearance' })
   useSettingsStore.setState({
     settings: DEFAULT_SETTINGS,
     dirty: false,
@@ -42,6 +47,21 @@ it('exposes a platform-specific auth failure and retry alongside usable shell co
   ).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.accounts.retry') }))
   expect(refetch).toHaveBeenCalledOnce()
+})
+
+it('names a VRChat session waiting for a code and opens Accounts', () => {
+  vrchatAuthError = false
+  vrchatState = 'needs-2fa'
+  render(<RecoveryNotices />)
+  const notice = screen.getByText(i18n.t('settings.accounts.needsCode', { platform: 'VRChat' }))
+  expect(notice.closest('[role="status"]')).not.toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: i18n.t('settings.accounts.openAccounts') }))
+  expect(useUiStore.getState().activeTab).toBe('settings')
+  expect(useUiStore.getState().settingsCategory).toBe('accounts')
+  // Accounts already shows the code prompt, so the line steps aside there.
+  expect(
+    screen.queryByText(i18n.t('settings.accounts.needsCode', { platform: 'VRChat' }))
+  ).toBeNull()
 })
 
 describe('settings persistence notice timing', () => {

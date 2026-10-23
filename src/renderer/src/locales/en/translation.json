@@ -84,7 +84,8 @@
       "stale": "The profile changed. Review it again before saving.",
       "unavailable": "Both platforms must be available to create or replace a link. Existing links can still be removed through an available account.",
       "failed": "The change could not be saved. Try again or cancel.",
-      "rateLimited": "Too many local changes. Wait a moment, then try again."
+      "rateLimited": "Too many local changes. Wait a moment, then try again.",
+      "linkNeedsBoth": "Both platforms must be signed in and available to link."
     },
     "people_one": "{{count}} person",
     "people_other": "{{count}} people",
@@ -129,7 +130,8 @@
       "live": "Live",
       "reconnecting": "Reconnecting",
       "down": "Down",
-      "signedOut": "Signed out"
+      "signedOut": "Signed out",
+      "needsCode": "Needs code"
     }
   },
   "settings": {
@@ -172,7 +174,7 @@
     },
     "drawerOpener": {
       "label": "Friend details open from",
-      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. The Join pill always joins instead.",
+      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. Clicking the instance label, such as Public, always joins instead.",
       "aria": "Friend details opener selector",
       "card": "Whole card",
       "avatar": "Avatar only"
@@ -234,8 +236,7 @@
     "accounts": {
       "heading": "Accounts",
       "connectedAs": "Connected as {{name}}",
-      "disconnect": "Disconnect",
-      "disconnecting": "Disconnecting…",
+      "disconnecting": "Signing out…",
       "unreachable": "Can't reach {{platform}} right now — your session is safe.",
       "retry": "Retry",
       "retrying": "Retrying…",
@@ -256,7 +257,7 @@
         "back": "Back"
       },
       "error": {
-        "disconnect": "Could not disconnect this account. Please try again.",
+        "disconnect": "Could not sign out of this account. Please try again.",
         "credentialPersistence": "Sign-in did not finish because VRX could not save your session securely. Unlock or configure your OS credential store, then retry.",
         "unknown": "Sign-in failed. Check your details and connection, then try again.",
         "importNotFoundVrchat": "No VRCX sign-in found on this PC. If VRCX is open, quit it (also from the tray) and try again, or sign in with your password.",
@@ -276,7 +277,9 @@
         "vrchatHint": "Quit VRCX first. Only reads it, never changes it.",
         "chilloutvrHint": "Only reads it, never changes it.",
         "looking": "Looking on this PC…"
-      }
+      },
+      "needsCode": "{{platform}} needs a sign-in code.",
+      "openAccounts": "Go to Accounts"
     },
     "about": {
       "heading": "About"
@@ -341,8 +344,8 @@
   "greeting": "Welcome to VRX",
   "friends": {
     "title": "Friends",
-    "loading": "Loading...",
-    "empty": "No friends online",
+    "loading": "Loading…",
+    "empty": "No friends yet",
     "searchPlaceholder": "Search friends",
     "clearSearch": "Clear search",
     "searchNoResults": "No friends match your search",
@@ -361,7 +364,8 @@
       "cooldown": "One moment — just launched a join",
       "rateLimited": "Too many attempts — try again shortly",
       "targetChanged": "Location changed — try Join again",
-      "joiningDisabled": "Joining is disabled in Settings"
+      "joiningDisabled": "Joining is disabled in Settings",
+      "notJoinable": "No longer joinable — they may have moved or gone offline"
     },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
@@ -484,7 +488,7 @@
     "hostedBy": "Hosted by {{group}}"
   },
   "dashboard": {
-    "loading": "Loading...",
+    "loading": "Loading…",
     "error": "Could not load your friends right now",
     "retry": "Retry",
     "notConnected": {
@@ -507,7 +511,7 @@
     "hotThresholdAria": "Hot instance threshold",
     "hotHelp": {
       "label": "About Hot Instances",
-      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows the top instance from each platform, and the Hot Instances page shows all of them, with the most friends first.",
+      "description": "Hot Instances show friends together in the same instance. Only in-game friends with visible locations count. VRChat and ChilloutVR are counted separately, using your platform filter. The Dashboard shows two: the top one from each platform when both have one, otherwise the top two. The Hot Instances page shows all of them, with the most friends first.",
       "threshold": "Use − and + to set the minimum number of friends from {{min}} to {{max}}. This also sets the threshold for Hot Instances alerts when you turn them on in Settings → Notifications."
     },
     "seeAll": "See all {{count}}",
@@ -556,16 +560,15 @@
     "confirmAria": "Confirm joining {{world}}",
     "refresh": "Refresh",
     "joinFailed": "Couldn’t join this room. Try again after refreshing.",
-    "people": "People",
     "visiblePublicRooms": "Visible public rooms",
     "unknownCount": "Unknown",
     "sourceState": {
       "loading": "Worlds loading…",
       "error": "{{platform}} worlds could not load.",
       "unavailable": "{{platform}} discovery is unavailable.",
-      "stale": "{{platform}} is showing saved results while refreshing."
+      "stale": "{{platform}} results may be out of date."
     },
-    "stale": "Showing saved results while refreshing.",
+    "stale": "Showing saved results.",
     "empty": "No public worlds are available right now.",
     "notLoaded": "Worlds haven’t loaded yet. Use Refresh to load them.",
     "sheetAria": "Visible public rooms for {{world}} on {{platform}}",
@@ -582,9 +585,22 @@
       "restricted": "Restricted",
       "unavailable": "Unavailable",
       "unknown": "Unavailable",
-      "stale": "Refreshing",
+      "stale": "Refresh first",
       "busy": "Joining…",
       "joining-disabled": "Disabled"
+    },
+    "peopleCount": "People: <value>{{count}}</value>",
+    "region": {
+      "usWest": "US West",
+      "usEast": "US East",
+      "us": "US",
+      "europe": "Europe",
+      "japan": "Japan"
+    },
+    "notConnected": {
+      "vrchat": "Connect VRChat to see popular worlds here",
+      "chilloutvr": "Connect ChilloutVR to see popular worlds here",
+      "openAccounts": "Go to Accounts"
     }
   },
   "updater": {
