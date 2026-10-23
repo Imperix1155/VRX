@@ -72,16 +72,10 @@ afterEach(() => {
 describe('SetupWizard', () => {
   it('keeps the fine print short and puts the full text behind Show more', async () => {
     renderWizard(signedOut)
-    // Welcome: one short notice; the full notice (with ChilloutVR's required
-    // sentence) is one press away.
-    expect(screen.getByText(msg('setup.welcome.notice'))).toBeTruthy()
-    expect(screen.queryByText(msg('shell.unofficialNotice'))).toBeNull()
-    const more = button('setup.showMore')
-    expect(more.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(more)
+    // Welcome: one short notice, with no Show more (the full legal text is in
+    // Settings → About).
     expect(screen.getByText(msg('shell.unofficialNotice'))).toBeTruthy()
-    expect(screen.queryByText(msg('setup.welcome.notice'))).toBeNull()
-    expect(button('setup.showLess').getAttribute('aria-expanded')).toBe('true')
+    expect(screen.queryByRole('button', { name: msg('setup.showMore') })).toBeNull()
 
     // Sign in: the storage detail starts hidden too.
     await goToSignIn()

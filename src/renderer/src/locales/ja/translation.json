@@ -107,7 +107,7 @@
   "shell": {
     "subtitle": "Social VR コンパニオン",
     "footer": "Social VR コンパニオン",
-    "unofficialNotice": "VRXは非公式アプリです。VRChatおよびVRChatチームが作成したものではなく、一切関係ありません。本アプリはChilloutVRおよびChilloutVRチームが作成したものではなく、一切関係ありません。",
+    "unofficialNotice": "VRXは非公式アプリで、VRChatチームともChilloutVRチームとも関係ありません。",
     "nav": {
       "aria": "メインナビゲーション",
       "dashboard": "ダッシュボード",
@@ -316,6 +316,25 @@
       "description": "トラブルシューティング用の診断ログです。認証情報は伏せられていますが、共有する前に内容を確認してください。",
       "open": "ログフォルダーを開く",
       "error": "ログフォルダーを開けませんでした。"
+    },
+    "legal": {
+      "label": "法的情報",
+      "description": "VRXの作り手、プライバシー、ライセンスについて。",
+      "show": "表示",
+      "hide": "閉じる",
+      "officialTitle": "公式アプリではありません",
+      "independent": "VRXはファンが作った独立したアプリです。VRChatチームやChilloutVRチームが作成、公開、推奨、後援、サポート、審査したものではなく、どちらのチームとも一切関係ありません。",
+      "vrchat": "本アプリはVRChatおよびVRChatチームが作成したものではなく、一切関係ありません。",
+      "chilloutvr": "本アプリはChilloutVRおよびChilloutVRチームが作成したものではなく、一切関係ありません。",
+      "helpTitle": "サポート",
+      "support": "どちらのチームもVRXを作っていないため、VRXについては対応できません。VRXについて両チームに問い合わせないでください。VRXで問題が起きたときは、VRXのGitHubページで報告してください。",
+      "report": "問題を報告",
+      "termsTitle": "プラットフォームと利用規約",
+      "terms": "VRChatとChilloutVRの名前は、VRXが対応するプラットフォームを示すためにのみ使っています。VRXは各プラットフォームの非公式なWebサービスを使っており、これらは予告なく変わることがあります。VRXを使っている間も、各プラットフォームの利用規約はあなたのアカウントに適用されます。",
+      "privacyTitle": "プライバシー",
+      "privacy": "VRXには独自のアカウント、広告、テレメトリー、分析機能はありません。通信先はVRChat、ChilloutVR、GitHub(アップデート用)だけです。パスワードは保存せず、サインイン情報と設定はこのPCにだけ保存されます。",
+      "licenseTitle": "ライセンス",
+      "license": "VRXはMITライセンスの無料オープンソースソフトウェアで、「現状のまま」提供され、いかなる保証もありません。ElectronやReactなどのオープンソースソフトウェアを使っており、それぞれに独自のライセンスがあります。"
     },
     "pages": {
       "hot": {
@@ -653,10 +672,9 @@
     "welcome": {
       "title": "VRXへようこそ",
       "lead": "VRChatとChilloutVRのためのSocial VR コンパニオンです。",
-      "notice": "VRXは非公式アプリです。VRChatやChilloutVRが作成したものではなく、関係もありません。",
       "friends": {
         "title": "ひとつのフレンドリスト",
-        "body": "VRChatとChilloutVRのフレンドをまとめて、リアルタイムで表示します。"
+        "body": "VRChatとChilloutVRのフレンドをリアルタイムでまとめて表示。同じ人のアカウントはリンクできます。"
       },
       "hot": {
         "title": "ホットインスタンス",

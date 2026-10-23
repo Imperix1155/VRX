@@ -133,6 +133,6 @@ describe('unofficial-app notice', () => {
     'This application is not created by or affiliated with ChilloutVR or the ChilloutVR team in any way.'
 
   it('keeps ChilloutVR’s required disclaimer word for word in en', () => {
-    expect(en.shell.unofficialNotice).toContain(CVR_DISCLAIMER)
+    expect(en.settings.legal.chilloutvr).toBe(CVR_DISCLAIMER)
   })
 })

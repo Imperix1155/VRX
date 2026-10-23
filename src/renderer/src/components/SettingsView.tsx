@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   BackgroundGlow,
@@ -20,7 +20,7 @@ import {
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
 import { useUpdater } from '../hooks/useUpdater'
-import { releasesUrlFor } from '@shared/constants'
+import { ISSUES_URL, releasesUrlFor } from '@shared/constants'
 import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
@@ -266,6 +266,83 @@ function LogsSettingsRow(): React.JSX.Element {
         </button>
       </div>
     </div>
+  )
+}
+
+const LEGAL_SECTIONS = [
+  {
+    title: 'settings.legal.officialTitle',
+    body: ['settings.legal.independent', 'settings.legal.vrchat', 'settings.legal.chilloutvr']
+  },
+  { title: 'settings.legal.helpTitle', body: ['settings.legal.support'], report: true },
+  { title: 'settings.legal.termsTitle', body: ['settings.legal.terms'] },
+  { title: 'settings.legal.privacyTitle', body: ['settings.legal.privacy'] },
+  { title: 'settings.legal.licenseTitle', body: ['settings.legal.license'] }
+] as const
+
+/**
+ * Legal (owner, 2026-10-23): closed by default, opens in place. Carries
+ * ChilloutVR's required sentence word for word and a matching VRChat one
+ * (docs/api-policy.md); the short notice elsewhere stays one line.
+ */
+function LegalSettingsRow(): React.JSX.Element {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
+  const button = [
+    'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+    'border border-[var(--border)]',
+    'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+    'text-[var(--text)]',
+    'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+    'cursor-pointer'
+  ].join(' ')
+  return (
+    <SettingCard
+      expanded={open}
+      parent={
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">{t('settings.legal.label')}</p>
+            <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+              {t('settings.legal.description')}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((value) => !value)}
+            className={button}
+          >
+            {t(open ? 'settings.legal.hide' : 'settings.legal.show')}
+          </button>
+        </div>
+      }
+    >
+      <div id={panelId} className="grid gap-[var(--space-3)]">
+        {LEGAL_SECTIONS.map((section) => (
+          <div key={section.title}>
+            <h3 className="text-xs font-semibold text-[var(--text)]">{t(section.title)}</h3>
+            {section.body.map((key) => (
+              <p key={key} className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                {t(key)}
+              </p>
+            ))}
+            {'report' in section && (
+              <button
+                type="button"
+                onClick={() => void window.vrx?.openUrl({ url: ISSUES_URL })}
+                className={`${button} mt-[var(--space-2)] inline-flex items-center gap-[var(--space-1)]`}
+              >
+                {t('settings.legal.report')}
+                <IconExternalLink />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </SettingCard>
   )
 }
 
@@ -723,6 +800,7 @@ export default function SettingsView(): React.JSX.Element {
               </button>
             </div>
             <LogsSettingsRow />
+            <LegalSettingsRow />
           </section>
         )}
       </div>

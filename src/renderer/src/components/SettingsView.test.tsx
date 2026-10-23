@@ -11,7 +11,7 @@ import { act, fireEvent, within, render, screen, cleanup } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import { releasesUrlFor } from '@shared/constants'
+import { ISSUES_URL, releasesUrlFor } from '@shared/constants'
 import type { UpdaterSnapshot } from '@shared/ipc'
 import i18n from '../i18n'
 import { useSettingsStore } from '../stores/settings'
@@ -425,6 +425,31 @@ describe('SettingsView — Accounts section (VRX-191)', () => {
     expect(screen.getByText(msg('shell.unofficialNotice')).className).toContain(
       'text-[var(--text-dim)]'
     )
+  })
+})
+
+describe('SettingsView — Legal (About page)', () => {
+  it('starts closed and opens the full legal text in place', () => {
+    const openUrl = vi.fn(() => Promise.resolve())
+    setBridge({ openUrl } as unknown as VrxBridge)
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    const toggle = screen.getByRole('button', { name: msg('settings.legal.show') })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    const panel = document.getElementById(toggle.getAttribute('aria-controls')!)
+    expect(panel?.closest('[inert]')).toBeTruthy()
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(toggle.textContent).toBe(msg('settings.legal.hide'))
+    expect(panel?.closest('[inert]')).toBeNull()
+    for (const key of ['independent', 'vrchat', 'chilloutvr', 'support', 'privacy', 'license']) {
+      expect(within(panel!).getByText(msg(`settings.legal.${key}`))).toBeTruthy()
+    }
+
+    fireEvent.click(within(panel!).getByRole('button', { name: msg('settings.legal.report') }))
+    expect(openUrl).toHaveBeenCalledWith({ url: ISSUES_URL })
   })
 })
 

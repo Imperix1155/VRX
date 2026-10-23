@@ -475,16 +475,18 @@ label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
 neutral text-colored fill, so neither platform color leads. Each screen keeps to a
-short line or two; the welcome's unofficial-app notice and the sign-in storage
-note are one short line each, with the full text behind Show more (Locked
-rule 11). Settings → About offers Run setup again.
+short line or two; the welcome's unofficial-app notice is one line, and the
+sign-in storage note is one short line with the full text behind Show more
+(Locked rule 11). Settings → About offers Run setup again.
 
 **Sign-in.** Sign-in text explains OS-backed encryption and the weaker
 local-key fallback (in setup, behind Show more), and never promises keychain
 protection everywhere. The
-sign-in screen (both tabs) and Accounts show one unofficial-app notice in plain
-dim text: a VRChat sentence and ChilloutVR's required disclaimer, worded the
-same way (see [API policy](./api-policy.md)).
+sign-in screen (both tabs) and Accounts show the one-line unofficial-app notice
+in plain dim text. Settings → About → Legal, closed by default, holds the full
+text: a VRChat sentence and ChilloutVR's required disclaimer, worded the same
+way, plus help, terms, privacy and license notes (see
+[API policy](./api-policy.md)).
 The real credential and two-factor forms are used in examples; a secure
 storage failure keeps its dedicated message. Guide fixtures accept only
 made-up input and never sign in or save it.

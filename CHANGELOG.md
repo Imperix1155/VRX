@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-10-23
 
 VRX 1.0 is the first full release: one window for your VRChat and ChilloutVR
-friends, so you don't need VRCX and CVRX open side by side. It is the same app
-as 1.0.0-beta.5, with nothing changed since that test build. Coming from
-0.23.0, the [changelog](https://github.com/Imperix1155/VRX/blob/main/CHANGELOG.md)
+friends, so you don't need VRCX and CVRX open side by side. It is 1.0.0-beta.5
+plus a shorter notice, a new Legal section, and one onboarding line (below).
+Coming from 0.23.0, the [changelog](https://github.com/Imperix1155/VRX/blob/main/CHANGELOG.md)
 lists every change from the betas in detail.
 
 **Highlights**
@@ -50,6 +50,19 @@ lists every change from the betas in detail.
   in-app updates.
 - VRX is unofficial. Both platforms' APIs are unofficial and can change
   without notice, which can break a feature until VRX is updated.
+
+### Added
+
+- Settings → About → Legal, closed until you open it: who makes VRX (and who
+  doesn't), where to report a problem, each platform's terms, privacy, and the
+  license.
+
+### Changed
+
+- The unofficial-app notice is now one line: VRX is not affiliated with the
+  VRChat team nor the ChilloutVR team.
+- The welcome setup mentions that you can link a friend's VRChat and ChilloutVR
+  accounts.
 
 ## [1.0.0-beta.5] - 2026-10-23
 
