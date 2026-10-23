@@ -81,8 +81,8 @@ linux:
       StartupNotify: 'true'
 appImage:
   artifactName: ${name}-${version}-${arch}.${ext}
-  # Security hardening: keep the default Chromium sandbox in the desktop entry.
-  # The generated AppRun handles systems where the sandbox cannot start.
+  # Security hardening. The generated AppRun still adapts the launch to the
+  # system (checked in release.yml and scripts/linux-packaging.test.mjs).
   executableArgs: []
 npmRebuild: false
 publish:

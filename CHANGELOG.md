@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Security hardening for the Linux AppImage.
+- Security hardening.
 
 ## [1.0.0-beta.4] - 2026-10-22
 
