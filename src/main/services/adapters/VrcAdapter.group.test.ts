@@ -954,4 +954,58 @@ describe('live pipeline group enrichment (VRX-260)', () => {
     )
     unsubscribe()
   })
+
+  it('missing, failing or unreadable live-event groups do not open the shared circuit', async () => {
+    const answers: Record<string, () => Response> = {
+      grp_missing: () => jsonResponse({ error: 'not found' }, { status: 404 }),
+      grp_failing: () => jsonResponse({ error: 'server' }, { status: 503 }),
+      grp_unreadable: () => new Response('not json', { status: 200 })
+    }
+    const worldId = 'wrld_groupcircuit'
+    let groupRequests = 0
+    let inviteRequests = 0
+    const sockets: DrivableVrcSocket[] = []
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/auth')) return Promise.resolve(jsonResponse({ token: 'tok' }))
+      // A successful lookup would reset the breaker count, so the world misses too.
+      if (url.includes(`/worlds/${worldId}`)) {
+        return Promise.resolve(jsonResponse({ error: 'not found' }, { status: 404 }))
+      }
+      const groupId = /\/groups\/([^/?]+)/.exec(url)?.[1]
+      if (groupId !== undefined && answers[groupId]) {
+        groupRequests += 1
+        return Promise.resolve(answers[groupId]())
+      }
+      if (url.includes('/invite/myself/to/')) {
+        inviteRequests += 1
+        return Promise.resolve(jsonResponse({ type: 'invite' }))
+      }
+      return Promise.reject(new Error(`unexpected: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const adapter = new VrcAdapter(fakeStore('auth=x'), instantAdmission(), {
+      socketFactory: () => {
+        const socket = new DrivableVrcSocket()
+        sockets.push(socket)
+        return socket
+      }
+    })
+    markSessionEstablished(adapter)
+    const unsubscribe = adapter.subscribe(() => {})
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    Object.keys(answers).forEach((groupId, i) => {
+      sockets[0]!.fire('message', onlineFrame(worldId, `inst${i}`, groupId))
+    })
+    await vi.waitFor(() => expect(groupRequests).toBe(3))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    await expect(
+      adapter.selfInvite('wrld_circuit:12345~private(usr_self)')
+    ).resolves.toBeUndefined()
+    expect(inviteRequests).toBe(1)
+    unsubscribe()
+  })
 })

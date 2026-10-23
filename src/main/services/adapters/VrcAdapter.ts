@@ -238,9 +238,18 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     startedAt: number
     buckets: VrcCurrentUserBucketSets
   } | null = null
-  /** Single resolver instance — TTL cache persists across getFriends calls (VRX-163). */
+  /**
+   * Single resolver instance — TTL cache persists across getFriends calls (VRX-163).
+   * A missing, failing or unreadable world is an ordinary cached answer, so only
+   * 401/403 answers feed the shared circuit breaker: a few deleted worlds must
+   * not make the whole account look disconnected for a minute.
+   */
   private readonly worldResolver = new WorldResolver(
-    (worldId) => this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), { retry: 'none' }),
+    (worldId) =>
+      this.get(`/worlds/${encodeURIComponent(worldId)}`, z.unknown(), {
+        retry: 'none',
+        recordCircuitFailure: 'auth'
+      }),
     undefined,
     undefined,
     undefined,
@@ -256,10 +265,13 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    * negative-cache window (60 s) or at reconcile.
    */
   private readonly pendingWorldResolutions = new Set<string>()
-  /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded. */
+  /** VRChat group metadata resolver (VRX-260). TTL-cached, bounded; circuit as worlds. */
   private readonly groupResolver: GroupResolver = createGroupResolver({
     fetcher: (groupId) =>
-      this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), { retry: 'none' }),
+      this.get(`/groups/${encodeURIComponent(groupId)}`, z.unknown(), {
+        retry: 'none',
+        recordCircuitFailure: 'auth'
+      }),
     onChange: () => this.scheduleMetadataSave()
   })
   /** The account and generation whose stored metadata the resolvers hold. */
@@ -281,6 +293,12 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   private authPersistencePending = false
   /** True only after the current cookie has been saved with its validated owner. */
   private sessionPersistenceEstablished = false
+  /**
+   * Set when a Pipeline token exchange 401 invalidated this cookie's session.
+   * If the status check still accepts the cookie, a repeat 401 falls back to
+   * the raw cookie instead of invalidating again, so the two cannot loop.
+   */
+  private pipelineExchangeRejected = false
 
   constructor(
     private readonly credentials: VrcCredentialStore,
@@ -783,7 +801,8 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       }
       this.adoptStoredMetadata()
       this.live?.onIdentity?.(this.accountId)
-      if (establishedByThisStatus) this.restartPipeline()
+      // A token-exchange 401 stops the pipeline until this check confirms the session.
+      if (establishedByThisStatus || this.pipeline === null) this.restartPipeline()
       this.rememberAuthBuckets(parsed.data, generation, startedAt, bucketRevision)
       return this.status('authenticated')
     }
@@ -1441,8 +1460,11 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   /**
    * Pipeline auth token (VRX-146): exchange the session cookie via GET /auth
    * (verifies the session server-side — the VRCX pattern), falling back to the
-   * raw authcookie value when the exchange fails, and null with no session
-   * (the pipeline waits and retries; a fresh login is picked up automatically).
+   * raw authcookie value when the exchange is unavailable (network error, 5xx,
+   * unreadable reply), and null with no session (the pipeline waits and
+   * retries; a fresh login is picked up automatically). A 401 means the session
+   * itself was rejected: it is invalidated like any data-path 401 and the
+   * pipeline stops until the 2FA-aware status check settles the session.
    */
   private async pipelineToken(): Promise<string | null> {
     if (!this.isSessionConsumerReady() || !this.cookie) return null
@@ -1458,10 +1480,20 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
         // during an outage must not open the breaker for the reconcile after.
         { lease, recordCircuitFailure: false }
       )
+      if (response.status === 401 && !this.pipelineExchangeRejected) {
+        await response.body?.cancel().catch(() => {})
+        if (!lease.isCurrent() || lease.signal.aborted) return null
+        this.pipelineExchangeRejected = true
+        this.invalidateDataPathSession(false)
+        return null
+      }
       if (response.ok) {
         const parsed = authTokenSchema.safeParse(await response.json())
         if (!lease.isCurrent() || lease.signal.aborted) return null
-        if (parsed.success) return parsed.data.token
+        if (parsed.success) {
+          this.pipelineExchangeRejected = false
+          return parsed.data.token
+        }
       }
     } catch {
       /* exchange unavailable — fall back below */
@@ -1574,6 +1606,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
 
   private setCookie(cookie: string): void {
     this.sessionPersistenceEstablished = false
+    this.pipelineExchangeRejected = false
     this.cookie = cookie
     this.setAuthCookie(cookie) // sync to VrcApiClient for the authed get/post path
   }
@@ -1592,8 +1625,10 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
    * fenced by the new generation and the renderer quarantines on auth-invalidated.
    * Not an account switch, so no renderer identity boundary follows.
    */
-  private invalidateDataPathSession(): void {
-    this.bumpSessionGeneration(true, true)
+  private invalidateDataPathSession(restartPipeline = true): void {
+    this.bumpSessionGeneration(restartPipeline, true)
+    // A stopped pipeline emits nothing more; report it down until restarted.
+    if (!restartPipeline) this.emit({ type: 'connection', platform: 'vrchat', health: 'down' })
     this.emit({ type: 'auth-invalidated', platform: 'vrchat' })
   }
 
