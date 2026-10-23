@@ -37,5 +37,6 @@ const CHILLOUTVR_REGION_KEYS: Readonly<Record<string, string>> = {
 export function regionLabelKey(platform: Platform, region: string | null): string | null {
   if (region === null) return null
   const keys = platform === 'vrchat' ? VRCHAT_REGION_KEYS : CHILLOUTVR_REGION_KEYS
-  return keys[region.trim().toLowerCase()] ?? null
+  const code = region.trim().toLowerCase()
+  return Object.hasOwn(keys, code) ? (keys[code] ?? null) : null
 }

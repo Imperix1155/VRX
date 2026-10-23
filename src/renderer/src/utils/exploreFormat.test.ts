@@ -24,6 +24,14 @@ describe('regionLabelKey', () => {
     expect(regionLabelKey('chilloutvr', null)).toBeNull()
   })
 
+  it('never returns an inherited object member for an odd code', () => {
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      expect(regionLabelKey(platform, 'constructor')).toBeNull()
+      expect(regionLabelKey(platform, '__proto__')).toBeNull()
+      expect(regionLabelKey(platform, 'toString')).toBeNull()
+    }
+  })
+
   it('names plain ChilloutVR country and continent codes', () => {
     expect(regionLabelKey('chilloutvr', 'eu')).toBe('explore.region.europe')
     expect(regionLabelKey('chilloutvr', 'us')).toBe('explore.region.us')

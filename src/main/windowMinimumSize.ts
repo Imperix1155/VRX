@@ -52,6 +52,8 @@ export function keepMinimumSizeOnScreen(window: BrowserWindow): void {
   clamp()
   // 'move', not 'moved': 'moved' never fires on Linux. The clamp is cheap.
   window.on('move', clamp)
+  // A display change while minimized is skipped above; catch up on restore.
+  window.on('restore', clamp)
   screen.on('display-metrics-changed', clamp)
   screen.on('display-removed', clamp)
   screen.on('display-added', clamp)

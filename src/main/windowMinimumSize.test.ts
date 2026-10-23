@@ -82,4 +82,16 @@ describe('window minimum size', () => {
     window.emit('move')
     expect(window.setMinimumSize).not.toHaveBeenCalled()
   })
+
+  it('catches up on restore after a display change while minimized', () => {
+    const window = new FakeWindow()
+    keepMinimumSizeOnScreen(window as never)
+    window.minimized = true
+    screen.getDisplayMatching.mockReturnValue({ workAreaSize: { width: 1093, height: 614 } })
+    for (const listener of screen.listeners.get('display-metrics-changed') ?? []) listener()
+
+    window.minimized = false
+    window.emit('restore')
+    expect(window.setMinimumSize).toHaveBeenLastCalledWith(916, 614)
+  })
 })
