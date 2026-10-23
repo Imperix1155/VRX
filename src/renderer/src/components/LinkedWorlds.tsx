@@ -8,8 +8,21 @@ import { instancePillFor } from '../utils/instancePill'
 import { inPlatformOrder } from '../utils/platformOrder'
 import InstancePill from './InstancePill'
 
-function RowWorld({ friend }: { friend: Friend }): React.JSX.Element {
+function RowWorld({
+  friend,
+  showAccess
+}: {
+  friend: Friend
+  showAccess: boolean
+}): React.JSX.Element {
   const { t } = useTranslation()
+  const { labelScheme } = useSettingsStore((state) => state.settings)
+  // Two joinable locations share one split pill whose halves carry each
+  // access tier by color, so each location's access word sits here too.
+  const pill =
+    showAccess && isHotInstanceMember(friend) && friend.instance
+      ? instancePillFor(friend.instance, labelScheme)
+      : null
   return (
     <span data-linked-world-group="" className="linked-world-group">
       <span className={`linked-world-platform linked-platform-${friend.platform}`}>
@@ -19,6 +32,15 @@ function RowWorld({ friend }: { friend: Friend }): React.JSX.Element {
             : 'friends.platform.chilloutvrShort'
         )}
       </span>
+      {pill && (
+        <span
+          data-linked-world-access=""
+          className="shrink-0 text-[11px] font-semibold leading-[16px]"
+          style={{ color: pill.tier ? `var(--op-${pill.tier}-text)` : 'var(--text-dim)' }}
+        >
+          {t(pill.labelKey)}
+        </span>
+      )}
       <span className="linked-world-name">
         {isHotInstanceMember(friend)
           ? (friend.instance?.worldName ?? t('friends.instance.unknownWorld'))
@@ -82,10 +104,13 @@ function WorldLayer({ friend, split }: { friend: Friend; split: boolean }): Reac
 
 export default function LinkedWorlds({
   accounts,
-  variant
+  variant,
+  showAccess = false
 }: {
   accounts: Friend[]
   variant: 'row' | 'drawer'
+  /** Row only: name each location's access (the row's split "2 locations" pill). */
+  showAccess?: boolean
 }): React.JSX.Element | null {
   const worlds = inPlatformOrder(
     accounts.filter((friend) => friend.presence.state === 'in-game')
@@ -95,7 +120,11 @@ export default function LinkedWorlds({
     return (
       <span data-linked-worlds="" className="linked-world-pair">
         {worlds.map((friend) => (
-          <RowWorld key={`${friend.platform}:${friend.platformUserId}`} friend={friend} />
+          <RowWorld
+            key={`${friend.platform}:${friend.platformUserId}`}
+            friend={friend}
+            showAccess={showAccess}
+          />
         ))}
       </span>
     )

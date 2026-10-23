@@ -130,6 +130,7 @@ export default function Sidebar(): React.JSX.Element {
       <div
         className="font-mono text-[40px] leading-none tracking-[2px] flex gap-[1px] pb-0"
         style={{ padding: '4px 6px 0' }}
+        role="img"
         aria-label="VRX"
       >
         <span style={{ color: 'var(--vrc)' }}>V</span>

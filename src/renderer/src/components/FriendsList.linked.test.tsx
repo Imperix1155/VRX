@@ -224,6 +224,12 @@ describe('linked roster integration', () => {
     expect(within(list).getByRole('button', { name: '2 locations' }).getAttribute('title')).toMatch(
       /^VRChat: .+ · ChilloutVR: .+$/
     )
+    // The visible subline names each location's access beside its platform tag.
+    const access = [...list.querySelectorAll('[data-linked-world-access]')].map(
+      (node) => node.textContent
+    )
+    expect(access).toHaveLength(2)
+    expect(access.every((word) => word !== null && word.length > 0)).toBe(true)
     fireEvent.click(within(list).getByRole('button', { name: '2 locations' }))
     fireEvent.click(screen.getByRole('button', { name: /Join on ChilloutVR/ }))
     expect(joinInstance).toHaveBeenCalledOnce()

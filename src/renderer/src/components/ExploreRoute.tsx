@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { QueryState } from '@tanstack/react-query'
 import type { ExplorePlatformSnapshot, ExploreRoom, ExploreWorld } from '@shared/explore'
 import type { AuthStatus, Platform } from '@shared/types'
 import { DEFAULT_EXPLORE_WORLD_TOTAL } from '@shared/explore'
@@ -12,6 +13,9 @@ import { authStatusQueryKey } from '../queries/auth'
 import { useExploreImage } from '../hooks/useExploreImage'
 import { useExploreWorldSelection } from '../hooks/useExploreWorldSelection'
 import { useJoinInstance } from '../hooks/useJoinInstance'
+import { isNotConnectedAuth } from '../hooks/useNotConnectedGate'
+import { useUiStore } from '../stores/ui'
+import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
 import { EXPLORE_SESSION_SEEDS } from '../utils/exploreSeeds'
 import ExploreView from './ExploreView'
 import ExploreWorldCard from './ExploreWorldCard'
@@ -41,12 +45,36 @@ function sourceSnapshot(
 
 /** App already owns auth queries. Explore only observes their cache so this
  * display fallback cannot mount or refetch /auth for a disconnected platform. */
-function useCachedAuthStatus(platform: Platform): AuthStatus | undefined {
+function useCachedAuthState(platform: Platform): QueryState<AuthStatus> | undefined {
   return useSyncExternalStore(
     (listener) => queryClient.getQueryCache().subscribe(listener),
-    () => queryClient.getQueryData<AuthStatus>(authStatusQueryKey(platform)),
+    () => queryClient.getQueryState<AuthStatus>(authStatusQueryKey(platform)),
     () => undefined
   )
+}
+
+/** The shared not-connected discriminator (useNotConnectedGate), read from the cache. */
+function isNotConnected(state: QueryState<AuthStatus> | undefined): boolean {
+  return (
+    state !== undefined &&
+    isNotConnectedAuth({
+      data: state.data,
+      isSuccess: state.status === 'success',
+      isFetching: state.fetchStatus === 'fetching'
+    })
+  )
+}
+
+/** Under All, a platform the user isn't signed in to adds no source line: that
+ * is a choice, not missing data. A single-platform filter shows the Connect gate. */
+function shownUnderFilter(
+  platformFilter: Platform | 'all',
+  snapshot: ExplorePlatformSnapshot | undefined,
+  authState: QueryState<AuthStatus> | undefined
+): snapshot is ExplorePlatformSnapshot {
+  if (snapshot === undefined) return false
+  if (platformFilter === 'all') return !isNotConnected(authState)
+  return snapshot.platform === platformFilter
 }
 
 function ResolvedCard({
@@ -76,19 +104,24 @@ export default function ExploreRoute(): React.JSX.Element {
   const updateSettings = useSettingsStore((state) => state.updateSettings)
   const vrc = useExploreSnapshot('vrchat')
   const cvr = useExploreSnapshot('chilloutvr')
-  const vrcAuth = useCachedAuthStatus('vrchat')
-  const cvrAuth = useCachedAuthStatus('chilloutvr')
-  const vrcSource = sourceSnapshot('vrchat', vrc.data, vrcAuth)
-  const cvrSource = sourceSnapshot('chilloutvr', cvr.data, cvrAuth)
+  const vrcAuth = useCachedAuthState('vrchat')
+  const cvrAuth = useCachedAuthState('chilloutvr')
+  const setActiveTab = useUiStore((state) => state.setActiveTab)
+  const setSettingsCategory = useUiStore((state) => state.setSettingsCategory)
+  const vrcSource = sourceSnapshot('vrchat', vrc.data, vrcAuth?.data)
+  const cvrSource = sourceSnapshot('chilloutvr', cvr.data, cvrAuth?.data)
   const snapshots = useMemo(
     () =>
-      [vrcSource, cvrSource].filter(
-        (snapshot): snapshot is NonNullable<typeof snapshot> =>
-          snapshot !== undefined &&
-          (platformFilter === 'all' || snapshot.platform === platformFilter)
-      ),
-    [platformFilter, vrcSource, cvrSource]
+      [
+        shownUnderFilter(platformFilter, vrcSource, vrcAuth) ? vrcSource : undefined,
+        shownUnderFilter(platformFilter, cvrSource, cvrAuth) ? cvrSource : undefined
+      ].filter((snapshot) => snapshot !== undefined),
+    [platformFilter, vrcSource, cvrSource, vrcAuth, cvrAuth]
   )
+  const notConnectedPlatform =
+    platformFilter !== 'all' && isNotConnected(platformFilter === 'vrchat' ? vrcAuth : cvrAuth)
+      ? platformFilter
+      : null
   const worlds = useMemo(() => {
     const lists = {
       vrchat: rankExploreWorlds('vrchat', vrc.data?.worlds ?? []),
@@ -117,6 +150,27 @@ export default function ExploreRoute(): React.JSX.Element {
       platformFilter === 'all' ? (['vrchat', 'chilloutvr'] as const) : ([platformFilter] as const)
     for (const platform of platforms) void requestExplore(platform, 'manual').catch(() => undefined)
   }, [platformFilter])
+
+  if (notConnectedPlatform !== null) {
+    // The same Connect gate as the Dashboard and Hot Instances pages.
+    return (
+      <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-10)] text-center min-h-[180px]">
+        <p className="text-sm font-semibold text-[var(--text-dim)]">
+          {t(NOT_CONNECTED_KEY.explore[notConnectedPlatform])}
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('settings')
+            setSettingsCategory('accounts')
+          }}
+          className="rounded-control px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)] motion-safe:transition-colors"
+        >
+          {t('explore.notConnected.openAccounts')}
+        </button>
+      </div>
+    )
+  }
 
   const shell = (
     <>
@@ -180,15 +234,14 @@ export function ExploreDashboardPreviewRoute({
   const platformFilter = useFriendsStore((state) => state.platformFilter)
   const vrc = useExploreCachedSnapshot('vrchat')
   const cvr = useExploreCachedSnapshot('chilloutvr')
-  const vrcAuth = useCachedAuthStatus('vrchat')
-  const cvrAuth = useCachedAuthStatus('chilloutvr')
+  const vrcAuth = useCachedAuthState('vrchat')
+  const cvrAuth = useCachedAuthState('chilloutvr')
+  const vrcSource = sourceSnapshot('vrchat', vrc, vrcAuth?.data)
+  const cvrSource = sourceSnapshot('chilloutvr', cvr, cvrAuth?.data)
   const snapshots = [
-    sourceSnapshot('vrchat', vrc, vrcAuth),
-    sourceSnapshot('chilloutvr', cvr, cvrAuth)
-  ].filter(
-    (value): value is NonNullable<typeof value> =>
-      value !== undefined && (platformFilter === 'all' || value.platform === platformFilter)
-  )
+    shownUnderFilter(platformFilter, vrcSource, vrcAuth) ? vrcSource : undefined,
+    shownUnderFilter(platformFilter, cvrSource, cvrAuth) ? cvrSource : undefined
+  ].filter((value) => value !== undefined)
   const worlds = selectExploreWorlds({
     lists: {
       vrchat: rankExploreWorlds('vrchat', vrc?.worlds ?? []),

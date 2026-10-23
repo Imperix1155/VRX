@@ -56,7 +56,6 @@ function StatCard({ value, labelKey, tint }: StatCardProps): React.JSX.Element {
     <div className="glass glass-information p-[16px_18px]">
       <div
         className={`font-[family-name:var(--font-mono)] text-[38px] leading-none ${numberColor}`}
-        aria-live="polite"
       >
         {value}
       </div>

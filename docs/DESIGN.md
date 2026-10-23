@@ -322,7 +322,9 @@ alert at once, keeps the latest edits, offers Retry, and stays until a save
 succeeds. A normal save is silent; a notice appears only if the latest change
 is still unsaved about two seconds later, and the timer restarts on every
 change. If the first sign-in check fails, VRX shows a platform-specific
-recovery message with Retry, never a signed-out form. A healthy platform can
+recovery message with Retry, never a signed-out form. A saved VRChat session
+that needs a fresh sign-in code shows a one-line notice with Go to Accounts,
+and the connection label says Needs code. A healthy platform can
 show the app while the other is still pending. A panel failure stays inside
 its tab.
 
@@ -426,7 +428,9 @@ cards from the other platform; those cards stay visible. The line ends when no
 selected source is still loading for the first time. A normal refresh with
 cards already shown is silent. Real errors, unavailable sources, stale
 results, and verified empty states stay visible. Unknown or partial counts
-stay unknown, never zero. Nothing here may add polling.
+stay unknown, never zero. Nothing here may add polling. Under All, a platform
+the user isn't signed in to adds no line; filtered to that platform, Explore
+shows the same Connect gate with Go to Accounts as the Dashboard.
 
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform
@@ -484,7 +488,9 @@ combines the accounts, and a single-platform view shows that account. The
 header prefers in-game, then active, then offline, with the preferred platform
 breaking ties. A merged picture changes artwork only, never the status source.
 Two locations use a hard, centered 45-degree split, VRChat upper-right and
-ChilloutVR lower-left.
+ChilloutVR lower-left. In the row, two joinable locations share one
+"2 locations" pill whose halves carry each access tier by color, so the world
+line names each tier in words after its platform tag.
 
 Combined Join always opens the destination chooser, even with one eligible
 choice, and never picks for the user. Single-platform views use the normal

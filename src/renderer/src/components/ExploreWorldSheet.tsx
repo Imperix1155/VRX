@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   ExploreCount,
@@ -8,6 +8,7 @@ import type {
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
 import { joinFailureMessageKey, type JoinFailureReason } from '../hooks/useJoinInstance'
+import { formatCount, regionLabelKey } from '../utils/exploreFormat'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
  *  Explore's `stale` means an expired selection, so refreshing is the right advice.
@@ -49,42 +50,57 @@ const denialKey: Readonly<Record<ExploreJoinDenial, string>> = {
 }
 
 function Count({ count }: { count: ExploreCount }): React.JSX.Element {
-  const { t } = useTranslation()
-  return <>{count.state === 'complete' ? count.value : t('explore.unknownCount')}</>
+  const { t, i18n } = useTranslation()
+  return (
+    <>
+      {count.state === 'complete'
+        ? formatCount(count.value, i18n.language)
+        : t('explore.unknownCount')}
+    </>
+  )
 }
 
 function RoomRow({
   room,
   onJoin,
   actionAllowed,
+  stale,
   joining
 }: {
   room: ExploreRoom
   onJoin: (room: ExploreRoom) => void
   actionAllowed: boolean
+  /** Saved results: an otherwise joinable room asks for a refresh first. */
+  stale: boolean
   joining: boolean
 }): React.JSX.Element {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const detailsId = useId()
   const enabled = actionAllowed && room.action.state === 'available'
   const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
-  const details = [room.region, room.groupName].filter((part): part is string => part !== null)
+  const region = regionLabelKey(room.platform, room.region)
+  const details = [region === null ? null : t(region), room.groupName].filter(
+    (part): part is string => part !== null
+  )
   const disabledLabel = joining
     ? t('explore.joinDenied.busy')
     : enabled
       ? null
       : room.action.state === 'disabled'
         ? t(denialKey[room.action.reason])
-        : t('explore.joinDenied.unavailable')
+        : stale
+          ? t('explore.joinDenied.stale')
+          : t('explore.joinDenied.unavailable')
   return (
     <li className="flex min-w-0 items-center justify-between gap-[var(--space-3)] rounded-[13px] border border-[var(--border)] bg-[var(--control-fill)] p-[var(--space-3)]">
-      <div className="min-w-0">
+      <div id={detailsId} className="min-w-0">
         <div className="flex flex-wrap items-center gap-[var(--space-2)]">
           <span className="rounded-[9px] border border-[var(--border)] px-[var(--space-2)] py-[var(--space-0-5)] text-xs font-semibold text-[var(--text)]">
             {access}
           </span>
           <span className="text-xs text-[var(--text-dim)]">
             <Count count={room.occupancy} />
-            {room.capacity === null ? '' : ` / ${room.capacity}`}
+            {room.capacity === null ? '' : ` / ${formatCount(room.capacity, i18n.language)}`}
           </span>
         </div>
         {details.length > 0 ? (
@@ -98,6 +114,7 @@ function RoomRow({
           type="button"
           disabled={!enabled}
           title={disabledLabel ?? undefined}
+          aria-describedby={detailsId}
           onClick={() => {
             if (enabled) onJoin(room)
           }}
@@ -194,6 +211,10 @@ export default function ExploreWorldSheet({
   const { world } = shown
   const isVrc = world.platform === 'vrchat'
   const isStale = shown.isStale || (freshnessKey !== null && expiredFreshnessKey === freshnessKey)
+  // "Saved results" only describes rooms that are on screen; an error or an
+  // empty list keeps its own line, and Refresh stays available beside it.
+  const showStaleNote =
+    isStale && shown.rooms.length > 0 && shown.status !== 'error' && shown.status !== 'unavailable'
   return (
     <div inert={!open} aria-hidden={!open}>
       <div
@@ -254,9 +275,11 @@ export default function ExploreWorldSheet({
               <div className="mt-[var(--space-1)]">
                 <PlatformPill platform={world.platform} />
               </div>
-              {isStale ? (
+              {showStaleNote || (isStale && onRefresh) ? (
                 <div className="mt-[var(--space-1)] flex items-center gap-[var(--space-2)]">
-                  <p className="text-xs text-[var(--text-dim)]">{t('explore.stale')}</p>
+                  {showStaleNote ? (
+                    <p className="text-xs text-[var(--text-dim)]">{t('explore.stale')}</p>
+                  ) : null}
                   {onRefresh ? (
                     <button
                       type="button"
@@ -311,6 +334,7 @@ export default function ExploreWorldSheet({
                       room.platform === world.platform &&
                       room.worldId === world.worldId
                     }
+                    stale={isStale}
                     joining={joining}
                   />
                 ))}

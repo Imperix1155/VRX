@@ -636,18 +636,24 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           </div>
         )}
 
-        {/* Drift / unavailable / waiting notices — quiet-styled per VRX-245. */}
-        {isDrift && (
-          <p className="text-sm text-[var(--text-dim)]">
-            {t('joinConfirm.driftNotice', { name: friendForCopy.displayName })}
-          </p>
-        )}
-        {isWaiting && <p className="text-sm text-[var(--text-dim)]">{t('joinConfirm.waiting')}</p>}
-        {isUnavailable && (
-          <p className="text-sm text-[var(--text-dim)]">
-            {t('joinConfirm.unavailable', { name: pendingConfirm.displayName })}
-          </p>
-        )}
+        {/* Drift / unavailable / waiting notices — quiet-styled per VRX-245.
+            One status region that stays mounted, so a notice appearing while
+            the dialog is open is announced. `contents` keeps the column gap. */}
+        <div role="status" className="contents">
+          {isDrift && (
+            <p className="text-sm text-[var(--text-dim)]">
+              {t('joinConfirm.driftNotice', { name: friendForCopy.displayName })}
+            </p>
+          )}
+          {isWaiting && (
+            <p className="text-sm text-[var(--text-dim)]">{t('joinConfirm.waiting')}</p>
+          )}
+          {isUnavailable && (
+            <p className="text-sm text-[var(--text-dim)]">
+              {t('joinConfirm.unavailable', { name: pendingConfirm.displayName })}
+            </p>
+          )}
+        </div>
 
         {/* Quiet progressive disclosure — an inline expander, not a modal. */}
         <div>

@@ -117,6 +117,6 @@ describe('ErrorBoundary', () => {
     )
 
     expect(container.querySelector('.min-h-screen')).not.toBeNull()
-    expect(screen.getByLabelText('VRX')).toBeDefined()
+    expect(screen.getByRole('img', { name: 'VRX' })).toBeDefined()
   })
 })

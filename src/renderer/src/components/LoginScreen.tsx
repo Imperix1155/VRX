@@ -201,6 +201,7 @@ export default function LoginScreen({
           <div className="mb-[var(--space-6)] text-center">
             <div
               className="inline-block font-mono text-4xl leading-none tracking-wider"
+              role="img"
               aria-label="VRX"
             >
               <span style={{ color: 'var(--vrc)' }}>V</span>

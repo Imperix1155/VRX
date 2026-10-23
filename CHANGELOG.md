@@ -13,6 +13,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unofficial-app notice, the sign-in note is one line, and the longer details
   (the full notice and how sign-ins are stored) sit behind Show more. The
   Dashboard and Alerts steps have shorter intros too.
+- Explore filtered to a platform you aren't signed in to shows the same
+  Connect card with Go to Accounts as the Dashboard. With All selected, a
+  platform you aren't signed in to no longer adds a line to Explore or Popular
+  now.
+- Room lists show region names (US East, Europe, Japan…) instead of codes, and
+  people counts use your language's number format.
+- A linked friend in two joinable places now shows each place's access, such as
+  Public, in words next to its platform tag, not only as color on the
+  "2 locations" button.
+- "Sign out" is the name for signing out everywhere in Accounts; the connected
+  card no longer says "Disconnect".
+- Clearer wording: an empty friends list says "No friends yet", the Hot
+  Instances help says the Dashboard shows the top instance from each platform
+  when both have one (otherwise the top two), and Japanese uses one spelling of
+  the app's subtitle.
+
+### Fixed
+
+- A VRChat sign-in that needs a new code is no longer invisible while
+  ChilloutVR stays signed in: a short notice says so with a Go to Accounts
+  button, and the connection tooltip says "Needs code" instead of "Signed out".
+- Explore room details no longer say they are refreshing when nothing is. Older
+  results say "Showing saved results." next to Refresh, and rooms you could
+  join ask you to refresh first instead of saying "Unavailable".
+- A friend who moved or went offline before you joined now gets "No longer
+  joinable" instead of being told to check the game and connection.
+- Identities says why Link an account is unavailable instead of hiding the
+  reason in a tooltip.
+- Screen readers no longer announce every change to the online count or the
+  note counter, and more buttons say what they do: world cards and room Join
+  buttons describe their people count and room, join review notices are read
+  aloud, focus returns to the code field after a wrong sign-in code, and the
+  VRX logo and Hot Instance friend chips are named once.
 
 ## [1.0.0-beta.4] - 2026-10-22
 

@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useId, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 import type { ExploreCount, ExploreWorld } from '@shared/explore'
 import InstancePill from './InstancePill'
 import PlatformPill from './PlatformPill'
 import { CardPictureBackdrop, PictureBackedPill } from './CardPictureBackdrop'
+import { formatCount } from '../utils/exploreFormat'
 
 export interface ExploreWorldCardProps {
   world: ExploreWorld
@@ -18,9 +19,28 @@ export interface ExploreWorldCardProps {
   layout?: 'card' | 'bar'
 }
 
-function Count({ count }: { count: ExploreCount }): React.JSX.Element {
-  const { t } = useTranslation()
-  return <>{count.state === 'complete' ? count.value : t('explore.unknownCount')}</>
+/** "People: 12" with the value in `value` (the bar bolds it). The label and its
+ *  punctuation stay in the translation string. */
+function People({
+  count,
+  value = <span />
+}: {
+  count: ExploreCount
+  value?: React.JSX.Element
+}): React.JSX.Element {
+  const { t, i18n } = useTranslation()
+  return (
+    <Trans
+      i18nKey="explore.peopleCount"
+      values={{
+        count:
+          count.state === 'complete'
+            ? formatCount(count.value, i18n.language)
+            : t('explore.unknownCount')
+      }}
+      components={{ value }}
+    />
+  )
 }
 
 /** Shared world-first card for Explore and the Dashboard's Popular now preview. */
@@ -34,7 +54,8 @@ export default function ExploreWorldCard({
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const isVrc = world.platform === 'vrchat'
   const platformLabel = t(isVrc ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
-  const activityLabel = t('explore.people')
+  // The button's name is the world and platform; the People line is its description.
+  const peopleId = useId()
 
   if (layout === 'bar') {
     const barImage = image && failedImage !== image ? image : null
@@ -45,6 +66,7 @@ export default function ExploreWorldCard({
         data-explore-card-layout="bar"
         onClick={(event) => onOpen(world, event.currentTarget)}
         aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
+        aria-describedby={peopleId}
         className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} relative block w-full min-w-0 overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
       >
         <CardPictureBackdrop
@@ -84,11 +106,14 @@ export default function ExploreWorldCard({
           >
             <InstancePill label={t('explore.viewRooms')} tier={null} className="w-full" />
           </PictureBackedPill>
-          <span className="col-start-1 row-start-2 self-end min-w-0 truncate text-[13.5px] leading-[1.2] text-[var(--text-dim)]">
-            {activityLabel}:{' '}
-            <span className="font-bold text-[var(--text)]">
-              <Count count={world.activity} />
-            </span>
+          <span
+            id={peopleId}
+            className="col-start-1 row-start-2 self-end min-w-0 truncate text-[13.5px] leading-[1.2] text-[var(--text-dim)]"
+          >
+            <People
+              count={world.activity}
+              value={<span className="font-bold text-[var(--text)]" />}
+            />
           </span>
           <PictureBackedPill
             backed={barImage !== null}
@@ -107,6 +132,7 @@ export default function ExploreWorldCard({
       data-explore-sheet-opener
       onClick={(event) => onOpen(world, event.currentTarget)}
       aria-label={t('explore.openWorldAria', { world: world.name, platform: platformLabel })}
+      aria-describedby={peopleId}
       className={`glass glass-information ${isVrc ? 'tint-vrc' : 'tint-cvr'} group relative flex h-full w-full min-w-0 flex-col overflow-hidden p-0 text-left hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-[var(--text-dim)] motion-safe:transition-[filter]`}
     >
       <div
@@ -149,8 +175,8 @@ export default function ExploreWorldCard({
           {world.name}
         </h3>
         <div className="flex flex-wrap gap-x-[var(--space-3)] gap-y-[var(--space-1)] text-xs text-[var(--text-dim)]">
-          <span>
-            {activityLabel}: <Count count={world.activity} />
+          <span id={peopleId}>
+            <People count={world.activity} />
           </span>
         </div>
         <span className="mt-auto text-xs font-semibold text-[var(--text)]">

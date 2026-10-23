@@ -265,6 +265,14 @@ describe('useJoinInstance', () => {
     expect(joinFailureMessageKey('joining-disabled')).toBe('friends.joinFailure.joiningDisabled')
   })
 
+  it('says a friend is no longer joinable instead of blaming the game', () => {
+    expect(joinFailureMessageKey('not-joinable')).toBe('friends.joinFailure.notJoinable')
+    expect(joinFailureMessageKey('unknown-friend')).toBe('friends.joinFailure.notJoinable')
+    // A failed launch or invite keeps the check-the-game advice.
+    expect(joinFailureMessageKey('invite-failed')).toBe('friends.joinFailed')
+    expect(joinFailureMessageKey('launch-failed')).toBe('friends.joinFailed')
+  })
+
   it('cross-surface latch: while ANY join is in flight, every other surface no-ops', async () => {
     let resolveJoin!: (result: { ok: boolean }) => void
     joinInstance.mockImplementation(

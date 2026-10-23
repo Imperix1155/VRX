@@ -38,6 +38,7 @@ function ErrorFallback({ error, variant = 'app' }: FallbackProps): React.JSX.Ele
           {!isPanel && (
             <div
               className="mb-[var(--space-4)] inline-block font-mono text-4xl leading-none tracking-wider"
+              role="img"
               aria-label="VRX"
             >
               <span style={{ color: 'var(--vrc)' }}>V</span>

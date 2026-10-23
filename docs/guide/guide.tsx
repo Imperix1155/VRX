@@ -42,7 +42,7 @@ const nav = [
 
 function Brand(): React.JSX.Element {
   return (
-    <span className="design-guide__brand" aria-label="VRX">
+    <span className="design-guide__brand" role="img" aria-label="VRX">
       <span>V</span>
       <span>R</span>
       <span>X</span>
@@ -264,7 +264,8 @@ export default function Guide(): React.JSX.Element {
             variant="popular-first"
             variants={[
               { value: 'popular-first', label: 'Popular now first' },
-              { value: 'hot-first', label: 'Hot Instances first' }
+              { value: 'hot-first', label: 'Hot Instances first' },
+              { value: 'needs-code', label: 'VRChat needs a code' }
             ]}
             height="tall"
             paired

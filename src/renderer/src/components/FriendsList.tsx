@@ -464,7 +464,11 @@ const FriendRow = memo(function FriendRow({
           id={`${rowId}-world`}
           className="mt-[1px] block h-[16px] truncate text-[12.5px] leading-[16px] text-[var(--text-dim)]"
         >
-          {combined ? <LinkedWorlds accounts={projection.accounts} variant="row" /> : worldText}
+          {combined ? (
+            <LinkedWorlds accounts={projection.accounts} variant="row" showAccess={twoLocations} />
+          ) : (
+            worldText
+          )}
         </span>
       </div>
 
@@ -485,7 +489,8 @@ const FriendRow = memo(function FriendRow({
             aria-disabled={isJoining || undefined}
             tabIndex={isFullyVisible ? undefined : -1}
             // The diagonal halves carry each location's access tier in color;
-            // the tooltip (and accessible description) spells both out.
+            // the world subline names each one beside its platform tag, and
+            // the tooltip spells both out.
             title={inPlatformOrder(destinations)
               .map(
                 (account) =>
@@ -1342,7 +1347,7 @@ export default function FriendsList(): React.JSX.Element {
           )}
           {/* The [] placeholder a sign-in or account switch leaves says loading
           while the new roster loads; a verified empty roster that is merely
-          refreshing keeps saying nobody is online. */}
+          refreshing keeps saying there are no friends yet. */}
           {filteredFriends && filteredFriends.length === 0 && (
             <p className="text-sm text-[var(--text-dim)]">
               {searchActive

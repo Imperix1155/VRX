@@ -102,8 +102,11 @@ describe('TopBar contextual slot (VRX-186)', () => {
     expect(screen.getByTestId('topbar-contextual-dock').parentElement?.className).toContain(
       'ml-auto'
     )
-    expect(screen.getByRole('status').className).toContain('min-w-[78px]')
-    expect(screen.getByRole('status').className).toContain('tabular-nums')
+    expect(screen.getByTestId('topbar-status').className).toContain('min-w-[78px]')
+    expect(screen.getByTestId('topbar-status').className).toContain('tabular-nums')
+    // The online count changes with every presence update; it must not be live.
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByTestId('topbar-status').closest('[aria-live]')).toBeNull()
   })
 
   it('on Settings, swaps in the category nav and drops the platform filter', () => {
@@ -222,6 +225,28 @@ describe('TopBar connection health (VRX-223)', () => {
     const indicator = await screen.findByLabelText('VRChat: Down; ChilloutVR: Signed out')
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
+
+  it('names a VRChat session waiting for a code as Needs code, not Signed out', async () => {
+    stubFriends([], [])
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data:
+        platform === 'chilloutvr'
+          ? authenticated(platform)
+          : {
+              platform,
+              state: 'needs-2fa',
+              accountId: null,
+              displayName: null,
+              twoFactorMethod: 'totp'
+            }
+    }))
+    stubAppStatus('down', 'live')
+    render(<TopBar />)
+
+    const indicator = await screen.findByLabelText('VRChat: Needs code; ChilloutVR: Live')
+    // Only the signed-in platform's health counts toward the color.
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+  })
 })
 
 it.each(['dashboard', 'friends', 'explore'] as const)(
@@ -232,7 +257,7 @@ it.each(['dashboard', 'friends', 'explore'] as const)(
     render(<TopBar />)
     expect(screen.queryByRole('button', { name: i18n.t('settings.dashboard.shortcut') })).toBeNull()
     expect(screen.getByTestId('topbar-contextual-dock').nextElementSibling).toBe(
-      screen.getByRole('status')
+      screen.getByTestId('topbar-status')
     )
   }
 )
