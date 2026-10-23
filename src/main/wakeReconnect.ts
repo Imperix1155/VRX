@@ -1,8 +1,9 @@
 /**
- * After sleep or a screen unlock a live socket can look open while its
- * connection is gone, freezing presence with no error. Ask each platform to
- * redial once instead. A wake often sends `resume` and `unlock-screen`
- * together, so events within `WAKE_RECONNECT_COALESCE_MS` count once.
+ * After sleep a live socket can look open while its connection is gone,
+ * freezing presence with no error. Ask each platform to redial once instead.
+ * A screen unlock alone keeps the network up, so it doesn't count: each
+ * redial costs a roster read. Resumes within `WAKE_RECONNECT_COALESCE_MS`
+ * count once.
  */
 
 /** The slice of Electron's `powerMonitor` this module uses; tests fake it. */
@@ -16,9 +17,9 @@ export interface LiveReconnectTarget {
   reconnectNow(): void
 }
 
-type WakeEvent = 'resume' | 'unlock-screen'
+type WakeEvent = 'resume'
 
-const WAKE_EVENTS: readonly WakeEvent[] = ['resume', 'unlock-screen']
+const WAKE_EVENTS: readonly WakeEvent[] = ['resume']
 
 export const WAKE_RECONNECT_COALESCE_MS = 60_000
 

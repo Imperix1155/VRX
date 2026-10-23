@@ -79,9 +79,9 @@ only note where they differ.
   refetch the roster once over REST.
 - Dead-connection detection adds no API requests. Both sockets turn on TCP
   keepalive (30 s idle, `SOCKET_KEEPALIVE_DELAY_MS`), and when the computer
-  resumes from sleep or the screen unlocks, main drops each open socket once
-  (`reconnectNow`). The redial uses the normal backoff and 429 cooldown, and
-  wake events within 60 s count once. No socket has a message-silence watchdog:
+  resumes from sleep, main drops each open socket once (`reconnectNow`); a
+  screen unlock alone does not. The redial uses the normal backoff and 429
+  cooldown, and resumes within 60 s count once. No socket has a message-silence watchdog:
   neither platform's server ping interval has been confirmed live.
 - Decoders never throw on wire data. Unknown or malformed frames are dropped and
   debug-logged without payload contents.

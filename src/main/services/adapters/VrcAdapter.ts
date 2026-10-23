@@ -1311,7 +1311,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
   }
   /**
    * Reconnect the live socket now if it is open (main calls this after the
-   * computer wakes or unlocks, when a socket can look open but be dead). Uses
+   * computer wakes from sleep, when a socket can look open but be dead). Uses
    * the pipeline's normal backoff and 429 cooldown; no-op without a session.
    */
   reconnectNow(): void {

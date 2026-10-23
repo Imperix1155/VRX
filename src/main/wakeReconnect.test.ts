@@ -23,18 +23,25 @@ function rig(): {
 }
 
 describe('reconnectLiveOnWake', () => {
-  it.each(['resume', 'unlock-screen'])('asks both platforms to reconnect on %s', (event) => {
+  it('asks both platforms to reconnect on resume', () => {
     const r = rig()
-    r.power.emit(event)
+    r.power.emit('resume')
     expect(r.vrchat.reconnectNow).toHaveBeenCalledOnce()
     expect(r.chilloutvr.reconnectNow).toHaveBeenCalledOnce()
   })
 
-  it('counts a resume and unlock pair once, and a later wake again', () => {
+  it('ignores a screen unlock, which keeps the connection up', () => {
+    const r = rig()
+    r.power.emit('unlock-screen')
+    expect(r.vrchat.reconnectNow).not.toHaveBeenCalled()
+    expect(r.chilloutvr.reconnectNow).not.toHaveBeenCalled()
+  })
+
+  it('counts resumes close together once, and a later wake again', () => {
     const r = rig()
     r.power.emit('resume')
     r.clock.now += 5_000
-    r.power.emit('unlock-screen')
+    r.power.emit('resume')
     expect(r.vrchat.reconnectNow).toHaveBeenCalledOnce()
     r.clock.now += WAKE_RECONNECT_COALESCE_MS
     r.power.emit('resume')
@@ -56,9 +63,7 @@ describe('reconnectLiveOnWake', () => {
     const r = rig()
     r.stop()
     r.power.emit('resume')
-    r.power.emit('unlock-screen')
     expect(r.vrchat.reconnectNow).not.toHaveBeenCalled()
     expect(r.power.listenerCount('resume')).toBe(0)
-    expect(r.power.listenerCount('unlock-screen')).toBe(0)
   })
 })
