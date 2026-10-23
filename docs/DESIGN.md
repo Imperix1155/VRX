@@ -322,7 +322,9 @@ alert at once, keeps the latest edits, offers Retry, and stays until a save
 succeeds. A normal save is silent; a notice appears only if the latest change
 is still unsaved about two seconds later, and the timer restarts on every
 change. If the first sign-in check fails, VRX shows a platform-specific
-recovery message with Retry, never a signed-out form. A healthy platform can
+recovery message with Retry, never a signed-out form. A saved VRChat session
+that needs a fresh sign-in code shows a one-line notice with Go to Accounts,
+and the connection label says Needs code. A healthy platform can
 show the app while the other is still pending. A panel failure stays inside
 its tab.
 
