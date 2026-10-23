@@ -191,7 +191,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreRoute />)
     fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-    expect(await screen.findByText('Showing saved results while refreshing.')).toBeTruthy()
+    expect(await screen.findByText('Showing saved results.')).toBeTruthy()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' })[1]!)
     await waitFor(() =>
@@ -519,7 +519,7 @@ describe('ExploreRoute world sheet', () => {
     worldReads.mockResolvedValue({ ...ready, isStale: true })
     render(<ExploreDashboardPreviewRoute />)
     fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-    expect(await screen.findByText('Showing saved results while refreshing.')).toBeTruthy()
+    expect(await screen.findByText('Showing saved results.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     await waitFor(() =>
       expect(worldReads).toHaveBeenLastCalledWith({
@@ -558,7 +558,7 @@ describe('ExploreRoute world sheet', () => {
 
     expect(screen.getByText('A world')).toBeTruthy()
     expect(screen.queryByText('Worlds loading…')).toBeNull()
-    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
     expect(screen.getByText('ChilloutVR worlds could not load.')).toBeTruthy()
   })
 })
@@ -676,7 +676,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce({ ...ready, world: renewedTwice, isStale: true })
       render(<Route />)
       fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-      await screen.findByText('Showing saved results while refreshing.')
+      await screen.findByText('Showing saved results.')
 
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
       await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(3))
@@ -708,7 +708,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce({ ...ready, world: renewedWorld })
       render(<Route />)
       fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-      await screen.findByText('Showing saved results while refreshing.')
+      await screen.findByText('Showing saved results.')
 
       const refresh = screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!
       fireEvent.click(refresh)
@@ -749,7 +749,7 @@ for (const [label, Route] of [
         .mockResolvedValueOnce({ ...ready, world: renewedWorld })
       render(<Route />)
       fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-      await screen.findByText('Showing saved results while refreshing.')
+      await screen.findByText('Showing saved results.')
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
       await waitFor(() => expect(worldReads).toHaveBeenCalledTimes(2))
 
@@ -785,7 +785,7 @@ for (const [label, Route] of [
       worldReads.mockResolvedValueOnce({ ...ready, isStale: true }).mockResolvedValueOnce(null)
       render(<Route />)
       fireEvent.click(screen.getByRole('button', { name: /open visible rooms for a world/i }))
-      await screen.findByText('Showing saved results while refreshing.')
+      await screen.findByText('Showing saved results.')
       fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' }).at(-1)!)
       await waitFor(() => expect(query.readExploreSnapshot).toHaveBeenCalledOnce())
 

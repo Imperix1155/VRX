@@ -551,16 +551,15 @@
     "confirmAria": "{{world}} への参加を確認",
     "refresh": "更新",
     "joinFailed": "このルームに参加できませんでした。更新してからもう一度お試しください。",
-    "people": "人数",
     "visiblePublicRooms": "表示可能なパブリックルーム",
     "unknownCount": "不明",
     "sourceState": {
       "loading": "ワールドを読み込み中…",
       "error": "{{platform}} のワールドを読み込めませんでした。",
       "unavailable": "{{platform}} の探索は利用できません。",
-      "stale": "{{platform}} は更新中のため、保存済みの結果を表示しています。"
+      "stale": "{{platform}} の結果は最新ではない可能性があります。"
     },
-    "stale": "更新中のため、保存済みの結果を表示しています。",
+    "stale": "保存済みの結果を表示しています。",
     "empty": "現在利用可能なパブリックワールドはありません。",
     "notLoaded": "ワールドはまだ読み込まれていません。「更新」を押して読み込んでください。",
     "sheetAria": "{{platform}} の {{world}} にある表示可能なパブリックルーム",
@@ -577,9 +576,17 @@
       "restricted": "制限中",
       "unavailable": "利用不可",
       "unknown": "利用不可",
-      "stale": "更新中",
+      "stale": "先に更新",
       "busy": "参加中…",
       "joining-disabled": "無効"
+    },
+    "peopleCount": "人数: <value>{{count}}</value>",
+    "region": {
+      "usWest": "米国西部",
+      "usEast": "米国東部",
+      "us": "米国",
+      "europe": "ヨーロッパ",
+      "japan": "日本"
     }
   },
   "updater": {

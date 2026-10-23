@@ -141,8 +141,11 @@ describe('ExploreView', () => {
       worlds: [partial],
       platformSnapshots: [{ ...source('vrchat', [partial]), isStale: true }]
     })
-    expect(screen.getByText(/People: Unknown/)).toBeTruthy()
-    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    // The card's name stays the world; the People line is its description.
+    const card = screen.getByRole('button', { name: /open visible rooms/i })
+    const people = document.getElementById(card.getAttribute('aria-describedby')!)
+    expect(people?.textContent).toBe('People: Unknown')
+    expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
     expect(screen.queryByText('Visible rooms')).toBeNull()
   })
 
@@ -313,8 +316,10 @@ describe('ExploreView', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000)
     })
-    expect(screen.getByText('Showing saved results while refreshing.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Unavailable' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText('Showing saved results.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refresh first' }).hasAttribute('disabled')).toBe(
+      true
+    )
     expect(props.onRefreshSheet).not.toHaveBeenCalled()
     vi.useRealTimers()
   })
@@ -329,10 +334,72 @@ describe('ExploreView', () => {
       roomsComplete: true
     }
     const props = setup({ worlds: [selected], sheet: stale })
-    const unavailable = screen.getByRole('button', { name: 'Unavailable' })
-    expect(unavailable.hasAttribute('disabled')).toBe(true)
-    fireEvent.click(unavailable)
+    const refreshFirst = screen.getByRole('button', { name: 'Refresh first' })
+    expect(refreshFirst.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(refreshFirst)
     expect(props.onJoinRoom).not.toHaveBeenCalled()
+  })
+
+  it('claims saved results only while saved rooms are on screen', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const staleRooms = [
+      room('vrchat', { state: 'available', selectionRef: 'synthetic' }, selected.worldId)
+    ]
+    const cases: Array<[ExploreWorldSnapshot['status'], ExploreWorldSnapshot['rooms']]> = [
+      ['ready', []],
+      ['error', staleRooms],
+      ['unavailable', staleRooms]
+    ]
+    for (const [status, rooms] of cases) {
+      const props = setup({
+        worlds: [selected],
+        sheet: {
+          ...source('vrchat', [selected], status),
+          isStale: true,
+          world: selected,
+          rooms,
+          roomsComplete: true
+        },
+        onRefreshSheet: vi.fn()
+      })
+      expect(screen.queryByText('Showing saved results.')).toBeNull()
+      // Refresh stays reachable so the sheet can still recover.
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+      expect(props.onRefreshSheet).toHaveBeenCalledOnce()
+      cleanup()
+    }
+  })
+
+  it('names known regions, hides unknown codes, and describes each room action', () => {
+    const selected = world('vrchat', 'vrc', 'VRC World')
+    const known = {
+      ...room('vrchat', { state: 'available', selectionRef: 'a' }, selected.worldId),
+      roomId: 'known',
+      region: 'use',
+      occupancy: { state: 'complete', value: 1200, source: 'vrc-room-n-users' } as const,
+      capacity: 2400
+    }
+    const unknown = {
+      ...room('vrchat', { state: 'available', selectionRef: 'b' }, selected.worldId),
+      roomId: 'unknown',
+      region: 'zz'
+    }
+    setup({
+      worlds: [selected],
+      sheet: {
+        ...source('vrchat', [selected]),
+        world: selected,
+        rooms: [known, unknown],
+        roomsComplete: true
+      }
+    })
+    expect(screen.getByText('US East')).toBeTruthy()
+    expect(screen.queryByText(/zz/)).toBeNull()
+    expect(screen.getByText('1,200 / 2,400')).toBeTruthy()
+    const [first] = screen.getAllByRole('button', { name: 'Join' })
+    const description = document.getElementById(first!.getAttribute('aria-describedby')!)
+    expect(description?.textContent).toContain('Public')
+    expect(description?.textContent).toContain('1,200 / 2,400')
   })
 
   it('never activates a fresh room row that belongs to another world', () => {
@@ -649,7 +716,7 @@ describe('ExploreDashboardPreview', () => {
         onOpenWorld={vi.fn()}
       />
     )
-    expect(screen.queryByText('VRChat is showing saved results while refreshing.')).toBeNull()
+    expect(screen.queryByText('VRChat results may be out of date.')).toBeNull()
     expect(screen.getByText('Cached')).toBeTruthy()
     rerender(
       <ExploreDashboardPreview
