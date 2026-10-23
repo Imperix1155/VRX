@@ -22,7 +22,12 @@ const CIRCUIT_RESET_MS = 60_000
 
 export interface AdapterRequestOptions {
   priority?: RequestPriority
-  recordCircuitFailure?: boolean
+  /**
+   * Which failures count toward the circuit breaker: every failure (`true`, the
+   * default), none (`false`), or only 401/403 answers (`'auth'`, for metadata
+   * lookups where a missing or unreadable item is an expected answer).
+   */
+  recordCircuitFailure?: boolean | 'auth'
   signal?: AbortSignal
   lease?: RequestLease
   retry?: 'bounded' | 'none'
@@ -127,7 +132,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
         })
       } catch (error) {
         if (signal?.aborted || init.signal?.aborted) throw new RequestCancelledError()
-        if (recordCircuitFailure) this.recordFailure()
+        if (recordCircuitFailure === true) this.recordFailure()
         throw new NetworkError('Request failed', error)
       }
       if (response.status === 429) {
@@ -154,8 +159,8 @@ export abstract class BaseAdapter implements IPlatformAdapter {
    * response (401/403 → `AuthError`, else `NetworkError`), an unparseable body,
    * or a schema mismatch records a circuit failure unless the caller passes
    * `recordCircuitFailure: false` (lookups where a 404 is an expected answer).
-   * A 403 counts only while `forbiddenOpensCircuit`. A fully-validated
-   * response resets the count.
+   * `'auth'` keeps only the 401/403 count. A 403 counts only while
+   * `forbiddenOpensCircuit`. A fully-validated response resets the count.
    */
   protected async request<T>(
     url: string,
@@ -170,7 +175,10 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     if (response.status === 401 || response.status === 403) {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
-      if (recordCircuitFailure && (response.status === 401 || this.forbiddenOpensCircuit)) {
+      if (
+        recordCircuitFailure !== false &&
+        (response.status === 401 || this.forbiddenOpensCircuit)
+      ) {
         this.recordFailure()
       }
       throw new AuthError(undefined, response.status)
@@ -179,7 +187,7 @@ export abstract class BaseAdapter implements IPlatformAdapter {
     if (!response.ok) {
       await response.body?.cancel().catch(() => {})
       this.assertRequestCurrent(options, requestOptions)
-      if (recordCircuitFailure) this.recordFailure()
+      if (recordCircuitFailure === true) this.recordFailure()
       throw new NetworkError(`HTTP ${response.status}`)
     }
 
@@ -188,14 +196,14 @@ export abstract class BaseAdapter implements IPlatformAdapter {
       data = await response.json()
     } catch {
       this.assertRequestCurrent(options, requestOptions)
-      if (recordCircuitFailure) this.recordFailure()
+      if (recordCircuitFailure === true) this.recordFailure()
       throw new NetworkError('Failed to parse response body')
     }
 
     this.assertRequestCurrent(options, requestOptions)
     const parsed = schema.safeParse(data)
     if (!parsed.success) {
-      if (recordCircuitFailure) this.recordFailure()
+      if (recordCircuitFailure === true) this.recordFailure()
       throw new NetworkError(`Response validation failed: ${parsed.error.message}`)
     }
 

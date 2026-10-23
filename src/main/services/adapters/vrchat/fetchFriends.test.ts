@@ -220,6 +220,28 @@ describe('fetchFriends', () => {
       expect(result.friends[2]!.trustRank).toBe('visitor')
     })
 
+    it('keeps a friend whose tags are null, missing or malformed, with no rank tags', async () => {
+      const fetcher = buildFetcher(
+        [
+          [
+            { ...makeFriend(1), tags: null },
+            { ...makeFriend(2), tags: undefined },
+            { ...makeFriend(3), tags: 'system_trust_known' },
+            { ...makeFriend(4), tags: [7] }
+          ]
+        ],
+        []
+      )
+      const result = await fetchFriends(fetcher)
+      expect(result.skippedRecords).toBe(0)
+      expect(result.friends.map((friend) => friend.trustRank)).toEqual([
+        'visitor',
+        'visitor',
+        'visitor',
+        'visitor'
+      ])
+    })
+
     it('maps VrcFriend fields correctly (avatarUrl, platform, defaults)', async () => {
       const fetcher = buildFetcher(
         [

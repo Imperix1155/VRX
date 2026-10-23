@@ -97,6 +97,7 @@ vi.mock('./localCredentialEncryption', () => ({
 }))
 
 vi.mock('electron-store', () => ({ default: mocks.StoreMock }))
+vi.mock('../logger', () => ({ default: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }))
 vi.mock('electron', () => ({
   safeStorage: {
     isEncryptionAvailable: mocks.isEncryptionAvailable,

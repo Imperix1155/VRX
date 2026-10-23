@@ -32,6 +32,8 @@ export interface PipelineSocket {
     listener: (...args: unknown[]) => void
   ): void
   close(): void
+  /** Drops the connection at once, without a closing handshake (`ws` has it). */
+  terminate?(): void
   /** Present on bidirectional sockets (CVR); VRChat's pipeline never sends. */
   send?(data: string): void
 }
@@ -126,6 +128,24 @@ export abstract class ReconnectingPipeline<Prep> {
   protected requestReconnect(): void {
     try {
       this.socket?.close()
+    } catch {
+      /* already closing/closed */
+    }
+  }
+
+  /**
+   * Drop an open socket that may have died unnoticed (after sleep or a network
+   * change) so the loop reconnects through its normal backoff and 429 cooldown.
+   * No-op while stopped, still connecting, or waiting for a session.
+   */
+  reconnectNow(): void {
+    if (this.stopped || !this.isOpen || this.socket === null) return
+    this.log('info', 'pipeline: reconnecting on request')
+    const socket = this.socket
+    try {
+      // A dead peer never answers a closing handshake, so close() would wait.
+      if (socket.terminate) socket.terminate()
+      else socket.close()
     } catch {
       /* already closing/closed */
     }

@@ -28,6 +28,7 @@ vi.mock('./security', () => ({
 const service = vi.hoisted(() => ({
   getSettingsSnapshot: vi.fn(),
   loadSettings: vi.fn(),
+  isSettingsFallback: vi.fn(),
   hasPendingSettingsSave: vi.fn(),
   saveSettings: vi.fn()
 }))
@@ -40,6 +41,7 @@ const call = (channel: string, req?: unknown): unknown => handlers.get(channel)!
 
 beforeEach(() => {
   service.hasPendingSettingsSave.mockReturnValue(false)
+  service.isSettingsFallback.mockReturnValue(false)
   handlers.clear()
   trusted.value = true
   service.loadSettings.mockReset().mockReturnValue({ ...DEFAULT_SETTINGS })
@@ -60,6 +62,11 @@ describe('get-settings', () => {
   it('labels an uncommitted main snapshot so renderer reload cannot claim it was saved', () => {
     service.hasPendingSettingsSave.mockReturnValue(true)
     expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, unsaved: true })
+  })
+
+  it('labels defaults standing in for an unreadable file as a fallback', () => {
+    service.isSettingsFallback.mockReturnValue(true)
+    expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, fallback: true })
   })
 
   it('delegates to loadSettings', () => {

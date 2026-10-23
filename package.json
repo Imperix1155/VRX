@@ -1,11 +1,19 @@
 {
   "name": "vrx",
+  "private": true,
   "desktopName": "com.imperix.vrx",
   "version": "1.0.0-beta.4",
   "description": "VRX — Social VR companion for VRChat + ChilloutVR",
   "main": "./out/main/index.js",
   "author": "Imperix1155",
   "homepage": "https://github.com/Imperix1155/VRX",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Imperix1155/VRX.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Imperix1155/VRX/issues"
+  },
   "license": "MIT",
   "scripts": {
     "format": "prettier --write .",

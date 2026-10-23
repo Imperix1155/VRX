@@ -26,6 +26,10 @@ import log from '../logger'
 
 let store: Store<Record<string, unknown>> | undefined
 let settingsSnapshot: Settings | undefined
+// True while the snapshot is in-memory defaults because the file could not be
+// read (lock, permissions, I/O). Saving then would replace the user's real file
+// with defaults plus one patch, so saveSettings re-reads the file first.
+let settingsUnloaded = false
 const SETTINGS_SAVE_DEBOUNCE_MS = 250
 
 interface SettingsSaveWaiter {
@@ -115,9 +119,11 @@ export function loadSettings(): Settings {
     )
     // Only a JSON syntax error proves the file is corrupt. Any other read
     // failure (permissions, I/O) leaves the file untouched.
+    settingsUnloaded = true
     if (err instanceof SyntaxError) {
       try {
         moveCorruptSettingsFileAside()
+        settingsUnloaded = false
         log.warn('settings: corrupt file kept as settings.corrupt-*.json; saves start fresh')
       } catch (moveErr) {
         log.warn(
@@ -131,6 +137,7 @@ export function loadSettings(): Settings {
   }
 
   settingsSnapshot = settings
+  settingsUnloaded = false
   // An already-normalized file needs no rewrite; skipping it keeps an atomic
   // write and fsync off every launch's path to the first window.
   if (shouldPersistSettings(raw) && !isDeepStrictEqual(raw, settings)) {
@@ -157,6 +164,15 @@ export function hasPendingSettingsSave(): boolean {
 
 /** Cheap fire-time view for hot paths. Startup's first load populates it; the
  *  fallback keeps direct/test callers safe without changing IPC behavior. */
+/**
+ * True while the snapshot is defaults standing in for a settings file that
+ * could not be read. `get-settings` reports it so the renderer saves only its
+ * own edits, never those defaults, until a save answers with the real file.
+ */
+export function isSettingsFallback(): boolean {
+  return settingsUnloaded
+}
+
 export function getSettingsSnapshot(): Settings {
   return settingsSnapshot ?? loadSettings()
 }
@@ -167,6 +183,18 @@ export function getSettingsSnapshot(): Settings {
  * coalesced write containing this snapshot settles.
  */
 export function saveSettings(patch: Partial<Settings>): Promise<Settings> {
+  if (settingsUnloaded) {
+    // The snapshot is defaults standing in for a file that could not be read.
+    // Re-read it so the patch lands on the user's preferences, not on defaults.
+    const inMemory = settingsSnapshot
+    loadSettings()
+    if (settingsUnloaded) {
+      // Still unreadable: keep native policy in step with the UI, but never
+      // write defaults over a file that may still hold the user's settings.
+      settingsSnapshot = parseSettings({ ...(inMemory ?? DEFAULT_SETTINGS), ...patch })
+      throw new Error('settings: refusing to save while the settings file cannot be read')
+    }
+  }
   // The renderer has already accepted the patch locally before this call. Keep
   // native fire-time policy coherent even when persistence must be refused or
   // the file cannot be read: apply the patch in memory BEFORE touching disk.

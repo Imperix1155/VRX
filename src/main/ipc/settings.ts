@@ -4,6 +4,7 @@ import type { Settings } from '@shared/settings'
 import {
   getSettingsSnapshot,
   hasPendingSettingsSave,
+  isSettingsFallback,
   loadSettings,
   saveSettings
 } from '../services/settings'
@@ -24,6 +25,9 @@ export function registerSettingsHandlers(onApplied?: (settings: Settings) => voi
   ipcMain.handle('get-settings', (event): IpcInvoke['get-settings']['res'] => {
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     const settings = loadSettings()
+    // Defaults standing in for an unreadable file: the renderer must save only
+    // its own edits, or a later save would write these defaults over the file.
+    if (isSettingsFallback()) return { ...settings, fallback: true }
     return hasPendingSettingsSave() ? { ...settings, unsaved: true } : settings
   })
 

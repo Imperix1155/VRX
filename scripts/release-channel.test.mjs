@@ -48,6 +48,10 @@ describe('release tag/channel contract', () => {
     expect(workflow).toContain('--config.publish.channel="$CHANNEL"')
     expect(workflow).toContain('prerelease:$prerelease')
     expect(workflow).not.toContain('prerelease:true')
+    expect(workflow).toContain('if .channel == "latest" then "true" else "false" end')
+    expect(workflow.match(/make_latest:\$make_latest/g)).toHaveLength(2)
+    expect(workflow).toContain('scripts/verify-windows-update-metadata.mjs')
+    expect(workflow).toContain('dist/$CHANNEL.yml')
   })
 })
 

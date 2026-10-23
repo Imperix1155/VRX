@@ -38,9 +38,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Japanese text no longer breaks in the middle of a word.
 - The "settings could not be saved" notice is a slim one-line strip with a
   warning sign, so it takes far less room.
+- The install guide covers Linux setup, uninstalling, and where VRX keeps its
+  data.
 
 ### Fixed
 
+- On Windows, one click on the VRX tray icon now opens the window. When the
+  window is minimized, the tray menu offers Show VRX instead of Hide VRX.
+- If VRX can't start, or hits a serious error and has to close, it now shows a
+  short message instead of disappearing without a word.
+- If part of VRX is ended from outside (for example in Task Manager), VRX now
+  offers to reload the window instead of leaving it blank.
+- If VRX's saved sign-in file gets damaged, VRX clears it so you can sign in
+  again, instead of every sign-in failing.
+- A brief file lock at startup can no longer reset your settings.
+- VRX reconnects right away after your PC wakes from sleep, so friends' status
+  doesn't freeze while VRX still says it's live.
+- A few VRChat worlds or groups that can't be loaded no longer make VRChat look
+  disconnected for a minute.
+- When your VRChat sign-in expires, VRX now notices as soon as the live
+  connection tries to reconnect and asks you to sign in again, instead of
+  retrying quietly until the next full re-sync.
+- A VRChat friend whose profile is missing its trust information no longer
+  disappears from your friends list.
 - A VRChat sign-in that needs a new code is no longer invisible while
   ChilloutVR stays signed in: a short notice says so with a Go to Accounts
   button, and the connection tooltip says "Needs code" instead of "Signed out".
@@ -63,6 +83,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without three empty section headers under it.
 - The pinned section header in the friends list no longer lets a thin strip
   of the rows scrolling past show above it.
+
+### Security
+
+- Security hardening.
 
 ## [1.0.0-beta.4] - 2026-10-22
 

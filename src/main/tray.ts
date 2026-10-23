@@ -83,11 +83,16 @@ export function createTray(
     }
   }
 
+  const isOnScreen = (win: Electron.BrowserWindow | null): boolean =>
+    win ? win.isVisible() && !win.isMinimized() : false
+
   const refreshMenu = (): void => {
     tray.setContextMenu(
       Menu.buildFromTemplate(
         buildTrayMenuTemplate({
-          isVisible: live()?.isVisible() ?? false,
+          // A minimized window is visible to Electron but not on screen, so
+          // the menu offers Show (which restores it), not Hide.
+          isVisible: isOnScreen(live()),
           onShow: showCurrent,
           onHide: () => live()?.hide(),
           onQuit: () => {
@@ -101,12 +106,17 @@ export function createTray(
   const wireWindow = (win: Electron.BrowserWindow): void => {
     win.on('show', refreshMenu)
     win.on('hide', refreshMenu)
+    win.on('minimize', refreshMenu)
+    win.on('restore', refreshMenu)
     // A destroyed window (macOS close) must flip the label back to Show.
     win.on('closed', refreshMenu)
     refreshMenu()
   }
 
   tray.on('double-click', showCurrent)
+  // Windows users expect one left click on a tray icon to bring the app back.
+  // Elsewhere a click opens the menu (macOS) or is not reported (Linux).
+  if (process.platform === 'win32') tray.on('click', showCurrent)
 
   return { tray, wireWindow }
 }

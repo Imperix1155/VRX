@@ -144,7 +144,7 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
-  'get-settings': { req: void; res: Settings & { unsaved?: true } }
+  'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
   'updater:check': { req: void; res: void }

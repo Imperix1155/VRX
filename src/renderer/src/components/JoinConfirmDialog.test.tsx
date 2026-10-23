@@ -1013,7 +1013,10 @@ describe("who's-there row", () => {
 describe('never-show-again footnote', () => {
   it('saves confirmJoin=false through the REAL save path AND proceeds with the join, exactly once', async () => {
     const getSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
-    const saveSettings = vi.fn().mockResolvedValue(DEFAULT_SETTINGS)
+    // Main answers with the settings it saved: the patch it was sent.
+    const saveSettings = vi
+      .fn()
+      .mockImplementation((req: { patch: typeof DEFAULT_SETTINGS }) => Promise.resolve(req.patch))
     window.vrx = {
       joinInstance,
       getFriendNote,

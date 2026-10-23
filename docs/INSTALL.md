@@ -1,9 +1,10 @@
 # Install and support
 
-Download VRX only from the official
-[GitHub Releases](https://github.com/Imperix1155/VRX/releases) page. Each
-release has notes describing what changed. Releases marked **Pre-release** are
-beta or release-candidate test builds.
+Download VRX only from its official GitHub page:
+[get the latest release](https://github.com/Imperix1155/VRX/releases/latest).
+Each release has notes describing what changed. Beta and release-candidate
+test builds are on the [Releases](https://github.com/Imperix1155/VRX/releases)
+page, marked **Pre-release**.
 
 ## Choose a download
 
@@ -14,9 +15,10 @@ beta or release-candidate test builds.
 | Linux   | `vrx-VERSION-x86_64.AppImage` | In-app updates                     |
 | Linux   | `vrx_VERSION_amd64.deb`       | In-app updates                     |
 
-Releases are built for 64-bit x86 (x64) only. There is no native ARM build.
-Linux packages are checked automatically when they are built but are less
-tested than Windows on real desktops. No macOS builds are published.
+VRX needs 64-bit Windows 10 or later, or 64-bit x86 (x64) Linux. There is no
+native ARM build. Linux packages are checked automatically when they are built
+but are less tested than Windows on real desktops. No macOS builds are
+published.
 
 ## Windows: "Windows protected your PC"
 
@@ -32,6 +34,16 @@ page:
 
 If there is no **Run anyway** button, your organization's policy blocks
 unsigned apps. Ask your administrator instead of changing security settings.
+
+## Linux
+
+- **AppImage**: make the file executable before you open it. Run
+  `chmod +x vrx-VERSION-x86_64.AppImage`, or open the file's Properties in your
+  file manager and allow it to run as a program. AppImages need FUSE 2: if it
+  doesn't start, install `libfuse2` (`libfuse2t64` on Ubuntu 24.04 and later),
+  or use the deb instead.
+- **deb**: install it with `sudo apt install ./vrx_VERSION_amd64.deb`. In-app
+  updates ask for your administrator password before they install.
 
 ## Updates
 
@@ -64,9 +76,23 @@ in-app "What's new" screen.
   show no tray icon, so a closed VRX seems to vanish. Start VRX again and the
   same window comes back; VRX never runs twice. Press Ctrl+Q in the window to
   quit.
-- Your settings and saved sign-ins stay when you update or reinstall. To remove
-  saved sign-ins, sign out of each platform in Settings → Accounts before you
-  uninstall.
+
+## Uninstall and remove data
+
+- **Windows installer**: open Settings → Apps, find VRX, and choose
+  Uninstall. For the portable build, delete the file.
+- **deb**: run `sudo apt remove vrx`.
+- **AppImage**: delete the file.
+
+Updating or uninstalling keeps your settings and saved sign-ins, so they come
+back if you install VRX again. To remove saved sign-ins, sign out of each platform in
+Settings → Accounts before you uninstall. To remove everything VRX keeps,
+delete these folders after uninstalling:
+
+- **Windows**: `%APPDATA%\vrx` (settings, sign-ins, cached pictures and logs)
+  and `%LOCALAPPDATA%\vrx-updater` (downloaded updates).
+- **Linux**: `~/.config/vrx` (settings, sign-ins and cached pictures),
+  `~/.config/VRX` (logs) and `~/.cache/vrx-updater` (downloaded updates).
 
 ## Report a problem
 

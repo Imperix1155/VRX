@@ -765,6 +765,15 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
     return Promise.reject(new Error('CvrAdapter.selfInvite not supported on ChilloutVR'))
   }
 
+  /**
+   * Reconnect the live socket now if it is open (main calls this after the
+   * computer wakes from sleep, when a socket can look open but be dead). Uses
+   * the pipeline's normal backoff and 429 cooldown; no-op without a session.
+   */
+  reconnectNow(): void {
+    this.pipeline?.reconnectNow()
+  }
+
   subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped

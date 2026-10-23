@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { DebugLogger, getArtifactArchName, Arch } from 'builder-util'
 import { satisfies } from 'semver'
 import { LinuxTargetHelper } from 'app-builder-lib/out/targets/LinuxTargetHelper.js'
+import AppImageTarget from 'app-builder-lib/out/targets/appimage/AppImageTarget.js'
+import { generateAppRunScript } from 'app-builder-lib/out/targets/appimage/appImageUtil.js'
 import { loadConfig } from 'app-builder-lib/out/util/config/load.js'
 import { validateConfiguration } from 'app-builder-lib/out/util/config/config.js'
 import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
@@ -34,13 +36,14 @@ function desktopEntryMap(entry) {
   )
 }
 
-function createLinuxTargetHelper() {
+function createLinuxPackager() {
   const appInfo = {
     productName: config.productName,
     sanitizedProductName: config.productName,
-    description: packageMetadata.description
+    description: packageMetadata.description,
+    buildVersion: packageMetadata.version
   }
-  const packager = {
+  return {
     appInfo,
     executableName: packageMetadata.name,
     fileAssociations: [],
@@ -48,6 +51,9 @@ function createLinuxTargetHelper() {
     config: { ...config, protocols: [] },
     info: { metadata: packageMetadata }
   }
+}
+
+function createLinuxTargetHelper(packager = createLinuxPackager()) {
   return new LinuxTargetHelper(packager)
 }
 
@@ -71,6 +77,28 @@ describe('Linux packaging contract (VRX-101)', () => {
       Categories: 'Network;',
       Keywords: 'VRChat;ChilloutVR;Social;Friends;'
     })
+  })
+
+  it('launches the AppImage desktop entry through AppRun without extra arguments', async () => {
+    const packager = createLinuxPackager()
+    const target = new AppImageTarget(
+      null,
+      packager,
+      createLinuxTargetHelper(packager),
+      '/synthetic'
+    )
+    const entry = desktopEntryMap(await target.desktopEntry.value)
+
+    expect(entry.Exec).toBe('AppRun %U')
+  })
+
+  // The desktop entry relies on the generated AppRun to start on systems
+  // without unprivileged user namespaces; fail loudly if a builder update drops it.
+  it('keeps the generated AppRun launch fallback', () => {
+    const appRun = generateAppRunScript({ ExecutableName: packageMetadata.name })
+
+    expect(appRun).toContain('! unshare -Ur true 2>/dev/null ; then\n  NO_SANDBOX=(--no-sandbox)')
+    expect(appRun).toContain('exec "$BIN" "${NO_SANDBOX[@]}"')
   })
 
   it('uses a real 512px RGBA PNG as the explicit Linux icon source', async () => {
@@ -104,6 +132,13 @@ describe('Linux packaging contract (VRX-101)', () => {
     expect(config.linux.target).toContain('AppImage')
     expect(config.publish).toMatchObject({ provider: 'github', owner: 'Imperix1155', repo: 'VRX' })
     expect(satisfies(updaterMetadata.version, config.linux.electronUpdaterCompatibility)).toBe(true)
+  })
+
+  it('checks the packaged AppImage desktop entry and AppRun before publishing', () => {
+    expect(releaseWorkflow).toContain(`grep -Fx 'Exec=AppRun %U' "$APPIMAGE_DESKTOP"`)
+    expect(releaseWorkflow).toContain(
+      `grep -F 'unshare -Ur true' "$APPIMAGE_DIR/squashfs-root/AppRun"`
+    )
   })
 
   it('publishes only a draft whose release assets exactly match the allowlist', () => {
