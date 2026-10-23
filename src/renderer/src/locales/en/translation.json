@@ -365,7 +365,8 @@
       "cooldown": "One moment — just launched a join",
       "rateLimited": "Too many attempts — try again shortly",
       "targetChanged": "Location changed — try Join again",
-      "joiningDisabled": "Joining is disabled in Settings"
+      "joiningDisabled": "Joining is disabled in Settings",
+      "notJoinable": "No longer joinable — they may have moved or gone offline"
     },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",

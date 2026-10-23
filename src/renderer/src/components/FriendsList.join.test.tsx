@@ -219,9 +219,7 @@ describe('FriendsList join pill (VRX-166)', () => {
 
     expect(button.getAttribute('aria-disabled')).toBeNull()
     expect(
-      screen.queryByText(
-        "Couldn't join. Check the game and connection, then use Join to try again."
-      )
+      screen.queryByText('No longer joinable — they may have moved or gone offline')
     ).toBeNull()
     expect(button.textContent).toBe('Public')
   })
@@ -240,25 +238,19 @@ describe('FriendsList join pill (VRX-166)', () => {
       await Promise.resolve()
     })
 
-    expect(status.textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
-    )
+    expect(status.textContent).toBe('No longer joinable — they may have moved or gone offline')
     expect(button.getAttribute('aria-label')).toBe('Join Alex in The Great Pug')
     expect(button.textContent).toBe('Public')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_499)
     })
-    expect(status.textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
-    )
+    expect(status.textContent).toBe('No longer joinable — they may have moved or gone offline')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1)
     })
-    expect(status.textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
-    )
+    expect(status.textContent).toBe('No longer joinable — they may have moved or gone offline')
   })
 
   it.each([
@@ -293,7 +285,7 @@ describe('FriendsList join pill (VRX-166)', () => {
       return row?.querySelector('[role="status"]')?.textContent ?? ''
     }
     expect(statusOf('Join Alex in The Great Pug')).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
+      'No longer joinable — they may have moved or gone offline'
     )
     expect(statusOf('Join Bea in The Great Pug')).toBe('') // Bea does NOT blip
   })

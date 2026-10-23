@@ -501,14 +501,14 @@ describe('FriendDrawer (VRX-69)', () => {
       await Promise.resolve()
     })
     expect(scoped.getByRole('status').textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
+      'No longer joinable — they may have moved or gone offline'
     )
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30_000)
     })
     expect(scoped.getByRole('status').textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
+      'No longer joinable — they may have moved or gone offline'
     )
   })
 
@@ -527,7 +527,7 @@ describe('FriendDrawer (VRX-69)', () => {
 
     expect(scoped.queryByRole('button', { name: 'Join' })).toBeNull()
     expect(scoped.getByRole('status').textContent).toBe(
-      "Couldn't join. Check the game and connection, then use Join to try again."
+      'No longer joinable — they may have moved or gone offline'
     )
   })
 

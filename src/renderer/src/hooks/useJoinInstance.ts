@@ -28,6 +28,10 @@ export function resolveWireMode(
 }
 
 export function joinFailureMessageKey(reason: JoinFailureReason): string {
+  // The friend moved, changed privacy, or left the roster: checking the game
+  // would be the wrong advice.
+  if (reason === 'not-joinable' || reason === 'unknown-friend')
+    return 'friends.joinFailure.notJoinable'
   if (reason === 'stale') return 'friends.joinFailure.stale'
   if (reason === 'cooldown') return 'friends.joinFailure.cooldown'
   if (reason === 'rate-limited') return 'friends.joinFailure.rateLimited'
