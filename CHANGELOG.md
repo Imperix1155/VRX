@@ -27,7 +27,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If VRX's saved sign-in file gets damaged, VRX clears it so you can sign in
   again, instead of every sign-in failing.
 - A brief file lock at startup can no longer reset your settings.
-
 - VRX reconnects right away after your PC wakes from sleep, so friends' status
   doesn't freeze while VRX still says it's live.
 - A few VRChat worlds or groups that can't be loaded no longer make VRChat look
