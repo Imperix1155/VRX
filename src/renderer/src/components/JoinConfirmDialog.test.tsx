@@ -1498,6 +1498,7 @@ describe('focus management', () => {
     updateFriend({ ...joinableFriend, presence: { state: 'offline' }, instance: null })
     rerender(<TestSurface friend={joinableFriend} />)
     await act(async () => await Promise.resolve())
+    expect(within(dialog).getByRole('status').textContent).not.toBe('')
 
     const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
     const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
@@ -1523,7 +1524,12 @@ describe('focus management', () => {
       await Promise.resolve()
     })
 
-    expect(within(dialog).getByText(/Waiting for updated location/)).toBeTruthy()
+    // Announced through the dialog's one status region.
+    expect(
+      within(dialog)
+        .getByText(/Waiting for updated location/)
+        .closest('[role="status"]')
+    ).not.toBeNull()
     const moreInfo = within(dialog).getByRole('button', { name: 'More info' })
     const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
 
