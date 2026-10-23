@@ -84,7 +84,8 @@
       "stale": "The profile changed. Review it again before saving.",
       "unavailable": "Both platforms must be available to create or replace a link. Existing links can still be removed through an available account.",
       "failed": "The change could not be saved. Try again or cancel.",
-      "rateLimited": "Too many local changes. Wait a moment, then try again."
+      "rateLimited": "Too many local changes. Wait a moment, then try again.",
+      "linkNeedsBoth": "Both platforms must be signed in and available to link."
     },
     "people_one": "{{count}} person",
     "people_other": "{{count}} people",

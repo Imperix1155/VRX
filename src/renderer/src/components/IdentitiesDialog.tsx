@@ -488,6 +488,11 @@ export default function IdentitiesDialog({
                   </label>
                 </>
               )}
+              {!profile && !bothReady && (
+                <p id="identities-link-needs-both" className="text-[12px] text-[var(--text-dim)]">
+                  {t('linking.manage.linkNeedsBoth')}
+                </p>
+              )}
               <div className="flex flex-wrap justify-end gap-[var(--space-2)]">
                 {profile ? (
                   <button
@@ -509,7 +514,7 @@ export default function IdentitiesDialog({
                     type="button"
                     className={buttonClass}
                     disabled={!bothReady || !canWrite || busy}
-                    title={!bothReady ? t('linking.manage.unavailable') : undefined}
+                    aria-describedby={!bothReady ? 'identities-link-needs-both' : undefined}
                     onClick={() => startPicker(origin)}
                   >
                     {t('linking.manage.link')}
