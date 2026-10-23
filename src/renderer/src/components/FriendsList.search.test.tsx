@@ -141,6 +141,9 @@ describe('FriendsList search (VRX-65)', () => {
     await finishDebounce()
 
     expect(screen.getByText('No friends match your search')).toBeTruthy()
+    // Only the no-results line: no empty section headers under it.
+    expect(screen.queryByRole('button', { name: /\(0\)$/ })).toBeNull()
+    expect(document.getElementById('friends-virtual-list')).toBeNull()
     const clear = screen.getByRole('button', { name: 'Clear search' })
     clear.focus()
     fireEvent.click(clear)

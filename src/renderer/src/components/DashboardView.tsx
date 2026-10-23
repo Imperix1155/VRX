@@ -154,7 +154,7 @@ function DashboardContent(): React.JSX.Element {
     useHotInstanceSheet(hotInstances, dismissExplore)
 
   if (isAuthStatusPending) {
-    return <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+    return <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
   }
   if (isNotConnected) {
     return (
@@ -191,7 +191,7 @@ function DashboardContent(): React.JSX.Element {
     if (enabled.some((q) => q.isPending)) {
       return (
         <div>
-          <p className="text-sm text-[var(--text-faint)]">{t('dashboard.loading')}</p>
+          <p className="text-sm text-[var(--text-dim)]">{t('dashboard.loading')}</p>
           {[popularSection]}
         </div>
       )

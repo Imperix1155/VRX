@@ -83,7 +83,7 @@ describe('LoginScreen (W6)', () => {
     const notice = msg('shell.unofficialNotice')
     expect(notice).toContain('VRChat')
     expect(notice).toContain('ChilloutVR')
-    expect(screen.getByText(notice).className).toContain('text-faint')
+    expect(screen.getByText(notice).className).toContain('text-[var(--text-dim)]')
     fireEvent.click(screen.getByRole('radio', { name: msg('settings.accounts.chilloutvr.label') }))
     expect(screen.getByText(notice)).toBeTruthy()
   })

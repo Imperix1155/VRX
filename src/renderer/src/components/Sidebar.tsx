@@ -195,7 +195,7 @@ export default function Sidebar(): React.JSX.Element {
           it (right-[10px] + w-[36px]); a long prerelease version wraps whole
           instead of running under the button. */}
       <div
-        className="relative text-[11px] text-[var(--text-faint)] pt-[12px] mt-[12px] has-[>button]:pr-[46px]"
+        className="relative text-[11px] text-[var(--text-dim)] pt-[12px] mt-[12px] has-[>button]:pr-[46px]"
         style={{ borderTop: '1px solid var(--sidebar-foot-border)' }}
       >
         <SidebarUpdateButton />

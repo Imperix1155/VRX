@@ -302,7 +302,7 @@ export default function TopBar(): React.JSX.Element {
       className={`flex flex-wrap items-center gap-[var(--space-2)] ${activeTab === 'settings' ? 'mb-[var(--space-2)]' : 'mb-[22px]'}`}
     >
       {/* View title */}
-      <h1 className="text-[25px] font-extrabold tracking-[-0.4px] text-[var(--text)] shrink-0">
+      <h1 className="text-[25px] font-extrabold text-[var(--text)] shrink-0">
         {t(VIEW_TITLE_KEYS[activeTab])}
       </h1>
 

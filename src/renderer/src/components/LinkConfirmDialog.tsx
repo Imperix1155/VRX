@@ -348,7 +348,7 @@ export default function LinkConfirmDialog({
         aria-label={t('linking.confirm.replace.newPairLabel')}
         className="rounded-control border border-[var(--border)] p-[var(--space-3)]"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-dim)]">
           {t('linking.confirm.replace.newPairLabel')}
         </p>
         <p className="mt-[var(--space-1)] text-[13px] text-[var(--text)]">
@@ -401,7 +401,7 @@ export default function LinkConfirmDialog({
       </fieldset>
 
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-dim)]">
           {t('linking.confirm.combinedName')}
         </p>
         <strong className="text-[14px] text-[var(--text)]">

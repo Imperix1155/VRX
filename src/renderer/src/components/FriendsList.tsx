@@ -1321,7 +1321,7 @@ export default function FriendsList(): React.JSX.Element {
         )}
       </div>
       {isAuthStatusPending ? (
-        <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>
+        <p className="text-sm text-[var(--text-dim)]">{t('friends.loading')}</p>
       ) : isNotConnected ? (
         <div className="glass glass-information flex flex-col items-center justify-center gap-[var(--space-3)] p-[var(--space-6)] text-center">
           <p className="text-sm font-semibold text-[var(--text-dim)]">
@@ -1337,7 +1337,7 @@ export default function FriendsList(): React.JSX.Element {
         </div>
       ) : (
         <>
-          {isPending && <p className="text-sm text-[var(--text-faint)]">{t('friends.loading')}</p>}
+          {isPending && <p className="text-sm text-[var(--text-dim)]">{t('friends.loading')}</p>}
           {/* Stale-while-revalidate: only surface the error when there's no cached data;
           a background refetch failure keeps showing the last good list. */}
           {/* A platform-named source notice replaces the generic error when another
@@ -1357,7 +1357,9 @@ export default function FriendsList(): React.JSX.Element {
                   : t('friends.empty')}
             </p>
           )}
-          {friends && friends.length > 0 && sections && (
+          {/* Empty filtered results show only the line above, never three
+          zero-count section headers under it. */}
+          {friends && friends.length > 0 && sections && filteredFriends?.length !== 0 && (
             <ul
               ref={virtualListRef}
               id="friends-virtual-list"
@@ -1373,7 +1375,9 @@ export default function FriendsList(): React.JSX.Element {
                 const virtualStyle: CSSProperties = activeSticky
                   ? {
                       position: 'sticky',
-                      top: 0,
+                      // Pin at <main>'s top edge, not inside its top padding,
+                      // so no strip of scrolled rows shows above the header.
+                      top: 'calc(-1 * var(--space-2))',
                       left: 0,
                       width: '100%',
                       zIndex: 10

@@ -39,8 +39,10 @@ etiquette rules apply in full; this file adds local detail.
   `isAllowedUrl` links go to the browser.
 - The shipped CSP lives in `src/renderer/index.html`. The default session
   grants only `clipboard-sanitized-write`. Do not widen either.
-- The window minimum is 900x670, clamped to the work area of the display the
-  window is on now (`windowMinimumSize.ts`, re-applied on move). It reveals
+- The window is sized by its page (`useContentSize`): 900x670 by default and
+  at minimum. `windowMinimumSize.ts` adds the frame back for
+  `setMinimumSize` (which takes the outer size) and clamps to the work area
+  of the display the window is on now, re-applied on move. It reveals
   after the renderer reports hydration (3 s fallback). Second-instance and
   notification activation focus the current window, recreating it if
   destroyed; tray actions resolve the window at click time, and tray Show goes

@@ -44,8 +44,21 @@ function FixtureLabel({ children }: { children: React.ReactNode }): React.JSX.El
   return <p className="fixture-label">{children}</p>
 }
 
-function SceneFrame({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <section className="fixture-scene glass p-[var(--space-4)]">{children}</section>
+function SceneFrame({
+  children,
+  information = false
+}: {
+  children: React.ReactNode
+  /** Production information backing, for samples that carry meaning (§3). */
+  information?: boolean
+}): React.JSX.Element {
+  return (
+    <section
+      className={`fixture-scene glass${information ? ' glass-information' : ''} p-[var(--space-4)]`}
+    >
+      {children}
+    </section>
+  )
 }
 
 function IconScene(): React.JSX.Element {
@@ -247,7 +260,7 @@ function InstancesScene(): React.JSX.Element {
     </div>
   )
   return (
-    <SceneFrame>
+    <SceneFrame information>
       <FixtureLabel>
         Interactive fixture · all platform-true model types, rendered with the production word-only
         pill.

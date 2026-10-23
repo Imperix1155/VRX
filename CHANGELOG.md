@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Instances help says the Dashboard shows the top instance from each platform
   when both have one (otherwise the top two), and Japanese uses one spelling of
   the app's subtitle.
+- Small text such as the unofficial-app notice, setup labels and step count,
+  the notes counter, the app version and loading lines is easier to read.
+  Instance labels and Join have more contrast in light mode, error messages
+  are brighter in dark mode, and the VRChat and ChilloutVR words on the
+  sign-in tabs and friend rows read equally well.
+- Long friend names wrap to a second line in friend details instead of being
+  cut off, and hovering the name shows it in full.
+- Japanese text no longer breaks in the middle of a word.
+- The "settings could not be saved" notice is a slim one-line strip with a
+  warning sign, so it takes far less room.
 
 ### Fixed
 
@@ -46,6 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   buttons describe their people count and room, join review notices are read
   aloud, focus returns to the code field after a wrong sign-in code, and the
   VRX logo and Hot Instance friend chips are named once.
+- The VRX window is now 900×670 inside its title bar and borders, so Settings
+  and sign-in fit without scrolling at the default size. The window can't be
+  shrunk below that either.
+- Searching friends with no matches shows only the "No friends match" line,
+  without three empty section headers under it.
+- The pinned section header in the friends list no longer lets a thin strip
+  of the rows scrolling past show above it.
 
 ## [1.0.0-beta.4] - 2026-10-22
 

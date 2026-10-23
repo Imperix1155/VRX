@@ -6,10 +6,13 @@ import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
+// A compact one-row strip: text and its action share the row, so a notice
+// costs Settings (no scrolling at the default size, DESIGN.md §8) as little
+// height as possible.
 const buttonClass =
-  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-2)] text-sm text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
+  'shrink-0 rounded-control border border-[var(--border)] px-[var(--space-3)] py-[var(--space-1)] text-xs text-[var(--text)] hover:bg-[var(--control-fill-hover)] disabled:opacity-50'
 const noticeClass =
-  'glass glass-information mb-[var(--space-3)] flex flex-wrap items-center justify-between gap-[var(--space-3)] p-[var(--space-3)] text-sm text-[var(--text-dim)]'
+  'glass glass-information mb-[var(--space-2)] flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)] text-xs leading-snug text-[var(--text-dim)]'
 
 function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -17,7 +20,7 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
   if (!isError) return null
   return (
     <div className={noticeClass} role="status">
-      <span>
+      <span className="min-w-0 flex-1">
         {t('settings.accounts.unreachable', {
           platform: t(ACCOUNT_CARD_CONFIG[platform].labelKey)
         })}
@@ -105,7 +108,15 @@ function SettingsPersistenceNotice(): React.JSX.Element | null {
   if (!dirty || (!saveError && !pendingTooLong)) return null
   return (
     <div className={noticeClass} role={saveError ? 'alert' : 'status'}>
-      <span>{t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}</span>
+      {/* The failure's non-color cue (R2): a warning glyph before its words. */}
+      {saveError && (
+        <span aria-hidden="true" className="shrink-0 text-sm text-[var(--error)]">
+          ⚠
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        {t(saveError ? 'settings.persistence.error' : 'settings.persistence.unsaved')}
+      </span>
       {saveError && (
         <button type="button" className={buttonClass} disabled={saving} onClick={retrySave}>
           {t(saving ? 'settings.persistence.saving' : 'settings.persistence.retry')}
