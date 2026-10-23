@@ -42,7 +42,7 @@ const nav = [
 
 function Brand(): React.JSX.Element {
   return (
-    <span className="design-guide__brand" aria-label="VRX">
+    <span className="design-guide__brand" role="img" aria-label="VRX">
       <span>V</span>
       <span>R</span>
       <span>X</span>

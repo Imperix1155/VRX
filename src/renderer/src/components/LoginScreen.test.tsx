@@ -88,6 +88,11 @@ describe('LoginScreen (W6)', () => {
     expect(screen.getByText(notice)).toBeTruthy()
   })
 
+  it('names the VRX mark as one image', () => {
+    renderLogin()
+    expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
+  })
+
   it('scrolls its own screen, so a tall card never loses its bottom', () => {
     // The body never scrolls (§8). Centering with align-items clipped the
     // card's bottom (the notices, an error) when it outgrew a short window.

@@ -298,7 +298,11 @@ export default function HotInstanceSheet({
                         background: 'var(--control-fill)'
                       }}
                     >
-                      <Avatar friend={friend} variant="small" ariaLabel={friend.displayName} />
+                      {/* The visible name beside it names the chip; a second
+                          accessible name on the picture would repeat it. */}
+                      <span aria-hidden="true">
+                        <Avatar friend={friend} variant="small" />
+                      </span>
                       <span className="truncate text-[12.5px] text-[var(--text)]">
                         {friend.displayName}
                       </span>

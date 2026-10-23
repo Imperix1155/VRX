@@ -328,4 +328,11 @@ describe('HotInstanceSheet', () => {
     fireEvent.pointerDown(screen.getByTestId('hot-sheet-scrim'))
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('names each member chip once, by its visible name', () => {
+    stubIntersectionObserver()
+    render(<HotInstanceSheet instance={makeHotInstance()} onClose={vi.fn()} />)
+    expect(screen.getByText('Alex')).toBeTruthy()
+    expect(screen.queryByRole('img', { name: 'Alex' })).toBeNull()
+  })
 })
