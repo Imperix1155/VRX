@@ -262,6 +262,8 @@ describe('DashboardView states (W5)', () => {
     expect(screen.getByText(msg('dashboard.statOnlineLabel'))).toBeTruthy()
     // onlineCount and inGameCount both = 1 (the single in-game friend)
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2)
+    // Bare numbers are not live regions; a presence change must not announce them.
+    for (const value of screen.getAllByText('1')) expect(value.closest('[aria-live]')).toBeNull()
   })
 
   it('labels the hot-instances section with its heading (landmark, W5)', () => {

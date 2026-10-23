@@ -754,7 +754,7 @@ describe('FriendDrawer (VRX-69)', () => {
     expect(document.activeElement).toBe(textarea)
   })
 
-  it('shows a live N/500 counter and caps input at 500 chars', async () => {
+  it('shows an N/500 counter and caps input at 500 chars', async () => {
     render(<FriendsList />)
     openDrawerFor('Alex')
 
@@ -765,7 +765,10 @@ describe('FriendDrawer (VRX-69)', () => {
     await waitFor(() => expect((textarea as HTMLTextAreaElement).readOnly).toBe(false))
 
     fireEvent.change(textarea, { target: { value: 'abc' } })
-    expect(scoped.getByText('3/500')).toBeTruthy()
+    const counter = scoped.getByText('3/500')
+    // Described by the field, never a live region that speaks on each keystroke.
+    expect(counter.closest('[aria-live]')).toBeNull()
+    expect(textarea.getAttribute('aria-describedby')).toContain(counter.id)
 
     fireEvent.change(textarea, { target: { value: 'a'.repeat(501) } })
     expect((textarea as HTMLTextAreaElement).value).toHaveLength(500)

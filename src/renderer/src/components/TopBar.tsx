@@ -262,10 +262,12 @@ export default function TopBar(): React.JSX.Element {
 
   // Reserve a three-digit cell so the contextual dock stays fixed as the live
   // count changes. Tabular figures and right alignment mirror the
-  // NumberStepper's stable value cell.
+  // NumberStepper's stable value cell. Not a live region: the count changes
+  // with every friend's presence, and announcing each change would drown out
+  // everything else a screen reader says.
   const status = (
     <div
-      role="status"
+      data-testid="topbar-status"
       className="flex min-w-[78px] shrink-0 items-center justify-end gap-[8px] text-right text-[13px] tabular-nums text-[var(--text-dim)]"
     >
       {/* Shape repeats the color for colorblind users: a dot is live, a hollow

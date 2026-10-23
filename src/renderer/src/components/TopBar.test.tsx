@@ -102,8 +102,11 @@ describe('TopBar contextual slot (VRX-186)', () => {
     expect(screen.getByTestId('topbar-contextual-dock').parentElement?.className).toContain(
       'ml-auto'
     )
-    expect(screen.getByRole('status').className).toContain('min-w-[78px]')
-    expect(screen.getByRole('status').className).toContain('tabular-nums')
+    expect(screen.getByTestId('topbar-status').className).toContain('min-w-[78px]')
+    expect(screen.getByTestId('topbar-status').className).toContain('tabular-nums')
+    // The online count changes with every presence update; it must not be live.
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByTestId('topbar-status').closest('[aria-live]')).toBeNull()
   })
 
   it('on Settings, swaps in the category nav and drops the platform filter', () => {
@@ -232,7 +235,7 @@ it.each(['dashboard', 'friends', 'explore'] as const)(
     render(<TopBar />)
     expect(screen.queryByRole('button', { name: i18n.t('settings.dashboard.shortcut') })).toBeNull()
     expect(screen.getByTestId('topbar-contextual-dock').nextElementSibling).toBe(
-      screen.getByRole('status')
+      screen.getByTestId('topbar-status')
     )
   }
 )

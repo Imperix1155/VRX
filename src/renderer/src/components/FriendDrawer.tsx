@@ -478,7 +478,9 @@ export default function FriendDrawer({
                   value={noteValue}
                   readOnly={!noteWritable}
                   aria-describedby={
-                    noteLoadFailed || noteSaveFailed ? 'friend-notes-error' : undefined
+                    noteLoadFailed || noteSaveFailed
+                      ? 'friend-notes-error friend-notes-counter'
+                      : 'friend-notes-counter'
                   }
                   onChange={(event) => setNoteValue(event.target.value)}
                   onBlur={onNoteBlur}
@@ -514,8 +516,10 @@ export default function FriendDrawer({
                     </button>
                   </div>
                 )}
+                {/* Described by the field, not live: a live counter would speak on
+                    every keystroke. */}
                 <span
-                  aria-live="polite"
+                  id="friend-notes-counter"
                   className="text-right text-[11px] text-[var(--text-faint)]"
                 >
                   {t('drawer.notes.counter', { current: noteValue.length })}
