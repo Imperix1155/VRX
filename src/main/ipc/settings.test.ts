@@ -27,7 +27,8 @@ vi.mock('./security', () => ({
 
 const service = vi.hoisted(() => ({
   getSettingsSnapshot: vi.fn(),
-  loadSettingsForRenderer: vi.fn(),
+  loadSettings: vi.fn(),
+  isSettingsFallback: vi.fn(),
   hasPendingSettingsSave: vi.fn(),
   saveSettings: vi.fn()
 }))
@@ -40,9 +41,10 @@ const call = (channel: string, req?: unknown): unknown => handlers.get(channel)!
 
 beforeEach(() => {
   service.hasPendingSettingsSave.mockReturnValue(false)
+  service.isSettingsFallback.mockReturnValue(false)
   handlers.clear()
   trusted.value = true
-  service.loadSettingsForRenderer.mockReset().mockReturnValue({ ...DEFAULT_SETTINGS })
+  service.loadSettings.mockReset().mockReturnValue({ ...DEFAULT_SETTINGS })
   service.saveSettings.mockReset().mockImplementation((patch: object) => ({
     ...DEFAULT_SETTINGS,
     ...patch
@@ -54,7 +56,7 @@ describe('get-settings', () => {
   it('rejects an untrusted sender', () => {
     trusted.value = false
     expect(() => call('get-settings')).toThrow('Untrusted IPC sender')
-    expect(service.loadSettingsForRenderer).not.toHaveBeenCalled()
+    expect(service.loadSettings).not.toHaveBeenCalled()
   })
 
   it('labels an uncommitted main snapshot so renderer reload cannot claim it was saved', () => {
@@ -62,9 +64,14 @@ describe('get-settings', () => {
     expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, unsaved: true })
   })
 
-  it('delegates to loadSettingsForRenderer', () => {
+  it('labels defaults standing in for an unreadable file as a fallback', () => {
+    service.isSettingsFallback.mockReturnValue(true)
+    expect(call('get-settings')).toEqual({ ...DEFAULT_SETTINGS, fallback: true })
+  })
+
+  it('delegates to loadSettings', () => {
     expect(call('get-settings')).toEqual(DEFAULT_SETTINGS)
-    expect(service.loadSettingsForRenderer).toHaveBeenCalledOnce()
+    expect(service.loadSettings).toHaveBeenCalledOnce()
   })
 })
 

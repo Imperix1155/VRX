@@ -1,5 +1,5 @@
 import type { IpcInvoke } from '@shared/ipc'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings'
 import { useSettingsStore } from '../stores/settings'
 
@@ -46,6 +46,9 @@ async function loadSettingsWithRetry(
  *
  * Change: whenever the store turns dirty, hands the current full snapshot to
  * main immediately; main owns disk-write coalescing and quit-time flushing.
+ * When the load was main's `fallback` (defaults standing in for an unreadable
+ * file), saves carry only the edits since that load until one succeeds; then
+ * the store adopts the settings main saved over the real file.
  * Saves are GATED until the boot load has landed — saving earlier would patch
  * the default-seeded object over the on-disk file and wipe unrelated persisted
  * fields (Codex [high], PR #116).
@@ -58,9 +61,12 @@ async function loadSettingsWithRetry(
  *
  * Guards `window.vrx` absence (Preview/tests): everything stays in-memory.
  */
-function differsFrom(current: Settings, saved: Settings): boolean {
-  return (Object.keys(saved) as (keyof Settings)[]).some(
-    (key) => JSON.stringify(saved[key]) !== JSON.stringify(current[key])
+/** The fields of `current` that differ from `base`: the user's own edits. */
+function editsSince(base: Settings, current: Settings): Partial<Settings> {
+  return Object.fromEntries(
+    Object.entries(current).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(base[key as keyof Settings])
+    )
   )
 }
 
@@ -72,6 +78,10 @@ export function useSettingsPersistence(): void {
   const saveAttempt = useSettingsStore((s) => s.saveAttempt)
   const [loaded, setLoaded] = useState(false)
   const [loadError, setLoadError] = useState<Error | null>(null)
+  // Set while main answered the load with defaults because the settings file
+  // could not be read. Saves then carry only the user's edits, so those
+  // defaults can never be written over the file once it is readable again.
+  const fallbackBase = useRef<Settings | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.vrx) {
@@ -81,8 +91,9 @@ export function useSettingsPersistence(): void {
     let cancelled = false
     const bridge = window.vrx
     void loadSettingsWithRetry(() => bridge.getSettings())
-      .then(({ unsaved, ...persisted }) => {
+      .then(({ unsaved, fallback, ...persisted }) => {
         if (cancelled) return
+        fallbackBase.current = fallback ? persisted : null
         const state = useSettingsStore.getState()
         if (state.dirty) {
           // Edited during the load: what differs from the boot seed is the
@@ -117,14 +128,15 @@ export function useSettingsPersistence(): void {
     let cancelled = false
     useSettingsStore.setState({ saving: true })
     const snapshot = settings
+    const base = fallbackBase.current
     const bridge = window.vrx
     void bridge
-      .saveSettings({ patch: snapshot })
+      .saveSettings({ patch: base ? editsSince(base, snapshot) : snapshot })
       .then((saved) => {
         if (cancelled || useSettingsStore.getState().settings !== snapshot) return
-        // Main can answer with values this snapshot didn't hold (a settings
-        // file that was unreadable at boot and is readable again): adopt them.
-        if (saved && differsFrom(snapshot, saved)) {
+        if (base && fallbackBase.current === base) {
+          // Main saved the edits over the real file: adopt what it holds.
+          fallbackBase.current = null
           useSettingsStore.getState().setSettings(saved)
         } else {
           useSettingsStore.getState().markSaved()

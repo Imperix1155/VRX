@@ -57,7 +57,7 @@ import {
   getSettingsSnapshot,
   hasPendingSettingsSave,
   loadSettings,
-  loadSettingsForRenderer,
+  isSettingsFallback,
   saveSettings
 } from './settings'
 
@@ -369,45 +369,12 @@ describe('loadSettings (W7 M1)', () => {
     expect(storeState.written).toHaveLength(0)
     expect(hasPendingSettingsSave()).toBe(false)
 
-    // A later readable load hands the renderer real settings again.
+    expect(isSettingsFallback()).toBe(true)
+
+    // A later readable load ends the fallback.
     storeState.throwOnRead = false
-    expect(loadSettingsForRenderer().theme).toBe('light')
-  })
-
-  it('keeps recovered preferences when the renderer saves its whole fallback snapshot', async () => {
-    vi.useFakeTimers()
-    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light', notifyFriendOnline: true }
-    storeState.throwOnRead = true
-    storeState.readError = new Error('EBUSY: resource busy or locked')
-    // The renderer boots on the defaults main hands out while the file is locked.
-    const rendererSnapshot = loadSettingsForRenderer()
-    expect(rendererSnapshot).toEqual(DEFAULT_SETTINGS)
-
-    // The lock clears and the user changes one option: the renderer sends its
-    // full snapshot, stale defaults included.
-    storeState.throwOnRead = false
-    const saved = saveSettings({ ...rendererSnapshot, notifyFriendOffline: true })
-    flushPendingSettingsSave()
-
-    const expected = { theme: 'light', notifyFriendOnline: true, notifyFriendOffline: true }
-    await expect(saved).resolves.toMatchObject(expected)
-    expect(storeState.written.at(-1)).toMatchObject(expected)
-  })
-
-  it('saves whole snapshots normally once the renderer has loaded real settings', async () => {
-    vi.useFakeTimers()
-    storeState.data = { ...DEFAULT_SETTINGS, theme: 'light' }
-    storeState.throwOnRead = true
-    storeState.readError = new Error('EBUSY: resource busy or locked')
-    loadSettingsForRenderer()
-    storeState.throwOnRead = false
-    const reloaded = loadSettingsForRenderer()
-    expect(reloaded.theme).toBe('light')
-
-    // Choosing the default theme again is a real edit now, not a stale default.
-    const saved = saveSettings({ ...reloaded, theme: DEFAULT_SETTINGS.theme })
-    flushPendingSettingsSave()
-    await expect(saved).resolves.toMatchObject({ theme: DEFAULT_SETTINGS.theme })
+    expect(loadSettings().theme).toBe('light')
+    expect(isSettingsFallback()).toBe(false)
   })
 
   it('keeps native policy aligned with the UI when a newer-version file refuses persistence', () => {
