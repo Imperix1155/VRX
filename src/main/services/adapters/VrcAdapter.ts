@@ -1309,6 +1309,15 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       throw error
     }
   }
+  /**
+   * Reconnect the live socket now if it is open (main calls this after the
+   * computer wakes or unlocks, when a socket can look open but be dead). Uses
+   * the pipeline's normal backoff and 429 cooldown; no-op without a session.
+   */
+  reconnectNow(): void {
+    this.pipeline?.reconnectNow()
+  }
+
   subscribe(handler: (event: AdapterEvent) => void): Unsubscribe {
     this.subscribers.add(handler)
     // One shared pipeline for all subscribers; started on the first, stopped

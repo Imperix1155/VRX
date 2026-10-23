@@ -3187,3 +3187,62 @@ describe('CvrAdapter validation failures do not poison login (Codex, 2026-07-06)
     expect(identities.at(-1)).toBe('a1b2c3d4-0000-0000-0000-000000000002')
   })
 })
+
+describe('CvrAdapter.reconnectNow (wake from sleep)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function liveSocket(): {
+    on: (event: string, listener: (...args: unknown[]) => void) => void
+    close: () => void
+    terminate: ReturnType<typeof vi.fn<() => void>>
+    fire: (event: string) => void
+  } {
+    const listeners = new Map<string, Array<(...args: unknown[]) => void>>()
+    const fire = (event: string): void => {
+      for (const listener of listeners.get(event) ?? []) listener()
+    }
+    return {
+      on: (event, listener) => listeners.set(event, [...(listeners.get(event) ?? []), listener]),
+      close: () => {},
+      terminate: vi.fn<() => void>(() => fire('close')),
+      fire
+    }
+  }
+
+  it('drops the open socket so the pipeline reconnects', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const sockets: Array<ReturnType<typeof liveSocket>> = []
+    const adapter = markSessionEstablishedForTest(
+      new CvrAdapter(fakeStore({ username: 'trinity', accessKey: 'key-1' }), instantAdmission(), {
+        socketFactory: () => {
+          const socket = liveSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+    )
+    const health: string[] = []
+    const unsubscribe = adapter.subscribe((event) => {
+      if (event.type === 'connection') health.push(event.health)
+    })
+    await vi.waitFor(() => expect(sockets).toHaveLength(1))
+    sockets[0]!.fire('open')
+
+    adapter.reconnectNow()
+    expect(sockets[0]!.terminate).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(health.at(-1)).toBe('reconnecting'))
+    unsubscribe()
+  })
+
+  it('does nothing without a session', () => {
+    const adapter = new CvrAdapter(fakeStore(), instantAdmission(), {
+      socketFactory: () => liveSocket()
+    })
+    expect(() => adapter.reconnectNow()).not.toThrow()
+    const unsubscribe = adapter.subscribe(() => {})
+    expect(() => adapter.reconnectNow()).not.toThrow()
+    unsubscribe()
+  })
+})

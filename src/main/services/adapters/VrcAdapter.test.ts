@@ -3303,6 +3303,35 @@ describe('VrcAdapter', () => {
       unsub()
     })
 
+    it('reconnectNow drops the open Pipeline socket so it reconnects after a wake', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(jsonResponse({ token: 'authcookie_x' })))
+      )
+      const sockets: DrivableVrcSocket[] = []
+      const adapter = new VrcAdapter(fakeStore('auth=authcookie_x'), instantAdmission(), {
+        socketFactory: () => {
+          const socket = new DrivableVrcSocket()
+          sockets.push(socket)
+          return socket
+        }
+      })
+      // Nothing to drop before a session's socket exists.
+      expect(() => adapter.reconnectNow()).not.toThrow()
+      markSessionEstablished(adapter)
+      const health: string[] = []
+      const unsub = adapter.subscribe((event) => {
+        if (event.type === 'connection') health.push(event.health)
+      })
+      await vi.waitFor(() => expect(sockets).toHaveLength(1))
+      sockets[0]!.fire('open')
+
+      adapter.reconnectNow()
+      expect(sockets[0]!.closed).toBe(true)
+      await vi.waitFor(() => expect(health.at(-1)).toBe('reconnecting'))
+      unsub()
+    })
+
     it('pipeline token: a GET /auth 5xx still falls back to the raw cookie', async () => {
       const dialed: string[] = []
       vi.stubGlobal(

@@ -10,6 +10,7 @@ import {
   dialog,
   Menu,
   nativeImage,
+  powerMonitor,
   screen,
   session,
   Notification as NativeNotification,
@@ -64,6 +65,7 @@ import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
 import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
+import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
@@ -642,6 +644,10 @@ app
       friendAlerts,
       broadcast
     })
+    // A socket can look open after sleep while its connection is gone.
+    const stopWakeReconnect = reconnectLiveOnWake(powerMonitor, [vrcAdapter, cvrAdapter], {
+      logFailure: () => log.warn('live reconnect after wake failed')
+    })
     app.on('before-quit', () => {
       explore.dispose()
       // Renderer changes are handed to main immediately; force the latest
@@ -650,6 +656,7 @@ app
       // Close both sockets and halt the reconnect loops so quit is clean.
       // Wrapped: a throwing teardown must never skip the quitting flag.
       try {
+        stopWakeReconnect()
         teardownAdapterEvents()
       } catch (error) {
         log.warn('adapter teardown threw during before-quit', {
