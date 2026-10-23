@@ -225,6 +225,28 @@ describe('TopBar connection health (VRX-223)', () => {
     const indicator = await screen.findByLabelText('VRChat: Down; ChilloutVR: Signed out')
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
+
+  it('names a VRChat session waiting for a code as Needs code, not Signed out', async () => {
+    stubFriends([], [])
+    useAuthStatusMock.mockImplementation((platform: Platform) => ({
+      data:
+        platform === 'chilloutvr'
+          ? authenticated(platform)
+          : {
+              platform,
+              state: 'needs-2fa',
+              accountId: null,
+              displayName: null,
+              twoFactorMethod: 'totp'
+            }
+    }))
+    stubAppStatus('down', 'live')
+    render(<TopBar />)
+
+    const indicator = await screen.findByLabelText('VRChat: Needs code; ChilloutVR: Live')
+    // Only the signed-in platform's health counts toward the color.
+    expect(indicator.getAttribute('style')).toContain('var(--ingame)')
+  })
 })
 
 it.each(['dashboard', 'friends', 'explore'] as const)(

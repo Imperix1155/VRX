@@ -226,13 +226,16 @@ export default function TopBar(): React.JSX.Element {
       : worstHealth === 'reconnecting'
         ? 'var(--warning)'
         : 'var(--error)'
+  // A saved session waiting for a sign-in code is not signed out.
+  const notSignedInLabel = (state: string | undefined): string =>
+    t(state === 'needs-2fa' ? 'shell.connection.needsCode' : 'shell.connection.signedOut')
   const connectionLabel = t('shell.connection.label', {
     vrchat: vrcSignedIn
       ? t(HEALTH_LABEL_KEYS[connectionHealth.vrchat])
-      : t('shell.connection.signedOut'),
+      : notSignedInLabel(vrcAuth?.state),
     chilloutvr: cvrSignedIn
       ? t(HEALTH_LABEL_KEYS[connectionHealth.chilloutvr])
-      : t('shell.connection.signedOut')
+      : notSignedInLabel(cvrAuth?.state)
   })
 
   // Real online count for the §8 status indicator. Online = active OR in-game

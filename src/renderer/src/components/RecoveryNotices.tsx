@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Platform } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
+import { useUiStore } from '../stores/ui'
 import { useAuthStatus } from '../queries/auth'
 import { ACCOUNT_CARD_CONFIG } from '../utils/accountCard'
 
@@ -30,6 +31,41 @@ function AuthNotice({ platform }: { platform: Platform }): React.JSX.Element | n
         }}
       >
         {t(isFetching ? 'settings.accounts.retrying' : 'settings.accounts.retry')}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * A saved session waiting for a fresh sign-in code (VRChat only today). Under
+ * All the other platform keeps the app usable, so without this line the
+ * platform would just look empty. Accounts is where the code is entered.
+ */
+function TwoFactorNotice({ platform }: { platform: Platform }): React.JSX.Element | null {
+  const { t } = useTranslation()
+  const needsCode = useAuthStatus(platform).data?.state === 'needs-2fa'
+  const onAccounts = useUiStore(
+    (s) => s.activeTab === 'settings' && s.settingsCategory === 'accounts'
+  )
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
+  const setSettingsCategory = useUiStore((s) => s.setSettingsCategory)
+  if (!needsCode || onAccounts) return null
+  return (
+    <div className={noticeClass} role="status">
+      <span>
+        {t('settings.accounts.needsCode', {
+          platform: t(ACCOUNT_CARD_CONFIG[platform].labelKey)
+        })}
+      </span>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => {
+          setActiveTab('settings')
+          setSettingsCategory('accounts')
+        }}
+      >
+        {t('settings.accounts.openAccounts')}
       </button>
     </div>
   )
@@ -86,6 +122,8 @@ export default function RecoveryNotices(): React.JSX.Element {
       <SettingsPersistenceNotice />
       <AuthNotice platform="vrchat" />
       <AuthNotice platform="chilloutvr" />
+      <TwoFactorNotice platform="vrchat" />
+      <TwoFactorNotice platform="chilloutvr" />
     </>
   )
 }

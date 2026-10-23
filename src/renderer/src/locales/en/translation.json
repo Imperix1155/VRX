@@ -129,7 +129,8 @@
       "live": "Live",
       "reconnecting": "Reconnecting",
       "down": "Down",
-      "signedOut": "Signed out"
+      "signedOut": "Signed out",
+      "needsCode": "Needs code"
     }
   },
   "settings": {
@@ -276,7 +277,9 @@
         "vrchatHint": "Quit VRCX first. Only reads it, never changes it.",
         "chilloutvrHint": "Only reads it, never changes it.",
         "looking": "Looking on this PC…"
-      }
+      },
+      "needsCode": "{{platform}} needs a sign-in code.",
+      "openAccounts": "Go to Accounts"
     },
     "about": {
       "heading": "About"

@@ -127,7 +127,8 @@
       "live": "接続中",
       "reconnecting": "再接続中",
       "down": "切断",
-      "signedOut": "サインアウト"
+      "signedOut": "サインアウト",
+      "needsCode": "コードが必要"
     }
   },
   "settings": {
@@ -274,7 +275,9 @@
         "vrchatHint": "先に VRCX を終了してください。読み取るだけで、変更はしません。",
         "chilloutvrHint": "読み取るだけで、変更はしません。",
         "looking": "この PC を確認しています…"
-      }
+      },
+      "needsCode": "{{platform}} のサインインコードが必要です。",
+      "openAccounts": "アカウントを開く"
     },
     "about": {
       "heading": "情報"
