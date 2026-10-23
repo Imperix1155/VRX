@@ -68,6 +68,13 @@ afterEach(() => {
   if (vi.isMockFunction(document.hasFocus)) vi.mocked(document.hasFocus).mockRestore()
 })
 
+/** The health dot, once its hidden status line reads `label`. */
+async function findIndicator(label: string): Promise<HTMLElement> {
+  const line = await screen.findByText(label)
+  expect(line.getAttribute('role')).toBe('status')
+  return line.parentElement!.querySelector<HTMLElement>('[data-health]')!
+}
+
 describe('TopBar onlineCount (W6)', () => {
   it('counts active + in-game across both platforms; offline excluded', () => {
     stubFriends(
@@ -105,7 +112,12 @@ describe('TopBar contextual slot (VRX-186)', () => {
     expect(screen.getByTestId('topbar-status').className).toContain('min-w-[78px]')
     expect(screen.getByTestId('topbar-status').className).toContain('tabular-nums')
     // The online count changes with every presence update; it must not be live.
-    expect(screen.queryByRole('status')).toBeNull()
+    // Only the connection health line is a status.
+    const live = screen.getByRole('status')
+    expect(live.textContent).toBe(
+      screen.getByTestId('topbar-status').querySelector('[data-health]')?.getAttribute('title')
+    )
+    expect(live.textContent).not.toContain(i18n.t('shell.onlineCount', { count: 0 }))
     expect(screen.getByTestId('topbar-status').closest('[aria-live]')).toBeNull()
   })
 
@@ -163,7 +175,7 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('live', 'live')
     render(<TopBar />)
 
-    const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
     expect(indicator.className).toContain('motion-safe:animate-pulse')
   })
@@ -174,7 +186,7 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('live', 'live')
     render(<TopBar />)
 
-    const indicator = await screen.findByLabelText('VRChat: Live; ChilloutVR: Live')
+    const indicator = await findIndicator('VRChat: Live; ChilloutVR: Live')
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
     expect(indicator.className).toContain('rounded-full')
     expect(indicator.className).not.toContain('animate-pulse')
@@ -191,17 +203,18 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('live', 'reconnecting')
     const { unmount } = render(<TopBar />)
 
-    const reconnecting = await screen.findByLabelText('VRChat: Live; ChilloutVR: Reconnecting')
+    const reconnecting = await findIndicator('VRChat: Live; ChilloutVR: Reconnecting')
     expect(reconnecting.getAttribute('style')).toContain('var(--warning)')
     // Non-color cue: a hollow ring, not the live dot.
     expect(reconnecting.getAttribute('style')).toContain('border')
     expect(reconnecting.className).toContain('rounded-full')
-    expect(reconnecting.getAttribute('role')).toBe('img')
+    // The dot is decoration; its words live in the status line.
+    expect(reconnecting.getAttribute('aria-hidden')).toBe('true')
 
     unmount()
     stubAppStatus('down', 'live')
     render(<TopBar />)
-    const down = await screen.findByLabelText('VRChat: Down; ChilloutVR: Live')
+    const down = await findIndicator('VRChat: Down; ChilloutVR: Live')
     expect(down.getAttribute('style')).toContain('var(--error)')
     expect(down.className).not.toContain('rounded-full')
   })
@@ -222,7 +235,7 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('future-health', 'down')
     render(<TopBar />)
 
-    const indicator = await screen.findByLabelText('VRChat: Down; ChilloutVR: Signed out')
+    const indicator = await findIndicator('VRChat: Down; ChilloutVR: Signed out')
     expect(indicator.getAttribute('style')).toContain('var(--error)')
   })
 
@@ -243,7 +256,7 @@ describe('TopBar connection health (VRX-223)', () => {
     stubAppStatus('down', 'live')
     render(<TopBar />)
 
-    const indicator = await screen.findByLabelText('VRChat: Needs code; ChilloutVR: Live')
+    const indicator = await findIndicator('VRChat: Needs code; ChilloutVR: Live')
     // Only the signed-in platform's health counts toward the color.
     expect(indicator.getAttribute('style')).toContain('var(--ingame)')
   })

@@ -392,6 +392,41 @@ describe('LoginScreen (W6)', () => {
     activeElement.mockRestore()
   })
 
+  it('puts focus on the code field after a rejected code sent from Verify', async () => {
+    let settle: (value: unknown) => void = () => {}
+    const verify2fa = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          settle = resolve
+        })
+    )
+    setBridge({
+      login: vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' }),
+      verify2fa
+    })
+    renderLogin()
+    fillCredentials()
+    submit()
+    await screen.findByText(msg('login.twoFactor.promptTotp'))
+
+    const code = screen.getByLabelText(msg('login.twoFactor.code'))
+    fireEvent.change(code, { target: { value: '000000' } })
+    const verify = screen.getByRole('button', { name: msg('login.twoFactor.verify') })
+    verify.focus()
+    fireEvent.click(verify)
+    await waitFor(() => expect(verify2fa).toHaveBeenCalledTimes(1))
+    // Chromium drops focus from Verify once it is disabled; jsdom keeps it.
+    const activeElement = vi.spyOn(document, 'activeElement', 'get').mockReturnValue(document.body)
+    const refocus = vi.spyOn(code, 'focus')
+    const verifyFocus = vi.spyOn(verify, 'focus')
+
+    settle({ ok: false, needs2fa: false, error: 'invalid_2fa_code' })
+    await screen.findByRole('alert')
+    await waitFor(() => expect(refocus).toHaveBeenCalled())
+    expect(verifyFocus).not.toHaveBeenCalled()
+    activeElement.mockRestore()
+  })
+
   it('returns completed 2FA persistence failures to credentials with the code cleared', async () => {
     const login = vi.fn().mockResolvedValue({ ok: false, needs2fa: true, method: 'totp' })
     setBridge({

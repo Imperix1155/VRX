@@ -57,9 +57,9 @@ export default function TwoFactorForm({
       document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
     }
   }, [idPrefix])
-  // A wrong code disables the field while it is checked, which drops focus to
-  // the page. When the form stays up, focus goes back to where it last was.
-  const lastFocused = useRef<HTMLElement | null>(null)
+  // A wrong code disables the field and Verify while it is checked, which
+  // drops focus to the page. When the form stays up, focus goes back to the
+  // code field so the next attempt can be typed at once.
   const attempted = useRef(false)
   useEffect(() => {
     if (isSubmitting) {
@@ -70,20 +70,10 @@ export default function TwoFactorForm({
     attempted.current = false
     const active = document.activeElement
     if (active !== null && active !== document.body) return
-    const previous = lastFocused.current
-    const target = previous?.isConnected ? previous : document.getElementById(`${idPrefix}-2fa`)
-    target?.focus({ preventScroll: true })
+    document.getElementById(`${idPrefix}-2fa`)?.focus({ preventScroll: true })
   }, [isSubmitting, idPrefix])
   return (
-    <form
-      onSubmit={onSubmit}
-      onFocus={(e) => {
-        if (e.target instanceof HTMLElement) lastFocused.current = e.target
-      }}
-      noValidate
-      className={formClassName}
-      aria-label={ariaLabel}
-    >
+    <form onSubmit={onSubmit} noValidate className={formClassName} aria-label={ariaLabel}>
       <div className="flex flex-col gap-[var(--space-3)]">
         {/* The prompt sits inside the gap column (AccountCard's original layout);
             LoginScreen adds mb-[space-1] so gap + margin reproduce its mb-[space-4]. */}

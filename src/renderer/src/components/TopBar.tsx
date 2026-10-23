@@ -265,9 +265,10 @@ export default function TopBar(): React.JSX.Element {
 
   // Reserve a three-digit cell so the contextual dock stays fixed as the live
   // count changes. Tabular figures and right alignment mirror the
-  // NumberStepper's stable value cell. Not a live region: the count changes
-  // with every friend's presence, and announcing each change would drown out
-  // everything else a screen reader says.
+  // NumberStepper's stable value cell. The count is not live: it changes with
+  // every friend's presence, and announcing each change would drown out
+  // everything else a screen reader says. Connection health is: a drop to
+  // reconnecting or down is read out from its own hidden status line.
   const status = (
     <div
       data-testid="topbar-status"
@@ -277,8 +278,11 @@ export default function TopBar(): React.JSX.Element {
           ring is reconnecting, a square is down. The live dot pulses only
           while VRX has focus: an endless animation keeps the window redrawing
           every frame, even behind a game. */}
+      <span role="status" className="sr-only">
+        {connectionLabel}
+      </span>
       <span
-        role="img"
+        aria-hidden="true"
         data-health={worstHealth}
         className={[
           'box-border w-[8px] h-[8px] flex-none',
@@ -290,7 +294,6 @@ export default function TopBar(): React.JSX.Element {
             ? { border: `2px solid ${healthColor}`, boxShadow: `0 0 10px ${healthColor}` }
             : { background: healthColor, boxShadow: `0 0 10px ${healthColor}` }
         }
-        aria-label={connectionLabel}
         title={connectionLabel}
       />
       {t('shell.onlineCount', { count: onlineCount })}
