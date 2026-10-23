@@ -595,6 +595,11 @@
       "us": "US",
       "europe": "Europe",
       "japan": "Japan"
+    },
+    "notConnected": {
+      "vrchat": "Connect VRChat to see popular worlds here",
+      "chilloutvr": "Connect ChilloutVR to see popular worlds here",
+      "openAccounts": "Go to Accounts"
     }
   },
   "updater": {

@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from '@shared/settings'
 import '../i18n'
 import { useFriendsStore } from '../stores/friends'
 import { useSettingsStore } from '../stores/settings'
+import { useUiStore } from '../stores/ui'
 import { queryClient } from '../queries/queryClient'
 import ExploreRoute, { ExploreDashboardPreviewRoute } from './ExploreRoute'
 
@@ -416,19 +417,44 @@ describe('ExploreRoute world sheet', () => {
     expect(screen.queryByRole('dialog', { name: /Visible public rooms/ })).toBeNull()
   })
 
-  it('shows the existing unavailable source state for a selected disconnected platform', () => {
-    auth.cvr = {
+  it.each(['unauthenticated', 'needs-2fa'] as const)(
+    'shows the shared Connect gate for a selected %s platform',
+    (state) => {
+      auth.cvr = {
+        platform: 'chilloutvr',
+        state,
+        accountId: null,
+        displayName: null
+      }
+      queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr)
+      useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+      useUiStore.setState({ activeTab: 'explore', settingsCategory: 'appearance' })
+      render(<ExploreRoute />)
+
+      expect(screen.getByText('Connect ChilloutVR to see popular worlds here')).toBeTruthy()
+      expect(screen.queryByText('ChilloutVR discovery is unavailable.')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Go to Accounts' }))
+      expect(useUiStore.getState().activeTab).toBe('settings')
+      expect(useUiStore.getState().settingsCategory).toBe('accounts')
+      expect(query.requestExplore).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps the source line while a selected platform’s auth is still being checked', () => {
+    queryClient.setQueryData(['auth-status', 'chilloutvr'], {
       platform: 'chilloutvr',
       state: 'unauthenticated',
       accountId: null,
       displayName: null
-    }
-    queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr)
+    })
+    const authQuery = queryClient.getQueryCache().find({ queryKey: ['auth-status', 'chilloutvr'] })!
+    act(() => authQuery.setState({ fetchStatus: 'fetching' }))
     useFriendsStore.setState({ platformFilter: 'chilloutvr' })
     render(<ExploreRoute />)
 
+    expect(screen.queryByText('Connect ChilloutVR to see popular worlds here')).toBeNull()
     expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
-    expect(query.requestExplore).not.toHaveBeenCalled()
   })
 
   it('reads stale auth on mount and remount without an authentication request', async () => {
@@ -450,7 +476,7 @@ describe('ExploreRoute world sheet', () => {
       </QueryClientProvider>
     )
     const first = render(route)
-    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(screen.getByText('Connect ChilloutVR to see popular worlds here')).toBeTruthy()
     await act(async () => {
       await Promise.resolve()
     })
@@ -459,20 +485,23 @@ describe('ExploreRoute world sheet', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(screen.getByText('Connect ChilloutVR to see popular worlds here')).toBeTruthy()
     expect(getAuthStatus).not.toHaveBeenCalled()
   })
 
-  it('keeps the healthy platform cards while naming the disconnected source', () => {
+  it('keeps the healthy platform cards with no line for a platform the user isn’t signed in to', () => {
     queryClient.setQueryData(['auth-status', 'chilloutvr'], {
       platform: 'chilloutvr',
       state: 'unauthenticated',
       accountId: null,
       displayName: null
     })
+    // Main reports a signed-out platform as unavailable; under All that is a
+    // choice, not missing data, so it adds no line.
+    query.cvr = { ...source, platform: 'chilloutvr', worlds: [], status: 'unavailable' }
     render(<ExploreRoute />)
     expect(screen.getByRole('button', { name: /open visible rooms for a world/i })).toBeTruthy()
-    expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+    expect(screen.queryByText('ChilloutVR discovery is unavailable.')).toBeNull()
     expect(query.requestExplore).not.toHaveBeenCalled()
   })
 
@@ -647,7 +676,7 @@ for (const [label, Route] of [
       )
       rerender(<Route />)
       expect(screen.queryByText('Worlds loading…')).toBeNull()
-      expect(screen.getByText('ChilloutVR discovery is unavailable.')).toBeTruthy()
+      expect(screen.queryByText('ChilloutVR discovery is unavailable.')).toBeNull()
       expect(screen.getByText('A world')).toBeTruthy()
       await act(() => queryClient.setQueryData(['auth-status', 'chilloutvr'], auth.cvr))
       rerender(<Route />)

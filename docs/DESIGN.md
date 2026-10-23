@@ -426,7 +426,9 @@ cards from the other platform; those cards stay visible. The line ends when no
 selected source is still loading for the first time. A normal refresh with
 cards already shown is silent. Real errors, unavailable sources, stale
 results, and verified empty states stay visible. Unknown or partial counts
-stay unknown, never zero. Nothing here may add polling.
+stay unknown, never zero. Nothing here may add polling. Under All, a platform
+the user isn't signed in to adds no line; filtered to that platform, Explore
+shows the same Connect gate with Go to Accounts as the Dashboard.
 
 When one platform's roster fails, Friends keeps the usable list and shows a
 line under the header naming that platform, with a Retry for that platform

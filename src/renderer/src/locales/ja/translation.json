@@ -590,6 +590,11 @@
       "us": "米国",
       "europe": "ヨーロッパ",
       "japan": "日本"
+    },
+    "notConnected": {
+      "vrchat": "ここで人気のワールドを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで人気のワールドを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
     }
   },
   "updater": {
