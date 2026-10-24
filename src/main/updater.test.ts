@@ -41,6 +41,7 @@ function createMockAutoUpdater(): {
     autoDownload: true,
     autoInstallOnAppQuit: false,
     allowPrerelease: false,
+    allowDowngrade: false,
     logger: null,
     on: (event: string, handler: EventHandler) => {
       if (!handlers.has(event)) handlers.set(event, [])
@@ -54,12 +55,31 @@ function createMockAutoUpdater(): {
     downloadUpdate,
     quitAndInstall,
     _handlers: handlers
-  } as unknown as AppUpdater & {
-    emit: (event: string, ...payload: unknown[]) => void
-    _handlers: Map<string, EventHandler[]>
   }
+  // Match electron-updater: assigning channel forces allowDowngrade on.
+  // Stable must set allowDowngrade again afterwards, or this stays true.
+  let channelValue: string | null = null
+  Object.defineProperty(autoUpdater, 'channel', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return channelValue
+    },
+    set(value: string | null) {
+      channelValue = value
+      autoUpdater.allowDowngrade = true
+    }
+  })
 
-  return { autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall }
+  return {
+    autoUpdater: autoUpdater as unknown as AppUpdater & {
+      emit: (event: string, ...payload: unknown[]) => void
+      _handlers: Map<string, EventHandler[]>
+    },
+    checkForUpdates,
+    downloadUpdate,
+    quitAndInstall
+  }
 }
 
 function createMockBrowserWindow(): {
@@ -161,6 +181,7 @@ describe('UpdaterService', () => {
       version?: string
       packaged?: boolean
       autoUpdate?: boolean
+      updateChannel?: unknown
       windows?: BrowserWindow[]
       nativeStageUpdater?: NonNullable<UpdaterServiceDeps['nativeStageUpdater']>
     } = {}
@@ -174,12 +195,16 @@ describe('UpdaterService', () => {
     downloadUpdate: MockFn
     quitAndInstall: MockFn
     log: { info: MockFn; warn: MockFn; error: MockFn; debug: MockFn }
+    settings: { autoUpdate: boolean; updateChannel?: unknown }
   } {
     const { autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall } = createMockAutoUpdater()
     const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
     const app = createMockApp(options.packaged ?? true, options.version)
     const windows = options.windows ?? []
-    const settings = { autoUpdate: options.autoUpdate ?? false }
+    const settings: { autoUpdate: boolean; updateChannel?: unknown } = {
+      autoUpdate: options.autoUpdate ?? false
+    }
+    if (options.updateChannel !== undefined) settings.updateChannel = options.updateChannel
     const service = new UpdaterService({
       app,
       autoUpdater,
@@ -188,7 +213,7 @@ describe('UpdaterService', () => {
       browserWindow: createMockBrowserWindowCtor(windows),
       nativeStageUpdater: options.nativeStageUpdater
     })
-    return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log }
+    return { service, autoUpdater, checkForUpdates, downloadUpdate, quitAndInstall, log, settings }
   }
 
   function startResolvedNativeDownload(feedURL?: string): ReturnType<typeof createService> & {
@@ -234,15 +259,30 @@ describe('UpdaterService', () => {
     expect(quitAndInstall).not.toHaveBeenCalled()
   }
 
+  it.each(['1.0.0', '0.23.0', '1.0.0-beta.1', '1.0.0-rc.1'])(
+    'keeps an installed %s on the stable feed until the user picks a channel',
+    (version) => {
+      const { autoUpdater } = createService({ version })
+      expect(autoUpdater.channel).toBe('latest')
+      expect(autoUpdater.allowPrerelease).toBe(false)
+      expect(autoUpdater.allowDowngrade).toBe(false)
+    }
+  )
+
   it.each([
-    ['1.0.0', false],
-    ['0.23.0', false],
-    ['1.0.0-beta.1', true],
-    ['1.0.0-rc.1', true]
-  ])('derives prerelease admission from installed version %s', (version, expected) => {
-    const { autoUpdater } = createService({ version })
-    expect(autoUpdater.allowPrerelease).toBe(expected)
-  })
+    ['beta', 'beta', true, true],
+    ['dev', 'dev', true, true],
+    ['nightly', 'latest', false, false],
+    [undefined, 'latest', false, false]
+  ] as const)(
+    'follows update channel %s',
+    (updateChannel, channel, allowPrerelease, allowDowngrade) => {
+      const { autoUpdater } = createService({ updateChannel, version: '1.0.0-beta.3' })
+      expect(autoUpdater.channel).toBe(channel)
+      expect(autoUpdater.allowPrerelease).toBe(allowPrerelease)
+      expect(autoUpdater.allowDowngrade).toBe(allowDowngrade)
+    }
+  )
 
   it('overrides updater defaults and discards all library logger payloads', () => {
     // The consent core. autoDownload must be forced OFF (the library default is
@@ -250,7 +290,9 @@ describe('UpdaterService', () => {
     // download applies at quit; raw library diagnostics must be discarded.
     const { autoUpdater, log } = createService()
     expect(autoUpdater.autoDownload).toBe(false)
+    expect(autoUpdater.channel).toBe('latest')
     expect(autoUpdater.allowPrerelease).toBe(false)
+    expect(autoUpdater.allowDowngrade).toBe(false)
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
     expect(autoUpdater.logger).not.toBe(log)
 
@@ -512,6 +554,94 @@ describe('UpdaterService', () => {
     // Later unrelated saves with the switch still on never start another download.
     service.applySettings({ autoUpdate: true })
     expect(downloadUpdate).toHaveBeenCalledOnce()
+  })
+
+  it.each(['1.1.0-beta.1', '1.1.0-dev.2', '1.1.0-rc.1'])(
+    'stable ignores %s and does not download it',
+    async (version) => {
+      const { service, autoUpdater, downloadUpdate, log } = createService({ autoUpdate: true })
+      const promise = service.check()
+      autoUpdater.emit('update-available', { version } as UpdateInfo)
+      await promise
+      expect(downloadUpdate).not.toHaveBeenCalled()
+      expect(service.snapshot()).toMatchObject({ state: 'idle', availableVersion: null })
+      expect(log.warn).toHaveBeenCalledWith(
+        'autoUpdater: ignored update outside the selected channel'
+      )
+    }
+  )
+
+  it('beta accepts a beta or stable build and ignores dev', async () => {
+    const { service, autoUpdater, downloadUpdate } = createService({ updateChannel: 'beta' })
+    const promise = service.check()
+    autoUpdater.emit('update-available', { version: '1.2.0-dev.1' } as UpdateInfo)
+    await promise
+    expect(service.snapshot().state).toBe('idle')
+
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.4' } as UpdateInfo)
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      availableVersion: '1.2.0-beta.4'
+    })
+    autoUpdater.emit('update-available', { version: '1.2.0' } as UpdateInfo)
+    expect(service.snapshot().availableVersion).toBe('1.2.0')
+    expect(downloadUpdate).not.toHaveBeenCalled()
+  })
+
+  it('dev accepts a dev or stable build and ignores beta', () => {
+    const { service, autoUpdater } = createService({ updateChannel: 'dev' })
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.1' } as UpdateInfo)
+    expect(service.snapshot().state).toBe('idle')
+    autoUpdater.emit('update-available', { version: '1.2.0-dev.3' } as UpdateInfo)
+    expect(service.snapshot().availableVersion).toBe('1.2.0-dev.3')
+    autoUpdater.emit('update-available', { version: '1.3.0' } as UpdateInfo)
+    expect(service.snapshot().availableVersion).toBe('1.3.0')
+  })
+
+  it('drops a staged beta and blocks quit-install when the channel returns to stable', async () => {
+    const { service, autoUpdater, downloadUpdate, checkForUpdates, settings } = createService({
+      updateChannel: 'beta'
+    })
+    downloadUpdate.mockImplementation(() => {
+      autoUpdater.emit('update-downloaded', { version: '1.2.0-beta.1' } as UpdateInfo)
+      return Promise.resolve(undefined)
+    })
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.1' } as UpdateInfo)
+    await service.download()
+    expect(service.snapshot().state).toBe('downloaded')
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
+
+    settings.updateChannel = 'stable'
+    checkForUpdates.mockImplementation(() => {
+      autoUpdater.emit('update-not-available')
+      return Promise.resolve(null)
+    })
+    service.applySettings(settings)
+    await vi.waitFor(() => expect(checkForUpdates).toHaveBeenCalled())
+    expect(service.snapshot()).toMatchObject({ state: 'idle', availableVersion: null })
+    expect(autoUpdater.channel).toBe('latest')
+    expect(autoUpdater.allowPrerelease).toBe(false)
+    expect(autoUpdater.allowDowngrade).toBe(false)
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(false)
+  })
+
+  it('refuses to download or install a version outside the selected channel', async () => {
+    const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
+      updateChannel: 'beta'
+    })
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.1' } as UpdateInfo)
+    // @ts-expect-error force a stale offer the feed would no longer admit
+    service.state = { ...service.state, availableVersion: '1.2.0-dev.1' }
+    await service.download()
+    expect(downloadUpdate).not.toHaveBeenCalled()
+    expect(service.snapshot().state).toBe('idle')
+
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.1' } as UpdateInfo)
+    // @ts-expect-error stage a disallowed build without going through the feed
+    service.state = { ...service.state, state: 'downloaded', availableVersion: '1.2.0-dev.1' }
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(false)
   })
 
   it('download no-ops unless state is update-available', async () => {

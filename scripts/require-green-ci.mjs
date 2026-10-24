@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Release CI gate: refuse to tag or publish a commit unless it is on `main` and
- * CI's `ci-success` check passed on that exact commit.
+ * Release CI gate: refuse to tag or publish a commit unless it is on the
+ * channel branch (`main`, `beta`, or `dev`) and CI's `ci-success` check passed
+ * on that exact commit.
  *
  * Usage (in release.yml, GH_TOKEN and GITHUB_REPOSITORY set):
- *   node scripts/require-green-ci.mjs <sha>
+ *   node scripts/require-green-ci.mjs <sha> <main|beta|dev>
  * Waits while the check is queued or running (CI and Release start together on
  * a merge), then exits 0 on success and 1 on failure, absence or timeout.
  * Only check runs created by GitHub Actions count, so another app cannot post a
@@ -14,6 +15,13 @@ import { pathToFileURL } from 'node:url'
 
 export const CHECK_NAME = 'ci-success'
 const ACTIONS_APP = 'github-actions'
+const RELEASE_BRANCHES = new Set(['main', 'beta', 'dev'])
+
+export function assertReleaseBranch(branch) {
+  if (!RELEASE_BRANCHES.has(branch)) {
+    throw new Error('Releases ship only from main, beta, or dev')
+  }
+}
 
 /**
  * Decide from the commit's check runs. `pending` keeps waiting; anything else
@@ -31,9 +39,14 @@ export function ciVerdict(checkRuns) {
   return { state: 'failure', detail: `${latest.conclusion} ${latest.html_url ?? ''}`.trim() }
 }
 
-/** Compare `main...sha`: the commit is on main when main already contains it. */
-export function isOnMain(compareStatus) {
+/** Compare `<branch>...sha`: the commit is on that branch when the branch already contains it. */
+export function isOnBranch(compareStatus) {
   return compareStatus === 'identical' || compareStatus === 'behind'
+}
+
+/** @see isOnBranch */
+export function isOnMain(compareStatus) {
+  return isOnBranch(compareStatus)
 }
 
 async function api(path) {
@@ -50,14 +63,18 @@ async function api(path) {
 
 async function main() {
   const sha = process.argv[2]
+  const branch = process.argv[3]
   const repo = process.env.GITHUB_REPOSITORY
   if (!sha || !/^[0-9a-f]{40}$/.test(sha) || !repo) {
-    throw new Error('Usage: require-green-ci.mjs <40-char sha> (GITHUB_REPOSITORY set)')
+    throw new Error(
+      'Usage: require-green-ci.mjs <40-char sha> <main|beta|dev> (GITHUB_REPOSITORY set)'
+    )
   }
-  const compare = await api(`repos/${repo}/compare/main...${sha}`)
-  if (!isOnMain(compare.status)) {
+  assertReleaseBranch(branch)
+  const compare = await api(`repos/${repo}/compare/${branch}...${sha}`)
+  if (!isOnBranch(compare.status)) {
     console.error(
-      `::error::${sha} is not on main (${compare.status}); releases ship only main commits.`
+      `::error::${sha} is not on ${branch} (${compare.status}); releases ship only commits on that channel branch.`
     )
     process.exit(1)
   }

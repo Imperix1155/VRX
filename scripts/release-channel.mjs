@@ -1,18 +1,25 @@
 import { readFileSync } from 'node:fs'
 
-// Deliberately support only the documented stable, beta.N and rc.N tag forms.
-// No dependency installation is needed in the fail-fast workflow verify job.
+// Deliberately support only the documented stable, beta.N, dev.N, and rc.N tag
+// forms. No dependency installation is needed in the fail-fast workflow verify job.
 const [tag, suppliedVersion] = process.argv.slice(2)
 const version = suppliedVersion ?? JSON.parse(readFileSync('package.json', 'utf8')).version
 const match =
-  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(beta|rc)\.(?:0|[1-9]\d*))?$/.exec(version)
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(beta|dev|rc)\.(?:0|[1-9]\d*))?$/.exec(
+    version
+  )
 if (!match || tag !== `v${version}`) {
-  throw new Error('Release requires a matching vX.Y.Z, vX.Y.Z-beta.N or vX.Y.Z-rc.N tag')
+  throw new Error(
+    'Release requires a matching vX.Y.Z, vX.Y.Z-beta.N, vX.Y.Z-dev.N, or vX.Y.Z-rc.N tag'
+  )
 }
 const channel = match[1] ?? 'latest'
+// rc stays a manual tag on main. Standing channels publish from their own branch.
+const branch = channel === 'beta' ? 'beta' : channel === 'dev' ? 'dev' : 'main'
 process.stdout.write(
   JSON.stringify({
     channel,
+    branch,
     prerelease: channel !== 'latest',
     assets: [
       `vrx-${version}-setup.exe`,

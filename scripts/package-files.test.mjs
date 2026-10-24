@@ -33,6 +33,7 @@ describe('packaged application file boundary', () => {
     'docs/DESIGN.md',
     'docs/architecture/multi-account.md',
     'scripts/release-channel.mjs',
+    'scripts/select-publish-target.mjs',
     'scripts/assert-packaged-fonts.cjs',
     'scripts/git-hooks/pre-commit',
     '.coderabbit.yaml',

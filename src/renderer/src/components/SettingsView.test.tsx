@@ -471,6 +471,29 @@ describe('SettingsView — Automatic updates row (VRX-113)', () => {
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 
+  it('keeps the channel switch in the automatic updates card beside the toggle', () => {
+    useUiStore.setState({ settingsCategory: 'about' })
+    renderSettings()
+
+    const channel = screen.getByRole('radiogroup', { name: msg('updater.settings.channel.aria') })
+    const toggle = screen.getByRole('radiogroup', { name: msg('updater.settings.label') })
+    const card = channel.closest('.setting-card')
+    expect(card).toBeTruthy()
+    expect(card).toBe(toggle.closest('.setting-card'))
+    expect(card).toBe(
+      screen.getByRole('button', { name: msg('updater.settings.check') }).closest('.setting-card')
+    )
+    expect(screen.getAllByText(msg('updater.settings.label'))).toHaveLength(1)
+
+    expect(channel.querySelector('[aria-checked="true"]')?.textContent).toBe(
+      msg('updater.settings.channel.stable')
+    )
+    fireEvent.click(
+      within(channel).getByRole('radio', { name: msg('updater.settings.channel.beta') })
+    )
+    expect(useSettingsStore.getState().settings.updateChannel).toBe('beta')
+  })
+
   it('idle/error state shows "Check for updates" and triggers a check', () => {
     useUiStore.setState({ settingsCategory: 'about' })
     renderSettings()

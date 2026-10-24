@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
+  stays the default and does not install pre-release builds.
+
 ## [1.0.0] - 2026-10-23
 
 VRX 1.0 is the first full release: one window for your VRChat and ChilloutVR

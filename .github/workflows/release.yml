@@ -3,24 +3,27 @@ name: Release
 # Auto-publishes a GitHub Release with installers for the package.json version.
 #
 # Triggers (all converge on one tag `v<package.json version>`):
-#   - a merge to main that CHANGES the package.json version: if that version
-#     has no tag yet, the prepare job creates the tag at the merged commit and
-#     this same run builds and publishes it. A merged version PR is therefore the
-#     release trigger; no manual tag push is needed. Pushes that leave the
-#     version unchanged (dependency bumps, workflow edits) never publish.
-#   - workflow_dispatch: publish main's current version if it has no tag yet.
-#     An owner-authorized recovery path; it never retries an existing tag
-#     (re-run the failed jobs of that version's run instead).
-#   - a manually pushed `v*` tag, as before.
+#   - a push to main, beta, or dev that CHANGES the package.json version: if
+#     that version has no tag yet, the prepare job creates the tag at that
+#     commit and this same run builds and publishes it. The version's channel
+#     must match the branch (stable on main, -beta.N on beta, -dev.N on dev).
+#     Pushes that leave the version unchanged never publish. Feature branches
+#     and pull requests do not run this workflow.
+#   - workflow_dispatch from main, beta, or dev: publish that branch's current
+#     version if it has no tag yet and the version matches the branch. It never
+#     retries an existing tag (re-run the failed jobs of that version's run).
+#   - a manually pushed `v*` tag. Stable and rc tags must be on main; beta tags
+#     on beta; dev tags on dev. rc is not cut by a version bump on main.
 # A tag created with GITHUB_TOKEN does not start a second run, so each version
 # is built once. electron-builder derives artifact names and update manifests
 # from package.json, so the tag and package version MUST agree.
 #
 # Flow (VRX-224 — single source of release creation):
 #   prepare         — resolve the tag (pushed tag, or create the missing tag
-#                     for main's version) and decide whether to release. Before
-#                     tagging, require the commit to be on main with a green
-#                     ci-success (CI gate; a red or missing CI never publishes).
+#                     for the branch's version) and decide whether to release.
+#                     Before tagging, require the commit to be on that channel
+#                     branch with a green ci-success (CI gate; a red or missing
+#                     CI never publishes).
 #   verify          — fail fast if the tag and package.json version disagree.
 #   build (matrix)  — each OS runs `electron-builder --publish always`, which
 #                     CREATES the release itself (as a draft; releaseType:draft
@@ -46,10 +49,10 @@ name: Release
 # create/update — the run fails and cannot be granted its way out.
 on:
   push:
-    branches: [main]
+    branches: [main, beta, dev]
     tags: ['v*']
     # GitHub does not evaluate path filters for tag pushes, so this limits only
-    # main pushes; a pushed `v*` tag always runs.
+    # branch pushes; a pushed `v*` tag always runs.
     paths:
       - package.json
       - .github/workflows/release.yml
@@ -85,30 +88,38 @@ jobs:
         with:
           persist-credentials: false
 
-      # Tag push: release that tag. Main push: release only when this push
-      # changed the package.json version. Manual run: release main's version.
-      # Either way only if its tag does not exist yet, creating the tag at this
-      # exact commit through the API (no git credentials persisted).
-      # CI gate: nothing is tagged or built until this exact commit is on main
-      # and CI's ci-success passed on it (scripts/require-green-ci.mjs). On a
-      # merge CI and this run start together, so the gate waits for CI.
+      # Tag push: release that tag when its commit is on the channel branch.
+      # Branch push: release only when this push changed the package.json
+      # version and that version's channel matches the branch. Manual run:
+      # same match, for main, beta, or dev only. Either way only if the tag
+      # does not exist yet. The tag is created through the API (no git
+      # credentials persisted).
+      # CI gate: nothing is tagged or built until this exact commit is on the
+      # channel branch and CI's ci-success passed on it
+      # (scripts/require-green-ci.mjs). On a merge CI and this run start
+      # together, so the gate waits for CI.
       - name: Resolve or create the release tag
         id: resolve
         run: |
           set -o pipefail
           if [ "$GITHUB_REF_TYPE" = tag ]; then
-            node scripts/release-channel.mjs "$GITHUB_REF_NAME" >/dev/null
-            node scripts/require-green-ci.mjs "$GITHUB_SHA"
+            META="$(node scripts/release-channel.mjs "$GITHUB_REF_NAME")"
+            BRANCH="$(printf '%s' "$META" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).branch')"
+            node scripts/require-green-ci.mjs "$GITHUB_SHA" "$BRANCH"
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$GITHUB_REF" != refs/heads/main ]; then
-            echo "::error::Releases are cut only from main (got $GITHUB_REF)." >&2
-            exit 1
-          fi
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/heads/beta|refs/heads/dev) ;;
+            *)
+              echo "::error::Releases are cut only from main, beta, or dev (got $GITHUB_REF)." >&2
+              exit 1
+              ;;
+          esac
+          BRANCH="${GITHUB_REF#refs/heads/}"
           VERSION="$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_EVENT_NAME" = push ]; then
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
             BEFORE_VERSION="$(gh api "repos/$GITHUB_REPOSITORY/contents/package.json?ref=$BEFORE_SHA" --jq .content \
               | base64 -d | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0, "utf8")).version)')"
             if [ "$BEFORE_VERSION" = "$VERSION" ]; then
@@ -123,9 +134,18 @@ jobs:
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Validates the tag form before anything is created.
-          node scripts/release-channel.mjs "$TAG" >/dev/null
-          node scripts/require-green-ci.mjs "$GITHUB_SHA"
+          # Validates the tag form before anything is created. main publishes
+          # only a stable X.Y.Z; rc stays a tag you push by hand.
+          META="$(node scripts/release-channel.mjs "$TAG")"
+          CHANNEL="$(printf '%s' "$META" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
+          case "$BRANCH:$CHANNEL" in
+            main:latest|beta:beta|dev:dev) ;;
+            *)
+              echo "::error::Version $VERSION ($CHANNEL) does not belong on $BRANCH." >&2
+              exit 1
+              ;;
+          esac
+          node scripts/require-green-ci.mjs "$GITHUB_SHA" "$BRANCH"
           gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --jq '"Created \(.ref) at \(.object.sha)"'
           echo "release=true" >> "$GITHUB_OUTPUT"
@@ -198,13 +218,16 @@ jobs:
       # Compiles to out/, then packages installers (Linux: AppImage + deb;
       # Windows: nsis + portable) and CREATES the draft release for this tag on
       # first run / reuses it on the second, uploading the installers plus the
-      # latest*.yml electron-updater manifests into it.
+      # channel yml electron-updater manifests into it.
       - name: Build and publish ${{ matrix.platform }} installers
         shell: bash
         run: |
           npm run build
           CHANNEL="$(node scripts/release-channel.mjs "$TAG" | node -pe 'JSON.parse(require("fs").readFileSync(0, "utf8")).channel')"
-          npx electron-builder --${{ matrix.platform }} --config.publish.channel="$CHANNEL" --publish always
+          # One target only. Publishing the yml's full list would write every
+          # channel file from this build.
+          node scripts/select-publish-target.mjs "$CHANNEL" "$RUNNER_TEMP/electron-builder.yml"
+          npx electron-builder --${{ matrix.platform }} --publish always --config "$RUNNER_TEMP/electron-builder.yml"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

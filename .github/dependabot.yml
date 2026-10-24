@@ -2,8 +2,35 @@ version: 2
 updates:
   # npm dependencies — weekly, with minor + patch bumps grouped into one PR to
   # cut review noise. Majors come as their own PRs for a deliberate look.
+  # The same policy is repeated for beta and dev. Dependabot opens those PRs
+  # only after the branch exists.
   - package-ecosystem: npm
     directory: '/'
+    target-branch: main
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: '/'
+    target-branch: beta
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: '/'
+    target-branch: dev
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
@@ -17,6 +44,29 @@ updates:
   # VRX-149 by keeping policy-required SHA-pinned action refs current.
   - package-ecosystem: github-actions
     directory: '/'
+    target-branch: main
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    target-branch: beta
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    target-branch: dev
     schedule:
       interval: weekly
     groups:

@@ -632,6 +632,12 @@
     "settings": {
       "label": "自動更新",
       "description": "新しいバージョンをバックグラウンドでダウンロードし、アプリ終了時に適用します。",
+      "channel": {
+        "aria": "更新チャンネル",
+        "stable": "安定版",
+        "beta": "ベータ",
+        "dev": "開発版"
+      },
       "check": "更新を確認",
       "checking": "確認中…",
       "updateTo": "v{{version}} に更新",

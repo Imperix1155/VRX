@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { ciVerdict, isOnMain } from './require-green-ci.mjs'
+import { assertReleaseBranch, ciVerdict, isOnMain } from './require-green-ci.mjs'
 
 function run(overrides) {
   return {
@@ -42,17 +42,28 @@ describe('release CI gate', () => {
     ).toBe('failure')
   })
 
-  it('accepts only commits main already contains', () => {
+  it('accepts only commits the channel branch already contains', () => {
     expect(isOnMain('identical')).toBe(true)
     expect(isOnMain('behind')).toBe(true)
     expect(isOnMain('ahead')).toBe(false)
     expect(isOnMain('diverged')).toBe(false)
   })
 
+  it('allows only the standing channel branches', () => {
+    expect(() => assertReleaseBranch('main')).not.toThrow()
+    expect(() => assertReleaseBranch('beta')).not.toThrow()
+    expect(() => assertReleaseBranch('dev')).not.toThrow()
+    expect(() => assertReleaseBranch('feature/update-channels')).toThrow(/main, beta, or dev/)
+    expect(() => assertReleaseBranch(undefined)).toThrow(/main, beta, or dev/)
+  })
+
   it('runs the gate before the tag is created and before any build', () => {
     const workflow = readFileSync('.github/workflows/release.yml', 'utf8')
-    const gate = workflow.indexOf('node scripts/require-green-ci.mjs')
+    const gate = workflow.indexOf('node scripts/require-green-ci.mjs "$GITHUB_SHA" "$BRANCH"')
     expect(gate).toBeGreaterThan(-1)
+    expect(
+      workflow.match(/node scripts\/require-green-ci\.mjs "\$GITHUB_SHA" "\$BRANCH"/g)
+    ).toHaveLength(2)
     expect(gate).toBeLessThan(workflow.indexOf('-f ref="refs/tags/$TAG"'))
     expect(gate).toBeLessThan(workflow.indexOf('npx electron-builder'))
     expect(workflow).toMatch(/permissions:\n\s+contents: write\n\s+checks: read/)

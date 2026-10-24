@@ -323,6 +323,10 @@ export type JoinMode = 'desktop' | 'vr'
 export const JOIN_MODE_PREFERENCES = ['ask', 'vr', 'desktop'] as const
 export type JoinModePreference = (typeof JOIN_MODE_PREFERENCES)[number]
 
+/** Which GitHub update feed Settings follows. `stable` is the public release. */
+export const UPDATE_CHANNELS = ['stable', 'beta', 'dev'] as const
+export type UpdateChannel = (typeof UPDATE_CHANNELS)[number]
+
 // ─── Adapter live events (the WebSocket-pushed stream — VRX-146/147) ──────────
 /**
  * Normalized real-time event an adapter emits via `subscribe()`. Each platform maps

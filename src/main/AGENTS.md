@@ -168,8 +168,9 @@ etiquette rules apply in full; this file adds local detail.
   negative-cache them as failures.
 - Updates stay consent-based: no automatic download unless the user enabled
   `autoUpdate` (default off), install only a `downloaded` update, and send only
-  typed `UpdaterFailure` codes to the renderer. Stable versions exclude
-  prereleases; `-beta.N` and `-rc.N` builds keep electron-updater's channel.
+  typed `UpdaterFailure` codes to the renderer. The saved `updateChannel`
+  picks the feed. Stable uses `latest` and never admits a beta or dev build.
+  Beta and dev are opt-in. Set `allowDowngrade` after `channel`.
 - Log through `logger.ts` (redaction hook). Never log tokens, friend names,
   identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
   `pathConvention.test.ts` rejects hardcoded user paths. Redaction also masks

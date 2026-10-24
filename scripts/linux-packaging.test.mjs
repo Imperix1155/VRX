@@ -130,7 +130,29 @@ describe('Linux packaging contract (VRX-101)', () => {
 
   it('keeps AppImage publishing compatible with the installed updater', () => {
     expect(config.linux.target).toContain('AppImage')
-    expect(config.publish).toMatchObject({ provider: 'github', owner: 'Imperix1155', repo: 'VRX' })
+    expect(config.publish).toEqual([
+      expect.objectContaining({
+        provider: 'github',
+        owner: 'Imperix1155',
+        repo: 'VRX',
+        channel: 'latest',
+        releaseType: 'draft'
+      }),
+      expect.objectContaining({
+        provider: 'github',
+        owner: 'Imperix1155',
+        repo: 'VRX',
+        channel: 'beta',
+        releaseType: 'draft'
+      }),
+      expect.objectContaining({
+        provider: 'github',
+        owner: 'Imperix1155',
+        repo: 'VRX',
+        channel: 'dev',
+        releaseType: 'draft'
+      })
+    ])
     expect(satisfies(updaterMetadata.version, config.linux.electronUpdaterCompatibility)).toBe(true)
   })
 

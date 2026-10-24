@@ -637,6 +637,12 @@
     "settings": {
       "label": "Automatic updates",
       "description": "Download new versions in the background and apply them when the app closes.",
+      "channel": {
+        "aria": "Update channel",
+        "stable": "Stable",
+        "beta": "Beta",
+        "dev": "Dev"
+      },
       "check": "Check for updates",
       "checking": "Checking…",
       "updateTo": "Update to v{{version}}",

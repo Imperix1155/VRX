@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { inflateRawSync } from 'node:zlib'
 import { blake2b } from '@noble/hashes/blake2.js'
 import { load } from 'js-yaml'
+import { selectPublishTarget } from './select-publish-target.mjs'
 
 const packagePath = fileURLToPath(new URL('../package.json', import.meta.url))
 const builderConfigPath = fileURLToPath(new URL('../electron-builder.yml', import.meta.url))
@@ -226,7 +227,17 @@ function verifyUpdaterConfig(config, expectedPublish, expectedUpdaterCacheDirNam
   )
 }
 
-async function expectedConfiguration() {
+function channelFromManifest(manifestPath) {
+  const match = /^(latest|beta|dev|rc)(?:-linux)?\.yml$/.exec(basename(manifestPath))
+  if (!match) {
+    throw new Error(
+      `updater manifest must be named latest, beta, dev, or rc (.yml or -linux.yml), got ${basename(manifestPath)}`
+    )
+  }
+  return match[1]
+}
+
+async function expectedConfiguration(manifestPath) {
   const packageMetadata = JSON.parse(await readFile(packagePath, 'utf8'))
   const builderConfig = await readYaml(builderConfigPath, 'electron-builder.yml')
 
@@ -234,14 +245,12 @@ async function expectedConfiguration() {
     typeof packageMetadata.version === 'string',
     'package.json version must be present'
   )
-  requireCondition(
-    isRecord(builderConfig.publish),
-    'electron-builder.yml publish configuration must be present'
-  )
+  const publish = selectPublishTarget(builderConfig, channelFromManifest(manifestPath))
+  requireCondition(isRecord(publish), 'the selected publish target must be an object')
 
   return {
     version: packageMetadata.version,
-    publish: builderConfig.publish,
+    publish,
     updaterCacheDirName: `${packageMetadata.name.toLowerCase()}-updater`
   }
 }
@@ -255,7 +264,7 @@ export async function verifyLinuxUpdateMetadata({
 }) {
   const [{ version, publish, updaterCacheDirName }, manifest, appImageUpdate, debUpdate] =
     await Promise.all([
-      expectedConfiguration(),
+      expectedConfiguration(manifestPath),
       readYaml(manifestPath, 'latest-linux.yml'),
       readYaml(appImageUpdatePath, 'AppImage app-update.yml'),
       readYaml(debUpdatePath, 'deb app-update.yml')

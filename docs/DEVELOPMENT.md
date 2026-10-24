@@ -116,10 +116,13 @@ against the actual results.
 ### CI and failures
 
 [CI](../.github/workflows/ci.yml) builds and tests on Windows and Ubuntu, audits
-dependencies, and scans for secrets. The `ci-success` job sums them up.
-[CodeQL](../.github/workflows/codeql.yml) runs on PRs to `main`, pushes to
-`main`, and weekly. Check the repository's branch protection for any other
-required checks.
+dependencies, and scans for secrets, on every branch and on pull requests into
+any branch. The `ci-success` job sums them up. Pushes to `main`, `beta`, and
+`dev` are keyed by commit and are not cancelled, because a release waits on
+`ci-success` for that branch. Other pushes and pull requests cancel a
+superseded run. [CodeQL](../.github/workflows/codeql.yml) runs on PRs to
+`main`, pushes to `main`, and weekly. Check the repository's branch protection
+for any other required checks.
 
 On Ubuntu, CI also proves that saved sessions survive a restart: it runs
 separate Electron processes against throwaway data with a temporary Secret

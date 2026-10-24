@@ -2,19 +2,20 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    branches:
+      - '**'
 
 # Least privilege: CI only needs to read the repo.
 permissions:
   contents: read
 
-# Cancel superseded PR runs to save minutes. Main pushes are keyed by commit and
-# never cancelled: the release CI gate needs ci-success on the exact merge commit.
+# Cancel superseded PR and feature-branch runs. Pushes to main, beta, and dev
+# are keyed by commit and never cancelled: the release CI gate needs ci-success
+# on the exact commit that publishes that channel.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ (github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/beta' && github.ref != 'refs/heads/dev')) && format('ci-{0}', github.ref) || format('ci-{0}', github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/beta' && github.ref != 'refs/heads/dev') }}
 
 jobs:
   build:

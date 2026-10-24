@@ -127,6 +127,8 @@ or launch authority.
 - All copy goes through i18next with every key in en and ja.
 - Settings change through `@shared/settings`. A collapsed parent card keeps
   its child values (Allow joining keeps Confirm join and launch mode).
+  Stable, Beta, and Dev sit in the Automatic updates card on About, beside
+  the on/off control and the check button. They are not their own section.
 - Error boundaries, the document-drop guard, and explicit local diagnostics
   copy belong here.
 

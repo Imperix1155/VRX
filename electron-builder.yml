@@ -85,11 +85,23 @@ appImage:
   # system (checked in release.yml and scripts/linux-packaging.test.mjs).
   executableArgs: []
 npmRebuild: false
+# One GitHub target per standing channel. A release publishes exactly one of
+# them: scripts/select-publish-target.mjs writes a temp config so a dev build
+# cannot also upload latest.yml or beta.yml. rc is not listed; a manual rc tag
+# clones the latest target. Draft until publish-release checks the assets.
 publish:
-  provider: github
-  owner: Imperix1155
-  repo: VRX
-  # Create the release as a DRAFT (this is electron-builder's default; set
-  # explicitly so nothing goes public before the publish-release job asserts the
-  # assets and applies the tag-derived prerelease flag — VRX-224).
-  releaseType: draft
+  - provider: github
+    owner: Imperix1155
+    repo: VRX
+    channel: latest
+    releaseType: draft
+  - provider: github
+    owner: Imperix1155
+    repo: VRX
+    channel: beta
+    releaseType: draft
+  - provider: github
+    owner: Imperix1155
+    repo: VRX
+    channel: dev
+    releaseType: draft

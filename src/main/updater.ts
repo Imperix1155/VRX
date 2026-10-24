@@ -16,6 +16,8 @@ import {
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
 import { getSettingsSnapshot } from './services/settings'
+import { normalizeUpdateChannel, updateFeedFor, versionAllowedOnChannel } from './updateFeed'
+import type { UpdateChannel } from '@shared/types'
 import type { UpdaterFailure, UpdaterSnapshot, UpdaterState } from '@shared/ipc'
 
 export type { UpdaterFailure, UpdaterSnapshot, UpdaterState }
@@ -29,6 +31,8 @@ interface UpdaterLogger {
 
 interface AutoUpdateSettings {
   autoUpdate: boolean
+  /** Parsed by the main process. Unknown values are treated as stable. */
+  updateChannel?: unknown
 }
 
 type NativeDownloadedListener = (
@@ -215,10 +219,15 @@ export class UpdaterService {
   private readonly claimedNativeStageScopes = new Set<string>()
   private hasUnscopedNativeFailureHistory = false
   private autoUpdateEnabled: boolean
+  private updateChannel: UpdateChannel
+  /** A staged build from another channel must not install on quit. */
+  private blockQuitInstall = false
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = initialSnapshot(deps.app)
-    this.autoUpdateEnabled = deps.getSettings().autoUpdate
+    const settings = deps.getSettings()
+    this.autoUpdateEnabled = settings.autoUpdate
+    this.updateChannel = normalizeUpdateChannel(settings.updateChannel)
     this.bindAutoUpdater()
     if (this.state.state !== 'unsupported') {
       this.scheduleNextCheck()
@@ -228,14 +237,17 @@ export class UpdaterService {
   private bindAutoUpdater(): void {
     const { autoUpdater } = this.deps
     autoUpdater.autoDownload = false
-    // A consented download applies when VRX next closes; Restart applies it now.
-    autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.logger = DISCARDED_UPDATER_LOGGER
-    // Stable installs opt out of prereleases. Keep electron-updater's native
-    // beta/rc channel selection for users who installed a prerelease build.
-    autoUpdater.allowPrerelease = /-(?:beta|rc)\.\d+$/.test(this.deps.app.getVersion())
+    // The stored channel wins over the version electron-updater would infer
+    // and over any channel baked into app-update.yml. Set allowDowngrade
+    // after channel: assigning channel forces allowDowngrade on.
+    this.applyFeed()
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
+      if (!this.acceptVersion(info.version)) {
+        this.rejectDisallowedUpdate(false)
+        return
+      }
       this.setState({
         state: 'update-available',
         availableVersion: info.version,
@@ -258,6 +270,15 @@ export class UpdaterService {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+      if (!this.acceptVersion(info.version)) {
+        this.nativeStageGate?.cancel()
+        this.downloadInFlight = false
+        this.pendingDownloadedInfo = null
+        this.rejectDisallowedUpdate(true)
+        return
+      }
+      this.blockQuitInstall = false
+      this.applyFeed()
       if (this.downloadInFlight) {
         // MacUpdater emits this wrapper event before native Squirrel staging
         // settles. Arm a native-only gate before MacUpdater starts that stage.
@@ -334,7 +355,46 @@ export class UpdaterService {
     this.logUpdaterWarning('autoUpdater: download failed')
   }
 
+  /**
+   * Point electron-updater at the stored channel. Assign `channel` first:
+   * its setter forces `allowDowngrade` on, and stable must turn that back off.
+   */
+  private applyFeed(): void {
+    const feed = updateFeedFor(this.updateChannel)
+    this.deps.autoUpdater.channel = feed.channel
+    this.deps.autoUpdater.allowPrerelease = feed.allowPrerelease
+    this.deps.autoUpdater.allowDowngrade = feed.allowDowngrade
+    this.deps.autoUpdater.autoInstallOnAppQuit = !this.blockQuitInstall
+  }
+
+  private acceptVersion(version: string): boolean {
+    return versionAllowedOnChannel(version, this.updateChannel)
+  }
+
+  /**
+   * Drop an offer from another channel. Block quit-install only when that
+   * build was already downloading or staged — a rejected offer must not
+   * disarm an earlier allowed download.
+   */
+  private rejectDisallowedUpdate(staged: boolean): void {
+    if (
+      staged ||
+      this.state.state === 'downloaded' ||
+      this.state.state === 'downloading' ||
+      this.downloadInFlight
+    ) {
+      this.blockQuitInstall = true
+      this.applyFeed()
+    }
+    this.checkOrigin = null
+    this.logUpdaterWarning('autoUpdater: ignored update outside the selected channel')
+    if (this.state.state === 'unsupported') return
+    this.setState({ state: 'idle', availableVersion: null, progressPercent: 0, failure: null })
+  }
+
   private publishDownloaded(info: UpdateInfo): void {
+    this.blockQuitInstall = false
+    this.applyFeed()
     this.installErrorEventQuarantine = false
     this.setState({
       state: 'downloaded',
@@ -423,6 +483,11 @@ export class UpdaterService {
       return
     }
 
+    // Follow the saved snapshot, including a channel change that landed
+    // before this scheduled or manual check.
+    this.updateChannel = normalizeUpdateChannel(this.deps.getSettings().updateChannel)
+    this.applyFeed()
+
     this.checkOrigin = this.state.state
     this.beginOperationErrorTracking()
     this.setState({ state: 'checking', failure: null })
@@ -453,6 +518,27 @@ export class UpdaterService {
   applySettings(settings: AutoUpdateSettings): void {
     const turnedOn = settings.autoUpdate && !this.autoUpdateEnabled
     this.autoUpdateEnabled = settings.autoUpdate
+    let channelChanged = false
+    if ('updateChannel' in settings) {
+      const next = normalizeUpdateChannel(settings.updateChannel)
+      channelChanged = next !== this.updateChannel
+      this.updateChannel = next
+      this.applyFeed()
+    }
+    if (
+      channelChanged &&
+      this.state.availableVersion != null &&
+      !this.acceptVersion(this.state.availableVersion)
+    ) {
+      this.rejectDisallowedUpdate(
+        this.state.state === 'downloaded' || this.state.state === 'downloading'
+      )
+    }
+    const blocked = ['unsupported', 'downloading', 'downloaded', 'checking']
+    if (channelChanged && !blocked.includes(this.state.state)) {
+      void this.check()
+      return
+    }
     if (turnedOn) void this.download()
   }
 
@@ -460,6 +546,10 @@ export class UpdaterService {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'update-available') return
     if (isPortable()) return
+    if (this.state.availableVersion != null && !this.acceptVersion(this.state.availableVersion)) {
+      this.rejectDisallowedUpdate(false)
+      return
+    }
 
     this.setState({ state: 'downloading', progressPercent: 0, failure: null })
     this.beginOperationErrorTracking()
@@ -520,6 +610,10 @@ export class UpdaterService {
   install(): void {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'downloaded') return
+    if (this.state.availableVersion != null && !this.acceptVersion(this.state.availableVersion)) {
+      this.rejectDisallowedUpdate(true)
+      return
+    }
     this.beginOperationErrorTracking()
     try {
       this.deps.autoUpdater.quitAndInstall()
