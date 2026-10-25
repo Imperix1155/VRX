@@ -56,15 +56,20 @@ download in the background and install when VRX closes.
 The portable Windows build can't update itself. Settings → About links to
 the releases page instead.
 
-Which updates you get depends on the version you installed:
+Which updates you get is a choice in Settings → About, in the **Automatic
+updates** card, beside the on/off control:
 
-- A normal version (for example `1.2.0`) gets normal releases only, never test
-  builds.
-- A beta (for example `1.2.0-beta.1`) gets newer betas and normal releases.
-- A release candidate (for example `1.2.0-rc.1`) gets newer release candidates
-  only. To leave that track, install a normal release yourself.
+- **Stable** is the default. It gets normal releases only, never test builds.
+- **Beta** also gets newer betas.
+- **Dev** also gets newer dev builds.
 
-There is no setting to switch tracks. Release notes are on GitHub; VRX has no
+Choosing Beta or Dev also gets a newer stable release. Switching back to
+Stable does not replace a newer pre-release you already have; the next newer
+stable release applies. An installed beta or release candidate does not keep
+following that track by itself.
+
+Release candidates are not a choice in Settings. To leave one, choose Stable,
+or install a normal release yourself. Release notes are on GitHub; VRX has no
 in-app "What's new" screen.
 
 ## Running VRX

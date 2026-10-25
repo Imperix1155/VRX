@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeUpdateChannel, updateFeedFor, versionAllowedOnChannel } from './updateFeed'
+import {
+  normalizeUpdateChannel,
+  selectReleaseVersion,
+  updateFeedFor,
+  versionAllowedOnChannel
+} from './updateFeed'
 
 describe('update feed', () => {
   it('maps the stored channel onto electron-updater and treats anything else as stable', () => {
@@ -41,5 +46,26 @@ describe('update feed', () => {
       expect(versionAllowedOnChannel(version, 'beta')).toBe(false)
       expect(versionAllowedOnChannel(version, 'dev')).toBe(false)
     }
+  })
+
+  it('picks a newer stable release for dev ahead of a beta and an older dev build', () => {
+    expect(
+      selectReleaseVersion(
+        ['1.3.0-beta.1', '1.2.0', '1.2.0-dev.1', '1.2.0-rc.1'],
+        'dev',
+        '1.2.0-dev.1',
+        true
+      )
+    ).toBe('1.2.0')
+    expect(selectReleaseVersion(['1.2.0'], 'dev', '1.2.0-dev.1', true)).toBe('1.2.0')
+    expect(
+      selectReleaseVersion(['1.3.0-dev.1', '1.2.0', '1.2.0-beta.4'], 'dev', '1.2.0-dev.1', true)
+    ).toBe('1.3.0-dev.1')
+    expect(selectReleaseVersion(['1.2.0-beta.2'], 'dev', '1.2.0-dev.1', true)).toBeNull()
+    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.0'], 'dev', '1.2.0', false)).toBeNull()
+    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.0'], 'dev', '1.2.0', true)).toBe('1.2.0-dev.3')
+    expect(
+      selectReleaseVersion(['1.2.0', '1.4.0', '1.10.0-dev.2'], 'dev', '1.2.0-dev.1', true)
+    ).toBe('1.10.0-dev.2')
   })
 })

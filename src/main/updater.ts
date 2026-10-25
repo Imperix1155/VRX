@@ -13,6 +13,7 @@ import {
   BrowserWindow,
   type Event as ElectronEvent
 } from 'electron'
+import { CancellationError, CancellationToken } from 'builder-util-runtime'
 import type { AppUpdater, UpdateInfo, ProgressInfo } from 'electron-updater'
 import log from './logger'
 import { getSettingsSnapshot } from './services/settings'
@@ -222,6 +223,18 @@ export class UpdaterService {
   private updateChannel: UpdateChannel
   /** A staged build from another channel must not install on quit. */
   private blockQuitInstall = false
+  /**
+   * A disallowed download finished after the channel moved on. Quit-install
+   * stays off until a new download starts, because the file on disk may be
+   * the disallowed build.
+   */
+  private disallowedDownloadLanded = false
+  /** False while a cancelled download can still emit. */
+  private acceptDownloadEvents = true
+  private downloadingVersion: string | null = null
+  private downloadToken: CancellationToken | null = null
+  private downloadCompletion: Promise<void> = Promise.resolve()
+  private channelChange: Promise<void> = Promise.resolve()
 
   constructor(private readonly deps: UpdaterServiceDeps) {
     this.state = initialSnapshot(deps.app)
@@ -266,15 +279,20 @@ export class UpdaterService {
     })
 
     autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+      if (!this.acceptDownloadEvents) return
       this.setState({ progressPercent: Math.round(progress.percent) })
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      if (!this.acceptVersion(info.version)) {
-        this.nativeStageGate?.cancel()
-        this.downloadInFlight = false
-        this.pendingDownloadedInfo = null
-        this.rejectDisallowedUpdate(true)
+      const stale =
+        !this.acceptDownloadEvents ||
+        (this.downloadingVersion !== null && info.version !== this.downloadingVersion)
+      if (stale || !this.acceptVersion(info.version)) {
+        this.rejectDownloadedVersion(info)
+        return
+      }
+      if (this.disallowedDownloadLanded) {
+        this.keepAllowedOffer(info.version)
         return
       }
       this.blockQuitInstall = false
@@ -294,6 +312,14 @@ export class UpdaterService {
     })
 
     autoUpdater.on('error', (err: Error) => {
+      // A channel switch cancels the download. electron-updater swallows
+      // CancellationError; ignore it here too so it cannot replace the next offer.
+      if (
+        this.downloadToken?.cancelled &&
+        (err instanceof CancellationError || err.message === 'cancelled')
+      ) {
+        return
+      }
       // Native install failures can be redispatched later under distinct Error
       // objects. Current check/download operations still reject their promises,
       // so their catch paths own classification while this quarantine is active.
@@ -369,6 +395,45 @@ export class UpdaterService {
 
   private acceptVersion(version: string): boolean {
     return versionAllowedOnChannel(version, this.updateChannel)
+  }
+
+  /**
+   * A download finished for a build the current channel does not allow, or
+   * for an attempt that was already cancelled. Never publish it, and never
+   * let it clear an allowed version that is already on offer.
+   */
+  private rejectDownloadedVersion(info: UpdateInfo): void {
+    this.disallowedDownloadLanded = true
+    this.nativeStageGate?.cancel()
+    this.downloadInFlight = false
+    this.pendingDownloadedInfo = null
+    this.blockQuitInstall = true
+    this.applyFeed()
+    this.checkOrigin = null
+    this.logUpdaterWarning('autoUpdater: ignored update outside the selected channel')
+    if (this.state.state === 'unsupported') return
+    const offered = this.state.availableVersion
+    const keepOffer = offered != null && offered !== info.version && this.acceptVersion(offered)
+    if (keepOffer) {
+      this.keepAllowedOffer(offered)
+      return
+    }
+    this.setState({ state: 'idle', availableVersion: null, progressPercent: 0, failure: null })
+  }
+
+  /** Keep offering an allowed version without arming quit-install. */
+  private keepAllowedOffer(version: string): void {
+    this.blockQuitInstall = true
+    this.applyFeed()
+    this.nativeStageGate?.cancel()
+    this.downloadInFlight = false
+    this.pendingDownloadedInfo = null
+    this.setState({
+      state: 'update-available',
+      availableVersion: version,
+      progressPercent: 0,
+      failure: null
+    })
   }
 
   /**
@@ -525,21 +590,59 @@ export class UpdaterService {
       this.updateChannel = next
       this.applyFeed()
     }
-    if (
-      channelChanged &&
-      this.state.availableVersion != null &&
-      !this.acceptVersion(this.state.availableVersion)
-    ) {
+    if (channelChanged) {
+      this.enqueueChannelChange()
+      return
+    }
+    if (turnedOn) void this.download()
+  }
+
+  /**
+   * Channel switches are serialized. Each one settles an in-flight download
+   * before checking, so electron-updater's `downloadPromise` cannot be reused
+   * for the next channel.
+   */
+  private enqueueChannelChange(): void {
+    const run = this.channelChange.then(() => this.applyChannelChange())
+    this.channelChange = run.then(
+      () => undefined,
+      () => undefined
+    )
+  }
+
+  private async applyChannelChange(): Promise<void> {
+    if (this.disposed) return
+    // `downloadInFlight` is cleared as soon as a disallowed file event arrives,
+    // while electron-updater may still be holding that download promise.
+    const inFlight =
+      this.downloadToken != null || this.downloadInFlight || this.state.state === 'downloading'
+    if (inFlight) await this.cancelDownload()
+    if (this.disposed) return
+    if (this.state.availableVersion != null && !this.acceptVersion(this.state.availableVersion)) {
       this.rejectDisallowedUpdate(
         this.state.state === 'downloaded' || this.state.state === 'downloading'
       )
     }
     const blocked = ['unsupported', 'downloading', 'downloaded', 'checking']
-    if (channelChanged && !blocked.includes(this.state.state)) {
-      void this.check()
-      return
+    if (!blocked.includes(this.state.state)) await this.check()
+  }
+
+  /**
+   * Cancel the library download and wait until its promise settles.
+   * `downloadUpdate` returns the previous promise while one is stored.
+   */
+  private async cancelDownload(): Promise<void> {
+    this.acceptDownloadEvents = false
+    this.blockQuitInstall = true
+    this.applyFeed()
+    this.downloadToken?.cancel()
+    this.nativeStageGate?.cancel()
+    await this.downloadCompletion
+    if (this.state.state === 'downloading') {
+      this.downloadInFlight = false
+      this.pendingDownloadedInfo = null
+      this.setState({ state: 'idle', availableVersion: null, progressPercent: 0, failure: null })
     }
-    if (turnedOn) void this.download()
   }
 
   async download(): Promise<void> {
@@ -550,6 +653,16 @@ export class UpdaterService {
       this.rejectDisallowedUpdate(false)
       return
     }
+
+    const token = new CancellationToken()
+    this.downloadToken = token
+    this.acceptDownloadEvents = true
+    this.disallowedDownloadLanded = false
+    this.downloadingVersion = this.state.availableVersion
+    let resolveCompletion: () => void = () => undefined
+    this.downloadCompletion = new Promise((resolve) => {
+      resolveCompletion = resolve
+    })
 
     this.setState({ state: 'downloading', progressPercent: 0, failure: null })
     this.beginOperationErrorTracking()
@@ -564,7 +677,7 @@ export class UpdaterService {
       : null
     this.nativeStageGate = nativeStageGate
     try {
-      const downloadPromise = this.deps.autoUpdater.downloadUpdate()
+      const downloadPromise = this.deps.autoUpdater.downloadUpdate(token)
       if (nativeStageGate) {
         const libraryCompletion = Promise.resolve(downloadPromise).then(
           (result) => {
@@ -595,21 +708,31 @@ export class UpdaterService {
         this.setState({ state: 'update-available', progressPercent: 0, failure: null })
       }
     } catch (err) {
+      if (token.cancelled || err instanceof CancellationError) return
       if (!this.wasHandledByCurrentEvent(err)) {
         this.handleError()
         this.rememberHandledObject(err)
       }
     } finally {
+      resolveCompletion()
       nativeStageGate?.cancel()
       if (this.nativeStageGate === nativeStageGate) this.nativeStageGate = null
+      if (this.downloadToken === token) this.downloadToken = null
       this.downloadInFlight = false
       this.pendingDownloadedInfo = null
+      this.downloadingVersion = null
+      // A cancelled attempt must stay idle for the channel switch that
+      // follows, not bounce back to the build that was just rejected.
+      if (!token.cancelled && this.snapshot().state === 'downloading') {
+        this.setState({ state: 'update-available', progressPercent: 0, failure: null })
+      }
     }
   }
 
   install(): void {
     if (!this.deps.app.isPackaged) return
     if (this.state.state !== 'downloaded') return
+    if (this.blockQuitInstall || this.disallowedDownloadLanded) return
     if (this.state.availableVersion != null && !this.acceptVersion(this.state.availableVersion)) {
       this.rejectDisallowedUpdate(true)
       return
@@ -642,7 +765,12 @@ let updaterServiceLoad: Promise<UpdaterService> | undefined
  * as a failed synchronous init did before.
  */
 export function initAutoUpdater(): Promise<UpdaterService> {
-  updaterServiceLoad ??= import('electron-updater').then(({ default: electronUpdater }) => {
+  updaterServiceLoad ??= import('electron-updater').then(async ({ default: electronUpdater }) => {
+    const [{ GitHubProvider }, { installDevStablePromotion }] = await Promise.all([
+      import('electron-updater/out/providers/GitHubProvider.js'),
+      import('./devReleaseFeed')
+    ])
+    installDevStablePromotion(GitHubProvider)
     updaterService = new UpdaterService({
       app,
       autoUpdater: electronUpdater.autoUpdater,

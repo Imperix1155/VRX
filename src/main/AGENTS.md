@@ -170,7 +170,10 @@ etiquette rules apply in full; this file adds local detail.
   `autoUpdate` (default off), install only a `downloaded` update, and send only
   typed `UpdaterFailure` codes to the renderer. The saved `updateChannel`
   picks the feed. Stable uses `latest` and never admits a beta or dev build.
-  Beta and dev are opt-in. Set `allowDowngrade` after `channel`.
+  Beta and dev are opt-in. Dev resolves the release list itself so a newer
+  stable build is found; electron-updater only does that for its beta channel.
+  A channel change cancels an in-flight download before the next check. Set
+  `allowDowngrade` after `channel`.
 - Log through `logger.ts` (redaction hook). Never log tokens, friend names,
   identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
   `pathConvention.test.ts` rejects hardcoded user paths. Redaction also masks

@@ -625,6 +625,76 @@ describe('UpdaterService', () => {
     expect(autoUpdater.autoInstallOnAppQuit).toBe(false)
   })
 
+  it('cancels an in-flight beta download before checking stable', async () => {
+    const { service, autoUpdater, downloadUpdate, checkForUpdates, quitAndInstall, log, settings } =
+      createService({
+        updateChannel: 'beta',
+        autoUpdate: true
+      })
+    let active: Promise<unknown> | null = null
+    let started = 0
+    const releases: Array<(kind: 'resolve' | 'cancel') => void> = []
+    downloadUpdate.mockImplementation((token: { onCancel(handler: () => void): void }) => {
+      if (active) return active
+      const version = started === 0 ? '1.2.0-beta.1' : '1.2.0'
+      started += 1
+      let settle: (kind: 'resolve' | 'cancel') => void = () => undefined
+      const promise = new Promise<void>((resolve, reject) => {
+        settle = (kind) => {
+          active = null
+          if (kind === 'cancel') {
+            reject(new Error('cancelled'))
+            return
+          }
+          autoUpdater.emit('update-downloaded', { version } as UpdateInfo)
+          resolve()
+        }
+      })
+      token.onCancel(() => settle('cancel'))
+      active = promise
+      releases.push(settle)
+      return promise
+    })
+
+    autoUpdater.emit('update-available', { version: '1.2.0-beta.1' } as UpdateInfo)
+    const betaAttempt = service.download()
+    expect(service.snapshot().state).toBe('downloading')
+    expect(started).toBe(1)
+
+    settings.updateChannel = 'stable'
+    checkForUpdates.mockImplementation(() => {
+      expect(active).toBeNull()
+      autoUpdater.emit('update-available', { version: '1.2.0' } as UpdateInfo)
+      return Promise.resolve(null)
+    })
+    service.applySettings(settings)
+
+    autoUpdater.emit('update-downloaded', { version: '1.2.0-beta.1' } as UpdateInfo)
+    await betaAttempt
+    await vi.waitFor(() => expect(checkForUpdates).toHaveBeenCalled())
+    expect(started).toBe(2)
+    expect(downloadUpdate.mock.calls[0]?.[0]).not.toBe(downloadUpdate.mock.calls[1]?.[0])
+    expect(
+      (downloadUpdate.mock.calls[0]?.[0] as { cancelled: boolean } | undefined)?.cancelled
+    ).toBe(true)
+    expect(service.snapshot().availableVersion).not.toBe('1.2.0-beta.1')
+    expect(log.warn).not.toHaveBeenCalledWith('autoUpdater: download failed')
+
+    releases[1]?.('resolve')
+    await vi.waitFor(() => expect(service.snapshot().state).toBe('downloaded'))
+    expect(service.snapshot().availableVersion).toBe('1.2.0')
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(true)
+
+    autoUpdater.emit('update-downloaded', { version: '1.2.0-beta.1' } as UpdateInfo)
+    expect(service.snapshot()).toMatchObject({
+      state: 'update-available',
+      availableVersion: '1.2.0'
+    })
+    expect(autoUpdater.autoInstallOnAppQuit).toBe(false)
+    service.install()
+    expect(quitAndInstall).not.toHaveBeenCalled()
+  })
+
   it('refuses to download or install a version outside the selected channel', async () => {
     const { service, autoUpdater, downloadUpdate, quitAndInstall } = createService({
       updateChannel: 'beta'
