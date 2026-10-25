@@ -13,13 +13,15 @@ function metadata(version, tag = `v${version}`) {
 
 describe('release tag/channel contract', () => {
   it.each([
-    ['1.0.0', 'latest', false],
-    ['1.1.0-beta.2', 'beta', true],
-    ['1.0.0-rc.1', 'rc', true]
-  ])('maps %s to its actual updater assets', (version, channel, prerelease) => {
+    ['1.0.0', 'latest', 'main', false],
+    ['1.1.0-beta.2', 'beta', 'beta', true],
+    ['1.2.0-dev.3', 'dev', 'dev', true],
+    ['1.0.0-rc.1', 'rc', 'main', true]
+  ])('maps %s to its actual updater assets', (version, channel, branch, prerelease) => {
     const result = metadata(version)
     expect(result).toEqual({
       channel,
+      branch,
       prerelease,
       assets: [
         `vrx-${version}-setup.exe`,
@@ -32,12 +34,17 @@ describe('release tag/channel contract', () => {
       ]
     })
   })
-  it.each(['1.0.0-alpha.1', '01.0.0', '1.0.0-beta', '1.0.0+local', '1.0.0-rc.01'])(
-    'rejects unsupported version %s before publication',
-    (version) => {
-      expect(() => metadata(version)).toThrow()
-    }
-  )
+  it.each([
+    '1.0.0-alpha.1',
+    '01.0.0',
+    '1.0.0-beta',
+    '1.0.0-dev',
+    '1.0.0-dev.01',
+    '1.0.0+local',
+    '1.0.0-rc.01'
+  ])('rejects unsupported version %s before publication', (version) => {
+    expect(() => metadata(version)).toThrow()
+  })
   it('rejects mismatched tags', () => {
     expect(() => metadata('1.0.0', 'v1.0.1')).toThrow()
   })
@@ -45,20 +52,36 @@ describe('release tag/channel contract', () => {
     const workflow = readFileSync('.github/workflows/release.yml', 'utf8')
     expect(workflow).toContain('node scripts/release-channel.mjs')
     expect(workflow).toContain('dist/$CHANNEL-linux.yml')
-    expect(workflow).toContain('--config.publish.channel="$CHANNEL"')
+    expect(workflow).toContain('node scripts/select-publish-target.mjs "$CHANNEL"')
+    expect(workflow).toContain('--config "$RUNNER_TEMP/electron-builder.yml"')
+    expect(workflow).not.toContain('--config.publish.channel')
     expect(workflow).toContain('prerelease:$prerelease')
     expect(workflow).not.toContain('prerelease:true')
     expect(workflow).toContain('if .channel == "latest" then "true" else "false" end')
     expect(workflow.match(/make_latest:\$make_latest/g)).toHaveLength(2)
     expect(workflow).toContain('scripts/verify-windows-update-metadata.mjs')
     expect(workflow).toContain('dist/$CHANNEL.yml')
+    expect(workflow).toContain('branches: [main, beta, dev]')
+    expect(workflow).toContain('main:latest|beta:beta|dev:dev')
+  })
+
+  it('runs CI on every branch and asks Dependabot to cover beta and dev', () => {
+    const ci = readFileSync('.github/workflows/ci.yml', 'utf8')
+    expect(ci).toContain("branches:\n      - '**'")
+    expect(ci).not.toMatch(/pull_request:\n\s+branches:/)
+    expect(ci).toContain("github.ref != 'refs/heads/beta'")
+    expect(ci).toContain("github.ref != 'refs/heads/dev'")
+    const dependabot = readFileSync('.github/dependabot.yml', 'utf8')
+    expect(dependabot.match(/target-branch: main/g)).toHaveLength(2)
+    expect(dependabot.match(/target-branch: beta/g)).toHaveLength(2)
+    expect(dependabot.match(/target-branch: dev/g)).toHaveLength(2)
   })
 })
 
 // Ask the locked builder to generate manifest tasks, using synthetic artifact
 // hashes so this checks naming without running installers or publication.
 describe('locked builder manifest filenames', () => {
-  it.each(['1.0.0', '1.1.0-beta.2', '1.0.0-rc.1'])(
+  it.each(['1.0.0', '1.1.0-beta.2', '1.2.0-dev.3', '1.0.0-rc.1'])(
     'matches the release allowlist for %s',
     async (version) => {
       const { createUpdateInfoTasks } =

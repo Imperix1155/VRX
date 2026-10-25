@@ -29,6 +29,7 @@
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
  *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
+ *   updateChannel          → stable, beta, or dev feed (default stable; invalid values stay stable)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
@@ -48,14 +49,15 @@ import {
   JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
-  THEMES
+  THEMES,
+  UPDATE_CHANNELS
 } from './types'
 
 /** Additive-at-the-same-version fields can be silently stripped and rewritten by
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 14 as const
+export const SETTINGS_VERSION = 15 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -122,7 +124,13 @@ export const SettingsSchema = z.object({
   /** Preferred Join launch mode (VRX-210). `ask` defers the choice to each Join action. */
   joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask'),
   /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
-  autoUpdate: z.boolean().catch(false)
+  autoUpdate: z.boolean().catch(false),
+  /**
+   * Update feed. `stable` reads only public releases. Anything else, including
+   * a missing or unknown value, stays on stable so a bad patch cannot opt in
+   * to a prerelease feed.
+   */
+  updateChannel: z.enum(UPDATE_CHANNELS).catch('stable')
 })
 
 export type Settings = z.infer<typeof SettingsSchema>
@@ -136,7 +144,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, and v12 → v13, are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v15 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -166,7 +174,11 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   13: (prev) => ({
     ...prev,
     reconcileInterval: prev.reconcileInterval === '5m' ? '1h' : prev.reconcileInterval
-  })
+  }),
+  // v14 → v15: `updateChannel` is additive. The version boundary keeps a stored
+  // beta or dev choice if an older build loads the file and would otherwise
+  // strip the key. Missing values still parse as stable.
+  14: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

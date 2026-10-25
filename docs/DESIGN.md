@@ -323,8 +323,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   offline, and Hot instance. Each is independent and off by default.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
-- About: the app's own upkeep. Automatic updates with the installed version,
-  Welcome setup (Run setup again), and Open logs folder.
+- About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
+  in that same card beside the on/off control and the check button, plus the
+  installed version, Welcome setup (Run setup again), and Open logs folder.
 
 Saving is reported once, in the shell, failures first. A failed save shows an
 alert at once, keeps the latest edits, offers Retry, and stays until a save

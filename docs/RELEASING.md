@@ -17,8 +17,11 @@ every other step pending.
    last public release, not only the latest test build.
 2. On a feature branch, pick a [SemVer](https://semver.org/) version. New
    features bump MINOR; compatible fixes bump PATCH; breaking changes bump
-   MAJOR. Use `-beta.N` or `-rc.N` for a test build (section 2). Never reuse a
-   version that was already published.
+   MAJOR. A stable release is `X.Y.Z` and merges to `main`. A beta is
+   `X.Y.Z-beta.N` on the `beta` branch. A dev build is `X.Y.Z-dev.N` on the
+   `dev` branch. `N` is a whole number with no leading zeros. `-rc.N` stays a
+   manual tag on `main` (section 2), not a version bump. Never reuse a version
+   that was already published.
 3. Run `npm version X.Y.Z --no-git-tag-version` with your version. Check that
    `package.json` and both root version fields in `package-lock.json` agree,
    and that nothing else in the lockfile changed.
@@ -32,7 +35,7 @@ every other step pending.
    exact diff, open the version PR, and wait for CI on its final head.
    **Merging a version PR publishes that version** (section 2), so merge it
    only with the owner's permission to release in that channel. Never commit a
-   version change directly to `main`.
+   version change directly to `main`, `beta`, or `dev`.
 
 Public changelog and release text describe user-visible changes and known
 limits. Keep owner-specific test steps and sample data out of it; put them in
@@ -40,30 +43,38 @@ the task or a private tracker.
 
 ## 2. Tag and publish
 
-The tag is created for you. When a push to `main` changes the `package.json`
-version and no `v<version>` tag exists yet,
-[release.yml](../.github/workflows/release.yml) creates that tag at the merge
-commit, then builds and publishes it in the same run. A tag the workflow
-creates doesn't start a second run. Pushes that leave the version unchanged
-(dependency bumps, workflow edits) never publish.
+The tag is created for you. When a push to `main`, `beta`, or `dev` changes
+the `package.json` version, the version's channel matches that branch, and no
+`v<version>` tag exists yet,
+[release.yml](../.github/workflows/release.yml) creates that tag at the commit,
+then builds and publishes it in the same run. A tag the workflow creates
+doesn't start a second run. Pushes that leave the version unchanged
+(dependency bumps, workflow edits) never publish. Feature branches and pull
+requests do not run the release workflow.
+
+`main` accepts only a stable `X.Y.Z`. `beta` accepts only `X.Y.Z-beta.N`.
+`dev` accepts only `X.Y.Z-dev.N`. A mismatch fails before a tag is created.
+Create and protect `beta` and `dev` (require `ci-success`) before the first
+release from those branches. This repository does not create them.
 
 **CI gate.** Before it creates or uses a tag, the workflow requires the commit
-to be on `main` with a passing `ci-success` check on that exact commit
-([scripts/require-green-ci.mjs](../scripts/require-green-ci.mjs)). After a
-merge, CI and Release start together, so `prepare tag` waits up to 60 minutes
-for CI. A failed, cancelled, or missing `ci-success` stops the run before
-anything is tagged or built. Fix the cause on `main` with a new version, or,
-if CI passes on a re-run of the same commit, re-run the Release run's failed
-jobs. CI runs for `main` are never cancelled by a newer push, so every merge
-commit gets a result.
+to be on that channel's branch with a passing `ci-success` check on that exact
+commit ([scripts/require-green-ci.mjs](../scripts/require-green-ci.mjs)). After
+a merge, CI and Release start together, so `prepare tag` waits up to 60
+minutes for CI. A failed, cancelled, or missing `ci-success` stops the run
+before anything is tagged or built. Fix the cause on that branch with a new
+version, or, if CI passes on a re-run of the same commit, re-run the Release
+run's failed jobs. CI runs for `main`, `beta`, and `dev` are never cancelled
+by a newer push, so every publishable commit gets a result. CI also runs on
+every other branch.
 
 After merging, find the Release run for the merge commit and confirm that
-`prepare tag` created `vX.Y.Z` at the intended commit. If a build job fails,
-fix the cause and re-run that run's failed jobs. The **Run workflow** button
-publishes `main`'s current version only when its tag doesn't exist yet, for
-example if the automatic run never started. It is a publication like any
-other and needs the same permission. Pushing a tag yourself also works for a
-commit already on `main`:
+`prepare tag` created the tag at the intended commit. If a build job fails,
+fix the cause and re-run that run's failed jobs. The **Run workflow** button,
+started from `main`, `beta`, or `dev`, publishes that branch's current version
+only when its tag doesn't exist yet and the version matches the branch. It is
+a publication like any other and needs the same permission. Pushing a tag
+yourself also works when the commit is already on the matching branch:
 
 ```bash
 git tag vX.Y.Z MERGED_COMMIT_SHA
@@ -73,23 +84,33 @@ git push origin vX.Y.Z
 Never move an existing public tag to repair a release; ship a new version.
 
 The workflow checks that the tag matches the package version, builds Windows
-and Linux, and lets electron-builder create a draft release. It then finds that
+and Linux, and lets electron-builder create a draft release. It publishes
+exactly one target from `electron-builder.yml`
+([scripts/select-publish-target.mjs](../scripts/select-publish-target.mjs)), so
+a dev build cannot also write `latest.yml` or `beta.yml`. It then finds that
 draft by its ID, checks the exact asset list, writes the changelog notes, and
 publishes it. No macOS build is published. The tag decides the channel:
 
-| Tag             | Marked pre-release | Marked latest | Updater files                    |
-| --------------- | ------------------ | ------------- | -------------------------------- |
-| `vX.Y.Z`        | No                 | Yes           | `latest.yml`, `latest-linux.yml` |
-| `vX.Y.Z-beta.N` | Yes                | No            | `beta.yml`, `beta-linux.yml`     |
-| `vX.Y.Z-rc.N`   | Yes                | No            | `rc.yml`, `rc-linux.yml`         |
+| Tag             | Branch | Marked pre-release | Marked latest | Updater files                    |
+| --------------- | ------ | ------------------ | ------------- | -------------------------------- |
+| `vX.Y.Z`        | `main` | No                 | Yes           | `latest.yml`, `latest-linux.yml` |
+| `vX.Y.Z-beta.N` | `beta` | Yes                | No            | `beta.yml`, `beta-linux.yml`     |
+| `vX.Y.Z-dev.N`  | `dev`  | Yes                | No            | `dev.yml`, `dev-linux.yml`       |
+| `vX.Y.Z-rc.N`   | `main` | Yes                | No            | `rc.yml`, `rc-linux.yml`         |
 
 `N` is a whole number with no leading zeros. Any other suffix or build
 metadata is rejected. [scripts/release-channel.mjs](../scripts/release-channel.mjs)
-owns this validation and the asset list. Normal installs ignore pre-releases.
-Beta installs get newer betas and normal releases. Release-candidate installs
-stay on release candidates, including later version lines, until someone
-installs a normal release by hand; changing that needs an owner decision.
-Don't create a competing draft or change release settings to skip this flow.
+owns this validation and the asset list. `rc` is not a standing branch or a
+Settings choice. Push an `rc` tag by hand on a `main` commit; a version bump
+on `main` cannot be an rc.
+
+Stable is the default in the app and never installs a beta, dev, or rc build.
+Choosing Beta also accepts a newer stable release. Choosing Dev also accepts a
+newer stable release, and does not accept beta. An installed beta or rc build
+stays on Stable until the user picks Beta or Dev. Switching back to Stable
+does not downgrade off a newer pre-release; the next newer stable release
+applies. Don't create a competing draft or change release settings to skip
+this flow. Don't publish all three targets from one build.
 
 ## 3. Verify publication
 
@@ -109,7 +130,7 @@ flags, the notes, and these seven non-empty assets:
 - `CHANNEL.yml`
 - `CHANNEL-linux.yml`
 
-`CHANNEL` is `latest`, `beta`, or `rc` from the table above. Keep
+`CHANNEL` is `latest`, `beta`, `dev`, or `rc` from the table above. Keep
 `scripts/release-channel.mjs`, `electron-builder.yml`, and this list in step
 when packaging targets change. Check that the updater files name the same
 version with matching sizes and hashes. The Windows job checks its updater

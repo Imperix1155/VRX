@@ -7,7 +7,8 @@ import type {
   JoinModePreference,
   LabelScheme,
   ReconcileInterval,
-  Theme
+  Theme,
+  UpdateChannel
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
@@ -15,7 +16,8 @@ import {
   DRAWER_OPENERS,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
-  THEMES
+  THEMES,
+  UPDATE_CHANNELS
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -112,10 +114,17 @@ function SettingCard({
   )
 }
 
+const UPDATE_CHANNEL_LABEL_KEYS: Record<UpdateChannel, string> = {
+  stable: 'updater.settings.channel.stable',
+  beta: 'updater.settings.channel.beta',
+  dev: 'updater.settings.channel.dev'
+}
+
 function UpdaterSettingsRow(): React.JSX.Element {
   const { t } = useTranslation()
   const { state, check, download, install, actionFailed } = useUpdater()
   const autoUpdate = useSettingsStore((s) => s.settings.autoUpdate)
+  const updateChannel = useSettingsStore((s) => s.settings.updateChannel)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
 
   const handleButtonClick = (): void => {
@@ -167,7 +176,7 @@ function UpdaterSettingsRow(): React.JSX.Element {
   )
 
   return (
-    <div className="setting-card setting-row">
+    <div className="setting-card grid gap-[var(--space-2)]">
       <div>
         <p className="text-sm font-medium text-[var(--text)]">{t('updater.settings.label')}</p>
         <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
@@ -193,6 +202,13 @@ function UpdaterSettingsRow(): React.JSX.Element {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
+        <SegmentedControl
+          values={UPDATE_CHANNELS}
+          active={updateChannel}
+          labelKeys={UPDATE_CHANNEL_LABEL_KEYS}
+          ariaLabel={t('updater.settings.channel.aria')}
+          onChange={(value) => updateSettings({ updateChannel: value })}
+        />
         <Toggle
           checked={autoUpdate}
           ariaLabel={t('updater.settings.label')}

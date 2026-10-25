@@ -42,7 +42,9 @@ through `@shared`.
   it during a downgrade. Keep the full migration chain.
 - `cvrSessionImportChoice` has no reader since the startup import was removed;
   it stays in the schema so older builds keep their saved answer. Alerts and
-  `autoUpdate` default off. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
+  `autoUpdate` default off. `updateChannel` is `stable`, `beta`, or `dev`
+  (default `stable`); anything else stays `stable`. `SETTINGS_VERSION` 15
+  keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
   hide sidebar pages only. Missing or invalid `setupPending` is `false`, so

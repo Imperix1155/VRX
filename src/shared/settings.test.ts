@@ -42,7 +42,8 @@ describe('settings schema', () => {
       allowJoinInstances: true,
       confirmJoin: true,
       joinMode: 'ask',
-      autoUpdate: false
+      autoUpdate: false,
+      updateChannel: 'stable'
     })
   })
 
@@ -275,6 +276,7 @@ describe('migration runner', () => {
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -314,6 +316,7 @@ describe('migration runner', () => {
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -353,6 +356,7 @@ describe('migration runner', () => {
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -392,6 +396,7 @@ describe('migration runner', () => {
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -431,6 +436,7 @@ describe('migration runner', () => {
       confirmJoin: true,
       joinMode: 'ask',
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -470,6 +476,7 @@ describe('migration runner', () => {
       showExplorePage: true,
       setupPending: false,
       autoUpdate: false,
+      updateChannel: 'stable',
       allowJoinInstances: true
     })
   })
@@ -705,6 +712,31 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.allowJoinInstances).toBe(false)
     expect(parseSettings(disk).allowJoinInstances).toBe(false)
+  })
+
+  it('accepts stable, beta, and dev and keeps anything else on stable', () => {
+    for (const updateChannel of ['stable', 'beta', 'dev'] as const) {
+      expect(parseSettings({ updateChannel }).updateChannel).toBe(updateChannel)
+    }
+    for (const updateChannel of ['latest', 'rc', 'nightly', '', null, 1]) {
+      expect(parseSettings({ updateChannel }).updateChannel).toBe('stable')
+    }
+    expect(parseSettings({}).updateChannel).toBe('stable')
+  })
+
+  it('prevents a v14 build from stripping updateChannel during a downgrade round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 15,
+      updateChannel: 'dev'
+    }
+    const oldNormalized = { ...disk, version: 14 }
+    Reflect.deleteProperty(oldNormalized, 'updateChannel')
+
+    if (shouldPersistSettings(disk, 14)) disk = oldNormalized
+
+    expect(disk.updateChannel).toBe('dev')
+    expect(parseSettings(disk).updateChannel).toBe('dev')
   })
 })
 

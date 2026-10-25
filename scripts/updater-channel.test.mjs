@@ -116,4 +116,32 @@ describe('locked GitHub updater channel behavior', () => {
       }
     }
   )
+
+  it.each(['win32', 'linux'])('dev follows dev and does not offer beta (%s)', async (platform) => {
+    vi.stubEnv('TEST_UPDATER_ARCH', 'x64')
+    const suffix = platform === 'linux' ? '-linux' : ''
+    const versions = ['1.2.0-dev.2', '1.2.0-beta.9', '1.1.0']
+    const devFeed = `<feed>${versions.map((version) => `<entry><title>${version}</title><link href="https://github.com/example/app/releases/tag/v${version}"/><content>Fixture notes</content></entry>`).join('')}</feed>`
+    const requests = []
+    const provider = new GitHubProvider(
+      { provider: 'github', owner: 'example', repo: 'app', channel: 'dev' },
+      { currentVersion: new SemVer('1.2.0-dev.1'), allowPrerelease: true, fullChangelog: false },
+      {
+        platform,
+        executor: {
+          request: async ({ path }) => {
+            requests.push(path)
+            if (path.endsWith('.atom')) return devFeed
+            if (path === `/example/app/releases/download/v1.2.0-dev.2/dev${suffix}.yml`) {
+              return 'version: 1.2.0-dev.2\nfiles: []'
+            }
+            throw new Error(`Unexpected metadata request: ${path}`)
+          }
+        }
+      }
+    )
+    expect((await provider.getLatestVersion()).version).toBe('1.2.0-dev.2')
+    expect(requests.some((path) => path.includes('beta'))).toBe(false)
+    expect(requests.some((path) => path.endsWith('/latest'))).toBe(false)
+  })
 })
