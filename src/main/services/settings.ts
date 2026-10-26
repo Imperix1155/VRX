@@ -7,8 +7,10 @@
  * wiring: load (migrate + validate on read, then persist the normalized form back)
  * and save (merge/validate immediately, then coalesce disk writes in main).
  *
- * electron-store@11 is ESM-only, so it is bundled into the main process (not
+ * electron-store 12 is still ESM-only, so it is bundled into the main process (not
  * externalized) — see `externalizeDepsPlugin` exclude in `electron.vite.config.ts`.
+ * Schema migration stays in `@shared/settings`; this store is not given conf's
+ * `migrations` option, so an existing settings file is read as plain JSON.
  */
 import { readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'

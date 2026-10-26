@@ -13,7 +13,7 @@ async function invoke<K extends keyof IpcInvoke>(
       (error.message === 'rate_limited' ||
         error.message === `Error invoking remote method '${channel}': Error: rate_limited`)
     ) {
-      throw new Error('rate_limited')
+      throw new Error('rate_limited', { cause: error })
     }
     throw error
   }
