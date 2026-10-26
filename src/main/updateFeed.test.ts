@@ -16,12 +16,12 @@ describe('update feed', () => {
     expect(updateFeedFor('beta')).toEqual({
       channel: 'beta',
       allowPrerelease: true,
-      allowDowngrade: true
+      allowDowngrade: false
     })
     expect(updateFeedFor('dev')).toEqual({
       channel: 'dev',
       allowPrerelease: true,
-      allowDowngrade: true
+      allowDowngrade: false
     })
     for (const value of [undefined, null, '', 'latest', 'rc', 'nightly', 1]) {
       expect(normalizeUpdateChannel(value)).toBe('stable')
@@ -53,19 +53,29 @@ describe('update feed', () => {
       selectReleaseVersion(
         ['1.3.0-beta.1', '1.2.0', '1.2.0-dev.1', '1.2.0-rc.1'],
         'dev',
-        '1.2.0-dev.1',
-        true
+        '1.2.0-dev.1'
       )
     ).toBe('1.2.0')
-    expect(selectReleaseVersion(['1.2.0'], 'dev', '1.2.0-dev.1', true)).toBe('1.2.0')
+    expect(selectReleaseVersion(['1.2.0'], 'dev', '1.2.0-dev.1')).toBe('1.2.0')
     expect(
-      selectReleaseVersion(['1.3.0-dev.1', '1.2.0', '1.2.0-beta.4'], 'dev', '1.2.0-dev.1', true)
+      selectReleaseVersion(['1.3.0-dev.1', '1.2.0', '1.2.0-beta.4'], 'dev', '1.2.0-dev.1')
     ).toBe('1.3.0-dev.1')
-    expect(selectReleaseVersion(['1.2.0-beta.2'], 'dev', '1.2.0-dev.1', true)).toBeNull()
-    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.0'], 'dev', '1.2.0', false)).toBeNull()
-    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.0'], 'dev', '1.2.0', true)).toBe('1.2.0-dev.3')
-    expect(
-      selectReleaseVersion(['1.2.0', '1.4.0', '1.10.0-dev.2'], 'dev', '1.2.0-dev.1', true)
-    ).toBe('1.10.0-dev.2')
+    expect(selectReleaseVersion(['1.2.0-beta.2'], 'dev', '1.2.0-dev.1')).toBeNull()
+    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.0'], 'dev', '1.2.0')).toBeNull()
+    expect(selectReleaseVersion(['1.2.0', '1.4.0', '1.10.0-dev.2'], 'dev', '1.2.0-dev.1')).toBe(
+      '1.10.0-dev.2'
+    )
+  })
+
+  it('reports no update when every accepted release is older than the running build', () => {
+    for (const channel of ['stable', 'beta', 'dev'] as const) {
+      expect(selectReleaseVersion(['1.1.1', '1.0.0'], channel, '1.2.0')).toBeNull()
+      expect(selectReleaseVersion(['1.1.1', '1.2.0'], channel, '1.2.1-dev.1')).toBeNull()
+    }
+    expect(selectReleaseVersion(['1.1.1', '1.2.0-dev.4'], 'dev', '1.2.1-dev.1')).toBeNull()
+    expect(selectReleaseVersion(['1.1.1', '1.2.0-beta.4'], 'beta', '1.2.0')).toBeNull()
+    expect(selectReleaseVersion(['1.2.0-dev.3', '1.1.1'], 'dev', '1.2.0')).toBeNull()
+    expect(selectReleaseVersion(['1.3.0'], 'dev', '1.2.1-dev.1')).toBe('1.3.0')
+    expect(selectReleaseVersion(['1.2.1-dev.2', '1.1.1'], 'dev', '1.2.1-dev.1')).toBe('1.2.1-dev.2')
   })
 })

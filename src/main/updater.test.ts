@@ -57,7 +57,7 @@ function createMockAutoUpdater(): {
     _handlers: handlers
   }
   // Match electron-updater: assigning channel forces allowDowngrade on.
-  // Stable must set allowDowngrade again afterwards, or this stays true.
+  // Every channel must set allowDowngrade false afterwards, or this stays true.
   let channelValue: string | null = null
   Object.defineProperty(autoUpdater, 'channel', {
     configurable: true,
@@ -270,8 +270,8 @@ describe('UpdaterService', () => {
   )
 
   it.each([
-    ['beta', 'beta', true, true],
-    ['dev', 'dev', true, true],
+    ['beta', 'beta', true, false],
+    ['dev', 'dev', true, false],
     ['nightly', 'latest', false, false],
     [undefined, 'latest', false, false]
   ] as const)(
