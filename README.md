@@ -95,7 +95,7 @@ report a problem.
 
 ### Stack
 
-Electron 44 · React 19 · Vite 7 · TypeScript 6.0 strict · electron-vite
+Electron 44 · React 19 · Vite 8 · TypeScript 6.0 strict · electron-vite 6
 
 ### Setup
 

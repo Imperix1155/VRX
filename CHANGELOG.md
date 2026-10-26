@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The desktop app is built with Vite 8. Vite 8 does not ship esbuild, so the
+  esbuild override is gone.
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that
