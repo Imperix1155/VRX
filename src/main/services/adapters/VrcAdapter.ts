@@ -1090,7 +1090,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       // The old account's failure is irrelevant to a replacement session; a
       // completed logout aborts instead of manufacturing a second auth failure.
       if (generation !== this.sessionGeneration) {
-        throw new Error('Session ended')
+        throw new Error('Session ended') // eslint-disable-line preserve-caught-error -- the previous account's error stays behind the session boundary
       }
 
       // A data-path 401 in the roster fetch — the /auth/user buckets probe or a
@@ -1297,7 +1297,7 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       // session is simply over (same surface as the success-path fence and
       // getFriends' staleness rule).
       if (generation !== this.sessionGeneration) {
-        throw new Error('Session ended')
+        throw new Error('Session ended') // eslint-disable-line preserve-caught-error -- the previous account's error stays behind the session boundary
       }
       // A data-path 401 means the cookie is dead/2FA-expired. Signal the renderer
       // to re-check auth + quarantine so a stale "connected" card flips to reconnect.
