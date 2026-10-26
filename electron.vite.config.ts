@@ -19,8 +19,9 @@ const appVersion = (
 
 export default defineConfig({
   main: {
-    // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v11), so a
-    // require() from the CJS main bundle would throw at runtime — bundle it instead (VRX-23).
+    // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v12, as
+    // in v11), so a require() from the CJS main bundle would throw at runtime —
+    // bundle it instead (VRX-23).
     // zod is bundled for startup time: its CommonJS entry loads all 64 locale
     // files before the window can open, while the bundle keeps only the parts
     // main uses (measured ~45ms -> ~7ms of the pre-window main-process load).
