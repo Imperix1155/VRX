@@ -22,11 +22,15 @@ export function normalizeUpdateChannel(value: unknown): UpdateChannel {
 }
 
 export function updateFeedFor(channel: UpdateChannel): UpdateFeed {
+  // allowDowngrade stays off on every channel. electron-updater's channel
+  // setter turns it on, so the caller must assign this value afterwards.
+  // A check, including one started by a channel change, never offers an
+  // older build.
   if (channel === 'beta') {
-    return { channel: 'beta', allowPrerelease: true, allowDowngrade: true }
+    return { channel: 'beta', allowPrerelease: true, allowDowngrade: false }
   }
   if (channel === 'dev') {
-    return { channel: 'dev', allowPrerelease: true, allowDowngrade: true }
+    return { channel: 'dev', allowPrerelease: true, allowDowngrade: false }
   }
   return { channel: 'latest', allowPrerelease: false, allowDowngrade: false }
 }
@@ -100,29 +104,22 @@ function compareReleases(left: string, right: string): number | null {
 
 /**
  * Greatest release on `channel` that is newer than `currentVersion`.
- * When `allowDowngrade` is set and nothing is newer, the greatest older
- * release on that channel, so opting into dev from a higher stable still
- * finds a dev build. Equal versions and anything the channel rejects are
- * skipped. Returns null when the feed has nothing to install.
+ * Equal versions, older versions, and anything the channel rejects are
+ * skipped. A normal check and a channel change both refuse a downgrade.
+ * Returns null when the feed has nothing newer to install.
  */
 export function selectReleaseVersion(
   versions: readonly string[],
   channel: UpdateChannel,
-  currentVersion: string,
-  allowDowngrade: boolean
+  currentVersion: string
 ): string | null {
   if (releaseParts(currentVersion) == null) return null
   let newer: string | null = null
-  let older: string | null = null
   for (const version of versions) {
     if (!versionAllowedOnChannel(version, channel)) continue
     const order = compareReleases(version, currentVersion)
-    if (order == null || order === 0) continue
-    if (order > 0) {
-      if (newer == null || (compareReleases(version, newer) ?? 0) > 0) newer = version
-    } else if (allowDowngrade && (older == null || (compareReleases(version, older) ?? 0) > 0)) {
-      older = version
-    }
+    if (order == null || order <= 0) continue
+    if (newer == null || (compareReleases(version, newer) ?? 0) > 0) newer = version
   }
-  return newer ?? older
+  return newer
 }
