@@ -178,11 +178,12 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     ])
   })
 
-  it('renders the background-glow options in Muted | Standard | Vivid order (Standard default)', () => {
+  it('renders the background-glow options in Off | Muted | Standard | Vivid order (Standard default)', () => {
     renderSettings()
     const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
     const labels = [...glowGroup.querySelectorAll('[role="radio"]')].map((b) => b.textContent)
     expect(labels).toEqual([
+      msg('settings.backgroundGlow.off'),
       msg('settings.backgroundGlow.muted'),
       msg('settings.backgroundGlow.standard'),
       msg('settings.backgroundGlow.vivid')
@@ -205,6 +206,13 @@ describe('SettingsView — category mini-pages (VRX-186)', () => {
     fireEvent.click(muted!)
     expect(useSettingsStore.getState().settings.backgroundGlow).toBe('muted')
     expect(useSettingsStore.getState().dirty).toBe(true)
+  })
+
+  it('turns the background glow off through updateSettings', () => {
+    renderSettings()
+    const glowGroup = screen.getByRole('radiogroup', { name: msg('settings.backgroundGlow.aria') })
+    fireEvent.click(within(glowGroup).getByText(msg('settings.backgroundGlow.off')))
+    expect(useSettingsStore.getState().settings.backgroundGlow).toBe('off')
   })
 
   it('renders the friends background re-sync row with its note and five cadence options', () => {
@@ -780,5 +788,88 @@ describe('SettingsView — optional pages and welcome setup (owner, 2026-10-20)'
       theme: 'light',
       setupPending: true
     })
+  })
+})
+
+describe('SettingsView — background picture', () => {
+  const PICTURE = 'data:image/jpeg;base64,AAAA'
+
+  function setPictureBridge(overrides: Record<string, unknown> = {}): Record<string, MockFn> {
+    const bridge = {
+      getAuthStatus: vi.fn().mockResolvedValue({ platform: 'vrchat', state: 'unauthenticated' }),
+      getAppBackground: vi.fn().mockResolvedValue(null),
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: true, dataUrl: PICTURE }),
+      clearAppBackground: vi.fn().mockResolvedValue(undefined),
+      ...overrides
+    }
+    ;(window as unknown as { vrx?: unknown }).vrx = bridge
+    return bridge as Record<string, MockFn>
+  }
+
+  it('offers only Choose picture while no picture is set, with the fade choice hidden', async () => {
+    setPictureBridge()
+    renderSettings()
+    expect(await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') }))
+    expect(
+      screen.queryByRole('button', { name: msg('settings.backgroundPicture.remove') })
+    ).toBeNull()
+    const fade = screen.getByRole('radiogroup', {
+      name: msg('settings.backgroundPicture.fade.aria'),
+      hidden: true
+    })
+    expect(fade.closest('[inert]')).toBeTruthy()
+  })
+
+  it('adopts the kept picture after choosing, then shows Change, Remove and the fade', async () => {
+    const bridge = setPictureBridge()
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    )
+    expect(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.change') })
+    ).toBeTruthy()
+    expect(bridge.chooseAppBackground).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('background-picture-thumb').getAttribute('src')).toBe(PICTURE)
+    const fade = screen.getByRole('radiogroup', {
+      name: msg('settings.backgroundPicture.fade.aria')
+    })
+    fireEvent.click(within(fade).getByText(msg('settings.backgroundPicture.fade.high')))
+    expect(useSettingsStore.getState().settings.backgroundPictureFade).toBe('high')
+  })
+
+  it('removes the picture and returns focus to Choose picture', async () => {
+    const bridge = setPictureBridge({
+      getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE })
+    })
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.remove') })
+    )
+    const choose = await screen.findByRole('button', {
+      name: msg('settings.backgroundPicture.choose')
+    })
+    expect(bridge.clearAppBackground).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(choose)
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+  })
+
+  it('explains a refused picture and stays quiet when the dialog is cancelled', async () => {
+    const bridge = setPictureBridge({
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: false, reason: 'unsupported' })
+    })
+    renderSettings()
+    const choose = await screen.findByRole('button', {
+      name: msg('settings.backgroundPicture.choose')
+    })
+    fireEvent.click(choose)
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      msg('settings.backgroundPicture.error.unsupported')
+    )
+
+    bridge.chooseAppBackground!.mockResolvedValue({ ok: false, reason: 'cancelled' })
+    fireEvent.click(choose)
+    await act(async () => {})
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

@@ -209,10 +209,18 @@ export const THEMES = ['dark', 'system', 'light'] as const
 export type Theme = (typeof THEMES)[number]
 
 // ─── Background glow (VRX-211) ───────────────────────────────────────────────
-/** Three-level background aurora intensity. Single source for both the
- *  `BackgroundGlow` type and the settings schema's `backgroundGlow` enum. */
-export const BACKGROUND_GLOWS = ['muted', 'standard', 'vivid'] as const
+/** Background aurora intensity, with `off` for no glow at all. Single source
+ *  for both the `BackgroundGlow` type and the settings schema's `backgroundGlow`
+ *  enum. Order is the display order. */
+export const BACKGROUND_GLOWS = ['off', 'muted', 'standard', 'vivid'] as const
 export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
+
+// ─── Background picture fade ─────────────────────────────────────────────────
+/** How strongly the user's own background picture fades toward the theme's
+ *  base colour so text over it stays readable. Single source for both the
+ *  `BackgroundPictureFade` type and the settings schema's enum. */
+export const BACKGROUND_PICTURE_FADES = ['low', 'medium', 'high'] as const
+export type BackgroundPictureFade = (typeof BACKGROUND_PICTURE_FADES)[number]
 
 // ─── Friends reconcile interval (VRX-77) ───────────────────────────────────
 /** Friends-list background reconcile cadence. Single source for both the

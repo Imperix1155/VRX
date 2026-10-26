@@ -164,11 +164,21 @@ top-left and orange bottom-right in both themes. Background glow and a glass
 pane's tint are separate controls; changing the glow never changes the colors
 of informational surfaces.
 
-Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) with the Muted,
-Standard, and Vivid settings. Standard, the default, has no `data-glow`
-attribute. In light mode Standard is deliberately stronger than Muted. The
-exact values live in `main.css`. Reduced motion keeps the same static
-composition.
+Use [`applyGlow`](../src/renderer/src/hooks/useApplyGlow.ts) with the Off,
+Muted, Standard, and Vivid settings. Standard, the default, has no `data-glow`
+attribute; Off keeps the plain base canvas. In light mode Standard is
+deliberately stronger than Muted. The exact values live in `main.css`. Reduced
+motion keeps the same static composition.
+
+The user may put their own picture behind the app (Settings → Appearance →
+Background picture). [`AppBackdrop`](../src/renderer/src/components/AppBackdrop.tsx)
+draws it as a fixed, decorative layer under the aurora, and
+`data-app-background` on `<html>` drops the aurora's opaque floor so any glow
+the user keeps sits over the picture. A fade layer in the theme's base colour
+(Low, Medium, High; Medium by default) keeps words over the picture readable.
+Information-bearing cards and panels keep their own solid backing, so a
+picture never changes their colours or meaning; translucent chrome such as the
+sidebar shows it blurred.
 
 ## §5 Presence, status, and privacy
 
@@ -309,7 +319,9 @@ behavior. Reduced motion is respected.
 default window size: Appearance, Dashboard, Behavior, Notifications,
 Accounts, and About. Each setting sits on a compact neutral card.
 
-- Appearance: Theme, Background glow, and Instance labels.
+- Appearance: Theme, Background glow, Background picture (Choose picture;
+  once set, a thumbnail, Change picture, Remove, and Picture fade in the same
+  card), and Instance labels.
 - Dashboard: Section order, Popular now, Hot Instances, and Hot instance
   threshold, as separate rows.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
@@ -554,7 +566,8 @@ change waives them.
 2. Run `npm run guide:dev` and open `http://127.0.0.1:4173/design.html`, or a
    single scene such as `glass.html?scene=dashboard`. Guide controls stay
    outside the production examples.
-3. Check representative widths, both themes, each glow level, real
+3. Check representative widths, both themes, each glow level, with and
+   without a background picture, real
    typography, material over busy content, overflow, keyboard focus, reduced
    motion, and the loading, error, and disabled states. Use the browser or app
    test tool you were asked to use, and report it before substituting

@@ -25,6 +25,11 @@ describe('applyGlow', () => {
     expect(document.documentElement.getAttribute('data-glow')).toBe('muted')
   })
 
+  it('Off choice sets data-glow="off"', () => {
+    applyGlow('off')
+    expect(document.documentElement.getAttribute('data-glow')).toBe('off')
+  })
+
   it('Vivid choice sets data-glow="vivid"', () => {
     applyGlow('vivid')
     expect(document.documentElement.getAttribute('data-glow')).toBe('vivid')

@@ -5,6 +5,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import App from './App'
+import AppBackdrop from './components/AppBackdrop'
 import ErrorBoundary from './components/ErrorBoundary'
 import { queryClient } from './queries/queryClient'
 import { buildPersistOptions, onPersistRestore, persistQueryCacheOnPageHide } from './queries/cache'
@@ -25,6 +26,7 @@ createRoot(document.getElementById('root')!).render(
       onError={() => persistQueryCacheOnPageHide(queryClient)}
     >
       <ErrorBoundary>
+        <AppBackdrop />
         <App />
       </ErrorBoundary>
     </PersistQueryClientProvider>

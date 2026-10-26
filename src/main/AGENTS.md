@@ -154,6 +154,11 @@ etiquette rules apply in full; this file adds local detail.
   `VrcMetadataStore` (`userData/vrchat-metadata`) keeps world and group names
   the same way: one validated file per account, atomic writes, entries keep
   their 24-hour expiry, and `clearAll()` on an explicit VRChat sign-out.
+- `AppBackgroundStore` keeps the user's background picture in
+  `userData/app-background`. It reads only the file picked in the native
+  dialog (regular PNG or JPEG, bounded bytes, header pixel count checked
+  before decoding), keeps only a freshly encoded, bounded copy written
+  atomically, never changes the picked file, and never logs paths.
 - Round friend pictures ask for `AvatarCache`'s `avatar` rendition: a small
   copy built locally from already validated bytes (`avatarRendition.ts`). It
   never changes which URLs are requested or how often; any failure keeps the

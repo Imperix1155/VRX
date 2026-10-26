@@ -43,6 +43,14 @@ export interface UpdaterSnapshot {
   failure: UpdaterFailure | null
 }
 
+/** Result of picking a background picture. Failures carry only a typed reason. */
+export type AppBackgroundResult =
+  | { ok: true; dataUrl: string }
+  | {
+      ok: false
+      reason: 'cancelled' | 'unsupported' | 'too-large' | 'unreadable' | 'save-failed'
+    }
+
 export type InstanceActionResult =
   | { ok: true }
   | {
@@ -144,6 +152,12 @@ export interface IpcInvoke {
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
+  /** The user's own background picture as a `data:` URL, or null when none is set. */
+  'get-app-background': { req: void; res: { dataUrl: string } | null }
+  /** Open the native picture dialog; main reads, re-encodes, and keeps the picked file. */
+  'choose-app-background': { req: void; res: AppBackgroundResult }
+  /** Forget the background picture. */
+  'clear-app-background': { req: void; res: void }
   'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }

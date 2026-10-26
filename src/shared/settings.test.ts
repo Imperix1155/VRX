@@ -37,6 +37,7 @@ describe('settings schema', () => {
       notifyFriendOffline: false,
       notifyHotInstance: false,
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       allowJoinInstances: true,
@@ -88,12 +89,22 @@ describe('settings schema', () => {
   })
 
   it('backgroundGlow: accepts every level, defaults missing/invalid to standard', () => {
+    expect(parseSettings({ backgroundGlow: 'off' }).backgroundGlow).toBe('off')
     expect(parseSettings({ backgroundGlow: 'muted' }).backgroundGlow).toBe('muted')
     expect(parseSettings({ backgroundGlow: 'standard' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 'vivid' }).backgroundGlow).toBe('vivid')
     expect(parseSettings({ theme: 'dark' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 'neon' }).backgroundGlow).toBe('standard')
     expect(parseSettings({ backgroundGlow: 1 }).backgroundGlow).toBe('standard')
+  })
+
+  it('backgroundPictureFade: accepts every level, defaults missing/invalid to medium', () => {
+    for (const fade of ['low', 'medium', 'high'] as const) {
+      expect(parseSettings({ backgroundPictureFade: fade }).backgroundPictureFade).toBe(fade)
+    }
+    expect(parseSettings({}).backgroundPictureFade).toBe('medium')
+    expect(parseSettings({ backgroundPictureFade: 'max' }).backgroundPictureFade).toBe('medium')
+    expect(parseSettings({ backgroundPictureFade: 2 }).backgroundPictureFade).toBe('medium')
   })
 
   it('reconcileInterval: accepts every cadence, defaults missing/invalid to 1h', () => {
@@ -271,6 +282,7 @@ describe('migration runner', () => {
       showExplorePage: true,
       setupPending: false,
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -311,6 +323,7 @@ describe('migration runner', () => {
       showExplorePage: true,
       setupPending: false,
       backgroundGlow: 'standard',
+      backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -351,6 +364,7 @@ describe('migration runner', () => {
       showHotInstancesPage: true,
       showExplorePage: true,
       setupPending: false,
+      backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -377,6 +391,7 @@ describe('migration runner', () => {
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
       reconcileInterval: 'manual'
     }
 
@@ -417,6 +432,7 @@ describe('migration runner', () => {
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar'
     }
@@ -457,6 +473,7 @@ describe('migration runner', () => {
       notifyFriendOffline: true,
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
+      backgroundPictureFade: 'medium',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar',
       confirmJoin: false,
@@ -737,6 +754,25 @@ describe('shouldPersistSettings (rollback safety)', () => {
 
     expect(disk.updateChannel).toBe('dev')
     expect(parseSettings(disk).updateChannel).toBe('dev')
+  })
+
+  it('prevents a v15 build from undoing glow off or the picture fade during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 16,
+      backgroundGlow: 'off',
+      backgroundPictureFade: 'high'
+    }
+    // A v15 build reads `off` as invalid (standard) and drops the fade key.
+    const oldNormalized = { ...disk, version: 15, backgroundGlow: 'standard' }
+    Reflect.deleteProperty(oldNormalized, 'backgroundPictureFade')
+
+    if (shouldPersistSettings(disk, 15)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      backgroundGlow: 'off',
+      backgroundPictureFade: 'high'
+    })
   })
 })
 

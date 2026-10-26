@@ -150,9 +150,32 @@
       "label": "Background glow",
       "description": "How strong the background aurora appears.",
       "aria": "Background glow selector",
+      "off": "Off",
       "muted": "Muted",
       "standard": "Standard",
       "vivid": "Vivid"
+    },
+    "backgroundPicture": {
+      "label": "Background picture",
+      "description": "Show your own picture behind VRX.",
+      "choose": "Choose picture",
+      "change": "Change picture",
+      "remove": "Remove",
+      "fade": {
+        "label": "Picture fade",
+        "description": "Fades the picture so text stays easy to read.",
+        "aria": "Picture fade selector",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "error": {
+        "unsupported": "Pick a PNG or JPEG picture.",
+        "tooLarge": "That picture is too big. Try a smaller one.",
+        "unreadable": "VRX couldn’t open that picture.",
+        "saveFailed": "VRX couldn’t save the picture. Try again.",
+        "removeFailed": "VRX couldn’t remove the picture. Try again."
+      }
     },
     "reconcileInterval": {
       "label": "Friends background re-sync",

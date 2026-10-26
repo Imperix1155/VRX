@@ -10,6 +10,8 @@ import FriendDrawer from '@renderer/components/FriendDrawer'
 import DashboardView from '@renderer/components/DashboardView'
 import JoinConfirmDialog from '@renderer/components/JoinConfirmDialog'
 import ErrorBoundary from '@renderer/components/ErrorBoundary'
+import AppBackdrop from '@renderer/components/AppBackdrop'
+import { appBackgroundKey } from '@renderer/queries/appBackground'
 import { queryClient } from '@renderer/queries/queryClient'
 import { authStatusQueryKey } from '@renderer/queries/auth'
 import { friendsQueryKey } from '@renderer/queries/friends'
@@ -21,7 +23,7 @@ import { useApplyTheme } from '@renderer/hooks/useApplyTheme'
 import { useApplyGlow } from '@renderer/hooks/useApplyGlow'
 import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
 import { fixtureAuth } from './fixture-bridge'
-import { friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
+import { backgroundPicture, friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
 import CatalogScene from './catalog-scenes'
 import { friendsFailureFor } from './scenarios'
 
@@ -142,8 +144,9 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
 export function mountScene(root: HTMLElement, params: URLSearchParams): void {
   const name = params.get('scene') ?? 'dashboard'
   const variant = params.get('variant') ?? 'ready'
+  const glowParam = params.get('glow')
   const glow: BackgroundGlow =
-    params.get('glow') === 'muted' ? 'muted' : params.get('glow') === 'vivid' ? 'vivid' : 'standard'
+    glowParam === 'off' || glowParam === 'muted' || glowParam === 'vivid' ? glowParam : 'standard'
   queryClient.clear()
   queryClient.setDefaultOptions({
     queries: {
@@ -198,6 +201,10 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
       })
   }
   queryClient.setQueryData(linkedProfilesKey, structuredClone(linkedSnapshot))
+  queryClient.setQueryData(
+    appBackgroundKey,
+    params.get('picture') === '1' ? { dataUrl: backgroundPicture } : null
+  )
   useSettingsStore.getState().setSettings({
     ...DEFAULT_SETTINGS,
     theme: params.get('theme') === 'light' ? 'light' : 'dark',
@@ -227,6 +234,7 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
   createRoot(root).render(
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
+        <AppBackdrop />
         <Scene name={name} variant={variant} />
       </ErrorBoundary>
     </QueryClientProvider>

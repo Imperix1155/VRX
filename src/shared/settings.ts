@@ -32,6 +32,7 @@
  *   updateChannel          → stable, beta, or dev feed (default stable; invalid values stay stable)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
  */
@@ -43,6 +44,7 @@ import {
 } from './constants'
 import {
   BACKGROUND_GLOWS,
+  BACKGROUND_PICTURE_FADES,
   DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
   FRIEND_SECTIONS,
@@ -57,7 +59,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 15 as const
+export const SETTINGS_VERSION = 16 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -109,8 +111,12 @@ export const SettingsSchema = z.object({
   notifyFriendOffline: z.boolean().catch(false),
   /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false),
-  /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default. */
+  /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
+   *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
+  /** Fade over the user's own background picture. The picture itself is a file
+   *  main keeps in app storage, never a setting. */
+  backgroundPictureFade: z.enum(BACKGROUND_PICTURE_FADES).catch('medium'),
   /** Friends-list background reconcile cadence (VRX-77). The WebSocket remains the live path. */
   reconcileInterval: z.enum(RECONCILE_INTERVALS).catch('1h'),
   /** Friend-drawer POINTER opener surface (VRX-228): `card` = the whole row opens
@@ -144,7 +150,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v15 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v16 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -178,7 +184,11 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v14 → v15: `updateChannel` is additive. The version boundary keeps a stored
   // beta or dev choice if an older build loads the file and would otherwise
   // strip the key. Missing values still parse as stable.
-  14: (prev) => ({ ...prev })
+  14: (prev) => ({ ...prev }),
+  // v15 → v16: `backgroundGlow: 'off'` and `backgroundPictureFade` are
+  // additive. The version boundary stops an older build from turning a stored
+  // `off` back into standard or stripping the fade.
+  15: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

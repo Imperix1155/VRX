@@ -28,12 +28,14 @@ function SceneFrame(): React.JSX.Element {
   const [glow, setGlow] = useState(params.get('glow') ?? 'standard')
   const [variant, setVariant] = useState(params.get('variant') ?? 'ready')
   const [grayscale, setGrayscale] = useState(false)
+  const [picture, setPicture] = useState(params.get('picture') === '1')
   const [reset, setReset] = useState(0)
   const query = new URLSearchParams({
     scene,
     theme,
     glow,
     variant,
+    picture: picture ? '1' : '0',
     render: '1',
     reset: String(reset)
   })
@@ -55,6 +57,7 @@ function SceneFrame(): React.JSX.Element {
         <label>
           Glow{' '}
           <select value={glow} onChange={(event) => setGlow(event.target.value)}>
+            <option value="off">Off</option>
             <option value="muted">Muted</option>
             <option value="standard">Standard</option>
             <option value="vivid">Vivid</option>
@@ -77,6 +80,14 @@ function SceneFrame(): React.JSX.Element {
             onChange={(event) => setGrayscale(event.target.checked)}
           />{' '}
           Grayscale
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={picture}
+            onChange={(event) => setPicture(event.target.checked)}
+          />{' '}
+          Background picture
         </label>
         <button type="button" onClick={() => setReset((value) => value + 1)}>
           Reset sample

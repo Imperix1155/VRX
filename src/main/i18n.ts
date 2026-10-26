@@ -36,7 +36,9 @@ const en = {
   'fatal.startup.title': 'VRX failed to start',
   'fatal.startup.message': 'Something went wrong while VRX was starting. Try opening it again.',
   'fatal.runtime.title': 'VRX has to close',
-  'fatal.runtime.message': 'Something went wrong and VRX has to close. Open it again to continue.'
+  'fatal.runtime.message': 'Something went wrong and VRX has to close. Open it again to continue.',
+  'appBackground.dialogTitle': 'Choose a background picture',
+  'appBackground.dialogFilter': 'Pictures (PNG, JPEG)'
 } as const
 
 export type MainStringKey = keyof typeof en
@@ -70,7 +72,9 @@ const ja: Record<MainStringKey, string> = {
   'fatal.startup.title': 'VRX を起動できませんでした',
   'fatal.startup.message': 'VRX の起動中に問題が発生しました。もう一度開いてみてください。',
   'fatal.runtime.title': 'VRX を終了します',
-  'fatal.runtime.message': '問題が発生したため、VRX を終了します。もう一度開いて続けてください。'
+  'fatal.runtime.message': '問題が発生したため、VRX を終了します。もう一度開いて続けてください。',
+  'appBackground.dialogTitle': '背景画像を選択',
+  'appBackground.dialogFilter': '画像（PNG、JPEG）'
 }
 
 const TABLES: Record<MainLocale, Record<MainStringKey, string>> = { en, ja }

@@ -49,6 +49,9 @@ Persistence, network, cache, and account-transition policy stay in services.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,
   and returns a `data:` result or `null`. It never exposes fetch, cookies, or
   redirects.
+- The `*-app-background` channels take no input. `choose-app-background`
+  opens main's own dialog and imports only the path it returns; a press while
+  it is open joins that dialog. Results carry typed reasons, never paths.
 - Auth handlers route `login` and `verify-2fa` by the validated platform; a
   direct ChilloutVR login is a normal path. They never log or return
   credentials. 2FA completes the adapter's pending session from the code
