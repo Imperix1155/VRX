@@ -173,7 +173,9 @@ etiquette rules apply in full; this file adds local detail.
   Beta and dev are opt-in. Dev resolves the release list itself so a newer
   stable build is found; electron-updater only does that for its beta channel.
   A channel change cancels an in-flight download before the next check. Set
-  `allowDowngrade` after `channel`.
+  `allowDowngrade` after `channel` and keep it off on every channel. A check
+  never offers a build older than the one running, including after a channel
+  change.
 - Log through `logger.ts` (redaction hook). Never log tokens, friend names,
   identifier-bearing URLs, raw payloads, or absolute paths. Use `app.getPath()`;
   `pathConvention.test.ts` rejects hardcoded user paths. Redaction also masks
