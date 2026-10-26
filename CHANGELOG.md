@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Typecheck uses the TypeScript 7 compiler. Lint and the design-token scanner
+  still import the TypeScript 6 API, because TypeScript 7 does not ship that API.
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that
