@@ -6,12 +6,12 @@ import { installDevStablePromotion } from './devReleaseFeed'
 type ProviderUpdater = ConstructorParameters<typeof GitHubProvider>[1]
 type ProviderRuntime = ConstructorParameters<typeof GitHubProvider>[2]
 
-function updaterFor(version: string): ProviderUpdater {
+function updaterFor(version: string, allowDowngrade = false): ProviderUpdater {
   return {
     currentVersion: { raw: version, version },
     channel: 'dev',
     allowPrerelease: true,
-    allowDowngrade: true,
+    allowDowngrade,
     fullChangelog: false
   } as unknown as ProviderUpdater
 }
@@ -115,6 +115,40 @@ describe('dev channel stable promotion', () => {
         )
         expect((await provider.getLatestVersion()).version).toBe(item.expected)
         expect(requests.some((path) => path.includes('beta'))).toBe(false)
+      }
+    }
+  )
+
+  it.each(['win32', 'linux'] as const)(
+    'reports no update when the running build is newer than every published release (%s)',
+    async (platform) => {
+      vi.stubEnv('TEST_UPDATER_ARCH', 'x64')
+      const cases = [
+        { installed: '1.2.0', versions: ['1.1.1', '1.0.2'], allowDowngrade: false },
+        {
+          installed: '1.2.1-dev.1',
+          versions: ['1.1.1', '1.2.0', '1.2.0-dev.4'],
+          allowDowngrade: false
+        },
+        { installed: '1.2.1-dev.1', versions: ['1.1.1'], allowDowngrade: true }
+      ]
+      for (const item of cases) {
+        const requests: string[] = []
+        const provider = new GitHubProvider(
+          { provider: 'github', owner: 'example', repo: 'app' },
+          updaterFor(item.installed, item.allowDowngrade),
+          runtimeFor(platform, async (options) => {
+            const path = options.path ?? ''
+            requests.push(path)
+            if (path.endsWith('.atom')) return atom(item.versions)
+            throw new Error(`Unexpected metadata request: ${path}`)
+          })
+        )
+        const latest = await provider.getLatestVersion()
+        expect(latest.version).toBe(item.installed)
+        expect(latest.files).toEqual([])
+        expect(requests.some((path) => path.includes('/releases/download/'))).toBe(false)
+        expect(requests.some((path) => path.includes('v1.1.1'))).toBe(false)
       }
     }
   )

@@ -619,14 +619,16 @@ IPC handlers, the window, the tray and the updater, and disposes them on
 `UpdaterService` follows the saved `updateChannel` (`updateFeed.ts`). Stable
 uses electron-updater channel `latest` with `allowPrerelease` and
 `allowDowngrade` off, so it never receives a beta, dev, or rc build. Beta
-turns both flags on; electron-updater already promotes that channel to a
-newer stable release. Dev turns both flags on too, but electron-updater
-6.8.9 only promotes its built-in alpha and beta channels.
-`installDevStablePromotion` (`devReleaseFeed.ts`) resolves the GitHub release
-list and `selectReleaseVersion` picks the greatest stable or `-dev.N`. A beta
-build is never a dev candidate. Assign `allowDowngrade` after `channel`,
-because that setter forces downgrades on. A version outside the selected
-channel is ignored. Changing channel cancels an in-flight download and waits
+and dev turn `allowPrerelease` on and leave `allowDowngrade` off.
+electron-updater already promotes its beta channel to a newer stable release.
+It only promotes the built-in alpha and beta channels, so dev uses
+`installDevStablePromotion` (`devReleaseFeed.ts`): that resolver walks the
+GitHub release list and `selectReleaseVersion` picks the greatest stable or
+`-dev.N` that is newer than the running build. A beta build is never a dev
+candidate, and an older release is never selected on any channel, including
+right after a channel change. Assign `allowDowngrade` after `channel`,
+because that setter forces downgrades on, then set it off again. A version
+outside the selected channel is ignored. Changing channel cancels an in-flight download and waits
 for that attempt to settle before the next check, so electron-updater cannot
 hand back the previous download. A disallowed build that was downloading or
 staged will not install on quit, and a late download event for one cannot

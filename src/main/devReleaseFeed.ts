@@ -29,7 +29,6 @@ interface ReleaseTag {
 interface DevUpdater {
   channel: string | null
   allowPrerelease: boolean
-  allowDowngrade: boolean
   currentVersion?: { raw?: string; version?: string } | string
 }
 
@@ -146,7 +145,10 @@ function nothingNewer(version: string): UpdateInfo & { tag: string } {
   }
 }
 
-/** Latest stable or `-dev.N` for a provider whose updater channel is `dev`. */
+/**
+ * Newest stable or `-dev.N` that is newer than the running build, for a
+ * provider whose updater channel is `dev`. An older release is not a result.
+ */
 export async function latestDevOrStable(
   provider: DevGitHubProvider
 ): Promise<UpdateInfo & { tag: string }> {
@@ -177,8 +179,7 @@ export async function latestDevOrStable(
   const selectedVersion = selectReleaseVersion(
     tags.map((entry) => entry.version),
     'dev',
-    current,
-    provider.updater.allowDowngrade === true
+    current
   )
   if (selectedVersion == null) return nothingNewer(current)
   const selected = tags.find((entry) => entry.version === selectedVersion)

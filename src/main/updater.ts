@@ -383,7 +383,8 @@ export class UpdaterService {
 
   /**
    * Point electron-updater at the stored channel. Assign `channel` first:
-   * its setter forces `allowDowngrade` on, and stable must turn that back off.
+   * its setter forces `allowDowngrade` on, and every channel turns that
+   * back off. A check never offers a build older than the one running.
    */
   private applyFeed(): void {
     const feed = updateFeedFor(this.updateChannel)
