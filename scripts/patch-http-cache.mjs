@@ -4,8 +4,8 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
-const originalHash = '01b7d66c854b2fe53ac05c98feb6e0d64722ab8898a778e2d2426a8b468d178f'
-const patchedHash = '575c2ab8281d6f884fed7abf5262920e262900f557811e0773f1d4f36b662a3a'
+const originalHash = 'ede1cc404a492fa348eb9d97a3007a0d72aa717bd22cd86a56bd0824c19729ca'
+const patchedHash = '9e008441a677bd587962314aa559aea97e6a9e5213d0becc01fb3adcea3fc4a2'
 const digest = (source) => createHash('sha256').update(source).digest('hex')
 
 // GHSA-ch52-4w7c-c8xp: security prohibitions must survive all stale reuse paths.
@@ -48,10 +48,10 @@ export function patchHttpCache(checkOnly = false) {
     path.endsWith('node_modules/http-cache-semantics')
   )
   if (
-    manifest.version !== '4.2.0' ||
+    manifest.version !== '4.3.0' ||
     copies.length !== 1 ||
     copies[0][0] !== 'node_modules/http-cache-semantics' ||
-    copies[0][1].version !== '4.2.0' ||
+    copies[0][1].version !== '4.3.0' ||
     copies[0][1].dev !== true
   ) {
     throw new Error('Unexpected http-cache-semantics graph; review required')

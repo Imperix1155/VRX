@@ -63,39 +63,31 @@ out of scope; report those to the platforms.
 No local encryption can protect a session from malware that runs as you or
 from someone who can read your files.
 
-## Temporary dependency exception
+## Development-only HTTP cache patch
 
-One development-only advisory is temporarily accepted.
-[`scripts/audit-policy.mjs`](scripts/audit-policy.mjs) enforces it in CI, and
-this section is the record of the owner's approval.
+`http-cache-semantics` is pulled in by the packaging tool only:
 
-- **Advisory:** [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
-  (high) in `http-cache-semantics` 4.2.0. A shared HTTP cache could serve one
-  user's cached response to another.
-- **Where it comes from:** the packaging tool only:
-  `app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.2.0`.
-  It is a development dependency and is not part of the installed app. The
-  production audit is clean.
-- **Mitigation:** `npm ci` runs
-  [`scripts/patch-http-cache.mjs`](scripts/patch-http-cache.mjs), which patches
-  the locked library so security-related reuse rules can't be overridden by
-  `max-stale`, `stale-while-revalidate`, or `stale-if-error`. Builds verify the
-  patch first. The downloader's HTTP cache is also off by default.
-- **Why no upgrade:** `http-cache-semantics` 4.3.0 does not fix this advisory
-  (it changed only `Vary` matching), and the compatible packaging tool still
-  pulls 4.2.0. npm's advisory range predates 4.3.0, so a clean audit after
-  upgrading would be a false result.
-- **Approval:** approved by the owner (Imperix1155) on 2026-10-03, extended
-  after upstream reviews on 2026-10-09 and 2026-10-19. Tracking:
-  [PR #345](https://github.com/Imperix1155/VRX/pull/345).
-- **Expiry:** review by **2027-01-30**. CI stops accepting the exception at
-  **2027-01-31 00:00 UTC**. A further extension needs a new owner decision.
-- **Removal:** remove the exception as soon as a compatible fixed release
-  removes this chain, or at once if the package ever reaches the installed app.
-- **Rechecked 2026-10-22** (Vigil report): still no fix. The advisory lists no
-  patched version, `npm audit fix` offers no non-breaking path, the newest
-  packaging tool on the 26.x line still uses `@electron/get` 3 → `got` 11, and
-  an override to 4.3.0 would only silence the audit (see above).
+`app-builder-lib@26.17.0 → @electron/get@3.1.0 → got@11.8.6 → cacheable-request@7.0.4 → http-cache-semantics@4.3.0`.
+
+It is a development dependency and is not part of the installed app.
+
+[GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp)
+(high) says a shared HTTP cache could serve one user's cached response to
+another. The published range is `<=4.2.0`. The lockfile resolves 4.3.0, which
+is outside that range, so `npm audit` does not report it. There is no audit
+exception for it.
+
+4.3.0 does not change that reuse behavior. Its release changes `Vary`
+matching and returns the cached status on a hit. `npm ci` still runs
+[`scripts/patch-http-cache.mjs`](scripts/patch-http-cache.mjs), which patches
+the locked 4.3.0 library so security-related reuse rules can't be overridden
+by `max-stale`, `stale-while-revalidate`, or `stale-if-error`. Builds verify
+the patch first. The downloader's HTTP cache is also off by default.
+
+Remove the patch when an upstream release changes that behavior and
+[`scripts/http-cache-security.test.mjs`](scripts/http-cache-security.test.mjs)
+passes without it. If this package ever reaches the installed app, review
+that path before dropping the patch.
 
 ### Dependency overrides
 
@@ -114,8 +106,6 @@ shipped the fixed release yet. Remove a pin when the parent does.
   jsdom already uses `undici` 8.12.3, outside the advisory range. Remove the
   pins when those parents depend on a patched release themselves.
 
-The policy fails the audit on any other high or critical advisory, any
-production high or critical advisory, a changed version or dependency path,
-a critical severity, expiry, or a malformed report. No other advisory is
-excluded. No exception applies to production findings, and no branch
-protection or release approval is waived.
+The policy fails the audit on any high or critical advisory, including
+production findings, and on a malformed report. No advisory is excluded.
+No branch protection or release approval is waived.

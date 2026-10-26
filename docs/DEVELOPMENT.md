@@ -30,7 +30,7 @@ out of the packaged app.
 
 `npm ci` also runs [`scripts/patch-http-cache.mjs`](../scripts/patch-http-cache.mjs).
 It patches a development-only HTTP cache library (see
-[SECURITY.md](../SECURITY.md#temporary-dependency-exception)), and every build
+[SECURITY.md](../SECURITY.md#development-only-http-cache-patch)), and every build
 verifies the patch first. If you installed with lifecycle scripts disabled,
 run `npm run postinstall` before building. An unexpected library version or
 source fails closed and needs a reviewed update, not just a new hash.
@@ -143,14 +143,14 @@ Read upstream changes and check compatibility with the locked peer ranges.
 Fix an update that works, or explain why it doesn't fit. Merging still needs
 the owner's permission.
 
-The audit job blocks high and critical advisories unless they are explicitly
-excepted. An exception is allowed only for a development-only advisory with
-no fixed release. Verify both, except only that exact advisory, and record the
+The audit job blocks high and critical advisories. There is no current
+exception. An exception is allowed only for a development-only advisory with
+no fixed release: verify both, except only that exact advisory in
+[`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs), and record the
 reason and review date in [SECURITY.md](../SECURITY.md). Production exposure
 or an available fix rules an exception out. Never lower the audit threshold or
-disable the gate. [`scripts/audit-policy.mjs`](../scripts/audit-policy.mjs)
-evaluates both audit reports and the lockfile; changing it needs tests that
-prove non-excepted, production, expired, and malformed cases still fail.
+disable the gate. The policy evaluates both audit reports; changing it needs
+tests that prove non-excepted, production, and malformed cases still fail.
 
 Credentials belong only in main-process credential storage, with OS
 encryption first and the documented local fallback second. Never store them
