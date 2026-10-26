@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Lint runs on ESLint 10. React component rules come from `@eslint-react`,
+  because `eslint-plugin-react` does not load on ESLint 10.
 - Typecheck uses the TypeScript 7 compiler. Lint and the design-token scanner
   still import the TypeScript 6 API, because TypeScript 7 does not ship that API.
 - The desktop app is built with Vite 8. Vite 8 does not ship esbuild, so the

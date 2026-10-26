@@ -247,7 +247,7 @@ describe('Explore automatic eligibility', () => {
   })
 
   it('restores active platforms when a batched hidden-visible transition skips the hidden render', async () => {
-    let mainActive: readonly string[] = []
+    let mainActive: readonly string[]
     const setExploreActive = vi.fn(async ({ platforms }: { platforms: string[] }) => {
       mainActive = platforms
     })
