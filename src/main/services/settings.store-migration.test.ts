@@ -4,13 +4,15 @@
  * The schema migration (including v14 → v15, which exists so `updateChannel`
  * survives a downgrade) lives in `@shared/settings`. This module does not pass
  * conf's `migrations` option. These tests use the real Store and only mock
- * Electron, so a v14 file still becomes v15 with `updateChannel: stable`, and a
- * stored beta or dev channel survives a second process.
+ * Electron, so a v14 file still migrates to the current version with
+ * `updateChannel: stable`, and a stored beta or dev channel survives a second
+ * process.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SETTINGS_VERSION } from '@shared/settings'
 
 const userData = vi.hoisted(() => ({ dir: '' }))
 const ipcChannels = vi.hoisted(() => [] as string[])
@@ -61,7 +63,7 @@ afterEach(() => {
 })
 
 describe('electron-store 12 settings file', () => {
-  it('migrates a v14 file to v15 and keeps an explicit reconcile interval', async () => {
+  it('migrates a v14 file to the current version and keeps an explicit reconcile interval', async () => {
     writeFileSync(
       join(userData.dir, 'settings.json'),
       JSON.stringify({
@@ -77,7 +79,7 @@ describe('electron-store 12 settings file', () => {
     const loaded = loadSettings()
 
     expect(loaded).toMatchObject({
-      version: 15,
+      version: SETTINGS_VERSION,
       theme: 'light',
       autoUpdate: true,
       reconcileInterval: '10m',
@@ -114,9 +116,9 @@ describe('electron-store 12 settings file', () => {
 
       const loaded = (await loadFromDisk()).loadSettings()
       expect(loaded.updateChannel).toBe(updateChannel)
-      expect(loaded.version).toBe(15)
+      expect(loaded.version).toBe(SETTINGS_VERSION)
       expect(readSettingsFile()).toMatchObject({
-        version: 15,
+        version: SETTINGS_VERSION,
         theme: 'dark',
         autoUpdate: false,
         updateChannel
