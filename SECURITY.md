@@ -94,9 +94,6 @@ that path before dropping the patch.
 `package.json` `overrides` pins a dependency when the parent package has not
 shipped the fixed release yet. Remove a pin when the parent does.
 
-- **`esbuild` ^0.28.2 under `vite`:** keeps Vite's build tool current until
-  Vite ships the same version. Vite 7.3.7 accepts `^0.27.0 || ^0.28.0`. The
-  Vite 8 upgrade (PR #379) makes this override unnecessary.
 - **`undici` 7.30.1 under `@electron/get`, and 6.29.1 under `node-gyp`:**
   [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c)
   (high) is fixed in those versions. `@electron/get` 5.0.0 still requests

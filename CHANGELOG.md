@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The desktop app is built with Vite 8. Vite 8 does not ship esbuild, so the
+  esbuild override is gone.
+
 ## [1.1.0] - 2026-10-26
 
 ### Added
