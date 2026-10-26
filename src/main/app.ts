@@ -46,6 +46,7 @@ import {
 } from './services/avatarCache'
 import { IMAGE_DISK_DIRECTORY, ImageDiskStore } from './services/imageDiskStore'
 import { createAvatarRenditionMaker } from './services/avatarRendition'
+import { APP_BACKGROUND_DIRECTORY, AppBackgroundStore } from './services/appBackground'
 import { VRC_METADATA_DIRECTORY, VrcMetadataStore } from './services/vrcMetadataStore'
 import { isAllowedUrl } from './ipc/url-allowlist'
 import { installNavigationGuards } from './navigationGuards'
@@ -69,7 +70,7 @@ import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
 import { importVrcxSession } from './services/vrcxSessionImport'
 import { createSessionImporter } from './services/sessionImport'
-import { setMainLocale } from './i18n'
+import { mt, setMainLocale } from './i18n'
 import { showFatalErrorBox } from './fatalErrorBox'
 
 // Set true by the before-quit handler below — the single source of truth for
@@ -573,6 +574,29 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      // Settings → Appearance background picture (appBackground.ts).
+      appBackground: {
+        store: new AppBackgroundStore({
+          directory: join(app.getPath('userData'), APP_BACKGROUND_DIRECTORY),
+          decode: (bytes) => nativeImage.createFromBuffer(bytes),
+          fromBitmap: (bitmap, size) => nativeImage.createFromBitmap(bitmap, size),
+          log: (message, meta) => log.warn(message, meta)
+        }),
+        pickFile: async (event) => {
+          const owner = BrowserWindow.fromWebContents(event.sender)
+          const options: Electron.OpenDialogOptions = {
+            title: mt('appBackground.dialogTitle'),
+            properties: ['openFile'],
+            filters: [
+              { name: mt('appBackground.dialogFilter'), extensions: ['png', 'jpg', 'jpeg'] }
+            ]
+          }
+          const picked = owner
+            ? await dialog.showOpenDialog(owner, options)
+            : await dialog.showOpenDialog(options)
+          return picked.canceled ? null : (picked.filePaths[0] ?? null)
+        }
+      },
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)

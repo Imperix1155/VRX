@@ -24,6 +24,9 @@ function illustration(first: string, second: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
+/** Synthetic stand-in for a user's own background picture (Settings → Appearance). */
+export const backgroundPicture = illustration('#5b3fa6', '#0e7c86')
+
 function vrcInstance(
   type: VrcInstanceType,
   worldId: string,

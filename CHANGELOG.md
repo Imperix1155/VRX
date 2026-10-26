@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Settings → Appearance → Background picture puts a picture of your choice
+  behind VRX. Choose any PNG or JPEG; VRX keeps its own resized copy and never
+  changes your file. Picture fade (Low, Medium, High) keeps text easy to read,
+  and Remove goes back to the normal background.
+- Background glow has an Off choice for a plain background, in Settings →
+  Appearance and in the welcome setup.
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that

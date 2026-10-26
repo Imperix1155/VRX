@@ -70,7 +70,12 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'updater:download': { max: 6, windowMs: 60_000 },
   'updater:install': { max: 6, windowMs: 60_000 },
   // A deliberate button press that opens a file-manager window.
-  'open-logs-folder': { max: 6, windowMs: 60_000 }
+  'open-logs-folder': { max: 6, windowMs: 60_000 },
+  // The picture is read once per renderer load, with reload/remount headroom.
+  'get-app-background': { max: 12, windowMs: 30_000 },
+  // Deliberate button presses; choosing opens a native dialog.
+  'choose-app-background': { max: 10, windowMs: 60_000 },
+  'clear-app-background': { max: 10, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */

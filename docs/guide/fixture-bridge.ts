@@ -2,6 +2,7 @@ import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
+  backgroundPicture,
   friends,
   worlds,
   worldImages,
@@ -45,6 +46,8 @@ export function createFixtureBridge(variant: string): FixtureBridge {
   }
   const links = structuredClone(linkedSnapshot)
   const denied = { ok: false, reason: 'launch-failed' } as const
+  // Choosing always "picks" the synthetic sample; no dialog or file is involved.
+  let picture: string | null = null
   return {
     setExploreActive: () => Promise.resolve(),
     getExplore: ({ platform }) => Promise.resolve(getPlatformSnapshot(platform)),
@@ -116,6 +119,15 @@ export function createFixtureBridge(variant: string): FixtureBridge {
       }),
     openUrl: () => Promise.resolve(),
     openLogsFolder: () => Promise.resolve(),
+    getAppBackground: () => Promise.resolve(picture === null ? null : { dataUrl: picture }),
+    chooseAppBackground: () => {
+      picture = backgroundPicture
+      return Promise.resolve({ ok: true, dataUrl: picture })
+    },
+    clearAppBackground: () => {
+      picture = null
+      return Promise.resolve()
+    },
     getSettings: () => Promise.resolve(DEFAULT_SETTINGS),
     saveSettings: ({ patch }) => Promise.resolve({ ...DEFAULT_SETTINGS, ...patch }),
     getUpdaterState: () => Promise.resolve(updater),

@@ -148,9 +148,32 @@
       "label": "背景のグロー",
       "description": "背景のオーロラの強さを選択します。",
       "aria": "背景グロー選択",
+      "off": "オフ",
       "muted": "控えめ",
       "standard": "標準",
       "vivid": "鮮やか"
+    },
+    "backgroundPicture": {
+      "label": "背景画像",
+      "description": "VRXの背景に好きな画像を表示します。",
+      "choose": "画像を選択",
+      "change": "画像を変更",
+      "remove": "削除",
+      "fade": {
+        "label": "画像の薄さ",
+        "description": "文字が読みやすいように画像を薄くします。",
+        "aria": "画像の薄さ選択",
+        "low": "弱め",
+        "medium": "標準",
+        "high": "強め"
+      },
+      "error": {
+        "unsupported": "PNGまたはJPEGの画像を選んでください。",
+        "tooLarge": "画像が大きすぎます。小さい画像を選んでください。",
+        "unreadable": "この画像を開けませんでした。",
+        "saveFailed": "画像を保存できませんでした。もう一度お試しください。",
+        "removeFailed": "画像を削除できませんでした。もう一度お試しください。"
+      }
     },
     "reconcileInterval": {
       "label": "フレンド一覧の再同期",

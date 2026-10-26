@@ -27,7 +27,8 @@ you press a "Use my sign-in from" button, described below.
 - **Notifications**: optional desktop alerts when a friend comes online, joins
   a world, or goes offline, or when a hot instance forms. All are off until you
   turn them on in Settings → Notifications.
-- **Your look**: Theme (System, Light, or Dark), Background glow, and which
+- **Your look**: Theme (System, Light, or Dark), Background glow (or none),
+  your own background picture, and which
   platform's words the instance labels use. Hot Instances and Explore can be
   hidden from the sidebar in Settings → Behavior.
 - **Welcome setup**: a new install starts with a short, skippable setup for

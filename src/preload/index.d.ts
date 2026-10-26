@@ -43,6 +43,10 @@ type VrxBridge = {
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
+  /** The user's background picture; main owns the file and the picking dialog. */
+  getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
+  chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
+  clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>
   saveSettings: (
     req: IpcInvoke['save-settings']['req']

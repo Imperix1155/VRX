@@ -23,6 +23,7 @@ const PLATFORM_LABEL_KEYS: Record<Platform, string> = {
 }
 
 const GLOW_LABEL_KEYS: Record<BackgroundGlow, string> = {
+  off: 'settings.backgroundGlow.off',
   muted: 'settings.backgroundGlow.muted',
   standard: 'settings.backgroundGlow.standard',
   vivid: 'settings.backgroundGlow.vivid'

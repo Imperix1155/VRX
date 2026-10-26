@@ -662,7 +662,15 @@ body::before {
       color-mix(in srgb, var(--cvr) calc(var(--wisp-a-cvr) * 100%), transparent),
       transparent var(--wisp-fade)
     ),
-    var(--aurora-gradient);
+    var(--aurora-floor, var(--aurora-gradient));
+}
+
+/* Off = no glow at all: the plain base canvas (owner, 2026-10-26). */
+[data-glow='off'] {
+  --glow-a-vrc: 0;
+  --glow-a-cvr: 0;
+  --wisp-a-vrc: 0;
+  --wisp-a-cvr: 0;
 }
 
 /* Muted = old shipped look (intensity 1.00, no wisps). */
@@ -697,6 +705,50 @@ body::before {
 [data-theme='light'][data-glow='vivid'] {
   --glow-a-vrc: 0.27;
   --glow-a-cvr: 0.225;
+}
+
+/* Background picture (owner, 2026-10-26): the user's own picture replaces the
+   base canvas. The aurora drops its opaque floor so the picture shows through,
+   and any glow the user keeps sits over it. The fade layer pulls the picture
+   toward the theme's base colour so words over it stay readable; information
+   panels keep their own solid backing either way. */
+[data-app-background] {
+  --aurora-floor: transparent;
+}
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background: var(--bg-base);
+}
+.app-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg-base) var(--app-backdrop-fade), transparent);
+}
+.app-backdrop[data-fade='low'] {
+  --app-backdrop-fade: 35%;
+}
+.app-backdrop[data-fade='medium'] {
+  --app-backdrop-fade: 55%;
+}
+.app-backdrop[data-fade='high'] {
+  --app-backdrop-fade: 75%;
+}
+/* Settings preview of the kept picture, beside its Change and Remove buttons. */
+.background-picture-thumb {
+  width: 48px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
 }
 
 /* §4 CRT scanlines — faint texture, never a visible grid */
