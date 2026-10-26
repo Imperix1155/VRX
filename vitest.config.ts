@@ -26,6 +26,14 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // electron-store is loaded for real by the settings-file migration test.
+    // Inline it so its `electron` import hits the test mock instead of the
+    // unpacked Electron binary.
+    server: {
+      deps: {
+        inline: ['electron-store']
+      }
+    },
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
       'scripts/**/*.{test,spec}.{ts,mjs}',

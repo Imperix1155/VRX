@@ -14,7 +14,7 @@ export default defineConfig({
   root: resolve(root, 'docs'),
   base: './',
   plugins: [tailwindcss()],
-  esbuild: { jsx: 'automatic', jsxImportSource: 'react' },
+  oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
   define: {
     __APP_VERSION__: JSON.stringify(manifest.version),
     __GUIDE_REVISION__: JSON.stringify(revision)
@@ -30,7 +30,7 @@ export default defineConfig({
   build: {
     outDir: resolve(root, 'dist/design-guide'),
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         design: resolve(root, 'docs/design.html'),
         glass: resolve(root, 'docs/glass.html')

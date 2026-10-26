@@ -95,7 +95,7 @@ report a problem.
 
 ### Stack
 
-Electron 44 · React 19 · Vite 7 · TypeScript 7 strict · electron-vite
+Electron 44 · React 19 · Vite 8 · TypeScript 7 strict · electron-vite 6
 
 `npm run typecheck` runs the TypeScript 7 compiler (`tsc`). Lint and the
 design-token scanner import the TypeScript 6 API from the `typescript`

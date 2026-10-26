@@ -19,8 +19,9 @@ const appVersion = (
 
 export default defineConfig({
   main: {
-    // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v11), so a
-    // require() from the CJS main bundle would throw at runtime — bundle it instead (VRX-23).
+    // Externalize deps by default, EXCEPT electron-store: it is ESM-only (v12, as
+    // in v11), so a require() from the CJS main bundle would throw at runtime —
+    // bundle it instead (VRX-23).
     // zod is bundled for startup time: its CommonJS entry loads all 64 locale
     // files before the window can open, while the bundle keeps only the parts
     // main uses (measured ~45ms -> ~7ms of the pre-window main-process load).
@@ -34,8 +35,9 @@ export default defineConfig({
       __APP_VERSION__: JSON.stringify(appVersion)
     },
     // Lazy externals (electron-updater, loaded after startup) load through the
-    // same require() as the static ones, not Node's ESM loader.
-    build: { rollupOptions: { output: { dynamicImportInCjs: false } } },
+    // same require() as the static ones, not Node's ESM loader. Rolldown's
+    // default leaves those dynamic imports as import() inside the CJS bundle.
+    build: { rolldownOptions: { output: { dynamicImportInCjs: false } } },
     resolve: {
       alias: {
         '@shared': shared
@@ -66,8 +68,12 @@ export default defineConfig({
     // as Tailwind emits it: minifying it saves ~13 KB and could rewrite glass styles.
     // One local entry chunk by design (no network download), so Vite's
     // 500 kB web-download warning does not apply.
-    build: { minify: true, cssMinify: false, chunkSizeWarningLimit: 1024 },
-    esbuild: { keepNames: true },
+    build: {
+      minify: true,
+      cssMinify: false,
+      chunkSizeWarningLimit: 1024,
+      rolldownOptions: { output: { keepNames: true } }
+    },
     // devStyleCspPlugin: dev server only (#369); production keeps style-src 'self'.
     plugins: [react(), tailwindcss(), devStyleCspPlugin()]
   }
