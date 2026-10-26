@@ -124,6 +124,8 @@ or launch authority.
   radiogroup keyboard behavior. Every workflow stays reachable at 900x670.
   Virtualized friend rows keep stable section identity, recover focus when a
   focused row disappears, and keep TanStack Virtual's default `useFlushSync`.
+  The scrollport is `clientHeight`; jsdom tests that render rows stub it.
+  Row measurement still falls back to `offsetHeight`.
 - All copy goes through i18next with every key in en and ja.
 - Settings change through `@shared/settings`. A collapsed parent card keeps
   its child values (Allow joining keeps Confirm join and launch mode).

@@ -64,14 +64,14 @@ beforeEach(() => {
   } as unknown as Window['vrx']
   navigate.mockClear()
   close.mockClear()
-  // jsdom has no layout. Give the picker's scroller a viewport and each row a
-  // height so its virtual window behaves as it does in the app.
-  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
-    this: HTMLElement
-  ) {
+  // jsdom has no layout. virtual-core 3.19 reads the scrollport from
+  // clientHeight; row measurement still falls back to offsetHeight.
+  const measuredSize = function (this: HTMLElement): number {
     if (this.classList.contains('overflow-y-auto')) return 420
     return this.tagName === 'LI' && this.dataset.index !== undefined ? 58 : 0
-  })
+  }
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(measuredSize)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(measuredSize)
 })
 afterEach(async () => {
   vi.restoreAllMocks()

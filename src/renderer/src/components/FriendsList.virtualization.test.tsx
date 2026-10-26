@@ -180,11 +180,13 @@ beforeEach(() => {
     return rect(measuredHeight(this), measuredTop(this))
   })
 
-  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
-    this: HTMLElement
-  ) {
+  // virtual-core 3.19 measures the scrollport with clientHeight (content box).
+  // Row measurement still reads offsetHeight when no ResizeObserver entry exists.
+  const measuredSize = function (this: HTMLElement): number {
     return measuredHeight(this)
-  })
+  }
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(measuredSize)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(measuredSize)
 
   originalScrollTo = HTMLElement.prototype.scrollTo
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
