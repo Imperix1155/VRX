@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Checking for updates no longer offers a release older than the one that is
+  running. On Beta and Dev, VRX stays on the current build when nothing newer
+  is published, including right after a channel change.
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that
