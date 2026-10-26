@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Lint runs on ESLint 10. React component rules come from `@eslint-react`,
+  because `eslint-plugin-react` does not load on ESLint 10.
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that

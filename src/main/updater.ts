@@ -179,7 +179,7 @@ function createNativeStageGate(
       // so a late completion from an earlier attempt cannot satisfy this gate.
       // If the pinned dependency contract changes or a port is ever reused,
       // fail closed.
-      let scope: string | null = null
+      let scope: string | null
       try {
         scope = nativeStageScope(updater.getFeedURL())
       } catch {
