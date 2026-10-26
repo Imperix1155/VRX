@@ -203,7 +203,7 @@ export abstract class ReconnectingPipeline<Prep> {
     while (!this.stopped && generation === this.generation) {
       await this.waitForCooldown(generation)
       if (this.stopped || generation !== this.generation) return
-      let prep: Prep | null = null
+      let prep: Prep | null
       try {
         prep = await this.prepareConnection()
       } catch {
