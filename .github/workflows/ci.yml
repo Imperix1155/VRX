@@ -252,15 +252,15 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # Exact dev-only exceptions and expiry are documented in SECURITY.md.
-      # Reports remain visible; the policy rejects production high/critical findings
-      # and failed/malformed reports rather than trusting npm's exit code alone.
+      # No advisory is excluded. Reports remain visible; the policy rejects
+      # high/critical findings and failed or malformed reports rather than
+      # trusting npm's exit code alone.
       - name: Audit dependencies
         run: |
           npm audit --audit-level=high || true
           npm audit --json > "$RUNNER_TEMP/audit-full.json" || true
           npm audit --omit=dev --json > "$RUNNER_TEMP/audit-production.json" || true
-          node scripts/audit-policy.mjs "$RUNNER_TEMP/audit-full.json" "$RUNNER_TEMP/audit-production.json" package-lock.json
+          node scripts/audit-policy.mjs "$RUNNER_TEMP/audit-full.json" "$RUNNER_TEMP/audit-production.json"
 
   # Secret scanning — fails the build if a credential, token, or key is committed
   # (VRX-153). OS-agnostic, so it runs once. gitleaks scans the full history on

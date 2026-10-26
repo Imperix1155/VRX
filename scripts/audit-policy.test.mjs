@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { auditFailures } from './audit-policy.mjs'
 
 const url = 'https://github.com/advisories/GHSA-ch52-4w7c-c8xp'
-const now = new Date('2026-10-03T23:40:17Z')
 const report = (entries = {}) => {
   const vulnerabilities = Object.fromEntries(
     Object.entries(entries).map(([name, entry]) => [
@@ -30,82 +29,49 @@ const cache = () => ({
   via: [{ name: 'http-cache-semantics', severity: 'high', url }],
   nodes: ['node_modules/http-cache-semantics']
 })
-const lock = () => ({
-  packages: { 'node_modules/http-cache-semantics': { version: '4.2.0', dev: true } }
-})
 const full = () => report({ 'http-cache-semantics': cache() })
-const evaluate = (all = full(), prod = report(), locked = lock(), time = now) =>
-  auditFailures(all, prod, locked, time)
+const evaluate = (all = full(), prod = report()) => auditFailures(all, prod)
 
 describe('dependency audit policy', () => {
-  it('accepts the approved exact dev-only advisory before expiry, including cascade entries', () => {
+  it('does not exempt GHSA-ch52-4w7c-c8xp, including a cascade parent', () => {
     const all = full()
     all.vulnerabilities['cacheable-request'] = {
       severity: 'high',
       via: ['http-cache-semantics']
     }
-    expect(evaluate(report(all.vulnerabilities))).toEqual([])
+    expect(evaluate(report(all.vulnerabilities))).toEqual([`http-cache-semantics:${url}`])
   })
 
   it.each(['high', 'critical'])(
-    'blocks a different %s advisory alongside the exception',
+    'blocks a different %s advisory together with the former cache advisory',
     (severity) => {
       const all = full()
       all.vulnerabilities.other = {
         severity,
         via: [{ severity, url: 'https://example.test/other' }]
       }
-      expect(evaluate(report(all.vulnerabilities))).toEqual(['other:https://example.test/other'])
+      expect(evaluate(report(all.vulnerabilities))).toEqual([
+        `http-cache-semantics:${url}`,
+        'other:https://example.test/other'
+      ])
     }
   )
 
   it('does not exempt a lookalike advisory URL', () => {
     const all = full()
     all.vulnerabilities['http-cache-semantics'].via[0].url += '/other'
-    expect(evaluate(all)).toHaveLength(1)
+    expect(evaluate(all)).toEqual([`http-cache-semantics:${url}/other`])
   })
 
   it('does not exempt a critical escalation of the same advisory', () => {
     const all = full()
     all.vulnerabilities['http-cache-semantics'].via[0].severity = 'critical'
     all.vulnerabilities['http-cache-semantics'].severity = 'critical'
-    expect(evaluate(report(all.vulnerabilities))).toHaveLength(1)
+    expect(evaluate(report(all.vulnerabilities))).toEqual([`http-cache-semantics:${url}`])
   })
 
-  it.each([false, undefined])('requires explicit dev-only lockfile proof (%s)', (dev) => {
-    const locked = lock()
-    locked.packages['node_modules/http-cache-semantics'].dev = dev
-    expect(evaluate(full(), report(), locked)).toHaveLength(1)
-  })
-
-  it('rejects missing lockfile data', () => {
-    expect(evaluate(full(), report(), {})).toHaveLength(1)
-  })
-
-  it('rejects an unreviewed version', () => {
-    const locked = lock()
-    locked.packages['node_modules/http-cache-semantics'].version = '4.1.1'
-    expect(evaluate(full(), report(), locked)).toHaveLength(1)
-  })
-
-  it('rejects a different installed path even if dev-only', () => {
-    const all = full()
-    all.vulnerabilities['http-cache-semantics'].nodes.push(
-      'node_modules/other/node_modules/http-cache-semantics'
-    )
-    expect(evaluate(all)).toHaveLength(1)
-  })
-
-  it('still accepts the exception just before expiry', () => {
-    expect(evaluate(full(), report(), lock(), new Date('2027-01-30T23:59:59Z'))).toEqual([])
-  })
-
-  it.each(['2027-01-31T00:00:00Z', '2027-02-01T00:00:00Z'])('expires at %s', (date) => {
-    expect(evaluate(full(), report(), lock(), new Date(date))).toHaveLength(1)
-  })
-
-  it('does not block a fixed dependency tree after expiry', () => {
-    expect(evaluate(report(), report(), {}, new Date('2027-02-01'))).toEqual([])
+  it('does not block a report with no high or critical advisory', () => {
+    expect(evaluate(report(), report())).toEqual([])
   })
 
   it.each(['high', 'critical'])('blocks production %s findings without exemptions', (severity) => {
@@ -154,9 +120,9 @@ it('rejects missing production severity and inconsistent metadata', () => {
   missingFinding.metadata.vulnerabilities.total = 1
   expect(() => evaluate(missingFinding)).toThrow()
 })
-it('accepts real cascade cycles only when they reach the approved advisory', () => {
+it('blocks a high advisory reached through a cascade cycle', () => {
   const all = full()
   all.vulnerabilities.a = { severity: 'high', via: ['b'] }
   all.vulnerabilities.b = { severity: 'high', via: ['a', 'http-cache-semantics'] }
-  expect(evaluate(report(all.vulnerabilities))).toEqual([])
+  expect(evaluate(report(all.vulnerabilities))).toEqual([`http-cache-semantics:${url}`])
 })
