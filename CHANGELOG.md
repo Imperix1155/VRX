@@ -9,12 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Typecheck uses the TypeScript 7 compiler. Lint and the design-token scanner
   still import the TypeScript 6 API, because TypeScript 7 does not ship that API.
+
+## [1.1.0] - 2026-10-26
+
+### Added
+
 - Settings → About → Automatic updates can follow Stable, Beta, or Dev. Stable
   stays the default and does not install pre-release builds. Beta and Dev also
   follow a newer stable release. Switching the channel cancels a download that
-  is still in progress.
+  is still in progress. (#442)
+
+### Security
+
 - Packaging and native-build tools use the patched `undici` releases for a
-  high-severity denial-of-service advisory.
+  high-severity denial-of-service advisory. `@electron/get` is pinned to
+  `undici` 7.30.1 and `node-gyp` to `undici` 6.29.1. (#442)
+- `http-cache-semantics` is updated to 4.3.0, which is outside the high-severity
+  advisory through 4.2.0. The temporary audit exception for that advisory is
+  removed. (#453)
+
+### Changed
+
+- GitHub CodeQL actions are updated from 4.39.0 to 4.39.1. (#444)
 
 ## [1.0.0] - 2026-10-23
 
