@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-dev.2] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.
+
+### Fixed
+
 - Checking for updates no longer offers a release older than the one that is
   running. On Beta and Dev, VRX stays on the current build when nothing newer
-  is published, including right after a channel change.
+  is published, including right after a channel change. (#461)
 
 ## [1.2.0-dev.1] - 2026-10-26
 
