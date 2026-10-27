@@ -1,9 +1,11 @@
 import { createRendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
+import { AvatarLibraryService } from './services/avatarLibraryService'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
+import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
 import {
   app,
   shell,
@@ -401,6 +403,7 @@ app
     const friendAlertBoundary: { current?: FriendAlerts } = {}
     const activityBoundary: { current?: ActivityFeed } = {}
     const exploreBoundary: { current?: ExploreService } = {}
+    const avatarLibraryBoundary: { current?: AvatarLibraryService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
@@ -434,6 +437,7 @@ app
         activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
+        avatarLibraryBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
         // auth-invalidated, which quarantines the renderer. Sending an identity
         // boundary too would read as an account switch: it refetched the dead
@@ -507,6 +511,7 @@ app
         activityBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
+        avatarLibraryBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('identity-boundary', { platform: 'chilloutvr' })
@@ -626,9 +631,19 @@ app
     })
     exploreBoundary.current = explore
     exploreWindowService = explore
+    // The Avatars page: own avatars, the worn one, and a user-clicked switch.
+    const avatarLibrary = new AvatarLibraryService({
+      adapters: new Map<Platform, AvatarLibraryAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
+    avatarLibraryBoundary.current = avatarLibrary
 
     registerIpcHandlers(adapters, {
       explore,
+      avatarLibrary,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -725,7 +740,10 @@ app
     // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
     // platforms share one broadcaster; the renderer keys events by platform.
     const broadcast = (event: AdapterEvent): void => {
-      if (event.type === 'auth-invalidated') explore.clearPlatform(event.platform)
+      if (event.type === 'auth-invalidated') {
+        explore.clearPlatform(event.platform)
+        avatarLibrary.clearPlatform(event.platform)
+      }
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {
         // Guard a window torn down between enumeration and send.

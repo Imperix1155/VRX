@@ -77,6 +77,7 @@ export const desktopScenes: readonly string[] = [
   'hot',
   'friends',
   'linked',
+  'avatars',
   'settings',
   'updater',
   'drawer',

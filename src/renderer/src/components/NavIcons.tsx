@@ -87,6 +87,23 @@ export function IconExplore(): React.JSX.Element {
   )
 }
 
+/** A shirt: the avatars a user wears. */
+export function IconAvatars(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M8.2 3.5 3.5 6.2l1.9 3.7 2.4-1.1v11.7h8.4V8.8l2.4 1.1 1.9-3.7-4.7-2.7c-.6 1.5-2 2.4-3.8 2.4s-3.2-.9-3.8-2.4Z" />
+    </svg>
+  )
+}
+
 export function IconSettings(): React.JSX.Element {
   return (
     <svg

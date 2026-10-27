@@ -396,6 +396,33 @@ are Synthetic.
   unavailable, and a 401 also emits `auth-invalidated`. Rate limits end the
   batch. The last displayed snapshot is kept.
 
+### Avatars
+
+The Avatars page reads the user's own uploads and the worn avatar, and can
+switch to one of those uploads
+([parseAvatars.ts](../src/main/services/adapters/vrchat/parseAvatars.ts)). The
+routes follow the community
+[avatars API](https://github.com/vrchatapi/specification/blob/main/openapi/components/paths/avatars.yaml)
+and VRCX. They are Source-derived; no real response has been captured yet. Reads
+run only when the page opens or the user presses Refresh. Each switch is one
+request with no retry, at most one every 5 s.
+
+| Route                                                                                   | Assumed shape                                                       |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /avatars?user=me&releaseStatus=all&sort=updated&order=descending&n=100&offset={n}` | Array of avatars. Pages of 100 until a short page, at most 500.     |
+| `GET /users/{userId}/avatar`                                                            | The worn avatar. A failed or empty reply leaves the worn row empty. |
+| `GET /avatars/{avatarId}`                                                               | One avatar. Read only when the list lacked dates and visibility.    |
+| `PUT /avatars/{avatarId}/select`                                                        | Switches the worn avatar. The reply body is ignored.                |
+
+- **Fields:** `id` must be `avtr_<UUID>` and `name` non-empty. `description`,
+  `authorName`, `thumbnailImageUrl` (then `imageUrl`), `releaseStatus`
+  (`public` or `private`), `created_at` and `updated_at` are optional. Image
+  URLs must be `https`. Records that fail are skipped and mark the list
+  incomplete.
+- **When it breaks:** a non-array list page is unavailable. A 401 emits
+  `auth-invalidated`; a 429 surfaces as rate-limited. The renderer keeps the
+  last shown list.
+
 ### Self-invite: `POST /invite/myself/to/{location}`
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
@@ -696,6 +723,35 @@ path. Each read is one request with no retry. They are Synthetic.
 - **When it breaks:** shape or identity mismatches show as invalid data. Auth
   errors follow the data-path rules above. Rate limits end the batch. The last
   displayed snapshot is kept.
+
+### Avatars
+
+The Avatars page reads the user's own uploads and the worn avatar, and can
+switch to one of those uploads
+([parseAvatars.ts](../src/main/services/adapters/cvr/parseAvatars.ts)). Routes
+and fields come from CVRX (`server/api_cvr_http.js`). They are Source-derived; no
+real response has been captured yet. Reads run only when the page opens or the
+user presses Refresh. Each switch is one request with no retry, at most one
+every 5 s.
+
+| Route                                  | Assumed shape                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET /avatars`                         | Array of every avatar the user can wear: own, shared and favorites. One request. |
+| `GET /users/{userId}`                  | The user, with `avatar` (`id`, `name`, `imageUrl`) as the worn avatar.           |
+| `GET /avatars/{avatarId}`              | One avatar with `author.name`, `isPublished`, `uploadedAt` and `updatedAt`.      |
+| `GET /avatars/{avatarId}/switchAvatar` | Switches the worn avatar. The reply body is ignored.                             |
+
+- **Own uploads only:** a list entry is kept when `authorGuid` equals the
+  signed-in user, or when it has no `authorGuid` and `categories` contains
+  `avtrmine`. Shared and favorite avatars are left out so the page means the
+  same thing on both platforms. At most 500 are kept.
+- **Fields:** `id` must be a GUID (stored lower case) and `name` non-empty.
+  `description` and `imageUrl` (`https`) are optional. The list has no dates or
+  visibility; the details read fills them.
+- **Unverified:** whether a switch takes effect while the game is running, or
+  only on the next world load.
+- **When it breaks:** a non-array list is unavailable. Auth errors follow the
+  data-path rules above; a 429 surfaces as rate-limited.
 
 ### WebSocket `/users/ws`
 

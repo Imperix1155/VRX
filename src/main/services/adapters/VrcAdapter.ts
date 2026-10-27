@@ -50,6 +50,13 @@ import {
   parseVrcExploreRoom,
   parseVrcExploreWorld
 } from './vrchat/parseExplore'
+import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
+import {
+  AvatarDataError,
+  type AvatarLibraryAdapter,
+  type OwnAvatarsPage
+} from './AvatarLibraryAdapter'
+import { parseVrcAvatar, parseVrcAvatarPage } from './vrchat/parseAvatars'
 
 /**
  * Persistence for the VRChat session cookie (safeStorage-backed in production —
@@ -215,7 +222,10 @@ function isInstanceLocation(location: string): boolean {
  * breaker lockout after 3 wrong attempts. Data methods (getFriends, …) are
  * scaffolded as not-yet-implemented and land in later issues (getFriends = VRX-43).
  */
-export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
+/** VRChat's largest `n` for avatar lists. */
+const VRC_AVATAR_PAGE_SIZE = 100
+
+export class VrcAdapter extends VrcApiClient implements ExploreAdapter, AvatarLibraryAdapter {
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
@@ -966,6 +976,100 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
       return value
     } catch (error) {
       if (context.lease.isCurrent() && error instanceof AuthError && error.status === 401) {
+        this.invalidateDataPathSession()
+      }
+      throw error
+    }
+  }
+
+  // ── Avatar library (user-initiated reads and one switch at a time) ──────────
+
+  captureAvatarLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage> {
+    const avatars: AvatarItem[] = []
+    const seen = new Set<string>()
+    let complete = true
+    for (let offset = 0; offset < AVATAR_LIBRARY_MAX_ITEMS; offset += VRC_AVATAR_PAGE_SIZE) {
+      const query = new URLSearchParams({
+        user: 'me',
+        releaseStatus: 'all',
+        sort: 'updated',
+        order: 'descending',
+        n: String(VRC_AVATAR_PAGE_SIZE),
+        offset: String(offset)
+      })
+      const raw = await this.runAvatarRequest(lease, () =>
+        this.get(`/avatars?${query.toString()}`, z.unknown(), this.avatarRequestOptions(lease))
+      )
+      const page = parseVrcAvatarPage(raw)
+      if (!page) throw new AvatarDataError('VRChat avatar list response was malformed')
+      if (page.skipped > 0) complete = false
+      for (const avatar of page.avatars) {
+        if (seen.has(avatar.avatarId)) continue
+        seen.add(avatar.avatarId)
+        avatars.push(avatar)
+      }
+      if (page.received < VRC_AVATAR_PAGE_SIZE) return { avatars, complete }
+    }
+    return { avatars, complete: false }
+  }
+
+  async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
+    const accountId = this.accountId
+    if (accountId === null) return null
+    const raw = await this.runAvatarRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(accountId)}/avatar`,
+        z.unknown(),
+        this.avatarRequestOptions(lease)
+      )
+    )
+    return parseVrcAvatar(raw)
+  }
+
+  async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
+    if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
+    const raw = await this.runAvatarRequest(lease, () =>
+      this.get(
+        `/avatars/${encodeURIComponent(avatarId)}`,
+        z.unknown(),
+        this.avatarRequestOptions(lease)
+      )
+    )
+    const avatar = parseVrcAvatar(raw)
+    return avatar?.avatarId === avatarId ? avatar : null
+  }
+
+  async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
+    if (!isAvatarId('vrchat', avatarId)) throw new AvatarDataError('Invalid VRChat avatar id')
+    await this.runAvatarRequest(lease, () =>
+      this.put(`/avatars/${encodeURIComponent(avatarId)}/select`, z.unknown(), {
+        ...this.avatarRequestOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A deleted avatar is an ordinary answer; only sign-in failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private async runAvatarRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof AuthError && error.status === 401) {
         this.invalidateDataPathSession()
       }
       throw error
