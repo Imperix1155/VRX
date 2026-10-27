@@ -192,7 +192,7 @@
     },
     "reconcileInterval": {
       "label": "Friends background re-sync",
-      "note": "Real-time updates come from the live connection; this sets the full re-sync cadence.",
+      "note": "How often all friends re-sync.",
       "aria": "Friends background re-sync cadence",
       "5m": "5m",
       "10m": "10m",
@@ -210,7 +210,7 @@
     },
     "drawerOpener": {
       "label": "Friend details open from",
-      "description": "Open a friend's details by clicking anywhere on their card, or only their avatar. Clicking the instance label, such as Public, always joins instead.",
+      "description": "What you click to open a friend's details.",
       "aria": "Friend details opener selector",
       "card": "Whole card",
       "avatar": "Avatar only"
@@ -225,7 +225,7 @@
     },
     "allowJoinInstances": {
       "label": "Allow joining friends",
-      "description": "Let VRX launch the game when you join a friend. Turn this off to block every Join action.",
+      "description": "Let VRX start the game for a Join. Off blocks every Join.",
       "aria": "Allow joining friends"
     },
     "confirmJoin": {
@@ -243,17 +243,13 @@
       "vr": "VR",
       "desktop": "Desktop"
     },
-    "joinOpenGame": {
-      "label": "Use the game that's already open",
-      "description": "When VRChat or ChilloutVR is already running, Join takes you there instead of starting it again.",
-      "aria": "Use the game that's already open"
-    },
-    "vrchatOpenGameJoin": {
-      "label": "When VRChat is open",
-      "description": "Go there moves you right away. Send invite gives you an invite to accept in the game. ChilloutVR always goes there.",
-      "aria": "How Join works when VRChat is open",
+    "openGameJoin": {
+      "label": "When the game is already open",
+      "description": "Join takes you into the running game instead of starting it again. Send invite is for VRChat only.",
+      "aria": "How Join works when the game is already open",
       "go": "Go there",
-      "invite": "Send invite"
+      "invite": "Send invite",
+      "off": "Off"
     },
     "categories": {
       "aria": "Settings category"
