@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New Avatars page in the sidebar. It shows the avatars you uploaded on VRChat
+  and ChilloutVR, the one you are wearing now on each, and a details panel for
+  each avatar with a Wear button to switch to it. Both platforms share one
+  page, sorted by name. Avatars load when you open the page or press Refresh,
+  and switching is limited to one every 5 seconds per platform. Favorites are
+  not included yet.
 - Alerts for picked friends. Settings → Notifications → Who alerts you can be
   set to Picked friends; then only the friends you choose send the online,
   joins-a-world and offline alerts. Pick a friend with Alert me about this

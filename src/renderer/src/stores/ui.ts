@@ -6,10 +6,12 @@ import type { Platform } from '@shared/types'
  * `hot` is the Hot Instances page (owner, 2026-10-18); `activity` lists
  * friends coming online, joining worlds, and going offline (owner, 2026-10-27);
  * `inbox` the view-only invites and requests page (owner, 2026-10-27).
- * Session-only state, so retired destinations need no persisted-state migration.
+ * `avatars` lists the user's own avatars and switches between them (owner,
+ * 2026-10-27). Session-only state, so retired destinations need no
+ * persisted-state migration.
  */
 export type ActiveTab =
-  'dashboard' | 'hot' | 'friends' | 'activity' | 'inbox' | 'explore' | 'settings'
+  'dashboard' | 'hot' | 'friends' | 'activity' | 'inbox' | 'explore' | 'avatars' | 'settings'
 
 /**
  * Ephemeral UI view state (VRX-21). Holds only transient layout state — NOT

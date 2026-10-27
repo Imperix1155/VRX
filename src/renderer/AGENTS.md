@@ -47,7 +47,7 @@ or launch authority.
   `error` status once a minute (`AUTH_ERROR_RECHECK_MS`).
 - While `setupPending` is true the welcome setup replaces the shell and login.
   Only Hot Instances, Activity, Inbox and Explore can be hidden (`isPageShown`); a hidden
-  active page falls back to the Dashboard.
+  active page falls back to the Dashboard. The Avatars page always shows.
 
 **State**
 

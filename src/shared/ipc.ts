@@ -20,6 +20,7 @@ import type {
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type { AvatarDetailsResult, AvatarLibraryResult, AvatarSwitchResult } from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
@@ -135,6 +136,15 @@ export interface IpcInvoke {
     req: { url: string; rendition?: 'avatar' }
     res: { ok: true; dataUrl: string } | null
   }
+  /** The signed-in user's own avatars and the one they wear now. Never on a timer. */
+  'get-avatar-library': { req: { platform: Platform }; res: AvatarLibraryResult }
+  /** One listed avatar's details; ChilloutVR reads them on demand. */
+  'get-avatar-details': {
+    req: { platform: Platform; avatarId: string }
+    res: AvatarDetailsResult
+  }
+  /** Wear a listed avatar. Main checks the ID against its own list first. */
+  'switch-avatar': { req: { platform: Platform; avatarId: string }; res: AvatarSwitchResult }
   'get-accounts': { req: void; res: Account[] }
   'get-auth-status': { req: { platform: Platform }; res: AuthStatus }
   login: { req: { platform: Platform; credentials: Credentials }; res: LoginResult }

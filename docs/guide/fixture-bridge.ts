@@ -1,8 +1,10 @@
 import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
+import type { AvatarItem } from '@shared/avatarLibrary'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
   activityEntries,
+  avatarLibraries,
   backgroundPicture,
   friends,
   worlds,
@@ -61,6 +63,13 @@ export function createFixtureBridge(variant: string): FixtureBridge {
   const inboxChanged = (): void => {
     for (const listener of inboxListeners) listener()
   }
+  // Worn avatars change only in this synthetic memory.
+  const worn: Record<Platform, string | null> = {
+    vrchat: avatarLibraries.vrchat[0]?.avatarId ?? null,
+    chilloutvr: avatarLibraries.chilloutvr[0]?.avatarId ?? null
+  }
+  const findAvatar = (platform: Platform, avatarId: string): AvatarItem | undefined =>
+    avatarLibraries[platform].find((avatar) => avatar.avatarId === avatarId)
   return {
     setExploreActive: () => Promise.resolve(),
     getExplore: ({ platform }) => Promise.resolve(getPlatformSnapshot(platform)),
@@ -94,6 +103,31 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     getAvatar: (url) => {
       const dataUrl = worldImages[url] ?? (url.startsWith('data:image/') ? url : undefined)
       return Promise.resolve(dataUrl ? { ok: true, dataUrl } : null)
+    },
+    getAvatarLibrary: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        avatars: structuredClone(avatarLibraries[platform]),
+        complete: true,
+        current: structuredClone(
+          avatarLibraries[platform].find((avatar) => avatar.avatarId === worn[platform]) ?? null
+        )
+      }),
+    getAvatarDetails: ({ platform, avatarId }) => {
+      const avatar = findAvatar(platform, avatarId)
+      return Promise.resolve(
+        avatar
+          ? { ok: true, avatar: structuredClone(avatar) }
+          : { ok: false, reason: 'unknown-avatar' }
+      )
+    },
+    switchAvatar: ({ platform, avatarId }) => {
+      if (!findAvatar(platform, avatarId)) {
+        return Promise.resolve({ ok: false, reason: 'unknown-avatar' })
+      }
+      worn[platform] = avatarId
+      return Promise.resolve({ ok: true })
     },
     getAccounts: () =>
       Promise.resolve(

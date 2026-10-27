@@ -117,6 +117,7 @@
       "activity": "Activity",
       "inbox": "Inbox",
       "explore": "Explore",
+      "avatars": "Avatars",
       "settings": "Settings"
     },
     "seg": {
@@ -729,6 +730,63 @@
       "vrchat": "Connect VRChat to see popular worlds here",
       "chilloutvr": "Connect ChilloutVR to see popular worlds here",
       "openAccounts": "Go to Accounts"
+    }
+  },
+  "avatars": {
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "wearingNow": "Wearing now",
+    "yourUploads": "Your uploads",
+    "uploadCount_one": "{{count}} avatar",
+    "uploadCount_other": "{{count}} avatars",
+    "loadingPlatform": "Loading your {{platform}} avatars…",
+    "empty": "You haven't uploaded any avatars yet.",
+    "noCurrent": {
+      "vrchat": "VRX couldn't tell which VRChat avatar you're wearing.",
+      "chilloutvr": "VRX couldn't tell which ChilloutVR avatar you're wearing."
+    },
+    "partial": "Some avatars couldn't be shown.",
+    "retry": "Try again",
+    "error": {
+      "unavailable": "Couldn't load your {{platform}} avatars.",
+      "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+      "not-authenticated": "Sign in to {{platform}} again to see your avatars."
+    },
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your avatars here",
+      "chilloutvr": "Connect ChilloutVR to see your avatars here",
+      "openAccounts": "Go to Accounts"
+    },
+    "openAria": "{{name}}, {{platform}} avatar. Show details",
+    "sheet": {
+      "aria": "{{name}}, {{platform}} avatar",
+      "wear": "Wear this avatar",
+      "wearAria": "Wear {{name}} in {{platform}}",
+      "switching": "Switching…",
+      "wornNow": "You're wearing this",
+      "wearHint": "Changes the avatar on your {{platform}} account.",
+      "switched": "Done. {{platform}} has your new avatar.",
+      "detailsLoading": "Loading details…",
+      "detailsError": "Some details couldn't be loaded."
+    },
+    "switchFailed": {
+      "cooldown": "Wait a few seconds before switching again.",
+      "rate-limited": "{{platform}} asked VRX to slow down. Try again in a minute.",
+      "switch-failed": "{{platform}} didn't switch the avatar. Try again.",
+      "not-authenticated": "Sign in to {{platform}} again to switch avatars.",
+      "unknown-avatar": "Refresh the list, then try again."
+    },
+    "details": {
+      "heading": "Details",
+      "creator": "Creator",
+      "visibility": "Visibility",
+      "public": "Public",
+      "private": "Private",
+      "uploaded": "Uploaded",
+      "updated": "Updated",
+      "notShown": "Not shown",
+      "description": "Description",
+      "noDescription": "No description"
     }
   },
   "updater": {

@@ -9,6 +9,7 @@ import { useInbox } from '../queries/inbox'
 import { countNewInboxItems, scopeInboxItems } from '../utils/inbox'
 import {
   IconActivity,
+  IconAvatars,
   IconDashboard,
   IconExplore,
   IconFriends,
@@ -131,6 +132,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'activity', icon: IconActivity },
   { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },
+  { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
 

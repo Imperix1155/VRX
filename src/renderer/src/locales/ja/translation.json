@@ -116,6 +116,7 @@
       "activity": "アクティビティ",
       "inbox": "受信箱",
       "explore": "探索",
+      "avatars": "アバター",
       "settings": "設定"
     },
     "seg": {
@@ -724,6 +725,62 @@
       "vrchat": "ここで人気のワールドを確認するにはVRChatに接続してください",
       "chilloutvr": "ここで人気のワールドを確認するにはChilloutVRに接続してください",
       "openAccounts": "アカウントを開く"
+    }
+  },
+  "avatars": {
+    "refresh": "更新",
+    "refreshing": "更新中…",
+    "wearingNow": "着用中",
+    "yourUploads": "アップロードしたアバター",
+    "uploadCount_other": "{{count}}体",
+    "loadingPlatform": "{{platform}} のアバターを読み込み中…",
+    "empty": "アップロードしたアバターはまだありません。",
+    "noCurrent": {
+      "vrchat": "着用中の VRChat アバターを確認できませんでした。",
+      "chilloutvr": "着用中の ChilloutVR アバターを確認できませんでした。"
+    },
+    "partial": "一部のアバターを表示できませんでした。",
+    "retry": "再試行",
+    "error": {
+      "unavailable": "{{platform}} のアバターを読み込めませんでした。",
+      "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "not-authenticated": "アバターを表示するには {{platform}} にもう一度サインインしてください。"
+    },
+    "notConnected": {
+      "vrchat": "ここでアバターを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでアバターを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
+    },
+    "openAria": "{{name}}（{{platform}} のアバター）。詳細を表示",
+    "sheet": {
+      "aria": "{{name}}（{{platform}} のアバター）",
+      "wear": "このアバターを着る",
+      "wearAria": "{{platform}} で {{name}} を着る",
+      "switching": "切り替え中…",
+      "wornNow": "着用中です",
+      "wearHint": "{{platform}} アカウントのアバターを変更します。",
+      "switched": "完了しました。{{platform}} のアバターを変更しました。",
+      "detailsLoading": "詳細を読み込み中…",
+      "detailsError": "一部の詳細を読み込めませんでした。"
+    },
+    "switchFailed": {
+      "cooldown": "数秒待ってからもう一度切り替えてください。",
+      "rate-limited": "{{platform}} から間隔をあけるよう求められました。1分ほどしてからもう一度お試しください。",
+      "switch-failed": "{{platform}} でアバターを切り替えられませんでした。もう一度お試しください。",
+      "not-authenticated": "アバターを切り替えるには {{platform}} にもう一度サインインしてください。",
+      "unknown-avatar": "一覧を更新してから、もう一度お試しください。"
+    },
+    "details": {
+      "heading": "詳細",
+      "creator": "作成者",
+      "visibility": "公開設定",
+      "public": "公開",
+      "private": "非公開",
+      "uploaded": "アップロード日",
+      "updated": "更新日",
+      "notShown": "表示なし",
+      "description": "説明",
+      "noDescription": "説明はありません"
     }
   },
   "updater": {

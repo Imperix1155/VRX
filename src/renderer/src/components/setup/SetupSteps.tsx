@@ -502,6 +502,7 @@ export const DoneStep = forwardRef<
       ['shell.nav.activity', s.showActivityPage],
       ['shell.nav.inbox', s.showInboxPage],
       ['shell.nav.explore', s.showExplorePage],
+      ['shell.nav.avatars', true],
       ['shell.nav.settings', true]
     ] as const
   )

@@ -43,6 +43,12 @@ const vrx = {
   getFriends: (req: IpcInvoke['get-friends']['req']) => invoke('get-friends', req),
   getAvatar: (url: string, rendition?: 'avatar') =>
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
+  getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
+    invoke('get-avatar-library', req),
+  getAvatarDetails: (req: IpcInvoke['get-avatar-details']['req']) =>
+    invoke('get-avatar-details', req),
+  // Avatar IDs only: main switches only to an avatar it listed for this session.
+  switchAvatar: (req: IpcInvoke['switch-avatar']['req']) => invoke('switch-avatar', req),
   getAccounts: () => invoke('get-accounts', undefined),
   getLinkedProfiles: () => invoke('get-linked-profiles', undefined),
   changeLinkedProfile: (req: IpcInvoke['change-linked-profile']['req']) =>
