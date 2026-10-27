@@ -41,9 +41,14 @@ Persistence, network, cache, and account-transition policy stay in services.
 - Push channels are main-to-renderer only. Never make one callable.
 - `join-instance` order: allow-join setting, `LocationAuthority` lookup,
   `isFriendJoinable`, `expectedTarget` comparison by `hotInstanceKey` (never
-  launch input), adapter URL build, `isAllowedLaunchUrl`, then launch under
-  `JoinCoordinator`.
-  `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown.
+  launch input), adapter URL build, `isAllowedLaunchUrl`, then
+  `GameHandoff.deliver` under `JoinCoordinator`: launch, or reach the game that
+  is already open (the same URL, or one self-invite to main's location).
+  The Join captures the signed-in account first and `deliver` rechecks it
+  after each wait; a changed account gets `stale` and nothing launches.
+  `get-join-handoff` takes only a validated platform and returns a preview.
+  `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown,
+  and refuses a public instance.
 - `get-inbox`, `dismiss-inbox-item` and `clear-inbox` are local to VRX: they
   read or hide rows in `InboxService` and never reach a platform. Item IDs are
   pattern- and length-checked; `clear-inbox` takes one or two allowlisted

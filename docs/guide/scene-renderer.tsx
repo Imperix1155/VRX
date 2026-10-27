@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import type { BackgroundGlow } from '@shared/types'
+import { isFriendJoinable } from '@shared/joinability'
 import AppShell from '@renderer/components/AppShell'
 import LoginScreen from '@renderer/components/LoginScreen'
 import SetupWizard from '@renderer/components/setup/SetupWizard'
@@ -85,7 +86,16 @@ function JoinScene(): React.JSX.Element {
             if (friend) void join(friend)
           }}
         >
-          Open real Join confirmation
+          Open VRChat Join confirmation
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const friend = friends.chilloutvr.find(isFriendJoinable)
+            if (friend) void join(friend)
+          }}
+        >
+          Open ChilloutVR Join confirmation
         </button>
         <span>Confirm demonstrates a local denial. No game can launch.</span>
       </div>

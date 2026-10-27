@@ -50,6 +50,10 @@ type VrxBridge = {
     req: IpcInvoke['join-instance']['req']
   ) => Promise<IpcInvoke['join-instance']['res']>
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
+  /** What Join would do now: start the game, or use the copy that is already open. */
+  getJoinHandoff: (
+    req: IpcInvoke['get-join-handoff']['req']
+  ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
   /** The in-memory activity list; reading it makes no platform request. */
   getActivity: () => Promise<IpcInvoke['get-activity']['res']>

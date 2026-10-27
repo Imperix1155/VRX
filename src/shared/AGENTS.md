@@ -54,7 +54,7 @@ through `@shared`.
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`,
   `showActivityPage`, `showInboxPage`) hide sidebar pages only;
-  `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 19
+  `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 20
   adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
   alerts (off). Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.

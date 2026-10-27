@@ -49,6 +49,8 @@ describe('settings schema', () => {
       allowJoinInstances: true,
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable'
     })
@@ -299,6 +301,8 @@ describe('migration runner', () => {
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -346,6 +350,8 @@ describe('migration runner', () => {
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -393,6 +399,8 @@ describe('migration runner', () => {
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -440,6 +448,8 @@ describe('migration runner', () => {
       drawerOpener: 'card',
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -487,6 +497,8 @@ describe('migration runner', () => {
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -534,6 +546,8 @@ describe('migration runner', () => {
       notifyInvites: false,
       notifyFriendRequests: false,
       setupPending: false,
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go',
       autoUpdate: false,
       updateChannel: 'stable',
       allowJoinInstances: true
@@ -865,11 +879,43 @@ describe('shouldPersistSettings (rollback safety)', () => {
       parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
     ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
   })
+
+  it('defaults Join in the open game on, and keeps a valid stored choice', () => {
+    expect(parseSettings({})).toMatchObject({ joinOpenGame: true, vrchatOpenGameJoin: 'go' })
+    expect(parseSettings({ joinOpenGame: false, vrchatOpenGameJoin: 'invite' })).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+    for (const vrchatOpenGameJoin of ['launch', '', null, 1]) {
+      expect(parseSettings({ vrchatOpenGameJoin }).vrchatOpenGameJoin).toBe('go')
+    }
+    expect(parseSettings({ joinOpenGame: 'no' }).joinOpenGame).toBe(true)
+  })
+
+  it('prevents a v18 build from undoing the open-game Join choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 19,
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    }
+    // A v18 build does not know either key and strips both.
+    const oldNormalized = { ...disk, version: 18 }
+    Reflect.deleteProperty(oldNormalized, 'joinOpenGame')
+    Reflect.deleteProperty(oldNormalized, 'vrchatOpenGameJoin')
+
+    if (shouldPersistSettings(disk, 18)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+  })
 })
 
 describe('Inbox settings', () => {
   it('defaults the page on and both alerts off, and keeps explicit choices', () => {
-    expect(parseSettings({ version: 16 })).toMatchObject({
+    expect(parseSettings({ version: 18 })).toMatchObject({
       version: SETTINGS_VERSION,
       showInboxPage: true,
       notifyInvites: false,
@@ -880,18 +926,18 @@ describe('Inbox settings', () => {
     ).toMatchObject({ showInboxPage: false, notifyInvites: true, notifyFriendRequests: false })
   })
 
-  it('prevents a v16 build from stripping the inbox choices during a round-trip', () => {
+  it('prevents a v19 build from stripping the inbox choices during a round-trip', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
-      version: 17,
+      version: 20,
       showInboxPage: false,
       notifyInvites: true
     }
-    const oldNormalized = { ...disk, version: 16 }
+    const oldNormalized = { ...disk, version: 19 }
     Reflect.deleteProperty(oldNormalized, 'showInboxPage')
     Reflect.deleteProperty(oldNormalized, 'notifyInvites')
 
-    if (shouldPersistSettings(disk, 16)) disk = oldNormalized
+    if (shouldPersistSettings(disk, 19)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({ showInboxPage: false, notifyInvites: true })
   })

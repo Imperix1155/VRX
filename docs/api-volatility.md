@@ -122,6 +122,8 @@ REST base `https://api.vrchat.cloud/api/1` (`VRC_API_BASE`). Pipeline
 | Image endpoint and hosts                 | Pictures                                   | Live                              | Placeholder                             |
 | Pipeline WebSocket                       | Live presence                              | Source-derived                    | REST reconcile only                     |
 | `vrchat://launch` link                   | Join                                       | Source-derived                    | Join denied before launch               |
+| `VRChatURLLaunchPipe` (Windows)          | Join while VRChat is open                  | Source-derived                    | One self-invite instead                 |
+| Game process names                       | Is the game open?                          | Source-derived                    | Join launches as before                 |
 | VRCX sign-in file                        | Sign-in from this PC (button)              | Source-derived                    | No import, password sign-in             |
 
 ### Session cookies and headers
@@ -425,9 +427,11 @@ request with no retry, at most one every 5 s.
 
 - **Assumes (Source-derived):** body `{}`. The response is ignored.
 - **Parses:** the location must match `^wrld_[A-Za-z0-9_-]+:[^/?#\\\s]+$` before
-  it enters the path. Public instances are rejected locally.
-- **Reachability:** the main `self-invite` handler and preload bridge exist, but
-  no 1.0 renderer control calls them.
+  it enters the path. The standalone `self-invite` handler refuses a public
+  instance locally; a Join into an open VRChat may invite to one.
+- **Reachability:** Join calls it when VRChat is open and the URL pipe is not
+  used or refuses (see below). The standalone handler and bridge method still
+  have no renderer control.
 - **When it breaks:** a 401 emits `auth-invalidated`. Any failure returns
   `invite-failed`.
 
@@ -509,6 +513,29 @@ request with no retry, at most one every 5 s.
   `^wrld_[A-Za-z0-9_-]{1,128}:[A-Za-z0-9][A-Za-z0-9_~().-]{0,767}$`.
 - **When it breaks:** the join is denied with `invalid-url` before
   `shell.openExternal`.
+
+### Join into an open VRChat: `VRChatURLLaunchPipe`
+
+- **Source-derived** from VRCX (`VRCIPC.cs`, `TryOpenInstanceInVrc`): VRChat's
+  launcher forwards launch URLs to the running game through the Windows named
+  pipe `\\.\pipe\VRChatURLLaunchPipe`. The client writes the UTF-8 URL and
+  reads one byte; `1` means the game took it.
+- **Sends** the same main-built URL that passed `isAllowedLaunchUrl`, nothing
+  else, and only when the process check sees `VRChat.exe` and **When VRChat is
+  open** is **Go there**.
+- **Linux and Proton:** the pipe lives inside the game's Wine container, which
+  VRX does not enter (VRCX uses `nsenter` there). VRX sends a self-invite.
+- **When it breaks:** no pipe, any other byte, a hang-up, or no answer within
+  3 seconds means not taken; VRX then sends one self-invite. A game that took
+  the URL but answered too late could also get that invite.
+
+### Game process names
+
+- **Assumes (Source-derived from VRCX and CVRX):** the games run as
+  `VRChat.exe` and `ChilloutVR.exe`. On Linux, Wine and Proton set
+  `/proc/<pid>/comm` to the same name. Matching is exact and case-insensitive.
+- **When it breaks:** a renamed process reads as not running, so Join launches
+  the game as it did before this feature.
 
 ### VRCX sign-in file
 
@@ -822,6 +849,9 @@ every 5 s.
   `^i\+[0-9a-f]{16}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{8}$` (any case)
   ([buildCvrJoinUrl.ts](../src/main/services/adapters/cvr/buildCvrJoinUrl.ts)).
   `startInVR` follows the chosen join mode.
+- **Open game (Source-derived from CVRX):** when ChilloutVR is already running,
+  the game picks up the same link, and `startInVR` no longer applies. CVRX's
+  "Join In-Game" sends exactly this.
 - **Validates:** exactly those two parameters, in that order and encoding, with
   `startInVR` equal to `true` or `false`.
 - **When it breaks:** the join is denied with `invalid-url` before

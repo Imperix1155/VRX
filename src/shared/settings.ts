@@ -30,14 +30,18 @@
  *   allowJoinInstances     → whether VRX may launch a friend's instance (VRX-39; default ON)
  *   confirmJoin            → whether joining requires confirmation (VRX-210; confirmation default ON)
  *   joinMode               → preferred launch mode (VRX-210; ask every time by default)
+ *   joinOpenGame           → Join uses a game that is already open instead of starting it
+ *                            again, as VRCX and CVRX do (owner, 2026-10-27; default ON)
+ *   vrchatOpenGameJoin     → how VRChat joins when open: go there, or a self-invite
+ *                            (owner, 2026-10-27; default go there)
  *   autoUpdate             → opt-in automatic download of updates (VRX-113; default OFF)
  *   updateChannel          → stable, beta, or dev feed (default stable; invalid values stay stable)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
- *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v19)
- *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v19)
+ *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v20)
+ *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v20)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
@@ -59,7 +63,8 @@ import {
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES,
-  UPDATE_CHANNELS
+  UPDATE_CHANNELS,
+  VRCHAT_OPEN_GAME_JOINS
 } from './types'
 import { ACTIVITY_FILTERS } from './activity'
 
@@ -67,7 +72,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 19 as const
+export const SETTINGS_VERSION = 20 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -150,6 +155,12 @@ export const SettingsSchema = z.object({
   confirmJoin: z.boolean().catch(true),
   /** Preferred Join launch mode (VRX-210). `ask` defers the choice to each Join action. */
   joinMode: z.enum(JOIN_MODE_PREFERENCES).catch('ask'),
+  /** Join sends you into VRChat or ChilloutVR when it is already open on this
+   *  computer, instead of starting a second copy. Off always starts the game. */
+  joinOpenGame: z.boolean().catch(true),
+  /** How VRChat joins when it is already open. Main falls back to `invite`
+   *  wherever the game cannot take the join directly. */
+  vrchatOpenGameJoin: z.enum(VRCHAT_OPEN_GAME_JOINS).catch('go'),
   /** Opt-in automatic update download (VRX-113). Default OFF — consent-first. */
   autoUpdate: z.boolean().catch(false),
   /**
@@ -171,7 +182,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v19 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v20 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -216,9 +227,12 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v17 → v18: `friendAlertScope` is additive. The version boundary stops an
   // older build from stripping a stored `picked` and alerting for everyone.
   17: (prev) => ({ ...prev }),
-  // v18 → v19: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
+  // v18 → v19: `joinOpenGame` and `vrchatOpenGameJoin` are additive. The
+  // version boundary keeps a stored choice if an older build loads the file.
+  18: (prev) => ({ ...prev }),
+  // v19 → v20: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
   // additive. The version boundary stops an older build from stripping them.
-  18: (prev) => ({ ...prev })
+  19: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

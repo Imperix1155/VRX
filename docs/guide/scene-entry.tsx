@@ -5,7 +5,13 @@ import { createRoot } from 'react-dom/client'
 import { useState } from 'react'
 import { applyTheme } from '@renderer/hooks/useApplyTheme'
 import { installFixtureBridge } from './fixture-bridge'
-import { desktopScenes, drawerScenarios, exploreScenarios, sourceScenarios } from './scenarios'
+import {
+  desktopScenes,
+  drawerScenarios,
+  exploreScenarios,
+  joinScenarios,
+  sourceScenarios
+} from './scenarios'
 
 const params = new URLSearchParams(location.search)
 const scene = params.get('scene') ?? 'dashboard'
@@ -19,6 +25,7 @@ const SCENE_VARIANTS: Record<string, string[]> = {
   settings: ['ready', 'save-error', 'picked-alerts'],
   inbox: ['ready', 'empty'],
   drawer: drawerScenarios.map(({ value }) => value),
+  join: joinScenarios.map(({ value }) => value),
   login: ['ready', 'totp', 'email'],
   explore: exploreScenarios.map(({ value }) => value),
   feedback: sourceScenarios.map(({ value }) => value)

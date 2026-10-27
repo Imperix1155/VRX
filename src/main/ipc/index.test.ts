@@ -76,6 +76,7 @@ vi.mock('./instance', () => ({
   registerInstanceHandlers: () => {
     electron.ipcMain.handle('join-instance', () => ({ ok: true }))
     electron.ipcMain.handle('self-invite', () => ({ ok: true }))
+    electron.ipcMain.handle('get-join-handoff', () => 'launch')
   }
 }))
 vi.mock('./app-status', () => ({
@@ -205,7 +206,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(42)
+    expect(electron.invokeHandlers.size).toBe(43)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -244,6 +245,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'switch-avatar',
         'get-friend-note',
         'get-friends',
+        'get-join-handoff',
         'get-linked-profiles',
         'get-settings',
         'import-session',

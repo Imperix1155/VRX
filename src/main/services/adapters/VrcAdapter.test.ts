@@ -4863,16 +4863,19 @@ describe('VrcAdapter', () => {
       expect(opts.method).toBe('POST')
     })
 
-    it('rejects without an API call for public instances', async () => {
-      const fetchMock = vi.fn()
+    it('invites to a public instance too (Join uses it when VRChat is open)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ type: 'invite' }), { status: 200 }))
       vi.stubGlobal('fetch', fetchMock)
       const adapter = new VrcAdapter(fakeStore('auth=tok'), instantAdmission())
       markSessionEstablished(adapter)
 
-      await expect(adapter.selfInvite(publicLocation)).rejects.toThrow(
-        /no invite needed for public instances/i
-      )
-      expect(fetchMock).not.toHaveBeenCalled()
+      await adapter.selfInvite(publicLocation)
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      const [url] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(url).toBe(`https://api.vrchat.cloud/api/1/invite/myself/to/${publicLocation}`)
     })
 
     it('rejects with a generic error when the API call fails', async () => {

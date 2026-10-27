@@ -5,6 +5,7 @@ import './guide.css'
 import {
   desktopScenes,
   drawerScenarios,
+  joinScenarios,
   exploreScenarios,
   friendsScenarios,
   sourceScenarios
@@ -499,8 +500,9 @@ export default function Guide(): React.JSX.Element {
           <Scene
             name="join"
             title="Join confirmation"
-            note="Interactive fixture. Open the real heavy-frosted modal. Confirm returns a local sample denial and cannot launch a game."
-            source="JoinConfirmDialog.tsx"
+            note="Interactive fixture. Open the real heavy-frosted modal for either platform. Game open shows the note that replaces the mode choice when the game is already running. Confirm returns a local sample denial and cannot launch a game."
+            source="JoinConfirmDialog.tsx · useJoinHandoff.ts"
+            variants={joinScenarios}
           />
         </Section>
 

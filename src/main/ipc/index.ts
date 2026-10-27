@@ -55,7 +55,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   activity: ActivityFeed
-  instance: InstanceHandlerOptions
+  instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   avatarLibrary: AvatarLibraryService
   appBackground: AppBackgroundHandlerOptions
@@ -130,7 +130,10 @@ export function registerIpcHandlers(
       accountSession: options.accountSession,
       locationAuthority: options.locationAuthority
     })
-    registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
+    registerInstanceHandlers(adapters, options.locationAuthority, {
+      ...options.instance,
+      accountSession: options.accountSession
+    })
     registerExploreHandlers(options.explore)
     registerAvatarLibraryHandlers(options.avatarLibrary)
     registerAppStatusHandlers(options.appStatus)

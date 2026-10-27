@@ -3,6 +3,7 @@ import { ApiAdmissionController } from './services/adapters/ApiAdmissionControll
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
 import { JoinCoordinator } from './services/joinCoordinator'
+import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import type { AvatarLibraryAdapter } from './services/adapters/AvatarLibraryAdapter'
 import {
@@ -611,6 +612,15 @@ app
     )
 
     const joinCoordinator = new JoinCoordinator()
+    const gameHandoff = new GameHandoff({
+      hostPlatform: process.platform,
+      isRunning: (() => {
+        const games = new RunningGames(processNameListerFor(process.platform))
+        return (platform: Platform) => games.isRunning(platform)
+      })(),
+      settings: () => getSettingsSnapshot(),
+      openExternal: (url) => shell.openExternal(url)
+    })
     const explore = new ExploreService({
       adapters: new Map<Platform, ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>>([
         ['vrchat', vrcAdapter],
@@ -625,6 +635,13 @@ app
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
       getImage: (url) => avatarCache.get(url),
       openExternal: (url) => shell.openExternal(url),
+      deliverJoin: (platform, url, location, stillCurrent) =>
+        gameHandoff.deliver(
+          platform,
+          url,
+          () => (platform === 'vrchat' ? vrcAdapter : cvrAdapter).selfInvite(location),
+          stillCurrent
+        ),
       onChanged: (platform) => {
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) window.webContents.send('explore-changed', { platform })
@@ -733,6 +750,7 @@ app
       },
       instance: {
         joinCoordinator,
+        gameHandoff,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)

@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
   never show a world or a move. Turn it off in Settings → Notifications →
   Activity page or in the welcome setup; off also stops VRX keeping it.
+- Join uses the game that's already open. When VRChat or ChilloutVR is running,
+  Join takes you there in that game instead of starting a second copy, the way
+  VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
+  an invite to accept in the game (always on Linux, or if you pick Send
+  invite). The join dialog says which will happen, and the line under Join
+  confirms it. Turn it off, or pick how VRChat joins, in Settings → Behavior →
+  Allow joining friends.
 - Inbox page: invites, invite requests and friend requests from VRChat and
   ChilloutVR that arrive while VRX is open, in one list that follows the
   platform filter. It only shows them; answer in the game or on the

@@ -216,6 +216,12 @@ never a location read from presence (§9.6).
 [`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join
 flow. There is no Ask-to-join action. "Always ask" in Settings → Behavior →
 Join in chooses a ChilloutVR launch mode; it doesn't request an invitation.
+When the game is already open, Join uses it instead of starting a second
+copy, the same way on both platforms: the join dialog shows one quiet note in
+place of the mode picker or launch note ("VRChat is open, so Join takes you
+there in the game.", "ChilloutVR is open, …"), and afterwards the status line
+under Join says "Sent to your open game" or, for a VRChat invite, "Invite
+sent. Accept it in VRChat." for 8 seconds.
 
 **Trust.** Names stay neutral. When VRChat provides a trust rank, it appears
 as quiet 12 px plain text below Notes in the drawer; a combined linked
@@ -332,7 +338,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   threshold, as separate rows.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
-  Allow joining friends, which contains Confirm before joining and Join in.
+  Allow joining friends, which contains Confirm before joining, Join in, Use
+  the game that's already open, and (while that is on) When VRChat is open
+  (Go there or Send invite; ChilloutVR has only one way).
   Turning a parent off collapses its card with a 220 ms height transition
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and

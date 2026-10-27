@@ -7,18 +7,23 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import PlatformPill from './PlatformPill'
-import { joinFailureMessageKey, type JoinFailureReason } from '../hooks/useJoinInstance'
+import { joinFailureMessageKey, type JoinFeedback } from '../hooks/useJoinInstance'
 import { formatCount, regionLabelKey } from '../utils/exploreFormat'
 
 /** Failures where "refresh and try again" is wrong advice; they keep their own copy.
  *  Explore's `stale` means an expired selection, so refreshing is the right advice.
- *  `launch-failed` means the game link didn't open, so the advice is to check the game. */
-const RETRYABLE_EXPLORE_FAILURES: ReadonlySet<JoinFailureReason> = new Set([
+ *  `launch-failed` means the game link didn't open, so the advice is to check the game.
+ *  `invite-failed` means VRChat was open and its self-invite didn't go through. */
+const RETRYABLE_EXPLORE_FAILURES: ReadonlySet<JoinFeedback> = new Set([
   'cooldown',
   'rate-limited',
   'joining-disabled',
-  'launch-failed'
+  'launch-failed',
+  'invite-failed'
 ])
+
+/** Hand-off notes after a Join that reached a game which was already open. */
+const JOIN_NOTICES: ReadonlySet<JoinFeedback> = new Set(['in-game', 'invite-sent'])
 
 export interface ExploreWorldSheetProps {
   snapshot: ExploreWorldSnapshot | null
@@ -33,7 +38,7 @@ export interface ExploreWorldSheetProps {
   dismissable?: boolean
   joining?: boolean
   onRefresh?: () => void
-  joinFailureFor?: (room: ExploreRoom) => JoinFailureReason | null
+  joinFailureFor?: (room: ExploreRoom) => JoinFeedback | null
   /** A coordinated sibling-sheet handoff consumes this once to preserve the
    * incoming sheet's initial focus. Ordinary sheet closure still restores focus. */
   consumeFocusRestoreSuppression?: () => boolean
@@ -340,7 +345,11 @@ export default function ExploreWorldSheet({
                 ))}
               </ul>
             ) : null}
-            {joinFailure != null ? (
+            {joinFailure != null && JOIN_NOTICES.has(joinFailure) ? (
+              <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--text-dim)]">
+                {t(joinFailureMessageKey(joinFailure))}
+              </p>
+            ) : joinFailure != null ? (
               <p role="status" className="mt-[var(--space-2)] text-xs text-[var(--error)]">
                 {t(
                   RETRYABLE_EXPLORE_FAILURES.has(joinFailure)

@@ -339,6 +339,17 @@ export type JoinMode = 'desktop' | 'vr'
 export const JOIN_MODE_PREFERENCES = ['ask', 'vr', 'desktop'] as const
 export type JoinModePreference = (typeof JOIN_MODE_PREFERENCES)[number]
 
+/** How VRChat should take you to a friend when the game is already open:
+ *  `go` hands the join to the running game, `invite` sends you a self-invite
+ *  to accept there. ChilloutVR has one way only (its join link). */
+export const VRCHAT_OPEN_GAME_JOINS = ['go', 'invite'] as const
+export type VrchatOpenGameJoin = (typeof VRCHAT_OPEN_GAME_JOINS)[number]
+
+/** What a Join did, or would do now: start the game, hand the join to the
+ *  game that is already open, or send a VRChat self-invite into it. */
+export const JOIN_HANDOFFS = ['launch', 'in-game', 'invite'] as const
+export type JoinHandoff = (typeof JOIN_HANDOFFS)[number]
+
 /** Which GitHub update feed Settings follows. `stable` is the public release. */
 export const UPDATE_CHANNELS = ['stable', 'beta', 'dev'] as const
 export type UpdateChannel = (typeof UPDATE_CHANNELS)[number]
