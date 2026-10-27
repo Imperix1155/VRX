@@ -36,7 +36,8 @@ import { VrcAdapter, type VrcCredentialStore } from './services/adapters/VrcAdap
 import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdapter'
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
-import type { AdapterEvent, Platform } from '@shared/types'
+import type { BroadcastAdapterEvent } from '@shared/ipc'
+import type { Platform } from '@shared/types'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -54,6 +55,7 @@ import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
+import { InboxService } from './services/inbox'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
@@ -64,7 +66,11 @@ import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
-import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
+import {
+  createFriendNotificationNotifier,
+  isFriendAlertEnabled,
+  isInboxAlertEnabled
+} from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
@@ -391,6 +397,7 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
@@ -420,6 +427,8 @@ app
       },
       onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
+        // A data-path 401 keeps the account, so its inbox stays too.
+        if (!identityRetained) inboxBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
@@ -492,6 +501,7 @@ app
         // renderer boundary would refetch the roster and drop note drafts.
         if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
+        inboxBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
@@ -527,6 +537,20 @@ app
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
     friendAlertBoundary.current = friendAlerts
+
+    // View-only inbox: socket-delivered invites and requests, memory only.
+    const inbox = new InboxService({
+      now: () => Date.now(),
+      clock: () => performance.now(),
+      onChanged: () => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.send('inbox-changed')
+        }
+      },
+      notify: (item) => showFriendAlert({ type: 'inbox', item }),
+      isAlertEnabled: (kind) => isInboxAlertEnabled(kind, getSettingsSnapshot())
+    })
+    inboxBoundary.current = inbox
 
     // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
     // endpoint 401s unauthenticated). Each operation captures its own session lease.
@@ -574,6 +598,7 @@ app
 
     registerIpcHandlers(adapters, {
       explore,
+      inbox,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({
@@ -648,7 +673,11 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => friendAlerts.seedRoster(platform, friends),
+      onFriendRoster: (platform, friends) => {
+        // Settle requests first: it cannot throw, and an alert failure must not skip it.
+        inbox.settleRoster(platform, friends)
+        friendAlerts.seedRoster(platform, friends)
+      },
       instance: {
         joinCoordinator,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
@@ -661,7 +690,7 @@ app
     // channel ('friend-event', @shared/ipc). The renderer applies them to the
     // TanStack cache — presence is PUSHED, never polled (CLAUDE.md). Both
     // platforms share one broadcaster; the renderer keys events by platform.
-    const broadcast = (event: AdapterEvent): void => {
+    const broadcast = (event: BroadcastAdapterEvent): void => {
       if (event.type === 'auth-invalidated') explore.clearPlatform(event.platform)
       const published = { ...event, rosterRevision: locationAuthority.captureEventRevision() }
       for (const window of BrowserWindow.getAllWindows()) {
@@ -674,6 +703,7 @@ app
       appStatus,
       locationAuthority,
       friendAlerts,
+      inbox,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

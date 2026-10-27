@@ -94,6 +94,13 @@ vi.mock('./app-background', () => ({
     electron.ipcMain.handle('clear-app-background', () => undefined)
   }
 }))
+vi.mock('./inbox', () => ({
+  registerInboxHandlers: () => {
+    electron.ipcMain.handle('get-inbox', () => ({ items: [] }))
+    electron.ipcMain.handle('dismiss-inbox-item', () => undefined)
+    electron.ipcMain.handle('clear-inbox', () => undefined)
+  }
+}))
 vi.mock('./settings', () => ({
   registerSettingsHandlers: () => {
     electron.ipcMain.handle('get-settings', () => ({ theme: 'dark' }))
@@ -131,6 +138,7 @@ function options(): IpcHandlerOptions {
     links: { linkGraph: {} },
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
+    inbox: {} as IpcHandlerOptions['inbox'],
     explore: {
       setActive: vi.fn(),
       getSnapshot: vi.fn(),
@@ -185,7 +193,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(32)
+    expect(electron.invokeHandlers.size).toBe(35)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -210,6 +218,9 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-app-background',
         'choose-app-background',
         'clear-app-background',
+        'get-inbox',
+        'dismiss-inbox-item',
+        'clear-inbox',
         'get-app-status',
         'get-auth-status',
         'get-avatar',

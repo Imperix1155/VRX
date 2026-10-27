@@ -45,7 +45,7 @@ or launch authority.
   because a VRChat check is a real API request. The only interval re-checks an
   `error` status once a minute (`AUTH_ERROR_RECHECK_MS`).
 - While `setupPending` is true the welcome setup replaces the shell and login.
-  Only Hot Instances and Explore can be hidden (`isPageShown`); a hidden
+  Only Hot Instances, Inbox and Explore can be hidden (`isPageShown`); a hidden
   active page falls back to the Dashboard.
 
 **State**

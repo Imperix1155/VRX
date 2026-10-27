@@ -10,6 +10,8 @@ import { registerAuthHandlers } from './auth'
 import { registerAvatarHandlers } from './avatar'
 import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from './app-background'
 import { registerFriendsHandlers } from './friends'
+import { registerInboxHandlers } from './inbox'
+import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
 import type { ExploreService } from '../services/exploreService'
@@ -48,6 +50,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   instance: InstanceHandlerOptions
   explore: ExploreService
   appBackground: AppBackgroundHandlerOptions
+  inbox: InboxService
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
   onFriendRoster?: (platform: Platform, friends: Friend[]) => void
@@ -123,6 +126,7 @@ export function registerIpcHandlers(
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)
+    registerInboxHandlers(options.inbox)
     registerUpdaterHandlers()
   } finally {
     if (originalHandleDescriptor === undefined) Reflect.deleteProperty(ipcMain, 'handle')

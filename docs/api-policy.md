@@ -60,6 +60,10 @@ before it saves anything.
   anyone except the signed-in user.
 - **No presence polling.** Live presence comes only from the two sockets above.
   VRX never polls a friend's status or location.
+- **No answering for the user.** The Inbox lists invites, invite requests and
+  friend requests that the sockets already deliver. It is view-only: no extra
+  request reads them, and VRX never accepts, declines or replies. Hide only
+  removes a row inside VRX.
 - **No mass actions.** No bulk invites, friend requests, messages, or blocks.
   The only platform write is one user-initiated VRChat self-invite at a time.
 - **No crawling.** VRChat roster pagination stops at 5,000 friends, and

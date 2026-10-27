@@ -1,5 +1,6 @@
+import type { InboxItem } from '@shared/inbox'
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import { isFriendAlertEnabled } from './friendNotifications'
+import { isFriendAlertEnabled, isInboxAlertEnabled } from './friendNotifications'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FriendAlert } from './services/friendAlerts'
 
@@ -287,5 +288,46 @@ describe('feature-aware alert consent', () => {
     expect(isFriendAlertEnabled('hot-instance', { ...settings, notifyHotInstance: false })).toBe(
       false
     )
+  })
+})
+
+describe('inbox alerts', () => {
+  const item = (kind: InboxItem['kind'], overrides: Partial<InboxItem> = {}): InboxItem => ({
+    id: `${kind}:x`,
+    platform: 'chilloutvr',
+    kind,
+    senderId: 'usr_a',
+    senderName: 'Ada',
+    worldName: null,
+    receivedAt: 0,
+    ...overrides
+  })
+
+  it('words each kind, strips the instance number, and never leaves a blank name', () => {
+    expect(
+      notificationPresenter({ type: 'inbox', item: item('invite', { worldName: 'Pug (#12)' }) })
+    ).toEqual({ title: 'Invite', body: 'Ada invited you to Pug' })
+    expect(notificationPresenter({ type: 'inbox', item: item('invite') })).toEqual({
+      title: 'Invite',
+      body: 'Ada invited you'
+    })
+    expect(notificationPresenter({ type: 'inbox', item: item('invite-request') })).toEqual({
+      title: 'Invite Request',
+      body: 'Ada asked you for an invite'
+    })
+    expect(
+      notificationPresenter({ type: 'inbox', item: item('friend-request', { senderName: null }) })
+    ).toEqual({ title: 'Friend Request', body: 'Someone sent you a friend request' })
+  })
+
+  it('invites and invite requests share a switch; friend requests have their own', () => {
+    const invites = { ...DEFAULT_SETTINGS, notifyInvites: true }
+    expect(isInboxAlertEnabled('invite', invites)).toBe(true)
+    expect(isInboxAlertEnabled('invite-request', invites)).toBe(true)
+    expect(isInboxAlertEnabled('friend-request', invites)).toBe(false)
+    const requests = { ...DEFAULT_SETTINGS, notifyFriendRequests: true }
+    expect(isInboxAlertEnabled('invite', requests)).toBe(false)
+    expect(isInboxAlertEnabled('friend-request', requests)).toBe(true)
+    expect(isInboxAlertEnabled('invite', DEFAULT_SETTINGS)).toBe(false)
   })
 })

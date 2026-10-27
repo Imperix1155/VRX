@@ -433,13 +433,26 @@ are Synthetic.
 | `friend-add`                         | `{ userId, user }`            | `friend-added`; state from `user.state`                         |
 | `friend-delete`                      | `{ userId }`                  | `friend-removed`                                                |
 | `friend-update`                      | `{ userId, user }`            | `friend-updated`; profile only, presence and instance kept      |
-| Self, content and notification types | Any                           | Dropped after decoding                                          |
+| `notification`                       | One Notification object       | `inbox` add for `invite`, `requestInvite`, `friendRequest` only |
+| `hide-notification`                  | Bare notification ID          | `inbox` remove                                                  |
+| `response-notification`              | `{ notificationId, … }`       | `inbox` remove                                                  |
+| `clear-notification`                 | None                          | `inbox` clear                                                   |
+| Other self, content and notification | Any                           | Dropped after decoding                                          |
 | Anything else                        | Any                           | Dropped                                                         |
 
 - **Dropped types:** `user-update`, `user-location`, `user-badge-assigned`,
-  `content-refresh` and the `notification`, `notification-v2*`,
-  `response-notification`, `see-notification`, `hide-notification` and
-  `clear-notification` family are recognized but not routed in 1.0.
+  `content-refresh`, `see-notification` and `notification-v2*` are recognized
+  but not routed.
+- **Inbox (Source-derived, VRCX and the Notification schema):** a
+  `notification` needs string `id`, `type` and `senderUserId`.
+  `senderUsername` is optional. An invite's `details.worldName` is read whether
+  `details` is an object (Pipeline) or a JSON string (REST); unreadable details
+  leave the world unnamed. Other notification types (messages, votes to kick,
+  responses, group notices) are ignored. `hide-notification` and
+  `see-notification` carry a bare, non-JSON ID, so those types skip the second
+  JSON parse. The inbox is view-only: VRX never answers, accepts or declines.
+  VRX makes no REST read of pending notifications, so only what arrives while
+  VRX is open is listed.
 - **Parses:** `user` uses the roster record schema and the same normalizer.
   `friend-add` maps `user.state` `online` to in game and `offline` to offline;
   anything else or a missing state keeps the `active` fallback (Source-derived
@@ -679,12 +692,25 @@ path. Each read is one request with no retry. They are Synthetic.
   `{ ResponseType, Data }` or `{ responseType, data }`. Both casings are
   accepted because the envelope casing has not been confirmed live.
 
-| `ResponseType`              | VRX event                                                                                          |
-| --------------------------- | -------------------------------------------------------------------------------------------------- |
-| 10 `ONLINE_FRIENDS`         | `presence-snapshot` with the merged online set                                                     |
-| 11 `FRIEND_LIST_UPDATED`    | `roster-changed`; the roster is refetched over REST                                                |
-| 0, 1, 2, 15, 20, 25, 30, 50 | Dropped after decoding (notifications, invites, requests, mature-content and group-invite updates) |
-| Anything else               | Dropped                                                                                            |
+| `ResponseType`           | VRX event                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| 10 `ONLINE_FRIENDS`      | `presence-snapshot` with the merged online set                                  |
+| 11 `FRIEND_LIST_UPDATED` | `roster-changed`; the roster is refetched over REST                             |
+| 15 `INVITES`             | `inbox` add, kind `invite` 🟡                                                   |
+| 20 `REQUEST_INVITES`     | `inbox` add, kind `invite-request` 🟡                                           |
+| 25 `FRIEND_REQUESTS`     | `inbox` add, kind `friend-request` 🟡                                           |
+| 0, 1, 2, 30, 50          | Dropped after decoding (notifications, mature-content and group-invite updates) |
+| Anything else            | Dropped                                                                         |
+
+- **Inbox frames (🟡 Source-derived from CVRX and chilloutvr_rs, not yet seen
+  live):** `15` is `[{ Id, User: { Id, Name }, World: { Name }, InstanceName }]`,
+  `20` is `[{ Id, Sender: { Id, Name } }]` and `25` is `[{ Id, Name }]` where
+  `Id` is the requesting user. Both casings are read, a single object counts as
+  a one-item list, and at most 50 records are read per frame. An invite with no
+  world name falls back to `InstanceName` without its ` (#n)` suffix. Bad
+  records are skipped. A frame never removes rows, because it is unconfirmed
+  whether a frame lists everything still open. A friend request clears when that
+  person shows up on the roster.
 
 - **Live 2026-07-07:** entries use PascalCase `Id`, `IsOnline` and
   `Instance: { Id, Name, Privacy }` with a numeric `Privacy`. The first

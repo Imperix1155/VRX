@@ -82,6 +82,19 @@ describe('AppShell optional pages (owner, 2026-10-20)', () => {
     expect(screen.getByRole('main', { name: msg('shell.nav.dashboard') })).toBeTruthy()
   })
 
+  it('falls back to the Dashboard when the Inbox page is turned off', () => {
+    useUiStore.setState({ activeTab: 'inbox' })
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showInboxPage: false } })
+    render(<AppShell />)
+    expect(useUiStore.getState().activeTab).toBe('dashboard')
+  })
+
+  it('opens the Inbox page under its own title', () => {
+    useUiStore.setState({ activeTab: 'inbox' })
+    render(<AppShell />)
+    expect(screen.getByRole('main', { name: msg('shell.nav.inbox') })).toBeTruthy()
+  })
+
   it('shows a hidden Hot Instances page when a hot alert opens it, until the user moves on', () => {
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false } })
     render(<AppShell />)

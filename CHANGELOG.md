@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Inbox page: invites, invite requests and friend requests from VRChat and
+  ChilloutVR that arrive while VRX is open, in one list that follows the
+  platform filter. It only shows them; answer in the game or on the
+  platform's site. Hide takes a row out of VRX and sends nothing. The sidebar
+  shows how many are new. Turn the page off in Settings → Notifications.
+- Two optional alerts in Settings → Notifications and the welcome setup:
+  Invite received and Friend request received. Both are off until you turn
+  them on.
+
 ## [1.2.0-dev.2] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.

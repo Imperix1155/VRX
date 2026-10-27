@@ -20,12 +20,16 @@ you press a "Use my sign-in from" button, described below.
 - **Friends**: one list for both platforms, grouped into In-Game, Online, and
   Offline, with search. Friend details show where someone is, their notes, and
   a Join button when you can join them.
+- **Inbox**: invites, invite requests, and friend requests from both
+  platforms that arrive while VRX is open. VRX only shows them; you answer in
+  the game. Hide the page in Settings → Notifications if you don't want it.
 - **Explore**: popular public worlds from both platforms, with room details.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
   person by hand. VRX never guesses links from names.
 - **Platform filter**: VRC, ALL, or CVR at the top of the window.
 - **Notifications**: optional desktop alerts when a friend comes online, joins
-  a world, or goes offline, or when a hot instance forms. All are off until you
+  a world, or goes offline, when a hot instance forms, or when you get an
+  invite or friend request. All are off until you
   turn them on in Settings → Notifications.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which

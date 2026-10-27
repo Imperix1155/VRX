@@ -52,6 +52,22 @@ export function IconFriends(): React.JSX.Element {
   )
 }
 
+export function IconInbox(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M4 13.5 6.6 5.6A2 2 0 0 1 8.5 4.2h7a2 2 0 0 1 1.9 1.4L20 13.5" />
+      <path d="M4 13.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4.5h-4.6l-1.2 2.3h-4.4l-1.2-2.3Z" />
+    </svg>
+  )
+}
+
 export function IconExplore(): React.JSX.Element {
   return (
     <svg

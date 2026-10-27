@@ -525,6 +525,9 @@ export default function SettingsView(): React.JSX.Element {
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
+  const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -904,6 +907,60 @@ export default function SettingsView(): React.JSX.Element {
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
               />
+            </div>
+
+            {/* Inbox (owner, 2026-10-27): the page switch and its two alerts in
+                one card, laid out like Behavior's pages card. It sits here so
+                Behavior still fits the 900x670 window; each switch stays
+                independent. Invites and invite requests share one alert. */}
+            <div className="setting-card">
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.pages.inbox.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.pages.inbox.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={showInboxPage}
+                  ariaLabel={t('settings.pages.inbox.label')}
+                  onChange={(checked) => updateSettings({ showInboxPage: checked })}
+                />
+              </div>
+              <div className="setting-children">
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.notifications.invites.label')}
+                    </p>
+                    <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                      {t('settings.notifications.invites.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={notifyInvites}
+                    ariaLabel={t('settings.notifications.invites.aria')}
+                    onChange={(checked) => updateSettings({ notifyInvites: checked })}
+                  />
+                </div>
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.notifications.friendRequests.label')}
+                    </p>
+                    <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                      {t('settings.notifications.friendRequests.description')}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={notifyFriendRequests}
+                    ariaLabel={t('settings.notifications.friendRequests.aria')}
+                    onChange={(checked) => updateSettings({ notifyFriendRequests: checked })}
+                  />
+                </div>
+              </div>
             </div>
           </section>
         )}

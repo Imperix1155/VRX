@@ -44,6 +44,10 @@ Persistence, network, cache, and account-transition policy stay in services.
   launch input), adapter URL build, `isAllowedLaunchUrl`, then launch under
   `JoinCoordinator`.
   `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown.
+- `get-inbox`, `dismiss-inbox-item` and `clear-inbox` are local to VRX: they
+  read or hide rows in `InboxService` and never reach a platform. Item IDs are
+  pattern- and length-checked; `clear-inbox` takes one or two allowlisted
+  platforms.
 - `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
   only from main-built join paths. `open-logs-folder` takes no input.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,

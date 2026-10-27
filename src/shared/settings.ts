@@ -32,6 +32,8 @@
  *   updateChannel          → stable, beta, or dev feed (default stable; invalid values stay stable)
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
+ *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v17)
+ *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v17)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
@@ -59,7 +61,7 @@ import {
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 16 as const
+export const SETTINGS_VERSION = 17 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -73,6 +75,8 @@ export const SettingsSchema = z.object({
   /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
   showHotInstancesPage: z.boolean().catch(true),
   showExplorePage: z.boolean().catch(true),
+  /** The Inbox page. Hiding it keeps its alerts, which have their own switches. */
+  showInboxPage: z.boolean().catch(true),
   /** First-run welcome setup is waiting. Missing or invalid data never starts it:
    *  main marks only a brand-new install (see `freshInstallSettings`). */
   setupPending: z.boolean().catch(false),
@@ -111,6 +115,9 @@ export const SettingsSchema = z.object({
   notifyFriendOffline: z.boolean().catch(false),
   /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false),
+  /** Native alerts for a new invite or invite request, and a new friend request. Off by default. */
+  notifyInvites: z.boolean().catch(false),
+  notifyFriendRequests: z.boolean().catch(false),
   /** Background aurora intensity (owner-ratified 2026-07-17). `standard` is the new default;
    *  `off` hides the glow (owner, 2026-10-26). */
   backgroundGlow: z.enum(BACKGROUND_GLOWS).catch('standard'),
@@ -150,7 +157,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v16 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v17 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -188,7 +195,10 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v15 → v16: `backgroundGlow: 'off'` and `backgroundPictureFade` are
   // additive. The version boundary stops an older build from turning a stored
   // `off` back into standard or stripping the fade.
-  15: (prev) => ({ ...prev })
+  15: (prev) => ({ ...prev }),
+  // v16 → v17: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
+  // additive. The version boundary stops an older build from stripping them.
+  16: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

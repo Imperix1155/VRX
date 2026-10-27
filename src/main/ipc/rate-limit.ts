@@ -75,7 +75,12 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-app-background': { max: 12, windowMs: 30_000 },
   // Deliberate button presses; choosing opens a native dialog.
   'choose-app-background': { max: 10, windowMs: 60_000 },
-  'clear-app-background': { max: 10, windowMs: 60_000 }
+  'clear-app-background': { max: 10, windowMs: 60_000 },
+  // Re-read after each inbox push; pushes are bounded by what the sockets send.
+  'get-inbox': { max: 240, windowMs: 60_000 },
+  // Human clicks that only hide rows locally.
+  'dismiss-inbox-item': { max: 120, windowMs: 60_000 },
+  'clear-inbox': { max: 30, windowMs: 60_000 }
 } as const satisfies Record<RateLimitedIpcChannel, RateLimitBudget>
 
 /** Existing structured result channels keep their result shape on denial. */

@@ -1,3 +1,4 @@
+import type { InboxItem, InboxSnapshot } from '@shared/inbox'
 import type {
   CvrFriend,
   CvrInstanceType,
@@ -498,3 +499,56 @@ export const instanceExamples: ReadonlyArray<{ platform: Platform; instance: Ins
     instance: cvrInstance(type, `cvr-guide-${type}`, `ChilloutVR ${type}`)
   }))
 ]
+
+/**
+ * Synthetic inbox rows: one of each kind across both platforms, from sample
+ * friends so their pictures show, plus a non-friend request. Times are offsets
+ * from the moment the scene opens.
+ */
+export function inboxSample(now: number): InboxSnapshot {
+  const vrc = friends.vrchat[0]
+  const cvr = friends.chilloutvr[0]
+  const items: InboxItem[] = []
+  if (vrc)
+    items.push({
+      id: 'invite:not_fixture_1',
+      platform: 'vrchat',
+      kind: 'invite',
+      senderId: vrc.platformUserId,
+      senderName: vrc.displayName,
+      worldName: 'Moonlit Observatory',
+      receivedAt: now - 4 * 60_000
+    })
+  if (cvr)
+    items.push({
+      id: 'invite-request:fixture-req-1',
+      platform: 'chilloutvr',
+      kind: 'invite-request',
+      senderId: cvr.platformUserId,
+      senderName: cvr.displayName,
+      worldName: null,
+      receivedAt: now - 25 * 60_000
+    })
+  items.push(
+    {
+      id: 'friend-request:fixture-guest-1',
+      platform: 'chilloutvr',
+      kind: 'friend-request',
+      senderId: 'fixture-guest-1',
+      senderName: 'Pixel Wanderer',
+      worldName: null,
+      receivedAt: now - 20_000
+    },
+    {
+      id: 'friend-request:not_fixture_2',
+      platform: 'vrchat',
+      kind: 'friend-request',
+      senderId: 'usr_fixture_guest_2',
+      senderName: 'Starlight Courier',
+      worldName: null,
+      receivedAt: now - 2 * 60 * 60_000
+    }
+  )
+  items.sort((a, b) => b.receivedAt - a.receivedAt)
+  return { items }
+}

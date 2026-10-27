@@ -20,6 +20,7 @@ import type {
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type {
   ExplorePlatformSnapshot,
@@ -83,7 +84,10 @@ export interface FriendRosterResponse {
   provenance?: FriendRosterProvenance
 }
 
-export type FriendEvent = AdapterEvent & { rosterRevision?: number }
+/** Inbox events stay in main (the inbox service); they never reach `friend-event`. */
+export type BroadcastAdapterEvent = Exclude<AdapterEvent, { type: 'inbox' }>
+
+export type FriendEvent = BroadcastAdapterEvent & { rosterRevision?: number }
 
 /**
  * Request/response channels — renderer asks, main answers:
@@ -158,6 +162,12 @@ export interface IpcInvoke {
   'choose-app-background': { req: void; res: AppBackgroundResult }
   /** Forget the background picture. */
   'clear-app-background': { req: void; res: void }
+  /** Invites and requests that arrived while VRX was open. View-only. */
+  'get-inbox': { req: void; res: InboxSnapshot }
+  /** Hide one row in VRX. Never answers or declines anything on the platform. */
+  'dismiss-inbox-item': { req: { platform: Platform; id: string }; res: void }
+  /** Hide every row for these platforms, in VRX only. */
+  'clear-inbox': { req: { platforms: Platform[] }; res: void }
   'get-settings': { req: void; res: Settings & { unsaved?: true; fallback?: true } }
   'save-settings': { req: { patch: Partial<Settings> }; res: Settings }
   'updater:get-state': { req: void; res: UpdaterSnapshot }
@@ -189,6 +199,8 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
+  /** The inbox changed; read it again with `get-inbox`. */
+  'inbox-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   /** A hot-instance alert click: open Hot Instances with this platform in view. */
@@ -210,5 +222,4 @@ export type IpcNotificationChannel = keyof IpcNotifications
 
 // Channels deliberately deferred until their feature exists — we don't define
 // payload types for things that aren't built yet (keeps the contract honest):
-//   'get-notifications'              → Notification[] (notifications, M3)
 //   'launch-app'                     → LaunchResult (process launch, VRX-98)

@@ -10,6 +10,7 @@ import { useSettingsStore } from '../stores/settings'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import type { UpdaterSnapshot } from '@shared/ipc'
+import type { InboxItem } from '@shared/inbox'
 import Sidebar from './Sidebar'
 
 type MockFn = ReturnType<typeof vi.fn>
@@ -57,7 +58,7 @@ describe('Sidebar destinations (VRX-281)', () => {
     render(<Sidebar />)
     expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
-    const tabs = ['dashboard', 'hot', 'friends', 'explore', 'settings'] as const
+    const tabs = ['dashboard', 'hot', 'friends', 'inbox', 'explore', 'settings'] as const
     const buttons = within(nav).getAllByRole('button')
     expect(buttons.map((button) => button.textContent)).toEqual(
       tabs.map((tab) => i18n.t(`shell.nav.${tab}`))
@@ -74,7 +75,12 @@ describe('Sidebar destinations (VRX-281)', () => {
 describe('Sidebar optional pages (owner, 2026-10-20)', () => {
   it('leaves out the pages the user turned off and keeps the rest in order', () => {
     useSettingsStore.setState({
-      settings: { ...DEFAULT_SETTINGS, showHotInstancesPage: false, showExplorePage: false }
+      settings: {
+        ...DEFAULT_SETTINGS,
+        showHotInstancesPage: false,
+        showExplorePage: false,
+        showInboxPage: false
+      }
     })
     render(<Sidebar />)
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
@@ -85,6 +91,59 @@ describe('Sidebar optional pages (owner, 2026-10-20)', () => {
     ).toEqual(
       (['dashboard', 'friends', 'settings'] as const).map((tab) => i18n.t(`shell.nav.${tab}`))
     )
+  })
+})
+
+describe('Sidebar inbox count (owner, 2026-10-27)', () => {
+  const inboxItem = (platform: 'vrchat' | 'chilloutvr', receivedAt: number): InboxItem => ({
+    id: `invite:${platform}-${receivedAt}`,
+    platform,
+    kind: 'invite',
+    senderId: 'u',
+    senderName: 'U',
+    worldName: null,
+    receivedAt
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useUiStore.setState({ inboxSeenAt: { vrchat: 0, chilloutvr: 0 } })
+  })
+
+  function stubInbox(): void {
+    vi.stubGlobal('vrx', {
+      getInbox: vi.fn(async () => ({
+        items: [inboxItem('vrchat', 30), inboxItem('vrchat', 20), inboxItem('chilloutvr', 10)]
+      }))
+    })
+  }
+
+  it('shows a neutral count of new rows, worded for screen readers', async () => {
+    stubInbox()
+    useUiStore.setState({ inboxSeenAt: { vrchat: 20, chilloutvr: 0 } })
+    render(<Sidebar />)
+    const inbox = screen.getByRole('button', { name: new RegExp(i18n.t('shell.nav.inbox')) })
+    await vi.waitFor(() => expect(inbox.querySelector('[data-inbox-new]')).not.toBeNull())
+    expect(inbox.querySelector('[data-inbox-new] [aria-hidden="true"]')?.textContent).toBe('2')
+    expect(inbox.textContent).toContain(i18n.t('shell.inboxNewAria', { count: 2 }))
+  })
+
+  it('counts only the filtered platform and hides while the Inbox is open', async () => {
+    stubInbox()
+    useFriendsStore.setState({ platformFilter: 'chilloutvr' })
+    const { unmount } = render(<Sidebar />)
+    const inbox = screen.getByRole('button', { name: new RegExp(i18n.t('shell.nav.inbox')) })
+    await vi.waitFor(() =>
+      expect(inbox.querySelector('[data-inbox-new] [aria-hidden="true"]')?.textContent).toBe('1')
+    )
+    unmount()
+
+    useUiStore.setState({ activeTab: 'inbox' })
+    render(<Sidebar />)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(
+      screen.getByRole('button', { current: 'page' }).querySelector('[data-inbox-new]')
+    ).toBeNull()
   })
 })
 

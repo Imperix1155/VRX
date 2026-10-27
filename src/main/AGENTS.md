@@ -129,11 +129,12 @@ etiquette rules apply in full; this file adds local detail.
 **Events, alerts, images**
 
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
-  `FriendAlerts`, then the broadcast, isolating each consumer. The broadcast
+  `FriendAlerts`, `InboxService`, then the broadcast, isolating each consumer.
+  `inbox` events go to `InboxService` only and are never broadcast. The broadcast
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
-- A session boundary clears that platform's alerts, location authority, and
-  Explore state, then sends `identity-boundary`. A VRChat data-path 401 sets
+- A session boundary clears that platform's alerts, location authority, inbox
+  (unless `identityRetained`), and Explore state, then sends `identity-boundary`. A VRChat data-path 401 sets
   `identityRetained`: clear main state but send no identity boundary; the
   following `auth-invalidated` quarantines the renderer.
 - Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
@@ -142,6 +143,11 @@ etiquette rules apply in full; this file adds local detail.
   and rate limited. Ask Me and DND friends never count toward hot alerts, and
   no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
   logs carry no names or locations.
+- `InboxService` is view-only and main-memory only: it never calls a platform,
+  never persists, and Hide is local. Keep its per-platform row cap, bounded
+  hidden-ID memory, and alert limits (`isInboxAlertEnabled`: `notifyInvites`,
+  `notifyFriendRequests`). An invite may name its world because the sender
+  shared it; nothing else in the inbox reads presence.
 - `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
   redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
   API hops share platform admission. The VRChat cookie goes only to
