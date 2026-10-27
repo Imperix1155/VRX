@@ -358,7 +358,7 @@ describe('ExploreService integration bounds', () => {
     if (room.action.state !== 'available') throw new Error('fresh room should be actionable')
     await expect(
       h.service.joinRoom('vrchat', room.action.selectionRef, 'desktop')
-    ).resolves.toEqual({ ok: true })
+    ).resolves.toEqual({ ok: true, handoff: 'launch' })
     expect(adapter.physical.rooms).toBe(1)
     expect(h.launched).toHaveBeenCalledTimes(1)
   })

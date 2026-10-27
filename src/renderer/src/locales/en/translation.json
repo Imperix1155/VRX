@@ -230,6 +230,18 @@
       "vr": "VR",
       "desktop": "Desktop"
     },
+    "joinOpenGame": {
+      "label": "Use the game that's already open",
+      "description": "When VRChat or ChilloutVR is already running, Join takes you there instead of starting it again.",
+      "aria": "Use the game that's already open"
+    },
+    "vrchatOpenGameJoin": {
+      "label": "When VRChat is open",
+      "description": "Go there moves you right away. Send invite gives you an invite to accept in the game. ChilloutVR always goes there.",
+      "aria": "How Join works when VRChat is open",
+      "go": "Go there",
+      "invite": "Send invite"
+    },
     "categories": {
       "aria": "Settings category"
     },
@@ -407,7 +419,12 @@
       "rateLimited": "Too many attempts — try again shortly",
       "targetChanged": "Location changed — try Join again",
       "joiningDisabled": "Joining is disabled in Settings",
-      "notJoinable": "No longer joinable — they may have moved or gone offline"
+      "notJoinable": "No longer joinable — they may have moved or gone offline",
+      "inviteFailed": "Couldn't send the VRChat invite. Use Join to try again."
+    },
+    "joinNotice": {
+      "inGame": "Sent to your open game",
+      "inviteSent": "Invite sent. Accept it in VRChat."
     },
     "notConnected": {
       "vrchat": "Connect VRChat to see your friends here",
@@ -515,6 +532,11 @@
     "willLaunch": {
       "vr": "Will launch in VR.",
       "desktop": "Will launch on desktop."
+    },
+    "openGame": {
+      "vrchatInGame": "VRChat is open, so Join takes you there in the game.",
+      "vrchatInvite": "VRChat is open, so Join sends you an invite to accept in the game.",
+      "chilloutvrInGame": "ChilloutVR is open, so Join takes you there in the game."
     },
     "driftNotice": "{{name}} moved to a different instance — review before joining",
     "review": "Review updated location",

@@ -47,6 +47,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'join-instance': { max: 20, windowMs: 60_000 },
   // Existing 3s action cooldown permits at most 20 successful invites/minute.
   'self-invite': { max: 20, windowMs: 60_000 },
+  // Read once per join dialog open; the answer is a cached local process check.
+  'get-join-handoff': { max: 60, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
   // External links are human-clicked; 30/minute still bounds a click loop.

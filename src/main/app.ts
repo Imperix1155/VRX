@@ -2,6 +2,7 @@ import { createRendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { JoinCoordinator } from './services/joinCoordinator'
+import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
 import {
   app,
@@ -549,6 +550,15 @@ app
     )
 
     const joinCoordinator = new JoinCoordinator()
+    const gameHandoff = new GameHandoff({
+      hostPlatform: process.platform,
+      isRunning: (() => {
+        const games = new RunningGames(processNameListerFor(process.platform))
+        return (platform: Platform) => games.isRunning(platform)
+      })(),
+      settings: () => getSettingsSnapshot(),
+      openExternal: (url) => shell.openExternal(url)
+    })
     const explore = new ExploreService({
       adapters: new Map<Platform, ExploreAdapter & Pick<IPlatformAdapter, 'buildJoinUrl'>>([
         ['vrchat', vrcAdapter],
@@ -563,6 +573,10 @@ app
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
       getImage: (url) => avatarCache.get(url),
       openExternal: (url) => shell.openExternal(url),
+      deliverJoin: (platform, url, location) =>
+        gameHandoff.deliver(platform, url, () =>
+          (platform === 'vrchat' ? vrcAdapter : cvrAdapter).selfInvite(location)
+        ),
       onChanged: (platform) => {
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) window.webContents.send('explore-changed', { platform })
@@ -651,6 +665,7 @@ app
       onFriendRoster: (platform, friends) => friendAlerts.seedRoster(platform, friends),
       instance: {
         joinCoordinator,
+        gameHandoff,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
         clock: () => performance.now(),
         log: (_level, message, meta) => log.warn(message, meta)

@@ -29,7 +29,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Friend, JoinMode, JoinModePreference, Platform } from '@shared/types'
+import type { Friend, JoinHandoff, JoinMode, JoinModePreference, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 import { useFriends } from '../queries/friends'
@@ -38,6 +38,7 @@ import {
   useJoinInstance,
   type FriendPendingConfirm
 } from '../hooks/useJoinInstance'
+import { useJoinHandoff } from '../hooks/useJoinHandoff'
 import { useSettingsStore } from '../stores/settings'
 import { LABEL_KEYS_BY_SCHEME } from '../utils/instanceTypeLabels'
 import { policySpaceFor, type PolicySpace } from '../utils/instancePolicySpace'
@@ -74,6 +75,21 @@ const WILL_LAUNCH_KEYS: Record<Exclude<JoinModePreference, 'ask'>, string> = {
   desktop: 'joinConfirm.willLaunch.desktop'
 }
 
+/** What Join does when the game is already open, per platform. Quoted-literal
+ *  map so the i18n parity scan covers the keys. ChilloutVR has one way only. */
+const OPEN_GAME_KEYS: Record<Platform, Partial<Record<JoinHandoff, string>>> = {
+  vrchat: {
+    'in-game': 'joinConfirm.openGame.vrchatInGame',
+    invite: 'joinConfirm.openGame.vrchatInvite'
+  },
+  chilloutvr: { 'in-game': 'joinConfirm.openGame.chilloutvrInGame' }
+}
+
+/** The copy for a Join into an already-open game, or null when Join launches. */
+function openGameKey(platform: Platform, handoff: JoinHandoff | null): string | null {
+  return handoff === null ? null : (OPEN_GAME_KEYS[platform][handoff] ?? null)
+}
+
 /** The one modal shell renders a distinct, typed Explore source; it never fabricates a Friend. */
 function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -89,6 +105,7 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   const launchInitiatedRef = useRef(false)
   const joiningRef = useRef(isJoining)
   const pending = pendingConfirm?.source === 'explore' ? pendingConfirm : null
+  const handoff = useJoinHandoff(pending?.platform ?? null, pending?.requestId ?? null)
   useEffect(() => {
     joiningRef.current = isJoining
   }, [isJoining])
@@ -154,7 +171,9 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
   if (pending === null) return null
   const { world, room } = pending
   const access = room.access === 'group-public' ? t('explore.groupPublic') : t('explore.public')
-  const showModePicker = world.platform === 'chilloutvr' && joinMode === 'ask'
+  // The game that is already open ignores VR/desktop, so it gets no picker.
+  const openGame = openGameKey(world.platform, handoff)
+  const showModePicker = openGame === null && world.platform === 'chilloutvr' && joinMode === 'ask'
   const resolvedMode = showModePicker ? mode : resolveWireMode(world, joinMode)
   async function joinAndNeverAskAgain(): Promise<void> {
     const result = await confirmPending(resolvedMode)
@@ -227,7 +246,9 @@ function ExploreJoinConfirmDialog(): React.JSX.Element | null {
             </p>
           ) : null}
         </div>
-        {showModePicker ? (
+        {openGame !== null ? (
+          <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
+        ) : showModePicker ? (
           <SegmentedControl
             values={MODE_VALUES}
             active={mode}
@@ -371,6 +392,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   const wasOpenRef = useRef(false)
 
   const isOpen = pendingConfirm !== null
+  const handoff = useJoinHandoff(
+    pendingConfirm?.platform ?? null,
+    pendingConfirm?.requestId ?? null
+  )
 
   // Reset the per-open UI state whenever the dialog (re)opens — keyed to
   // requestId, never to Friend object identity (VRX-239). Focus init also runs
@@ -541,7 +566,10 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
   // CVR's deep link genuinely honors startInVR). VRChat can never select a
   // mode over its launch URI, so it gets the honest one-line note instead of
   // a fake control.
-  const showModePicker = friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
+  // A game that is already open ignores VR/desktop, so it gets a note instead.
+  const openGame = openGameKey(friendForCopy.platform, handoff)
+  const showModePicker =
+    openGame === null && friendForCopy.platform === 'chilloutvr' && joinMode === 'ask'
   const resolvedMode: JoinMode = showModePicker ? mode : resolveWireMode(friendForCopy, joinMode)
 
   // Who's-there: the SHARED hot-instance derivation (VRX-237) — same platform
@@ -696,7 +724,9 @@ function FriendJoinConfirmDialog(): React.JSX.Element | null {
           </div>
         )}
 
-        {showModePicker ? (
+        {openGame !== null ? (
+          <p className="text-xs text-[var(--text-dim)]">{t(openGame)}</p>
+        ) : showModePicker ? (
           <SegmentedControl
             values={MODE_VALUES}
             active={mode}

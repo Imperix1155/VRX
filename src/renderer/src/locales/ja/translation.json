@@ -228,6 +228,18 @@
       "vr": "VR",
       "desktop": "デスクトップ"
     },
+    "joinOpenGame": {
+      "label": "起動中のゲームを使う",
+      "description": "VRChatまたはChilloutVRがすでに起動しているときは、もう一度起動せずにそのゲームで参加します。",
+      "aria": "起動中のゲームを使う"
+    },
+    "vrchatOpenGameJoin": {
+      "label": "VRChatが起動中のとき",
+      "description": "「移動する」はすぐに移動します。「招待を送る」はゲーム内で承認できる招待を送ります。ChilloutVRは常にそのまま移動します。",
+      "aria": "VRChatが起動中のときの参加方法",
+      "go": "移動する",
+      "invite": "招待を送る"
+    },
     "categories": {
       "aria": "設定カテゴリ"
     },
@@ -405,7 +417,12 @@
       "rateLimited": "試行回数が多すぎます — しばらくしてからもう一度お試しください",
       "targetChanged": "場所が変わりました — もう一度参加を試してください",
       "joiningDisabled": "設定で参加が無効になっています",
-      "notJoinable": "参加できなくなりました — 移動したかオフラインになった可能性があります"
+      "notJoinable": "参加できなくなりました — 移動したかオフラインになった可能性があります",
+      "inviteFailed": "VRChatの招待を送れませんでした。もう一度参加を試してください。"
+    },
+    "joinNotice": {
+      "inGame": "起動中のゲームに送りました",
+      "inviteSent": "招待を送りました。VRChatで承認してください。"
     },
     "notConnected": {
       "vrchat": "ここでフレンドを確認するにはVRChatに接続してください",
@@ -512,6 +529,11 @@
     "willLaunch": {
       "vr": "VRで起動します。",
       "desktop": "デスクトップで起動します。"
+    },
+    "openGame": {
+      "vrchatInGame": "VRChatが起動中のため、ゲーム内でそのまま移動します。",
+      "vrchatInvite": "VRChatが起動中のため、ゲーム内で承認する招待を送ります。",
+      "chilloutvrInGame": "ChilloutVRが起動中のため、ゲーム内でそのまま移動します。"
     },
     "driftNotice": "{{name}}さんが別のインスタンスに移動しました — 参加前に確認してください",
     "review": "更新された場所を確認",

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Join uses the game that's already open. When VRChat or ChilloutVR is running,
+  Join takes you there in that game instead of starting a second copy, the way
+  VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
+  an invite to accept in the game (always on Linux, or if you pick Send
+  invite). The join dialog says which will happen, and the line under Join
+  confirms it. Turn it off, or pick how VRChat joins, in Settings → Behavior →
+  Allow joining friends.
+
 ## [1.2.0-dev.2] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.

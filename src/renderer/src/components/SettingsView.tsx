@@ -10,7 +10,8 @@ import type {
   LabelScheme,
   ReconcileInterval,
   Theme,
-  UpdateChannel
+  UpdateChannel,
+  VrchatOpenGameJoin
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
@@ -20,7 +21,8 @@ import {
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES,
-  UPDATE_CHANNELS
+  UPDATE_CHANNELS,
+  VRCHAT_OPEN_GAME_JOINS
 } from '@shared/types'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
@@ -93,6 +95,11 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
   ask: 'settings.joinMode.ask',
   vr: 'settings.joinMode.vr',
   desktop: 'settings.joinMode.desktop'
+}
+
+const VRCHAT_OPEN_GAME_JOIN_LABEL_KEYS: Record<VrchatOpenGameJoin, string> = {
+  go: 'settings.vrchatOpenGameJoin.go',
+  invite: 'settings.vrchatOpenGameJoin.invite'
 }
 
 const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
@@ -519,6 +526,8 @@ export default function SettingsView(): React.JSX.Element {
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
+  const joinOpenGame = useSettingsStore((s) => s.settings.joinOpenGame)
+  const vrchatOpenGameJoin = useSettingsStore((s) => s.settings.vrchatOpenGameJoin)
   const notifyFriendOnline = useSettingsStore((s) => s.settings.notifyFriendOnline)
   const notifyFriendInGame = useSettingsStore((s) => s.settings.notifyFriendInGame)
   const notifyFriendOffline = useSettingsStore((s) => s.settings.notifyFriendOffline)
@@ -829,6 +838,42 @@ export default function SettingsView(): React.JSX.Element {
                   onChange={(value) => updateSettings({ joinMode: value })}
                 />
               </div>
+
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.joinOpenGame.label')}
+                  </p>
+                  <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                    {t('settings.joinOpenGame.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={joinOpenGame}
+                  ariaLabel={t('settings.joinOpenGame.aria')}
+                  onChange={(checked) => updateSettings({ joinOpenGame: checked })}
+                />
+              </div>
+
+              {joinOpenGame && (
+                <div className="setting-row">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {t('settings.vrchatOpenGameJoin.label')}
+                    </p>
+                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
+                      {t('settings.vrchatOpenGameJoin.description')}
+                    </p>
+                  </div>
+                  <SegmentedControl
+                    values={VRCHAT_OPEN_GAME_JOINS}
+                    active={vrchatOpenGameJoin}
+                    labelKeys={VRCHAT_OPEN_GAME_JOIN_LABEL_KEYS}
+                    ariaLabel={t('settings.vrchatOpenGameJoin.aria')}
+                    onChange={(value) => updateSettings({ vrchatOpenGameJoin: value })}
+                  />
+                </div>
+              )}
             </SettingCard>
           </section>
         )}

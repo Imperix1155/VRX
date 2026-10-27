@@ -28,7 +28,6 @@ import { fetchFriends } from './vrchat/fetchFriends'
 import { toBucketSets, type VrcCurrentUserBucketSets } from './vrchat/parsePresence'
 import { fetchWorldMetadata } from './vrchat/fetchWorldMetadata'
 import { fetchGroupMetadata } from './vrchat/fetchGroupMetadata'
-import { parseInstanceType } from './vrchat/parseInstanceType'
 import { WorldResolver, type WorldMeta, type WorldSnapshotEntry } from './vrchat/WorldResolver'
 import {
   createGroupResolver,
@@ -1263,15 +1262,11 @@ export class VrcAdapter extends VrcApiClient implements ExploreAdapter {
     return buildVrcJoinUrl(instance.worldId, instance.instanceId, instance.region ?? undefined)
   }
   async selfInvite(instanceId: string): Promise<void> {
-    // Validate the location BEFORE classification or URL use: a crafted instanceId
-    // could otherwise satisfy the public-instance check via a `#~private(...)`
-    // fragment yet rewrite the authenticated POST path (VRX-51 security review).
+    // Validate the location BEFORE URL use: a crafted instanceId could otherwise
+    // rewrite the authenticated POST path (VRX-51 security review). Callers own
+    // when an invite is wanted; a public instance is fine when VRChat is open.
     if (!isInstanceLocation(instanceId)) {
       throw new Error('Invalid instance location')
-    }
-    // Public instances don't require an invite — the user can just join.
-    if (parseInstanceType(instanceId) === 'public') {
-      throw new Error('No invite needed for public instances')
     }
     this.assertDurableSession()
 

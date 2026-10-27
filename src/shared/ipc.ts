@@ -15,6 +15,7 @@ import type {
   AuthStatus,
   Credentials,
   Friend,
+  JoinHandoff,
   JoinMode,
   LoginResult,
   Platform
@@ -52,7 +53,11 @@ export type AppBackgroundResult =
     }
 
 export type InstanceActionResult =
-  | { ok: true }
+  | {
+      ok: true
+      /** How the join reached the game. Absent on actions that are not a Join. */
+      handoff?: JoinHandoff
+    }
   | {
       ok: false
       reason:
@@ -148,6 +153,9 @@ export interface IpcInvoke {
     req: { platform: 'vrchat'; friendId: string }
     res: InstanceActionResult
   }
+  /** What a Join on this platform would do right now, for the dialog's copy.
+   *  Main decides again when the Join happens. */
+  'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */

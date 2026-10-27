@@ -10,7 +10,7 @@ import {
   getWorldSnapshot,
   linkedSnapshot
 } from './fixtures'
-import { friendsFailureFor } from './scenarios'
+import { friendsFailureFor, joinHandoffFor } from './scenarios'
 
 export type FixtureBridge = NonNullable<Window['vrx']>
 const noop = (): void => undefined
@@ -112,6 +112,7 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     logout: () => Promise.resolve(),
     joinInstance: () => Promise.resolve(denied),
     selfInvite: () => Promise.resolve(denied),
+    getJoinHandoff: ({ platform }) => Promise.resolve(joinHandoffFor(variant, platform)),
     getAppStatus: () =>
       Promise.resolve({
         ws: { vrchat: 'live', chilloutvr: 'live' },
