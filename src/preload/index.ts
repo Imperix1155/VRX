@@ -81,6 +81,8 @@ const vrx = {
   installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
+  setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

@@ -242,6 +242,27 @@
     },
     "notifications": {
       "heading": "通知",
+      "scope": {
+        "label": "通知する相手",
+        "description": "全員、または選んだフレンドだけ。人気インスタンスの通知は変わりません。",
+        "everyone": "全員",
+        "picked": "選んだフレンド",
+        "aria": "通知を送るフレンド"
+      },
+      "picked": {
+        "label": "選んだフレンド",
+        "description": "VRChat: {{vrchat}} · ChilloutVR: {{chilloutvr}}。フレンドの詳細から選べます。",
+        "show": "表示",
+        "showAria": "選んだフレンドを表示",
+        "title": "選んだフレンド",
+        "loading": "選択中: {{count}}。フレンドリストの読み込み後に名前が表示されます。",
+        "none": "まだフレンドを選んでいません。",
+        "signedOut": "サインインしていません。",
+        "remove": "外す",
+        "removeOne": "{{name}} を外す",
+        "notInList": "フレンドリストにいない: {{count}}",
+        "removeMissing": "フレンドリストにいないフレンドを外す"
+      },
       "online": {
         "label": "フレンドがオンラインになったとき",
         "description": "オフラインのフレンドがオンラインになったときに通知します。",
@@ -517,6 +538,13 @@
       "askMe": "参加する前に確認してください",
       "dnd": "参加を受け付けていません",
       "offline": "未接続"
+    },
+    "alerts": {
+      "heading": "通知",
+      "label": "このフレンドを通知する",
+      "aria": "{{name}} を通知する",
+      "saveFailed": "保存できませんでした。もう一度お試しください。",
+      "full": "VRX が保存できる上限までフレンドを選んでいます。"
     },
     "notes": {
       "heading": "メモ（自分用、非公開）",

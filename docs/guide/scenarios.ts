@@ -29,8 +29,14 @@ export const drawerScenarios = [
   { value: 'vrchat', label: 'VRChat' },
   { value: 'chilloutvr', label: 'ChilloutVR' },
   { value: 'note-load-error', label: 'Note load failure' },
-  { value: 'note-save-error', label: 'Note save failure' }
+  { value: 'note-save-error', label: 'Note save failure' },
+  { value: 'picked-alerts', label: 'Picked-friend alerts' }
 ]
+
+/** Settings and drawer variant that limits alerts to picked friends. */
+export function alertScopeFor(variant: string): 'everyone' | 'picked' {
+  return variant === 'picked-alerts' ? 'picked' : 'everyone'
+}
 
 /** Friends roster states (issue 368): one platform fails while the other stays usable. */
 export const friendsScenarios = [

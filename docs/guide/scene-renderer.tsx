@@ -32,7 +32,7 @@ import {
   linkedSnapshot
 } from './fixtures'
 import CatalogScene from './catalog-scenes'
-import { friendsFailureFor } from './scenarios'
+import { alertScopeFor, friendsFailureFor } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -223,6 +223,7 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
+    friendAlertScope: alertScopeFor(variant),
     setupPending: name === 'setup',
     dashboardSectionOrder:
       name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'

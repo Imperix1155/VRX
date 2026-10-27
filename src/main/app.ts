@@ -61,12 +61,17 @@ import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
 import { AccountRegistry } from './services/accountRegistry'
 import { SocialStore } from './services/socialStore'
+import { FriendAlertPicks } from './services/friendAlertPicks'
 import { LinkGraphStore } from './services/linkGraphStore'
 import { isTrustedIpcSender } from './ipc/security'
 import { createShowGate, type ShowGate } from './showGate'
 import { AppStatusService } from './services/appStatus'
 import { createCvrSocket, createVrcSocket } from './socketFactory'
-import { createFriendNotificationNotifier, isFriendAlertEnabled } from './friendNotifications'
+import {
+  createFriendNotificationNotifier,
+  isFriendAlertEnabled,
+  isFriendAlertIncluded
+} from './friendNotifications'
 import { wireAdapterEvents } from './adapterWiring'
 import { reconnectLiveOnWake } from './wakeReconnect'
 import { importCvrSession } from './services/cvrSessionImport'
@@ -398,6 +403,7 @@ app
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
     const socialStore = new SocialStore(accountSession)
+    const alertPicks = new FriendAlertPicks(accountSession, socialStore)
     const linkGraph = new LinkGraphStore()
     const locationAuthority = new LocationAuthority({
       clock: () => performance.now(),
@@ -528,6 +534,10 @@ app
       // Monotonic time keeps limiter windows correct across wall-clock adjustments.
       clock: () => performance.now(),
       isEnabled: (type) => isFriendAlertEnabled(type, getSettingsSnapshot()),
+      isFriendIncluded: (platform, platformUserId) =>
+        isFriendAlertIncluded(getSettingsSnapshot(), () =>
+          alertPicks.isPicked(platform, platformUserId)
+        ),
       hotInstanceThreshold: () => getSettingsSnapshot().hotInstanceThreshold,
       resolveName: (platform, platformUserId) =>
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
@@ -634,6 +644,7 @@ app
       accountRegistry,
       accountSession,
       socialStore,
+      alertPicks,
       links: {
         linkGraph,
         onChanged: () => {

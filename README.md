@@ -32,7 +32,8 @@ you press a "Use my sign-in from" button, described below.
 - **Platform filter**: VRC, ALL, or CVR at the top of the window.
 - **Notifications**: optional desktop alerts when a friend comes online, joins
   a world, or goes offline, or when a hot instance forms. All are off until you
-  turn them on in Settings → Notifications.
+  turn them on in Settings → Notifications, where Who alerts you can limit
+  friend alerts to the friends you pick.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which
   platform's words the instance labels use. Hot Instances and Explore can be

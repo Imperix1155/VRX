@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS } from '@shared/settings'
-import { isFriendAlertEnabled } from './friendNotifications'
+import { isFriendAlertEnabled, isFriendAlertIncluded } from './friendNotifications'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FriendAlert } from './services/friendAlerts'
 
@@ -287,5 +287,17 @@ describe('feature-aware alert consent', () => {
     expect(isFriendAlertEnabled('hot-instance', { ...settings, notifyHotInstance: false })).toBe(
       false
     )
+  })
+})
+
+describe('picked-friends scope', () => {
+  it('includes everyone by default and asks about the pick only when limited', () => {
+    const isPicked = vi.fn(() => false)
+    expect(isFriendAlertIncluded(DEFAULT_SETTINGS, isPicked)).toBe(true)
+    expect(isPicked).not.toHaveBeenCalled()
+
+    const limited = { ...DEFAULT_SETTINGS, friendAlertScope: 'picked' as const }
+    expect(isFriendAlertIncluded(limited, isPicked)).toBe(false)
+    expect(isFriendAlertIncluded(limited, () => true)).toBe(true)
   })
 })

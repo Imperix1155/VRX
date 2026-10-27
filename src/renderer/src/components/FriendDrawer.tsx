@@ -22,7 +22,9 @@
  *      bridge flow, confirmation and in-flight guard (VRX-166).
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
- *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
+ *   5. Alerts: "Alert me about this friend", only while Settings limits alerts
+ *      to picked friends (AlertPickRow). A linked person is one pick.
+ *   6. Notes: person-shared or account-private owner, save-on-blur/navigation,
  *      explicit Retry after failure, then quiet VRChat trust when known.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
@@ -52,6 +54,8 @@ import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
+import AlertPickRow from './AlertPickRow'
+import { useSettingsStore } from '../stores/settings'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -94,6 +98,7 @@ export default function FriendDrawer({
   available?: Partial<Record<Platform, boolean>>
 }): React.JSX.Element {
   const { t } = useTranslation()
+  const pickedAlertsOnly = useSettingsStore((s) => s.settings.friendAlertScope === 'picked')
   const open = friend !== null
   // Retain the last friend so the panel doesn't empty mid slide-out
   // (render-phase state adjustment — the react.dev-endorsed pattern).
@@ -466,7 +471,15 @@ export default function FriendDrawer({
               </div>
             )}
 
-            {/* 5 · Notes — private, account-scoped (VRX-72). */}
+            {/* 5 · Alerts — local picks for the picked-friends alert scope. */}
+            {pickedAlertsOnly && (
+              <AlertPickRow
+                accounts={shownAccounts}
+                name={profileName || t('linking.unknownName')}
+              />
+            )}
+
+            {/* 6 · Notes — private, account-scoped (VRX-72). */}
             {shown && (
               <div className="flex flex-col gap-[var(--space-1)]">
                 <h3
