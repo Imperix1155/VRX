@@ -38,6 +38,7 @@ import {
   recordFriendEventForReplay
 } from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
+import { alertPicksPlatformKey } from '../queries/alertPicks'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
@@ -168,6 +169,9 @@ export function useLiveFriendEvents(): void {
       // Query eviction and the note coordinator's state fence run as separate
       // synchronous listeners; correctness does not depend on registration order.
       queryClient.removeQueries({ queryKey: noteQueryKey })
+      // Alert picks belong to the outgoing account too.
+      void queryClient.cancelQueries({ queryKey: alertPicksPlatformKey(platform) })
+      queryClient.removeQueries({ queryKey: alertPicksPlatformKey(platform) })
       // removeQueries does not reset a mounted observer in query-core 5.101.2.
       // Set [] so every mounted consumer clears immediately and B live events
       // have a cache value to patch, then invalidate to fetch B's roster.

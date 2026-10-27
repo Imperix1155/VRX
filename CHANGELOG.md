@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Alerts for picked friends. Settings → Notifications → Who alerts you can be
+  set to Picked friends; then only the friends you choose send the online,
+  joins-a-world and offline alerts. Pick a friend with Alert me about this
+  friend in their details, for VRChat and ChilloutVR alike, and review or
+  remove picks with Show. Picks stay on this PC, per account, and nothing is
+  sent to either platform. Everyone stays the default.
 - Activity page: friends coming online, joining a world, and going offline on
   VRChat and ChilloutVR, newest first, in one list with each platform named.
   Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
@@ -28,9 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Settings → Notifications and the welcome setup's alerts step show the four
-  friend alerts as rows in one card, so the new page and inbox switches fit
-  without scrolling.
+- Settings → Notifications puts every alert in one card, with Who alerts you
+  on top and the Activity and Inbox page switches in a second card, so the
+  page fits the window without scrolling. With Picked friends, the pick counts
+  and Show sit under Who alerts you. The welcome setup's alerts step groups
+  its alerts the same way.
 - Background picture explains pictures that cannot fill the window: too small
   (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
   long panorama) are refused with the reason. A usable picture that will be

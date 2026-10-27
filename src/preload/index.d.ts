@@ -75,6 +75,13 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  /** Local friend picks for alerts (per signed-in account). */
+  getAlertPicks: (
+    req: IpcInvoke['get-alert-picks']['req']
+  ) => Promise<IpcInvoke['get-alert-picks']['res']>
+  setAlertPick: (
+    req: IpcInvoke['set-alert-pick']['req']
+  ) => Promise<IpcInvoke['set-alert-pick']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

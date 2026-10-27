@@ -39,6 +39,7 @@ describe('settings schema', () => {
       notifyFriendInGame: false,
       notifyFriendOffline: false,
       notifyHotInstance: false,
+      friendAlertScope: 'everyone',
       notifyInvites: false,
       notifyFriendRequests: false,
       backgroundGlow: 'standard',
@@ -293,6 +294,7 @@ describe('migration runner', () => {
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -339,6 +341,7 @@ describe('migration runner', () => {
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -385,6 +388,7 @@ describe('migration runner', () => {
       notifyFriendRequests: false,
       setupPending: false,
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -412,6 +416,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual'
     }
 
@@ -458,6 +463,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar'
     }
@@ -504,6 +510,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar',
       confirmJoin: false,
@@ -808,6 +815,24 @@ describe('shouldPersistSettings (rollback safety)', () => {
       backgroundGlow: 'off',
       backgroundPictureFade: 'high'
     })
+  })
+
+  it('defaults friend alerts to everyone and keeps a picked scope through a v17 round-trip', () => {
+    expect(parseSettings({ version: 17 }).friendAlertScope).toBe('everyone')
+    expect(parseSettings({ friendAlertScope: 'some' }).friendAlertScope).toBe('everyone')
+
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 18,
+      friendAlertScope: 'picked'
+    }
+    // A v17 build does not know the key and would strip it.
+    const oldNormalized = { ...disk, version: 17 }
+    Reflect.deleteProperty(oldNormalized, 'friendAlertScope')
+
+    if (shouldPersistSettings(disk, 17)) disk = oldNormalized
+
+    expect(parseSettings(disk).friendAlertScope).toBe('picked')
   })
 
   it('keeps the Activity page switch and its filters across a v16 round-trip', () => {

@@ -23,7 +23,9 @@ Builds the design guide (`docs/design.html`) and isolated scenes
   (including note load and save failure), and Friends failure states;
   `scene-entry.tsx` adds updater, settings save-error, and login variants, and
   `scene-renderer.tsx` the welcome-setup scene (`ready`, `signed-out`) and the
-  Dashboard `needs-code` state (VRChat waiting for a sign-in code).
+  Dashboard `needs-code` state (VRChat waiting for a sign-in code). The
+  `picked-alerts` settings and drawer variant turns on the picked-friends
+  alert controls.
 
 ## Local Contracts
 

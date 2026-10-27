@@ -159,6 +159,12 @@ export function createFriendNotificationNotifier({
   }
 }
 
+/** The picked-friends scope: with `picked`, only friends the current account
+ *  picked may fire online, joins-a-world and offline alerts. */
+export function isFriendAlertIncluded(settings: Settings, isPicked: () => boolean): boolean {
+  return settings.friendAlertScope !== 'picked' || isPicked()
+}
+
 /** Invites and invite requests share one switch; friend requests have their own. */
 export function isInboxAlertEnabled(kind: InboxKind, settings: Settings): boolean {
   return kind === 'friend-request' ? settings.notifyFriendRequests : settings.notifyInvites

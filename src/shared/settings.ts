@@ -22,6 +22,8 @@
  *   collapsedFriendSections → friends-list presence-section grouping (VRX-67; Offline collapsed by default)
  *   notifyFriend*          → native friend transition alerts (VRX-84; ALL opt-in, VRX-205)
  *   notifyHotInstance      → hot-instance threshold crossings (VRX-85; opt-in, VRX-205)
+ *   friendAlertScope       → everyone, or only picked friends, for friend alerts (owner, 2026-10-27;
+ *                            default everyone; the picks are per account in SocialStore)
  *   reconcileInterval      → friends-list background safety-net cadence (VRX-77; WS remains live path;
  *                            1h default matches VRCX, v14)
  *   drawerOpener           → friend-drawer pointer opener surface (VRX-228; whole-card default, owner ruling 2026-07-27)
@@ -34,8 +36,8 @@
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
- *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v18)
- *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v18)
+ *   showInboxPage          → optional Inbox page (owner, 2026-10-27; default shown, v19)
+ *   notifyInvites, notifyFriendRequests → inbox alerts (owner, 2026-10-27; opt-in like every alert, v19)
  *   backgroundPictureFade  → how much the user's own background picture fades (owner, 2026-10-26)
  *   setupPending           → first-run welcome setup is waiting (owner, 2026-10-20; main sets it
  *                            only for a brand-new settings file or "Run setup again")
@@ -51,6 +53,7 @@ import {
   BACKGROUND_PICTURE_FADES,
   DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
+  FRIEND_ALERT_SCOPES,
   FRIEND_SECTIONS,
   JOIN_MODE_PREFERENCES,
   LABEL_SCHEMES,
@@ -64,7 +67,7 @@ import { ACTIVITY_FILTERS } from './activity'
  *  an older build during a downgrade round-trip. Versioning the addition makes
  *  that older build refuse persistence via shouldPersistSettings, preserving the
  *  user's newer choice even though the migration itself is identity-only. */
-export const SETTINGS_VERSION = 18 as const
+export const SETTINGS_VERSION = 19 as const
 
 export const SettingsSchema = z.object({
   /** Global platform selection and the approved discovery world total. */
@@ -122,6 +125,10 @@ export const SettingsSchema = z.object({
   notifyFriendOffline: z.boolean().catch(false),
   /** Native hot-instance crossing alert (VRX-85). Ships OFF like every alert (VRX-205). */
   notifyHotInstance: z.boolean().catch(false),
+  /** Who the three friend alerts above cover (owner, 2026-10-27). `picked` limits
+   *  them to the friends chosen in the details panel; hot-instance alerts are
+   *  about groups and stay unaffected. Default everyone keeps today's behavior. */
+  friendAlertScope: z.enum(FRIEND_ALERT_SCOPES).catch('everyone'),
   /** Native alerts for a new invite or invite request, and a new friend request. Off by default. */
   notifyInvites: z.boolean().catch(false),
   notifyFriendRequests: z.boolean().catch(false),
@@ -164,7 +171,7 @@ export type SettingsMigration = (prev: Record<string, unknown>) => Record<string
 /**
  * version N → function producing the version N+1 shape.
  *
- * v1 → v2 through v10 → v11, v12 → v13, and v14 → v18 are deliberately
+ * v1 → v2 through v10 → v11, v12 → v13, and v14 → v19 are deliberately
  * identity-only: the shape remains schema-compatible, while the version boundary
  * protects newer fields from older-build key stripping during rollback.
  */
@@ -206,9 +213,12 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v16 → v17: the Activity page switch and its filters are additive. The
   // version boundary stops an older build from stripping a user's Off.
   16: (prev) => ({ ...prev }),
-  // v17 → v18: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
+  // v17 → v18: `friendAlertScope` is additive. The version boundary stops an
+  // older build from stripping a stored `picked` and alerting for everyone.
+  17: (prev) => ({ ...prev }),
+  // v18 → v19: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
   // additive. The version boundary stops an older build from stripping them.
-  17: (prev) => ({ ...prev })
+  18: (prev) => ({ ...prev })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

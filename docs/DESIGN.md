@@ -337,15 +337,19 @@ Accounts, and About. Each setting sits on a compact neutral card.
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and
   their saved choices survive.
-- Notifications: Friend comes online, Friend joins a world, Friend goes
-  offline, and Hot instance, as rows in one card (as in the welcome setup).
-  Each is independent and off by default. Below
-  them, Activity page (on by default) shows or hides the Activity page; it
-  sits here, not with the other page switches, so Behavior fits without
-  scrolling. Off also stops VRX keeping activity and forgets what it kept.
-  Then one Inbox card: Inbox page (on by default), Invite received (invites
-  and invite requests), and Friend request received, each independent; both
-  alerts are off by default.
+- Notifications: one alerts card. Who alerts you (Everyone or Picked
+  friends; with Picked friends its explanation becomes each platform's pick
+  count and a Show link, which lists picks VRChat first with a Remove for
+  each), then Friend comes online, Friend joins a world and Friend goes
+  offline, then, below a divider, the alerts picks never limit: Hot instance,
+  Invite received (invites and invite requests) and Friend request received.
+  Each alert is independent and off by default. While Picked friends is on,
+  the friend details panel shows an Alerts section with Alert me about this
+  friend; a linked person is one pick. Below it, one pages card: Activity
+  page and Inbox page (both on by default). They sit here, not with the
+  other page switches, so Behavior fits without scrolling. Hiding either keeps
+  its alerts; Activity off also stops VRX keeping activity and forgets what it
+  kept.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
