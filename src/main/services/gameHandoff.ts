@@ -160,7 +160,8 @@ export interface GameHandoffOptions {
 }
 
 export type HandoffResult =
-  { ok: true; handoff: JoinHandoff } | { ok: false; reason: 'launch-failed' | 'invite-failed' }
+  | { ok: true; handoff: JoinHandoff }
+  | { ok: false; reason: 'launch-failed' | 'invite-failed' | 'stale' }
 
 /** A Join's last step: launch, or reach the copy of the game that is already open. */
 export class GameHandoff {
@@ -179,13 +180,17 @@ export class GameHandoff {
   /**
    * Deliver a Join. `url` must already have passed `isAllowedLaunchUrl`;
    * `selfInvite` is the adapter's, for the same main-owned location.
+   * `stillCurrent` is the caller's account fence: it is checked again after
+   * every wait, so a sign-in change mid-Join launches and invites nothing.
    */
   async deliver(
     platform: Platform,
     url: string,
-    selfInvite: () => Promise<void>
+    selfInvite: () => Promise<void>,
+    stillCurrent: () => boolean
   ): Promise<HandoffResult> {
     const openGame = await this.joinsOpenGame(platform)
+    if (!stillCurrent()) return { ok: false, reason: 'stale' }
     if (!openGame || platform === 'chilloutvr') {
       try {
         await this.options.openExternal(url)
@@ -197,6 +202,7 @@ export class GameHandoff {
     if (this.canHandVrchatUrl() && (await this.sendToVrchat(url).catch(() => false))) {
       return { ok: true, handoff: 'in-game' }
     }
+    if (!stillCurrent()) return { ok: false, reason: 'stale' }
     try {
       await selfInvite()
     } catch {

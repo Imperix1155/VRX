@@ -3,6 +3,7 @@ import type { InstanceActionResult, IpcInvoke } from '@shared/ipc'
 import type { JoinMode, Platform } from '@shared/types'
 import { isFriendJoinable } from '@shared/joinability'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
+import type { AccountSession } from '../services/accountSession'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { GameHandoff } from '../services/gameHandoff'
 import type { LocationAuthority } from '../services/locationAuthority'
@@ -30,6 +31,8 @@ export interface InstanceHandlerOptions {
   joinCoordinator?: JoinCoordinator
   /** Launch, or reach the game that is already open. Defaults to launch only. */
   gameHandoff?: GameHandoff
+  /** Fences a Join to the account that started it. Without it, no fence. */
+  accountSession?: Pick<AccountSession, 'resolve'>
 }
 
 /** The pre-2026-10-27 behavior: every Join starts the game through its URL. */
@@ -59,6 +62,17 @@ export function registerInstanceHandlers(
   ): InstanceActionResult => {
     log('warn', 'instance action denied', { platform, reason })
     return { ok: false, reason }
+  }
+  /** Capture the signed-in account now; the check fails once it changes. */
+  const accountFence = (platform: Platform): (() => boolean) => {
+    const session = options.accountSession
+    if (!session) return () => true
+    const start = session.resolve(platform)
+    if (!('ready' in start)) return () => false
+    return () => {
+      const now = session.resolve(platform)
+      return 'ready' in now && now.accountKey === start.accountKey && now.epoch === start.epoch
+    }
   }
 
   ipcMain.handle('join-instance', async (event, req: IpcInvoke['join-instance']['req']) => {
@@ -106,12 +120,17 @@ export function registerInstanceHandlers(
     const url = adapter.buildJoinUrl(resolved.friend.instance!, req.mode)
     if (url === null || !isAllowedLaunchUrl(url)) return denied(req.platform, 'invalid-url')
 
+    const stillCurrent = accountFence(req.platform)
+    if (!stillCurrent()) return denied(req.platform, 'stale')
     const permit = joins.acquire(req.platform, currentKey!, req.friendId)
     if (!permit) return denied(req.platform, 'cooldown')
     const instance = resolved.friend.instance!
     try {
-      const result = await handoff.deliver(req.platform, url, () =>
-        adapter.selfInvite(`${instance.worldId}:${instance.instanceId}`)
+      const result = await handoff.deliver(
+        req.platform,
+        url,
+        () => adapter.selfInvite(`${instance.worldId}:${instance.instanceId}`),
+        stillCurrent
       )
       if (!result.ok) return denied(req.platform, result.reason)
       permit.complete()

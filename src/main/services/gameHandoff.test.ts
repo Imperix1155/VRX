@@ -131,6 +131,7 @@ describe('sendToVrchatUrlPipe', () => {
 })
 
 describe('GameHandoff', () => {
+  const current = (): boolean => true
   function handoff(
     overrides: {
       running?: boolean
@@ -163,7 +164,12 @@ describe('GameHandoff', () => {
       openExternal: async () => {
         throw new Error('no handler')
       }
-    }).deliver('chilloutvr', 'chilloutvr://instance/join?instanceId=x', async () => undefined)
+    }).deliver(
+      'chilloutvr',
+      'chilloutvr://instance/join?instanceId=x',
+      async () => undefined,
+      current
+    )
     expect(result).toEqual({ ok: false, reason: 'launch-failed' })
   })
 
@@ -173,7 +179,7 @@ describe('GameHandoff', () => {
       sendToVrchat: async () => {
         throw new Error('pipe')
       }
-    }).deliver('vrchat', 'vrchat://launch?id=x', invite)
+    }).deliver('vrchat', 'vrchat://launch?id=x', invite, current)
     expect(result).toEqual({ ok: true, handoff: 'invite' })
     expect(invite).toHaveBeenCalledOnce()
   })
@@ -188,10 +194,43 @@ describe('GameHandoff', () => {
       settings: () => ({ joinOpenGame: true, vrchatOpenGameJoin: 'go' }),
       openExternal: open
     })
-    await expect(games.deliver('vrchat', 'vrchat://launch?id=x', vi.fn())).resolves.toEqual({
-      ok: true,
-      handoff: 'launch'
-    })
+    await expect(
+      games.deliver('vrchat', 'vrchat://launch?id=x', vi.fn(), current)
+    ).resolves.toEqual({ ok: true, handoff: 'launch' })
     expect(open).toHaveBeenCalledOnce()
+  })
+
+  it('launches nothing when the account changes during the process check', async () => {
+    const open = vi.fn().mockResolvedValue(undefined)
+    let signedIn = true
+    const games = new GameHandoff({
+      hostPlatform: 'win32',
+      isRunning: async () => {
+        signedIn = false
+        return false
+      },
+      settings: () => ({ joinOpenGame: true, vrchatOpenGameJoin: 'go' }),
+      openExternal: open
+    })
+    for (const platform of ['vrchat', 'chilloutvr'] as const) {
+      signedIn = true
+      await expect(
+        games.deliver(platform, `${platform}://x`, vi.fn(), () => signedIn)
+      ).resolves.toEqual({ ok: false, reason: 'stale' })
+    }
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it('sends no invite when the account changes while the pipe answers', async () => {
+    const invite = vi.fn().mockResolvedValue(undefined)
+    let signedIn = true
+    const result = await handoff({
+      sendToVrchat: async () => {
+        signedIn = false
+        return false
+      }
+    }).deliver('vrchat', 'vrchat://launch?id=x', invite, () => signedIn)
+    expect(result).toEqual({ ok: false, reason: 'stale' })
+    expect(invite).not.toHaveBeenCalled()
   })
 })

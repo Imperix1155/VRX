@@ -135,7 +135,10 @@ interface Harness {
   joins: { allowed: boolean }
   service: ExploreService
 }
-function harness(platform: Platform = 'vrchat'): Harness {
+function harness(
+  platform: Platform = 'vrchat',
+  deliverJoin?: ConstructorParameters<typeof ExploreService>[0]['deliverJoin']
+): Harness {
   const now = { value: 0 }
   const account = new AccountSession()
   account.setIdentity(platform, 'account')
@@ -159,6 +162,7 @@ function harness(platform: Platform = 'vrchat'): Harness {
     isJoinAllowed: () => joins.allowed,
     getImage: images,
     openExternal: launched,
+    deliverJoin,
     onChanged: changed,
     clock: () => now.value,
     wallClock: () => now.value
@@ -361,6 +365,46 @@ describe('ExploreService integration bounds', () => {
     ).resolves.toEqual({ ok: true, handoff: 'launch' })
     expect(adapter.physical.rooms).toBe(1)
     expect(h.launched).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands the open-game Join a fence that fails once the account changes', async () => {
+    let account: AccountSession | null = null
+    const fences: boolean[] = []
+    const h = harness('vrchat', async (_platform, _url, _location, stillCurrent) => {
+      fences.push(stillCurrent())
+      account!.setIdentity('vrchat', 'next')
+      fences.push(stillCurrent())
+      return { ok: false, reason: 'stale' }
+    })
+    account = h.account
+    const adapter = h.adapters.get('vrchat')!
+    const world = vrcWorld(0)
+    const roomId = '1~public'
+    adapter.candidates = [world]
+    adapter.details.set(world.worldId, { world, roomIds: [roomId], roomsComplete: true })
+    adapter.rooms.set(`${world.worldId}/${roomId}`, {
+      platform: 'vrchat',
+      worldId: world.worldId,
+      roomId,
+      access: 'public',
+      region: null,
+      groupName: null,
+      occupancy: { state: 'complete', value: 1, source: 'vrc-room-n-users' },
+      capacity: 16,
+      full: false,
+      joinEligibility: 'eligible'
+    })
+    await load(h, 'vrchat')
+    const ref = (await h.service.getSnapshot('vrchat', 'snapshot')).worlds[0]!.worldRef
+    await h.service.getWorld('vrchat', ref, 'manual')
+    await vi.waitFor(() => expect(adapter.physical.rooms).toBe(1))
+    const room = (await h.service.getWorld('vrchat', ref, 'snapshot'))!.rooms[0]!
+    if (room.action.state !== 'available') throw new Error('fresh room should be actionable')
+    await expect(
+      h.service.joinRoom('vrchat', room.action.selectionRef, 'desktop')
+    ).resolves.toEqual({ ok: false, reason: 'stale' })
+    expect(fences).toEqual([true, false])
+    expect(h.launched).not.toHaveBeenCalled()
   })
 
   it('rejects forged and prior-account opaque world references without I/O', async () => {

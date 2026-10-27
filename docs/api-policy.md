@@ -211,6 +211,9 @@ default; off always launches).
   public instances included. It is the same single write VRX already makes,
   under the Join's lock and cooldown. VRX never launches a second copy in this
   case.
+- **Same account only.** A Join remembers the signed-in account when it
+  starts. If that sign-in changes while VRX checks for the game or waits on the
+  pipe, the Join stops: no link opens and no invite goes out.
 
 ## Local action limits
 

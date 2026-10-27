@@ -44,6 +44,8 @@ Persistence, network, cache, and account-transition policy stay in services.
   launch input), adapter URL build, `isAllowedLaunchUrl`, then
   `GameHandoff.deliver` under `JoinCoordinator`: launch, or reach the game that
   is already open (the same URL, or one self-invite to main's location).
+  The Join captures the signed-in account first and `deliver` rechecks it
+  after each wait; a changed account gets `stale` and nothing launches.
   `get-join-handoff` takes only a validated platform and returns a preview.
   `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown,
   and refuses a public instance.

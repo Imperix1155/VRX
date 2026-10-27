@@ -573,9 +573,12 @@ app
       isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
       getImage: (url) => avatarCache.get(url),
       openExternal: (url) => shell.openExternal(url),
-      deliverJoin: (platform, url, location) =>
-        gameHandoff.deliver(platform, url, () =>
-          (platform === 'vrchat' ? vrcAdapter : cvrAdapter).selfInvite(location)
+      deliverJoin: (platform, url, location, stillCurrent) =>
+        gameHandoff.deliver(
+          platform,
+          url,
+          () => (platform === 'vrchat' ? vrcAdapter : cvrAdapter).selfInvite(location),
+          stillCurrent
         ),
       onChanged: (platform) => {
         for (const window of BrowserWindow.getAllWindows()) {

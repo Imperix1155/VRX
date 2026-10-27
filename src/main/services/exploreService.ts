@@ -125,7 +125,12 @@ export interface ExploreServiceOptions {
   openExternal: (url: string) => Promise<void>
   /** Reach a game that is already open (`GameHandoff.deliver`). Without it,
    *  a Join always launches through `openExternal`. */
-  deliverJoin?: (platform: Platform, url: string, location: string) => Promise<HandoffResult>
+  deliverJoin?: (
+    platform: Platform,
+    url: string,
+    location: string,
+    stillCurrent: () => boolean
+  ) => Promise<HandoffResult>
   onChanged: (platform: Platform) => void
   clock?: () => number
   wallClock?: () => number
@@ -303,7 +308,12 @@ export class ExploreService {
         .get(platform)
         ?.buildJoinUrl(this.instance(world, evidence), mode)
       if (!url || !isAllowedLaunchUrl(url)) return { ok: false, reason: 'invalid-url' }
-      const result = await this.deliver(platform, url, `${world.evidence.worldId}:${roomId}`)
+      const result = await this.deliver(
+        platform,
+        url,
+        `${world.evidence.worldId}:${roomId}`,
+        () => this.current(platform, state) && this.findSelection(state, selectionRef) === selection
+      )
       if (!result.ok) return result
       permit.complete()
       return { ok: true, handoff: result.handoff }
@@ -1036,8 +1046,14 @@ export class ExploreService {
     }
   }
 
-  private async deliver(platform: Platform, url: string, location: string): Promise<HandoffResult> {
-    if (this.options.deliverJoin) return this.options.deliverJoin(platform, url, location)
+  private async deliver(
+    platform: Platform,
+    url: string,
+    location: string,
+    stillCurrent: () => boolean
+  ): Promise<HandoffResult> {
+    if (this.options.deliverJoin)
+      return this.options.deliverJoin(platform, url, location, stillCurrent)
     try {
       await this.options.openExternal(url)
     } catch {

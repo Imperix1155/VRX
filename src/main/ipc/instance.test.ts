@@ -7,6 +7,7 @@ import { stubPlatformAdapter } from '../services/adapters/__testutils__/adapterT
 import { LocationAuthority } from '../services/locationAuthority'
 import { JoinCoordinator } from '../services/joinCoordinator'
 import { GameHandoff, type GameHandoffSettings } from '../services/gameHandoff'
+import { AccountSession } from '../services/accountSession'
 import { hotInstanceKey } from '@shared/hotInstanceKey'
 
 const handlers = new Map<string, (event: unknown, req: unknown) => unknown>()
@@ -515,6 +516,7 @@ describe('join in a game that is already open', () => {
   let hostPlatform: NodeJS.Platform
   let sendToVrchat: ReturnType<typeof vi.fn<(url: string) => Promise<boolean>>>
   let cvrAdapter: IPlatformAdapter
+  let accountSession: AccountSession
   const cvrInstance = 'i+0123456789abcdef-012345-6789ab-01234567'
   const cvrUrl = `chilloutvr://instance/join?instanceId=${encodeURIComponent(cvrInstance)}&startInVR=true`
 
@@ -534,6 +536,9 @@ describe('join in a game that is already open', () => {
     sendToVrchat = vi.fn<(url: string) => Promise<boolean>>().mockResolvedValue(true)
     cvrAdapter = stubPlatformAdapter({ platform: 'chilloutvr' })
     vi.mocked(cvrAdapter.buildJoinUrl).mockReturnValue(cvrUrl)
+    accountSession = new AccountSession()
+    accountSession.setIdentity('vrchat', 'usr_me')
+    accountSession.setIdentity('chilloutvr', 'cvr_me')
     registerInstanceHandlers(
       new Map<Platform, IPlatformAdapter>([
         ['vrchat', adapter],
@@ -544,6 +549,7 @@ describe('join in a game that is already open', () => {
         clock: () => now,
         log,
         isJoinAllowed: () => true,
+        accountSession,
         gameHandoff: new GameHandoff({
           get hostPlatform() {
             return hostPlatform
@@ -653,6 +659,46 @@ describe('join in a game that is already open', () => {
       handoff: 'launch'
     })
     expect(sendToVrchat).not.toHaveBeenCalled()
+  })
+
+  it('sends no invite for the old account when the sign-in changes during the pipe wait', async () => {
+    seed()
+    running.add('vrchat')
+    sendToVrchat.mockImplementation(async () => {
+      accountSession.setIdentity('vrchat', 'usr_other')
+      return false
+    })
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(adapter.selfInvite).not.toHaveBeenCalled()
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('opens no link for the old account when the sign-in changes during the process check', async () => {
+    seedCvr()
+    running.add('chilloutvr')
+    const check = running.has.bind(running)
+    running.has = (platform) => {
+      accountSession.setIdentity('chilloutvr', null)
+      return check(platform)
+    }
+    await expect(call('join-instance', joinReq(cvrFriend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
+  })
+
+  it('refuses a Join with no signed-in account', async () => {
+    seed()
+    accountSession.setIdentity('vrchat', null)
+    await expect(call('join-instance', joinReq(friend()))).resolves.toEqual({
+      ok: false,
+      reason: 'stale'
+    })
+    expect(openExternal).not.toHaveBeenCalled()
   })
 
   it('previews the handoff for each platform and validates the request', async () => {
