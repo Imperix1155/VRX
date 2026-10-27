@@ -19,6 +19,10 @@ describe('NOT_CONNECTED_KEY', () => {
       activity: {
         vrchat: 'activity.notConnected.vrchat',
         chilloutvr: 'activity.notConnected.chilloutvr'
+      },
+      inbox: {
+        vrchat: 'inbox.notConnected.vrchat',
+        chilloutvr: 'inbox.notConnected.chilloutvr'
       }
     })
   })

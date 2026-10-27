@@ -114,6 +114,7 @@
       "hot": "ホットインスタンス",
       "friends": "フレンド",
       "activity": "アクティビティ",
+      "inbox": "受信箱",
       "explore": "探索",
       "avatars": "アバター",
       "settings": "設定"
@@ -132,7 +133,9 @@
       "down": "切断",
       "signedOut": "サインアウト",
       "needsCode": "コードが必要"
-    }
+    },
+    "inboxNewAria_one": "新着 {{count}} 件",
+    "inboxNewAria_other": "新着 {{count}} 件"
   },
   "settings": {
     "appearance": {
@@ -295,6 +298,16 @@
         "label": "ホットインスタンス",
         "description": "同じインスタンスに十分な数のフレンドが集まったときに通知します。",
         "aria": "インスタンスがホットになったときに通知"
+      },
+      "invites": {
+        "label": "招待が届いたとき",
+        "description": "招待や招待リクエストが届いたときに通知します。",
+        "aria": "招待が届いたときに通知"
+      },
+      "friendRequests": {
+        "label": "フレンドリクエストが届いたとき",
+        "description": "フレンドリクエストが届いたときに通知します。",
+        "aria": "フレンドリクエストが届いたときに通知"
       }
     },
     "accounts": {
@@ -413,7 +426,11 @@
       },
       "activity": {
         "label": "アクティビティのページ",
-        "description": "VRXを開いている間、これらの変化を一覧にします。オフにすると何も保持しません。"
+        "description": "VRXを開いている間のフレンドの動き。オフで何も保持しません。"
+      },
+      "inbox": {
+        "label": "受信箱のページ",
+        "description": "サイドバーに表示します。通知はそのままです。"
       }
     },
     "setup": {
@@ -876,9 +893,11 @@
       "lead": "使わないページはオフにできます。ダッシュボード、フレンド、設定はいつでも表示されます。",
       "hot": "何人かのフレンドが一緒にいるインスタンスをすべて表示します。",
       "activity": "フレンドのオンライン、ワールド移動、オフラインの流れ。",
+      "inbox": "両方のプラットフォームの招待とフレンドリクエスト。",
       "explore": "両方のプラットフォームでいま人気のワールド。",
       "hotAria": "ホットインスタンスのページを表示",
       "activityAria": "アクティビティのページを表示",
+      "inboxAria": "受信箱のページを表示",
       "exploreAria": "探索のページを表示"
     },
     "dashboard": {
@@ -923,5 +942,35 @@
       "alertsSome": "{{total}}件中{{count}}件オン",
       "lookValue": "{{theme}}・グロー{{glow}}"
     }
+  },
+  "inbox": {
+    "invitesHeading": "招待",
+    "requestsHeading": "フレンドリクエスト",
+    "invite": "{{world}}に招待されました",
+    "inviteNoWorld": "招待されました",
+    "inviteRequest": "招待を求めています",
+    "friendRequest": "フレンドリクエストが届きました",
+    "someone": "誰か",
+    "justNow": "たった今",
+    "hide": "非表示",
+    "hideInviteAria": "{{name}}からの招待を非表示",
+    "hideInviteRequestAria": "{{name}}からの招待リクエストを非表示",
+    "hideFriendRequestAria": "{{name}}からのフレンドリクエストを非表示",
+    "hideAll": "すべて非表示",
+    "hideFailed": "非表示にできませんでした。もう一度お試しください。",
+    "count_one": "{{count}}件",
+    "count_other": "{{count}}件",
+    "emptyHeading": "届いているものはありません",
+    "emptyHint": "VRXの起動中に届いた招待とフレンドリクエストがここに表示されます。",
+    "help": {
+      "label": "受信箱について",
+      "answer": "VRXは表示するだけです。返事はゲーム内またはプラットフォームのサイトで行ってください。非表示にするとVRXから消えるだけで、何も送信されません。",
+      "live": "受信箱にはVRXの起動中に届いたものが表示され、VRXを終了すると消えます。"
+    },
+    "notConnected": {
+      "vrchat": "ここで招待を確認するにはVRChatに接続してください",
+      "chilloutvr": "ここで招待を確認するにはChilloutVRに接続してください"
+    },
+    "loadError": "受信箱を読み込めませんでした"
   }
 }

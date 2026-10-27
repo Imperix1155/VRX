@@ -507,7 +507,7 @@ async function runDeferredWorldMetadataRace(liveMutation: 'offline' | 'location'
   markSessionEstablished(adapter)
   const unsubscribe = adapter.subscribe((event) => {
     events.push(event)
-    cache = applyFriendEvent(cache, event)
+    if (event.type !== 'inbox') cache = applyFriendEvent(cache, event)
   })
 
   try {

@@ -157,9 +157,42 @@ const FRIEND_ALERT_SCOPE_LABEL_KEYS: Record<FriendAlertScope, string> = {
   picked: 'settings.notifications.scope.picked'
 }
 
-/** Who the friend alerts cover. Picked friends are chosen in each friend's
- *  details panel; the list behind Show lets the user review and remove them. */
-function FriendAlertScopeCard(): React.JSX.Element {
+/** One labeled On/Off row inside a card. */
+function SwitchRow({
+  label,
+  description,
+  ariaLabel,
+  checked,
+  onChange
+}: {
+  label: string
+  description: string
+  ariaLabel: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}): React.JSX.Element {
+  return (
+    <div className="setting-row">
+      <div>
+        <p className="text-sm font-medium text-[var(--text)]">{label}</p>
+        <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">{description}</p>
+      </div>
+      <Toggle checked={checked} ariaLabel={ariaLabel} onChange={onChange} />
+    </div>
+  )
+}
+
+/** Who the friend alerts cover, then those alerts (`scoped`) and, past a
+ *  divider, the alerts the scope never limits (`children`), all in one card.
+ *  Picked friends are chosen in each friend's details panel; the list behind
+ *  Show lets the user review and remove them. */
+function FriendAlertsCard({
+  scoped,
+  children
+}: {
+  scoped: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
   const { t } = useTranslation()
   const scope = useSettingsStore((s) => s.settings.friendAlertScope)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
@@ -169,54 +202,45 @@ function FriendAlertScopeCard(): React.JSX.Element {
   const picked = scope === 'picked'
   return (
     <>
-      <SettingCard
-        expanded={picked}
-        parent={
-          <div className="setting-row">
-            <div>
-              <p className="text-sm font-medium text-[var(--text)]">
-                {t('settings.notifications.scope.label')}
-              </p>
-              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                {t('settings.notifications.scope.description')}
-              </p>
-            </div>
-            <SegmentedControl<FriendAlertScope>
-              values={FRIEND_ALERT_SCOPES}
-              active={scope}
-              labelKeys={FRIEND_ALERT_SCOPE_LABEL_KEYS}
-              ariaLabel={t('settings.notifications.scope.aria')}
-              onChange={(value) => updateSettings({ friendAlertScope: value })}
-            />
-          </div>
-        }
-      >
+      <div className="setting-card">
         <div className="setting-row">
           <div>
             <p className="text-sm font-medium text-[var(--text)]">
-              {t('settings.notifications.picked.label')}
+              {t('settings.notifications.scope.label')}
             </p>
-            <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-              {t('settings.notifications.picked.description', { vrchat, chilloutvr })}
-            </p>
+            {/* Picked friends swaps the explanation for each platform's count
+                and Show, so the page still fits the 900x670 window. */}
+            {picked ? (
+              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                <span>
+                  {t('settings.notifications.picked.description', { vrchat, chilloutvr })}
+                </span>{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowList(true)}
+                  aria-label={t('settings.notifications.picked.showAria')}
+                  className="whitespace-nowrap text-[var(--text)] underline decoration-dotted underline-offset-2 hover:text-[var(--text)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] cursor-pointer"
+                >
+                  {t('settings.notifications.picked.show')}
+                </button>
+              </p>
+            ) : (
+              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                {t('settings.notifications.scope.description')}
+              </p>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setShowList(true)}
-            aria-label={t('settings.notifications.picked.showAria')}
-            className={[
-              'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
-              'border border-[var(--border)]',
-              'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
-              'text-[var(--text)]',
-              'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
-              'cursor-pointer'
-            ].join(' ')}
-          >
-            {t('settings.notifications.picked.show')}
-          </button>
+          <SegmentedControl<FriendAlertScope>
+            values={FRIEND_ALERT_SCOPES}
+            active={scope}
+            labelKeys={FRIEND_ALERT_SCOPE_LABEL_KEYS}
+            ariaLabel={t('settings.notifications.scope.aria')}
+            onChange={(value) => updateSettings({ friendAlertScope: value })}
+          />
         </div>
-      </SettingCard>
+        <div className="mt-[var(--space-2)] grid gap-[var(--space-2)]">{scoped}</div>
+        <div className="setting-children">{children}</div>
+      </div>
       {showList && <PickedFriendsDialog onClose={() => setShowList(false)} />}
     </>
   )
@@ -641,6 +665,9 @@ export default function SettingsView(): React.JSX.Element {
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
   const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
+  const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
+  const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
+  const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -992,90 +1019,81 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.notifications.heading')}
             </h2>
 
-            <FriendAlertScopeCard />
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.online.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.online.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendOnline}
-                ariaLabel={t('settings.notifications.online.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
-              />
-            </div>
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.inGame.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.inGame.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendInGame}
-                ariaLabel={t('settings.notifications.inGame.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
-              />
-            </div>
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.offline.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.offline.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendOffline}
-                ariaLabel={t('settings.notifications.offline.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
-              />
-            </div>
-
-            {/* Hot instance alert — moved here from the Dashboard card (owner,
-                2026-10-18); the Dashboard switch no longer gates it. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.hotInstance.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.hotInstance.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyHotInstance}
+            {/* Every alert in one card (as in the welcome setup), so the page
+                switches below still fit the 900x670 window. Who alerts you
+                covers the three friend alerts right under it; the divider sets
+                off the alerts it never limits. Each switch stays independent.
+                The hot instance alert moved here from the Dashboard card
+                (owner, 2026-10-18); the Dashboard switch no longer gates it. */}
+            <FriendAlertsCard
+              scoped={
+                <>
+                  <SwitchRow
+                    label={t('settings.notifications.online.label')}
+                    description={t('settings.notifications.online.description')}
+                    ariaLabel={t('settings.notifications.online.aria')}
+                    checked={notifyFriendOnline}
+                    onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
+                  />
+                  <SwitchRow
+                    label={t('settings.notifications.inGame.label')}
+                    description={t('settings.notifications.inGame.description')}
+                    ariaLabel={t('settings.notifications.inGame.aria')}
+                    checked={notifyFriendInGame}
+                    onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
+                  />
+                  <SwitchRow
+                    label={t('settings.notifications.offline.label')}
+                    description={t('settings.notifications.offline.description')}
+                    ariaLabel={t('settings.notifications.offline.aria')}
+                    checked={notifyFriendOffline}
+                    onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
+                  />
+                </>
+              }
+            >
+              <SwitchRow
+                label={t('settings.notifications.hotInstance.label')}
+                description={t('settings.notifications.hotInstance.description')}
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
+                checked={notifyHotInstance}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
               />
-            </div>
+              {/* Inbox alerts (owner, 2026-10-27): invites and invite requests
+                  share one switch; friend requests have their own. */}
+              <SwitchRow
+                label={t('settings.notifications.invites.label')}
+                description={t('settings.notifications.invites.description')}
+                ariaLabel={t('settings.notifications.invites.aria')}
+                checked={notifyInvites}
+                onChange={(checked) => updateSettings({ notifyInvites: checked })}
+              />
+              <SwitchRow
+                label={t('settings.notifications.friendRequests.label')}
+                description={t('settings.notifications.friendRequests.description')}
+                ariaLabel={t('settings.notifications.friendRequests.aria')}
+                checked={notifyFriendRequests}
+                onChange={(checked) => updateSettings({ notifyFriendRequests: checked })}
+              />
+            </FriendAlertsCard>
 
-            {/* The Activity page lists the same friend changes inside VRX
-                (owner, 2026-10-27). It lives here rather than with the other
-                page switches so Behavior still fits the 900x670 window. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.pages.activity.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.pages.activity.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={showActivityPage}
+            {/* The Activity and Inbox page switches (owner, 2026-10-27) live
+                here rather than with the other page switches so Behavior
+                still fits the 900x670 window. Hiding either keeps its alerts. */}
+            <div className="setting-card grid gap-[var(--space-2)]">
+              <SwitchRow
+                label={t('settings.pages.activity.label')}
+                description={t('settings.pages.activity.description')}
                 ariaLabel={t('settings.pages.activity.label')}
+                checked={showActivityPage}
                 onChange={(checked) => updateSettings({ showActivityPage: checked })}
+              />
+              <SwitchRow
+                label={t('settings.pages.inbox.label')}
+                description={t('settings.pages.inbox.description')}
+                ariaLabel={t('settings.pages.inbox.label')}
+                checked={showInboxPage}
+                onChange={(checked) => updateSettings({ showInboxPage: checked })}
               />
             </div>
           </section>

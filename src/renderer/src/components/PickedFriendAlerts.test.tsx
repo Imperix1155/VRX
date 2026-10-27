@@ -130,9 +130,7 @@ describe('Settings → Notifications: who alerts you', () => {
         .getByRole('radio', { name: msg('settings.notifications.scope.everyone') })
         .getAttribute('aria-checked')
     ).toBe('true')
-    expect(
-      screen.getByText(msg('settings.notifications.picked.show')).closest('[inert]')
-    ).not.toBeNull()
+    expect(screen.queryByText(msg('settings.notifications.picked.show'))).toBeNull()
 
     fireEvent.click(
       within(scope).getByRole('radio', { name: msg('settings.notifications.scope.picked') })

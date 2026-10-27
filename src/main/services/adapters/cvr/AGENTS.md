@@ -40,8 +40,11 @@ request transport, and published adapter events.
   full-set entry with a readable ID keeps only its earlier online state, never
   its old instance. A full set with no usable entry is never authoritative; it
   triggers at most `MAX_UNUSABLE_FULL_SET_RESYNCS` reconnects.
-- `FRIEND_LIST_UPDATED` maps to the trigger-only `roster-changed`; invite and
-  notification types stay unrouted. No application keepalive. Reconnect waits
+- `FRIEND_LIST_UPDATED` maps to the trigger-only `roster-changed`.
+  `INVITES`, `REQUEST_INVITES` and `FRIEND_REQUESTS` become add-only `inbox`
+  events through `parseInbox.ts` (🟡 shapes unconfirmed live; read both
+  casings, cap records per frame, skip bad records). Other notification types
+  stay unrouted. No application keepalive. Reconnect waits
   honor the shared 429 cooldown and cancel on stop or session replacement.
 - The outgoing friend and invite senders are unwired. They drop, never queue,
   while disconnected. Wiring one is a social action under the root etiquette

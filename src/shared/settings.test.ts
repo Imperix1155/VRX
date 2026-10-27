@@ -25,6 +25,7 @@ describe('settings schema', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -39,6 +40,8 @@ describe('settings schema', () => {
       notifyFriendOffline: false,
       notifyHotInstance: false,
       friendAlertScope: 'everyone',
+      notifyInvites: false,
+      notifyFriendRequests: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -287,6 +290,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -333,6 +339,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -380,6 +389,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -429,6 +441,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -476,6 +491,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -524,6 +542,9 @@ describe('migration runner', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -892,6 +913,36 @@ describe('shouldPersistSettings (rollback safety)', () => {
   })
 })
 
+describe('Inbox settings', () => {
+  it('defaults the page on and both alerts off, and keeps explicit choices', () => {
+    expect(parseSettings({ version: 18 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false
+    })
+    expect(
+      parseSettings({ showInboxPage: false, notifyInvites: true, notifyFriendRequests: 'yes' })
+    ).toMatchObject({ showInboxPage: false, notifyInvites: true, notifyFriendRequests: false })
+  })
+
+  it('prevents a v19 build from stripping the inbox choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 20,
+      showInboxPage: false,
+      notifyInvites: true
+    }
+    const oldNormalized = { ...disk, version: 19 }
+    Reflect.deleteProperty(oldNormalized, 'showInboxPage')
+    Reflect.deleteProperty(oldNormalized, 'notifyInvites')
+
+    if (shouldPersistSettings(disk, 19)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({ showInboxPage: false, notifyInvites: true })
+  })
+})
+
 describe('Explore settings migration', () => {
   it('migrates v8 and preserves explicit filter/count while defaulting invalid values', () => {
     expect(parseSettings({ version: 8 })).toMatchObject({
@@ -1007,6 +1058,9 @@ describe('Optional pages and first-run setup', () => {
       showExplorePage: true,
       showActivityPage: true,
       activityFilter: 'all',
+      showInboxPage: true,
+      notifyInvites: false,
+      notifyFriendRequests: false,
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)

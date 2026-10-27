@@ -1,3 +1,4 @@
+import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { AdapterEvent, ConnectionHealth, Platform } from '@shared/types'
 
 import log from './logger'
@@ -20,7 +21,9 @@ interface AdapterWiringOptions {
   locationAuthority: AdapterEventConsumer
   friendAlerts: AdapterEventConsumer
   activityFeed: AdapterEventConsumer
-  broadcast: (event: AdapterEvent) => void
+  /** Sees every event: inbox changes, plus friend adds that settle a request. */
+  inbox: AdapterEventConsumer
+  broadcast: (event: BroadcastAdapterEvent) => void
 }
 
 function formatConsumerError(err: unknown): string {
@@ -61,9 +64,17 @@ export function wireAdapterEvents({
   locationAuthority,
   friendAlerts,
   activityFeed,
+  inbox,
   broadcast
 }: AdapterWiringOptions): () => void {
   const handleAdapterEvent = (event: AdapterEvent): void => {
+    // Inbox changes carry no presence or roster data, so nothing else reads them.
+    if (event.type === 'inbox') {
+      runConsumerSafely('inbox', event.type, () => {
+        inbox.consume(event)
+      })
+      return
+    }
     if (event.type === 'connection') {
       runConsumerSafely('appStatus', event.type, () => {
         appStatus.recordConnection(event.platform, event.health)
@@ -77,6 +88,9 @@ export function wireAdapterEvents({
     })
     runConsumerSafely('activityFeed', event.type, () => {
       activityFeed.consume(event)
+    })
+    runConsumerSafely('inbox', event.type, () => {
+      inbox.consume(event)
     })
     runConsumerSafely('broadcast', event.type, () => {
       broadcast(event)

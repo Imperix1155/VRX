@@ -208,6 +208,9 @@ offline friends never show a stale cached instance. Rows, the drawer, Hot
 Instances, notifications, and actions all use the shared hidden-location and
 membership checks in [`hotInstanceKey.ts`](../src/shared/hotInstanceKey.ts).
 Never put a hidden identifier in gesture metadata.
+An invite is the one place a world name can appear for any sender: the sender
+chose to share it by inviting, so the Inbox shows the world the invite names,
+never a location read from presence (§9.6).
 
 **Joining** is a separate decision, made by
 [`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join
@@ -292,13 +295,13 @@ added around it); on a smaller screen the minimum shrinks so the app stays
 usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
-**Navigation**, in order: Dashboard, Hot Instances, Friends, Activity,
+**Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
 Explore, Settings. Hot Instances and Explore can be hidden in Settings →
-Behavior, Activity in Settings → Notifications, and all three in the welcome
-setup; a hidden page leaves the sidebar and its links, while its Dashboard
-section and alerts keep their own switches. A hidden page that is open, or
-that a hot-instance alert asks for, falls back to the Dashboard. Groups is not
-a planned page and never appears as a placeholder.
+Behavior, Activity and Inbox in Settings → Notifications, and all four in the
+welcome setup; a hidden page leaves the sidebar and its links, while its
+Dashboard section and alerts keep their own switches. A hidden page that is
+open, or that a hot-instance alert asks for, falls back to the Dashboard.
+Groups is not a planned page and never appears as a placeholder.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
@@ -342,16 +345,19 @@ Accounts, and About. Each setting sits on a compact neutral card.
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and
   their saved choices survive.
-- Notifications: Who alerts you (Everyone or Picked friends; Picked friends
-  opens a row with each platform's pick count and Show, which lists picks
-  VRChat first with a Remove for each), then Friend comes online, Friend
-  joins a world, Friend goes offline, and Hot instance. Each alert is
-  independent and off by default; picks never limit Hot instance. While
-  Picked friends is on, the friend details panel shows an Alerts section
-  with Alert me about this friend; a linked person is one pick. Below
-  them, Activity page (on by default) shows or hides the Activity page; it
-  sits here, not with the other page switches, so Behavior fits without
-  scrolling. Off also stops VRX keeping activity and forgets what it kept.
+- Notifications: one alerts card. Who alerts you (Everyone or Picked
+  friends; with Picked friends its explanation becomes each platform's pick
+  count and a Show link, which lists picks VRChat first with a Remove for
+  each), then Friend comes online, Friend joins a world and Friend goes
+  offline, then, below a divider, the alerts picks never limit: Hot instance,
+  Invite received (invites and invite requests) and Friend request received.
+  Each alert is independent and off by default. While Picked friends is on,
+  the friend details panel shows an Alerts section with Alert me about this
+  friend; a linked person is one pick. Below it, one pages card: Activity
+  page and Inbox page (both on by default). They sit here, not with the
+  other page switches, so Behavior fits without scrolling. Hiding either keeps
+  its alerts; Activity off also stops VRX keeping activity and forgets what it
+  kept.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
@@ -502,7 +508,9 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off, VRChat instance labels) until changed. Look also asks for the instance
+off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
+and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
+in one card and inbox alerts in another, so the step fits without scrolling. Look also asks for the instance
 label style. Skip setup is a visible button on every screen before the
 summary, never a small link, so setup never feels like a forced tour; skipping before any
 account is ready shows sign-in only, then opens the app. The main button is a
@@ -542,6 +550,29 @@ scopes the list; the page's Show control (All, Online, Worlds, Offline) is a
 saved setting. Clear empties the list. A row opens that friend's details on
 the Friends page, as a linked person under All; a friend no longer on the
 list is plain text.
+
+### §9.6 Inbox
+
+The Inbox page lists invites, invite requests and friend requests that the two
+platform sockets deliver while VRX is open. It is view-only: VRX never
+accepts, declines or replies, and the "?" help says to answer in the game or
+on the platform's site. Hide removes a row inside VRX only; Hide all hides
+every row in the current platform filter. Nothing is stored, so the list
+starts empty each launch.
+
+- Two sections, Invites (invites and invite requests) and Friend requests,
+  each newest first, and both platforms mixed in one list with equal weight.
+- A row shows the sender's picture when they are a friend (no presence ring)
+  or their initial, the name (a friend's current name, else the name the
+  platform sent, else "Someone"), a platform pill with the platform word, the
+  action ("Invited you to Pug Lounge", "Asked you for an invite", "Sent you a
+  friend request"), a relative age ("Just now" under a minute) and a Hide button.
+- It follows the platform filter, offers Accounts when the filtered platform
+  is not connected, and has a short empty state.
+- The sidebar shows a neutral count badge (text, never color alone) of rows
+  newer than the last ones shown, per platform; opening the page clears it.
+- Invite and friend-request alerts are separate switches in Settings →
+  Notifications, both off by default, and limited to a few a minute.
 
 ## §10 Linked friends
 

@@ -80,6 +80,15 @@ const vrx = {
   getAppBackground: () => invoke('get-app-background', undefined),
   chooseAppBackground: () => invoke('choose-app-background', undefined),
   clearAppBackground: () => invoke('clear-app-background', undefined),
+  getInbox: () => invoke('get-inbox', undefined),
+  dismissInboxItem: (req: IpcInvoke['dismiss-inbox-item']['req']) =>
+    invoke('dismiss-inbox-item', req),
+  clearInbox: (req: IpcInvoke['clear-inbox']['req']) => invoke('clear-inbox', req),
+  onInboxChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('inbox-changed', listener)
+    return () => ipcRenderer.removeListener('inbox-changed', listener)
+  },
   getSettings: () => invoke('get-settings', undefined),
   saveSettings: (req: IpcInvoke['save-settings']['req']) => invoke('save-settings', req),
   getUpdaterState: () => invoke('updater:get-state', undefined),

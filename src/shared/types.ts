@@ -10,6 +10,8 @@
  * and friendly to the Zod validation layer.
  */
 
+import type { InboxChange } from './inbox'
+
 // ─── Platform ────────────────────────────────────────────────────────────────
 export type Platform = 'vrchat' | 'chilloutvr'
 
@@ -422,6 +424,12 @@ export type AdapterEvent =
    * VRX-147). Trigger-only: the consumer refetches the list over REST.
    */
   | { type: 'roster-changed'; platform: Platform }
+  /**
+   * Invites, invite requests and friend requests read from the socket. Only
+   * the main-process inbox consumes these; they are never broadcast as
+   * friend events.
+   */
+  | { type: 'inbox'; platform: Platform; change: InboxChange }
   | { type: 'connection'; platform: Platform; health: ConnectionHealth }
   /**
    * The platform's session was invalidated OUT OF BAND — a data-path request
