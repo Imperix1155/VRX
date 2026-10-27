@@ -22,10 +22,11 @@
  *      bridge flow, confirmation and in-flight guard (VRX-166).
  *      Copy link / self-invite / favorite remain separate issues; no
  *      placeholders here.
- *   5. Alerts: "Alert me about this friend", only while Settings limits alerts
- *      to picked friends (AlertPickRow). A linked person is one pick.
- *   6. Notes: person-shared or account-private owner, save-on-blur/navigation,
+ *   5. Notes: person-shared or account-private owner, save-on-blur/navigation,
  *      explicit Retry after failure, then quiet VRChat trust when known.
+ *   6. Pinned footer: Identities, and across from it the alerts bell
+ *      (FriendAlertBell) with "Alert me about this friend" while Settings
+ *      limits alerts to picked friends. A linked person is one pick.
  *
  * NON-MODAL since VRX-225 (owner live session 2026-07-23): the list behind the
  * card stays fully interactive — the soft scrim (`--scrim-soft`) is
@@ -54,8 +55,7 @@ import LinkedWorlds from './LinkedWorlds'
 import LinkedDestinationChooser from './LinkedDestinationChooser'
 import type { ProfileTarget, ResolvedProfile } from '../utils/projectLinkedFriends'
 import IdentitiesDialog from './IdentitiesDialog'
-import AlertPickRow from './AlertPickRow'
-import { useSettingsStore } from '../stores/settings'
+import FriendAlertBell from './FriendAlertBell'
 
 /** Status-band descriptor per ring label (quoted literals so the i18n
  *  key-existence scan sees them). Web-active has no owner-approved descriptor
@@ -98,7 +98,6 @@ export default function FriendDrawer({
   available?: Partial<Record<Platform, boolean>>
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const pickedAlertsOnly = useSettingsStore((s) => s.settings.friendAlertScope === 'picked')
   const open = friend !== null
   // Retain the last friend so the panel doesn't empty mid slide-out
   // (render-phase state adjustment — the react.dev-endorsed pattern).
@@ -471,15 +470,7 @@ export default function FriendDrawer({
               </div>
             )}
 
-            {/* 5 · Alerts — local picks for the picked-friends alert scope. */}
-            {pickedAlertsOnly && (
-              <AlertPickRow
-                accounts={shownAccounts}
-                name={profileName || t('linking.unknownName')}
-              />
-            )}
-
-            {/* 6 · Notes — private, account-scoped (VRX-72). */}
+            {/* 5 · Notes — private, account-scoped (VRX-72). */}
             {shown && (
               <div className="flex flex-col gap-[var(--space-1)]">
                 <h3
@@ -549,29 +540,41 @@ export default function FriendDrawer({
                 {t('drawer.trust', { rank: t(trustKey) })}
               </p>
             )}
+          </div>
+        )}
+        {/* 6 · Footer, pinned below the scroll: Identities on the left, the
+            alerts bell on the right (owner, 2026-10-27). */}
+        {shown && (
+          <div className="flex shrink-0 items-center gap-[var(--space-2)] px-[var(--space-4)] pt-[var(--space-2)] pb-[var(--space-4)]">
             {selection && onNavigate && (
-              <div className="mt-auto pt-[var(--space-2)]">
-                <button
-                  type="button"
-                  className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
-                  onClick={() => {
-                    onNoteBlur()
-                    setIdentityDialogOwner(identityOwner)
+              <button
+                type="button"
+                className="linked-identities rounded-control border border-transparent px-[var(--space-3)] py-[var(--space-2)] text-[12px] font-semibold"
+                onClick={() => {
+                  onNoteBlur()
+                  setIdentityDialogOwner(identityOwner)
+                }}
+              >
+                <span
+                  style={{
+                    background:
+                      'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
+                    backgroundClip: 'text',
+                    color: 'transparent'
                   }}
                 >
-                  <span
-                    style={{
-                      background:
-                        'linear-gradient(90deg, var(--plat-vrc-ghost-text), var(--plat-cvr-ghost-text))',
-                      backgroundClip: 'text',
-                      color: 'transparent'
-                    }}
-                  >
-                    {t('linking.identities')}
-                  </span>
-                </button>
-              </div>
+                  {t('linking.identities')}
+                </span>
+              </button>
             )}
+            <div className="ml-auto">
+              <FriendAlertBell
+                accounts={shownAccounts}
+                name={profileName || t('linking.unknownName')}
+                drawerOpen={open}
+                onLeave={onNoteBlur}
+              />
+            </div>
           </div>
         )}
       </div>

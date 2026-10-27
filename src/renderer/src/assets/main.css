@@ -1111,3 +1111,141 @@ body::after {
     opacity: 0.5;
   }
 }
+
+/* Friend details alerts bell (owner, 2026-10-27). The panel springs out of
+   the bell and its rows follow one after another; the bell swings when it
+   opens and when a friend starts alerting. Open state lives in data-open,
+   which utilities cannot animate as one rule set. Reduced motion shows and
+   hides the panel without movement. */
+@layer components {
+  .alert-bell {
+    color: var(--text-dim);
+  }
+  .alert-bell[data-on='true'],
+  .alert-bell[aria-expanded='true'],
+  .alert-bell:hover {
+    color: var(--text);
+  }
+  .alert-bell[aria-expanded='true'] {
+    background-color: var(--surface-hover);
+  }
+  .alert-bell-panel {
+    border-radius: 16px;
+    transform-origin: calc(100% - 16px) calc(100% + 24px);
+    visibility: hidden;
+    opacity: 0;
+  }
+  .alert-bell-panel[data-open='true'] {
+    visibility: visible;
+    opacity: 1;
+  }
+  .alert-bell-kind {
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .alert-bell-kind[data-kind-on='false'] {
+    color: var(--text-faint);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .alert-bell-panel {
+      transform: translateY(6px) scale(0.55);
+      transition:
+        opacity 120ms ease-in,
+        transform 160ms ease-in,
+        visibility 160ms;
+    }
+    .alert-bell-panel[data-open='true'] {
+      transform: none;
+      transition:
+        opacity 140ms ease-out,
+        transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1),
+        visibility 0ms;
+    }
+    .alert-bell-panel[data-open='true'] .alert-bell-step {
+      animation: alert-bell-step-in 260ms ease-out both;
+      animation-delay: calc(70ms + var(--alert-step, 0) * 55ms);
+    }
+    .alert-bell {
+      transition:
+        color 160ms ease,
+        background-color 160ms ease,
+        transform 160ms ease;
+    }
+    .alert-bell:active {
+      transform: scale(0.92);
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-body {
+      transform-box: fill-box;
+      transform-origin: 50% 8%;
+      animation: alert-bell-swing 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-clapper {
+      transform-box: fill-box;
+      transform-origin: 50% -200%;
+      animation: alert-bell-clapper 720ms ease-out;
+    }
+    .alert-bell-glyph[data-ring='true'] .alert-bell-waves {
+      animation: alert-bell-waves 720ms ease-out;
+    }
+  }
+}
+
+@keyframes alert-bell-step-in {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+@keyframes alert-bell-swing {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  15% {
+    rotate: 16deg;
+  }
+  32% {
+    rotate: -13deg;
+  }
+  48% {
+    rotate: 9deg;
+  }
+  64% {
+    rotate: -5deg;
+  }
+  80% {
+    rotate: 2deg;
+  }
+}
+@keyframes alert-bell-clapper {
+  0%,
+  100% {
+    translate: 0;
+  }
+  20% {
+    translate: -1.5px;
+  }
+  38% {
+    translate: 1.5px;
+  }
+  56% {
+    translate: -1px;
+  }
+  72% {
+    translate: 0.5px;
+  }
+}
+@keyframes alert-bell-waves {
+  0% {
+    opacity: 0;
+    scale: 0.6;
+  }
+  40% {
+    opacity: 1;
+    scale: 1.08;
+  }
+  100% {
+    scale: 1;
+  }
+}
