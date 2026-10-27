@@ -335,6 +335,34 @@ describe('SettingsView — Behavior section (VRX-78/231)', () => {
     expect(useSettingsStore.getState().dirty).toBe(true)
   })
 
+  it('keeps both open-game choices in one row and Off keeps the VRChat choice', () => {
+    useUiStore.setState({ settingsCategory: 'behavior' })
+    renderSettings()
+    const group = screen.getByRole('radiogroup', { name: msg('settings.openGameJoin.aria') })
+    const option = (key: string): HTMLElement =>
+      within(group).getByRole('radio', { name: msg(`settings.openGameJoin.${key}`) })
+    expect(option('go').getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(option('invite'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'invite'
+    })
+
+    fireEvent.click(option('off'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: false,
+      vrchatOpenGameJoin: 'invite'
+    })
+    expect(option('off').getAttribute('aria-checked')).toBe('true')
+
+    fireEvent.click(option('go'))
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      joinOpenGame: true,
+      vrchatOpenGameJoin: 'go'
+    })
+  })
+
   it('renders the confirm-before-joining row (On default) and writes confirmJoin (VRX-210)', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })
     renderSettings()

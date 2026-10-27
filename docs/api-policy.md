@@ -200,8 +200,8 @@ re-checks; a stale room is not joinable.
 
 VRCX and CVRX both check whether the game is running before a Join and, if it
 is, send the player there instead of starting a second copy. VRX does the same,
-under **Settings → Behavior → Use the game that's already open** (on by
-default; off always launches).
+under **Settings → Behavior → When the game is already open** (Go there by
+default; Off always launches).
 
 - **The check is local.** Main reads process image names (`tasklist` on
   Windows, `/proc/<pid>/comm` on Linux, which Wine and Proton set to the game's
@@ -209,7 +209,7 @@ default; off always launches).
   answer for 2 seconds. It never logs process names and never polls.
 - **ChilloutVR:** the usual `chilloutvr://instance/join` link, which the open
   game picks up (the VR or desktop choice no longer applies). No API call.
-- **VRChat on Windows**, with **When VRChat is open** set to **Go there**:
+- **VRChat on Windows**, with **When the game is already open** set to **Go there**:
   the main-built, allowlisted `vrchat://launch` URL goes to VRChat's local
   `VRChatURLLaunchPipe`, the pipe VRChat's own launcher uses. VRChat answers
   one byte; only `1` counts as taken. No API call.

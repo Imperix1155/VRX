@@ -34,8 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
   an invite to accept in the game (always on Linux, or if you pick Send
   invite). The join dialog says which will happen, and the line under Join
-  confirms it. Turn it off, or pick how VRChat joins, in Settings → Behavior →
-  Allow joining friends.
+  confirms it. Pick Go there, Send invite, or Off in Settings → Behavior →
+  When the game is already open.
 
 ### Changed
 

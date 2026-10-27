@@ -508,8 +508,8 @@ request with no retry, at most one every 5 s.
   pipe `\\.\pipe\VRChatURLLaunchPipe`. The client writes the UTF-8 URL and
   reads one byte; `1` means the game took it.
 - **Sends** the same main-built URL that passed `isAllowedLaunchUrl`, nothing
-  else, and only when the process check sees `VRChat.exe` and **When VRChat is
-  open** is **Go there**.
+  else, and only when the process check sees `VRChat.exe` and **When the game
+  is already open** is **Go there**.
 - **Linux and Proton:** the pipe lives inside the game's Wine container, which
   VRX does not enter (VRCX uses `nsenter` there). VRX sends a self-invite.
 - **When it breaks:** no pipe, any other byte, a hang-up, or no answer within

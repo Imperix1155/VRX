@@ -11,8 +11,7 @@ import type {
   LabelScheme,
   ReconcileInterval,
   Theme,
-  UpdateChannel,
-  VrchatOpenGameJoin
+  UpdateChannel
 } from '@shared/types'
 import {
   BACKGROUND_GLOWS,
@@ -105,9 +104,13 @@ const JOIN_MODE_LABEL_KEYS: Record<JoinModePreference, string> = {
   desktop: 'settings.joinMode.desktop'
 }
 
-const VRCHAT_OPEN_GAME_JOIN_LABEL_KEYS: Record<VrchatOpenGameJoin, string> = {
-  go: 'settings.vrchatOpenGameJoin.go',
-  invite: 'settings.vrchatOpenGameJoin.invite'
+/** One row for both open-game settings: Off keeps the saved VRChat choice. */
+const OPEN_GAME_CHOICES = [...VRCHAT_OPEN_GAME_JOINS, 'off'] as const
+type OpenGameChoice = (typeof OPEN_GAME_CHOICES)[number]
+const OPEN_GAME_LABEL_KEYS: Record<OpenGameChoice, string> = {
+  go: 'settings.openGameJoin.go',
+  invite: 'settings.openGameJoin.invite',
+  off: 'settings.openGameJoin.off'
 }
 
 const UPDATER_FAILURE_KEYS: Record<UpdaterFailure, string> = {
@@ -949,38 +952,26 @@ export default function SettingsView(): React.JSX.Element {
               <div className="setting-row">
                 <div>
                   <p className="text-sm font-medium text-[var(--text)]">
-                    {t('settings.joinOpenGame.label')}
+                    {t('settings.openGameJoin.label')}
                   </p>
                   <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                    {t('settings.joinOpenGame.description')}
+                    {t('settings.openGameJoin.description')}
                   </p>
                 </div>
-                <Toggle
-                  checked={joinOpenGame}
-                  ariaLabel={t('settings.joinOpenGame.aria')}
-                  onChange={(checked) => updateSettings({ joinOpenGame: checked })}
+                <SegmentedControl
+                  values={OPEN_GAME_CHOICES}
+                  active={joinOpenGame ? vrchatOpenGameJoin : 'off'}
+                  labelKeys={OPEN_GAME_LABEL_KEYS}
+                  ariaLabel={t('settings.openGameJoin.aria')}
+                  onChange={(value) =>
+                    updateSettings(
+                      value === 'off'
+                        ? { joinOpenGame: false }
+                        : { joinOpenGame: true, vrchatOpenGameJoin: value }
+                    )
+                  }
                 />
               </div>
-
-              {joinOpenGame && (
-                <div className="setting-row">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--text)]">
-                      {t('settings.vrchatOpenGameJoin.label')}
-                    </p>
-                    <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                      {t('settings.vrchatOpenGameJoin.description')}
-                    </p>
-                  </div>
-                  <SegmentedControl
-                    values={VRCHAT_OPEN_GAME_JOINS}
-                    active={vrchatOpenGameJoin}
-                    labelKeys={VRCHAT_OPEN_GAME_JOIN_LABEL_KEYS}
-                    ariaLabel={t('settings.vrchatOpenGameJoin.aria')}
-                    onChange={(value) => updateSettings({ vrchatOpenGameJoin: value })}
-                  />
-                </div>
-              )}
             </SettingCard>
           </section>
         )}
