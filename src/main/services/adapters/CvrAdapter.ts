@@ -43,6 +43,17 @@ import {
 } from './cvr/parseExplore'
 import type { AdapterRequestOptions } from './BaseAdapter'
 import { assertRequestLease } from './RequestLease'
+import { AVATAR_LIBRARY_MAX_ITEMS, isAvatarId, type AvatarItem } from '@shared/avatarLibrary'
+import {
+  AvatarDataError,
+  type AvatarLibraryAdapter,
+  type OwnAvatarsPage
+} from './AvatarLibraryAdapter'
+import {
+  parseCvrAvatarDetails,
+  parseCvrCurrentAvatar,
+  parseCvrOwnAvatars
+} from './cvr/parseAvatars'
 
 /** The presence-snapshot member of AdapterEvent (no exported alias in shared). */
 type PresenceSnapshotEvent = Extract<AdapterEvent, { type: 'presence-snapshot' }>
@@ -141,7 +152,10 @@ export interface CvrCredentialStore {
  * loop without another auth request. Instances = VRX-59/60. CVR has NO 2FA leg
  * — `verify2fa` rejects per the interface.
  */
-export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, ExploreAdapter {
+export class CvrAdapter
+  extends CvrApiClient
+  implements IPlatformAdapter, ExploreAdapter, AvatarLibraryAdapter
+{
   private readonly rosterRefresh = new RosterRefresh(
     () => this.readFriends(),
     () => this.admission.cooldownRemainingMs,
@@ -621,6 +635,91 @@ export class CvrAdapter extends CvrApiClient implements IPlatformAdapter, Explor
       return value
     } catch (error) {
       if (context.lease.isCurrent() && error instanceof CVRAuthError) {
+        this.handleDataAuthFailure(error)
+      }
+      throw error
+    }
+  }
+
+  // ── Avatar library (user-initiated reads and one switch at a time) ──────────
+
+  captureAvatarLease(): RequestLease {
+    return this.sessionRequestLease()
+  }
+
+  async getOwnAvatars(lease: RequestLease): Promise<OwnAvatarsPage> {
+    const accountId = this.accountId
+    if (accountId === null) throw new CVRAuthError()
+    const raw = await this.runAvatarRequest(lease, () =>
+      this.get('/avatars', z.unknown(), this.avatarRequestOptions(lease))
+    )
+    const parsed = parseCvrOwnAvatars(raw, accountId, this.displayName)
+    if (!parsed) throw new AvatarDataError('ChilloutVR avatar list response was malformed')
+    const avatars = parsed.avatars.slice(0, AVATAR_LIBRARY_MAX_ITEMS)
+    return {
+      avatars,
+      complete: parsed.skipped === 0 && avatars.length === parsed.avatars.length
+    }
+  }
+
+  async getCurrentAvatar(lease: RequestLease): Promise<AvatarItem | null> {
+    const accountId = this.accountId
+    if (accountId === null) return null
+    const raw = await this.runAvatarRequest(lease, () =>
+      this.get(
+        `/users/${encodeURIComponent(accountId)}`,
+        z.unknown(),
+        this.avatarRequestOptions(lease)
+      )
+    )
+    return parseCvrCurrentAvatar(raw)
+  }
+
+  async getAvatarDetails(avatarId: string, lease: RequestLease): Promise<AvatarItem | null> {
+    if (!isAvatarId('chilloutvr', avatarId)) {
+      throw new AvatarDataError('Invalid ChilloutVR avatar id')
+    }
+    const raw = await this.runAvatarRequest(lease, () =>
+      this.get(
+        `/avatars/${encodeURIComponent(avatarId)}`,
+        z.unknown(),
+        this.avatarRequestOptions(lease)
+      )
+    )
+    const avatar = parseCvrAvatarDetails(raw)
+    return avatar?.avatarId === avatarId.toLowerCase() ? avatar : null
+  }
+
+  async switchAvatar(avatarId: string, lease: RequestLease): Promise<void> {
+    if (!isAvatarId('chilloutvr', avatarId)) {
+      throw new AvatarDataError('Invalid ChilloutVR avatar id')
+    }
+    // ChilloutVR switches with a GET (CVRX uses the same route).
+    await this.runAvatarRequest(lease, () =>
+      this.get(`/avatars/${encodeURIComponent(avatarId)}/switchAvatar`, z.unknown(), {
+        ...this.avatarRequestOptions(lease),
+        // A write is never sent twice on its own; the user can press again.
+        retry: 'none'
+      })
+    )
+  }
+
+  private avatarRequestOptions(lease: RequestLease): AdapterRequestOptions {
+    return {
+      lease,
+      priority: 'interactive',
+      // A deleted avatar is an ordinary answer; only sign-in failures count.
+      recordCircuitFailure: 'auth'
+    }
+  }
+
+  private async runAvatarRequest<T>(lease: RequestLease, request: () => Promise<T>): Promise<T> {
+    try {
+      const value = await request()
+      assertRequestLease(lease)
+      return value
+    } catch (error) {
+      if (lease.isCurrent() && error instanceof CVRAuthError) {
         this.handleDataAuthFailure(error)
       }
       throw error

@@ -76,6 +76,10 @@ Persistence, network, cache, and account-transition policy stay in services.
   saved. `get-settings` marks a pending save as `unsaved`.
 - Explore accepts only bounded main-issued references and delegates discovery,
   admission, caching, and launch to `ExploreService`.
+- Avatar library handlers accept only a platform and a bounded avatar ID and
+  delegate to `AvatarLibraryService`. `switch-avatar` wears only an ID the
+  current account's library listed, one at a time, with a cooldown; a denial
+  keeps the `{ ok: false, reason: 'rate-limited' }` shape.
 
 ## Work Guidance
 

@@ -7,6 +7,7 @@ import { useUpdater } from '../hooks/useUpdater'
 import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 import {
   IconActivity,
+  IconAvatars,
   IconDashboard,
   IconExplore,
   IconFriends,
@@ -118,6 +119,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'friends', icon: IconFriends },
   { id: 'activity', icon: IconActivity },
   { id: 'explore', icon: IconExplore },
+  { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
 

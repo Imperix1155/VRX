@@ -25,6 +25,16 @@ type VrxBridge = {
   onLinkedProfilesChanged: (callback: () => void) => () => void
   getFriends: (req: IpcInvoke['get-friends']['req']) => Promise<IpcInvoke['get-friends']['res']>
   getAvatar: (url: string, rendition?: 'avatar') => Promise<IpcInvoke['get-avatar']['res']>
+  getAvatarLibrary: (
+    req: IpcInvoke['get-avatar-library']['req']
+  ) => Promise<IpcInvoke['get-avatar-library']['res']>
+  getAvatarDetails: (
+    req: IpcInvoke['get-avatar-details']['req']
+  ) => Promise<IpcInvoke['get-avatar-details']['res']>
+  /** Avatar IDs only; main switches only to an avatar it listed. */
+  switchAvatar: (
+    req: IpcInvoke['switch-avatar']['req']
+  ) => Promise<IpcInvoke['switch-avatar']['res']>
   getAccounts: () => Promise<IpcInvoke['get-accounts']['res']>
   getAuthStatus: (
     req: IpcInvoke['get-auth-status']['req']
