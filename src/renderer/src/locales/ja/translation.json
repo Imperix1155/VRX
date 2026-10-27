@@ -378,6 +378,14 @@
       "hot": {
         "label": "ホットインスタンス",
         "description": "ダッシュボードにホットインスタンスを表示します。ホットインスタンスのページと通知は引き続き利用できます。"
+      },
+      "wearingNow": {
+        "label": "着用中",
+        "description": "各プラットフォームで着用中のアバターを表示します。アバターのページは引き続き利用できます。"
+      },
+      "invites": {
+        "label": "最新の招待",
+        "description": "各プラットフォームの最新の招待を表示します。受信箱と通知は引き続き利用できます。"
       }
     },
     "persistence": {
@@ -658,7 +666,16 @@
       "threshold": "−と＋で、表示に必要なフレンドの最小人数を{{min}}〜{{max}}人に設定できます。「設定」→「通知」でホットインスタンス通知をオンにした場合、この人数が通知のしきい値にもなります。"
     },
     "seeAll": "すべて表示（{{count}}）",
-    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）"
+    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）",
+    "glance": {
+      "invites": "最新の招待",
+      "noInvites": "VRX を開いてから届いた招待はありません",
+      "openAvatarsAria": "アバターのページを開く",
+      "wornAria": "{{name}}、{{platform}} で着用中のアバター。アバターを開く",
+      "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
+      "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
+      "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
+    }
   },
   "login": {
     "subtitle": "Social VR コンパニオン",

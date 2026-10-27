@@ -32,6 +32,13 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   useFriends: useFriendsMock
 }))
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
+// The glance row has its own tests (DashboardGlance.test.tsx); here it is a
+// marker that shows where it mounts and which platforms it gets.
+vi.mock('./DashboardGlance', () => ({
+  default: ({ platforms }: { platforms: readonly string[] }) => (
+    <div data-testid="dashboard-glance">{platforms.join(',')}</div>
+  )
+}))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
@@ -1391,6 +1398,25 @@ describe('Dashboard feature visibility', () => {
     expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
     expect(screen.getByRole('spinbutton')).toBeTruthy()
     expect(screen.queryByText('Popular now')).toBeNull()
+  })
+})
+
+describe('Dashboard glance row', () => {
+  it('sits under the numbers, before both ordered sections, with the filtered platforms', () => {
+    stubQueries(
+      { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS } })
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    render(<DashboardView />)
+    const glance = screen.getByTestId('dashboard-glance')
+    expect(glance.textContent).toBe('vrchat')
+    const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    expect(glance.compareDocumentPosition(hot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const stat = screen.getByText(msg('dashboard.statOnlineLabel'))
+    expect(stat.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    useFriendsStore.setState({ platformFilter: 'all' })
   })
 })
 

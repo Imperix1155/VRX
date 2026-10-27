@@ -33,7 +33,8 @@ are outside the platform queues.
 VRX signs in as the user, on the user's own machine, and reads that user's own
 social data: friends, presence, locations, instance details, and public worlds
 for Explore. On the Avatars page it reads the user's own uploaded avatars and
-the one they wear, and switches avatar when the user presses Wear. It launches
+the one they wear, and switches avatar when the user presses Wear. The
+Dashboard reads only the worn avatar. It launches
 the game through local URL schemes, or, when the game is already open, hands
 the Join to that copy (see
 [Joining a game that is already open](#joining-a-game-that-is-already-open)).
@@ -230,7 +231,8 @@ default; Off always launches).
 ## Avatar limits
 
 The Avatars page reads only when it opens with a platform in view and when the
-user presses Refresh. There is no timer and no read on window focus. Reads use
+user presses Refresh. The Dashboard's Wearing now reads only the worn avatar,
+when the Dashboard opens with no answer from the last 5 minutes. There is no timer and no read on window focus. Reads use
 the platform's admission queue at interactive priority, and the renderer keeps
 a result fresh for 5 minutes per account.
 
@@ -241,6 +243,7 @@ a result fresh for 5 minutes per account.
 | Opening an avatar     | VRChat: none (the list carries every field). ChilloutVR: 1 read, cached for the session |
 | Avatar switch         | One at a time per platform, 5 s after any attempt, never retried                        |
 | Concurrent page reads | Share one run per platform                                                              |
+| Dashboard open        | 1 read per platform (worn avatar only); none if the Avatars page read it in 5 min       |
 
 Main accepts a switch only for an avatar it listed for the current session, so
 the renderer cannot name an arbitrary avatar. Avatar state is cleared at every

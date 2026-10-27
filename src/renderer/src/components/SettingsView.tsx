@@ -656,6 +656,8 @@ export default function SettingsView(): React.JSX.Element {
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const wearingNow = useSettingsStore((s) => s.settings.dashboardWearingNow)
+  const latestInvites = useSettingsStore((s) => s.settings.dashboardInvites)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
@@ -757,6 +759,38 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
+            {/* The glance row under the numbers (owner, 2026-10-27), in its
+                Dashboard order. Hiding one keeps its page. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.wearingNow.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.wearingNow.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={wearingNow}
+                ariaLabel={t('settings.dashboard.wearingNow.label')}
+                onChange={(checked) => updateSettings({ dashboardWearingNow: checked })}
+              />
+            </div>
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.invites.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.invites.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={latestInvites}
+                ariaLabel={t('settings.dashboard.invites.label')}
+                onChange={(checked) => updateSettings({ dashboardInvites: checked })}
+              />
+            </div>
             {/* Section order (owner, 2026-10-18): the first section shows
                 picture cards, the second compact bars. */}
             <div className="setting-card setting-row">

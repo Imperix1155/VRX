@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Two new Dashboard sections under the numbers, side by side: Wearing now
+  shows the avatar you're wearing on VRChat and ChilloutVR, and Latest
+  invites shows the newest invite from each platform. A row opens the
+  Avatars page or the Inbox. Each can be turned off in Settings → Dashboard.
+  Wearing now asks each platform for your worn avatar only (one request,
+  none if the Avatars page just loaded it), and invites come from what VRX
+  already received.
+
 ## [1.2.0-dev.3] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.

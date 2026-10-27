@@ -45,7 +45,10 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    second uses bars with the world picture behind them. Each section shows two
    cards: the top one per platform when both have one, otherwise the top two.
    The Popular now and Hot Instances switches, both on by default, only hide
-   their Dashboard section (§8, §9.1).
+   their Dashboard section (§8, §9.1). Above both, under the numbers, a
+   glance row shows Wearing now (the worn avatar per signed-in platform) and
+   Latest invites (the newest invite per platform), side by side; each has
+   its own switch, on by default (§9.1).
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
    Settings → Behavior (§8). While it shows, the Dashboard section's "See
@@ -334,8 +337,8 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
-- Dashboard: Section order, Popular now, Hot Instances, and Hot instance
-  threshold, as separate rows.
+- Dashboard: Wearing now, Latest invites, Section order, Popular now, Hot
+  Instances, and Hot instance threshold, as separate rows in Dashboard order.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
   Allow joining friends, which contains Confirm before joining, Join in, and
@@ -381,8 +384,10 @@ its tab.
 Explore stays. Hot Instances off removes its Dashboard statistic, heading,
 threshold, cards, and details, and the remaining friend statistics fill two
 equal columns. It never hides the Hot Instances page and never affects the
-Hot instance notification. A compact "Settings" button below the Dashboard
-content opens Settings → Dashboard, even when both sections are off.
+Hot instance notification. Wearing now and Latest invites off hide only
+their glance section; the Avatars and Inbox pages and invite alerts stay. A
+compact "Settings" button below the Dashboard content opens Settings →
+Dashboard, even when every section is off.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
@@ -421,6 +426,19 @@ threshold number of visible in-game friends (2 by default, 1 to 10). The
 threshold stepper sits beside a quiet "?" button that toggles an explanation
 of grouping, visible friends, the platform filter, ranking, and the
 threshold; it starts closed and exposes its state to assistive technology.
+
+The glance row sits between the numbers and the two ordered sections and
+does not move with Section order. Its two sections sit side by side when the
+area is at least 520 px wide, one above the other below that; a lone section
+fills the row. Each is a heading with a quiet button (Avatars, or See all N
+for the Inbox) over one glass list, and every row is the same height: a
+picture, the name, and the platform as a word (PlatformPill), so VRChat and
+ChilloutVR read alike. Wearing now has one row per signed-in platform in the
+filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
+or failed state with Try again. A row opens the Avatars page. Latest invites
+shows the newest invite or invite request per platform, VRChat's first, in
+the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
+hidden the rows are plain text. With nothing waiting it shows one quiet line.
 
 Each Dashboard section shows two cards, chosen as in "Locked for 1.0". The
 second section's bars show the world picture behind a same-color scrim with

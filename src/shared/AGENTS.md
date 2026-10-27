@@ -56,7 +56,8 @@ through `@shared`.
   `showActivityPage`, `showInboxPage`) hide sidebar pages only;
   `showActivityPage` also stops main keeping activity. `SETTINGS_VERSION` 20
   adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
-  alerts (off). Missing or invalid `setupPending` is `false`, so
+  alerts (off). `SETTINGS_VERSION` 21 adds the Dashboard glance switches
+  `dashboardWearingNow` and `dashboardInvites` (on); they hide sections only. Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass

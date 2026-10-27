@@ -380,6 +380,14 @@
       "hot": {
         "label": "Hot Instances",
         "description": "Show Hot Instances on the Dashboard. The Hot Instances page and alerts stay available."
+      },
+      "wearingNow": {
+        "label": "Wearing now",
+        "description": "Show the avatar you're wearing on each platform. The Avatars page stays available."
+      },
+      "invites": {
+        "label": "Latest invites",
+        "description": "Show the newest invite from each platform. The Inbox and its alerts stay available."
       }
     },
     "persistence": {
@@ -663,7 +671,16 @@
     },
     "seeAll": "See all {{count}}",
     "seeAllAria_one": "See {{count}} hot instance",
-    "seeAllAria_other": "See all {{count}} hot instances"
+    "seeAllAria_other": "See all {{count}} hot instances",
+    "glance": {
+      "invites": "Latest invites",
+      "noInvites": "No invites since VRX opened",
+      "openAvatarsAria": "Open the Avatars page",
+      "wornAria": "{{name}}, the avatar you're wearing in {{platform}}. Open Avatars",
+      "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
+      "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
+      "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
+    }
   },
   "login": {
     "subtitle": "Social VR Companion",

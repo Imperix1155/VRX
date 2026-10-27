@@ -20,6 +20,8 @@ describe('settings schema', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -285,6 +287,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -334,6 +338,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -384,6 +390,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -436,6 +444,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -486,6 +496,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -537,6 +549,8 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardWearingNow: true,
+      dashboardInvites: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -940,6 +954,39 @@ describe('Inbox settings', () => {
     if (shouldPersistSettings(disk, 19)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({ showInboxPage: false, notifyInvites: true })
+  })
+})
+
+describe('Dashboard glance settings', () => {
+  it('defaults both sections on and keeps explicit choices', () => {
+    expect(parseSettings({ version: 20 })).toMatchObject({
+      version: SETTINGS_VERSION,
+      dashboardWearingNow: true,
+      dashboardInvites: true
+    })
+    expect(parseSettings({ dashboardWearingNow: false, dashboardInvites: 'no' })).toMatchObject({
+      dashboardWearingNow: false,
+      dashboardInvites: true
+    })
+  })
+
+  it('prevents a v20 build from stripping the section choices during a round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 21,
+      dashboardWearingNow: false,
+      dashboardInvites: false
+    }
+    const oldNormalized = { ...disk, version: 20 }
+    Reflect.deleteProperty(oldNormalized, 'dashboardWearingNow')
+    Reflect.deleteProperty(oldNormalized, 'dashboardInvites')
+
+    if (shouldPersistSettings(disk, 20)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      dashboardWearingNow: false,
+      dashboardInvites: false
+    })
   })
 })
 

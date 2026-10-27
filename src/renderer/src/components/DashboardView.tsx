@@ -3,6 +3,8 @@
  *
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
+ *  - The glance row (owner, 2026-10-27): the avatar worn and the latest invite
+ *    per platform, each switchable in Settings → Dashboard (`DashboardGlance`).
  *  - Popular now and Hot Instances, in the order the user picked (owner,
  *    2026-10-18). The FIRST section shows picture cards; the SECOND shows
  *    compact bars with the world picture behind them. Each section shows two
@@ -13,12 +15,13 @@
  *    Instances page, which shows every one.
  *  - Empty state when nothing is hot.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useFriendsStore } from '../stores/friends'
+import type { Platform } from '@shared/types'
 import {
   getDashboardStats,
   getHotInstances,
@@ -31,6 +34,7 @@ import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
+import DashboardGlance from './DashboardGlance'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -127,6 +131,10 @@ function DashboardContent(): React.JSX.Element {
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  const scopedPlatforms = useMemo(
+    (): Platform[] => (platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter]),
+    [platformFilter]
+  )
   // A signed-out platform's disabled query stays pending forever and refetch
   // bypasses its gate, so only enabled queries drive loading and Retry.
   const enabled = scoped.filter((q) => q.isEnabled !== false)
@@ -290,7 +298,11 @@ function DashboardContent(): React.JSX.Element {
         )}
       </div>
 
-      {hotFirst ? [hotSection, popularSection] : [popularSection, hotSection]}
+      {/* The glance row joins the keyed array so Popular now keeps its slot. */}
+      {[
+        <DashboardGlance key="glance" platforms={scopedPlatforms} />,
+        ...(hotFirst ? [hotSection, popularSection] : [popularSection, hotSection])
+      ]}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
     </div>

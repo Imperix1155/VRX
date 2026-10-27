@@ -895,6 +895,33 @@ body::after {
 }
 
 /**
+ * Dashboard glance row (owner, 2026-10-27): "Wearing now" and "Latest invites"
+ * side by side under the numbers, one column on a narrow pane. A lone section
+ * fills the row. The wrapper is the query container, like `.hotwrap`.
+ */
+.glancewrap {
+  container-type: inline-size;
+}
+
+.glance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 26px;
+}
+
+@container (min-width: 520px) {
+  .glance-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.glance-grid > :only-child {
+  grid-column: 1 / -1;
+}
+
+/**
  * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
  * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`
  * variant (e.g. `motion-safe:transition`) so reduced-motion users get none — with
