@@ -921,6 +921,29 @@ body::after {
   grid-column: 1 / -1;
 }
 
+/* Each section's rows: stacked with a divider, or, when the section has the
+   row to itself (the other one is off or empty), its two platform rows side
+   by side so the width is used instead of left blank. */
+.glance-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.glance-list > li + li {
+  border-top: 1px solid var(--border);
+}
+
+@container (min-width: 520px) {
+  .glance-grid > :only-child .glance-list {
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  }
+
+  .glance-grid > :only-child .glance-list > li + li {
+    border-top: 0;
+    border-left: 1px solid var(--border);
+  }
+}
+
 /**
  * Reduced motion (DESIGN.md R10): VRX never animates by default for users who opt
  * out. Apply all animation/transition utilities behind Tailwind's `motion-safe:`

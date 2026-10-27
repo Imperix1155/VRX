@@ -22,6 +22,7 @@ describe('settings schema', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -289,6 +290,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -340,6 +342,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -392,6 +395,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -446,6 +450,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -498,6 +503,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -551,6 +557,7 @@ describe('migration runner', () => {
       dashboardSectionOrder: 'popular-first',
       dashboardWearingNow: true,
       dashboardInvites: true,
+      dashboardHideEmpty: true,
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
@@ -962,7 +969,8 @@ describe('Dashboard glance settings', () => {
     expect(parseSettings({ version: 20 })).toMatchObject({
       version: SETTINGS_VERSION,
       dashboardWearingNow: true,
-      dashboardInvites: true
+      dashboardInvites: true,
+      dashboardHideEmpty: true
     })
     expect(parseSettings({ dashboardWearingNow: false, dashboardInvites: 'no' })).toMatchObject({
       dashboardWearingNow: false,
@@ -975,17 +983,20 @@ describe('Dashboard glance settings', () => {
       ...DEFAULT_SETTINGS,
       version: 21,
       dashboardWearingNow: false,
-      dashboardInvites: false
+      dashboardInvites: false,
+      dashboardHideEmpty: false
     }
     const oldNormalized = { ...disk, version: 20 }
     Reflect.deleteProperty(oldNormalized, 'dashboardWearingNow')
     Reflect.deleteProperty(oldNormalized, 'dashboardInvites')
+    Reflect.deleteProperty(oldNormalized, 'dashboardHideEmpty')
 
     if (shouldPersistSettings(disk, 20)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({
       dashboardWearingNow: false,
-      dashboardInvites: false
+      dashboardInvites: false,
+      dashboardHideEmpty: false
     })
   })
 })

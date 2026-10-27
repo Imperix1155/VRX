@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Wearing now asks each platform for your worn avatar only (one request,
   none if the Avatars page just loaded it), and invites come from what VRX
   already received.
+- The Dashboard now fits what it has. A section with nothing to show (no
+  invites, no hot instances) steps aside and the rest move up to use the
+  space; the first section shown gets the big picture cards. Turn off
+  Settings → Dashboard → Hide empty sections to always see every section.
 
 ## [1.2.0-dev.3] - 2026-10-27
 

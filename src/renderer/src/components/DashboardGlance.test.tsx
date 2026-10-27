@@ -95,9 +95,13 @@ function renderGlance(platforms: Platform[] = ['vrchat', 'chilloutvr']): void {
   )
 }
 
+const wornFor = ({ platform }: { platform: Platform }): Promise<CurrentAvatarResult> =>
+  Promise.resolve({ ok: true, platform, current: platform === 'vrchat' ? vrcWorn : cvrWorn })
+
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   inboxItems = []
+  bridge.getCurrentAvatar.mockImplementation(wornFor)
   Object.defineProperty(window, 'vrx', { value: bridge, configurable: true, writable: true })
   useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS } })
   useUiStore.setState({ activeTab: 'dashboard' })
@@ -174,6 +178,7 @@ describe('DashboardGlance: Wearing now', () => {
   })
 
   it('says when the platform did not report one, and offers Try again on a failure', async () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
     bridge.getCurrentAvatar.mockImplementation(({ platform }) =>
       Promise.resolve(
         platform === 'vrchat'
@@ -225,6 +230,7 @@ describe('DashboardGlance: Latest invites', () => {
   })
 
   it('follows the platform filter and shows a quiet line when nothing came in', async () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
     inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
     renderGlance(['chilloutvr'])
     const region = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
@@ -244,8 +250,56 @@ describe('DashboardGlance: Latest invites', () => {
   })
 })
 
+describe('DashboardGlance: hide empty sections', () => {
+  it('drops Latest invites with nothing in it and gives Wearing now the whole row', async () => {
+    renderGlance()
+    await wornRow(vrcWorn)
+    await waitFor(() => expect(bridge.getInbox).toHaveBeenCalled())
+    expect(screen.queryByRole('region', { name: msg('dashboard.glance.invites') })).toBeNull()
+    const worn = screen.getByRole('region', { name: msg('avatars.wearingNow') })
+    // The lone section is the grid's only child, which lays its rows side by side.
+    expect(worn.parentElement?.children).toHaveLength(1)
+  })
+
+  it('brings Latest invites back as soon as one arrives', async () => {
+    renderGlance()
+    await wornRow(vrcWorn)
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    await act(() => client.invalidateQueries({ queryKey: ['inbox'] }))
+    const region = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
+    expect(within(region).getByText('Aria')).toBeTruthy()
+  })
+
+  it('drops a platform that reported no worn avatar, but keeps loading and failures', async () => {
+    bridge.getCurrentAvatar.mockImplementation(({ platform }) =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: true, platform, current: null }
+          : { ok: false, reason: 'unavailable' }
+      )
+    )
+    renderGlance()
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.queryByText(msg('avatars.noCurrent.vrchat'))).toBeNull()
+  })
+
+  it('removes the whole row when nothing in it has anything to show', async () => {
+    bridge.getCurrentAvatar.mockImplementation(({ platform }) =>
+      Promise.resolve({ ok: true, platform, current: null })
+    )
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <DashboardGlance platforms={['vrchat', 'chilloutvr']} />
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(bridge.getCurrentAvatar).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(container.innerHTML).toBe(''))
+  })
+})
+
 describe('DashboardGlance: settings', () => {
   it('hides each section on its own switch and reads nothing while worn is off', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
     useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardWearingNow: false } })
     renderGlance()
     expect(

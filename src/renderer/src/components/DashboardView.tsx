@@ -121,11 +121,11 @@ function DashboardContent(): React.JSX.Element {
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   // "See all" leads to the Hot Instances page, so it goes when that page is off.
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const [exploreDismissSignal, setExploreDismissSignal] = useState(0)
-  // The card form follows the ORDER setting, not visibility: hiding the first
-  // section never restyles the other one.
+  // Popular now hides itself when it has nothing; it reports that here.
+  const [popularHasContent, setPopularHasContent] = useState(true)
   const hotFirst = sectionOrder === 'hot-first'
-  const popularLayout = hotFirst ? 'bar' : 'card'
 
   // The Dashboard is a social surface, so it honors the global platform filter
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
@@ -154,6 +154,14 @@ function DashboardContent(): React.JSX.Element {
   const allHotCount = hotInstances.length
   const shownHot = pickOnePerPlatform(hotInstances)
   const stats = getDashboardStats(friends, allHotCount)
+  // "Hide empty sections" (owner, 2026-10-27): a Hot Instances section with
+  // nothing hot steps aside, and the first section actually shown takes the
+  // picture cards. With it off the card form follows the order setting only,
+  // so hiding the first section never restyles the other one.
+  const hotShown = hotEnabled && !(hideEmpty && allHotCount === 0)
+  const popularShown = popularNow && popularHasContent
+  const hotPictures = hideEmpty ? hotShown && (hotFirst || !popularShown) : hotFirst
+  const popularLayout = (hideEmpty ? hotFirst && hotShown : hotFirst) ? 'bar' : 'card'
 
   // The Dashboard has two contained, non-modal sheets. Opening one always
   // clears the other selection so keyboard activation cannot stack panels.
@@ -189,6 +197,7 @@ function DashboardContent(): React.JSX.Element {
       onSheetOpen={clearSelection}
       dismissSignal={exploreDismissSignal}
       cardLayout={popularLayout}
+      onShownChange={setPopularHasContent}
     />
   ) : null
 
@@ -226,7 +235,7 @@ function DashboardContent(): React.JSX.Element {
   }
 
   // Hot instances section — a labelled landmark (audit W5).
-  const hotSection = hotEnabled ? (
+  const hotSection = hotShown ? (
     <section key="hot" aria-labelledby="dashboard-hot-heading">
       {/* Header row: heading + "See all" + the quick-access threshold stepper
           (VRX-78) + help. The stepper is the sheet's focus fallback. */}
@@ -236,7 +245,7 @@ function DashboardContent(): React.JSX.Element {
           <SectionHeading
             labelKey="dashboard.sectionHotInstances"
             id="dashboard-hot-heading"
-            first={hotFirst}
+            first={hotPictures}
           />
         }
         extra={
@@ -265,12 +274,12 @@ function DashboardContent(): React.JSX.Element {
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className={hotFirst ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
+          <div className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}
                 instance={inst}
-                layout={hotFirst ? 'picture' : 'bar'}
+                layout={hotPictures ? 'picture' : 'bar'}
                 onOpen={openSheet}
               />
             ))}

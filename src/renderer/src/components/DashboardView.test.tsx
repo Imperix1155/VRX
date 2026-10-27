@@ -275,6 +275,8 @@ describe('DashboardView states (W5)', () => {
 
   it('labels the hot-instances section with its heading (landmark, W5)', () => {
     stubQueries({ data: [makeFriend()], isPending: false }, { data: [], isPending: false })
+    // Nothing is hot here, so the section shows only while empty sections show.
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
     render(<DashboardView />)
     const heading = screen.getByRole('heading', { name: msg('dashboard.sectionHotInstances') })
     expect(heading.id).toBe('dashboard-hot-heading')
@@ -414,6 +416,7 @@ describe('DashboardView states (W5)', () => {
     stubQueries({ data: [solo], isPending: false }, { data: [], isPending: false })
 
     try {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
       // Default threshold (2): a single friend in a world is NOT hot → empty state.
       render(<DashboardView />)
       expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
@@ -422,7 +425,7 @@ describe('DashboardView states (W5)', () => {
       // (no unmount/remount; this is the "immediate, no restart" AC itself).
       act(() =>
         useSettingsStore.setState({
-          settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
+          settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false, hotInstanceThreshold: 1 }
         })
       )
       expect(screen.getByText('Quiet World')).toBeTruthy()
@@ -1398,6 +1401,60 @@ describe('Dashboard feature visibility', () => {
     expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
     expect(screen.getByRole('spinbutton')).toBeTruthy()
     expect(screen.queryByText('Popular now')).toBeNull()
+  })
+})
+
+describe('Dashboard hide empty sections', () => {
+  const solo = (): Friend =>
+    makeFriend({
+      platformUserId: 'usr_solo',
+      instance: {
+        worldId: 'wrld_quiet',
+        instanceId: 'wrld_quiet:1~public',
+        worldName: 'Quiet World',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+        region: 'us',
+        userCount: 1
+      }
+    })
+
+  it('drops an empty Hot Instances section but keeps its statistic, and brings it back live', () => {
+    stubQueries({ data: [solo()], isPending: false }, { data: [], isPending: false })
+    render(<DashboardView />)
+    expect(screen.queryByRole('region', { name: msg('dashboard.sectionHotInstances') })).toBeNull()
+    expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+    expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
+
+    act(() =>
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 } })
+    )
+    expect(screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })).toBeTruthy()
+    expect(screen.getByText('Quiet World')).toBeTruthy()
+  })
+
+  it('gives the picture cards to Hot Instances when Popular now is not shown', () => {
+    stubQueries(
+      { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false } })
+    const { container, unmount } = render(<DashboardView />)
+    expect(container.querySelector('.hot-grid--picture')).not.toBeNull()
+    unmount()
+
+    // With empty sections shown, the order setting alone decides, as before.
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false, dashboardHideEmpty: false }
+    })
+    const again = render(<DashboardView />)
+    expect(again.container.querySelector('.hot-grid')).not.toBeNull()
+    expect(again.container.querySelector('.hot-grid--picture')).toBeNull()
   })
 })
 

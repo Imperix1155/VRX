@@ -658,6 +658,7 @@ export default function SettingsView(): React.JSX.Element {
   const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
   const wearingNow = useSettingsStore((s) => s.settings.dashboardWearingNow)
   const latestInvites = useSettingsStore((s) => s.settings.dashboardInvites)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
@@ -759,6 +760,23 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
+            {/* Hide empty sections (owner, 2026-10-27): the whole Dashboard
+                shifts to what has something to show. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.dashboard.hideEmpty.label')}
+                </p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {t('settings.dashboard.hideEmpty.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={hideEmpty}
+                ariaLabel={t('settings.dashboard.hideEmpty.label')}
+                onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
+              />
+            </div>
             {/* The glance row under the numbers (owner, 2026-10-27), in its
                 Dashboard order. Hiding one keeps its page. */}
             <div className="setting-card setting-row">

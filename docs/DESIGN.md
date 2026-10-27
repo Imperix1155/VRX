@@ -48,7 +48,9 @@ These decisions are settled. Changing one needs the owner's explicit approval.
    their Dashboard section (§8, §9.1). Above both, under the numbers, a
    glance row shows Wearing now (the worn avatar per signed-in platform) and
    Latest invites (the newest invite per platform), side by side; each has
-   its own switch, on by default (§9.1).
+   its own switch, on by default (§9.1). Hide empty sections, on by default,
+   lets a section with nothing to show step aside so the others take its
+   space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
    Settings → Behavior (§8). While it shows, the Dashboard section's "See
@@ -337,8 +339,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
-- Dashboard: Wearing now, Latest invites, Section order, Popular now, Hot
-  Instances, and Hot instance threshold, as separate rows in Dashboard order.
+- Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
+  order, Popular now, Hot Instances, and Hot instance threshold, as separate
+  rows in Dashboard order.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
   Allow joining friends, which contains Confirm before joining, Join in, and
@@ -389,6 +392,15 @@ their glance section; the Avatars and Inbox pages and invite alerts stay. A
 compact "Settings" button below the Dashboard content opens Settings →
 Dashboard, even when every section is off.
 
+**Hide empty sections** (owner, 2026-10-27; on by default) makes the
+Dashboard fit what it has: Latest invites with nothing waiting, a platform
+that reported no worn avatar, and Hot Instances with nothing hot step aside
+(Popular now already does). The Hot instances statistic stays, so "0" still
+explains the missing section; the threshold stays in Settings → Dashboard
+and on the Hot Instances page. A lone glance section takes the whole row and
+puts its two platform rows side by side. Off shows each section's empty
+state, and card style follows Section order only.
+
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
 their own action and label. The collapsed icon never shrinks, its hidden label
@@ -430,7 +442,7 @@ threshold; it starts closed and exposes its state to assistive technology.
 The glance row sits between the numbers and the two ordered sections and
 does not move with Section order. Its two sections sit side by side when the
 area is at least 520 px wide, one above the other below that; a lone section
-fills the row. Each is a heading with a quiet button (Avatars, or See all N
+fills the row, with its two platform rows side by side. Each is a heading with a quiet button (Avatars, or See all N
 for the Inbox) over one glass list, and every row is the same height: a
 picture, the name, and the platform as a word (PlatformPill), so VRChat and
 ChilloutVR read alike. Wearing now has one row per signed-in platform in the
@@ -438,7 +450,8 @@ filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
 or failed state with Try again. A row opens the Avatars page. Latest invites
 shows the newest invite or invite request per platform, VRChat's first, in
 the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
-hidden the rows are plain text. With nothing waiting it shows one quiet line.
+hidden the rows are plain text. With nothing waiting it shows one quiet line,
+or, with Hide empty sections on, steps aside.
 
 Each Dashboard section shows two cards, chosen as in "Locked for 1.0". The
 second section's bars show the world picture behind a same-color scrim with

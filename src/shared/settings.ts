@@ -39,6 +39,8 @@
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   dashboardWearingNow, dashboardInvites → the Dashboard's worn-avatar and latest-invite
  *                            sections (owner, 2026-10-27; default shown, v21)
+ *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
+ *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
  *   showActivityPage       → the Activity page and its in-memory record (owner, 2026-10-27; default on)
  *   activityFilter         → which kind the Activity page lists (owner, 2026-10-27; all)
@@ -89,6 +91,9 @@ export const SettingsSchema = z.object({
    *  Dashboard numbers. Hiding either keeps the Avatars and Inbox pages. */
   dashboardWearingNow: z.boolean().catch(true),
   dashboardInvites: z.boolean().catch(true),
+  /** Sections with nothing to show (no invites, no hot instances) step aside and
+   *  the first shown section takes the picture cards. Off shows their empty states. */
+  dashboardHideEmpty: z.boolean().catch(true),
   /** Optional sidebar pages. Hiding a page keeps its Dashboard section and alerts. */
   showHotInstancesPage: z.boolean().catch(true),
   showExplorePage: z.boolean().catch(true),
@@ -239,7 +244,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v19 → v20: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
   // additive. The version boundary stops an older build from stripping them.
   19: (prev) => ({ ...prev }),
-  // v20 → v21: `dashboardWearingNow` and `dashboardInvites` are additive. The
+  // v20 → v21: `dashboardWearingNow`, `dashboardInvites` and
+  // `dashboardHideEmpty` are additive. The
   // version boundary stops an older build from stripping a user's Off.
   20: (prev) => ({ ...prev })
 }

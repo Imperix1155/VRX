@@ -5,6 +5,10 @@
  * follow the platform filter, use one row shape for VRChat and ChilloutVR with
  * the platform as a word, and can be hidden in Settings → Dashboard.
  *
+ * With "Hide empty sections" (`dashboardHideEmpty`, on by default) a section
+ * with nothing to show steps aside and the other one takes the whole row; a
+ * lone section lays its two platform rows side by side.
+ *
  * Nothing here polls. The worn avatar comes from `useWornAvatar` (the Avatars
  * page's data when fresh, else one request per platform); invites come from
  * the socket-fed inbox that is already in memory.
@@ -12,6 +16,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarLibraryFailure } from '@shared/avatarLibrary'
+import type { InboxItem } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
 import { useWornAvatar, type WornAvatarState } from '../queries/currentAvatar'
 import { useAvatarAccount } from '../queries/avatarLibrary'
@@ -57,6 +62,12 @@ export default function DashboardGlance({
 }): React.JSX.Element | null {
   const showWorn = useSettingsStore((s) => s.settings.dashboardWearingNow)
   const showInvites = useSettingsStore((s) => s.settings.dashboardInvites)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
+  const inbox = useInbox()
+  const invites = useMemo(
+    () => latestInvitePerPlatform(inbox.data?.items ?? [], platforms),
+    [inbox.data, platforms]
+  )
   const vrcAccount = useAvatarAccount('vrchat')
   const cvrAccount = useAvatarAccount('chilloutvr')
   const signedIn = platforms.filter(
@@ -66,19 +77,22 @@ export default function DashboardGlance({
   const vrcWorn = useWornAvatar('vrchat', wornShown && signedIn.includes('vrchat'))
   const cvrWorn = useWornAvatar('chilloutvr', wornShown && signedIn.includes('chilloutvr'))
 
-  if (!wornShown && !showInvites) return null
+  // With "Hide empty sections" on, a platform that reported no worn avatar
+  // and a section with nothing in it step aside; loading and failures stay.
+  const wornRows = signedIn
+    .map((platform) => ({ platform, state: platform === 'vrchat' ? vrcWorn : cvrWorn }))
+    .filter(
+      ({ state }) => !(hideEmpty && state.result?.ok === true && state.result.current === null)
+    )
+  const wornVisible = wornShown && wornRows.length > 0
+  const invitesVisible = showInvites && !(hideEmpty && invites.latest.length === 0)
+
+  if (!wornVisible && !invitesVisible) return null
   return (
     <div className="glancewrap">
       <div className="glance-grid">
-        {wornShown ? (
-          <WornAvatars
-            rows={signedIn.map((platform) => ({
-              platform,
-              state: platform === 'vrchat' ? vrcWorn : cvrWorn
-            }))}
-          />
-        ) : null}
-        {showInvites ? <LatestInvites platforms={platforms} /> : null}
+        {wornVisible ? <WornAvatars rows={wornRows} /> : null}
+        {invitesVisible ? <LatestInvites latest={invites.latest} total={invites.total} /> : null}
       </div>
     </div>
   )
@@ -132,7 +146,7 @@ function WornAvatars({
           </button>
         }
       />
-      <ul className="glass glass-information divide-y divide-[var(--border)] overflow-hidden">
+      <ul className="glance-list glass glass-information overflow-hidden">
         {rows.map(({ platform, state }) => (
           <li key={platform}>
             <WornRow platform={platform} state={state} onOpen={openAvatars} />
@@ -248,18 +262,19 @@ function WornPicture({ url }: { url: string | null }): React.JSX.Element {
 
 // ─── Latest invites ───────────────────────────────────────────────────────────
 
-function LatestInvites({ platforms }: { platforms: readonly Platform[] }): React.JSX.Element {
+function LatestInvites({
+  latest,
+  total
+}: {
+  latest: readonly InboxItem[]
+  total: number
+}): React.JSX.Element {
   const { t, i18n } = useTranslation()
   const headingId = useId()
-  const inbox = useInbox()
   const vrcFriends = useFriends('vrchat')
   const cvrFriends = useFriends('chilloutvr')
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const [now, setNow] = useState(() => Date.now())
-  const { latest, total } = useMemo(
-    () => latestInvitePerPlatform(inbox.data?.items ?? [], platforms),
-    [inbox.data, platforms]
-  )
   const friendsById = useMemo(
     (): Record<Platform, Map<string, Friend>> => ({
       vrchat: new Map((vrcFriends.data ?? []).map((f) => [f.platformUserId, f])),
@@ -294,7 +309,7 @@ function LatestInvites({ platforms }: { platforms: readonly Platform[] }): React
           ) : null
         }
       />
-      <ul className="glass glass-information divide-y divide-[var(--border)] overflow-hidden">
+      <ul className="glance-list glass glass-information overflow-hidden">
         {hasRows ? (
           latest.map((item) => {
             const friend = friendsById[item.platform].get(item.senderId)

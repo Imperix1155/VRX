@@ -366,6 +366,10 @@
     "dashboard": {
       "heading": "Dashboard",
       "shortcut": "Settings",
+      "hideEmpty": {
+        "label": "Hide empty sections",
+        "description": "Sections with nothing to show make room for the others."
+      },
       "order": {
         "label": "Section order",
         "description": "Choose which Dashboard section comes first. The first one shows pictures.",
@@ -383,11 +387,11 @@
       },
       "wearingNow": {
         "label": "Wearing now",
-        "description": "Show the avatar you're wearing on each platform. The Avatars page stays available."
+        "description": "Your worn avatar on each platform."
       },
       "invites": {
         "label": "Latest invites",
-        "description": "Show the newest invite from each platform. The Inbox and its alerts stay available."
+        "description": "The newest invite from each platform."
       }
     },
     "persistence": {
