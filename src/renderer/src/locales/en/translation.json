@@ -245,6 +245,27 @@
     },
     "notifications": {
       "heading": "Notifications",
+      "scope": {
+        "label": "Who alerts you",
+        "description": "Everyone, or only friends you pick. Hot instance alerts don't change.",
+        "everyone": "Everyone",
+        "picked": "Picked friends",
+        "aria": "Which friends can send you alerts"
+      },
+      "picked": {
+        "label": "Picked friends",
+        "description": "VRChat: {{vrchat}} · ChilloutVR: {{chilloutvr}}. Pick a friend from their details.",
+        "show": "Show",
+        "showAria": "Show picked friends",
+        "title": "Picked friends",
+        "loading": "Picked: {{count}}. Names show once your friends list loads.",
+        "none": "No friends picked yet.",
+        "signedOut": "Not signed in.",
+        "remove": "Remove",
+        "removeOne": "Remove {{name}}",
+        "notInList": "Not in your friends list: {{count}}",
+        "removeMissing": "Remove friends who are not in your friends list"
+      },
       "online": {
         "label": "Friend comes online",
         "description": "Alert when an offline friend comes online.",
@@ -520,6 +541,13 @@
       "askMe": "Ask before joining",
       "dnd": "Not accepting joins",
       "offline": "Not connected"
+    },
+    "alerts": {
+      "heading": "Alerts",
+      "label": "Alert me about this friend",
+      "aria": "Alert me about {{name}}",
+      "saveFailed": "Couldn't save. Try again.",
+      "full": "You've picked as many friends as VRX can keep."
     },
     "notes": {
       "heading": "Notes (yours, private)",

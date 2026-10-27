@@ -134,6 +134,7 @@ function options(): IpcHandlerOptions {
     accountSession: {},
     locationAuthority: {},
     socialStore: {},
+    alertPicks: {},
     links: { linkGraph: {} },
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
@@ -196,7 +197,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(37)
+    expect(electron.invokeHandlers.size).toBe(39)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -218,6 +219,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-explore-image',
         'join-explore-room',
         'get-accounts',
+        'get-alert-picks',
         'get-app-background',
         'choose-app-background',
         'clear-app-background',
@@ -241,6 +243,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'open-logs-folder',
         'save-settings',
         'self-invite',
+        'set-alert-pick',
         'set-friend-note',
         'updater:check',
         'updater:download',

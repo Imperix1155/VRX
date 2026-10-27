@@ -70,6 +70,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  // Alert picks follow the same human-paced drawer and Settings use as notes.
+  'get-alert-picks': { max: 90, windowMs: 60_000 },
+  'set-alert-pick': { max: 60, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -101,6 +104,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'self-invite':
     case 'switch-avatar':
     case 'set-friend-note':
+    case 'set-alert-pick':
     case 'get-linked-profiles':
     case 'change-linked-profile':
       return { ok: false, reason: 'rate-limited' }

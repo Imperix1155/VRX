@@ -48,6 +48,11 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     failure: null
   }
   const links = structuredClone(linkedSnapshot)
+  // Two sample friends per platform start picked for alerts.
+  const alertPicks: Record<Platform, Set<string>> = {
+    vrchat: new Set(friends.vrchat.slice(0, 2).map((friend) => friend.platformUserId)),
+    chilloutvr: new Set(friends.chilloutvr.slice(0, 2).map((friend) => friend.platformUserId))
+  }
   const denied = { ok: false, reason: 'launch-failed' } as const
   // Choosing always "picks" the synthetic sample; no dialog or file is involved.
   let picture: string | null = null
@@ -191,6 +196,18 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         return Promise.reject(new Error('Synthetic note save failed'))
       }
       notes.set(key, note)
+      return Promise.resolve({ ok: true })
+    },
+    getAlertPicks: ({ platform }) =>
+      Promise.resolve({
+        friendIds: [...alertPicks[platform]],
+        revision: { platformAccountId: fixtureAuth(platform).accountId ?? '', epoch: 1 }
+      }),
+    setAlertPick: ({ platform, friendIds, picked }) => {
+      for (const friendId of friendIds) {
+        if (picked) alertPicks[platform].add(friendId)
+        else alertPicks[platform].delete(friendId)
+      }
       return Promise.resolve({ ok: true })
     },
     notifyRendererHydrated: noop,

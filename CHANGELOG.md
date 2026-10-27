@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page, sorted by name. Avatars load when you open the page or press Refresh,
   and switching is limited to one every 5 seconds per platform. Favorites are
   not included yet.
+- Alerts for picked friends. Settings → Notifications → Who alerts you can be
+  set to Picked friends; then only the friends you choose send the online,
+  joins-a-world and offline alerts. Pick a friend with Alert me about this
+  friend in their details, for VRChat and ChilloutVR alike, and review or
+  remove picks with Show. Picks stay on this PC, per account, and nothing is
+  sent to either platform. Everyone stays the default.
 - Activity page: friends coming online, joining a world, and going offline on
   VRChat and ChilloutVR, newest first, in one list with each platform named.
   Show picks All, Online, Worlds, or Offline; Clear empties the list; a row

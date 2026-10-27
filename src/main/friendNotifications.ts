@@ -121,6 +121,12 @@ export function createFriendNotificationNotifier({
   }
 }
 
+/** The picked-friends scope: with `picked`, only friends the current account
+ *  picked may fire online, joins-a-world and offline alerts. */
+export function isFriendAlertIncluded(settings: Settings, isPicked: () => boolean): boolean {
+  return settings.friendAlertScope !== 'picked' || isPicked()
+}
+
 /** Read the current snapshot at dispatch. The Dashboard's Hot Instances switch
  *  only hides that Dashboard section, so it no longer gates the alert. */
 export function isFriendAlertEnabled(type: FriendAlertType, settings: Settings): boolean {
