@@ -110,10 +110,6 @@ describe('AvatarLibraryService', () => {
     const { vrc, service } = setup()
     vrc.own = [item('vrchat', VRC_A)]
     vrc.current = item('vrchat', VRC_PUBLIC)
-    expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({
-      ok: false,
-      reason: 'unknown-avatar'
-    })
     await service.getLibrary('vrchat')
     expect(await service.switchAvatar('vrchat', VRC_B)).toEqual({
       ok: false,
@@ -124,8 +120,77 @@ describe('AvatarLibraryService', () => {
       reason: 'unknown-avatar'
     })
     expect(vrc.switchAvatar).not.toHaveBeenCalled()
+    // A listed session refuses unknown IDs without reading the list again.
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(1)
     expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({ ok: true })
     expect(vrc.switchAvatar).toHaveBeenCalledWith(VRC_A, expect.anything())
+  })
+
+  it('reads the list once before a switch the session has not listed yet', async () => {
+    const { vrc, service } = setup()
+    vrc.own = [item('vrchat', VRC_A)]
+    // The renderer may still show a library loaded earlier in the session.
+    expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({ ok: true })
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(1)
+    expect(vrc.switchAvatar).toHaveBeenCalledWith(VRC_A, expect.anything())
+  })
+
+  it('makes at most one implicit read per session, whatever its outcome', async () => {
+    const { vrc, service } = setup()
+    vrc.listError = new NetworkError('offline')
+    expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({
+      ok: false,
+      reason: 'unknown-avatar'
+    })
+    expect(await service.getDetails('vrchat', VRC_A)).toEqual({
+      ok: false,
+      reason: 'unknown-avatar'
+    })
+    expect(await service.switchAvatar('vrchat', VRC_B)).toEqual({
+      ok: false,
+      reason: 'unknown-avatar'
+    })
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(1)
+    expect(vrc.switchAvatar).not.toHaveBeenCalled()
+  })
+
+  it('waits for an in-flight list instead of refusing a switch', async () => {
+    const { vrc, service } = setup()
+    vrc.own = [item('vrchat', VRC_A)]
+    const listing = service.getLibrary('vrchat')
+    const switching = service.switchAvatar('vrchat', VRC_A)
+    expect(await switching).toEqual({ ok: true })
+    await listing
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads the worn avatar alongside the list, not after it', async () => {
+    const { vrc, service } = setup()
+    vrc.own = [item('vrchat', VRC_A)]
+    vrc.current = item('vrchat', VRC_A)
+    const order: string[] = []
+    vrc.getOwnAvatars.mockImplementationOnce(async () => {
+      order.push('list-start')
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      order.push('list-end')
+      return { avatars: vrc.own, complete: true }
+    })
+    vrc.getCurrentAvatar.mockImplementationOnce(async () => {
+      order.push('current-start')
+      return vrc.current
+    })
+    expect(await service.getLibrary('vrchat')).toMatchObject({
+      ok: true,
+      current: { avatarId: VRC_A }
+    })
+    expect(order.indexOf('current-start')).toBeLessThan(order.indexOf('list-end'))
+  })
+
+  it('a sign-in failure on the worn-avatar read still fails the whole read', async () => {
+    const { vrc, service } = setup()
+    vrc.own = [item('vrchat', VRC_A)]
+    vrc.currentError = new AuthError()
+    expect(await service.getLibrary('vrchat')).toEqual({ ok: false, reason: 'not-authenticated' })
   })
 
   it('forgets listed avatars when the session changes', async () => {
@@ -133,10 +198,14 @@ describe('AvatarLibraryService', () => {
     vrc.own = [item('vrchat', VRC_A)]
     await service.getLibrary('vrchat')
     vrc.generation = 2
+    // The new session's own list decides: an avatar no longer listed is refused.
+    vrc.own = [item('vrchat', VRC_B)]
     expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({
       ok: false,
       reason: 'unknown-avatar'
     })
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(2)
+    expect(vrc.switchAvatar).not.toHaveBeenCalled()
     vrc.signedIn = false
     expect(await service.getLibrary('vrchat')).toEqual({ ok: false, reason: 'not-authenticated' })
     expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({
@@ -152,8 +221,11 @@ describe('AvatarLibraryService', () => {
     await service.getLibrary('vrchat')
     await service.getLibrary('chilloutvr')
     service.clearPlatform('vrchat')
-    expect(await service.switchAvatar('vrchat', VRC_A)).toMatchObject({ ok: false })
+    expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({ ok: true })
+    // VRChat read its list again for the fresh state; ChilloutVR kept its own.
+    expect(vrc.getOwnAvatars).toHaveBeenCalledTimes(2)
     expect(await service.switchAvatar('chilloutvr', CVR_A.toUpperCase())).toEqual({ ok: true })
+    expect(cvr.getOwnAvatars).toHaveBeenCalledTimes(1)
   })
 
   it('spaces switches by the cooldown and allows one at a time', async () => {

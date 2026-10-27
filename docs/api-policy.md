@@ -232,19 +232,25 @@ default; Off always launches).
 The Avatars page reads only when it opens with a platform in view and when the
 user presses Refresh. There is no timer and no read on window focus. Reads use
 the platform's admission queue at interactive priority, and the renderer keeps
-a result fresh for 5 minutes per account.
+a result fresh for 5 minutes per account. It keeps the last result in memory
+for the rest of the session, so reopening the page shows it at once and reads
+again only once it is older than 5 minutes.
 
 | Limit                 | Value                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------- |
-| VRChat page open      | At most 6 reads: up to 5 list pages of 100, then the worn avatar                        |
+| VRChat page open      | At most 6 reads: up to 5 list pages of 100, and the worn avatar queued beside the first |
 | ChilloutVR page open  | 2 reads: the avatar list and the user record                                            |
 | Opening an avatar     | VRChat: none (the list carries every field). ChilloutVR: 1 read, cached for the session |
 | Avatar switch         | One at a time per platform, 5 s after any attempt, never retried                        |
 | Concurrent page reads | Share one run per platform                                                              |
 
 Main accepts a switch only for an avatar it listed for the current session, so
-the renderer cannot name an arbitrary avatar. Avatar state is cleared at every
-sign-out, account change, and invalidated session.
+the renderer cannot name an arbitrary avatar. A Wear press or details open that
+arrives while the list is still loading waits for that read. When the current
+session has not read the list yet (for example after a session renewal while
+the page still shows the earlier result), main makes that one page-open read
+first; it does so at most once per session, whatever the outcome. Avatar state
+is cleared at every sign-out, account change, and invalidated session.
 
 ## Local action limits
 

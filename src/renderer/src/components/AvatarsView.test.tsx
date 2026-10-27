@@ -12,7 +12,7 @@ import type { AuthStatus, Platform } from '@shared/types'
 import i18n from '../i18n'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
-import AvatarsView from './AvatarsView'
+import AvatarsView, { UPLOADS_FIRST_STEP } from './AvatarsView'
 
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
 const authState = vi.hoisted(() => ({ vrchat: 'authenticated', chilloutvr: 'authenticated' }))
@@ -205,5 +205,50 @@ describe('AvatarsView', () => {
     await waitFor(() =>
       expect(document.activeElement?.getAttribute('aria-label')).toBe(cardName(vrcWorn))
     )
+  })
+
+  it('draws a big library in steps: the first screenful at once, then the rest', async () => {
+    const many = Array.from({ length: UPLOADS_FIRST_STEP * 2 + 5 }, (_, index) =>
+      avatar('vrchat', 100 + index, `Bulk ${String(index).padStart(3, '0')}`)
+    )
+    bridge.getAvatarLibrary.mockImplementation(({ platform }) =>
+      Promise.resolve(
+        platform === 'vrchat'
+          ? { ok: true, platform, avatars: many, complete: true, current: null }
+          : library(platform)
+      )
+    )
+    renderView()
+    const uploads = await screen.findByRole('region', { name: msg('avatars.yourUploads') })
+    // The count names the whole library even before every card is drawn.
+    expect(
+      within(uploads).getByText(msg('avatars.uploadCount', { count: many.length + 2 }))
+    ).toBeTruthy()
+    await waitFor(() =>
+      expect(within(uploads).getAllByRole('button')).toHaveLength(many.length + 2)
+    )
+  })
+
+  it('keeps a loaded library when the page closes and opens again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <AvatarsView />
+      </QueryClientProvider>
+    )
+    await screen.findAllByRole('button', { name: cardName(vrcOther) })
+    view.unmount()
+    // Well past TanStack's default five unobserved minutes.
+    vi.advanceTimersByTime(10 * 60_000)
+    vi.useRealTimers()
+    bridge.getAvatarLibrary.mockClear()
+    render(
+      <QueryClientProvider client={client}>
+        <AvatarsView />
+      </QueryClientProvider>
+    )
+    // Drawn from memory in the first render; the stale copy re-reads behind it.
+    expect(screen.getAllByRole('button', { name: cardName(vrcOther) }).length).toBeGreaterThan(0)
   })
 })
