@@ -84,8 +84,9 @@ or launch authority.
 
 **Account-bound data**
 
-- Friend, linked-profile, Explore, and note queries cancel old work and clear
-  data and fences at identity or auth boundaries. An old reply never publishes
+- Friend, linked-profile, Explore, note, alert-pick and avatar queries cancel
+  old work and clear data and fences at identity or auth boundaries. Avatar
+  libraries otherwise stay in memory for the session, keyed by account. An old reply never publishes
   under the replacement account.
 - `projectLinkedFriends` projects only qualified people; raw friend caches stay
   account-scoped. Linked snapshots keep the newest `storeRevision` within a

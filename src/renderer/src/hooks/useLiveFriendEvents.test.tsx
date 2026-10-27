@@ -398,6 +398,24 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(client.getQueryData(cvrPicksKey)).toEqual({ friendIds: ['cvr_a'] })
   })
 
+  it("drops the outgoing account's avatars and keeps the other platform's", () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcLibraryKey = ['avatar-library', 'vrchat', 'usr_me'] as const
+    const vrcDetailsKey = ['avatar-details', 'vrchat', 'usr_me', 'avtr_x'] as const
+    const cvrLibraryKey = ['avatar-library', 'chilloutvr', 'cvr-me'] as const
+    client.setQueryData(vrcLibraryKey, { ok: true })
+    client.setQueryData(vrcDetailsKey, { ok: true })
+    client.setQueryData(cvrLibraryKey, { ok: true })
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(client.getQueryData(vrcLibraryKey)).toBeUndefined()
+    expect(client.getQueryData(vrcDetailsKey)).toBeUndefined()
+    expect(client.getQueryData(cvrLibraryKey)).toEqual({ ok: true })
+  })
+
   it('clears a mounted useFriends observer immediately and refetches the new account (real QueryClient)', async () => {
     const accountA = [vrcFriend('Account A')]
     let resolveAccountB: ((friends: Friend[]) => void) | undefined

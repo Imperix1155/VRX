@@ -39,6 +39,7 @@ import {
 } from '../queries/friendEventReplay'
 import { authStatusQueryKey } from '../queries/auth'
 import { alertPicksPlatformKey } from '../queries/alertPicks'
+import { avatarQueryKeysForPlatform } from '../queries/avatarLibrary'
 import { persistQueryCacheNow } from '../queries/cache'
 import { applyFriendEvent } from '../utils/applyFriendEvent'
 
@@ -172,6 +173,11 @@ export function useLiveFriendEvents(): void {
       // Alert picks belong to the outgoing account too.
       void queryClient.cancelQueries({ queryKey: alertPicksPlatformKey(platform) })
       queryClient.removeQueries({ queryKey: alertPicksPlatformKey(platform) })
+      // So do its avatars, which stay in memory for the whole session.
+      for (const avatarKey of avatarQueryKeysForPlatform(platform)) {
+        void queryClient.cancelQueries({ queryKey: avatarKey })
+        queryClient.removeQueries({ queryKey: avatarKey })
+      }
       // removeQueries does not reset a mounted observer in query-core 5.101.2.
       // Set [] so every mounted consumer clears immediately and B live events
       // have a cache value to patch, then invalidate to fetch B's roster.
