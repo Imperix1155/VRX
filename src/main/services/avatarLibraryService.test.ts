@@ -187,6 +187,10 @@ describe('AvatarLibraryService', () => {
       ok: false,
       reason: 'switch-failed'
     })
+    // A failed attempt still starts the cooldown, so a retry is not sooner.
+    vrc.switchError = null
+    expect(await service.switchAvatar('vrchat', VRC_A)).toEqual({ ok: false, reason: 'cooldown' })
+    expect(vrc.switchAvatar).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the list when only the worn-avatar read fails, but not on sign-in failures', async () => {

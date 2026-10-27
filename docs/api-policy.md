@@ -206,7 +206,7 @@ a result fresh for 5 minutes per account.
 | VRChat page open      | At most 6 reads: up to 5 list pages of 100, then the worn avatar                        |
 | ChilloutVR page open  | 2 reads: the avatar list and the user record                                            |
 | Opening an avatar     | VRChat: none (the list carries every field). ChilloutVR: 1 read, cached for the session |
-| Avatar switch         | One at a time per platform, 5 s apart, never retried on its own                         |
+| Avatar switch         | One at a time per platform, 5 s after any attempt, never retried                        |
 | Concurrent page reads | Share one run per platform                                                              |
 
 Main accepts a switch only for an avatar it listed for the current session, so
@@ -227,7 +227,7 @@ Main also rate-limits the renderer's requests before any network work starts.
 | VRChat self-invite       | 20 per minute; one at a time; 3 s cooldown                                                |
 | Avatar list              | 30 per minute; concurrent reads share one run                                             |
 | Avatar details           | 60 per minute                                                                             |
-| Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown                                   |
+| Avatar switch            | 24 per minute; one at a time per platform; 5 s cooldown after any attempt                 |
 | Join from Explore        | 20 per minute; one launch per platform at a time; 3 s cooldown per destination            |
 
 The full table is `IPC_RATE_LIMIT_BUDGETS` in

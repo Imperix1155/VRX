@@ -41,7 +41,8 @@ interface PlatformState {
  * Each platform's state belongs to one session lease, so a reply or a switch
  * can never cross an account boundary, and the renderer can only switch to an
  * avatar main itself listed for the current session. One switch per platform
- * runs at a time, spaced by `AVATAR_SWITCH_COOLDOWN_MS`.
+ * runs at a time, and every attempt, failed or not, starts
+ * `AVATAR_SWITCH_COOLDOWN_MS`.
  */
 export class AvatarLibraryService {
   private readonly states = new Map<Platform, PlatformState>()
@@ -107,7 +108,6 @@ export class AvatarLibraryService {
     try {
       await adapter.switchAvatar(id, state.lease)
       assertRequestLease(state.lease)
-      state.lastSwitchAt = this.clock()
       return { ok: true }
     } catch (error) {
       const reason = this.failure(platform, error)
@@ -118,6 +118,9 @@ export class AvatarLibraryService {
         false
       )
     } finally {
+      // A failed attempt waits out the cooldown too, so a retry never comes
+      // sooner than a successful switch would allow.
+      state.lastSwitchAt = this.clock()
       state.switching = false
     }
   }
