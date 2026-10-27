@@ -338,9 +338,10 @@ Accounts, and About. Each setting sits on a compact neutral card.
   threshold, as separate rows.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
-  Allow joining friends, which contains Confirm before joining, Join in, Use
-  the game that's already open, and (while that is on) When VRChat is open
-  (Go there or Send invite; ChilloutVR has only one way).
+  Allow joining friends, which contains Confirm before joining, Join in, and
+  When the game is already open (Go there, Send invite, or Off; Send invite
+  changes only VRChat, since ChilloutVR has one way). Off keeps the saved
+  VRChat choice for when it is turned back on.
   Turning a parent off collapses its card with a 220 ms height transition
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and

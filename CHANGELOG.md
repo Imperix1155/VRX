@@ -38,8 +38,8 @@ Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
   VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
   an invite to accept in the game (always on Linux, or if you pick Send
   invite). The join dialog says which will happen, and the line under Join
-  confirms it. Turn it off, or pick how VRChat joins, in Settings → Behavior →
-  Allow joining friends. (#468)
+  confirms it. Pick Go there, Send invite, or Off in Settings → Behavior →
+  When the game is already open. (#468, #471)
 - Inbox page: invites, invite requests and friend requests from VRChat and
   ChilloutVR that arrive while VRX is open, in one list that follows the
   platform filter. It only shows them; answer in the game or on the
