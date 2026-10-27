@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Alerts for picked friends: the Settings scope control, the review list
- * behind Show, and the "Alert me about this friend" switch in the details
- * panel. Both platforms get the same controls.
+ * behind Show, and the details panel bell with its "Alert me about this
+ * friend" switch. Both platforms get the same controls.
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -107,7 +107,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   useSettingsStore.setState({ settings: DEFAULT_SETTINGS, dirty: false })
-  useUiStore.setState({ settingsCategory: 'appearance' })
+  useUiStore.setState({ settingsCategory: 'appearance', activeTab: 'dashboard' })
 })
 
 function withClient(node: React.ReactNode): QueryClient {
@@ -307,22 +307,91 @@ describe('AlertPickRow', () => {
   })
 })
 
-describe('FriendDrawer alerts section', () => {
+describe('FriendDrawer alerts bell', () => {
+  const bell = (state: 'bellOn' | 'bellOff', name: string): HTMLElement =>
+    screen.getByRole('button', { name: msg(`drawer.alerts.${state}`, { name }) })
+  const withScope = (scope: 'everyone' | 'picked', alertsOn = true): void =>
+    act(() =>
+      useSettingsStore.setState({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          friendAlertScope: scope,
+          notifyFriendOnline: alertsOn,
+          notifyFriendInGame: alertsOn
+        },
+        dirty: false
+      })
+    )
+
   for (const platform of ['vrchat', 'chilloutvr'] as const) {
-    it(`shows the ${platform} switch only while alerts are limited to picked friends`, () => {
+    it(`opens the ${platform} switch from the bell only while alerts are limited to picked friends`, async () => {
       const shown = friend(platform, platform === 'vrchat' ? 'usr_x' : 'cvr_x', 'Sam')
+      withScope('everyone')
       withClient(<FriendDrawer friend={shown} onClose={vi.fn()} />)
       const name = msg('drawer.alerts.aria', { name: 'Sam' })
+      // Everyone can alert, so the bell reads On and the panel has no switch.
+      fireEvent.click(bell('bellOn', 'Sam'))
+      expect(bell('bellOn', 'Sam').getAttribute('aria-expanded')).toBe('true')
+      expect(screen.getByText(msg('drawer.alerts.everyone'))).toBeTruthy()
       expect(screen.queryByRole('radiogroup', { name })).toBeNull()
 
-      act(() =>
-        useSettingsStore.setState({
-          settings: { ...DEFAULT_SETTINGS, friendAlertScope: 'picked' },
-          dirty: false
-        })
-      )
-      expect(screen.getByRole('radiogroup', { name })).toBeTruthy()
-      expect(screen.getByText(msg('drawer.alerts.label'))).toBeTruthy()
+      withScope('picked')
+      // Sam isn't picked yet, so the bell turns Off and the switch appears.
+      const toggle = screen.getByRole('radiogroup', { name })
+      expect(bell('bellOff', 'Sam')).toBeTruthy()
+      const on = within(toggle).getByRole('radio', { name: msg('settings.boolean.on') })
+      await waitFor(() => expect(on.getAttribute('aria-disabled')).not.toBe('true'))
+      fireEvent.click(on)
+      await waitFor(() => expect(bell('bellOn', 'Sam')).toBeTruthy())
+      expect(stored[platform].has(shown.platformUserId)).toBe(true)
     })
   }
+
+  it('hides the panel from assistive tech until the bell opens it', () => {
+    withScope('picked')
+    withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
+    const name = msg('drawer.alerts.aria', { name: 'Alex' })
+    expect(screen.queryByRole('radiogroup', { name })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { expanded: false, name: /Alex/ }))
+    expect(screen.getByRole('radiogroup', { name })).toBeTruthy()
+  })
+
+  it('reads Off when every friend alert is off, whoever is picked', async () => {
+    withScope('picked', false)
+    withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
+    await act(async () => {})
+    fireEvent.click(bell('bellOff', 'Alex'))
+    expect(screen.getByText(msg('drawer.alerts.allOff'))).toBeTruthy()
+  })
+
+  it('folds on Esc without closing the drawer, then Esc closes the drawer', () => {
+    const onClose = vi.fn()
+    withClient(<FriendDrawer friend={friend('chilloutvr', 'cvr_mika', 'Mika')} onClose={onClose} />)
+    const button = bell('bellOff', 'Mika')
+    fireEvent.click(button)
+    fireEvent.keyDown(screen.getByText(msg('drawer.alerts.allOff')), { key: 'Escape' })
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(button)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(button, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('folds on a press outside the bell and its panel', () => {
+    withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
+    const button = bell('bellOff', 'Alex')
+    fireEvent.click(button)
+    fireEvent.pointerDown(screen.getByText(msg('drawer.alerts.heading')))
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(screen.getByRole('button', { name: msg('drawer.close') }))
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('takes Alert settings to Settings → Notifications', () => {
+    withClient(<FriendDrawer friend={friend('vrchat', 'usr_alex', 'Alex')} onClose={vi.fn()} />)
+    fireEvent.click(bell('bellOff', 'Alex'))
+    fireEvent.click(screen.getByRole('button', { name: msg('drawer.alerts.settings') }))
+    expect(useUiStore.getState().activeTab).toBe('settings')
+    expect(useUiStore.getState().settingsCategory).toBe('notifications')
+  })
 })

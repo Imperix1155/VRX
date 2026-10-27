@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Friend alerts moved to a bell in the friend details panel, at the bottom
+  across from Identities. The bell shows waves when that friend can alert you
+  and a slash when they can't. Pressing it pops open a small panel with Alert
+  me about this friend (while alerts are limited to picked friends), which
+  friend alerts are on, and a shortcut to Settings → Notifications. The panel
+  springs out of the bell, or simply appears with reduced motion on.
+
 ## [1.2.0-dev.3] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
