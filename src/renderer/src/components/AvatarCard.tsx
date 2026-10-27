@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { memo, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AvatarItem } from '@shared/avatarLibrary'
 import { useAvatar } from '../hooks/useAvatar'
@@ -18,14 +18,11 @@ export interface AvatarCardProps {
 /**
  * One avatar on the Avatars page. VRChat and ChilloutVR use this exact card;
  * only the platform stripe, tint and short label differ. The picture loads
- * through main's image proxy when the card nears the viewport.
+ * through main's image proxy when the card nears the viewport. Memoized: a
+ * library can hold hundreds of cards, and opening a details sheet or a Refresh
+ * press must not re-render every one of them.
  */
-export default function AvatarCard({
-  avatar,
-  worn,
-  onOpen,
-  layout = 'card'
-}: AvatarCardProps): React.JSX.Element {
+function AvatarCard({ avatar, worn, onOpen, layout = 'card' }: AvatarCardProps): React.JSX.Element {
   const { t } = useTranslation()
   const pictureRef = useRef<HTMLDivElement>(null)
   const image = useAvatar(avatar.imageUrl, pictureRef)
@@ -63,6 +60,7 @@ export default function AvatarCard({
             <img
               src={image}
               alt=""
+              decoding="async"
               className="h-full w-full object-cover"
               onError={() => setFailedImage(image)}
             />
@@ -99,3 +97,5 @@ export default function AvatarCard({
     </button>
   )
 }
+
+export default memo(AvatarCard)
