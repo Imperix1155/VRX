@@ -45,6 +45,11 @@ type VrxBridge = {
     req: IpcInvoke['get-join-handoff']['req']
   ) => Promise<IpcInvoke['get-join-handoff']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
+  /** The in-memory activity list; reading it makes no platform request. */
+  getActivity: () => Promise<IpcInvoke['get-activity']['res']>
+  clearActivity: () => Promise<IpcInvoke['clear-activity']['res']>
+  /** The activity list changed (coalesced). Returns an unsubscribe. */
+  onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
   /** The user's background picture; main owns the file and the picking dialog. */
@@ -65,6 +70,13 @@ type VrxBridge = {
   setFriendNote: (
     req: IpcInvoke['set-friend-note']['req']
   ) => Promise<IpcInvoke['set-friend-note']['res']>
+  /** Local friend picks for alerts (per signed-in account). */
+  getAlertPicks: (
+    req: IpcInvoke['get-alert-picks']['req']
+  ) => Promise<IpcInvoke['get-alert-picks']['res']>
+  setAlertPick: (
+    req: IpcInvoke['set-alert-pick']['req']
+  ) => Promise<IpcInvoke['set-alert-pick']['res']>
   /** The settings-backed document attributes are ready for the first reveal. */
   notifyRendererHydrated: () => void
   /** Live adapter events pushed from main (VRX-146). Returns an unsubscribe. */

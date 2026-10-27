@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Alerts for picked friends. Settings → Notifications → Who alerts you can be
+  set to Picked friends; then only the friends you choose send the online,
+  joins-a-world and offline alerts. Pick a friend with Alert me about this
+  friend in their details, for VRChat and ChilloutVR alike, and review or
+  remove picks with Show. Picks stay on this PC, per account, and nothing is
+  sent to either platform. Everyone stays the default.
+- Activity page: friends coming online, joining a world, and going offline on
+  VRChat and ChilloutVR, newest first, in one list with each platform named.
+  Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
+  opens that friend on the Friends page. It is built from the live connection
+  VRX already has, so it makes no extra requests, and it stays in memory only
+  until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
+  never show a world or a move. Turn it off in Settings → Notifications →
+  Activity page or in the welcome setup; off also stops VRX keeping it.
 - Join uses the game that's already open. When VRChat or ChilloutVR is running,
   Join takes you there in that game instead of starting a second copy, the way
   VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you

@@ -133,7 +133,7 @@ etiquette rules apply in full; this file adds local detail.
 **Events, alerts, images**
 
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
-  `FriendAlerts`, then the broadcast, isolating each consumer. The broadcast
+  `FriendAlerts`, `ActivityFeed`, then the broadcast, isolating each consumer. The broadcast
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, and
@@ -143,9 +143,18 @@ etiquette rules apply in full; this file adds local detail.
 - Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
   defaults off). Hot alerts gate only on `notifyHotInstance`;
   `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded
-  and rate limited. Ask Me and DND friends never count toward hot alerts, and
+  and rate limited. With `friendAlertScope: 'picked'`, friend alerts fire only
+  for friends the current account picked (`FriendAlertPicks`, local
+  SocialStore data); hot alerts are never limited by picks. Ask Me and DND
+  friends never count toward hot alerts, and
   no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
   logs carry no names or locations.
+- `ActivityFeed` keeps the Activity page's list: its own `FriendAlerts`
+  engine without the toast rate limit, memory only, bounded per platform,
+  gated by `showActivityPage` at each transition. It never records a world or
+  a move for a hidden location, keeps backfill locations in main, and clears
+  a platform at an account boundary (a same-account 401 keeps entries).
+  Changes reach the renderer as a coalesced `activity-changed` push.
 - `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
   redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
   API hops share platform admission. The VRChat cookie goes only to

@@ -82,6 +82,12 @@ vi.mock('./instance', () => ({
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./activity', () => ({
+  registerActivityHandlers: () => {
+    electron.ipcMain.handle('get-activity', () => [])
+    electron.ipcMain.handle('clear-activity', () => undefined)
+  }
+}))
 vi.mock('./launch', () => ({
   registerLaunchHandlers: () => {
     electron.ipcMain.handle('open-url', () => undefined)
@@ -129,6 +135,7 @@ function options(): IpcHandlerOptions {
     accountSession: {},
     locationAuthority: {},
     socialStore: {},
+    alertPicks: {},
     links: { linkGraph: {} },
     appStatus: {},
     appBackground: {} as IpcHandlerOptions['appBackground'],
@@ -186,7 +193,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(33)
+    expect(electron.invokeHandlers.size).toBe(37)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -208,10 +215,13 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-explore-image',
         'join-explore-room',
         'get-accounts',
+        'get-alert-picks',
         'get-app-background',
         'choose-app-background',
         'clear-app-background',
         'get-app-status',
+        'get-activity',
+        'clear-activity',
         'get-auth-status',
         'get-avatar',
         'get-friend-note',
@@ -227,6 +237,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'open-logs-folder',
         'save-settings',
         'self-invite',
+        'set-alert-pick',
         'set-friend-note',
         'updater:check',
         'updater:download',

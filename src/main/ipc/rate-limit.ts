@@ -51,6 +51,11 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-join-handoff': { max: 60, windowMs: 60_000 },
   // The 7.5s status poll runs eight times/minute; this is a 3x allowance.
   'get-app-status': { max: 24, windowMs: 60_000 },
+  // Read on page open and after each coalesced change push (at most two a
+  // second), with headroom for remounts.
+  'get-activity': { max: 240, windowMs: 60_000 },
+  // A deliberate button press.
+  'clear-activity': { max: 20, windowMs: 60_000 },
   // External links are human-clicked; 30/minute still bounds a click loop.
   'open-url': { max: 30, windowMs: 60_000 },
   // Settings hydrate once per renderer load, with ample reload/remount headroom.
@@ -61,6 +66,9 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friend-note': { max: 90, windowMs: 60_000 },
   // Blur-triggered note saves are human-paced; one/second is generous.
   'set-friend-note': { max: 60, windowMs: 60_000 },
+  // Alert picks follow the same human-paced drawer and Settings use as notes.
+  'get-alert-picks': { max: 90, windowMs: 60_000 },
+  'set-alert-pick': { max: 60, windowMs: 60_000 },
   'get-linked-profiles': { max: 90, windowMs: 60_000 },
   'change-linked-profile': { max: 60, windowMs: 60_000 },
   // Hydration is once per renderer load; three allows dev remount/reload churn.
@@ -91,6 +99,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-explore-room':
     case 'self-invite':
     case 'set-friend-note':
+    case 'set-alert-pick':
     case 'get-linked-profiles':
     case 'change-linked-profile':
       return { ok: false, reason: 'rate-limited' }

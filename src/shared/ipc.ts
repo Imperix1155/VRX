@@ -23,6 +23,7 @@ import type {
 import type { Settings } from '@shared/settings'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
+import type { ActivityEntry } from './activity'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
@@ -164,6 +165,11 @@ export interface IpcInvoke {
    *  Main decides again when the Join happens. */
   'get-join-handoff': { req: { platform: Platform }; res: JoinHandoff }
   'get-app-status': { req: void; res: AppStatus }
+  /** The in-memory activity list, newest first. Main records it from the live
+   *  sockets; reading it makes no platform request. */
+  'get-activity': { req: void; res: ActivityEntry[] }
+  /** Forget every activity entry. */
+  'clear-activity': { req: void; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
@@ -194,6 +200,23 @@ export interface IpcInvoke {
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
+  /** The signed-in account's friends picked for alerts. Local only. */
+  'get-alert-picks': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: { platformAccountId: string; epoch: number } }
+  }
+  /** Pick or unpick friends for alerts in one write; echo the read's revision. */
+  'set-alert-pick': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      picked: boolean
+      revision: { platformAccountId: string; epoch: number }
+    }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
 }
 
 /**
@@ -204,6 +227,8 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
+  /** The activity list changed; coalesced, carries nothing. */
+  'activity-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   /** A hot-instance alert click: open Hot Instances with this platform in view. */

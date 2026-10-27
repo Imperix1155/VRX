@@ -62,6 +62,13 @@ const vrx = {
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
+  getActivity: () => invoke('get-activity', undefined),
+  clearActivity: () => invoke('clear-activity', undefined),
+  onActivityChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('activity-changed', listener)
+    return () => ipcRenderer.removeListener('activity-changed', listener)
+  },
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   openLogsFolder: () => invoke('open-logs-folder', undefined),
   getAppBackground: () => invoke('get-app-background', undefined),
@@ -75,6 +82,8 @@ const vrx = {
   installUpdate: () => invoke('updater:install', undefined),
   getFriendNote: (req: IpcInvoke['get-friend-note']['req']) => invoke('get-friend-note', req),
   setFriendNote: (req: IpcInvoke['set-friend-note']['req']) => invoke('set-friend-note', req),
+  getAlertPicks: (req: IpcInvoke['get-alert-picks']['req']) => invoke('get-alert-picks', req),
+  setAlertPick: (req: IpcInvoke['set-alert-pick']['req']) => invoke('set-alert-pick', req),
   notifyRendererHydrated: () => notify('renderer-hydrated', undefined),
   /**
    * Live adapter events pushed from main ('friend-event', VRX-146). Returns an

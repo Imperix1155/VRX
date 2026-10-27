@@ -6,6 +6,7 @@ import type {
   BackgroundPictureFade,
   DashboardSectionOrder,
   DrawerOpener,
+  FriendAlertScope,
   JoinModePreference,
   LabelScheme,
   ReconcileInterval,
@@ -18,6 +19,7 @@ import {
   BACKGROUND_PICTURE_FADES,
   DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
+  FRIEND_ALERT_SCOPES,
   LABEL_SCHEMES,
   RECONCILE_INTERVALS,
   THEMES,
@@ -37,6 +39,8 @@ import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './Upda
 import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
 import { backgroundPictureWarning, type BackgroundPictureWarning } from '@shared/backgroundPicture'
 import { chooseAppBackground, clearAppBackground, useAppBackground } from '../queries/appBackground'
+import { useAlertPicks } from '../queries/alertPicks'
+import PickedFriendsDialog from './PickedFriendsDialog'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
   dark: 'settings.theme.dark',
@@ -145,6 +149,76 @@ function SettingCard({
         </div>
       </div>
     </div>
+  )
+}
+
+const FRIEND_ALERT_SCOPE_LABEL_KEYS: Record<FriendAlertScope, string> = {
+  everyone: 'settings.notifications.scope.everyone',
+  picked: 'settings.notifications.scope.picked'
+}
+
+/** Who the friend alerts cover. Picked friends are chosen in each friend's
+ *  details panel; the list behind Show lets the user review and remove them. */
+function FriendAlertScopeCard(): React.JSX.Element {
+  const { t } = useTranslation()
+  const scope = useSettingsStore((s) => s.settings.friendAlertScope)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const vrchat = useAlertPicks('vrchat').picked.size
+  const chilloutvr = useAlertPicks('chilloutvr').picked.size
+  const [showList, setShowList] = useState(false)
+  const picked = scope === 'picked'
+  return (
+    <>
+      <SettingCard
+        expanded={picked}
+        parent={
+          <div className="setting-row">
+            <div>
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t('settings.notifications.scope.label')}
+              </p>
+              <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                {t('settings.notifications.scope.description')}
+              </p>
+            </div>
+            <SegmentedControl<FriendAlertScope>
+              values={FRIEND_ALERT_SCOPES}
+              active={scope}
+              labelKeys={FRIEND_ALERT_SCOPE_LABEL_KEYS}
+              ariaLabel={t('settings.notifications.scope.aria')}
+              onChange={(value) => updateSettings({ friendAlertScope: value })}
+            />
+          </div>
+        }
+      >
+        <div className="setting-row">
+          <div>
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t('settings.notifications.picked.label')}
+            </p>
+            <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+              {t('settings.notifications.picked.description', { vrchat, chilloutvr })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowList(true)}
+            aria-label={t('settings.notifications.picked.showAria')}
+            className={[
+              'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
+              'border border-[var(--border)]',
+              'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
+              'text-[var(--text)]',
+              'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
+              'cursor-pointer'
+            ].join(' ')}
+          >
+            {t('settings.notifications.picked.show')}
+          </button>
+        </div>
+      </SettingCard>
+      {showList && <PickedFriendsDialog onClose={() => setShowList(false)} />}
+    </>
   )
 }
 
@@ -566,6 +640,7 @@ export default function SettingsView(): React.JSX.Element {
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -917,6 +992,8 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.notifications.heading')}
             </h2>
 
+            <FriendAlertScopeCard />
+
             <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
@@ -980,6 +1057,25 @@ export default function SettingsView(): React.JSX.Element {
                 checked={notifyHotInstance}
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+              />
+            </div>
+
+            {/* The Activity page lists the same friend changes inside VRX
+                (owner, 2026-10-27). It lives here rather than with the other
+                page switches so Behavior still fits the 900x670 window. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.pages.activity.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.pages.activity.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={showActivityPage}
+                ariaLabel={t('settings.pages.activity.label')}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
               />
             </div>
           </section>

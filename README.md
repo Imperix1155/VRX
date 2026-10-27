@@ -21,13 +21,20 @@ you press a "Use my sign-in from" button, described below.
   Offline, with search. Friend details show where someone is, their notes, and
   a Join button when you can join them. If VRChat or ChilloutVR is already
   open, Join takes you there in that game instead of starting it again.
+- **Activity**: a running list of friends coming online, joining worlds, and
+  going offline on both platforms, newest first. It comes from the live
+  connection VRX already has, so it adds no requests, and it is kept only
+  while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
+  world. Filter it by kind, clear it, or turn it off in Settings →
+  Notifications.
 - **Explore**: popular public worlds from both platforms, with room details.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
   person by hand. VRX never guesses links from names.
 - **Platform filter**: VRC, ALL, or CVR at the top of the window.
 - **Notifications**: optional desktop alerts when a friend comes online, joins
   a world, or goes offline, or when a hot instance forms. All are off until you
-  turn them on in Settings → Notifications.
+  turn them on in Settings → Notifications, where Who alerts you can limit
+  friend alerts to the friends you pick.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which
   platform's words the instance labels use. Hot Instances and Explore can be

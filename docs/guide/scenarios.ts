@@ -30,7 +30,8 @@ export const drawerScenarios = [
   { value: 'vrchat', label: 'VRChat' },
   { value: 'chilloutvr', label: 'ChilloutVR' },
   { value: 'note-load-error', label: 'Note load failure' },
-  { value: 'note-save-error', label: 'Note save failure' }
+  { value: 'note-save-error', label: 'Note save failure' },
+  { value: 'picked-alerts', label: 'Picked-friend alerts' }
 ]
 
 /** Join confirmation: the game closed (launch), or already open on this PC. */
@@ -45,6 +46,11 @@ export function joinHandoffFor(variant: string, platform: 'vrchat' | 'chilloutvr
   if (variant === 'open-game') return 'in-game'
   if (variant === 'vrchat-invite') return platform === 'vrchat' ? 'invite' : 'in-game'
   return 'launch'
+}
+
+/** Settings and drawer variant that limits alerts to picked friends. */
+export function alertScopeFor(variant: string): 'everyone' | 'picked' {
+  return variant === 'picked-alerts' ? 'picked' : 'everyone'
 }
 
 /** Friends roster states (issue 368): one platform fails while the other stays usable. */

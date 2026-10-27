@@ -114,6 +114,7 @@
       "dashboard": "Dashboard",
       "hot": "Hot Instances",
       "friends": "Friends",
+      "activity": "Activity",
       "explore": "Explore",
       "settings": "Settings"
     },
@@ -255,6 +256,27 @@
     },
     "notifications": {
       "heading": "Notifications",
+      "scope": {
+        "label": "Who alerts you",
+        "description": "Everyone, or only friends you pick. Hot instance alerts don't change.",
+        "everyone": "Everyone",
+        "picked": "Picked friends",
+        "aria": "Which friends can send you alerts"
+      },
+      "picked": {
+        "label": "Picked friends",
+        "description": "VRChat: {{vrchat}} · ChilloutVR: {{chilloutvr}}. Pick a friend from their details.",
+        "show": "Show",
+        "showAria": "Show picked friends",
+        "title": "Picked friends",
+        "loading": "Picked: {{count}}. Names show once your friends list loads.",
+        "none": "No friends picked yet.",
+        "signedOut": "Not signed in.",
+        "remove": "Remove",
+        "removeOne": "Remove {{name}}",
+        "notInList": "Not in your friends list: {{count}}",
+        "removeMissing": "Remove friends who are not in your friends list"
+      },
       "online": {
         "label": "Friend comes online",
         "description": "Alert when an offline friend comes online.",
@@ -389,6 +411,10 @@
       "explore": {
         "label": "Explore page",
         "description": "Show it in the sidebar. Popular now on the Dashboard stays."
+      },
+      "activity": {
+        "label": "Activity page",
+        "description": "Lists these changes while VRX is open. Off hides it and keeps nothing."
       }
     },
     "setup": {
@@ -483,6 +509,34 @@
       "chilloutvrShort": "CVR"
     }
   },
+  "activity": {
+    "filterAria": "Show",
+    "kinds": {
+      "all": "All",
+      "online": "Online",
+      "world": "Worlds",
+      "offline": "Offline"
+    },
+    "online": "Came online",
+    "onlineIn": "Came online in {{world}}",
+    "joined": "Joined {{world}}",
+    "joinedUnknown": "Joined a world",
+    "offline": "Went offline",
+    "openFriend": "Open {{name}} in Friends",
+    "clear": "Clear",
+    "clearAria": "Clear all activity",
+    "emptyHeading": "No activity yet",
+    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
+    "filteredEmpty": "Nothing to show with these filters.",
+    "loading": "Loading activity…",
+    "error": "Couldn’t load activity.",
+    "retry": "Retry",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your friends’ activity here",
+      "chilloutvr": "Connect ChilloutVR to see your friends’ activity here",
+      "openAccounts": "Go to Accounts"
+    }
+  },
   "drawer": {
     "close": "Close",
     "where": "Where",
@@ -503,6 +557,13 @@
       "askMe": "Ask before joining",
       "dnd": "Not accepting joins",
       "offline": "Not connected"
+    },
+    "alerts": {
+      "heading": "Alerts",
+      "label": "Alert me about this friend",
+      "aria": "Alert me about {{name}}",
+      "saveFailed": "Couldn't save. Try again.",
+      "full": "You've picked as many friends as VRX can keep."
     },
     "notes": {
       "heading": "Notes (yours, private)",
@@ -762,8 +823,10 @@
       "title": "Pick your pages",
       "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
       "hot": "Every instance where several friends are together.",
+      "activity": "Friends coming online, changing worlds and going offline.",
       "explore": "Worlds that are popular right now on both platforms.",
       "hotAria": "Show the Hot Instances page",
+      "activityAria": "Show the Activity page",
       "exploreAria": "Show the Explore page"
     },
     "dashboard": {

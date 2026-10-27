@@ -23,6 +23,8 @@ describe('settings schema', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -36,6 +38,7 @@ describe('settings schema', () => {
       notifyFriendInGame: false,
       notifyFriendOffline: false,
       notifyHotInstance: false,
+      friendAlertScope: 'everyone',
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
       reconcileInterval: '1h',
@@ -282,9 +285,12 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -325,9 +331,12 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -369,8 +378,11 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: '1h',
       drawerOpener: 'card',
       confirmJoin: true,
@@ -400,6 +412,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual'
     }
 
@@ -414,6 +427,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -443,6 +458,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar'
     }
@@ -458,6 +474,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -486,6 +504,7 @@ describe('migration runner', () => {
       notifyHotInstance: false,
       backgroundGlow: 'vivid',
       backgroundPictureFade: 'medium',
+      friendAlertScope: 'everyone',
       reconcileInterval: 'manual',
       drawerOpener: 'avatar',
       confirmJoin: false,
@@ -503,6 +522,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       joinOpenGame: true,
       vrchatOpenGameJoin: 'go',
@@ -789,6 +810,55 @@ describe('shouldPersistSettings (rollback safety)', () => {
     })
   })
 
+  it('defaults friend alerts to everyone and keeps a picked scope through a v17 round-trip', () => {
+    expect(parseSettings({ version: 17 }).friendAlertScope).toBe('everyone')
+    expect(parseSettings({ friendAlertScope: 'some' }).friendAlertScope).toBe('everyone')
+
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 18,
+      friendAlertScope: 'picked'
+    }
+    // A v17 build does not know the key and would strip it.
+    const oldNormalized = { ...disk, version: 17 }
+    Reflect.deleteProperty(oldNormalized, 'friendAlertScope')
+
+    if (shouldPersistSettings(disk, 17)) disk = oldNormalized
+
+    expect(parseSettings(disk).friendAlertScope).toBe('picked')
+  })
+
+  it('keeps the Activity page switch and its filters across a v16 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 17,
+      showActivityPage: false,
+      activityFilter: 'offline'
+    }
+    const oldNormalized = { ...disk, version: 16 }
+    Reflect.deleteProperty(oldNormalized, 'showActivityPage')
+    Reflect.deleteProperty(oldNormalized, 'activityFilter')
+
+    if (shouldPersistSettings(disk, 16)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showActivityPage: false,
+      activityFilter: 'offline'
+    })
+  })
+
+  it('migrates a v16 file with the Activity page on and every kind shown', () => {
+    const migrated = parseSettings({ ...DEFAULT_SETTINGS, version: 16 })
+    expect(migrated).toMatchObject({
+      version: SETTINGS_VERSION,
+      showActivityPage: true,
+      activityFilter: 'all'
+    })
+    expect(
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+    ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
+  })
+
   it('defaults Join in the open game on, and keeps a valid stored choice', () => {
     expect(parseSettings({})).toMatchObject({ joinOpenGame: true, vrchatOpenGameJoin: 'go' })
     expect(parseSettings({ joinOpenGame: false, vrchatOpenGameJoin: 'invite' })).toMatchObject({
@@ -801,19 +871,19 @@ describe('shouldPersistSettings (rollback safety)', () => {
     expect(parseSettings({ joinOpenGame: 'no' }).joinOpenGame).toBe(true)
   })
 
-  it('prevents a v16 build from undoing the open-game Join choices during a round-trip', () => {
+  it('prevents a v18 build from undoing the open-game Join choices during a round-trip', () => {
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
-      version: 17,
+      version: 19,
       joinOpenGame: false,
       vrchatOpenGameJoin: 'invite'
     }
-    // A v16 build does not know either key and strips both.
-    const oldNormalized = { ...disk, version: 16 }
+    // A v18 build does not know either key and strips both.
+    const oldNormalized = { ...disk, version: 18 }
     Reflect.deleteProperty(oldNormalized, 'joinOpenGame')
     Reflect.deleteProperty(oldNormalized, 'vrchatOpenGameJoin')
 
-    if (shouldPersistSettings(disk, 16)) disk = oldNormalized
+    if (shouldPersistSettings(disk, 18)) disk = oldNormalized
 
     expect(parseSettings(disk)).toMatchObject({
       joinOpenGame: false,
@@ -935,6 +1005,8 @@ describe('Optional pages and first-run setup', () => {
       version: SETTINGS_VERSION,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)

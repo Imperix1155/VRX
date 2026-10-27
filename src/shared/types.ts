@@ -215,6 +215,12 @@ export type Theme = (typeof THEMES)[number]
 export const BACKGROUND_GLOWS = ['off', 'muted', 'standard', 'vivid'] as const
 export type BackgroundGlow = (typeof BACKGROUND_GLOWS)[number]
 
+// ─── Friend alert scope ──────────────────────────────────────────────────────
+/** Which friends can trigger the online, joins-a-world and offline alerts:
+ *  everyone, or only the friends the user picked in the friend details panel. */
+export const FRIEND_ALERT_SCOPES = ['everyone', 'picked'] as const
+export type FriendAlertScope = (typeof FRIEND_ALERT_SCOPES)[number]
+
 // ─── Background picture fade ─────────────────────────────────────────────────
 /** How strongly the user's own background picture fades toward the theme's
  *  base colour so text over it stays readable. Single source for both the

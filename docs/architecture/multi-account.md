@@ -81,6 +81,7 @@ checks ownership at the point of the write:
 | Network requests    | A request lease bound to the adapter's session generation, checked before admission, after admission, and after the response |
 | `SocialStore.write` | `{ platform, platformAccountId, epoch }` must equal the current `resolve()` result, or it throws `stale account epoch`       |
 | Friend notes IPC    | `get-friend-note` returns `{ platformAccountId, epoch }`; `set-friend-note` must echo it, or the result is `stale`           |
+| Alert picks IPC     | `get-alert-picks` returns the same revision; `set-alert-pick` must echo it, or the result is `stale`                         |
 | `AccountRegistry`   | `recordAuthenticated` requires the reported account and epoch to match `AccountSession`                                      |
 | Linked profiles IPC | A lease that rotates whenever either platform's resolution changes, plus a per-profile revision on every change              |
 | `ExploreService`    | Per-platform state tied to `accountKey` and epoch; work from an older state is cancelled and discarded                       |
@@ -135,11 +136,13 @@ Each namespace is an `AccountScoped<T>` envelope (`schemaVersion`, `platform`,
 | `notes`                              | 5,000 friends, 10,000 characters each        | Yes            |
 | `favorites`                          | 5,000 friends                                | No             |
 | `tags`                               | 5,000 friends, 25 tags of 64 characters each | No             |
-| `socialPrefs`                        | Notification flags and followed friend ids   | No             |
+| `socialPrefs`                        | Notification flags and followed friend ids   | Followed ids   |
 | `perFriendOptOuts`                   | 5,000 friends                                | No             |
 | `instanceHistory`, `activityHistory` | 200-entry ring type                          | Writes refused |
 
-Only friend notes are wired. The notes IPC limits a note to 500 characters. A
+Friend notes and alert picks are wired. The notes IPC limits a note to 500
+characters. Alert picks live in `socialPrefs.followedFriendIds`; the
+notification flags in that namespace stay unused. A
 read that fails validation or names a different account returns nothing.
 
 ### Linked profiles
@@ -193,9 +196,10 @@ another account does not change settings.
 
 - An account switcher, saved accounts per platform, or an add-account flow.
 - Per-account credential slots.
-- Per-account settings. The `socialPrefs` and `perFriendOptOuts` namespaces
-  exist but nothing reads or writes them.
-- Favorites, tags, followed friends, and history. `Friend.isFavorite`,
+- Per-account settings. Only `socialPrefs.followedFriendIds` (alert picks) is
+  used; its notification flags and the `perFriendOptOuts` namespace exist but
+  nothing reads or writes them.
+- Favorites, tags, and history. `Friend.isFavorite`,
   `favoriteGroupIds`, and `linkedPersonId` are placeholders that adapters always
   set to defaults.
 - Account removal, data wipe, and a recovery path for an unreadable store.

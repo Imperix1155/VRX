@@ -18,15 +18,22 @@ import { authStatusQueryKey } from '@renderer/queries/auth'
 import { friendsQueryKey } from '@renderer/queries/friends'
 import { exploreQueryKey } from '@renderer/queries/explore'
 import { linkedProfilesKey } from '@renderer/queries/linkedProfiles'
+import { activityKey } from '@renderer/queries/activity'
 import { useSettingsStore } from '@renderer/stores/settings'
 import { useUiStore } from '@renderer/stores/ui'
 import { useApplyTheme } from '@renderer/hooks/useApplyTheme'
 import { useApplyGlow } from '@renderer/hooks/useApplyGlow'
 import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
 import { fixtureAuth } from './fixture-bridge'
-import { backgroundPicture, friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
+import {
+  activityEntries,
+  backgroundPicture,
+  friends,
+  getPlatformSnapshot,
+  linkedSnapshot
+} from './fixtures'
 import CatalogScene from './catalog-scenes'
-import { friendsFailureFor } from './scenarios'
+import { alertScopeFor, friendsFailureFor } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -142,7 +149,7 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
     )
   if (name === 'join') return <JoinScene />
   if (name === 'setup') return <SetupScene />
-  if (['dashboard', 'hot', 'friends', 'linked', 'settings', 'updater'].includes(name))
+  if (['dashboard', 'hot', 'friends', 'activity', 'linked', 'settings', 'updater'].includes(name))
     return <AppShell />
   return (
     <main className="fixture-canvas">
@@ -211,6 +218,11 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
       })
   }
   queryClient.setQueryData(linkedProfilesKey, structuredClone(linkedSnapshot))
+  // `empty`: the Activity page before anything has happened.
+  queryClient.setQueryData(
+    activityKey,
+    name === 'activity' && variant === 'empty' ? [] : activityEntries(Date.now())
+  )
   queryClient.setQueryData(
     appBackgroundKey,
     params.get('picture') === '1' ? { dataUrl: backgroundPicture } : null
@@ -221,6 +233,7 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
+    friendAlertScope: alertScopeFor(variant),
     setupPending: name === 'setup',
     dashboardSectionOrder:
       name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
@@ -238,7 +251,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
           ? 'settings'
           : name === 'hot'
             ? 'hot'
-            : 'dashboard'
+            : name === 'activity'
+              ? 'activity'
+              : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(

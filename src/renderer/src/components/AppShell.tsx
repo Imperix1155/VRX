@@ -9,6 +9,7 @@ import { VIEW_TITLE_KEYS } from '../utils/viewTitles'
 import FriendsList from './FriendsList'
 import DashboardView from './DashboardView'
 import HotInstancesView from './HotInstancesView'
+import ActivityView from './ActivityView'
 import SettingsView from './SettingsView'
 import ErrorBoundary from './ErrorBoundary'
 import RecoveryNotices from './RecoveryNotices'
@@ -23,9 +24,10 @@ function useHiddenPageFallback(): void {
   const activeTab = useUiStore((s) => s.activeTab)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const hotOpenedFromAlert = useUiStore((s) => s.hotOpenedFromAlert)
   const shown =
-    isPageShown(activeTab, { showHotInstancesPage, showExplorePage }) ||
+    isPageShown(activeTab, { showHotInstancesPage, showExplorePage, showActivityPage }) ||
     (activeTab === 'hot' && hotOpenedFromAlert)
   useLayoutEffect(() => {
     if (!shown) useUiStore.getState().setActiveTab('dashboard')
@@ -52,6 +54,12 @@ function MainContent(): React.JSX.Element {
       return (
         <ErrorBoundary key={activeTab} variant="panel">
           <HotInstancesView />
+        </ErrorBoundary>
+      )
+    case 'activity':
+      return (
+        <ErrorBoundary key={activeTab} variant="panel">
+          <ActivityView />
         </ErrorBoundary>
       )
     case 'explore':

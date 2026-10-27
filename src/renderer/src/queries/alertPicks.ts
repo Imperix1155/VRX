@@ -1,0 +1,124 @@
+import { useCallback, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { IpcInvoke } from '@shared/ipc'
+import type { Platform } from '@shared/types'
+import { useAuthStatus } from './auth'
+
+type AlertPicks = IpcInvoke['get-alert-picks']['res']
+type SaveReason = Extract<IpcInvoke['set-alert-pick']['res'], { ok: false }>['reason']
+
+const NO_PICKS: AlertPicks = { friendIds: [] }
+
+/** Prefix key for every account's picks on one platform (boundary clearing). */
+export function alertPicksPlatformKey(platform: Platform): readonly ['alert-picks', Platform] {
+  return ['alert-picks', platform] as const
+}
+
+function alertPicksQueryKey(
+  platform: Platform,
+  accountId: string | null
+): readonly ['alert-picks', Platform, string] {
+  return ['alert-picks', platform, accountId ?? ''] as const
+}
+
+async function fetchAlertPicks(platform: Platform, accountId: string): Promise<AlertPicks> {
+  if (typeof window === 'undefined' || typeof window.vrx?.getAlertPicks !== 'function') {
+    return NO_PICKS
+  }
+  const result = await window.vrx.getAlertPicks({ platform })
+  if (!result || !Array.isArray(result.friendIds)) return NO_PICKS
+  // An account swap can land between the key and the reply. Never keep
+  // another account's picks or revision under this account's key.
+  if (result.revision?.platformAccountId !== accountId) return NO_PICKS
+  return {
+    friendIds: result.friendIds.filter((id): id is string => typeof id === 'string'),
+    revision: result.revision
+  }
+}
+
+/**
+ * The signed-in account's friends picked for alerts on one platform. Local
+ * data that only VRX writes, so it never goes stale on its own; the identity
+ * boundary in useLiveFriendEvents clears it and the account id keys it.
+ */
+export function useAlertPicks(platform: Platform): {
+  accountId: string | null
+  /** Picked friend ids for the signed-in account; empty until loaded. */
+  picked: ReadonlySet<string>
+  /** Loaded with a revision, so a change can be saved. */
+  writable: boolean
+} {
+  const auth = useAuthStatus(platform)
+  const accountId = auth.data?.state === 'authenticated' ? (auth.data.accountId ?? null) : null
+  const query = useQuery({
+    queryKey: alertPicksQueryKey(platform, accountId),
+    queryFn: () => fetchAlertPicks(platform, accountId ?? ''),
+    enabled: accountId !== null,
+    staleTime: Infinity,
+    networkMode: 'always'
+  })
+  const data = accountId === null ? undefined : query.data
+  const ids = data?.friendIds
+  const picked = useMemo(() => new Set(ids ?? []), [ids])
+  return { accountId, picked, writable: data?.revision !== undefined }
+}
+
+function withPicks(
+  current: AlertPicks | undefined,
+  friendIds: readonly string[],
+  picked: boolean
+): AlertPicks {
+  const ids = new Set(current?.friendIds ?? [])
+  for (const id of friendIds) {
+    if (picked) ids.add(id)
+    else ids.delete(id)
+  }
+  return { friendIds: [...ids], revision: current?.revision }
+}
+
+async function savePicks(
+  bridge: NonNullable<Window['vrx']>,
+  request: IpcInvoke['set-alert-pick']['req']
+): Promise<SaveReason | null> {
+  try {
+    const result = await bridge.setAlertPick(request)
+    return result.ok ? null : result.reason
+  } catch {
+    return 'invalid'
+  }
+}
+
+/**
+ * Pick or unpick friends for alerts. The change shows at once and rolls back
+ * if main refuses it. Resolves to the failure reason, or null.
+ */
+export function useSetAlertPicks(): (
+  platform: Platform,
+  accountId: string | null,
+  friendIds: readonly string[],
+  picked: boolean
+) => Promise<SaveReason | null> {
+  const queryClient = useQueryClient()
+  return useCallback(
+    async (platform, accountId, friendIds, picked) => {
+      const key = alertPicksQueryKey(platform, accountId)
+      const revision = queryClient.getQueryData<AlertPicks>(key)?.revision
+      const bridge = window.vrx
+      if (accountId === null || revision === undefined || !bridge?.setAlertPick) {
+        return 'not-authenticated'
+      }
+      await queryClient.cancelQueries({ queryKey: key })
+      queryClient.setQueryData<AlertPicks>(key, (current) => withPicks(current, friendIds, picked))
+      const failure = await savePicks(bridge, {
+        platform,
+        friendIds: [...friendIds],
+        picked,
+        revision
+      })
+      // Reread on any failure so the panel shows what main actually kept.
+      if (failure !== null) void queryClient.invalidateQueries({ queryKey: key })
+      return failure
+    },
+    [queryClient]
+  )
+}
