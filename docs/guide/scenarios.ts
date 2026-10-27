@@ -1,3 +1,4 @@
+import type { JoinHandoff } from '@shared/types'
 import type { PlatformMode } from './fixtures'
 
 interface SourceScenario {
@@ -32,6 +33,20 @@ export const drawerScenarios = [
   { value: 'note-save-error', label: 'Note save failure' },
   { value: 'picked-alerts', label: 'Picked-friend alerts' }
 ]
+
+/** Join confirmation: the game closed (launch), or already open on this PC. */
+export const joinScenarios = [
+  { value: 'ready', label: 'Game closed' },
+  { value: 'open-game', label: 'Game open' },
+  { value: 'vrchat-invite', label: 'VRChat open, invite' }
+]
+
+/** What the synthetic `getJoinHandoff` answers for a join scene variant. */
+export function joinHandoffFor(variant: string, platform: 'vrchat' | 'chilloutvr'): JoinHandoff {
+  if (variant === 'open-game') return 'in-game'
+  if (variant === 'vrchat-invite') return platform === 'vrchat' ? 'invite' : 'in-game'
+  return 'launch'
+}
 
 /** Settings and drawer variant that limits alerts to picked friends. */
 export function alertScopeFor(variant: string): 'everyone' | 'picked' {

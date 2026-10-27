@@ -10,6 +10,26 @@ import { friendsQueryKey } from '../queries/friends'
 
 export type JoinFailureReason = Exclude<InstanceActionResult, { ok: true }>['reason'] | 'unknown'
 
+/** A short note after a Join that reached a game which was already open. */
+export type JoinNotice = 'in-game' | 'invite-sent'
+
+/** What the line under a Join shows: a typed denial, or a hand-off note. */
+export type JoinFeedback = JoinFailureReason | JoinNotice
+
+/** Hand-off notes clear on their own; failures stay until the next attempt. */
+export const JOIN_NOTICE_MS = 8_000
+
+function noticeFor(result: InstanceActionResult): JoinNotice | null {
+  if (!result.ok) return null
+  if (result.handoff === 'in-game') return 'in-game'
+  if (result.handoff === 'invite') return 'invite-sent'
+  return null
+}
+
+function isNotice(feedback: JoinFeedback | null): feedback is JoinNotice {
+  return feedback === 'in-game' || feedback === 'invite-sent'
+}
+
 /**
  * Resolve the wire launch mode when NO dialog picker is involved (VRX-210).
  * VRChat's `vrchat://launch` URI carries no mode selector (verified against
@@ -27,7 +47,9 @@ export function resolveWireMode(
   return 'desktop'
 }
 
-export function joinFailureMessageKey(reason: JoinFailureReason): string {
+export function joinFailureMessageKey(reason: JoinFeedback): string {
+  if (reason === 'in-game') return 'friends.joinNotice.inGame'
+  if (reason === 'invite-sent') return 'friends.joinNotice.inviteSent'
   // The friend moved, changed privacy, or left the roster: checking the game
   // would be the wrong advice.
   if (reason === 'not-joinable' || reason === 'unknown-friend')
@@ -37,6 +59,7 @@ export function joinFailureMessageKey(reason: JoinFailureReason): string {
   if (reason === 'rate-limited') return 'friends.joinFailure.rateLimited'
   if (reason === 'target-changed') return 'friends.joinFailure.targetChanged'
   if (reason === 'joining-disabled') return 'friends.joinFailure.joiningDisabled'
+  if (reason === 'invite-failed') return 'friends.joinFailure.inviteFailed'
   return 'friends.joinFailed'
 }
 
@@ -99,8 +122,9 @@ interface JoinSnapshot {
    *  ATTRIBUTABLE (Codex re-review): only surfaces showing THAT friend blip,
    *  never every joinable pill. Null = no blip. */
   failedFriendId: string | null
-  /** Typed main-process denial retained so callers can render honest copy. */
-  failureReason: JoinFailureReason | null
+  /** Typed main-process denial retained so callers can render honest copy, or
+   *  the short note for a Join that reached an already-open game. */
+  failureReason: JoinFeedback | null
 }
 
 interface JoinStore {
@@ -161,6 +185,7 @@ function createJoinStore(): JoinStore {
     failureReason: null
   }
   const listeners = new Set<() => void>()
+  let noticeTimer: ReturnType<typeof setTimeout> | null = null
 
   function emit(patch: Partial<JoinSnapshot>): void {
     snapshot = { ...snapshot, ...patch }
@@ -168,6 +193,10 @@ function createJoinStore(): JoinStore {
   }
 
   function clearFailureBlip(): void {
+    if (noticeTimer !== null) {
+      clearTimeout(noticeTimer)
+      noticeTimer = null
+    }
     if (snapshot.failedFriendId != null || snapshot.failureReason != null) {
       emit({ failedFriendId: null, failureReason: null })
     }
@@ -177,6 +206,20 @@ function createJoinStore(): JoinStore {
     emit({ failedFriendId: friendKey, failureReason: reason })
     // Keep feedback readable until the next explicit attempt or session boundary.
     // Retry still goes through the shared busy/confirmation latch and main admission.
+  }
+
+  /** After a successful Join: say where it went when it used the open game. */
+  function showJoinResult(friendKey: string, result: InstanceActionResult): void {
+    clearFailureBlip()
+    const notice = noticeFor(result)
+    if (notice === null) return
+    emit({ failedFriendId: friendKey, failureReason: notice })
+    noticeTimer = setTimeout(() => {
+      noticeTimer = null
+      if (snapshot.failedFriendId === friendKey && snapshot.failureReason === notice) {
+        emit({ failedFriendId: null, failureReason: null })
+      }
+    }, JOIN_NOTICE_MS)
   }
 
   async function performJoin(friend: Friend, mode: JoinMode): Promise<void> {
@@ -205,7 +248,7 @@ function createJoinStore(): JoinStore {
         expectedTarget: { worldId: target.worldId, instanceId: target.instanceId }
       })
       if (generation !== sessionGeneration) return
-      if (result.ok) clearFailureBlip()
+      if (result.ok) showJoinResult(friendKey, result)
       else showFailureBlip(friendKey, result.reason)
     } catch {
       // Bridge exceptions are user-equivalent to a denial: blip, never an
@@ -287,7 +330,10 @@ function createJoinStore(): JoinStore {
         mode
       })
       if (generation !== sessionGeneration) return 'failed'
-      if (result.ok) return 'joined'
+      if (result.ok) {
+        showJoinResult(key, result)
+        return 'joined'
+      }
       showFailureBlip(key, result.reason)
       return result.reason === 'target-changed' ? 'review-required' : 'failed'
     } catch {
@@ -386,6 +432,7 @@ function createJoinStore(): JoinStore {
       if (result.ok) {
         // Atomic success: focus restoration can happen, joining ends, dialog closes.
         emit({ joining: false, pendingConfirm: null })
+        showJoinResult(friendKey, result)
         return 'joined'
       }
       if (result.reason === 'target-changed') {
@@ -512,7 +559,10 @@ const sharedJoinStore = createJoinStore()
  * failure blip is ATTRIBUTED to the friend that failed. `joinFailureFor`
  * retains the typed denial for honest copy, while `joinFailedFor` remains the
  * boolean convenience API. Both clear at the start of a new attempt and on
- * success, wherever it fires. Callers own event concerns.
+ * success, wherever it fires. Callers own event concerns. A Join that reached
+ * an already-open game puts a short `JoinNotice` in the same attributed slot
+ * (`joinFailureFor` returns it; `joinFailedFor` stays false); it clears after
+ * `JOIN_NOTICE_MS`.
  *
  * VRX-210: with `settings.confirmJoin` on, `join` does NOT launch — it parks
  * the reviewed target in `pendingConfirm` and the `JoinConfirmDialog` (mounted
@@ -532,8 +582,8 @@ export function useJoinInstance(): {
   isJoining: boolean
   pendingConfirm: PendingConfirm | null
   joinFailedFor: (friend: Friend) => boolean
-  joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFailureReason | null
-  joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFailureReason | null
+  joinFailureFor: (friend: Pick<Friend, 'platform' | 'platformUserId'>) => JoinFeedback | null
+  joinExploreFailureFor: (world: ExploreWorld, room: ExploreRoom) => JoinFeedback | null
   join: (friend: Friend) => Promise<void>
   joinExplore: (world: ExploreWorld, room: ExploreRoom) => Promise<void>
   confirmPending: (mode: JoinMode) => Promise<ConfirmPendingResult>
@@ -552,7 +602,7 @@ export function useJoinInstance(): {
   return {
     isJoining: joining,
     pendingConfirm,
-    joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend),
+    joinFailedFor: (friend) => failedFriendId === friendJoinKey(friend) && !isNotice(failureReason),
     joinFailureFor: (friend) => (failedFriendId === friendJoinKey(friend) ? failureReason : null),
     joinExploreFailureFor: (world, room) =>
       failedFriendId === `explore:${world.platform}:${world.worldId}:${room.roomId}`

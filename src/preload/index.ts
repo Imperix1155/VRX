@@ -66,6 +66,7 @@ const vrx = {
   // Friend IDs only: the main-process LocationAuthority owns every instance identifier.
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
+  getJoinHandoff: (req: IpcInvoke['get-join-handoff']['req']) => invoke('get-join-handoff', req),
   getAppStatus: () => invoke('get-app-status', undefined),
   getActivity: () => invoke('get-activity', undefined),
   clearActivity: () => invoke('clear-activity', undefined),

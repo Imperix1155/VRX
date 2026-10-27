@@ -19,7 +19,8 @@ you press a "Use my sign-in from" button, described below.
   together (you can change the number), most friends first.
 - **Friends**: one list for both platforms, grouped into In-Game, Online, and
   Offline, with search. Friend details show where someone is, their notes, and
-  a Join button when you can join them.
+  a Join button when you can join them. If VRChat or ChilloutVR is already
+  open, Join takes you there in that game instead of starting it again.
 - **Activity**: a running list of friends coming online, joining worlds, and
   going offline on both platforms, newest first. It comes from the live
   connection VRX already has, so it adds no requests, and it is kept only

@@ -72,6 +72,10 @@ etiquette rules apply in full; this file adds local detail.
 - Launch in two steps: resolve current main-owned data, then build the URL and
   check it with `isAllowedLaunchUrl` immediately before opening it.
   `JoinCoordinator` allows one launch per platform at a time.
+  `services/gameHandoff.ts` owns the last step: when the game is already open
+  it hands that same URL to it (VRChat's local URL pipe, or the ChilloutVR
+  link) or sends one VRChat self-invite. Its process check reads names only,
+  is cached 2 s, and is never logged.
 
 **Credentials**
 
