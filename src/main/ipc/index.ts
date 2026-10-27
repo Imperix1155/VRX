@@ -15,8 +15,9 @@ import { registerInboxHandlers } from './inbox'
 import type { InboxService } from '../services/inbox'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
-import { registerAvatarLibraryHandlers } from './avatar-library'
+import { registerAvatarLibraryHandlers, registerCurrentAvatarHandler } from './avatar-library'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
+import type { CurrentAvatarService } from '../services/currentAvatarService'
 import type { ExploreService } from '../services/exploreService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
@@ -58,6 +59,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   instance: Omit<InstanceHandlerOptions, 'accountSession'>
   explore: ExploreService
   avatarLibrary: AvatarLibraryService
+  currentAvatar: CurrentAvatarService
   appBackground: AppBackgroundHandlerOptions
   inbox: InboxService
   onRendererHydrated: (event: IpcMainEvent) => void
@@ -136,6 +138,7 @@ export function registerIpcHandlers(
     })
     registerExploreHandlers(options.explore)
     registerAvatarLibraryHandlers(options.avatarLibrary)
+    registerCurrentAvatarHandler(options.currentAvatar)
     registerAppStatusHandlers(options.appStatus)
     registerActivityHandlers(options.activity)
     registerLaunchHandlers()

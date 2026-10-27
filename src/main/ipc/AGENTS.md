@@ -86,7 +86,9 @@ Persistence, network, cache, and account-transition policy stay in services.
 - Explore accepts only bounded main-issued references and delegates discovery,
   admission, caching, and launch to `ExploreService`.
 - Avatar library handlers accept only a platform and a bounded avatar ID and
-  delegate to `AvatarLibraryService`. `switch-avatar` wears only an ID the
+  delegate to `AvatarLibraryService`. `get-current-avatar` takes only a
+  platform and delegates to `CurrentAvatarService`, whose answer is never a
+  switch target. `switch-avatar` wears only an ID the
   current account's library listed, one at a time, with a cooldown; a denial
   keeps the `{ ok: false, reason: 'rate-limited' }` shape.
 

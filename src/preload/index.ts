@@ -45,6 +45,8 @@ const vrx = {
     invoke('get-avatar', rendition === undefined ? { url } : { url, rendition }),
   getAvatarLibrary: (req: IpcInvoke['get-avatar-library']['req']) =>
     invoke('get-avatar-library', req),
+  getCurrentAvatar: (req: IpcInvoke['get-current-avatar']['req']) =>
+    invoke('get-current-avatar', req),
   getAvatarDetails: (req: IpcInvoke['get-avatar-details']['req']) =>
     invoke('get-avatar-details', req),
   // Avatar IDs only: main switches only to an avatar it listed for this session.

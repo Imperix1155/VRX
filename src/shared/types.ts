@@ -265,6 +265,49 @@ export type DrawerOpener = (typeof DRAWER_OPENERS)[number]
 export const DASHBOARD_SECTION_ORDERS = ['popular-first', 'hot-first'] as const
 export type DashboardSectionOrder = (typeof DASHBOARD_SECTION_ORDERS)[number]
 
+/** Every Dashboard section below the numbers, in the DEFAULT display order
+ *  (owner, 2026-10-27). The user can move each one in Settings → Dashboard. */
+export const DASHBOARD_SECTIONS = ['wearing-now', 'invites', 'popular', 'hot'] as const
+export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number]
+
+/** Every section once: known ones in the given order, missing ones appended. */
+export function normalizeDashboardSections(value: readonly unknown[]): DashboardSection[] {
+  const known = new Set<string>(DASHBOARD_SECTIONS)
+  const out: DashboardSection[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && known.has(item) && !out.includes(item as DashboardSection)) {
+      out.push(item as DashboardSection)
+    }
+  }
+  for (const section of DASHBOARD_SECTIONS) if (!out.includes(section)) out.push(section)
+  return out
+}
+
+/** The section list that matches an older Popular now / Hot Instances order. */
+export function dashboardSectionsFromOrder(order: DashboardSectionOrder): DashboardSection[] {
+  return order === 'hot-first'
+    ? ['wearing-now', 'invites', 'hot', 'popular']
+    : ['wearing-now', 'invites', 'popular', 'hot']
+}
+
+/** Which of Popular now and Hot Instances comes first in a section list. */
+export function dashboardSectionOrderOf(
+  sections: readonly DashboardSection[]
+): DashboardSectionOrder {
+  return sections.indexOf('hot') < sections.indexOf('popular') ? 'hot-first' : 'popular-first'
+}
+
+/** Swap Popular now and Hot Instances, when needed, to match `order`. */
+export function withDashboardSectionOrder(
+  sections: readonly DashboardSection[],
+  order: DashboardSectionOrder
+): DashboardSection[] {
+  if (dashboardSectionOrderOf(sections) === order) return [...sections]
+  return sections.map((section) =>
+    section === 'hot' ? 'popular' : section === 'popular' ? 'hot' : section
+  )
+}
+
 // ─── Friends-list presence sections (VRX-67) ─────────────────────────────────
 /** Collapsible section grouping in the friends list — DISPLAY order. Distinct
  *  from `PresenceState`: `active` (web/desktop, not in a world) maps to the

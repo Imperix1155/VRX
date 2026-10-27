@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import type {
   BackgroundGlow,
   BackgroundPictureFade,
-  DashboardSectionOrder,
   DrawerOpener,
   FriendAlertScope,
   JoinModePreference,
@@ -16,7 +15,6 @@ import type {
 import {
   BACKGROUND_GLOWS,
   BACKGROUND_PICTURE_FADES,
-  DASHBOARD_SECTION_ORDERS,
   DRAWER_OPENERS,
   FRIEND_ALERT_SCOPES,
   LABEL_SCHEMES,
@@ -33,6 +31,7 @@ import AccountCard from './AccountCard'
 import NumberStepper from './NumberStepper'
 import SegmentedControl from './SegmentedControl'
 import Toggle from './Toggle'
+import DashboardSectionsCard from './DashboardSectionsCard'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
 import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
@@ -652,10 +651,8 @@ export default function SettingsView(): React.JSX.Element {
   const reconcileInterval = useSettingsStore((s) => s.settings.reconcileInterval)
   const labelScheme = useSettingsStore((s) => s.settings.labelScheme)
   const drawerOpener = useSettingsStore((s) => s.settings.drawerOpener)
-  const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
-  const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
-  const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const allowJoinInstances = useSettingsStore((s) => s.settings.allowJoinInstances)
   const confirmJoin = useSettingsStore((s) => s.settings.confirmJoin)
   const joinMode = useSettingsStore((s) => s.settings.joinMode)
@@ -757,59 +754,26 @@ export default function SettingsView(): React.JSX.Element {
             <h2 id="settings-dashboard-heading" className="sr-only">
               {t('settings.dashboard.heading')}
             </h2>
-            {/* Section order (owner, 2026-10-18): the first section shows
-                picture cards, the second compact bars. */}
+            {/* Hide empty sections (owner, 2026-10-27): the whole Dashboard
+                shifts to what has something to show. */}
             <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.order.label')}
+                  {t('settings.dashboard.hideEmpty.label')}
                 </p>
                 <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.order.description')}
-                </p>
-              </div>
-              <SegmentedControl<DashboardSectionOrder>
-                values={DASHBOARD_SECTION_ORDERS}
-                active={sectionOrder}
-                labelKeys={{
-                  'popular-first': 'settings.dashboard.order.popularFirst',
-                  'hot-first': 'settings.dashboard.order.hotFirst'
-                }}
-                ariaLabel={t('settings.dashboard.order.aria')}
-                onChange={(value) => updateSettings({ dashboardSectionOrder: value })}
-              />
-            </div>
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.popular.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.popular.description')}
+                  {t('settings.dashboard.hideEmpty.description')}
                 </p>
               </div>
               <Toggle
-                checked={popularNow}
-                ariaLabel={t('settings.dashboard.popular.label')}
-                onChange={(checked) => updateSettings({ dashboardPopularNow: checked })}
+                checked={hideEmpty}
+                ariaLabel={t('settings.dashboard.hideEmpty.label')}
+                onChange={(checked) => updateSettings({ dashboardHideEmpty: checked })}
               />
             </div>
-            {/* Dashboard-only: the Hot Instances page and alerts stay available. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.dashboard.hot.label')}
-                </p>
-                <p className="text-xs text-[var(--text-dim)]">
-                  {t('settings.dashboard.hot.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={hotEnabled}
-                ariaLabel={t('settings.dashboard.hot.label')}
-                onChange={(checked) => updateSettings({ hotInstancesEnabled: checked })}
-              />
-            </div>
+            {/* Every section's place and On/Off (owner, 2026-10-27). Hiding
+                one keeps its page and alerts. */}
+            <DashboardSectionsCard />
             {/* Hot-instance threshold (VRX-78) — its own row so it keeps working
                 when the Dashboard section is off. Also quick-adjustable on the
                 Dashboard and the Hot Instances page; all write the same setting. */}

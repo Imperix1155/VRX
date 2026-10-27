@@ -404,8 +404,10 @@ describe('useLiveFriendEvents — identity boundary', () => {
     const vrcLibraryKey = ['avatar-library', 'vrchat', 'usr_me'] as const
     const vrcDetailsKey = ['avatar-details', 'vrchat', 'usr_me', 'avtr_x'] as const
     const cvrLibraryKey = ['avatar-library', 'chilloutvr', 'cvr-me'] as const
+    const vrcCurrentKey = ['current-avatar', 'vrchat', 'usr_me'] as const
     client.setQueryData(vrcLibraryKey, { ok: true })
     client.setQueryData(vrcDetailsKey, { ok: true })
+    client.setQueryData(vrcCurrentKey, { ok: true })
     client.setQueryData(cvrLibraryKey, { ok: true })
     mount(client)
 
@@ -413,6 +415,7 @@ describe('useLiveFriendEvents — identity boundary', () => {
 
     expect(client.getQueryData(vrcLibraryKey)).toBeUndefined()
     expect(client.getQueryData(vrcDetailsKey)).toBeUndefined()
+    expect(client.getQueryData(vrcCurrentKey)).toBeUndefined()
     expect(client.getQueryData(cvrLibraryKey)).toEqual({ ok: true })
   })
 

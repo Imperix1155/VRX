@@ -1,4 +1,9 @@
-import type { JoinHandoff } from '@shared/types'
+import {
+  dashboardSectionOrderOf,
+  dashboardSectionsFromOrder,
+  type DashboardSection,
+  type JoinHandoff
+} from '@shared/types'
 import type { PlatformMode } from './fixtures'
 
 interface SourceScenario {
@@ -51,6 +56,19 @@ export function joinHandoffFor(variant: string, platform: 'vrchat' | 'chilloutvr
 /** Settings and drawer variant that limits alerts to picked friends. */
 export function alertScopeFor(variant: string): 'everyone' | 'picked' {
   return variant === 'picked-alerts' ? 'picked' : 'everyone'
+}
+
+/** Dashboard variants that move sections: `hot-first` swaps the two big ones,
+ *  `reordered` puts Popular now on top and splits the glance row. */
+export function guideDashboardSections(variant: string | null): {
+  dashboardSections: DashboardSection[]
+  dashboardSectionOrder: 'popular-first' | 'hot-first'
+} {
+  const sections: DashboardSection[] =
+    variant === 'reordered'
+      ? ['popular', 'wearing-now', 'hot', 'invites']
+      : dashboardSectionsFromOrder(variant === 'hot-first' ? 'hot-first' : 'popular-first')
+  return { dashboardSections: sections, dashboardSectionOrder: dashboardSectionOrderOf(sections) }
 }
 
 /** Friends roster states (issue 368): one platform fails while the other stays usable. */

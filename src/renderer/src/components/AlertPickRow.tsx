@@ -7,8 +7,9 @@ import Toggle from './Toggle'
 const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
 
 /**
- * "Alert me about this friend" in the details panel. Shown only while
- * Settings → Notifications limits alerts to picked friends. A linked person
+ * "Alert me about this friend" in the friend details bell panel
+ * (FriendAlertBell). Shown only while Settings → Notifications limits alerts
+ * to picked friends. A linked person
  * is one pick across every account shown, so both platforms move together.
  * It reads On while any shown account can still alert, so Off always stops
  * every one of them.
@@ -54,9 +55,6 @@ export default function AlertPickRow({
 
   return (
     <div className="flex flex-col gap-[var(--space-1)]">
-      <h3 className="text-[10.5px] font-semibold tracking-widest text-[var(--text-dim)] uppercase">
-        {t('drawer.alerts.heading')}
-      </h3>
       <div
         data-alert-pick
         className="flex items-center justify-between gap-[var(--space-3)] rounded-control border bg-[var(--control-fill)] px-[var(--space-3)] py-[var(--space-2)]"

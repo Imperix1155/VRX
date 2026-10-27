@@ -2,6 +2,7 @@ import { createRendererRecovery } from './services/rendererRecovery'
 import { ApiAdmissionController } from './services/adapters/ApiAdmissionController'
 import { ExploreService } from './services/exploreService'
 import { AvatarLibraryService } from './services/avatarLibraryService'
+import { CurrentAvatarService } from './services/currentAvatarService'
 import { JoinCoordinator } from './services/joinCoordinator'
 import { GameHandoff, RunningGames, processNameListerFor } from './services/gameHandoff'
 import type { ExploreAdapter } from './services/adapters/ExploreAdapter'
@@ -659,11 +660,20 @@ app
       log: (message, meta) => log.warn(message, meta)
     })
     avatarLibraryBoundary.current = avatarLibrary
+    // The Dashboard's "Wearing now": only the worn avatar, one request a read.
+    const currentAvatar = new CurrentAvatarService({
+      adapters: new Map<Platform, AvatarLibraryAdapter>([
+        ['vrchat', vrcAdapter],
+        ['chilloutvr', cvrAdapter]
+      ]),
+      log: (message, meta) => log.warn(message, meta)
+    })
 
     registerIpcHandlers(adapters, {
       explore,
       inbox,
       avatarLibrary,
+      currentAvatar,
       // Settings → Appearance background picture (appBackground.ts).
       appBackground: {
         store: new AppBackgroundStore({

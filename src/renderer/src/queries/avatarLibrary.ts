@@ -42,11 +42,20 @@ export const AVATAR_LIBRARY_STALE_MS = 5 * 60_000
  */
 export const AVATAR_LIBRARY_GC_MS = Infinity
 
-/** Every avatar-library and avatar-details entry of one platform, any account. */
+/** Every avatar-library, avatar-details and Dashboard worn-avatar entry of one platform, any account. */
 export function avatarQueryKeysForPlatform(
   platform: Platform
-): readonly [readonly ['avatar-library', Platform], readonly ['avatar-details', Platform]] {
-  return [['avatar-library', platform] as const, ['avatar-details', platform] as const]
+): readonly [
+  readonly ['avatar-library', Platform],
+  readonly ['avatar-details', Platform],
+  readonly ['current-avatar', Platform]
+] {
+  return [
+    ['avatar-library', platform] as const,
+    ['avatar-details', platform] as const,
+    // The Dashboard's `currentAvatarQueryKey` (queries/currentAvatar.ts).
+    ['current-avatar', platform] as const
+  ]
 }
 
 function bridge(): NonNullable<Window['vrx']> {

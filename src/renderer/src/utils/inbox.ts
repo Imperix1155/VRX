@@ -2,9 +2,51 @@ import type { InboxItem } from '@shared/inbox'
 import type { Platform } from '@shared/types'
 import type { PlatformFilter } from '../stores/friends'
 
+/** The row's second line: what the sender did, in the UI language. */
+export function inboxActionText(
+  item: InboxItem,
+  t: (key: string, vars?: Record<string, unknown>) => string
+): string {
+  switch (item.kind) {
+    case 'invite':
+      return item.worldName === null
+        ? t('inbox.inviteNoWorld')
+        : t('inbox.invite', { world: item.worldName })
+    case 'invite-request':
+      return t('inbox.inviteRequest')
+    case 'friend-request':
+      return t('inbox.friendRequest')
+  }
+}
+
 /** Rows in the platform filter's scope, newest first (main already sorts). */
 export function scopeInboxItems(items: readonly InboxItem[], filter: PlatformFilter): InboxItem[] {
   return filter === 'all' ? [...items] : items.filter((item) => item.platform === filter)
+}
+
+const INVITE_PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
+
+/**
+ * The Dashboard's latest invites: the newest invite or invite request per
+ * platform in scope (VRChat's row first), and how many there are in all.
+ */
+export function latestInvitePerPlatform(
+  items: readonly InboxItem[],
+  platforms: readonly Platform[]
+): { latest: InboxItem[]; total: number } {
+  const invites = items.filter(
+    (item) => item.kind !== 'friend-request' && platforms.includes(item.platform)
+  )
+  const latest = INVITE_PLATFORMS.flatMap((platform) => {
+    const newest = invites
+      .filter((item) => item.platform === platform)
+      .reduce<InboxItem | undefined>(
+        (best, item) => (best === undefined || item.receivedAt > best.receivedAt ? item : best),
+        undefined
+      )
+    return newest ? [newest] : []
+  })
+  return { latest, total: invites.length }
 }
 
 /** Rows that arrived after the newest one the user has had on screen, per platform. */

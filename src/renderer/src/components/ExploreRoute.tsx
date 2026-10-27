@@ -224,12 +224,15 @@ export default function ExploreRoute(): React.JSX.Element {
 export function ExploreDashboardPreviewRoute({
   onSheetOpen,
   dismissSignal = 0,
-  cardLayout = 'card'
+  cardLayout = 'card',
+  onShownChange
 }: {
   onSheetOpen?: () => void
   dismissSignal?: number
   /** `bar` when Popular now is the second Dashboard section (owner, 2026-10-18). */
   cardLayout?: 'card' | 'bar'
+  /** Told whether the section shows, so the Dashboard can give its space away. */
+  onShownChange?: (shown: boolean) => void
 } = {}): React.JSX.Element | null {
   const platformFilter = useFriendsStore((state) => state.platformFilter)
   const vrc = useExploreCachedSnapshot('vrchat')
@@ -283,7 +286,11 @@ export function ExploreDashboardPreviewRoute({
     if (sheet !== null) suppressFocusRestore.current = true
     close()
   }, [close, dismissSignal, sheet])
-  if (isPopularNowHidden(worlds, snapshots)) return null
+  const hidden = isPopularNowHidden(worlds, snapshots)
+  useEffect(() => {
+    onShownChange?.(!hidden)
+  }, [hidden, onShownChange])
+  if (hidden) return null
   return (
     <PopularNowSection
       platformSnapshots={snapshots}

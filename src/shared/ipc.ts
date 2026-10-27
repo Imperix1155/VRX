@@ -21,7 +21,12 @@ import type {
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
-import type { AvatarDetailsResult, AvatarLibraryResult, AvatarSwitchResult } from './avatarLibrary'
+import type {
+  AvatarDetailsResult,
+  AvatarLibraryResult,
+  AvatarSwitchResult,
+  CurrentAvatarResult
+} from './avatarLibrary'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { InboxSnapshot } from './inbox'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
@@ -143,6 +148,8 @@ export interface IpcInvoke {
   }
   /** The signed-in user's own avatars and the one they wear now. Never on a timer. */
   'get-avatar-library': { req: { platform: Platform }; res: AvatarLibraryResult }
+  /** Only the avatar the user wears now (the Dashboard). Never on a timer. */
+  'get-current-avatar': { req: { platform: Platform }; res: CurrentAvatarResult }
   /** One listed avatar's details; ChilloutVR reads them on demand. */
   'get-avatar-details': {
     req: { platform: Platform; avatarId: string }

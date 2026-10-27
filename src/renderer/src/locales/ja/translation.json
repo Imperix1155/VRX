@@ -364,20 +364,33 @@
     "dashboard": {
       "heading": "ダッシュボード",
       "shortcut": "設定",
+      "hideEmpty": {
+        "label": "空のセクションを隠す",
+        "description": "表示する内容がないセクションは隠れ、ほかのセクションが広がります。"
+      },
+      "sections": {
+        "label": "セクション",
+        "description": "ダッシュボードでの順番です。いま人気とホットインスタンスは先のほうが画像付きになります。隠してもページは残ります。",
+        "moveUp": "{{name}}を上へ移動",
+        "moveDown": "{{name}}を下へ移動",
+        "moved": "{{name}}は{{count}}個中{{position}}番目になりました"
+      },
       "order": {
-        "label": "セクションの順番",
-        "description": "ダッシュボードで先に表示するセクションを選びます。先のセクションは画像付きで表示されます。",
         "aria": "ダッシュボードのセクションの順番",
         "popularFirst": "いま人気を先に",
         "hotFirst": "ホットインスタンスを先に"
       },
       "popular": {
-        "label": "いま人気",
-        "description": "ダッシュボードにプレビューを表示します。探索は引き続き利用できます。"
+        "label": "いま人気"
       },
       "hot": {
-        "label": "ホットインスタンス",
-        "description": "ダッシュボードにホットインスタンスを表示します。ホットインスタンスのページと通知は引き続き利用できます。"
+        "label": "ホットインスタンス"
+      },
+      "wearingNow": {
+        "label": "着用中"
+      },
+      "invites": {
+        "label": "最新の招待"
       }
     },
     "persistence": {
@@ -575,7 +588,20 @@
       "label": "このフレンドを通知する",
       "aria": "{{name}} を通知する",
       "saveFailed": "保存できませんでした。もう一度お試しください。",
-      "full": "VRX が保存できる上限までフレンドを選んでいます。"
+      "full": "VRX が保存できる上限までフレンドを選んでいます。",
+      "bellOn": "{{name}} の通知: オン",
+      "bellOff": "{{name}} の通知: オフ",
+      "everyone": "すべてのフレンドが通知の対象です。一部のフレンドだけにするには、設定の「通知する相手」を変更してください。",
+      "allOff": "フレンドの通知はすべてオフです。",
+      "settings": "通知の設定",
+      "kinds": {
+        "label": "フレンドの通知",
+        "online": "オンライン",
+        "inGame": "ワールド参加",
+        "offline": "オフライン",
+        "on": "(オン)",
+        "off": "(オフ)"
+      }
     },
     "notes": {
       "heading": "メモ（自分用、非公開）",
@@ -658,7 +684,16 @@
       "threshold": "−と＋で、表示に必要なフレンドの最小人数を{{min}}〜{{max}}人に設定できます。「設定」→「通知」でホットインスタンス通知をオンにした場合、この人数が通知のしきい値にもなります。"
     },
     "seeAll": "すべて表示（{{count}}）",
-    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）"
+    "seeAllAria_other": "ホットインスタンスをすべて表示（{{count}}件）",
+    "glance": {
+      "invites": "最新の招待",
+      "noInvites": "VRX を開いてから届いた招待はありません",
+      "openAvatarsAria": "アバターのページを開く",
+      "wornAria": "{{name}}、{{platform}} で着用中のアバター。アバターを開く",
+      "inviteAria": "{{name}}、{{platform}}：{{action}}、{{age}}。受信箱を開く",
+      "seeAllInvitesAria_one": "受信箱で {{count}} 件の招待を表示",
+      "seeAllInvitesAria_other": "受信箱で {{count}} 件の招待をすべて表示"
+    }
   },
   "login": {
     "subtitle": "Social VR コンパニオン",

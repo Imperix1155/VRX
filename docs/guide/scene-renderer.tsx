@@ -33,7 +33,7 @@ import {
   linkedSnapshot
 } from './fixtures'
 import CatalogScene from './catalog-scenes'
-import { alertScopeFor, friendsFailureFor } from './scenarios'
+import { alertScopeFor, friendsFailureFor, guideDashboardSections } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -246,9 +246,11 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     reconcileInterval: 'manual',
     confirmJoin: true,
     friendAlertScope: alertScopeFor(variant),
+    // Picked alerts only matter with friend alerts on; the bell shows both.
+    notifyFriendOnline: alertScopeFor(variant) === 'picked',
+    notifyFriendInGame: alertScopeFor(variant) === 'picked',
     setupPending: name === 'setup',
-    dashboardSectionOrder:
-      name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
+    ...guideDashboardSections(name === 'dashboard' ? variant : null)
   })
   useSettingsStore.getState().hydrate()
   if (name === 'settings' && variant === 'save-error') {

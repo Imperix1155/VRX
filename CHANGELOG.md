@@ -7,8 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Two new Dashboard sections under the numbers, side by side: Wearing now
+  shows the avatar you're wearing on VRChat and ChilloutVR, and Latest
+  invites shows the newest invite from each platform. A row opens the
+  Avatars page or the Inbox. Each can be turned off in Settings → Dashboard.
+  Wearing now asks each platform for your worn avatar only (one request,
+  none if the Avatars page just loaded it), and invites come from what VRX
+  already received.
+- The Dashboard now fits what it has. A section with nothing to show (no
+  invites, no hot instances) steps aside and the rest move up to use the
+  space; the first section shown gets the big picture cards. Turn off
+  Settings → Dashboard → Hide empty sections to always see every section.
+- Move any Dashboard section up or down. Settings → Dashboard → Sections
+  lists Wearing now, Latest invites, Popular now and Hot Instances in their
+  Dashboard order, each with up and down buttons and its On/Off switch.
+
 ### Changed
 
+- Friend alerts moved to a bell in the friend details panel, at the bottom
+  across from Identities. The bell shows waves when that friend can alert you
+  and a slash when they can't. Pressing it pops open a small panel with Alert
+  me about this friend (while alerts are limited to picked friends), which
+  friend alerts are on, and a shortcut to Settings → Notifications. The panel
+  springs out of the bell, or simply appears with reduced motion on.
 - The Avatars page opens faster. Avatars you already loaded stay ready for
   the rest of the session instead of loading again after a few minutes away,
   big libraries show the first screenful at once and fill in the rest without

@@ -28,6 +28,9 @@ type VrxBridge = {
   getAvatarLibrary: (
     req: IpcInvoke['get-avatar-library']['req']
   ) => Promise<IpcInvoke['get-avatar-library']['res']>
+  getCurrentAvatar: (
+    req: IpcInvoke['get-current-avatar']['req']
+  ) => Promise<IpcInvoke['get-current-avatar']['res']>
   getAvatarDetails: (
     req: IpcInvoke['get-avatar-details']['req']
   ) => Promise<IpcInvoke['get-avatar-details']['res']>

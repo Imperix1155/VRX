@@ -267,6 +267,7 @@ export default function Guide(): React.JSX.Element {
             variants={[
               { value: 'popular-first', label: 'Popular now first' },
               { value: 'hot-first', label: 'Hot Instances first' },
+              { value: 'reordered', label: 'Sections moved' },
               { value: 'needs-code', label: 'VRChat needs a code' }
             ]}
             height="tall"

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { z } from 'zod'
 import type { IpcInvoke } from '@shared/ipc'
 import type { AvatarLibraryService } from '../services/avatarLibraryService'
+import type { CurrentAvatarService } from '../services/currentAvatarService'
 import { isTrustedIpcSender } from './security'
 
 const platform = z.enum(['vrchat', 'chilloutvr'])
@@ -25,5 +26,14 @@ export function registerAvatarLibraryHandlers(service: AvatarLibraryService): vo
     if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
     const parsed = avatarRequest.parse(req)
     return service.switchAvatar(parsed.platform, parsed.avatarId)
+  })
+}
+
+/** The Dashboard's worn-avatar read: a validated platform in, a typed result out. */
+export function registerCurrentAvatarHandler(service: CurrentAvatarService): void {
+  ipcMain.handle('get-current-avatar', (event, req: IpcInvoke['get-current-avatar']['req']) => {
+    if (!isTrustedIpcSender(event.senderFrame)) throw new Error('Untrusted IPC sender')
+    const parsed = libraryRequest.parse(req)
+    return service.getCurrent(parsed.platform)
   })
 }

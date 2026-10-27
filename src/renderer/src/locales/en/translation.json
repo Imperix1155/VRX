@@ -366,20 +366,33 @@
     "dashboard": {
       "heading": "Dashboard",
       "shortcut": "Settings",
+      "hideEmpty": {
+        "label": "Hide empty sections",
+        "description": "Sections with nothing to show make room for the others."
+      },
+      "sections": {
+        "label": "Sections",
+        "description": "Their order on the Dashboard. The first of Popular now and Hot Instances shows pictures. Hiding one keeps its page.",
+        "moveUp": "Move {{name}} up",
+        "moveDown": "Move {{name}} down",
+        "moved": "{{name}} is now {{position}} of {{count}}"
+      },
       "order": {
-        "label": "Section order",
-        "description": "Choose which Dashboard section comes first. The first one shows pictures.",
         "aria": "Dashboard section order",
         "popularFirst": "Popular now first",
         "hotFirst": "Hot Instances first"
       },
       "popular": {
-        "label": "Popular now",
-        "description": "Show the Dashboard preview. Explore stays available."
+        "label": "Popular now"
       },
       "hot": {
-        "label": "Hot Instances",
-        "description": "Show Hot Instances on the Dashboard. The Hot Instances page and alerts stay available."
+        "label": "Hot Instances"
+      },
+      "wearingNow": {
+        "label": "Wearing now"
+      },
+      "invites": {
+        "label": "Latest invites"
       }
     },
     "persistence": {
@@ -577,7 +590,20 @@
       "label": "Alert me about this friend",
       "aria": "Alert me about {{name}}",
       "saveFailed": "Couldn't save. Try again.",
-      "full": "You've picked as many friends as VRX can keep."
+      "full": "You've picked as many friends as VRX can keep.",
+      "bellOn": "Alerts for {{name}}: on",
+      "bellOff": "Alerts for {{name}}: off",
+      "everyone": "Every friend can alert you. To pick only some friends, change Who alerts you in Settings.",
+      "allOff": "Friend alerts are all off.",
+      "settings": "Alert settings",
+      "kinds": {
+        "label": "Friend alerts",
+        "online": "Comes online",
+        "inGame": "Joins a world",
+        "offline": "Goes offline",
+        "on": "(on)",
+        "off": "(off)"
+      }
     },
     "notes": {
       "heading": "Notes (yours, private)",
@@ -663,7 +689,16 @@
     },
     "seeAll": "See all {{count}}",
     "seeAllAria_one": "See {{count}} hot instance",
-    "seeAllAria_other": "See all {{count}} hot instances"
+    "seeAllAria_other": "See all {{count}} hot instances",
+    "glance": {
+      "invites": "Latest invites",
+      "noInvites": "No invites since VRX opened",
+      "openAvatarsAria": "Open the Avatars page",
+      "wornAria": "{{name}}, the avatar you're wearing in {{platform}}. Open Avatars",
+      "inviteAria": "{{name}}, {{platform}}: {{action}}, {{age}}. Open Inbox",
+      "seeAllInvitesAria_one": "See {{count}} invite in the Inbox",
+      "seeAllInvitesAria_other": "See all {{count}} invites in the Inbox"
+    }
   },
   "login": {
     "subtitle": "Social VR Companion",

@@ -39,13 +39,18 @@ These decisions are settled. Changing one needs the owner's explicit approval.
 6. **Background never tints information.** The aurora may color decorative
    chrome such as the sidebar, but never a card or panel that carries
    information (§3).
-7. **Dashboard layout.** The Dashboard has a Popular now section and a Hot
-   Instances section. Settings → Dashboard → Section order picks which comes
-   first, Popular now by default. The first section uses picture cards and the
-   second uses bars with the world picture behind them. Each section shows two
-   cards: the top one per platform when both have one, otherwise the top two.
-   The Popular now and Hot Instances switches, both on by default, only hide
-   their Dashboard section (§8, §9.1).
+7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
+   Wearing now (the worn avatar per signed-in platform), Latest invites (the
+   newest invite per platform), Popular now and Hot Instances, in that order
+   by default. Settings → Dashboard → Sections moves each one up or down and
+   turns it on or off, all on by default; off only hides the Dashboard
+   section (§8, §9.1). Wearing now and Latest invites share one glance row
+   while they sit next to each other. Of Popular now and Hot Instances, the
+   first uses picture cards and the second uses bars with the world picture
+   behind them. Each shows two cards: the top one per platform when both
+   have one, otherwise the top two. Hide empty sections, on by default,
+   lets a section with nothing to show step aside so the others take its
+   space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
    hot instance, most friends first. It shows by default and can be hidden in
    Settings → Behavior (§8). While it shows, the Dashboard section's "See
@@ -334,8 +339,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
   card), and Instance labels. A picture too small, too tall or too wide to
   fill the landscape window is refused with a plain reason; a usable one that
   will be cropped hard or look soft gets one short warning line in the card.
-- Dashboard: Section order, Popular now, Hot Instances, and Hot instance
-  threshold, as separate rows.
+- Dashboard: Hide empty sections, then Wearing now, Latest invites, Section
+  order, Popular now, Hot Instances, and Hot instance threshold, as separate
+  rows in Dashboard order.
 - Behavior: Hot Instances page and Explore page (one card), Friend details
   open from (whole card or avatar only), Friends background re-sync, and
   Allow joining friends, which contains Confirm before joining, Join in, and
@@ -353,8 +359,8 @@ Accounts, and About. Each setting sits on a compact neutral card.
   offline, then, below a divider, the alerts picks never limit: Hot instance,
   Invite received (invites and invite requests) and Friend request received.
   Each alert is independent and off by default. While Picked friends is on,
-  the friend details panel shows an Alerts section with Alert me about this
-  friend; a linked person is one pick. Below it, one pages card: Activity
+  the bell in the friend details panel holds Alert me about this friend; a
+  linked person is one pick. Below it, one pages card: Activity
   page and Inbox page (both on by default). They sit here, not with the
   other page switches, so Behavior fits without scrolling. Hiding either keeps
   its alerts; Activity off also stops VRX keeping activity and forgets what it
@@ -381,8 +387,22 @@ its tab.
 Explore stays. Hot Instances off removes its Dashboard statistic, heading,
 threshold, cards, and details, and the remaining friend statistics fill two
 equal columns. It never hides the Hot Instances page and never affects the
-Hot instance notification. A compact "Settings" button below the Dashboard
-content opens Settings → Dashboard, even when both sections are off.
+Hot instance notification. Wearing now and Latest invites off hide only
+their glance section; the Avatars and Inbox pages and invite alerts stay.
+These switches sit in one Sections card with each section's move up and
+move down buttons; a button at the top or bottom stays focusable but does
+nothing, and each move is announced to screen readers. A
+compact "Settings" button below the Dashboard content opens Settings →
+Dashboard, even when every section is off.
+
+**Hide empty sections** (owner, 2026-10-27; on by default) makes the
+Dashboard fit what it has: Latest invites with nothing waiting, a platform
+that reported no worn avatar, and Hot Instances with nothing hot step aside
+(Popular now already does). The Hot instances statistic stays, so "0" still
+explains the missing section; the threshold stays in Settings → Dashboard
+and on the Hot Instances page. A lone glance section takes the whole row and
+puts its two platform rows side by side. Off shows each section's empty
+state, and card style follows the section order only.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
@@ -422,6 +442,21 @@ threshold stepper sits beside a quiet "?" button that toggles an explanation
 of grouping, visible friends, the platform filter, ranking, and the
 threshold; it starts closed and exposes its state to assistive technology.
 
+The glance row holds Wearing now and Latest invites while they are
+neighbours in the section order; apart, each gets its own full-width row.
+Its two sections sit side by side when the
+area is at least 520 px wide, one above the other below that; a lone section
+fills the row, with its two platform rows side by side. Each is a heading with a quiet button (Avatars, or See all N
+for the Inbox) over one glass list, and every row is the same height: a
+picture, the name, and the platform as a word (PlatformPill), so VRChat and
+ChilloutVR read alike. Wearing now has one row per signed-in platform in the
+filter: the 4:3 avatar picture and name, or a one-line loading, not-reported,
+or failed state with Try again. A row opens the Avatars page. Latest invites
+shows the newest invite or invite request per platform, VRChat's first, in
+the Inbox row's words and age; a row opens the Inbox, and with the Inbox page
+hidden the rows are plain text. With nothing waiting it shows one quiet line,
+or, with Hide empty sections on, steps aside.
+
 Each Dashboard section shows two cards, chosen as in "Locked for 1.0". The
 second section's bars show the world picture behind a same-color scrim with
 the platform tint on top, so the platform color still reads at a glance;
@@ -445,8 +480,18 @@ the opener or the search box. Closed content is inert and hidden from
 assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
-The order is: header, written status, Where, actions, Notes, Trust, and
-Identities. A long name wraps to two lines before it is cut, and its tooltip
+The order is: header, written status, Where, actions, Notes, and Trust. A
+footer pinned below the scrolling area holds Identities on the left and the
+alerts bell on the right. The bell shows whether this friend can alert you by
+shape, not color: sound waves when on, a slash when off, and the button's
+name says On or Off. Pressing it springs a small panel out of the bell
+(scale and fade with a slight overshoot, rows following one after another,
+and the bell swings); reduced motion shows and hides it without movement. The
+panel holds Alert me about this friend while alerts are limited to picked
+friends (otherwise one line says every friend can alert you), the three
+friend alert kinds with a check or dash beside each, and Alert settings, which
+opens Settings → Notifications. Escape or a press outside folds the panel
+before the drawer itself closes. A long name wraps to two lines before it is cut, and its tooltip
 shows it in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,
