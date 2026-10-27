@@ -359,8 +359,8 @@ Accounts, and About. Each setting sits on a compact neutral card.
   offline, then, below a divider, the alerts picks never limit: Hot instance,
   Invite received (invites and invite requests) and Friend request received.
   Each alert is independent and off by default. While Picked friends is on,
-  the friend details panel shows an Alerts section with Alert me about this
-  friend; a linked person is one pick. Below it, one pages card: Activity
+  the bell in the friend details panel holds Alert me about this friend; a
+  linked person is one pick. Below it, one pages card: Activity
   page and Inbox page (both on by default). They sit here, not with the
   other page switches, so Behavior fits without scrolling. Hiding either keeps
   its alerts; Activity off also stops VRX keeping activity and forgets what it
@@ -480,8 +480,18 @@ the opener or the search box. Closed content is inert and hidden from
 assistive technology. While a confirmation modal is open, the drawer pauses
 its own dismissal.
 
-The order is: header, written status, Where, actions, Notes, Trust, and
-Identities. A long name wraps to two lines before it is cut, and its tooltip
+The order is: header, written status, Where, actions, Notes, and Trust. A
+footer pinned below the scrolling area holds Identities on the left and the
+alerts bell on the right. The bell shows whether this friend can alert you by
+shape, not color: sound waves when on, a slash when off, and the button's
+name says On or Off. Pressing it springs a small panel out of the bell
+(scale and fade with a slight overshoot, rows following one after another,
+and the bell swings); reduced motion shows and hides it without movement. The
+panel holds Alert me about this friend while alerts are limited to picked
+friends (otherwise one line says every friend can alert you), the three
+friend alert kinds with a check or dash beside each, and Alert settings, which
+opens Settings → Notifications. Escape or a press outside folds the panel
+before the drawer itself closes. A long name wraps to two lines before it is cut, and its tooltip
 shows it in full. Where cards keep privacy rules, show neutral art when a picture is
 missing, use instance labels, and never show raw IDs or policy pills; a split
 card names each platform. If notes load without a valid account revision,

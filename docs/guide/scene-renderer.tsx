@@ -246,6 +246,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     reconcileInterval: 'manual',
     confirmJoin: true,
     friendAlertScope: alertScopeFor(variant),
+    // Picked alerts only matter with friend alerts on; the bell shows both.
+    notifyFriendOnline: alertScopeFor(variant) === 'picked',
+    notifyFriendInGame: alertScopeFor(variant) === 'picked',
     setupPending: name === 'setup',
     ...guideDashboardSections(name === 'dashboard' ? variant : null)
   })

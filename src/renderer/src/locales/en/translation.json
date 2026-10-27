@@ -590,7 +590,20 @@
       "label": "Alert me about this friend",
       "aria": "Alert me about {{name}}",
       "saveFailed": "Couldn't save. Try again.",
-      "full": "You've picked as many friends as VRX can keep."
+      "full": "You've picked as many friends as VRX can keep.",
+      "bellOn": "Alerts for {{name}}: on",
+      "bellOff": "Alerts for {{name}}: off",
+      "everyone": "Every friend can alert you. To pick only some friends, change Who alerts you in Settings.",
+      "allOff": "Friend alerts are all off.",
+      "settings": "Alert settings",
+      "kinds": {
+        "label": "Friend alerts",
+        "online": "Comes online",
+        "inGame": "Joins a world",
+        "offline": "Goes offline",
+        "on": "(on)",
+        "off": "(off)"
+      }
     },
     "notes": {
       "heading": "Notes (yours, private)",

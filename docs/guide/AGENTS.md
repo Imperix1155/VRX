@@ -25,7 +25,8 @@ Builds the design guide (`docs/design.html`) and isolated scenes
   `scene-renderer.tsx` the welcome-setup scene (`ready`, `signed-out`) and the
   Dashboard `needs-code` state (VRChat waiting for a sign-in code). The
   `picked-alerts` settings and drawer variant turns on the picked-friends
-  alert controls.
+  alert controls, with the online and joins-a-world alerts on so the bell
+  can show both states.
 
 ## Local Contracts
 
