@@ -15,6 +15,8 @@ import { registerExploreHandlers } from './explore'
 import type { ExploreService } from '../services/exploreService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
+import { registerAlertPicksHandlers } from './alert-picks'
+import type { FriendAlertPicks } from '../services/friendAlertPicks'
 import { registerLinksHandlers, type LinksHandlerOptions } from './links'
 import { registerSettingsHandlers } from './settings'
 import { registerUpdaterHandlers } from './updater'
@@ -43,6 +45,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   accountSession: AccountSession
   locationAuthority: LocationAuthority
   socialStore: SocialStore
+  alertPicks: FriendAlertPicks
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
   instance: InstanceHandlerOptions
@@ -112,6 +115,7 @@ export function registerIpcHandlers(
       accountSession: options.accountSession,
       socialStore: options.socialStore
     })
+    registerAlertPicksHandlers(options.alertPicks)
     registerLinksHandlers({
       ...options.links,
       accountSession: options.accountSession,

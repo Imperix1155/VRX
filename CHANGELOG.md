@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Alerts for picked friends. Settings → Notifications → Who alerts you can be
+  set to Picked friends; then only the friends you choose send the online,
+  joins-a-world and offline alerts. Pick a friend with Alert me about this
+  friend in their details, for VRChat and ChilloutVR alike, and review or
+  remove picks with Show. Picks stay on this PC, per account, and nothing is
+  sent to either platform. Everyone stays the default.
+
 ## [1.2.0-dev.2] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.

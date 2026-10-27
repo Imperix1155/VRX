@@ -179,6 +179,23 @@ export interface IpcInvoke {
       | { ok: true }
       | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'rate-limited' }
   }
+  /** The signed-in account's friends picked for alerts. Local only. */
+  'get-alert-picks': {
+    req: { platform: Platform }
+    res: { friendIds: string[]; revision?: { platformAccountId: string; epoch: number } }
+  }
+  /** Pick or unpick friends for alerts in one write; echo the read's revision. */
+  'set-alert-pick': {
+    req: {
+      platform: Platform
+      friendIds: string[]
+      picked: boolean
+      revision: { platformAccountId: string; epoch: number }
+    }
+    res:
+      | { ok: true }
+      | { ok: false; reason: 'not-authenticated' | 'invalid' | 'stale' | 'full' | 'rate-limited' }
+  }
 }
 
 /**

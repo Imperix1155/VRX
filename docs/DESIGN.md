@@ -331,8 +331,13 @@ Accounts, and About. Each setting sits on a compact neutral card.
   (instant under reduced motion). Hidden children are inert and hidden from
   assistive technology, focus returns to the parent control when needed, and
   their saved choices survive.
-- Notifications: Friend comes online, Friend joins a world, Friend goes
-  offline, and Hot instance. Each is independent and off by default.
+- Notifications: Who alerts you (Everyone or Picked friends; Picked friends
+  opens a row with each platform's pick count and Show, which lists picks
+  VRChat first with a Remove for each), then Friend comes online, Friend
+  joins a world, Friend goes offline, and Hot instance. Each alert is
+  independent and off by default; picks never limit Hot instance. While
+  Picked friends is on, the friend details panel shows an Alerts section
+  with Alert me about this friend; a linked person is one pick.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev

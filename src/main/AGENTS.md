@@ -139,7 +139,10 @@ etiquette rules apply in full; this file adds local detail.
 - Alerts read settings at dispatch (`isFriendAlertEnabled`; every alert
   defaults off). Hot alerts gate only on `notifyHotInstance`;
   `hotInstancesEnabled` hides a Dashboard section only. Alert state is bounded
-  and rate limited. Ask Me and DND friends never count toward hot alerts, and
+  and rate limited. With `friendAlertScope: 'picked'`, friend alerts fire only
+  for friends the current account picked (`FriendAlertPicks`, local
+  SocialStore data); hot alerts are never limited by picks. Ask Me and DND
+  friends never count toward hot alerts, and
   no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
   logs carry no names or locations.
 - `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,

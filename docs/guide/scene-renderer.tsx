@@ -211,6 +211,8 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
+    // `alerts=picked` shows the picked-friends alert controls.
+    friendAlertScope: params.get('alerts') === 'picked' ? 'picked' : 'everyone',
     setupPending: name === 'setup',
     dashboardSectionOrder:
       name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
