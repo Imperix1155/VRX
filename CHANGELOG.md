@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-dev.3] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
+
 ### Added
 
 - New Avatars page in the sidebar. It shows the avatars you uploaded on VRChat
@@ -14,13 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each avatar with a Wear button to switch to it. Both platforms share one
   page, sorted by name. Avatars load when you open the page or press Refresh,
   and switching is limited to one every 5 seconds per platform. Favorites are
-  not included yet.
+  not included yet. (#464)
 - Alerts for picked friends. Settings → Notifications → Who alerts you can be
   set to Picked friends; then only the friends you choose send the online,
   joins-a-world and offline alerts. Pick a friend with Alert me about this
   friend in their details, for VRChat and ChilloutVR alike, and review or
   remove picks with Show. Picks stay on this PC, per account, and nothing is
-  sent to either platform. Everyone stays the default.
+  sent to either platform. Everyone stays the default. (#466)
 - Activity page: friends coming online, joining a world, and going offline on
   VRChat and ChilloutVR, newest first, in one list with each platform named.
   Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
@@ -28,22 +32,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   VRX already has, so it makes no extra requests, and it stays in memory only
   until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
   never show a world or a move. Turn it off in Settings → Notifications →
-  Activity page or in the welcome setup; off also stops VRX keeping it.
+  Activity page or in the welcome setup; off also stops VRX keeping it. (#467)
 - Join uses the game that's already open. When VRChat or ChilloutVR is running,
   Join takes you there in that game instead of starting a second copy, the way
   VRCX and CVRX do. In VRChat it goes straight there on Windows, or sends you
   an invite to accept in the game (always on Linux, or if you pick Send
   invite). The join dialog says which will happen, and the line under Join
   confirms it. Pick Go there, Send invite, or Off in Settings → Behavior →
-  When the game is already open.
+  When the game is already open. (#468, #471)
 - Inbox page: invites, invite requests and friend requests from VRChat and
   ChilloutVR that arrive while VRX is open, in one list that follows the
   platform filter. It only shows them; answer in the game or on the
   platform's site. Hide takes a row out of VRX and sends nothing. The sidebar
-  shows how many are new. Turn the page off in Settings → Notifications.
+  shows how many are new. Turn the page off in Settings → Notifications. (#469)
 - Two optional alerts in Settings → Notifications and the welcome setup:
   Invite received and Friend request received. Both are off until you turn
-  them on.
+  them on. (#469)
 
 ### Changed
 
@@ -51,11 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on top and the Activity and Inbox page switches in a second card, so the
   page fits the window without scrolling. With Picked friends, the pick counts
   and Show sit under Who alerts you. The welcome setup's alerts step groups
-  its alerts the same way.
+  its alerts the same way. (#469)
 - Background picture explains pictures that cannot fill the window: too small
   (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
   long panorama) are refused with the reason. A usable picture that will be
-  cropped a lot or may look blurry gets one short note in Settings.
+  cropped a lot or may look blurry gets one short note in Settings. (#465)
 
 ## [1.2.0-dev.2] - 2026-10-27
 

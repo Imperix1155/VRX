@@ -2,7 +2,7 @@
   "name": "vrx",
   "private": true,
   "desktopName": "com.imperix.vrx",
-  "version": "1.2.0-dev.2",
+  "version": "1.2.0-dev.3",
   "description": "VRX — Social VR companion for VRChat + ChilloutVR",
   "main": "./out/main/index.js",
   "author": "Imperix1155",
