@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Invite received and Friend request received. Both are off until you turn
   them on.
 
+### Changed
+
+- Background picture explains pictures that cannot fill the window: too small
+  (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
+  long panorama) are refused with the reason. A usable picture that will be
+  cropped a lot or may look blurry gets one short note in Settings.
+
 ## [1.2.0-dev.2] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.

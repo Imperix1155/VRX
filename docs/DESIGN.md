@@ -324,7 +324,9 @@ Accounts, and About. Each setting sits on a compact neutral card.
 
 - Appearance: Theme, Background glow, Background picture (Choose picture;
   once set, a thumbnail, Change picture, Remove, and Picture fade in the same
-  card), and Instance labels.
+  card), and Instance labels. A picture too small, too tall or too wide to
+  fill the landscape window is refused with a plain reason; a usable one that
+  will be cropped hard or look soft gets one short warning line in the card.
 - Dashboard: Section order, Popular now, Hot Instances, and Hot instance
   threshold, as separate rows.
 - Behavior: Hot Instances page and Explore page (one card), Friend details

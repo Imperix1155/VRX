@@ -175,9 +175,17 @@
       "error": {
         "unsupported": "Pick a PNG or JPEG picture.",
         "tooLarge": "That picture is too big. Try a smaller one.",
+        "tooSmall": "That picture is too small to fill the window. Pick one at least 640 × 360 pixels.",
+        "tooTall": "That picture is too tall. Only a thin strip of it would show. Pick a wide or square picture.",
+        "tooWide": "That picture is too wide. Only a small middle part would show. Pick a less stretched picture.",
         "unreadable": "VRX couldn’t open that picture.",
         "saveFailed": "VRX couldn’t save the picture. Try again.",
         "removeFailed": "VRX couldn’t remove the picture. Try again."
+      },
+      "warning": {
+        "tall": "Tall pictures get cropped, so only the middle shows. Wide pictures work best.",
+        "wide": "Very wide pictures get cropped, so only the middle shows on most screens.",
+        "lowRes": "This picture is small, so it may look blurry on big screens."
       }
     },
     "reconcileInterval": {
