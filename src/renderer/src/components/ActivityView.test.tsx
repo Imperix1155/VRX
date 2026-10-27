@@ -153,6 +153,10 @@ describe('ActivityView', () => {
       'activity-row activity-row--chilloutvr',
       'activity-row activity-row--vrchat'
     ])
+    // Both pills fill the same fixed column, so they are the same size.
+    for (const item of items) {
+      expect(item.querySelector('[data-platform-pill]')?.classList).toContain('w-full')
+    }
   })
 
   it('filters by kind through the saved Show setting', () => {

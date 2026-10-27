@@ -126,9 +126,10 @@ function ActivityRow({
           {description}
         </span>
       </span>
-      {/* One fixed column so both platforms' pills line up the same way. */}
-      <span className="flex w-[96px] shrink-0 justify-center">
-        <PlatformPill platform={entry.platform} />
+      {/* One fixed column, and the pill fills it, so both platforms' pills are
+          the same size and line up; the shorter word sits centered. */}
+      <span className="flex w-[96px] shrink-0">
+        <PlatformPill platform={entry.platform} className="w-full" />
       </span>
       <time
         dateTime={dateTime}
