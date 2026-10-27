@@ -144,6 +144,21 @@ describe('ActivityView', () => {
     expect(rows[3]).toContain(msg('activity.online'))
   })
 
+  it('tints each entry with its own platform, the same recipe on both', () => {
+    renderView()
+    const items = screen.getAllByRole('listitem')
+    expect(items.map((item) => item.className)).toEqual([
+      'activity-row activity-row--chilloutvr',
+      'activity-row activity-row--vrchat',
+      'activity-row activity-row--chilloutvr',
+      'activity-row activity-row--vrchat'
+    ])
+    // Both pills fill the same fixed column, so they are the same size.
+    for (const item of items) {
+      expect(item.querySelector('[data-platform-pill]')?.classList).toContain('w-full')
+    }
+  })
+
   it('filters by kind through the saved Show setting', () => {
     renderView()
     const show = screen.getByRole('radiogroup', { name: msg('activity.filterAria') })

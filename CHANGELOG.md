@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer redraws every card. The worn avatar loads alongside your uploads, and
   Wear works even while a refresh is still running. Nothing extra is sent to
   VRChat or ChilloutVR.
+- Activity entries are now tinted with their platform's color, VRChat blue
+  and ChilloutVR orange, with a colored edge on the left, so the two are easy
+  to tell apart at a glance. The VRChat and ChilloutVR labels stay, now the
+  same size as each other.
 
 ## [1.2.0-dev.3] - 2026-10-27
 

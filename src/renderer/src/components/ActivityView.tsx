@@ -4,7 +4,8 @@
  * the list in memory from the live sockets (`activityFeed.ts`); this page only
  * reads it, so opening it makes no platform request.
  *
- * Both platforms share one row layout: the platform pill carries the platform
+ * Both platforms share one row layout. Each entry is a capsule tinted with its
+ * platform's color (owner, 2026-10-27); the platform pill carries the platform
  * in words, never color alone. The TopBar's platform filter scopes the list;
  * the Show control here picks a kind and is saved like any other setting.
  * A row opens that friend's details on the Friends page.
@@ -125,9 +126,10 @@ function ActivityRow({
           {description}
         </span>
       </span>
-      {/* One fixed column so both platforms' pills line up the same way. */}
-      <span className="flex w-[96px] shrink-0 justify-center">
-        <PlatformPill platform={entry.platform} />
+      {/* One fixed column, and the pill fills it, so both platforms' pills are
+          the same size and line up; the shorter word sits centered. */}
+      <span className="flex w-[96px] shrink-0">
+        <PlatformPill platform={entry.platform} className="w-full" />
       </span>
       <time
         dateTime={dateTime}
@@ -146,7 +148,7 @@ function ActivityRow({
   return (
     <button
       type="button"
-      className={`${rowClass} cursor-pointer rounded-control hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors`}
+      className={`${rowClass} cursor-pointer rounded-control hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--text-dim)] motion-safe:transition-colors`}
       aria-label={`${name}, ${description}, ${time}. ${t('activity.openFriend', { name })}`}
       onClick={() => onOpen(entry)}
     >
@@ -267,12 +269,12 @@ export default function ActivityView(): React.JSX.Element {
     )
   } else {
     content = (
-      <ol className="glass glass-information flex flex-col p-[var(--space-1)]">
+      <ol className="flex flex-col gap-[6px]">
         {entries.map((entry) => {
           const at = new Date(entry.at)
           const time = (at.toDateString() === today ? formats.time : formats.dayTime).format(at)
           return (
-            <li key={entry.id} className="activity-row">
+            <li key={entry.id} className={`activity-row activity-row--${entry.platform}`}>
               <ActivityRow
                 entry={entry}
                 friend={friendsByKey.get(friendKey(entry.platform, entry.platformUserId))}
