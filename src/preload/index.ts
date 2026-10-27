@@ -61,6 +61,13 @@ const vrx = {
   joinInstance: (req: IpcInvoke['join-instance']['req']) => invoke('join-instance', req),
   selfInvite: (req: IpcInvoke['self-invite']['req']) => invoke('self-invite', req),
   getAppStatus: () => invoke('get-app-status', undefined),
+  getActivity: () => invoke('get-activity', undefined),
+  clearActivity: () => invoke('clear-activity', undefined),
+  onActivityChanged: (callback: () => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('activity-changed', listener)
+    return () => ipcRenderer.removeListener('activity-changed', listener)
+  },
   openUrl: (req: IpcInvoke['open-url']['req']) => invoke('open-url', req),
   openLogsFolder: () => invoke('open-logs-folder', undefined),
   getAppBackground: () => invoke('get-app-background', undefined),

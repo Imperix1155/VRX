@@ -2,6 +2,7 @@ import type { UpdaterSnapshot } from '@shared/ipc'
 import type { AuthStatus, Platform } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import {
+  activityEntries,
   backgroundPicture,
   friends,
   worlds,
@@ -124,6 +125,9 @@ export function createFixtureBridge(variant: string): FixtureBridge {
         ws: { vrchat: 'live', chilloutvr: 'live' },
         lastReconcileAt: { vrchat: null, chilloutvr: null }
       }),
+    getActivity: () => Promise.resolve(variant === 'empty' ? [] : activityEntries(Date.now())),
+    clearActivity: () => Promise.resolve(),
+    onActivityChanged: unsubscribe,
     openUrl: () => Promise.resolve(),
     openLogsFolder: () => Promise.resolve(),
     getAppBackground: () => Promise.resolve(picture === null ? null : { dataUrl: picture }),

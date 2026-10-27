@@ -38,6 +38,7 @@ import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { BroadcastAdapterEvent } from '@shared/ipc'
 import type { Platform } from '@shared/types'
+import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -55,6 +56,7 @@ import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
+import { ActivityFeed } from './services/activityFeed'
 import { InboxService } from './services/inbox'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
@@ -397,6 +399,7 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const activityBoundary: { current?: ActivityFeed } = {}
     const inboxBoundary: { current?: InboxService } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const accountSession = new AccountSession()
@@ -427,7 +430,8 @@ app
       },
       onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
-        // A data-path 401 keeps the account, so its inbox stays too.
+        // The same account after a data-path 401 keeps its activity and inbox.
+        activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
         if (!identityRetained) inboxBoundary.current?.resetPlatform('vrchat')
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
@@ -501,6 +505,7 @@ app
         // renderer boundary would refetch the roster and drop note drafts.
         if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
+        activityBoundary.current?.resetPlatform('chilloutvr')
         inboxBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
@@ -538,6 +543,27 @@ app
     })
     friendAlertBoundary.current = friendAlerts
 
+    // The Activity page's list (activityFeed.ts): memory only, fed by the same
+    // events as the alerts, no requests. Changes reach the renderer coalesced.
+    let activityPushTimer: ReturnType<typeof setTimeout> | null = null
+    const activityFeed = new ActivityFeed({
+      now: () => Date.now(),
+      clock: () => performance.now(),
+      isEnabled: () => getSettingsSnapshot().showActivityPage,
+      resolveName: (platform, platformUserId) =>
+        platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null,
+      onChanged: () => {
+        if (activityPushTimer !== null) return
+        activityPushTimer = setTimeout(() => {
+          activityPushTimer = null
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) window.webContents.send('activity-changed')
+          }
+        }, ACTIVITY_PUSH_COALESCE_MS)
+        activityPushTimer.unref()
+      }
+    })
+    activityBoundary.current = activityFeed
     // View-only inbox: socket-delivered invites and requests, memory only.
     const inbox = new InboxService({
       now: () => Date.now(),
@@ -625,6 +651,8 @@ app
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
+        // Turning the Activity page off also forgets what it kept.
+        if (!saved.showActivityPage) activityFeed.clearAll()
       },
       accountRegistry,
       accountSession,
@@ -638,6 +666,7 @@ app
         }
       },
       appStatus,
+      activity: activityFeed,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -677,6 +706,7 @@ app
         // Settle requests first: it cannot throw, and an alert failure must not skip it.
         inbox.settleRoster(platform, friends)
         friendAlerts.seedRoster(platform, friends)
+        activityFeed.seedRoster(platform, friends)
       },
       instance: {
         joinCoordinator,
@@ -703,6 +733,7 @@ app
       appStatus,
       locationAuthority,
       friendAlerts,
+      activityFeed,
       inbox,
       broadcast
     })

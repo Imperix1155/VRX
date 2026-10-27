@@ -20,6 +20,7 @@ interface AdapterWiringOptions {
   appStatus: ConnectionStatusConsumer
   locationAuthority: AdapterEventConsumer
   friendAlerts: AdapterEventConsumer
+  activityFeed: AdapterEventConsumer
   /** Sees every event: inbox changes, plus friend adds that settle a request. */
   inbox: AdapterEventConsumer
   broadcast: (event: BroadcastAdapterEvent) => void
@@ -62,6 +63,7 @@ export function wireAdapterEvents({
   appStatus,
   locationAuthority,
   friendAlerts,
+  activityFeed,
   inbox,
   broadcast
 }: AdapterWiringOptions): () => void {
@@ -83,6 +85,9 @@ export function wireAdapterEvents({
     })
     runConsumerSafely('friendAlerts', event.type, () => {
       friendAlerts.consume(event)
+    })
+    runConsumerSafely('activityFeed', event.type, () => {
+      activityFeed.consume(event)
     })
     runConsumerSafely('inbox', event.type, () => {
       inbox.consume(event)

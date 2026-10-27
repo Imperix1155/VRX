@@ -52,6 +52,24 @@ export function IconFriends(): React.JSX.Element {
   )
 }
 
+/** A pulse line: friends coming and going. */
+export function IconActivity(): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="w-[18px] h-[18px] flex-none"
+    >
+      <path d="M3 12h4l2.5-6 5 12 2.5-6h4" />
+    </svg>
+  )
+}
+
 export function IconInbox(): React.JSX.Element {
   return (
     <svg

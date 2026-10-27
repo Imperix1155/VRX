@@ -279,6 +279,18 @@ export default function Guide(): React.JSX.Element {
             height="tall"
           />
           <Scene
+            name="activity"
+            title="Activity page"
+            note="Interactive fixture. Friends coming online, joining worlds and going offline on both platforms, newest first, with one row layout and the platform named in words. Ask Me and Do Not Disturb rows never name a world. Try the Show filter, the platform filter, or open a friend."
+            source="ActivityView.tsx · activityFeed.ts"
+            height="tall"
+            variant="ready"
+            variants={[
+              { value: 'ready', label: 'With activity' },
+              { value: 'empty', label: 'Nothing yet' }
+            ]}
+          />
+          <Scene
             name="explore"
             title="Explore worlds and rooms"
             note="Interactive fixture. Both platforms use the same card. Open View rooms, change Worlds shown, and inspect shared initial loading and platform-specific failures."

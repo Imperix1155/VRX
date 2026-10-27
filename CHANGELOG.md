@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Activity page: friends coming online, joining a world, and going offline on
+  VRChat and ChilloutVR, newest first, in one list with each platform named.
+  Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
+  opens that friend on the Friends page. It is built from the live connection
+  VRX already has, so it makes no extra requests, and it stays in memory only
+  until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
+  never show a world or a move. Turn it off in Settings → Notifications →
+  Activity page or in the welcome setup; off also stops VRX keeping it.
 - Inbox page: invites, invite requests and friend requests from VRChat and
   ChilloutVR that arrive while VRX is open, in one list that follows the
   platform filter. It only shows them; answer in the game or on the
@@ -20,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Settings → Notifications and the welcome setup's alerts step show the four
+  friend alerts as rows in one card, so the new page and inbox switches fit
+  without scrolling.
 - Background picture explains pictures that cannot fill the window: too small
   (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
   long panorama) are refused with the reason. A usable picture that will be

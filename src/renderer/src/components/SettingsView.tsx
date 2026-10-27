@@ -557,6 +557,7 @@ export default function SettingsView(): React.JSX.Element {
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const notifyInvites = useSettingsStore((s) => s.settings.notifyInvites)
   const notifyFriendRequests = useSettingsStore((s) => s.settings.notifyFriendRequests)
@@ -875,69 +876,93 @@ export default function SettingsView(): React.JSX.Element {
               {t('settings.notifications.heading')}
             </h2>
 
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.online.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.online.description')}
-                </p>
+            {/* Friend and hot-instance alerts share one card, as in the welcome
+                setup, so the page switches and inbox alerts below still fit the
+                900x670 window. Each switch stays independent. */}
+            <div className="setting-card grid gap-[var(--space-2)]">
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.notifications.online.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.notifications.online.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={notifyFriendOnline}
+                  ariaLabel={t('settings.notifications.online.aria')}
+                  onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
+                />
               </div>
-              <Toggle
-                checked={notifyFriendOnline}
-                ariaLabel={t('settings.notifications.online.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOnline: checked })}
-              />
+
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.notifications.inGame.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.notifications.inGame.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={notifyFriendInGame}
+                  ariaLabel={t('settings.notifications.inGame.aria')}
+                  onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
+                />
+              </div>
+
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.notifications.offline.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.notifications.offline.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={notifyFriendOffline}
+                  ariaLabel={t('settings.notifications.offline.aria')}
+                  onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
+                />
+              </div>
+
+              {/* Hot instance alert — moved here from the Dashboard card (owner,
+                  2026-10-18); the Dashboard switch no longer gates it. */}
+              <div className="setting-row">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {t('settings.notifications.hotInstance.label')}
+                  </p>
+                  <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                    {t('settings.notifications.hotInstance.description')}
+                  </p>
+                </div>
+                <Toggle
+                  checked={notifyHotInstance}
+                  ariaLabel={t('settings.notifications.hotInstance.aria')}
+                  onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+                />
+              </div>
             </div>
 
+            {/* The Activity page lists the same friend changes inside VRX
+                (owner, 2026-10-27). It lives here rather than with the other
+                page switches so Behavior still fits the 900x670 window. */}
             <div className="setting-card setting-row">
               <div>
                 <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.inGame.label')}
+                  {t('settings.pages.activity.label')}
                 </p>
                 <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.inGame.description')}
+                  {t('settings.pages.activity.description')}
                 </p>
               </div>
               <Toggle
-                checked={notifyFriendInGame}
-                ariaLabel={t('settings.notifications.inGame.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendInGame: checked })}
-              />
-            </div>
-
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.offline.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.offline.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyFriendOffline}
-                ariaLabel={t('settings.notifications.offline.aria')}
-                onChange={(checked) => updateSettings({ notifyFriendOffline: checked })}
-              />
-            </div>
-
-            {/* Hot instance alert — moved here from the Dashboard card (owner,
-                2026-10-18); the Dashboard switch no longer gates it. */}
-            <div className="setting-card setting-row">
-              <div>
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {t('settings.notifications.hotInstance.label')}
-                </p>
-                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                  {t('settings.notifications.hotInstance.description')}
-                </p>
-              </div>
-              <Toggle
-                checked={notifyHotInstance}
-                ariaLabel={t('settings.notifications.hotInstance.aria')}
-                onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+                checked={showActivityPage}
+                ariaLabel={t('settings.pages.activity.label')}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
               />
             </div>
 

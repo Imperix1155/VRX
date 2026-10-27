@@ -9,6 +9,7 @@ import { useApplyTheme } from './hooks/useApplyTheme'
 import { useApplyGlow } from './hooks/useApplyGlow'
 import { useLiveFriendEvents } from './hooks/useLiveFriendEvents'
 import { useLinkedProfileEvents } from './queries/linkedProfiles'
+import { useActivityEvents } from './queries/activity'
 import { useInboxEvents } from './queries/inbox'
 import { useSettingsPersistence } from './hooks/useSettingsPersistence'
 import { usePlatformFilterSettings } from './hooks/usePlatformFilterSettings'
@@ -47,6 +48,7 @@ function App(): React.JSX.Element {
   // no-ops until a friends fetch has populated the cache.
   useLiveFriendEvents()
   useLinkedProfileEvents()
+  useActivityEvents()
   useInboxEvents()
   // Native hot-instance toast clicks focus the window in main, then push this
   // one-shot navigation request through the preload bridge (VRX-85). The

@@ -23,6 +23,8 @@ describe('settings schema', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       setupPending: false,
       theme: 'system',
@@ -283,6 +285,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -327,6 +331,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -372,6 +378,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -418,6 +426,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -463,6 +473,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -509,6 +521,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,
@@ -795,6 +809,37 @@ describe('shouldPersistSettings (rollback safety)', () => {
       backgroundPictureFade: 'high'
     })
   })
+
+  it('keeps the Activity page switch and its filters across a v16 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 17,
+      showActivityPage: false,
+      activityFilter: 'offline'
+    }
+    const oldNormalized = { ...disk, version: 16 }
+    Reflect.deleteProperty(oldNormalized, 'showActivityPage')
+    Reflect.deleteProperty(oldNormalized, 'activityFilter')
+
+    if (shouldPersistSettings(disk, 16)) disk = oldNormalized
+
+    expect(parseSettings(disk)).toMatchObject({
+      showActivityPage: false,
+      activityFilter: 'offline'
+    })
+  })
+
+  it('migrates a v16 file with the Activity page on and every kind shown', () => {
+    const migrated = parseSettings({ ...DEFAULT_SETTINGS, version: 16 })
+    expect(migrated).toMatchObject({
+      version: SETTINGS_VERSION,
+      showActivityPage: true,
+      activityFilter: 'all'
+    })
+    expect(
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+    ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
+  })
 })
 
 describe('Inbox settings', () => {
@@ -940,6 +985,8 @@ describe('Optional pages and first-run setup', () => {
       version: SETTINGS_VERSION,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       showInboxPage: true,
       notifyInvites: false,
       notifyFriendRequests: false,

@@ -36,6 +36,9 @@ async function exposedBridge(): Promise<{
   getSettings: () => Promise<unknown>
   onFriendEvent: (callback: (payload: FriendEvent) => void) => () => void
   onIdentityBoundary: (callback: (payload: { platform: 'vrchat' }) => void) => () => void
+  getActivity: () => Promise<unknown>
+  clearActivity: () => Promise<unknown>
+  onActivityChanged: (callback: () => void) => () => void
   onInboxChanged: (callback: () => void) => () => void
 }> {
   Object.defineProperty(process, 'contextIsolated', { configurable: true, value: true })
@@ -74,6 +77,32 @@ describe('preload identity-boundary bridge', () => {
 
     unsubscribe()
     expect(electron.removeListener).toHaveBeenCalledWith('identity-boundary', listener)
+  })
+})
+
+describe('preload activity bridge', () => {
+  it('reads and clears through the typed channels with no payload', async () => {
+    electron.invoke.mockResolvedValue([])
+    const bridge = await exposedBridge()
+    await bridge.getActivity()
+    await bridge.clearActivity()
+    expect(electron.invoke).toHaveBeenNthCalledWith(1, 'get-activity', undefined)
+    expect(electron.invoke).toHaveBeenNthCalledWith(2, 'clear-activity', undefined)
+  })
+
+  it('forwards change pushes without a payload and unsubscribes the same listener', async () => {
+    const bridge = await exposedBridge()
+    const callback = vi.fn()
+    const unsubscribe = bridge.onActivityChanged(callback)
+    const listener = electron.on.mock.calls.find(
+      ([channel]) => channel === 'activity-changed'
+    )?.[1] as (event: unknown, payload?: unknown) => void
+
+    listener({}, { injected: true })
+    expect(callback).toHaveBeenCalledWith()
+
+    unsubscribe()
+    expect(electron.removeListener).toHaveBeenCalledWith('activity-changed', listener)
   })
 })
 

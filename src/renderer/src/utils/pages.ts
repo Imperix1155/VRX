@@ -5,12 +5,13 @@ import type { ActiveTab } from '../stores/ui'
  *  Friends and Settings always show, so VRX can never hide its way out. */
 export type PageVisibility = Pick<
   Settings,
-  'showHotInstancesPage' | 'showExplorePage' | 'showInboxPage'
+  'showHotInstancesPage' | 'showExplorePage' | 'showActivityPage' | 'showInboxPage'
 >
 
 export function isPageShown(tab: ActiveTab, pages: PageVisibility): boolean {
   if (tab === 'hot') return pages.showHotInstancesPage
   if (tab === 'explore') return pages.showExplorePage
+  if (tab === 'activity') return pages.showActivityPage
   if (tab === 'inbox') return pages.showInboxPage
   return true
 }

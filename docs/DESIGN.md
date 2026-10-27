@@ -210,7 +210,7 @@ membership checks in [`hotInstanceKey.ts`](../src/shared/hotInstanceKey.ts).
 Never put a hidden identifier in gesture metadata.
 An invite is the one place a world name can appear for any sender: the sender
 chose to share it by inviting, so the Inbox shows the world the invite names,
-never a location read from presence (§9.5).
+never a location read from presence (§9.6).
 
 **Joining** is a separate decision, made by
 [`isFriendJoinable`](../src/shared/joinability.ts) and the existing Join
@@ -289,12 +289,13 @@ added around it); on a smaller screen the minimum shrinks so the app stays
 usable.
 Don't design a mobile layout from a narrow documentation viewport.
 
-**Navigation**, in order: Dashboard, Hot Instances, Friends, Inbox, Explore,
-Settings. Hot Instances and Explore can be hidden in Settings → Behavior, Inbox
-in Settings → Notifications, and all three in the welcome setup; a hidden page leaves the sidebar and its links, while its
+**Navigation**, in order: Dashboard, Hot Instances, Friends, Activity, Inbox,
+Explore, Settings. Hot Instances and Explore can be hidden in Settings →
+Behavior, Activity and Inbox in Settings → Notifications, and all four in the
+welcome setup; a hidden page leaves the sidebar and its links, while its
 Dashboard section and alerts keep their own switches. A hidden page that is
-open, or that a hot-instance alert asks for, falls back to the Dashboard. Activity and Groups are
-not planned pages and never appear as placeholders.
+open, or that a hot-instance alert asks for, falls back to the Dashboard.
+Groups is not a planned page and never appears as a placeholder.
 
 **Top bar.** It holds the page's single heading; panels below it, the
 Friends list included, keep their section headings for screen readers only.
@@ -337,10 +338,14 @@ Accounts, and About. Each setting sits on a compact neutral card.
   assistive technology, focus returns to the parent control when needed, and
   their saved choices survive.
 - Notifications: Friend comes online, Friend joins a world, Friend goes
-  offline, Hot instance, then one Inbox card: Inbox page (on by default),
-  Invite received (invites and invite requests), and Friend request received.
-  The Inbox card sits here so Behavior fits the window. Each switch is
-  independent; every alert is off by default.
+  offline, and Hot instance, as rows in one card (as in the welcome setup).
+  Each is independent and off by default. Below
+  them, Activity page (on by default) shows or hides the Activity page; it
+  sits here, not with the other page switches, so Behavior fits without
+  scrolling. Off also stops VRX keeping activity and forgets what it kept.
+  Then one Inbox card: Inbox page (on by default), Invite received (invites
+  and invite requests), and Friend request received, each independent; both
+  alerts are off by default.
 - Accounts: the VRChat and ChilloutVR account cards side by side, then the
   unofficial-app line.
 - About: the app's own upkeep. Automatic updates, with Stable, Beta, and Dev
@@ -491,7 +496,7 @@ side at equal height, and the line under its title doubles as the live sign-in
 status, so the step fits the default window without scrolling; one ready
 account is enough to continue. Every other step
 changes the real settings as the user picks and keeps the defaults (all alerts
-off, VRChat instance labels) until changed. Pages lists Hot Instances, Inbox
+off, VRChat instance labels) until changed. Pages lists Hot Instances, Activity, Inbox
 and Explore; Alerts lists the same six alerts as Settings → Notifications, friend alerts
 in one card and inbox alerts in another, so the step fits without scrolling. Look also asks for the instance
 label style. Skip setup is a visible button on every screen before the
@@ -514,7 +519,27 @@ The real credential and two-factor forms are used in examples; a secure
 storage failure keeps its dedicated message. Guide fixtures accept only
 made-up input and never sign in or save it.
 
-### §9.5 Inbox
+### §9.5 Activity
+
+The Activity page lists friends coming online, joining a world, and going
+offline, newest first. Main records it from the live sockets with the same
+transition rules as the alerts but without the toast rate limit, keeps it in
+memory only (up to 300 entries per platform, so one platform never pushes the
+other out), and forgets a platform's entries at an account change or sign-out.
+Reading it makes no platform request.
+
+Both platforms share one row: a small avatar, the name, what happened in
+words, the platform pill in a fixed-width column, and the time (with the date
+once it is not today). Coming online straight into a world is one entry that
+names the world; a ChilloutVR world name that resolves a moment later fills
+in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
+never show a world, and their moves are not recorded. The top-bar filter
+scopes the list; the page's Show control (All, Online, Worlds, Offline) is a
+saved setting. Clear empties the list. A row opens that friend's details on
+the Friends page, as a linked person under All; a friend no longer on the
+list is plain text.
+
+### §9.6 Inbox
 
 The Inbox page lists invites, invite requests and friend requests that the two
 platform sockets deliver while VRX is open. It is view-only: VRX never

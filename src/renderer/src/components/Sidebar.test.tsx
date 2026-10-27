@@ -58,7 +58,15 @@ describe('Sidebar destinations (VRX-281)', () => {
     render(<Sidebar />)
     expect(screen.getByRole('img', { name: 'VRX' })).toBeTruthy()
     const nav = screen.getByRole('navigation', { name: i18n.t('shell.nav.aria') })
-    const tabs = ['dashboard', 'hot', 'friends', 'inbox', 'explore', 'settings'] as const
+    const tabs = [
+      'dashboard',
+      'hot',
+      'friends',
+      'activity',
+      'inbox',
+      'explore',
+      'settings'
+    ] as const
     const buttons = within(nav).getAllByRole('button')
     expect(buttons.map((button) => button.textContent)).toEqual(
       tabs.map((tab) => i18n.t(`shell.nav.${tab}`))
@@ -79,6 +87,7 @@ describe('Sidebar optional pages (owner, 2026-10-20)', () => {
         ...DEFAULT_SETTINGS,
         showHotInstancesPage: false,
         showExplorePage: false,
+        showActivityPage: false,
         showInboxPage: false
       }
     })

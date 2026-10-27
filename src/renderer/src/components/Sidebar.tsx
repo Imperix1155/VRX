@@ -8,6 +8,7 @@ import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 import { useInbox } from '../queries/inbox'
 import { countNewInboxItems, scopeInboxItems } from '../utils/inbox'
 import {
+  IconActivity,
   IconDashboard,
   IconExplore,
   IconFriends,
@@ -127,6 +128,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
+  { id: 'activity', icon: IconActivity },
   { id: 'inbox', icon: IconInbox },
   { id: 'explore', icon: IconExplore },
   { id: 'settings', icon: IconSettings }
@@ -139,9 +141,10 @@ export default function Sidebar(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const showInboxPage = useSettingsStore((s) => s.settings.showInboxPage)
   const navItems = NAV_ITEMS.filter(({ id }) =>
-    isPageShown(id, { showHotInstancesPage, showExplorePage, showInboxPage })
+    isPageShown(id, { showHotInstancesPage, showExplorePage, showActivityPage, showInboxPage })
   )
   // While the Inbox is open its rows are on screen, so nothing there is new.
   const newInboxCount = useNewInboxCount()
