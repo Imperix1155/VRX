@@ -81,6 +81,12 @@ vi.mock('./instance', () => ({
 vi.mock('./app-status', () => ({
   registerAppStatusHandlers: () => electron.ipcMain.handle('get-app-status', () => ({ ok: true }))
 }))
+vi.mock('./activity', () => ({
+  registerActivityHandlers: () => {
+    electron.ipcMain.handle('get-activity', () => [])
+    electron.ipcMain.handle('clear-activity', () => undefined)
+  }
+}))
 vi.mock('./launch', () => ({
   registerLaunchHandlers: () => {
     electron.ipcMain.handle('open-url', () => undefined)
@@ -185,7 +191,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(32)
+    expect(electron.invokeHandlers.size).toBe(34)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -211,6 +217,8 @@ describe('registerIpcHandlers rate limiting', () => {
         'choose-app-background',
         'clear-app-background',
         'get-app-status',
+        'get-activity',
+        'clear-activity',
         'get-auth-status',
         'get-avatar',
         'get-friend-note',

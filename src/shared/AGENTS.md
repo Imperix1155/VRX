@@ -20,6 +20,8 @@ through `@shared`.
   `exploreRanking.ts`: pure per-platform ranking and balanced cross-platform
   selection.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
+- `activity.ts`: Activity entry values and the page's Show filter. Entries
+  carry no location, only a world name that is null for hidden worlds.
 - `joinability.ts` and `hotInstanceKey.ts`: the shared privacy, joinability,
   hot-membership, and hot-grouping predicates.
 - `backgroundPicture.ts`: which background pictures main refuses and which
@@ -49,7 +51,8 @@ through `@shared`.
   keeps that choice across a downgrade. `confirmJoin` and `joinMode` keep their values while `allowJoinInstances` is
   off. The Dashboard section switches hide sections only and change no other
   preference. The page switches (`showHotInstancesPage`, `showExplorePage`)
-  hide sidebar pages only. Missing or invalid `setupPending` is `false`, so
+  hide sidebar pages only; `showActivityPage` also stops main keeping
+  activity. Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass

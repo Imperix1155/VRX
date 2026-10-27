@@ -159,6 +159,11 @@ describe('SetupWizard', () => {
     const explore = screen.getByRole('radiogroup', { name: msg('setup.pages.exploreAria') })
     fireEvent.click(within(explore).getByRole('radio', { name: msg('settings.boolean.off') }))
     expect(settings().showExplorePage).toBe(false)
+    const activity = screen.getByRole('radiogroup', { name: msg('setup.pages.activityAria') })
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(settings().showActivityPage).toBe(false)
+    fireEvent.click(within(activity).getByRole('radio', { name: msg('settings.boolean.on') }))
+    expect(settings().showActivityPage).toBe(true)
 
     fireEvent.click(button('setup.continue'))
     expect(
@@ -213,6 +218,7 @@ describe('SetupWizard', () => {
           msg('shell.nav.dashboard'),
           msg('shell.nav.hot'),
           msg('shell.nav.friends'),
+          msg('shell.nav.activity'),
           msg('shell.nav.settings')
         ].join(', ')
       )

@@ -19,6 +19,7 @@ interface AdapterWiringOptions {
   appStatus: ConnectionStatusConsumer
   locationAuthority: AdapterEventConsumer
   friendAlerts: AdapterEventConsumer
+  activityFeed: AdapterEventConsumer
   broadcast: (event: AdapterEvent) => void
 }
 
@@ -59,6 +60,7 @@ export function wireAdapterEvents({
   appStatus,
   locationAuthority,
   friendAlerts,
+  activityFeed,
   broadcast
 }: AdapterWiringOptions): () => void {
   const handleAdapterEvent = (event: AdapterEvent): void => {
@@ -72,6 +74,9 @@ export function wireAdapterEvents({
     })
     runConsumerSafely('friendAlerts', event.type, () => {
       friendAlerts.consume(event)
+    })
+    runConsumerSafely('activityFeed', event.type, () => {
+      activityFeed.consume(event)
     })
     runConsumerSafely('broadcast', event.type, () => {
       broadcast(event)
