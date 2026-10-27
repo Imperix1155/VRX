@@ -114,6 +114,7 @@
       "dashboard": "Dashboard",
       "hot": "Hot Instances",
       "friends": "Friends",
+      "activity": "Activity",
       "explore": "Explore",
       "settings": "Settings"
     },
@@ -377,6 +378,10 @@
       "explore": {
         "label": "Explore page",
         "description": "Show it in the sidebar. Popular now on the Dashboard stays."
+      },
+      "activity": {
+        "label": "Activity page",
+        "description": "Lists these changes while VRX is open. Off hides it and keeps nothing."
       }
     },
     "setup": {
@@ -464,6 +469,34 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR"
+    }
+  },
+  "activity": {
+    "filterAria": "Show",
+    "kinds": {
+      "all": "All",
+      "online": "Online",
+      "world": "Worlds",
+      "offline": "Offline"
+    },
+    "online": "Came online",
+    "onlineIn": "Came online in {{world}}",
+    "joined": "Joined {{world}}",
+    "joinedUnknown": "Joined a world",
+    "offline": "Went offline",
+    "openFriend": "Open {{name}} in Friends",
+    "clear": "Clear",
+    "clearAria": "Clear all activity",
+    "emptyHeading": "No activity yet",
+    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
+    "filteredEmpty": "Nothing to show with these filters.",
+    "loading": "Loading activity…",
+    "error": "Couldn’t load activity.",
+    "retry": "Retry",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your friends’ activity here",
+      "chilloutvr": "Connect ChilloutVR to see your friends’ activity here",
+      "openAccounts": "Go to Accounts"
     }
   },
   "drawer": {
@@ -740,8 +773,10 @@
       "title": "Pick your pages",
       "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
       "hot": "Every instance where several friends are together.",
+      "activity": "Friends coming online, changing worlds and going offline.",
       "explore": "Worlds that are popular right now on both platforms.",
       "hotAria": "Show the Hot Instances page",
+      "activityAria": "Show the Activity page",
       "exploreAria": "Show the Explore page"
     },
     "dashboard": {

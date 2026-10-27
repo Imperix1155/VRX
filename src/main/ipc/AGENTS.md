@@ -46,6 +46,8 @@ Persistence, network, cache, and account-transition policy stay in services.
   `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown.
 - `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
   only from main-built join paths. `open-logs-folder` takes no input.
+- `get-activity` and `clear-activity` take no input and only read or clear
+  `ActivityFeed`; neither makes a platform request.
 - `get-avatar` accepts a length-capped URL string, delegates to `AvatarCache`,
   and returns a `data:` result or `null`. It never exposes fetch, cookies, or
   redirects.

@@ -63,6 +63,11 @@ describe('wireAdapterEvents', () => {
           calls.push(`alerts:${received.type}`)
         }
       },
+      activityFeed: {
+        consume: (received): void => {
+          calls.push(`activity:${received.type}`)
+        }
+      },
       broadcast: (received): void => {
         calls.push(`broadcast:${received.type}`)
       }
@@ -74,6 +79,7 @@ describe('wireAdapterEvents', () => {
       'status:vrchat:live',
       'location:connection',
       'alerts:connection',
+      'activity:connection',
       'broadcast:connection'
     ])
   })
@@ -92,6 +98,7 @@ describe('wireAdapterEvents', () => {
       appStatus: { recordConnection },
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast: vi.fn()
     })
 
@@ -109,6 +116,7 @@ describe('wireAdapterEvents', () => {
       appStatus: { recordConnection: vi.fn() },
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
     const event: AdapterEvent = { type: 'roster-changed', platform: 'chilloutvr' }
@@ -158,6 +166,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       friendAlerts: { consume: friendAlertsConsume },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -191,6 +200,7 @@ describe('wireAdapterEvents', () => {
           throw new Error('friend alerts boom')
         }
       },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -227,6 +237,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -260,6 +271,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -289,6 +301,7 @@ describe('wireAdapterEvents', () => {
           throw new Error('alerts boom')
         }
       },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -312,6 +325,7 @@ describe('wireAdapterEvents', () => {
       },
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast
     })
 
@@ -339,6 +353,7 @@ describe('wireAdapterEvents', () => {
       appStatus: { recordConnection: vi.fn() },
       locationAuthority: { consume: locationAuthorityConsume },
       friendAlerts: { consume: friendAlertsConsume },
+      activityFeed: { consume: vi.fn() },
       broadcast: (): void => {
         throw new Error('broadcast boom')
       }
@@ -372,6 +387,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
       broadcast: vi.fn()
     })
 

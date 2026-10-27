@@ -22,6 +22,7 @@ import type {
 import type { Settings } from '@shared/settings'
 import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
+import type { ActivityEntry } from './activity'
 import type {
   ExplorePlatformSnapshot,
   ExploreImageResult,
@@ -156,6 +157,11 @@ export interface IpcInvoke {
     res: InstanceActionResult
   }
   'get-app-status': { req: void; res: AppStatus }
+  /** The in-memory activity list, newest first. Main records it from the live
+   *  sockets; reading it makes no platform request. */
+  'get-activity': { req: void; res: ActivityEntry[] }
+  /** Forget every activity entry. */
+  'clear-activity': { req: void; res: void }
   'open-url': { req: { url: string }; res: void }
   /** Reveal VRX's log directory in the OS file manager. Main owns the path. */
   'open-logs-folder': { req: void; res: void }
@@ -196,6 +202,8 @@ export interface IpcInvoke {
 export interface IpcEvents {
   'explore-changed': { platform: Platform }
   'linked-profiles-changed': void
+  /** The activity list changed; coalesced, carries nothing. */
+  'activity-changed': void
   'friend-event': FriendEvent
   'identity-boundary': { platform: Platform }
   /** A hot-instance alert click: open Hot Instances with this platform in view. */
