@@ -58,6 +58,14 @@ export type AvatarLibraryResult =
     }
   | { ok: false; reason: AvatarLibraryFailure }
 
+/**
+ * Only the worn avatar, for the Dashboard: one platform request instead of
+ * the whole uploads list. It never makes the avatar a switch target.
+ */
+export type CurrentAvatarResult =
+  | { ok: true; platform: Platform; current: AvatarItem | null }
+  | { ok: false; reason: AvatarLibraryFailure }
+
 export type AvatarDetailsResult =
   { ok: true; avatar: AvatarItem } | { ok: false; reason: AvatarLibraryFailure | 'unknown-avatar' }
 

@@ -160,6 +160,7 @@ function options(): IpcHandlerOptions {
       getDetails: vi.fn(),
       switchAvatar: vi.fn()
     },
+    currentAvatar: { getCurrent: vi.fn() },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -206,7 +207,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(43)
+    expect(electron.invokeHandlers.size).toBe(44)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -241,6 +242,7 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-auth-status',
         'get-avatar',
         'get-avatar-library',
+        'get-current-avatar',
         'get-avatar-details',
         'switch-avatar',
         'get-friend-note',

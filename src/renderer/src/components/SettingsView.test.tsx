@@ -711,18 +711,50 @@ describe('Settings dependency cards', () => {
       dashboardPopularNow: true
     })
   })
-  it('switches the Dashboard section order', () => {
+  it('moves Dashboard sections and keeps the older order field in step', () => {
     useUiStore.setState({ settingsCategory: 'dashboard' })
     renderSettings()
-    const order = screen.getByRole('radiogroup', { name: msg('settings.dashboard.order.aria') })
-    const popularFirst = within(order).getByRole('radio', {
-      name: msg('settings.dashboard.order.popularFirst')
+    const list = screen.getByRole('list', { name: msg('settings.dashboard.sections.label') })
+    const names = (): string[] =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((row) => row.querySelector('p')?.textContent ?? '')
+    expect(names()).toEqual([
+      msg('settings.dashboard.wearingNow.label'),
+      msg('settings.dashboard.invites.label'),
+      msg('settings.dashboard.popular.label'),
+      msg('settings.dashboard.hot.label')
+    ])
+    const hot = msg('settings.dashboard.hot.label')
+    const up = screen.getByRole('button', {
+      name: i18n.t('settings.dashboard.sections.moveUp', { name: hot })
     })
-    expect(popularFirst.getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(
-      within(order).getByRole('radio', { name: msg('settings.dashboard.order.hotFirst') })
-    )
-    expect(useSettingsStore.getState().settings.dashboardSectionOrder).toBe('hot-first')
+    fireEvent.click(up)
+    expect(useSettingsStore.getState().settings).toMatchObject({
+      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSectionOrder: 'hot-first'
+    })
+    expect(
+      screen.getByText(
+        i18n.t('settings.dashboard.sections.moved', { name: hot, position: 3, count: 4 })
+      )
+    ).toBeTruthy()
+    fireEvent.click(up)
+    fireEvent.click(up)
+    expect(names()[0]).toBe(hot)
+    // At the top the button stays focusable but does nothing.
+    expect(up.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(up)
+    expect(useSettingsStore.getState().settings.dashboardSections).toEqual([
+      'hot',
+      'wearing-now',
+      'invites',
+      'popular'
+    ])
+    const wearing = msg('settings.dashboard.wearingNow.label')
+    const toggle = screen.getByRole('radiogroup', { name: wearing })
+    fireEvent.click(within(toggle).getByRole('radio', { name: msg('settings.boolean.off') }))
+    expect(useSettingsStore.getState().settings.dashboardWearingNow).toBe(false)
   })
   it('retains joining choices and returns child focus to the disabled parent', () => {
     useUiStore.setState({ settingsCategory: 'behavior' })

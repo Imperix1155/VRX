@@ -33,6 +33,8 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-avatar': { max: 600, windowMs: 10_000 },
   // The Avatars page reads on open and on Refresh; main coalesces repeats.
   'get-avatar-library': { max: 30, windowMs: 60_000 },
+  // The Dashboard reads the worn avatar when it opens with stale data.
+  'get-current-avatar': { max: 30, windowMs: 60_000 },
   // One read per details panel opened.
   'get-avatar-details': { max: 60, windowMs: 60_000 },
   // The 5 s per-platform switch cooldown allows at most 24 switches/minute.

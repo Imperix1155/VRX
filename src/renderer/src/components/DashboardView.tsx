@@ -3,9 +3,11 @@
  *
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
- *  - Popular now and Hot Instances, in the order the user picked (owner,
- *    2026-10-18). The FIRST section shows picture cards; the SECOND shows
- *    compact bars with the world picture behind them. Each section shows two
+ *  - Every section below in the order the user picked in Settings → Dashboard
+ *    (owner, 2026-10-18 and 2026-10-27): the glance sections (the avatar worn
+ *    and the latest invite per platform, `DashboardGlance`; neighbours share a
+ *    row), Popular now and Hot Instances. Of those two, the FIRST shows picture
+ *    cards; the SECOND shows compact bars with the world picture behind them. Each section shows two
  *    cards, one per platform when both have one (`pickOnePerPlatform`).
  *  - Hot Instances are EXACT instances by friend count (VRX-237 — same
  *    instanceId, never same-world). The hero pill doubles as the Join
@@ -13,13 +15,15 @@
  *    Instances page, which shows every one.
  *  - Empty state when nothing is hot.
  */
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useFriendsStore } from '../stores/friends'
+import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
+  dashboardBlocks,
   getDashboardStats,
   getHotInstances,
   pickOnePerPlatform
@@ -31,6 +35,7 @@ import HotInstanceSheet from './HotInstanceSheet'
 import HotInstanceCard from './HotInstanceCard'
 import HotInstancesHeader, { HotInstancesEmpty } from './HotInstancesHeader'
 import { ExploreDashboardPreviewRoute } from './ExploreRoute'
+import DashboardGlance from './DashboardGlance'
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -113,20 +118,24 @@ function DashboardContent(): React.JSX.Element {
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
-  const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   // "See all" leads to the Hot Instances page, so it goes when that page is off.
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
+  const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const [exploreDismissSignal, setExploreDismissSignal] = useState(0)
-  // The card form follows the ORDER setting, not visibility: hiding the first
-  // section never restyles the other one.
-  const hotFirst = sectionOrder === 'hot-first'
-  const popularLayout = hotFirst ? 'bar' : 'card'
+  // Popular now hides itself when it has nothing; it reports that here.
+  const [popularHasContent, setPopularHasContent] = useState(true)
+  const hotFirst = dashboardSectionOrderOf(sections) === 'hot-first'
 
   // The Dashboard is a social surface, so it honors the global platform filter
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const scoped = scopeByPlatformFilter(platformFilter, vrcQuery, cvrQuery)
+  const scopedPlatforms = useMemo(
+    (): Platform[] => (platformFilter === 'all' ? ['vrchat', 'chilloutvr'] : [platformFilter]),
+    [platformFilter]
+  )
   // A signed-out platform's disabled query stays pending forever and refetch
   // bypasses its gate, so only enabled queries drive loading and Retry.
   const enabled = scoped.filter((q) => q.isEnabled !== false)
@@ -146,6 +155,14 @@ function DashboardContent(): React.JSX.Element {
   const allHotCount = hotInstances.length
   const shownHot = pickOnePerPlatform(hotInstances)
   const stats = getDashboardStats(friends, allHotCount)
+  // "Hide empty sections" (owner, 2026-10-27): a Hot Instances section with
+  // nothing hot steps aside, and the first section actually shown takes the
+  // picture cards. With it off the card form follows the order setting only,
+  // so hiding the first section never restyles the other one.
+  const hotShown = hotEnabled && !(hideEmpty && allHotCount === 0)
+  const popularShown = popularNow && popularHasContent
+  const hotPictures = hideEmpty ? hotShown && (hotFirst || !popularShown) : hotFirst
+  const popularLayout = (hideEmpty ? hotFirst && hotShown : hotFirst) ? 'bar' : 'card'
 
   // The Dashboard has two contained, non-modal sheets. Opening one always
   // clears the other selection so keyboard activation cannot stack panels.
@@ -181,6 +198,7 @@ function DashboardContent(): React.JSX.Element {
       onSheetOpen={clearSelection}
       dismissSignal={exploreDismissSignal}
       cardLayout={popularLayout}
+      onShownChange={setPopularHasContent}
     />
   ) : null
 
@@ -218,7 +236,7 @@ function DashboardContent(): React.JSX.Element {
   }
 
   // Hot instances section — a labelled landmark (audit W5).
-  const hotSection = hotEnabled ? (
+  const hotSection = hotShown ? (
     <section key="hot" aria-labelledby="dashboard-hot-heading">
       {/* Header row: heading + "See all" + the quick-access threshold stepper
           (VRX-78) + help. The stepper is the sheet's focus fallback. */}
@@ -228,7 +246,7 @@ function DashboardContent(): React.JSX.Element {
           <SectionHeading
             labelKey="dashboard.sectionHotInstances"
             id="dashboard-hot-heading"
-            first={hotFirst}
+            first={hotPictures}
           />
         }
         extra={
@@ -257,12 +275,12 @@ function DashboardContent(): React.JSX.Element {
         // that fill the row → 1 column on a narrow pane, a lone card full-width.
         // Rules live in main.css (inline styles can't do @container/:only-child). (VRX-199)
         <div className="hotwrap">
-          <div className={hotFirst ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
+          <div className={hotPictures ? 'hot-grid hot-grid--picture' : 'hot-grid'}>
             {shownHot.map((inst) => (
               <HotInstanceCard
                 key={inst.groupKey}
                 instance={inst}
-                layout={hotFirst ? 'picture' : 'bar'}
+                layout={hotPictures ? 'picture' : 'bar'}
                 onOpen={openSheet}
               />
             ))}
@@ -290,7 +308,21 @@ function DashboardContent(): React.JSX.Element {
         )}
       </div>
 
-      {hotFirst ? [hotSection, popularSection] : [popularSection, hotSection]}
+      {/* Every section joins one keyed array in the user's order, so Popular
+          now keeps its slot. Neighbouring glance sections share one row. */}
+      {dashboardBlocks(sections).map((block) =>
+        block === 'popular' ? (
+          popularSection
+        ) : block === 'hot' ? (
+          hotSection
+        ) : (
+          <DashboardGlance
+            key={`glance-${block[0]}`}
+            platforms={scopedPlatforms}
+            sections={block}
+          />
+        )
+      )}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
     </div>

@@ -114,6 +114,14 @@ export function createFixtureBridge(variant: string): FixtureBridge {
           avatarLibraries[platform].find((avatar) => avatar.avatarId === worn[platform]) ?? null
         )
       }),
+    getCurrentAvatar: ({ platform }) =>
+      Promise.resolve({
+        ok: true,
+        platform,
+        current: structuredClone(
+          avatarLibraries[platform].find((avatar) => avatar.avatarId === worn[platform]) ?? null
+        )
+      }),
     getAvatarDetails: ({ platform, avatarId }) => {
       const avatar = findAvatar(platform, avatarId)
       return Promise.resolve(

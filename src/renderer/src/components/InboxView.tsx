@@ -18,7 +18,7 @@ import { useAvatar } from '../hooks/useAvatar'
 import { useFriendsStore } from '../stores/friends'
 import { useUiStore } from '../stores/ui'
 import { NOT_CONNECTED_KEY } from '../utils/notConnectedKeys'
-import { relativeInboxTime, scopeInboxItems } from '../utils/inbox'
+import { inboxActionText, relativeInboxTime, scopeInboxItems } from '../utils/inbox'
 import PlatformPill from './PlatformPill'
 
 /** Ages refresh once a minute while the page is open; no data is read. */
@@ -38,8 +38,9 @@ const HIDE_ARIA_KEYS: Record<InboxKind, string> = {
 }
 
 /** A friend's own picture when the sender is one, else their initial. No
- *  presence ring: the inbox is about the message, not where they are. */
-function InboxAvatar({
+ *  presence ring: the inbox is about the message, not where they are. The
+ *  Dashboard's latest-invite rows use it too. */
+export function InboxAvatar({
   name,
   friend
 }: {
@@ -65,22 +66,6 @@ function InboxAvatar({
       )}
     </span>
   )
-}
-
-function actionText(
-  item: InboxItem,
-  t: (key: string, vars?: Record<string, unknown>) => string
-): string {
-  switch (item.kind) {
-    case 'invite':
-      return item.worldName === null
-        ? t('inbox.inviteNoWorld')
-        : t('inbox.invite', { world: item.worldName })
-    case 'invite-request':
-      return t('inbox.inviteRequest')
-    case 'friend-request':
-      return t('inbox.friendRequest')
-  }
 }
 
 const QUIET_BUTTON = [
@@ -241,7 +226,7 @@ export default function InboxView(): React.JSX.Element {
                     <PlatformPill platform={item.platform} className="shrink-0" />
                   </div>
                   <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
-                    <span className="break-words">{actionText(item, t)}</span>
+                    <span className="break-words">{inboxActionText(item, t)}</span>
                     <span aria-hidden="true"> · </span>
                     <time dateTime={new Date(item.receivedAt).toISOString()}>{age}</time>
                   </p>

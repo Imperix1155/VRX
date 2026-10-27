@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
-import type { Friend, VrcFriend } from '@shared/types'
+import { dashboardSectionsFromOrder, type Friend, type VrcFriend } from '@shared/types'
 import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -32,6 +32,21 @@ vi.mock('../queries/friends', async (importOriginal) => ({
   useFriends: useFriendsMock
 }))
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
+// The glance row has its own tests (DashboardGlance.test.tsx); here it is a
+// marker that shows where it mounts, which platforms and which sections it gets.
+vi.mock('./DashboardGlance', () => ({
+  default: ({
+    platforms,
+    sections
+  }: {
+    platforms: readonly string[]
+    sections: readonly string[]
+  }) => (
+    <div data-testid="dashboard-glance" data-sections={sections.join(',')}>
+      {platforms.join(',')}
+    </div>
+  )
+}))
 vi.mock('../queries/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../queries/auth')>()),
   useAuthStatus: (platform: 'vrchat' | 'chilloutvr') => ({
@@ -268,6 +283,8 @@ describe('DashboardView states (W5)', () => {
 
   it('labels the hot-instances section with its heading (landmark, W5)', () => {
     stubQueries({ data: [makeFriend()], isPending: false }, { data: [], isPending: false })
+    // Nothing is hot here, so the section shows only while empty sections show.
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
     render(<DashboardView />)
     const heading = screen.getByRole('heading', { name: msg('dashboard.sectionHotInstances') })
     expect(heading.id).toBe('dashboard-hot-heading')
@@ -407,6 +424,7 @@ describe('DashboardView states (W5)', () => {
     stubQueries({ data: [solo], isPending: false }, { data: [], isPending: false })
 
     try {
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false } })
       // Default threshold (2): a single friend in a world is NOT hot → empty state.
       render(<DashboardView />)
       expect(screen.getByText(msg('dashboard.emptyHeading'))).toBeTruthy()
@@ -415,7 +433,7 @@ describe('DashboardView states (W5)', () => {
       // (no unmount/remount; this is the "immediate, no restart" AC itself).
       act(() =>
         useSettingsStore.setState({
-          settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 }
+          settings: { ...DEFAULT_SETTINGS, dashboardHideEmpty: false, hotInstanceThreshold: 1 }
         })
       )
       expect(screen.getByText('Quiet World')).toBeTruthy()
@@ -1394,6 +1412,125 @@ describe('Dashboard feature visibility', () => {
   })
 })
 
+describe('Dashboard hide empty sections', () => {
+  const solo = (): Friend =>
+    makeFriend({
+      platformUserId: 'usr_solo',
+      instance: {
+        worldId: 'wrld_quiet',
+        instanceId: 'wrld_quiet:1~public',
+        worldName: 'Quiet World',
+        thumbnailUrl: null,
+        type: 'public',
+        openness: 'public',
+        isGroup: false,
+        groupName: null,
+        groupId: null,
+        groupImageUrl: null,
+        region: 'us',
+        userCount: 1
+      }
+    })
+
+  it('drops an empty Hot Instances section but keeps its statistic, and brings it back live', () => {
+    stubQueries({ data: [solo()], isPending: false }, { data: [], isPending: false })
+    render(<DashboardView />)
+    expect(screen.queryByRole('region', { name: msg('dashboard.sectionHotInstances') })).toBeNull()
+    expect(screen.queryByText(msg('dashboard.emptyHeading'))).toBeNull()
+    expect(screen.getByText(msg('dashboard.statHotLabel'))).toBeTruthy()
+
+    act(() =>
+      useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, hotInstanceThreshold: 1 } })
+    )
+    expect(screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })).toBeTruthy()
+    expect(screen.getByText('Quiet World')).toBeTruthy()
+  })
+
+  it('gives the picture cards to Hot Instances when Popular now is not shown', () => {
+    stubQueries(
+      { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false } })
+    const { container, unmount } = render(<DashboardView />)
+    expect(container.querySelector('.hot-grid--picture')).not.toBeNull()
+    unmount()
+
+    // With empty sections shown, the order setting alone decides, as before.
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, dashboardPopularNow: false, dashboardHideEmpty: false }
+    })
+    const again = render(<DashboardView />)
+    expect(again.container.querySelector('.hot-grid')).not.toBeNull()
+    expect(again.container.querySelector('.hot-grid--picture')).toBeNull()
+  })
+})
+
+describe('Dashboard glance row', () => {
+  it('sits under the numbers, before both ordered sections, with the filtered platforms', () => {
+    stubQueries(
+      { data: [publicWorld('a', 'A'), publicWorld('b', 'B')], isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS } })
+    useFriendsStore.setState({ platformFilter: 'vrchat' })
+    render(<DashboardView />)
+    const glance = screen.getByTestId('dashboard-glance')
+    expect(glance.textContent).toBe('vrchat')
+    expect(glance.dataset.sections).toBe('wearing-now,invites')
+    const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    expect(glance.compareDocumentPosition(hot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const stat = screen.getByText(msg('dashboard.statOnlineLabel'))
+    expect(stat.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    useFriendsStore.setState({ platformFilter: 'all' })
+  })
+})
+
+describe('Dashboard section positions (owner, 2026-10-27)', () => {
+  it('follows the saved list and splits glance sections that are not neighbours', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSections: ['popular', 'wearing-now', 'hot', 'invites'],
+        dashboardSectionOrder: 'popular-first'
+      }
+    })
+    seedExplorePreview()
+    const { container } = render(<DashboardView />)
+    const glances = screen.getAllByTestId('dashboard-glance')
+    expect(glances.map((glance) => glance.dataset.sections)).toEqual(['wearing-now', 'invites'])
+    const popular = screen.getByRole('heading', { level: 2, name: msg('explore.popularNow') })
+    const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    const [worn, invites] = glances as [HTMLElement, HTMLElement]
+    const order = [popular, worn, hot, invites]
+    order.slice(1).forEach((block, i) => {
+      expect(
+        order[i]!.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+    // Popular now comes first of the two big sections, so Hot Instances uses bars.
+    expect(container.querySelector('[data-hot-card-layout="bar"]')).not.toBeNull()
+  })
+
+  it('groups glance sections that sit next to each other at the bottom', () => {
+    stubQueries({ data: [], isPending: false }, { data: [], isPending: false })
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSections: ['hot', 'popular', 'invites', 'wearing-now'],
+        dashboardSectionOrder: 'hot-first'
+      }
+    })
+    render(<DashboardView />)
+    const glances = screen.getAllByTestId('dashboard-glance')
+    expect(glances.map((glance) => glance.dataset.sections)).toEqual(['invites,wearing-now'])
+  })
+})
+
 describe('Dashboard secondary controls (VRX-285)', () => {
   it.each(['ready', 'loading', 'error', 'features-off'] as const)(
     'keeps Settings below the content and opens its Dashboard category in %s state',
@@ -1550,7 +1687,13 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
       { data: crowd('vrchat', 'Lake', 2), isPending: false },
       { data: [], isPending: false }
     )
-    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardSectionOrder: order } })
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSectionOrder: order,
+        dashboardSections: dashboardSectionsFromOrder(order)
+      }
+    })
     seedExplorePreview()
     render(<DashboardView />)
     const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })

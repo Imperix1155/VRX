@@ -1,7 +1,12 @@
 import { forwardRef, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AuthState, BackgroundGlow, LabelScheme, Platform, Theme } from '@shared/types'
-import { BACKGROUND_GLOWS, DASHBOARD_SECTION_ORDERS, LABEL_SCHEMES } from '@shared/types'
+import {
+  BACKGROUND_GLOWS,
+  DASHBOARD_SECTION_ORDERS,
+  LABEL_SCHEMES,
+  withDashboardSectionOrder
+} from '@shared/types'
 import type { Settings } from '@shared/settings'
 import { useSettingsStore } from '../../stores/settings'
 import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
@@ -287,6 +292,7 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
   const popular = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hot = useSettingsStore((s) => s.settings.hotInstancesEnabled)
   const order = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -321,7 +327,13 @@ export const DashboardStep = forwardRef<HTMLHeadingElement>(function DashboardSt
               active={order}
               labelKeys={ORDER_LABEL_KEYS}
               ariaLabel={t('settings.dashboard.order.aria')}
-              onChange={(value) => update({ dashboardSectionOrder: value })}
+              // The full section list owns the order; swap the two in it too.
+              onChange={(value) =>
+                update({
+                  dashboardSectionOrder: value,
+                  dashboardSections: withDashboardSectionOrder(sections, value)
+                })
+              }
             />
           </Row>
         )}
