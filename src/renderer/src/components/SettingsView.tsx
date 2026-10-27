@@ -192,6 +192,7 @@ function FriendAlertScopeCard(): React.JSX.Element {
           <button
             type="button"
             onClick={() => setShowList(true)}
+            aria-label={t('settings.notifications.picked.showAria')}
             className={[
               'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
               'border border-[var(--border)]',

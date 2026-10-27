@@ -21,12 +21,15 @@ function alertPicksQueryKey(
   return ['alert-picks', platform, accountId ?? ''] as const
 }
 
-async function fetchAlertPicks(platform: Platform): Promise<AlertPicks> {
+async function fetchAlertPicks(platform: Platform, accountId: string): Promise<AlertPicks> {
   if (typeof window === 'undefined' || typeof window.vrx?.getAlertPicks !== 'function') {
     return NO_PICKS
   }
   const result = await window.vrx.getAlertPicks({ platform })
   if (!result || !Array.isArray(result.friendIds)) return NO_PICKS
+  // An account swap can land between the key and the reply. Never keep
+  // another account's picks or revision under this account's key.
+  if (result.revision?.platformAccountId !== accountId) return NO_PICKS
   return {
     friendIds: result.friendIds.filter((id): id is string => typeof id === 'string'),
     revision: result.revision
@@ -49,7 +52,7 @@ export function useAlertPicks(platform: Platform): {
   const accountId = auth.data?.state === 'authenticated' ? (auth.data.accountId ?? null) : null
   const query = useQuery({
     queryKey: alertPicksQueryKey(platform, accountId),
-    queryFn: () => fetchAlertPicks(platform),
+    queryFn: () => fetchAlertPicks(platform, accountId ?? ''),
     enabled: accountId !== null,
     staleTime: Infinity,
     networkMode: 'always'

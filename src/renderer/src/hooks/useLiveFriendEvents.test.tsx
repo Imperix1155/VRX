@@ -383,6 +383,21 @@ describe('useLiveFriendEvents — identity boundary', () => {
     expect(client.getQueryData(cvrNoteKey)).toEqual({ note: 'Other platform note' })
   })
 
+  it("drops the outgoing account's alert picks and keeps the other platform's", () => {
+    stubBridge()
+    const client = new QueryClient()
+    const vrcPicksKey = ['alert-picks', 'vrchat', 'usr_me'] as const
+    const cvrPicksKey = ['alert-picks', 'chilloutvr', 'cvr-me'] as const
+    client.setQueryData(vrcPicksKey, { friendIds: ['usr_a'] })
+    client.setQueryData(cvrPicksKey, { friendIds: ['cvr_a'] })
+    mount(client)
+
+    act(() => fireIdentityBoundary!({ platform: 'vrchat' }))
+
+    expect(client.getQueryData(vrcPicksKey)).toBeUndefined()
+    expect(client.getQueryData(cvrPicksKey)).toEqual({ friendIds: ['cvr_a'] })
+  })
+
   it('clears a mounted useFriends observer immediately and refetches the new account (real QueryClient)', async () => {
     const accountA = [vrcFriend('Account A')]
     let resolveAccountB: ((friends: Friend[]) => void) | undefined

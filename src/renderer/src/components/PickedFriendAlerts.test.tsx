@@ -151,7 +151,9 @@ describe('Settings → Notifications: who alerts you', () => {
     await screen.findByText(
       msg('settings.notifications.picked.description', { vrchat: 2, chilloutvr: 1 })
     )
-    fireEvent.click(screen.getByRole('button', { name: msg('settings.notifications.picked.show') }))
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('settings.notifications.picked.showAria') })
+    )
 
     const list = screen.getByRole('dialog', { name: msg('settings.notifications.picked.title') })
     const vrc = list.querySelector<HTMLElement>('[data-picked-platform="vrchat"]')!
@@ -178,6 +180,34 @@ describe('Settings → Notifications: who alerts you', () => {
       })
     )
     await within(cvr).findByText(msg('settings.notifications.picked.none'))
+  })
+})
+
+describe('Picked friends list before the roster loads', () => {
+  it('shows a count and no Remove instead of calling every pick missing', async () => {
+    useSettingsStore.setState({
+      settings: { ...DEFAULT_SETTINGS, friendAlertScope: 'picked' },
+      dirty: false
+    })
+    useUiStore.setState({ settingsCategory: 'notifications' })
+    const queryClient = withClient(<SettingsView />)
+    act(() => queryClient.removeQueries({ queryKey: friendsQueryKey('vrchat') }))
+    await screen.findByText(
+      msg('settings.notifications.picked.description', { vrchat: 2, chilloutvr: 1 })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: msg('settings.notifications.picked.showAria') })
+    )
+    const vrc = document.querySelector<HTMLElement>('[data-picked-platform="vrchat"]')!
+    expect(
+      within(vrc).getByText(msg('settings.notifications.picked.loading', { count: 2 }))
+    ).toBeTruthy()
+    expect(within(vrc).queryByRole('button')).toBeNull()
+
+    act(() =>
+      queryClient.setQueryData(friendsQueryKey('vrchat'), [friend('vrchat', 'usr_alex', 'Alex')])
+    )
+    expect(await within(vrc).findByText('Alex')).toBeTruthy()
   })
 })
 
@@ -217,22 +247,38 @@ describe('AlertPickRow', () => {
     const toggle = screen.getByRole('radiogroup', {
       name: msg('drawer.alerts.aria', { name: 'Alex' })
     })
-    // Only the VRChat account is picked, so the person reads as not picked.
+    // Only the VRChat account is picked. Its alerts still fire, so the
+    // person reads On, and Off stops both accounts.
     await waitFor(() =>
       expect(
         within(toggle)
           .getByRole('radio', { name: msg('settings.boolean.on') })
-          .getAttribute('aria-disabled')
-      ).not.toBe('true')
+          .getAttribute('aria-checked')
+      ).toBe('true')
     )
-    expect(
-      within(toggle)
-        .getByRole('radio', { name: msg('settings.boolean.off') })
-        .getAttribute('aria-checked')
-    ).toBe('true')
+    fireEvent.click(within(toggle).getByRole('radio', { name: msg('settings.boolean.off') }))
+    await waitFor(() => expect(stored.vrchat.has('usr_alex')).toBe(false))
+    expect(stored.chilloutvr.has('cvr_alex')).toBe(false)
+
     fireEvent.click(within(toggle).getByRole('radio', { name: msg('settings.boolean.on') }))
     await waitFor(() => expect(stored.chilloutvr.has('cvr_alex')).toBe(true))
     expect(stored.vrchat.has('usr_alex')).toBe(true)
+  })
+
+  it('never keeps picks that main reports for a different account', async () => {
+    window.vrx!.getAlertPicks = vi.fn(async () => ({
+      friendIds: ['usr_new'],
+      revision: { platformAccountId: 'someone-else', epoch: 2 }
+    })) as unknown as NonNullable<Window['vrx']>['getAlertPicks']
+    withClient(<AlertPickRow accounts={[friend('vrchat', 'usr_new', 'Nova')]} name="Nova" />)
+    const toggle = screen.getByRole('radiogroup', {
+      name: msg('drawer.alerts.aria', { name: 'Nova' })
+    })
+    await waitFor(() => expect(window.vrx!.getAlertPicks).toHaveBeenCalled())
+    await act(async () => {})
+    const on = within(toggle).getByRole('radio', { name: msg('settings.boolean.on') })
+    expect(on.getAttribute('aria-checked')).toBe('false')
+    expect(on.getAttribute('aria-disabled')).toBe('true')
   })
 
   it('shows a plain failure line and rolls back when saving is refused', async () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Friend, Platform } from '@shared/types'
@@ -66,6 +66,16 @@ function PickRow({
   )
 }
 
+/** Observe the roster cache without a query observer, which could start a
+ *  platform request just to show names. Undefined until a roster is known. */
+function useCachedRoster(platform: Platform): readonly Friend[] | undefined {
+  const queryClient = useQueryClient()
+  return useSyncExternalStore(
+    (listener) => queryClient.getQueryCache().subscribe(listener),
+    () => queryClient.getQueryData<Friend[]>(friendsQueryKey(platform))
+  )
+}
+
 /** Split picks into roster names (sorted) and ids no longer in the roster. */
 function namedPicks(
   picked: ReadonlySet<string>,
@@ -95,13 +105,12 @@ function PlatformPicks({
   onFailure: () => void
 }): React.JSX.Element {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const { accountId, picked, writable } = useAlertPicks(platform)
   const setPicks = useSetAlertPicks()
-  // Read the roster already in memory. Observing it here could start a
-  // platform request just to show names.
-  const roster = queryClient.getQueryData<Friend[]>(friendsQueryKey(platform)) ?? []
-  const { known, missing } = namedPicks(picked, roster)
+  const roster = useCachedRoster(platform)
+  // A roster that has not loaded is not an empty one: never offer to remove
+  // picks as "not in your friends list" before it is known.
+  const { known, missing } = namedPicks(picked, roster ?? [])
   const disabled = busy || !writable
 
   const remove = async (ids: string[]): Promise<void> => {
@@ -116,13 +125,17 @@ function PlatformPicks({
       ? 'settings.notifications.picked.signedOut'
       : picked.size === 0
         ? 'settings.notifications.picked.none'
-        : null
+        : roster === undefined
+          ? 'settings.notifications.picked.loading'
+          : null
 
   return (
     <section className="flex flex-col gap-[var(--space-1)]" data-picked-platform={platform}>
       <PlatformHeading platform={platform} />
       {emptyKey !== null ? (
-        <p className="text-[12.5px] text-[var(--text-dim)]">{t(emptyKey)}</p>
+        <p className="text-[12.5px] text-[var(--text-dim)]">
+          {t(emptyKey, { count: picked.size })}
+        </p>
       ) : (
         <ul className="flex flex-col">
           {known.map(({ id, name }) => (

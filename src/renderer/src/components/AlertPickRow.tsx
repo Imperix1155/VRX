@@ -10,6 +10,8 @@ const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
  * "Alert me about this friend" in the details panel. Shown only while
  * Settings → Notifications limits alerts to picked friends. A linked person
  * is one pick across every account shown, so both platforms move together.
+ * It reads On while any shown account can still alert, so Off always stops
+ * every one of them.
  */
 export default function AlertPickRow({
   accounts,
@@ -28,7 +30,7 @@ export default function AlertPickRow({
   const owner = accounts.map((a) => `${a.platform}:${a.platformUserId}`).join('|')
 
   if (accounts.length === 0) return null
-  const picked = accounts.every((a) => picks[a.platform].picked.has(a.platformUserId))
+  const picked = accounts.some((a) => picks[a.platform].picked.has(a.platformUserId))
   const writable = accounts.every((a) => picks[a.platform].writable)
   const shownFailure = failure?.owner === owner ? failure.key : null
 

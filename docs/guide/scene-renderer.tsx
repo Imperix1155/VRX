@@ -25,7 +25,7 @@ import { useJoinInstance } from '@renderer/hooks/useJoinInstance'
 import { fixtureAuth } from './fixture-bridge'
 import { backgroundPicture, friends, getPlatformSnapshot, linkedSnapshot } from './fixtures'
 import CatalogScene from './catalog-scenes'
-import { friendsFailureFor } from './scenarios'
+import { alertScopeFor, friendsFailureFor } from './scenarios'
 
 function DrawerScene({
   platform,
@@ -211,8 +211,7 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
     backgroundGlow: glow,
     reconcileInterval: 'manual',
     confirmJoin: true,
-    // `alerts=picked` shows the picked-friends alert controls.
-    friendAlertScope: params.get('alerts') === 'picked' ? 'picked' : 'everyone',
+    friendAlertScope: alertScopeFor(variant),
     setupPending: name === 'setup',
     dashboardSectionOrder:
       name === 'dashboard' && variant === 'hot-first' ? 'hot-first' : 'popular-first'
