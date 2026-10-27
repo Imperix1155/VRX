@@ -543,7 +543,9 @@ Reading it makes no platform request.
 
 Both platforms share one row: a small avatar, the name, what happened in
 words, the platform pill in a fixed-width column, and the time (with the date
-once it is not today). Coming online straight into a world is one entry that
+once it is not today). Each row is its own capsule tinted with its platform's
+color, strongest at a 3px platform edge on the left, so the platforms read
+apart at a glance; the pill is the non-color cue. Coming online straight into a world is one entry that
 names the world; a ChilloutVR world name that resolves a moment later fills
 in, and its `(#…)` instance tag is trimmed. Ask Me and Do Not Disturb friends
 never show a world, and their moves are not recorded. The top-bar filter

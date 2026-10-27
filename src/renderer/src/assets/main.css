@@ -386,6 +386,9 @@
   --tint-vrc-border: rgba(43, 124, 232, 0.34);
   --tint-cvr-bg: linear-gradient(135deg, rgba(243, 113, 30, 0.22), rgba(243, 113, 30, 0.05));
   --tint-cvr-border: rgba(243, 113, 30, 0.36);
+  /* Activity capsules: platform tint, stronger at the platform edge. */
+  --activity-tint-strong: 24%;
+  --activity-tint-soft: 12%;
 
   /* TEXT ON PLATFORM surfaces (login button, etc.) */
   --text-on-vrc: #ffffff;
@@ -545,6 +548,8 @@
   --tint-vrc-border: rgba(31, 111, 211, 0.28);
   --tint-cvr-bg: linear-gradient(135deg, rgba(216, 95, 24, 0.18), rgba(255, 255, 255, 0.34));
   --tint-cvr-border: rgba(216, 95, 24, 0.3);
+  --activity-tint-strong: 18%;
+  --activity-tint-soft: 9%;
 
   --text-on-vrc: #ffffff;
   /* Same dark ink on the light-theme CVR fill (4.89:1; white = 3.77:1 fails). */
@@ -903,9 +908,37 @@ body::after {
 
 /* Settings: compact information cards over a neutral backing panel. */
 @layer components {
-  /* Activity list rows share one divider rule on both platforms. */
-  .activity-row + .activity-row {
-    border-top: 1px solid var(--border);
+  /* Activity entries (owner, 2026-10-27): each entry is its own capsule tinted
+     with its platform's brand color plus a 3px platform edge, so VRChat and
+     ChilloutVR read apart at a glance. Both platforms share one recipe; only
+     the color differs. The platform pill stays the non-color cue. */
+  .activity-row {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--activity-platform-border);
+    border-radius: var(--radius-control);
+    background-color: var(--glass-information);
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--activity-platform) var(--activity-tint-strong), transparent),
+      color-mix(in srgb, var(--activity-platform) var(--activity-tint-soft), transparent)
+    );
+  }
+  .activity-row::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--activity-platform);
+    pointer-events: none;
+  }
+  .activity-row--vrchat {
+    --activity-platform: var(--vrc);
+    --activity-platform-border: var(--tint-vrc-border);
+  }
+  .activity-row--chilloutvr {
+    --activity-platform: var(--cvr);
+    --activity-platform-border: var(--tint-cvr-border);
   }
   .settings-cards {
     display: grid;

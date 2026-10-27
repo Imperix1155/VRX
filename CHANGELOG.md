@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Activity entries are now tinted with their platform's color, VRChat blue
+  and ChilloutVR orange, with a colored edge on the left, so the two are easy
+  to tell apart at a glance. The VRChat and ChilloutVR labels stay.
+
 ## [1.2.0-dev.3] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
