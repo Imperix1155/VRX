@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
+import { backgroundPictureRefusal } from '@shared/backgroundPicture'
 import type { AppBackgroundResult } from '@shared/ipc'
 import { isOpaque, type RenditionImage } from './avatarRendition'
 
@@ -11,8 +12,9 @@ import { isOpaque, type RenditionImage } from './avatarRendition'
  *  - Main reads only the file the user picked in the native open dialog; the
  *    renderer never sends a path. The source must be a regular PNG or JPEG
  *    file within {@link APP_BACKGROUND_MAX_SOURCE_BYTES}, and its header
- *    dimensions must fit {@link APP_BACKGROUND_MAX_SOURCE_PIXELS} before
- *    anything is decoded.
+ *    dimensions must fit {@link APP_BACKGROUND_MAX_SOURCE_PIXELS} and pass
+ *    `backgroundPictureRefusal` (size and shape, upright) before anything is
+ *    decoded.
  *  - The picture is decoded, scaled to at most {@link APP_BACKGROUND_MAX_EDGE}
  *    on its long side, turned upright by its EXIF orientation (the decoder
  *    ignores it, and the fresh copy carries no metadata), and re-encoded (JPEG
@@ -307,6 +309,13 @@ export class AppBackgroundStore {
     if (size.width * size.height > APP_BACKGROUND_MAX_SOURCE_PIXELS) {
       return { ok: false, reason: 'too-large' }
     }
+    const orientation = type === 'image/jpeg' ? readJpegOrientation(read.bytes) : 1
+    const turned = orientation >= 5
+    const refusal = backgroundPictureRefusal(
+      turned ? size.height : size.width,
+      turned ? size.width : size.height
+    )
+    if (refusal !== null) return { ok: false, reason: refusal }
 
     let source = this.decode(read.bytes)
     if (source.isEmpty()) return { ok: false, reason: 'unreadable' }
@@ -322,7 +331,6 @@ export class AppBackgroundStore {
       if (source.isEmpty()) return { ok: false, reason: 'unreadable' }
     }
     let bitmap = source.toBitmap()
-    const orientation = type === 'image/jpeg' ? readJpegOrientation(read.bytes) : 1
     const current = source.getSize()
     // Only a tightly packed bitmap can be turned; anything else stays as stored.
     if (orientation !== 1 && bitmap.length === current.width * current.height * 4) {

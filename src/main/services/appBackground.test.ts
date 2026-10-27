@@ -140,7 +140,8 @@ function orientedJpeg(orientation: number, little = true): Buffer {
   const payload = [...Buffer.from('Exif\0\0', 'latin1'), ...tiff]
   const length = payload.length + 2
   const app1 = [0xff, 0xe1, length >> 8, length & 0xff, ...payload]
-  const plain = jpeg(40, 20)
+  // Header size only; the fake decoder decides the pixels.
+  const plain = jpeg(1200, 800)
   return Buffer.concat([plain.subarray(0, 2), Buffer.from(app1), plain.subarray(2)])
 }
 
@@ -241,6 +242,42 @@ describe('AppBackgroundStore', () => {
     expect(decode).not.toHaveBeenCalled()
   })
 
+  it('refuses pictures too small, too tall or too wide to fill the window, without decoding them', async () => {
+    const decode = vi.fn(() => fakeImage(10, 10))
+    const backgrounds = store(decode)
+    const cases: [string, Buffer, string][] = [
+      ['icon.png', png(256, 256), 'too-small'],
+      ['dot.png', png(1, 1), 'too-small'],
+      ['screenshot.png', png(1080, 2340), 'too-tall'],
+      ['strip.jpg', jpeg(4000, 400), 'too-wide'],
+      ['line.png', png(65_000, 1), 'too-wide']
+    ]
+    for (const [name, bytes, reason] of cases) {
+      await expect(backgrounds.importFrom(await source(name, bytes))).resolves.toEqual({
+        ok: false,
+        reason
+      })
+    }
+    expect(decode).not.toHaveBeenCalled()
+  })
+
+  it('judges the shape of a phone photo by its upright size', async () => {
+    // Stored 1200 × 800 and tagged to turn a quarter: upright it is 800 × 1200, still usable.
+    const turned = await store(() => fakeImage(1200, 800)).importFrom(
+      await source('phone.jpg', orientedJpeg(6))
+    )
+    expect(turned.ok).toBe(true)
+    // Stored 1600 × 700 (fine as is) but upright 700 × 1600, which is too tall.
+    const tall = Buffer.from(orientedJpeg(6))
+    const frame = tall.indexOf(Buffer.from([0xff, 0xc0]))
+    tall.writeUInt16BE(700, frame + 5)
+    tall.writeUInt16BE(1600, frame + 7)
+    await expect(store().importFrom(await source('tall.jpg', tall))).resolves.toEqual({
+      ok: false,
+      reason: 'too-tall'
+    })
+  })
+
   it('refuses a file over the size limit', async () => {
     const big = Buffer.alloc(APP_BACKGROUND_MAX_SOURCE_BYTES + 1)
     png(10, 10).copy(big)
@@ -250,7 +287,7 @@ describe('AppBackgroundStore', () => {
 
   it('reports a picture the decoder cannot read', async () => {
     const result = await store(() => fakeImage(0, 0, { empty: true })).importFrom(
-      await source('broken.png', png(10, 10))
+      await source('broken.png', png(1200, 800))
     )
     expect(result).toEqual({ ok: false, reason: 'unreadable' })
     await expect(store().load()).resolves.toBeNull()
