@@ -39,11 +39,29 @@ async function exposedBridge(): Promise<{
   getActivity: () => Promise<unknown>
   clearActivity: () => Promise<unknown>
   onActivityChanged: (callback: () => void) => () => void
+  onInboxChanged: (callback: () => void) => () => void
 }> {
   Object.defineProperty(process, 'contextIsolated', { configurable: true, value: true })
   await import('./index')
   return electron.exposeInMainWorld.mock.calls[0]?.[1]
 }
+
+describe('preload inbox bridge', () => {
+  it('subscribes, forwards no payload, and unsubscribes the same listener', async () => {
+    const bridge = await exposedBridge()
+    const callback = vi.fn()
+    const unsubscribe = bridge.onInboxChanged(callback)
+    const listener = electron.on.mock.calls.find(
+      ([channel]) => channel === 'inbox-changed'
+    )?.[1] as (event: unknown, payload: unknown) => void
+
+    listener({}, { injected: true })
+    expect(callback).toHaveBeenCalledWith()
+
+    unsubscribe()
+    expect(electron.removeListener).toHaveBeenCalledWith('inbox-changed', listener)
+  })
+})
 
 describe('preload identity-boundary bridge', () => {
   it('subscribes, forwards the payload, and unsubscribes the same listener', async () => {

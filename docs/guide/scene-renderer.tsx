@@ -155,6 +155,7 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
       'hot',
       'friends',
       'activity',
+      'inbox',
       'linked',
       'avatars',
       'settings',
@@ -266,7 +267,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
               ? 'activity'
               : name === 'avatars'
                 ? 'avatars'
-                : 'dashboard'
+                : name === 'inbox'
+                  ? 'inbox'
+                  : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(

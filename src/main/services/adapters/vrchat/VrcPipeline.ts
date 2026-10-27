@@ -22,9 +22,10 @@
  *   automatically after re-login). No application heartbeat exists on this
  *   socket — TCP keepalive only (VRCX-verified note).
  *
- * Notification / self / group events are DECODED (so drift is visible in logs)
- * but not yet routed anywhere — the notifications store doesn't exist until
- * VRX-84/86/87. Routing them is those issues' scope.
+ * Invites, invite requests and friend requests (`notification`) feed the
+ * view-only inbox, and `hide-notification`, `response-notification` and
+ * `clear-notification` remove them again. Other notification, self and group
+ * events are decoded (so drift is visible in logs) but not routed.
  */
 import { z } from 'zod'
 import { VRC_PIPELINE_URL } from '@shared/constants'
@@ -36,6 +37,7 @@ import {
   type PipelineSocket
 } from '../ReconnectingPipeline'
 import { normalize, rawFriendSchema } from './fetchFriends'
+import { notificationIdOf, parseVrcNotification } from './parseNotification'
 import { parseLocation } from './parseLocation'
 import { toBucketSets } from './parsePresence'
 
@@ -95,6 +97,13 @@ const friendAddStateSchema = z.object({
 /** Events that only carry the user id (`friend-offline`, `friend-delete`). */
 const friendIdSchema = z.object({ userId: z.string() })
 
+/** Notification events whose string content may be a bare ID or empty, not JSON. */
+const BARE_CONTENT_TYPES: ReadonlySet<string> = new Set([
+  'hide-notification',
+  'see-notification',
+  'clear-notification'
+])
+
 // ─── Client ───────────────────────────────────────────────────────────────────
 
 export class VrcPipeline extends ReconnectingPipeline<string> {
@@ -148,8 +157,13 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
       try {
         content = JSON.parse(outer.content)
       } catch {
-        this.log('debug', 'pipeline: undecodable content dropped', { type: outer.type })
-        return
+        // Hide and see carry a bare notification ID that is not JSON, and
+        // clear-all may carry nothing at all.
+        if (!BARE_CONTENT_TYPES.has(outer.type)) {
+          this.log('debug', 'pipeline: undecodable content dropped', { type: outer.type })
+          return
+        }
+        content = outer.content
       }
     } else {
       content = outer.content
@@ -161,7 +175,7 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
 
   /**
    * Map a decoded wire event to a normalized AdapterEvent, or null for events
-   * that are recognized-but-unrouted (notifications — VRX-84) or unknown.
+   * that are recognized-but-unrouted or unknown.
    */
   private mapEvent(type: string, content: unknown): AdapterEvent | null {
     switch (type) {
@@ -197,17 +211,30 @@ export class VrcPipeline extends ReconnectingPipeline<string> {
         if (!friend) return this.dropped(type)
         return { type: 'friend-updated', platform: 'vrchat', friend }
       }
-      case 'notification':
+      case 'notification': {
+        const entry = parseVrcNotification(content)
+        if (!entry) {
+          this.log('debug', 'pipeline: notification not for the inbox', { type })
+          return null
+        }
+        return { type: 'inbox', platform: 'vrchat', change: { op: 'add', entries: [entry] } }
+      }
+      case 'hide-notification':
+      case 'response-notification': {
+        // Answered or hidden elsewhere (in game or on the website).
+        const id = notificationIdOf(content)
+        if (id === null) return this.dropped(type)
+        return { type: 'inbox', platform: 'vrchat', change: { op: 'remove', sourceIds: [id] } }
+      }
+      case 'clear-notification':
+        return { type: 'inbox', platform: 'vrchat', change: { op: 'clear' } }
+      case 'see-notification':
       case 'notification-v2':
       case 'notification-v2-update':
       case 'notification-v2-delete':
-      case 'response-notification':
-      case 'see-notification':
-      case 'hide-notification':
-      case 'clear-notification':
-        // Recognized, decoded, deliberately unrouted: the notifications store
-        // lands with VRX-84/86/87. Logged so drift stays visible until then.
-        this.log('debug', 'pipeline: notification event (unrouted until VRX-84)', { type })
+        // Seen is not answered, and v2 notices are group and system news, not
+        // invites or friend requests. Logged so drift stays visible.
+        this.log('debug', 'pipeline: notification event not routed', { type })
         return null
       case 'user-update':
       case 'user-location':

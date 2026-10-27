@@ -27,6 +27,9 @@ you press a "Use my sign-in from" button, described below.
   while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
   world. Filter it by kind, clear it, or turn it off in Settings →
   Notifications.
+- **Inbox**: invites, invite requests, and friend requests from both
+  platforms that arrive while VRX is open. VRX only shows them; you answer in
+  the game. Hide the page in Settings → Notifications if you don't want it.
 - **Explore**: popular public worlds from both platforms, with room details.
 - **Avatars**: the avatars you uploaded on both platforms, the one you are
   wearing now, their details, and a Wear button to switch.
@@ -34,9 +37,10 @@ you press a "Use my sign-in from" button, described below.
   person by hand. VRX never guesses links from names.
 - **Platform filter**: VRC, ALL, or CVR at the top of the window.
 - **Notifications**: optional desktop alerts when a friend comes online, joins
-  a world, or goes offline, or when a hot instance forms. All are off until you
-  turn them on in Settings → Notifications, where Who alerts you can limit
-  friend alerts to the friends you pick.
+  a world, or goes offline, when a hot instance forms, or when you get an
+  invite or friend request. All are off until you turn them on in Settings →
+  Notifications, where Who alerts you can limit friend alerts to the friends
+  you pick.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
   your own background picture, and which
   platform's words the instance labels use. Hot Instances and Explore can be

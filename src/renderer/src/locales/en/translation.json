@@ -115,6 +115,7 @@
       "hot": "Hot Instances",
       "friends": "Friends",
       "activity": "Activity",
+      "inbox": "Inbox",
       "explore": "Explore",
       "avatars": "Avatars",
       "settings": "Settings"
@@ -134,7 +135,9 @@
       "down": "Down",
       "signedOut": "Signed out",
       "needsCode": "Needs code"
-    }
+    },
+    "inboxNewAria_one": "{{count}} new",
+    "inboxNewAria_other": "{{count}} new"
   },
   "settings": {
     "appearance": {
@@ -293,6 +296,16 @@
         "label": "Hot instance",
         "description": "Alert when enough friends gather in the same instance.",
         "aria": "Notify when an instance becomes hot"
+      },
+      "invites": {
+        "label": "Invite received",
+        "description": "Alert when someone invites you or asks for an invite.",
+        "aria": "Notify when you get an invite"
+      },
+      "friendRequests": {
+        "label": "Friend request received",
+        "description": "Alert when someone sends you a friend request.",
+        "aria": "Notify when you get a friend request"
       }
     },
     "accounts": {
@@ -411,7 +424,11 @@
       },
       "activity": {
         "label": "Activity page",
-        "description": "Lists these changes while VRX is open. Off hides it and keeps nothing."
+        "description": "Friends coming and going while VRX is open. Off hides it and keeps nothing."
+      },
+      "inbox": {
+        "label": "Inbox page",
+        "description": "Show it in the sidebar. Its alerts stay."
       }
     },
     "setup": {
@@ -878,9 +895,11 @@
       "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
       "hot": "Every instance where several friends are together.",
       "activity": "Friends coming online, changing worlds and going offline.",
+      "inbox": "Invites and friend requests from both platforms.",
       "explore": "Worlds that are popular right now on both platforms.",
       "hotAria": "Show the Hot Instances page",
       "activityAria": "Show the Activity page",
+      "inboxAria": "Show the Inbox page",
       "exploreAria": "Show the Explore page"
     },
     "dashboard": {
@@ -925,5 +944,35 @@
       "alertsSome": "{{count}} of {{total}} on",
       "lookValue": "{{theme}}, {{glow}} glow"
     }
+  },
+  "inbox": {
+    "invitesHeading": "Invites",
+    "requestsHeading": "Friend requests",
+    "invite": "Invited you to {{world}}",
+    "inviteNoWorld": "Invited you",
+    "inviteRequest": "Asked you for an invite",
+    "friendRequest": "Sent you a friend request",
+    "someone": "Someone",
+    "justNow": "Just now",
+    "hide": "Hide",
+    "hideInviteAria": "Hide the invite from {{name}}",
+    "hideInviteRequestAria": "Hide the invite request from {{name}}",
+    "hideFriendRequestAria": "Hide the friend request from {{name}}",
+    "hideAll": "Hide all",
+    "hideFailed": "Couldn't hide that. Try again.",
+    "count_one": "{{count}} waiting",
+    "count_other": "{{count}} waiting",
+    "emptyHeading": "Nothing waiting",
+    "emptyHint": "Invites and friend requests that arrive while VRX is open show up here.",
+    "help": {
+      "label": "About the inbox",
+      "answer": "VRX only shows these. Answer them in the game or on the platform's website. Hide takes a row out of VRX and sends nothing.",
+      "live": "The inbox lists what arrives while VRX is open and forgets it when VRX closes."
+    },
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your invites here",
+      "chilloutvr": "Connect ChilloutVR to see your invites here"
+    },
+    "loadError": "Could not load your inbox right now"
   }
 }

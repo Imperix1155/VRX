@@ -36,9 +36,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invite). The join dialog says which will happen, and the line under Join
   confirms it. Pick Go there, Send invite, or Off in Settings → Behavior →
   When the game is already open.
+- Inbox page: invites, invite requests and friend requests from VRChat and
+  ChilloutVR that arrive while VRX is open, in one list that follows the
+  platform filter. It only shows them; answer in the game or on the
+  platform's site. Hide takes a row out of VRX and sends nothing. The sidebar
+  shows how many are new. Turn the page off in Settings → Notifications.
+- Two optional alerts in Settings → Notifications and the welcome setup:
+  Invite received and Friend request received. Both are off until you turn
+  them on.
 
 ### Changed
 
+- Settings → Notifications puts every alert in one card, with Who alerts you
+  on top and the Activity and Inbox page switches in a second card, so the
+  page fits the window without scrolling. With Picked friends, the pick counts
+  and Show sit under Who alerts you. The welcome setup's alerts step groups
+  its alerts the same way.
 - Background picture explains pictures that cannot fill the window: too small
   (under 640 × 360), too tall (like a phone screenshot) or too wide (like a
   long panorama) are refused with the reason. A usable picture that will be

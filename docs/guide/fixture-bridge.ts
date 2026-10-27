@@ -11,6 +11,7 @@ import {
   worldImages,
   getPlatformSnapshot,
   getWorldSnapshot,
+  inboxSample,
   linkedSnapshot
 } from './fixtures'
 import { friendsFailureFor, joinHandoffFor } from './scenarios'
@@ -56,6 +57,12 @@ export function createFixtureBridge(variant: string): FixtureBridge {
   const denied = { ok: false, reason: 'launch-failed' } as const
   // Choosing always "picks" the synthetic sample; no dialog or file is involved.
   let picture: string | null = null
+  // Hiding rows changes synthetic memory only and tells the scene to re-read.
+  let inbox = variant === 'empty' ? { items: [] } : inboxSample(Date.now())
+  const inboxListeners = new Set<() => void>()
+  const inboxChanged = (): void => {
+    for (const listener of inboxListeners) listener()
+  }
   // Worn avatars change only in this synthetic memory.
   const worn: Record<Platform, string | null> = {
     vrchat: avatarLibraries.vrchat[0]?.avatarId ?? null,
@@ -171,6 +178,23 @@ export function createFixtureBridge(variant: string): FixtureBridge {
     clearAppBackground: () => {
       picture = null
       return Promise.resolve()
+    },
+    getInbox: () => Promise.resolve(structuredClone(inbox)),
+    dismissInboxItem: ({ platform, id }) => {
+      inbox = {
+        items: inbox.items.filter((item) => !(item.platform === platform && item.id === id))
+      }
+      inboxChanged()
+      return Promise.resolve()
+    },
+    clearInbox: ({ platforms }) => {
+      inbox = { items: inbox.items.filter((item) => !platforms.includes(item.platform)) }
+      inboxChanged()
+      return Promise.resolve()
+    },
+    onInboxChanged: (callback) => {
+      inboxListeners.add(callback)
+      return () => inboxListeners.delete(callback)
     },
     getSettings: () => Promise.resolve(DEFAULT_SETTINGS),
     saveSettings: ({ patch }) => Promise.resolve({ ...DEFAULT_SETTINGS, ...patch }),

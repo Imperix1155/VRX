@@ -68,6 +68,11 @@ describe('wireAdapterEvents', () => {
           calls.push(`activity:${received.type}`)
         }
       },
+      inbox: {
+        consume: (received): void => {
+          calls.push(`inbox:${received.type}`)
+        }
+      },
       broadcast: (received): void => {
         calls.push(`broadcast:${received.type}`)
       }
@@ -80,8 +85,60 @@ describe('wireAdapterEvents', () => {
       'location:connection',
       'alerts:connection',
       'activity:connection',
+      'inbox:connection',
       'broadcast:connection'
     ])
+  })
+
+  it('sends inbox changes to the inbox only, never to presence, alerts, activity, or the renderer', () => {
+    const source = fakeAdapter()
+    const consumers = {
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: { consume: vi.fn() },
+      friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
+      broadcast: vi.fn()
+    }
+    const event: AdapterEvent = { type: 'inbox', platform: 'vrchat', change: { op: 'clear' } }
+
+    wireAdapterEvents({ sources: [source.adapter], ...consumers })
+    source.emit(event)
+
+    expect(consumers.inbox.consume).toHaveBeenCalledWith(event)
+    expect(consumers.locationAuthority.consume).not.toHaveBeenCalled()
+    expect(consumers.friendAlerts.consume).not.toHaveBeenCalled()
+    expect(consumers.activityFeed.consume).not.toHaveBeenCalled()
+    expect(consumers.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('isolates inbox.consume so broadcast still runs on throw', () => {
+    const source = fakeAdapter()
+    const event: AdapterEvent = { type: 'roster-changed', platform: 'chilloutvr' }
+    const broadcast = vi.fn()
+
+    wireAdapterEvents({
+      sources: [source.adapter],
+      appStatus: { recordConnection: vi.fn() },
+      locationAuthority: { consume: vi.fn() },
+      friendAlerts: { consume: vi.fn() },
+      activityFeed: { consume: vi.fn() },
+      inbox: {
+        consume: (): void => {
+          throw new Error('inbox boom')
+        }
+      },
+      broadcast
+    })
+
+    source.emit(event)
+
+    expect(broadcast).toHaveBeenCalledWith(event)
+    expect(log.warn).toHaveBeenCalledWith('adapter event consumer failed', {
+      consumer: 'inbox',
+      eventType: 'roster-changed',
+      error: 'inbox boom'
+    })
   })
 
   it('does not record status for non-connection events', () => {
@@ -99,6 +156,7 @@ describe('wireAdapterEvents', () => {
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast: vi.fn()
     })
 
@@ -117,6 +175,7 @@ describe('wireAdapterEvents', () => {
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
     const event: AdapterEvent = { type: 'roster-changed', platform: 'chilloutvr' }
@@ -167,6 +226,7 @@ describe('wireAdapterEvents', () => {
       },
       friendAlerts: { consume: friendAlertsConsume },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -201,6 +261,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -238,6 +299,7 @@ describe('wireAdapterEvents', () => {
       },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -272,6 +334,7 @@ describe('wireAdapterEvents', () => {
       },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -302,6 +365,7 @@ describe('wireAdapterEvents', () => {
         }
       },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -326,6 +390,7 @@ describe('wireAdapterEvents', () => {
       locationAuthority: { consume: vi.fn() },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast
     })
 
@@ -354,6 +419,7 @@ describe('wireAdapterEvents', () => {
       locationAuthority: { consume: locationAuthorityConsume },
       friendAlerts: { consume: friendAlertsConsume },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast: (): void => {
         throw new Error('broadcast boom')
       }
@@ -388,6 +454,7 @@ describe('wireAdapterEvents', () => {
       },
       friendAlerts: { consume: vi.fn() },
       activityFeed: { consume: vi.fn() },
+      inbox: { consume: vi.fn() },
       broadcast: vi.fn()
     })
 

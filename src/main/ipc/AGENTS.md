@@ -49,6 +49,10 @@ Persistence, network, cache, and account-transition policy stay in services.
   `get-join-handoff` takes only a validated platform and returns a preview.
   `self-invite` is VRChat-only with its own in-flight lock and 3 s cooldown,
   and refuses a public instance.
+- `get-inbox`, `dismiss-inbox-item` and `clear-inbox` are local to VRX: they
+  read or hide rows in `InboxService` and never reach a platform. Item IDs are
+  pattern- and length-checked; `clear-inbox` takes one or two allowlisted
+  platforms.
 - `open-url` opens only `isAllowedUrl` HTTPS links. Game schemes are reachable
   only from main-built join paths. `open-logs-folder` takes no input.
 - `get-activity` and `clear-activity` take no input and only read or clear

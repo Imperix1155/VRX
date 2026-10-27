@@ -183,7 +183,9 @@ describe('SetupWizard', () => {
       notifyFriendOnline: true,
       notifyFriendInGame: true,
       notifyFriendOffline: true,
-      notifyHotInstance: true
+      notifyHotInstance: true,
+      notifyInvites: true,
+      notifyFriendRequests: true
     })
     expect(button('setup.alerts.allOff')).toBeTruthy()
 
@@ -219,13 +221,14 @@ describe('SetupWizard', () => {
           msg('shell.nav.hot'),
           msg('shell.nav.friends'),
           msg('shell.nav.activity'),
+          msg('shell.nav.inbox'),
           msg('shell.nav.avatars'),
           msg('shell.nav.settings')
         ].join(', ')
       )
     ).toBeTruthy()
     expect(
-      within(summary).getByText(msg('setup.done.alertsSome', { count: 4, total: 4 }))
+      within(summary).getByText(msg('setup.done.alertsSome', { count: 6, total: 6 }))
     ).toBeTruthy()
     expect(within(summary).getByText(msg('settings.labelScheme.platformNative'))).toBeTruthy()
 

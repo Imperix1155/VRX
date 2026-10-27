@@ -66,6 +66,15 @@ type VrxBridge = {
   getAppBackground: () => Promise<IpcInvoke['get-app-background']['res']>
   chooseAppBackground: () => Promise<IpcInvoke['choose-app-background']['res']>
   clearAppBackground: () => Promise<IpcInvoke['clear-app-background']['res']>
+  /** View-only inbox: rows the sockets delivered while VRX was open. */
+  getInbox: () => Promise<IpcInvoke['get-inbox']['res']>
+  /** Hide a row in VRX only; nothing reaches the platform. */
+  dismissInboxItem: (
+    req: IpcInvoke['dismiss-inbox-item']['req']
+  ) => Promise<IpcInvoke['dismiss-inbox-item']['res']>
+  clearInbox: (req: IpcInvoke['clear-inbox']['req']) => Promise<IpcInvoke['clear-inbox']['res']>
+  /** The inbox changed; read it again. Returns an unsubscribe. */
+  onInboxChanged: (callback: () => void) => () => void
   getSettings: () => Promise<IpcInvoke['get-settings']['res']>
   saveSettings: (
     req: IpcInvoke['save-settings']['req']
