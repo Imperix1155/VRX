@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invites, no hot instances) steps aside and the rest move up to use the
   space; the first section shown gets the big picture cards. Turn off
   Settings → Dashboard → Hide empty sections to always see every section.
+- Move any Dashboard section up or down. Settings → Dashboard → Sections
+  lists Wearing now, Latest invites, Popular now and Hot Instances in their
+  Dashboard order, each with up and down buttons and its On/Off switch.
 
 ### Changed
 

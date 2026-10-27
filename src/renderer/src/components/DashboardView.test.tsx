@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, act, waitFor, within } from '@testing-library/react'
-import type { Friend, VrcFriend } from '@shared/types'
+import { dashboardSectionsFromOrder, type Friend, type VrcFriend } from '@shared/types'
 import type { ExplorePlatformSnapshot, ExploreWorld, ExploreWorldSnapshot } from '@shared/explore'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import i18n from '../i18n'
@@ -33,10 +33,18 @@ vi.mock('../queries/friends', async (importOriginal) => ({
 }))
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => avatarData.current }))
 // The glance row has its own tests (DashboardGlance.test.tsx); here it is a
-// marker that shows where it mounts and which platforms it gets.
+// marker that shows where it mounts, which platforms and which sections it gets.
 vi.mock('./DashboardGlance', () => ({
-  default: ({ platforms }: { platforms: readonly string[] }) => (
-    <div data-testid="dashboard-glance">{platforms.join(',')}</div>
+  default: ({
+    platforms,
+    sections
+  }: {
+    platforms: readonly string[]
+    sections: readonly string[]
+  }) => (
+    <div data-testid="dashboard-glance" data-sections={sections.join(',')}>
+      {platforms.join(',')}
+    </div>
   )
 }))
 vi.mock('../queries/auth', async (importOriginal) => ({
@@ -1469,11 +1477,57 @@ describe('Dashboard glance row', () => {
     render(<DashboardView />)
     const glance = screen.getByTestId('dashboard-glance')
     expect(glance.textContent).toBe('vrchat')
+    expect(glance.dataset.sections).toBe('wearing-now,invites')
     const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
     expect(glance.compareDocumentPosition(hot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     const stat = screen.getByText(msg('dashboard.statOnlineLabel'))
     expect(stat.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     useFriendsStore.setState({ platformFilter: 'all' })
+  })
+})
+
+describe('Dashboard section positions (owner, 2026-10-27)', () => {
+  it('follows the saved list and splits glance sections that are not neighbours', () => {
+    stubQueries(
+      { data: crowd('vrchat', 'Lake', 2), isPending: false },
+      { data: [], isPending: false }
+    )
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSections: ['popular', 'wearing-now', 'hot', 'invites'],
+        dashboardSectionOrder: 'popular-first'
+      }
+    })
+    seedExplorePreview()
+    const { container } = render(<DashboardView />)
+    const glances = screen.getAllByTestId('dashboard-glance')
+    expect(glances.map((glance) => glance.dataset.sections)).toEqual(['wearing-now', 'invites'])
+    const popular = screen.getByRole('heading', { level: 2, name: msg('explore.popularNow') })
+    const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })
+    const [worn, invites] = glances as [HTMLElement, HTMLElement]
+    const order = [popular, worn, hot, invites]
+    order.slice(1).forEach((block, i) => {
+      expect(
+        order[i]!.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+    // Popular now comes first of the two big sections, so Hot Instances uses bars.
+    expect(container.querySelector('[data-hot-card-layout="bar"]')).not.toBeNull()
+  })
+
+  it('groups glance sections that sit next to each other at the bottom', () => {
+    stubQueries({ data: [], isPending: false }, { data: [], isPending: false })
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSections: ['hot', 'popular', 'invites', 'wearing-now'],
+        dashboardSectionOrder: 'hot-first'
+      }
+    })
+    render(<DashboardView />)
+    const glances = screen.getAllByTestId('dashboard-glance')
+    expect(glances.map((glance) => glance.dataset.sections)).toEqual(['invites,wearing-now'])
   })
 })
 
@@ -1633,7 +1687,13 @@ describe('Dashboard two-card sections and order (owner, 2026-10-18)', () => {
       { data: crowd('vrchat', 'Lake', 2), isPending: false },
       { data: [], isPending: false }
     )
-    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, dashboardSectionOrder: order } })
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        dashboardSectionOrder: order,
+        dashboardSections: dashboardSectionsFromOrder(order)
+      }
+    })
     seedExplorePreview()
     render(<DashboardView />)
     const hot = screen.getByRole('region', { name: msg('dashboard.sectionHotInstances') })

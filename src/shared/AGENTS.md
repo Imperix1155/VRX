@@ -58,7 +58,11 @@ through `@shared`.
   adds `showInboxPage` (on) and the `notifyInvites` and `notifyFriendRequests`
   alerts (off). `SETTINGS_VERSION` 21 adds the Dashboard glance switches
   `dashboardWearingNow` and `dashboardInvites` (on); they hide sections only.
-  `dashboardHideEmpty` (on, same version) hides empty Dashboard sections. Missing or invalid `setupPending` is `false`, so
+  `dashboardHideEmpty` (on, same version) hides empty Dashboard sections.
+  `dashboardSections` (same version) owns the Dashboard section order;
+  `parseSettings` derives it from `dashboardSectionOrder` when missing and
+  then rewrites `dashboardSectionOrder` from it, so every order change must
+  write both fields. Missing or invalid `setupPending` is `false`, so
   only `freshInstallSettings` (a brand-new install) starts the welcome setup.
 - The renderer sends friend IDs and opaque Explore references, never a launch
   URL or an authoritative location. Typed denials stay structured; never pass

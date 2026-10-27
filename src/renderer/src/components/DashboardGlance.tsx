@@ -1,5 +1,6 @@
 /**
- * The Dashboard's condensed glance row (owner, 2026-10-27), under the numbers:
+ * The Dashboard's condensed glance row (owner, 2026-10-27), placed by the
+ * Dashboard order (`dashboardSections`); next to each other they share a row:
  * "Wearing now" (the avatar worn on each signed-in platform) and "Latest
  * invites" (the newest invite or invite request from each platform). Both
  * follow the platform filter, use one row shape for VRChat and ChilloutVR with
@@ -18,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 import type { AvatarItem, AvatarLibraryFailure } from '@shared/avatarLibrary'
 import type { InboxItem } from '@shared/inbox'
 import type { Friend, Platform } from '@shared/types'
+import type { GlanceSection } from '../utils/dashboardAggregations'
 import { useWornAvatar, type WornAvatarState } from '../queries/currentAvatar'
 import { useAvatarAccount } from '../queries/avatarLibrary'
 import { useInbox } from '../queries/inbox'
@@ -54,14 +56,22 @@ function platformName(platform: Platform, t: (key: string) => string): string {
   return t(platform === 'vrchat' ? 'dashboard.platformVrc' : 'dashboard.platformCvr')
 }
 
+/** The two small sections; next to each other in the Dashboard order they share a row. */
+const BOTH: readonly GlanceSection[] = ['wearing-now', 'invites']
+
 export default function DashboardGlance({
-  platforms
+  platforms,
+  sections = BOTH
 }: {
   /** The platforms in the global filter's scope. */
   platforms: readonly Platform[]
+  /** Which small sections this row holds, in Dashboard order. */
+  sections?: readonly GlanceSection[]
 }): React.JSX.Element | null {
-  const showWorn = useSettingsStore((s) => s.settings.dashboardWearingNow)
-  const showInvites = useSettingsStore((s) => s.settings.dashboardInvites)
+  const showWorn =
+    useSettingsStore((s) => s.settings.dashboardWearingNow) && sections.includes('wearing-now')
+  const showInvites =
+    useSettingsStore((s) => s.settings.dashboardInvites) && sections.includes('invites')
   const hideEmpty = useSettingsStore((s) => s.settings.dashboardHideEmpty)
   const inbox = useInbox()
   const invites = useMemo(
@@ -91,8 +101,15 @@ export default function DashboardGlance({
   return (
     <div className="glancewrap">
       <div className="glance-grid">
-        {wornVisible ? <WornAvatars rows={wornRows} /> : null}
-        {invitesVisible ? <LatestInvites latest={invites.latest} total={invites.total} /> : null}
+        {sections.map((section) =>
+          section === 'wearing-now' ? (
+            wornVisible ? (
+              <WornAvatars key={section} rows={wornRows} />
+            ) : null
+          ) : invitesVisible ? (
+            <LatestInvites key={section} latest={invites.latest} total={invites.total} />
+          ) : null
+        )}
       </div>
     </div>
   )

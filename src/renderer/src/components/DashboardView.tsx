@@ -3,11 +3,11 @@
  *
  * Renders:
  *  - Three stat cards (online / in-game / hot-instances), big VT323 numbers tinted by meaning.
- *  - The glance row (owner, 2026-10-27): the avatar worn and the latest invite
- *    per platform, each switchable in Settings → Dashboard (`DashboardGlance`).
- *  - Popular now and Hot Instances, in the order the user picked (owner,
- *    2026-10-18). The FIRST section shows picture cards; the SECOND shows
- *    compact bars with the world picture behind them. Each section shows two
+ *  - Every section below in the order the user picked in Settings → Dashboard
+ *    (owner, 2026-10-18 and 2026-10-27): the glance sections (the avatar worn
+ *    and the latest invite per platform, `DashboardGlance`; neighbours share a
+ *    row), Popular now and Hot Instances. Of those two, the FIRST shows picture
+ *    cards; the SECOND shows compact bars with the world picture behind them. Each section shows two
  *    cards, one per platform when both have one (`pickOnePerPlatform`).
  *  - Hot Instances are EXACT instances by friend count (VRX-237 — same
  *    instanceId, never same-world). The hero pill doubles as the Join
@@ -21,8 +21,9 @@ import { useFriends, scopeByPlatformFilter } from '../queries/friends'
 import { useNotConnectedGate } from '../hooks/useNotConnectedGate'
 import { useHotInstanceSheet } from '../hooks/useHotInstanceSheet'
 import { useFriendsStore } from '../stores/friends'
-import type { Platform } from '@shared/types'
+import { dashboardSectionOrderOf, type Platform } from '@shared/types'
 import {
+  dashboardBlocks,
   getDashboardStats,
   getHotInstances,
   pickOnePerPlatform
@@ -117,7 +118,7 @@ function DashboardContent(): React.JSX.Element {
   // useSettingsPersistence (VRX-184).
   const popularNow = useSettingsStore((s) => s.settings.dashboardPopularNow)
   const hotEnabled = useSettingsStore((s) => s.settings.hotInstancesEnabled)
-  const sectionOrder = useSettingsStore((s) => s.settings.dashboardSectionOrder)
+  const sections = useSettingsStore((s) => s.settings.dashboardSections)
   const hotThreshold = useSettingsStore((s) => s.settings.hotInstanceThreshold)
   // "See all" leads to the Hot Instances page, so it goes when that page is off.
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
@@ -125,7 +126,7 @@ function DashboardContent(): React.JSX.Element {
   const [exploreDismissSignal, setExploreDismissSignal] = useState(0)
   // Popular now hides itself when it has nothing; it reports that here.
   const [popularHasContent, setPopularHasContent] = useState(true)
-  const hotFirst = sectionOrder === 'hot-first'
+  const hotFirst = dashboardSectionOrderOf(sections) === 'hot-first'
 
   // The Dashboard is a social surface, so it honors the global platform filter
   // (VRX-66): the stats + hot instances reflect only the selected platform(s).
@@ -307,11 +308,21 @@ function DashboardContent(): React.JSX.Element {
         )}
       </div>
 
-      {/* The glance row joins the keyed array so Popular now keeps its slot. */}
-      {[
-        <DashboardGlance key="glance" platforms={scopedPlatforms} />,
-        ...(hotFirst ? [hotSection, popularSection] : [popularSection, hotSection])
-      ]}
+      {/* Every section joins one keyed array in the user's order, so Popular
+          now keeps its slot. Neighbouring glance sections share one row. */}
+      {dashboardBlocks(sections).map((block) =>
+        block === 'popular' ? (
+          popularSection
+        ) : block === 'hot' ? (
+          hotSection
+        ) : (
+          <DashboardGlance
+            key={`glance-${block[0]}`}
+            platforms={scopedPlatforms}
+            sections={block}
+          />
+        )
+      )}
 
       <HotInstanceSheet instance={selectedInstance} onClose={closeSheet} />
     </div>

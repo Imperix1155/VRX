@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { RECONCILE_INTERVAL_MS } from './constants'
 import {
+  DASHBOARD_SECTIONS,
+  dashboardSectionOrderOf,
+  withDashboardSectionOrder,
+  type DashboardSection
+} from './types'
+import {
   SETTINGS_VERSION,
   DEFAULT_SETTINGS,
   parseSettings,
@@ -20,6 +26,7 @@ describe('settings schema', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -288,6 +295,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -340,6 +348,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -393,6 +402,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -448,6 +458,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -501,6 +512,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -555,6 +567,7 @@ describe('migration runner', () => {
       exploreWorldsShown: 4,
       dashboardPopularNow: true,
       dashboardSectionOrder: 'popular-first',
+      dashboardSections: ['wearing-now', 'invites', 'popular', 'hot'],
       dashboardWearingNow: true,
       dashboardInvites: true,
       dashboardHideEmpty: true,
@@ -998,6 +1011,47 @@ describe('Dashboard glance settings', () => {
       dashboardInvites: false,
       dashboardHideEmpty: false
     })
+  })
+})
+
+describe('Dashboard sections', () => {
+  it('takes the order from the older Popular now / Hot Instances choice', () => {
+    expect(parseSettings({ version: 20, dashboardSectionOrder: 'hot-first' })).toMatchObject({
+      dashboardSections: ['wearing-now', 'invites', 'hot', 'popular'],
+      dashboardSectionOrder: 'hot-first'
+    })
+    expect(parseSettings({ version: 20 }).dashboardSections).toEqual([...DASHBOARD_SECTIONS])
+  })
+
+  it('keeps a saved list and makes the older field follow it', () => {
+    const parsed = parseSettings({
+      dashboardSections: ['hot', 'invites', 'popular', 'wearing-now'],
+      dashboardSectionOrder: 'popular-first'
+    })
+    expect(parsed.dashboardSections).toEqual(['hot', 'invites', 'popular', 'wearing-now'])
+    expect(parsed.dashboardSectionOrder).toBe('hot-first')
+  })
+
+  it('drops unknown and repeated entries and appends missing ones', () => {
+    expect(
+      parseSettings({ dashboardSections: ['popular', 'nope', 7, 'popular', 'invites'] })
+        .dashboardSections
+    ).toEqual(['popular', 'invites', 'wearing-now', 'hot'])
+    expect(parseSettings({ dashboardSections: 'popular' }).dashboardSections).toEqual([
+      ...DASHBOARD_SECTIONS
+    ])
+  })
+
+  it('swaps only Popular now and Hot Instances to match an order', () => {
+    const sections: DashboardSection[] = ['popular', 'wearing-now', 'hot', 'invites']
+    expect(withDashboardSectionOrder(sections, 'hot-first')).toEqual([
+      'hot',
+      'wearing-now',
+      'popular',
+      'invites'
+    ])
+    expect(withDashboardSectionOrder(sections, 'popular-first')).toEqual(sections)
+    expect(dashboardSectionOrderOf(sections)).toBe('popular-first')
   })
 })
 

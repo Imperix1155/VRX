@@ -39,16 +39,16 @@ These decisions are settled. Changing one needs the owner's explicit approval.
 6. **Background never tints information.** The aurora may color decorative
    chrome such as the sidebar, but never a card or panel that carries
    information (§3).
-7. **Dashboard layout.** The Dashboard has a Popular now section and a Hot
-   Instances section. Settings → Dashboard → Section order picks which comes
-   first, Popular now by default. The first section uses picture cards and the
-   second uses bars with the world picture behind them. Each section shows two
-   cards: the top one per platform when both have one, otherwise the top two.
-   The Popular now and Hot Instances switches, both on by default, only hide
-   their Dashboard section (§8, §9.1). Above both, under the numbers, a
-   glance row shows Wearing now (the worn avatar per signed-in platform) and
-   Latest invites (the newest invite per platform), side by side; each has
-   its own switch, on by default (§9.1). Hide empty sections, on by default,
+7. **Dashboard layout.** Under the numbers the Dashboard has four sections:
+   Wearing now (the worn avatar per signed-in platform), Latest invites (the
+   newest invite per platform), Popular now and Hot Instances, in that order
+   by default. Settings → Dashboard → Sections moves each one up or down and
+   turns it on or off, all on by default; off only hides the Dashboard
+   section (§8, §9.1). Wearing now and Latest invites share one glance row
+   while they sit next to each other. Of Popular now and Hot Instances, the
+   first uses picture cards and the second uses bars with the world picture
+   behind them. Each shows two cards: the top one per platform when both
+   have one, otherwise the top two. Hide empty sections, on by default,
    lets a section with nothing to show step aside so the others take its
    space, and the first section actually shown gets the picture cards.
 8. **Hot Instances page.** The sidebar has a Hot Instances page listing every
@@ -388,7 +388,10 @@ Explore stays. Hot Instances off removes its Dashboard statistic, heading,
 threshold, cards, and details, and the remaining friend statistics fill two
 equal columns. It never hides the Hot Instances page and never affects the
 Hot instance notification. Wearing now and Latest invites off hide only
-their glance section; the Avatars and Inbox pages and invite alerts stay. A
+their glance section; the Avatars and Inbox pages and invite alerts stay.
+These switches sit in one Sections card with each section's move up and
+move down buttons; a button at the top or bottom stays focusable but does
+nothing, and each move is announced to screen readers. A
 compact "Settings" button below the Dashboard content opens Settings →
 Dashboard, even when every section is off.
 
@@ -399,7 +402,7 @@ that reported no worn avatar, and Hot Instances with nothing hot step aside
 explains the missing section; the threshold stays in Settings → Dashboard
 and on the Hot Instances page. A lone glance section takes the whole row and
 puts its two platform rows side by side. Off shows each section's empty
-state, and card style follows Section order only.
+state, and card style follows the section order only.
 
 **Updater.** The update control is the sidebar footer button. When there is
 nothing to do it is absent; available, downloading, and downloaded each have
@@ -439,8 +442,9 @@ threshold stepper sits beside a quiet "?" button that toggles an explanation
 of grouping, visible friends, the platform filter, ranking, and the
 threshold; it starts closed and exposes its state to assistive technology.
 
-The glance row sits between the numbers and the two ordered sections and
-does not move with Section order. Its two sections sit side by side when the
+The glance row holds Wearing now and Latest invites while they are
+neighbours in the section order; apart, each gets its own full-width row.
+Its two sections sit side by side when the
 area is at least 520 px wide, one above the other below that; a lone section
 fills the row, with its two platform rows side by side. Each is a heading with a quiet button (Avatars, or See all N
 for the Inbox) over one glass list, and every row is the same height: a

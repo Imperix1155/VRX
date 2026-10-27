@@ -39,6 +39,9 @@
  *   dashboardSectionOrder  → which Dashboard section comes first (default Popular now first)
  *   dashboardWearingNow, dashboardInvites → the Dashboard's worn-avatar and latest-invite
  *                            sections (owner, 2026-10-27; default shown, v21)
+ *   dashboardSections      → the order of every Dashboard section below the numbers (owner,
+ *                            2026-10-27; v21). It owns the order: dashboardSectionOrder is kept
+ *                            in step (Popular now vs Hot Instances) for older builds.
  *   dashboardHideEmpty     → Dashboard sections with nothing to show step aside so the rest
  *                            use the space (owner, 2026-10-27; default on, v21)
  *   showHotInstancesPage, showExplorePage → optional sidebar pages (owner, 2026-10-20; default shown)
@@ -60,6 +63,10 @@ import {
   BACKGROUND_GLOWS,
   BACKGROUND_PICTURE_FADES,
   DASHBOARD_SECTION_ORDERS,
+  DASHBOARD_SECTIONS,
+  dashboardSectionOrderOf,
+  dashboardSectionsFromOrder,
+  normalizeDashboardSections,
   DRAWER_OPENERS,
   FRIEND_ALERT_SCOPES,
   FRIEND_SECTIONS,
@@ -91,6 +98,14 @@ export const SettingsSchema = z.object({
    *  Dashboard numbers. Hiding either keeps the Avatars and Inbox pages. */
   dashboardWearingNow: z.boolean().catch(true),
   dashboardInvites: z.boolean().catch(true),
+  /** The order of every section below the Dashboard numbers. Unknown or repeated
+   *  entries drop and missing ones are appended; a file without it takes the order
+   *  from `dashboardSectionOrder` (see `parseSettings`). */
+  dashboardSections: z
+    .array(z.unknown())
+    .max(16)
+    .transform(normalizeDashboardSections)
+    .catch([...DASHBOARD_SECTIONS]),
   /** Sections with nothing to show (no invites, no hot instances) step aside and
    *  the first shown section takes the picture cards. Off shows their empty states. */
   dashboardHideEmpty: z.boolean().catch(true),
@@ -244,8 +259,8 @@ export const SETTINGS_MIGRATIONS: Readonly<Record<number, SettingsMigration>> = 
   // v19 → v20: `showInboxPage`, `notifyInvites` and `notifyFriendRequests` are
   // additive. The version boundary stops an older build from stripping them.
   19: (prev) => ({ ...prev }),
-  // v20 → v21: `dashboardWearingNow`, `dashboardInvites` and
-  // `dashboardHideEmpty` are additive. The
+  // v20 → v21: `dashboardWearingNow`, `dashboardInvites`, `dashboardSections`
+  // and `dashboardHideEmpty` are additive. The
   // version boundary stops an older build from stripping a user's Off.
   20: (prev) => ({ ...prev })
 }
@@ -308,7 +323,18 @@ export function runMigrations(
  */
 export function parseSettings(raw: unknown): Settings {
   const migrated = runMigrations(isRecord(raw) ? raw : {})
-  return SettingsSchema.parse(migrated)
+  const parsed = SettingsSchema.parse(migrated)
+  // The section list owns the Dashboard order. A file from before it existed
+  // keeps its Popular now / Hot Instances order; afterwards the older field
+  // follows the list so an older build still shows the same two in order.
+  const sections = Array.isArray(migrated.dashboardSections)
+    ? parsed.dashboardSections
+    : dashboardSectionsFromOrder(parsed.dashboardSectionOrder)
+  return {
+    ...parsed,
+    dashboardSections: sections,
+    dashboardSectionOrder: dashboardSectionOrderOf(sections)
+  }
 }
 
 /**

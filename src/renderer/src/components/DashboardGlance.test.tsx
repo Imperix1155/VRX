@@ -16,6 +16,7 @@ import i18n from '../i18n'
 import { avatarLibraryQueryKey } from '../queries/avatarLibrary'
 import { useSettingsStore } from '../stores/settings'
 import { useUiStore } from '../stores/ui'
+import type { GlanceSection } from '../utils/dashboardAggregations'
 import DashboardGlance from './DashboardGlance'
 
 vi.mock('../hooks/useAvatar', () => ({ useAvatar: () => null }))
@@ -87,10 +88,13 @@ const bridge = {
 }
 
 let client: QueryClient
-function renderGlance(platforms: Platform[] = ['vrchat', 'chilloutvr']): void {
+function renderGlance(
+  platforms: Platform[] = ['vrchat', 'chilloutvr'],
+  sections?: GlanceSection[]
+): void {
   render(
     <QueryClientProvider client={client}>
-      <DashboardGlance platforms={platforms} />
+      <DashboardGlance platforms={platforms} sections={sections} />
     </QueryClientProvider>
   )
 }
@@ -313,6 +317,22 @@ describe('DashboardGlance: settings', () => {
     renderGlance()
     expect(await screen.findByRole('region', { name: msg('avatars.wearingNow') })).toBeTruthy()
     expect(screen.queryByRole('region', { name: msg('dashboard.glance.invites') })).toBeNull()
+  })
+
+  it('holds only the sections it is given, in that order', async () => {
+    inboxItems = [invite('vrchat', 'v-new', 'Aria', 5)]
+    renderGlance(['vrchat', 'chilloutvr'], ['invites'])
+    expect(
+      await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
+    ).toBeTruthy()
+    expect(screen.queryByRole('region', { name: msg('avatars.wearingNow') })).toBeNull()
+    expect(bridge.getCurrentAvatar).not.toHaveBeenCalled()
+    cleanup()
+
+    renderGlance(['vrchat', 'chilloutvr'], ['invites', 'wearing-now'])
+    const invites = await screen.findByRole('region', { name: msg('dashboard.glance.invites') })
+    const worn = await screen.findByRole('region', { name: msg('avatars.wearingNow') })
+    expect(invites.compareDocumentPosition(worn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('renders nothing with both off', () => {

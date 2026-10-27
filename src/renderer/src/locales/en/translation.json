@@ -370,28 +370,29 @@
         "label": "Hide empty sections",
         "description": "Sections with nothing to show make room for the others."
       },
+      "sections": {
+        "label": "Sections",
+        "description": "Their order on the Dashboard. The first of Popular now and Hot Instances shows pictures. Hiding one keeps its page.",
+        "moveUp": "Move {{name}} up",
+        "moveDown": "Move {{name}} down",
+        "moved": "{{name}} is now {{position}} of {{count}}"
+      },
       "order": {
-        "label": "Section order",
-        "description": "Choose which Dashboard section comes first. The first one shows pictures.",
         "aria": "Dashboard section order",
         "popularFirst": "Popular now first",
         "hotFirst": "Hot Instances first"
       },
       "popular": {
-        "label": "Popular now",
-        "description": "Show the Dashboard preview. Explore stays available."
+        "label": "Popular now"
       },
       "hot": {
-        "label": "Hot Instances",
-        "description": "Show Hot Instances on the Dashboard. The Hot Instances page and alerts stay available."
+        "label": "Hot Instances"
       },
       "wearingNow": {
-        "label": "Wearing now",
-        "description": "Your worn avatar on each platform."
+        "label": "Wearing now"
       },
       "invites": {
-        "label": "Latest invites",
-        "description": "The newest invite from each platform."
+        "label": "Latest invites"
       }
     },
     "persistence": {

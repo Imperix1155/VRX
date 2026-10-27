@@ -4,7 +4,7 @@
  * These functions work on an array of Friend objects from both platforms.
  * No React, no i18n — pure TS so they're unit-testable in plain Vitest.
  */
-import type { Friend, InstanceInfo, Platform } from '@shared/types'
+import type { DashboardSection, Friend, InstanceInfo, Platform } from '@shared/types'
 import { HOT_INSTANCE_THRESHOLD } from '@shared/constants'
 import { hotInstanceKey, isHotInstanceMember } from '@shared/hotInstanceKey'
 import { policySpaceFor, type PolicySpace } from './instancePolicySpace'
@@ -302,4 +302,25 @@ export function pickOnePerPlatform<T extends { platform: Platform }>(
     picked.add(item)
   }
   return sorted.filter((item) => picked.has(item))
+}
+
+/** The small Dashboard sections that share a glance row. */
+export type GlanceSection = Extract<DashboardSection, 'wearing-now' | 'invites'>
+
+/** The Dashboard's blocks in order: Popular now and Hot Instances alone, and
+ *  each run of neighbouring glance sections as one shared row. */
+export function dashboardBlocks(
+  sections: readonly DashboardSection[]
+): Array<'popular' | 'hot' | GlanceSection[]> {
+  const blocks: Array<'popular' | 'hot' | GlanceSection[]> = []
+  for (const section of sections) {
+    if (section === 'popular' || section === 'hot') {
+      blocks.push(section)
+      continue
+    }
+    const last = blocks.at(-1)
+    if (Array.isArray(last)) last.push(section)
+    else blocks.push([section])
+  }
+  return blocks
 }
