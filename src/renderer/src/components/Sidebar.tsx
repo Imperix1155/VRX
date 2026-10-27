@@ -6,6 +6,7 @@ import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useUpdater } from '../hooks/useUpdater'
 import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
 import {
+  IconActivity,
   IconAvatars,
   IconDashboard,
   IconExplore,
@@ -116,6 +117,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'dashboard', icon: IconDashboard },
   { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
+  { id: 'activity', icon: IconActivity },
   { id: 'explore', icon: IconExplore },
   { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
@@ -128,8 +130,9 @@ export default function Sidebar(): React.JSX.Element {
   const platformFilter = useFriendsStore((s) => s.platformFilter)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const navItems = NAV_ITEMS.filter(({ id }) =>
-    isPageShown(id, { showHotInstancesPage, showExplorePage })
+    isPageShown(id, { showHotInstancesPage, showExplorePage, showActivityPage })
   )
 
   return (

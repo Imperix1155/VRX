@@ -14,6 +14,7 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
+import type { ActivityEntry } from '@shared/activity'
 import type { AvatarItem } from '@shared/avatarLibrary'
 
 export type PlatformMode =
@@ -207,6 +208,100 @@ export const friends: Record<Platform, Friend[]> = {
     cvrFriend('cvr-guide-echo', 'Echo', 'in-game', auroraCvr),
     cvrFriend('cvr-guide-oak', 'Oak', 'in-game', hallCvr)
   ]
+}
+
+/** Sample Activity list, newest first. Ask Me / DND friends never name a world,
+ *  and the oldest rows fall on the previous day to show the date form. Times
+ *  are relative to the moment the scene loads. */
+export function activityEntries(now: number): ActivityEntry[] {
+  const minute = 60_000
+  const rows: Array<Omit<ActivityEntry, 'id' | 'at'> & { ago: number }> = [
+    {
+      kind: 'world',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-iris',
+      displayName: 'Iris Circuitbreaker',
+      worldName: 'Aurora Transit Lounge',
+      ago: 1
+    },
+    {
+      kind: 'online',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-pixel',
+      displayName: 'Pixel Orchard',
+      worldName: 'Midnight Museum of Small Wonders (#816332)',
+      ago: 3
+    },
+    {
+      kind: 'offline',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-sol',
+      displayName: 'Sol in a Very Long Display Name That Truncates Gracefully',
+      worldName: null,
+      ago: 6
+    },
+    {
+      kind: 'world',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-marlow',
+      displayName: 'Marlow, Archive Keeper',
+      worldName: 'Aurora Transit Lounge',
+      ago: 9
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-vale',
+      displayName: 'Vale After the Last Train',
+      worldName: null,
+      ago: 14
+    },
+    {
+      kind: 'offline',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-delta',
+      displayName: 'Delta Frame',
+      worldName: null,
+      ago: 22
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-kai',
+      displayName: 'Kai',
+      worldName: null,
+      ago: 31
+    },
+    {
+      kind: 'world',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-fern',
+      displayName: 'Fern',
+      worldName: null,
+      ago: 40
+    },
+    {
+      kind: 'online',
+      platform: 'vrchat',
+      platformUserId: 'usr-guide-nyx',
+      displayName: 'Nyx “Long Name” Hyperion-Santos',
+      worldName: 'Aurora Transit Lounge',
+      ago: 26 * 60
+    },
+    {
+      kind: 'online',
+      platform: 'chilloutvr',
+      platformUserId: 'cvr-guide-gone',
+      displayName: 'Former Friend',
+      worldName: null,
+      ago: 27 * 60
+    }
+  ]
+  return rows.map(({ ago, ...row }, index) => ({
+    ...row,
+    id: rows.length - index,
+    at: now - ago * minute
+  }))
 }
 
 export const worlds: Record<Platform, ExploreWorld[]> = {

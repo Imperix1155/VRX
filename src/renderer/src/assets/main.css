@@ -903,6 +903,10 @@ body::after {
 
 /* Settings: compact information cards over a neutral backing panel. */
 @layer components {
+  /* Activity list rows share one divider rule on both platforms. */
+  .activity-row + .activity-row {
+    border-top: 1px solid var(--border);
+  }
   .settings-cards {
     display: grid;
     gap: var(--space-2);

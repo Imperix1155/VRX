@@ -51,6 +51,11 @@ type VrxBridge = {
   ) => Promise<IpcInvoke['join-instance']['res']>
   selfInvite: (req: IpcInvoke['self-invite']['req']) => Promise<IpcInvoke['self-invite']['res']>
   getAppStatus: () => Promise<IpcInvoke['get-app-status']['res']>
+  /** The in-memory activity list; reading it makes no platform request. */
+  getActivity: () => Promise<IpcInvoke['get-activity']['res']>
+  clearActivity: () => Promise<IpcInvoke['clear-activity']['res']>
+  /** The activity list changed (coalesced). Returns an unsubscribe. */
+  onActivityChanged: (callback: () => void) => () => void
   openUrl: (req: IpcInvoke['open-url']['req']) => Promise<IpcInvoke['open-url']['res']>
   openLogsFolder: () => Promise<IpcInvoke['open-logs-folder']['res']>
   /** The user's background picture; main owns the file and the picking dialog. */

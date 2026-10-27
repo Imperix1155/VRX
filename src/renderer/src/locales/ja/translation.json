@@ -113,6 +113,7 @@
       "dashboard": "ダッシュボード",
       "hot": "ホットインスタンス",
       "friends": "フレンド",
+      "activity": "アクティビティ",
       "explore": "探索",
       "avatars": "アバター",
       "settings": "設定"
@@ -376,6 +377,10 @@
       "explore": {
         "label": "探索のページ",
         "description": "サイドバーに表示します。ダッシュボードのいま人気はそのままです。"
+      },
+      "activity": {
+        "label": "アクティビティのページ",
+        "description": "VRXを開いている間、これらの変化を一覧にします。オフにすると何も保持しません。"
       }
     },
     "setup": {
@@ -463,6 +468,34 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR"
+    }
+  },
+  "activity": {
+    "filterAria": "表示",
+    "kinds": {
+      "all": "すべて",
+      "online": "オンライン",
+      "world": "ワールド",
+      "offline": "オフライン"
+    },
+    "online": "オンラインになりました",
+    "onlineIn": "{{world}} でオンラインになりました",
+    "joined": "{{world}} に移動しました",
+    "joinedUnknown": "ワールドに移動しました",
+    "offline": "オフラインになりました",
+    "openFriend": "{{name}} をフレンドで開く",
+    "clear": "クリア",
+    "clearAria": "アクティビティをすべてクリア",
+    "emptyHeading": "まだアクティビティはありません",
+    "emptyHint": "VRXを開いている間、フレンドのオンライン、ワールド移動、オフラインがここに表示されます。",
+    "filteredEmpty": "この条件で表示できるものはありません。",
+    "loading": "アクティビティを読み込み中…",
+    "error": "アクティビティを読み込めませんでした。",
+    "retry": "再試行",
+    "notConnected": {
+      "vrchat": "ここでフレンドのアクティビティを確認するにはVRChatに接続してください",
+      "chilloutvr": "ここでフレンドのアクティビティを確認するにはChilloutVRに接続してください",
+      "openAccounts": "アカウントを開く"
     }
   },
   "drawer": {
@@ -792,8 +825,10 @@
       "title": "表示するページを選ぶ",
       "lead": "使わないページはオフにできます。ダッシュボード、フレンド、設定はいつでも表示されます。",
       "hot": "何人かのフレンドが一緒にいるインスタンスをすべて表示します。",
+      "activity": "フレンドのオンライン、ワールド移動、オフラインの流れ。",
       "explore": "両方のプラットフォームでいま人気のワールド。",
       "hotAria": "ホットインスタンスのページを表示",
+      "activityAria": "アクティビティのページを表示",
       "exploreAria": "探索のページを表示"
     },
     "dashboard": {

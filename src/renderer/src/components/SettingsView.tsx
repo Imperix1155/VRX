@@ -557,6 +557,7 @@ export default function SettingsView(): React.JSX.Element {
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -935,6 +936,25 @@ export default function SettingsView(): React.JSX.Element {
                 checked={notifyHotInstance}
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+              />
+            </div>
+
+            {/* The Activity page lists the same friend changes inside VRX
+                (owner, 2026-10-27). It lives here rather than with the other
+                page switches so Behavior still fits the 900x670 window. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.pages.activity.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.pages.activity.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={showActivityPage}
+                ariaLabel={t('settings.pages.activity.label')}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
               />
             </div>
           </section>

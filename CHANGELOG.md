@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page, sorted by name. Avatars load when you open the page or press Refresh,
   and switching is limited to one every 5 seconds per platform. Favorites are
   not included yet.
+- Activity page: friends coming online, joining a world, and going offline on
+  VRChat and ChilloutVR, newest first, in one list with each platform named.
+  Show picks All, Online, Worlds, or Offline; Clear empties the list; a row
+  opens that friend on the Friends page. It is built from the live connection
+  VRX already has, so it makes no extra requests, and it stays in memory only
+  until VRX closes or you sign out. Friends set to Ask Me or Do Not Disturb
+  never show a world or a move. Turn it off in Settings → Notifications →
+  Activity page or in the welcome setup; off also stops VRX keeping it.
 
 ### Changed
 
