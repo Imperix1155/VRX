@@ -114,6 +114,7 @@
       "dashboard": "Dashboard",
       "hot": "Hot Instances",
       "friends": "Friends",
+      "activity": "Activity",
       "explore": "Explore",
       "settings": "Settings"
     },
@@ -172,9 +173,17 @@
       "error": {
         "unsupported": "Pick a PNG or JPEG picture.",
         "tooLarge": "That picture is too big. Try a smaller one.",
+        "tooSmall": "That picture is too small to fill the window. Pick one at least 640 × 360 pixels.",
+        "tooTall": "That picture is too tall. Only a thin strip of it would show. Pick a wide or square picture.",
+        "tooWide": "That picture is too wide. Only a small middle part would show. Pick a less stretched picture.",
         "unreadable": "VRX couldn’t open that picture.",
         "saveFailed": "VRX couldn’t save the picture. Try again.",
         "removeFailed": "VRX couldn’t remove the picture. Try again."
+      },
+      "warning": {
+        "tall": "Tall pictures get cropped, so only the middle shows. Wide pictures work best.",
+        "wide": "Very wide pictures get cropped, so only the middle shows on most screens.",
+        "lowRes": "This picture is small, so it may look blurry on big screens."
       }
     },
     "reconcileInterval": {
@@ -390,6 +399,10 @@
       "explore": {
         "label": "Explore page",
         "description": "Show it in the sidebar. Popular now on the Dashboard stays."
+      },
+      "activity": {
+        "label": "Activity page",
+        "description": "Lists these changes while VRX is open. Off hides it and keeps nothing."
       }
     },
     "setup": {
@@ -477,6 +490,34 @@
       "chilloutvr": "ChilloutVR",
       "vrchatShort": "VRC",
       "chilloutvrShort": "CVR"
+    }
+  },
+  "activity": {
+    "filterAria": "Show",
+    "kinds": {
+      "all": "All",
+      "online": "Online",
+      "world": "Worlds",
+      "offline": "Offline"
+    },
+    "online": "Came online",
+    "onlineIn": "Came online in {{world}}",
+    "joined": "Joined {{world}}",
+    "joinedUnknown": "Joined a world",
+    "offline": "Went offline",
+    "openFriend": "Open {{name}} in Friends",
+    "clear": "Clear",
+    "clearAria": "Clear all activity",
+    "emptyHeading": "No activity yet",
+    "emptyHint": "Friends coming online, joining worlds and going offline show up here while VRX is open.",
+    "filteredEmpty": "Nothing to show with these filters.",
+    "loading": "Loading activity…",
+    "error": "Couldn’t load activity.",
+    "retry": "Retry",
+    "notConnected": {
+      "vrchat": "Connect VRChat to see your friends’ activity here",
+      "chilloutvr": "Connect ChilloutVR to see your friends’ activity here",
+      "openAccounts": "Go to Accounts"
     }
   },
   "drawer": {
@@ -760,8 +801,10 @@
       "title": "Pick your pages",
       "lead": "Turn off pages you won’t use. Dashboard, Friends and Settings are always there.",
       "hot": "Every instance where several friends are together.",
+      "activity": "Friends coming online, changing worlds and going offline.",
       "explore": "Worlds that are popular right now on both platforms.",
       "hotAria": "Show the Hot Instances page",
+      "activityAria": "Show the Activity page",
       "exploreAria": "Show the Explore page"
     },
     "dashboard": {

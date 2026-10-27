@@ -37,6 +37,7 @@ import { CvrAdapter, type CvrCredentialStore } from './services/adapters/CvrAdap
 import type { CVRCredentials } from './services/adapters/CvrApiClient'
 import type { IPlatformAdapter } from './services/adapters/IPlatformAdapter'
 import type { AdapterEvent, Platform } from '@shared/types'
+import { ACTIVITY_PUSH_COALESCE_MS } from '@shared/constants'
 import { registerIpcHandlers } from './ipc'
 import { applyWindowTheme, watchSystemTheme, windowBackgroundColor } from './windowTheme'
 import {
@@ -54,6 +55,7 @@ import { createTray } from './tray'
 import { isQuitShortcut } from './quitShortcut'
 import { keepMinimumSizeOnScreen } from './windowMinimumSize'
 import { FriendAlerts } from './services/friendAlerts'
+import { ActivityFeed } from './services/activityFeed'
 import { PendingNavigation } from './pendingNavigation'
 import { LocationAuthority } from './services/locationAuthority'
 import { AccountSession } from './services/accountSession'
@@ -396,6 +398,7 @@ app
     // User-Agent (same policy as REST — VRX-129); logs route through the
     // redaction hook. The adapter itself stays electron-free.
     const friendAlertBoundary: { current?: FriendAlerts } = {}
+    const activityBoundary: { current?: ActivityFeed } = {}
     const exploreBoundary: { current?: ExploreService } = {}
     const accountSession = new AccountSession()
     const accountRegistry = new AccountRegistry(accountSession)
@@ -426,6 +429,8 @@ app
       },
       onSessionBoundary: ({ identityRetained }) => {
         friendAlertBoundary.current?.resetPlatform('vrchat')
+        // The same account after a data-path 401 keeps its activity.
+        activityBoundary.current?.resetPlatform('vrchat', { keepEntries: identityRetained })
         locationAuthority.clearPlatform('vrchat')
         exploreBoundary.current?.clearPlatform('vrchat')
         // A data-path 401 keeps the same account and is followed by
@@ -498,6 +503,7 @@ app
         // renderer boundary would refetch the roster and drop note drafts.
         if (identityRetained) return
         friendAlertBoundary.current?.resetPlatform('chilloutvr')
+        activityBoundary.current?.resetPlatform('chilloutvr')
         locationAuthority.clearPlatform('chilloutvr')
         exploreBoundary.current?.clearPlatform('chilloutvr')
         for (const window of BrowserWindow.getAllWindows()) {
@@ -537,6 +543,28 @@ app
         platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null
     })
     friendAlertBoundary.current = friendAlerts
+
+    // The Activity page's list (activityFeed.ts): memory only, fed by the same
+    // events as the alerts, no requests. Changes reach the renderer coalesced.
+    let activityPushTimer: ReturnType<typeof setTimeout> | null = null
+    const activityFeed = new ActivityFeed({
+      now: () => Date.now(),
+      clock: () => performance.now(),
+      isEnabled: () => getSettingsSnapshot().showActivityPage,
+      resolveName: (platform, platformUserId) =>
+        platform === 'chilloutvr' ? cvrAdapter.resolveFriendName(platformUserId) : null,
+      onChanged: () => {
+        if (activityPushTimer !== null) return
+        activityPushTimer = setTimeout(() => {
+          activityPushTimer = null
+          for (const window of BrowserWindow.getAllWindows()) {
+            if (!window.isDestroyed()) window.webContents.send('activity-changed')
+          }
+        }, ACTIVITY_PUSH_COALESCE_MS)
+        activityPushTimer.unref()
+      }
+    })
+    activityBoundary.current = activityFeed
 
     // VRX-202: the avatar fetcher needs the live VRChat auth cookie (the image
     // endpoint 401s unauthenticated). Each operation captures its own session lease.
@@ -610,6 +638,8 @@ app
       onSettingsApplied: (saved) => {
         applyWindowTheme(saved.theme)
         applyUpdaterSettings(saved)
+        // Turning the Activity page off also forgets what it kept.
+        if (!saved.showActivityPage) activityFeed.clearAll()
       },
       accountRegistry,
       accountSession,
@@ -624,6 +654,7 @@ app
         }
       },
       appStatus,
+      activity: activityFeed,
       importSession: createSessionImporter({
         discoverVrchat: importVrcxSession,
         discoverChilloutvr: () =>
@@ -659,7 +690,10 @@ app
       },
       locationAuthority,
       onRendererHydrated,
-      onFriendRoster: (platform, friends) => friendAlerts.seedRoster(platform, friends),
+      onFriendRoster: (platform, friends) => {
+        friendAlerts.seedRoster(platform, friends)
+        activityFeed.seedRoster(platform, friends)
+      },
       instance: {
         joinCoordinator,
         isJoinAllowed: () => getSettingsSnapshot().allowJoinInstances,
@@ -685,6 +719,7 @@ app
       appStatus,
       locationAuthority,
       friendAlerts,
+      activityFeed,
       broadcast
     })
     // A socket can look open after sleep while its connection is gone.

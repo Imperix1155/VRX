@@ -60,6 +60,9 @@ interface FriendAlertsOptions {
   isFriendIncluded?: (platform: Platform, platformUserId: string) => boolean
   hotInstanceThreshold?: () => number
   resolveName: (platform: Platform, platformUserId: string) => string | null
+  /** Native toasts are rate limited; the in-app activity list records every
+   *  transition instead (default true). */
+  rateLimited?: boolean
 }
 
 const RATE_LIMIT_COUNT = 3
@@ -403,7 +406,7 @@ export class FriendAlerts {
   }
 
   private withinRateLimit(type: FriendAlertType): boolean {
-    if (!RATE_LIMITED_TYPES.has(type)) return true
+    if (this.options.rateLimited === false || !RATE_LIMITED_TYPES.has(type)) return true
 
     const limitedType = type
     const now = this.options.clock()

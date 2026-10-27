@@ -129,7 +129,7 @@ etiquette rules apply in full; this file adds local detail.
 **Events, alerts, images**
 
 - `adapterWiring.ts` feeds each event to app status, `LocationAuthority`,
-  `FriendAlerts`, then the broadcast, isolating each consumer. The broadcast
+  `FriendAlerts`, `ActivityFeed`, then the broadcast, isolating each consumer. The broadcast
   stamps `rosterRevision` from the same monotonic counter as roster seeds;
   event revisions never move per-friend location fences.
 - A session boundary clears that platform's alerts, location authority, and
@@ -145,6 +145,12 @@ etiquette rules apply in full; this file adds local detail.
   friends never count toward hot alerts, and
   no alert names their world (`friendNotificationPrivacy.test.ts`). Failure
   logs carry no names or locations.
+- `ActivityFeed` keeps the Activity page's list: its own `FriendAlerts`
+  engine without the toast rate limit, memory only, bounded per platform,
+  gated by `showActivityPage` at each transition. It never records a world or
+  a move for a hidden location, keeps backfill locations in main, and clears
+  a platform at an account boundary (a same-account 401 keeps entries).
+  Changes reach the renderer as a coalesced `activity-changed` push.
 - `AvatarCache` is the only image proxy. Keep its HTTPS host allowlist,
   redirect, MIME, URL-length, body-size, LRU entry and byte, and TTL limits.
   API hops share platform admission. The VRChat cookie goes only to
@@ -159,8 +165,8 @@ etiquette rules apply in full; this file adds local detail.
   their 24-hour expiry, and `clearAll()` on an explicit VRChat sign-out.
 - `AppBackgroundStore` keeps the user's background picture in
   `userData/app-background`. It reads only the file picked in the native
-  dialog (regular PNG or JPEG, bounded bytes, header pixel count checked
-  before decoding), keeps only a freshly encoded, bounded copy written
+  dialog (regular PNG or JPEG, bounded bytes, header pixel count and the
+  shared size and shape refusal checked before decoding), keeps only a freshly encoded, bounded copy written
   atomically, never changes the picked file, and never logs paths.
 - Round friend pictures ask for `AvatarCache`'s `avatar` rendition: a small
   copy built locally from already validated bytes (`avatarRendition.ts`). It

@@ -204,9 +204,9 @@ describe('Picked friends list before the roster loads', () => {
     ).toBeTruthy()
     expect(within(vrc).queryByRole('button')).toBeNull()
 
-    act(() =>
+    act(() => {
       queryClient.setQueryData(friendsQueryKey('vrchat'), [friend('vrchat', 'usr_alex', 'Alex')])
-    )
+    })
     expect(await within(vrc).findByText('Alex')).toBeTruthy()
   })
 })
@@ -266,15 +266,16 @@ describe('AlertPickRow', () => {
   })
 
   it('never keeps picks that main reports for a different account', async () => {
-    window.vrx!.getAlertPicks = vi.fn(async () => ({
+    const getAlertPicks = vi.fn(async () => ({
       friendIds: ['usr_new'],
       revision: { platformAccountId: 'someone-else', epoch: 2 }
-    })) as unknown as NonNullable<Window['vrx']>['getAlertPicks']
+    }))
+    Object.assign(window.vrx ?? {}, { getAlertPicks })
     withClient(<AlertPickRow accounts={[friend('vrchat', 'usr_new', 'Nova')]} name="Nova" />)
     const toggle = screen.getByRole('radiogroup', {
       name: msg('drawer.alerts.aria', { name: 'Nova' })
     })
-    await waitFor(() => expect(window.vrx!.getAlertPicks).toHaveBeenCalled())
+    await waitFor(() => expect(getAlertPicks).toHaveBeenCalled())
     await act(async () => {})
     const on = within(toggle).getByRole('radio', { name: msg('settings.boolean.on') })
     expect(on.getAttribute('aria-checked')).toBe('false')

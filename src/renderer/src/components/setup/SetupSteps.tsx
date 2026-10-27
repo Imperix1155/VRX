@@ -8,7 +8,7 @@ import { focusRadioSibling, segArrowTarget } from '../../utils/segmented'
 import AccountCard from '../AccountCard'
 import SegmentedControl from '../SegmentedControl'
 import Toggle from '../Toggle'
-import { IconExplore, IconFriends, IconHot } from '../NavIcons'
+import { IconActivity, IconExplore, IconFriends, IconHot } from '../NavIcons'
 import { SECONDARY_BUTTON, SETUP_ALERTS, SETUP_PLATFORMS } from './setupModel'
 
 /**
@@ -223,6 +223,7 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
   const { t } = useTranslation()
   const showHot = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplore = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivity = useSettingsStore((s) => s.settings.showActivityPage)
   const update = useSettingsStore((s) => s.updateSettings)
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
@@ -233,6 +234,17 @@ export const PagesStep = forwardRef<HTMLHeadingElement>(function PagesStep(_prop
             checked={showHot}
             ariaLabel={t('setup.pages.hotAria')}
             onChange={(checked) => update({ showHotInstancesPage: checked })}
+          />
+        </Row>
+        <Row
+          icon={<IconActivity />}
+          label={t('shell.nav.activity')}
+          description={t('setup.pages.activity')}
+        >
+          <Toggle
+            checked={showActivity}
+            ariaLabel={t('setup.pages.activityAria')}
+            onChange={(checked) => update({ showActivityPage: checked })}
           />
         </Row>
         <Row
@@ -466,6 +478,7 @@ export const DoneStep = forwardRef<
       ['shell.nav.dashboard', true],
       ['shell.nav.hot', s.showHotInstancesPage],
       ['shell.nav.friends', true],
+      ['shell.nav.activity', s.showActivityPage],
       ['shell.nav.explore', s.showExplorePage],
       ['shell.nav.settings', true]
     ] as const

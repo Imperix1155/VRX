@@ -5,6 +5,7 @@ import type { Settings } from '@shared/settings'
 import type { Friend, Platform } from '@shared/types'
 import type { IPlatformAdapter } from '../services/adapters/IPlatformAdapter'
 import { registerAccountsHandlers } from './accounts'
+import { registerActivityHandlers } from './activity'
 import { registerAppStatusHandlers } from './app-status'
 import { registerAuthHandlers } from './auth'
 import { registerAvatarHandlers } from './avatar'
@@ -28,6 +29,7 @@ import type { AccountRegistry } from '../services/accountRegistry'
 import type { AccountSession } from '../services/accountSession'
 import type { SocialStore } from '../services/socialStore'
 import type { AppStatusService } from '../services/appStatus'
+import type { ActivityFeed } from '../services/activityFeed'
 import {
   IPC_RATE_LIMIT_BUDGETS,
   ipcRateLimitDenial,
@@ -48,6 +50,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   alertPicks: FriendAlertPicks
   links: Omit<LinksHandlerOptions, 'accountSession'>
   appStatus: AppStatusService
+  activity: ActivityFeed
   instance: InstanceHandlerOptions
   explore: ExploreService
   appBackground: AppBackgroundHandlerOptions
@@ -124,6 +127,7 @@ export function registerIpcHandlers(
     registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
     registerExploreHandlers(options.explore)
     registerAppStatusHandlers(options.appStatus)
+    registerActivityHandlers(options.activity)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)
     registerAppBackgroundHandlers(options.appBackground)

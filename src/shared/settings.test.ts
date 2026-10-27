@@ -23,6 +23,8 @@ describe('settings schema', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       theme: 'system',
       language: 'en',
@@ -281,6 +283,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -323,6 +327,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundGlow: 'standard',
       backgroundPictureFade: 'medium',
@@ -366,6 +372,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       backgroundPictureFade: 'medium',
       friendAlertScope: 'everyone',
@@ -411,6 +419,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       drawerOpener: 'card',
       confirmJoin: true,
@@ -454,6 +464,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       confirmJoin: true,
       joinMode: 'ask',
@@ -498,6 +510,8 @@ describe('migration runner', () => {
       hotInstancesEnabled: true,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false,
       autoUpdate: false,
       updateChannel: 'stable',
@@ -782,22 +796,53 @@ describe('shouldPersistSettings (rollback safety)', () => {
     })
   })
 
-  it('defaults friend alerts to everyone and keeps a picked scope through a v16 round-trip', () => {
-    expect(parseSettings({ version: 16 }).friendAlertScope).toBe('everyone')
+  it('defaults friend alerts to everyone and keeps a picked scope through a v17 round-trip', () => {
+    expect(parseSettings({ version: 17 }).friendAlertScope).toBe('everyone')
     expect(parseSettings({ friendAlertScope: 'some' }).friendAlertScope).toBe('everyone')
 
     let disk: Record<string, unknown> = {
       ...DEFAULT_SETTINGS,
-      version: 17,
+      version: 18,
       friendAlertScope: 'picked'
     }
-    // A v16 build does not know the key and would strip it.
-    const oldNormalized = { ...disk, version: 16 }
+    // A v17 build does not know the key and would strip it.
+    const oldNormalized = { ...disk, version: 17 }
     Reflect.deleteProperty(oldNormalized, 'friendAlertScope')
+
+    if (shouldPersistSettings(disk, 17)) disk = oldNormalized
+
+    expect(parseSettings(disk).friendAlertScope).toBe('picked')
+  })
+
+  it('keeps the Activity page switch and its filters across a v16 round-trip', () => {
+    let disk: Record<string, unknown> = {
+      ...DEFAULT_SETTINGS,
+      version: 17,
+      showActivityPage: false,
+      activityFilter: 'offline'
+    }
+    const oldNormalized = { ...disk, version: 16 }
+    Reflect.deleteProperty(oldNormalized, 'showActivityPage')
+    Reflect.deleteProperty(oldNormalized, 'activityFilter')
 
     if (shouldPersistSettings(disk, 16)) disk = oldNormalized
 
-    expect(parseSettings(disk).friendAlertScope).toBe('picked')
+    expect(parseSettings(disk)).toMatchObject({
+      showActivityPage: false,
+      activityFilter: 'offline'
+    })
+  })
+
+  it('migrates a v16 file with the Activity page on and every kind shown', () => {
+    const migrated = parseSettings({ ...DEFAULT_SETTINGS, version: 16 })
+    expect(migrated).toMatchObject({
+      version: SETTINGS_VERSION,
+      showActivityPage: true,
+      activityFilter: 'all'
+    })
+    expect(
+      parseSettings({ version: 16, showActivityPage: 'no', activityFilter: 'friends' })
+    ).toMatchObject({ showActivityPage: true, activityFilter: 'all' })
   })
 })
 
@@ -914,6 +959,8 @@ describe('Optional pages and first-run setup', () => {
       version: SETTINGS_VERSION,
       showHotInstancesPage: true,
       showExplorePage: true,
+      showActivityPage: true,
+      activityFilter: 'all',
       setupPending: false
     })
     expect(shouldPersistSettings({ version: 13, showExplorePage: false }, 12)).toBe(false)

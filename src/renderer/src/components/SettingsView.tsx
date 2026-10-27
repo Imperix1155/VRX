@@ -35,6 +35,7 @@ import Toggle from './Toggle'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
 import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
+import { backgroundPictureWarning, type BackgroundPictureWarning } from '@shared/backgroundPicture'
 import { chooseAppBackground, clearAppBackground, useAppBackground } from '../queries/appBackground'
 import { useAlertPicks } from '../queries/alertPicks'
 import PickedFriendsDialog from './PickedFriendsDialog'
@@ -72,6 +73,9 @@ const PICTURE_ERROR_KEYS: Record<
   cancelled: null,
   unsupported: 'settings.backgroundPicture.error.unsupported',
   'too-large': 'settings.backgroundPicture.error.tooLarge',
+  'too-small': 'settings.backgroundPicture.error.tooSmall',
+  'too-tall': 'settings.backgroundPicture.error.tooTall',
+  'too-wide': 'settings.backgroundPicture.error.tooWide',
   unreadable: 'settings.backgroundPicture.error.unreadable',
   'save-failed': 'settings.backgroundPicture.error.saveFailed'
 }
@@ -459,10 +463,18 @@ function LegalSettingsRow(): React.JSX.Element {
   )
 }
 
+const PICTURE_WARNING_KEYS: Record<BackgroundPictureWarning, string> = {
+  tall: 'settings.backgroundPicture.warning.tall',
+  wide: 'settings.backgroundPicture.warning.wide',
+  'low-res': 'settings.backgroundPicture.warning.lowRes'
+}
+
 /**
  * Background picture (owner, 2026-10-26): main opens the picture dialog and
  * keeps its own copy; the renderer only ever sees the kept copy's data URL.
- * The fade choice appears once a picture is set.
+ * The fade choice appears once a picture is set. Main refuses pictures that
+ * cannot fill the window; a usable picture that will be cropped hard or look
+ * soft gets one warning line, read from the thumbnail's own size.
  */
 function BackgroundPictureCard(): React.JSX.Element {
   const { t } = useTranslation()
@@ -474,6 +486,10 @@ function BackgroundPictureCard(): React.JSX.Element {
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const chooseButton = useRef<HTMLButtonElement>(null)
   const dataUrl = data?.dataUrl ?? null
+  const [fit, setFit] = useState<{ url: string; warning: BackgroundPictureWarning | null } | null>(
+    null
+  )
+  const warning = fit !== null && fit.url === dataUrl ? fit.warning : null
   const button = [
     'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
     'border border-[var(--border)]',
@@ -522,6 +538,15 @@ function BackgroundPictureCard(): React.JSX.Element {
                 {t(errorKey)}
               </p>
             )}
+            {errorKey === null && warning !== null && (
+              <p
+                role="status"
+                className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+                data-testid="background-picture-warning"
+              >
+                {t(PICTURE_WARNING_KEYS[warning])}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
             {dataUrl !== null && (
@@ -530,6 +555,13 @@ function BackgroundPictureCard(): React.JSX.Element {
                 alt=""
                 className="background-picture-thumb"
                 data-testid="background-picture-thumb"
+                onLoad={(event) => {
+                  const image = event.currentTarget
+                  setFit({
+                    url: dataUrl,
+                    warning: backgroundPictureWarning(image.naturalWidth, image.naturalHeight)
+                  })
+                }}
               />
             )}
             <button
@@ -599,6 +631,7 @@ export default function SettingsView(): React.JSX.Element {
   const notifyHotInstance = useSettingsStore((s) => s.settings.notifyHotInstance)
   const showHotInstancesPage = useSettingsStore((s) => s.settings.showHotInstancesPage)
   const showExplorePage = useSettingsStore((s) => s.settings.showExplorePage)
+  const showActivityPage = useSettingsStore((s) => s.settings.showActivityPage)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   // Category mini-pages (VRX-186): one page at a time — Settings never scrolls
   // (§8 no-scroll rule: control surfaces don't scroll, feeds do). The category
@@ -979,6 +1012,25 @@ export default function SettingsView(): React.JSX.Element {
                 checked={notifyHotInstance}
                 ariaLabel={t('settings.notifications.hotInstance.aria')}
                 onChange={(checked) => updateSettings({ notifyHotInstance: checked })}
+              />
+            </div>
+
+            {/* The Activity page lists the same friend changes inside VRX
+                (owner, 2026-10-27). It lives here rather than with the other
+                page switches so Behavior still fits the 900x670 window. */}
+            <div className="setting-card setting-row">
+              <div>
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {t('settings.pages.activity.label')}
+                </p>
+                <p className="mt-[var(--space-0-5)] text-xs text-[var(--text-dim)]">
+                  {t('settings.pages.activity.description')}
+                </p>
+              </div>
+              <Toggle
+                checked={showActivityPage}
+                ariaLabel={t('settings.pages.activity.label')}
+                onChange={(checked) => updateSettings({ showActivityPage: checked })}
               />
             </div>
           </section>

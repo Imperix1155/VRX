@@ -20,6 +20,12 @@ you press a "Use my sign-in from" button, described below.
 - **Friends**: one list for both platforms, grouped into In-Game, Online, and
   Offline, with search. Friend details show where someone is, their notes, and
   a Join button when you can join them.
+- **Activity**: a running list of friends coming online, joining worlds, and
+  going offline on both platforms, newest first. It comes from the live
+  connection VRX already has, so it adds no requests, and it is kept only
+  while VRX is open. Friends set to Ask Me or Do Not Disturb never show a
+  world. Filter it by kind, clear it, or turn it off in Settings →
+  Notifications.
 - **Explore**: popular public worlds from both platforms, with room details.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
   person by hand. VRX never guesses links from names.

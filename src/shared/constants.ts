@@ -67,6 +67,12 @@ export const HOT_INSTANCE_THRESHOLD = 2
 /** Bounds for the user-configurable hot threshold (VRX-78) — schema + both steppers share these. */
 export const HOT_INSTANCE_THRESHOLD_MIN = 1
 export const HOT_INSTANCE_THRESHOLD_MAX = 10
+/** Activity entries kept in memory per platform. Each platform has its own
+ *  allowance so a busy friend list on one never pushes the other's out. */
+export const ACTIVITY_MAX_ENTRIES_PER_PLATFORM = 300
+/** Activity changes reach the renderer at most this often (ms), so a burst of
+ *  presence changes is one re-read. */
+export const ACTIVITY_PUSH_COALESCE_MS = 500
 
 // ─── Platform / app identity ─────────────────────────────────────────────────
 /** CVR `Platform` header value (verified vs CVRX source). */
