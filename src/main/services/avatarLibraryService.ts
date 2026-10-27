@@ -31,6 +31,10 @@ interface PlatformState {
   /** Fuller records read on demand (ChilloutVR lists carry no dates). */
   details: Map<string, AvatarItem>
   listing: Promise<AvatarLibraryResult> | null
+  /** A read for this session finished, so `known` reflects the platform. */
+  listed: boolean
+  /** `whenListed` already started its one read for this session. */
+  implicitRead: boolean
   switching: boolean
   lastSwitchAt: number | null
 }
@@ -58,10 +62,7 @@ export class AvatarLibraryService {
     const adapter = this.options.adapters.get(platform)
     const state = adapter ? this.stateFor(adapter) : null
     if (!adapter || !state) return Promise.resolve({ ok: false, reason: 'not-authenticated' })
-    state.listing ??= this.readLibrary(adapter, state).finally(() => {
-      state.listing = null
-    })
-    return state.listing
+    return this.list(adapter, state)
   }
 
   async getDetails(platform: Platform, avatarId: string): Promise<AvatarDetailsResult> {
@@ -69,6 +70,7 @@ export class AvatarLibraryService {
     const state = adapter ? this.stateFor(adapter) : null
     if (!adapter || !state) return { ok: false, reason: 'not-authenticated' }
     const id = normalizeId(platform, avatarId)
+    if (id !== null) await this.whenListed(adapter, state, id)
     const known = id === null ? undefined : state.known.get(id)
     if (id === null || !known) return { ok: false, reason: 'unknown-avatar' }
     const cached = state.details.get(id)
@@ -97,6 +99,7 @@ export class AvatarLibraryService {
     const state = adapter ? this.stateFor(adapter) : null
     if (!adapter || !state) return this.denied(platform, 'not-authenticated')
     const id = normalizeId(platform, avatarId)
+    if (id !== null) await this.whenListed(adapter, state, id)
     if (id === null || !state.known.has(id)) return this.denied(platform, 'unknown-avatar')
     if (
       state.switching ||
@@ -130,20 +133,60 @@ export class AvatarLibraryService {
     this.states.delete(platform)
   }
 
+  private list(adapter: AvatarLibraryAdapter, state: PlatformState): Promise<AvatarLibraryResult> {
+    state.listing ??= this.readLibrary(adapter, state).finally(() => {
+      state.listing = null
+    })
+    return state.listing
+  }
+
+  /**
+   * The renderer keeps a loaded library for the whole session and shows it
+   * while a fresh read runs, so a Wear press or a details open can name an
+   * avatar before this session's list has come back (or after a session
+   * renewal started a new one). Wait for that read instead of refusing; when
+   * none has run yet, run the one read the page would have made anyway. At
+   * most one such read per session, whatever its outcome: afterwards an
+   * unlisted ID is refused at once, so a bad ID can never trigger repeated
+   * reads.
+   */
+  private async whenListed(
+    adapter: AvatarLibraryAdapter,
+    state: PlatformState,
+    id: string
+  ): Promise<void> {
+    if (state.known.has(id)) return
+    if (state.listing !== null) {
+      await state.listing
+      return
+    }
+    if (state.listed || state.implicitRead) return
+    state.implicitRead = true
+    await this.list(adapter, state)
+  }
+
   private async readLibrary(
     adapter: AvatarLibraryAdapter,
     state: PlatformState
   ): Promise<AvatarLibraryResult> {
     const platform = adapter.platform
     try {
+      // The worn-avatar read queues beside the list instead of after its last
+      // page. Both share the platform's one-request-per-second line, so this
+      // only saves the wait for a reply, never sends anything sooner.
+      const currentRead = adapter.getCurrentAvatar(state.lease).then(
+        (avatar) => ({ ok: true as const, avatar }),
+        (error: unknown) => ({ ok: false as const, error })
+      )
       const own = await adapter.getOwnAvatars(state.lease)
+      const currentResult = await currentRead
       let current: AvatarItem | null = null
-      try {
-        current = await adapter.getCurrentAvatar(state.lease)
-      } catch (error) {
+      if (currentResult.ok) {
+        current = currentResult.avatar
+      } else {
         // The list is still useful without the worn avatar; a sign-in or
         // rate-limit failure is not, so those end the whole read.
-        if (isTerminal(error)) throw error
+        if (isTerminal(currentResult.error)) throw currentResult.error
         this.log('avatar library request failed', { platform, reason: 'current-avatar' })
       }
       assertRequestLease(state.lease)
@@ -155,6 +198,7 @@ export class AvatarLibraryService {
       const worn = current ? (owned.get(current.avatarId) ?? current) : null
       state.known = new Map(owned)
       if (worn) state.known.set(worn.avatarId, worn)
+      state.listed = true
       return { ok: true, platform, avatars, complete: own.complete, current: worn }
     } catch (error) {
       return { ok: false, reason: this.failure(platform, error) }
@@ -183,6 +227,8 @@ export class AvatarLibraryService {
       known: new Map(),
       details: new Map(),
       listing: null,
+      listed: false,
+      implicitRead: false,
       switching: false,
       lastSwitchAt: null
     }

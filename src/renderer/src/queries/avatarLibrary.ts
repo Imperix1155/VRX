@@ -33,6 +33,22 @@ export function avatarDetailsQueryKey(
 /** How long a loaded library counts as fresh. Refresh always reads again. */
 export const AVATAR_LIBRARY_STALE_MS = 5 * 60_000
 
+/**
+ * A loaded library stays in memory for the whole session, so coming back to
+ * the Avatars page shows it at once (and reads again only once it is stale)
+ * instead of starting over after TanStack's default five unobserved minutes.
+ * Keys carry the account, and an identity boundary removes the platform's
+ * entries (`useLiveFriendEvents`), so nothing shows under another account.
+ */
+export const AVATAR_LIBRARY_GC_MS = Infinity
+
+/** Every avatar-library and avatar-details entry of one platform, any account. */
+export function avatarQueryKeysForPlatform(
+  platform: Platform
+): readonly [readonly ['avatar-library', Platform], readonly ['avatar-details', Platform]] {
+  return [['avatar-library', platform] as const, ['avatar-details', platform] as const]
+}
+
 function bridge(): NonNullable<Window['vrx']> {
   if (typeof window === 'undefined' || !window.vrx) throw new Error('bridge_unavailable')
   return window.vrx
@@ -60,6 +76,7 @@ export function useAvatarLibrary(
     queryFn: () => bridge().getAvatarLibrary({ platform }),
     enabled: enabled && accountId !== null,
     staleTime: AVATAR_LIBRARY_STALE_MS,
+    gcTime: AVATAR_LIBRARY_GC_MS,
     refetchOnReconnect: false,
     retry: false,
     networkMode: 'always'
@@ -77,6 +94,7 @@ export function useAvatarDetails(
     queryFn: () => bridge().getAvatarDetails({ platform, avatarId: avatarId! }),
     enabled: accountId !== null && avatarId !== null,
     staleTime: AVATAR_LIBRARY_STALE_MS,
+    gcTime: AVATAR_LIBRARY_GC_MS,
     refetchOnReconnect: false,
     retry: false,
     networkMode: 'always'

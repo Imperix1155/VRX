@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Avatars page opens faster. Avatars you already loaded stay ready for
+  the rest of the session instead of loading again after a few minutes away,
+  big libraries show the first screenful at once and fill in the rest without
+  freezing the window, and opening an avatar's details or pressing Refresh no
+  longer redraws every card. The worn avatar loads alongside your uploads, and
+  Wear works even while a refresh is still running. Nothing extra is sent to
+  VRChat or ChilloutVR.
 - Activity entries are now tinted with their platform's color, VRChat blue
   and ChilloutVR orange, with a colored edge on the left, so the two are easy
   to tell apart at a glance. The VRChat and ChilloutVR labels stay.
