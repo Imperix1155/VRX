@@ -77,6 +77,16 @@ describe('sendToVrchatUrlPipe', () => {
   let dir: string | null = null
   const sockets: Socket[] = []
 
+  /** Windows listens only on named pipes; elsewhere a socket file stands in. */
+  function testPipePath(name: string): string {
+    if (process.platform === 'win32') {
+      const unique = `vrx-test-${name}-${process.pid}-${Math.random().toString(36).slice(2)}`
+      return ['', '', '.', 'pipe', unique].join('\\')
+    }
+    dir ??= mkdtempSync(join(tmpdir(), 'vrx-pipe-'))
+    return join(dir, `${name}-${Math.random().toString(36).slice(2)}.sock`)
+  }
+
   afterEach(async () => {
     for (const socket of sockets.splice(0)) socket.destroy()
     await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()))
@@ -89,8 +99,7 @@ describe('sendToVrchatUrlPipe', () => {
     path: string
     received: string[]
   }> {
-    dir = mkdtempSync(join(tmpdir(), 'vrx-pipe-'))
-    const path = join(dir, 'pipe.sock')
+    const path = testPipePath('pipe')
     const received: string[] = []
     server = createServer((socket) => {
       sockets.push(socket)
@@ -121,7 +130,7 @@ describe('sendToVrchatUrlPipe', () => {
     await new Promise<void>((resolve) => server!.close(() => resolve()))
     const hungUp = await listen(() => null)
     await expect(sendToVrchatUrlPipe(url, hungUp.path)).resolves.toBe(false)
-    await expect(sendToVrchatUrlPipe(url, join(tmpdir(), 'vrx-no-such-pipe'))).resolves.toBe(false)
+    await expect(sendToVrchatUrlPipe(url, testPipePath('missing'))).resolves.toBe(false)
   })
 
   it('gives up after the timeout when the game never answers', async () => {
