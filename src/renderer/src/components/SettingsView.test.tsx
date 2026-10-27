@@ -7,7 +7,7 @@
  * VRX-37 added the Accounts category (ChilloutVrAccountCard uses `useAuthStatus`,
  * a TanStack Query hook — SettingsView now needs a QueryClientProvider ancestor).
  */
-import { act, fireEvent, within, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, within, render, screen, cleanup, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -871,5 +871,61 @@ describe('SettingsView — background picture', () => {
     fireEvent.click(choose)
     await act(async () => {})
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it.each([
+    ['too-small', 'settings.backgroundPicture.error.tooSmall'],
+    ['too-tall', 'settings.backgroundPicture.error.tooTall'],
+    ['too-wide', 'settings.backgroundPicture.error.tooWide']
+  ])('explains a picture refused as %s', async (reason, key) => {
+    setPictureBridge({
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: false, reason })
+    })
+    renderSettings()
+    fireEvent.click(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    )
+    expect((await screen.findByRole('alert')).textContent).toBe(msg(key))
+  })
+
+  function loadThumb(width: number, height: number): void {
+    const thumb = screen.getByTestId('background-picture-thumb')
+    Object.defineProperty(thumb, 'naturalWidth', { configurable: true, value: width })
+    Object.defineProperty(thumb, 'naturalHeight', { configurable: true, value: height })
+    fireEvent.load(thumb)
+  }
+
+  it('warns about a tall picture and says nothing about a wide, sharp one', async () => {
+    setPictureBridge({ getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE }) })
+    renderSettings()
+    await screen.findByTestId('background-picture-thumb')
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
+
+    loadThumb(1080, 1600)
+    expect(screen.getByTestId('background-picture-warning').textContent).toBe(
+      msg('settings.backgroundPicture.warning.tall')
+    )
+    loadThumb(1920, 1080)
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
+  })
+
+  it('warns about a small picture and drops the warning once the picture changes', async () => {
+    const SECOND = 'data:image/jpeg;base64,BBBB'
+    setPictureBridge({
+      getAppBackground: vi.fn().mockResolvedValue({ dataUrl: PICTURE }),
+      chooseAppBackground: vi.fn().mockResolvedValue({ ok: true, dataUrl: SECOND })
+    })
+    renderSettings()
+    await screen.findByTestId('background-picture-thumb')
+    loadThumb(800, 600)
+    expect(screen.getByTestId('background-picture-warning').textContent).toBe(
+      msg('settings.backgroundPicture.warning.lowRes')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: msg('settings.backgroundPicture.change') }))
+    await waitFor(() =>
+      expect(screen.getByTestId('background-picture-thumb').getAttribute('src')).toBe(SECOND)
+    )
+    expect(screen.queryByTestId('background-picture-warning')).toBeNull()
   })
 })

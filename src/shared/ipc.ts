@@ -21,6 +21,7 @@ import type {
   Platform
 } from '@shared/types'
 import type { Settings } from '@shared/settings'
+import type { BackgroundPictureRefusal } from './backgroundPicture'
 import type { LinkRequest, LinkResult, LinkSnapshot } from './linkedProfiles'
 import type {
   ExplorePlatformSnapshot,
@@ -49,7 +50,13 @@ export type AppBackgroundResult =
   | { ok: true; dataUrl: string }
   | {
       ok: false
-      reason: 'cancelled' | 'unsupported' | 'too-large' | 'unreadable' | 'save-failed'
+      reason:
+        | 'cancelled'
+        | 'unsupported'
+        | 'too-large'
+        | BackgroundPictureRefusal
+        | 'unreadable'
+        | 'save-failed'
     }
 
 export type InstanceActionResult =

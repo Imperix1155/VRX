@@ -22,6 +22,8 @@ through `@shared`.
 - `linkedProfiles.ts`: versioned linked-person values, changes, and snapshots.
 - `joinability.ts` and `hotInstanceKey.ts`: the shared privacy, joinability,
   hot-membership, and hot-grouping predicates.
+- `backgroundPicture.ts`: which background pictures main refuses and which
+  Settings warns about (size and shape against the landscape window).
 - `constants.ts`: the single source for limits, TTLs, and API endpoints.
 - Look up symbols in [`docs/INTERNAL-API.md`](../../docs/INTERNAL-API.md).
 

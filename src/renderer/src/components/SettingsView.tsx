@@ -35,6 +35,7 @@ import Toggle from './Toggle'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
 import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
+import { backgroundPictureWarning, type BackgroundPictureWarning } from '@shared/backgroundPicture'
 import { chooseAppBackground, clearAppBackground, useAppBackground } from '../queries/appBackground'
 
 const THEME_LABEL_KEYS: Record<Theme, string> = {
@@ -70,6 +71,9 @@ const PICTURE_ERROR_KEYS: Record<
   cancelled: null,
   unsupported: 'settings.backgroundPicture.error.unsupported',
   'too-large': 'settings.backgroundPicture.error.tooLarge',
+  'too-small': 'settings.backgroundPicture.error.tooSmall',
+  'too-tall': 'settings.backgroundPicture.error.tooTall',
+  'too-wide': 'settings.backgroundPicture.error.tooWide',
   unreadable: 'settings.backgroundPicture.error.unreadable',
   'save-failed': 'settings.backgroundPicture.error.saveFailed'
 }
@@ -392,10 +396,18 @@ function LegalSettingsRow(): React.JSX.Element {
   )
 }
 
+const PICTURE_WARNING_KEYS: Record<BackgroundPictureWarning, string> = {
+  tall: 'settings.backgroundPicture.warning.tall',
+  wide: 'settings.backgroundPicture.warning.wide',
+  'low-res': 'settings.backgroundPicture.warning.lowRes'
+}
+
 /**
  * Background picture (owner, 2026-10-26): main opens the picture dialog and
  * keeps its own copy; the renderer only ever sees the kept copy's data URL.
- * The fade choice appears once a picture is set.
+ * The fade choice appears once a picture is set. Main refuses pictures that
+ * cannot fill the window; a usable picture that will be cropped hard or look
+ * soft gets one warning line, read from the thumbnail's own size.
  */
 function BackgroundPictureCard(): React.JSX.Element {
   const { t } = useTranslation()
@@ -407,6 +419,10 @@ function BackgroundPictureCard(): React.JSX.Element {
   const [errorKey, setErrorKey] = useState<string | null>(null)
   const chooseButton = useRef<HTMLButtonElement>(null)
   const dataUrl = data?.dataUrl ?? null
+  const [fit, setFit] = useState<{ url: string; warning: BackgroundPictureWarning | null } | null>(
+    null
+  )
+  const warning = fit !== null && fit.url === dataUrl ? fit.warning : null
   const button = [
     'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
     'border border-[var(--border)]',
@@ -455,6 +471,15 @@ function BackgroundPictureCard(): React.JSX.Element {
                 {t(errorKey)}
               </p>
             )}
+            {errorKey === null && warning !== null && (
+              <p
+                role="status"
+                className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
+                data-testid="background-picture-warning"
+              >
+                {t(PICTURE_WARNING_KEYS[warning])}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
             {dataUrl !== null && (
@@ -463,6 +488,13 @@ function BackgroundPictureCard(): React.JSX.Element {
                 alt=""
                 className="background-picture-thumb"
                 data-testid="background-picture-thumb"
+                onLoad={(event) => {
+                  const image = event.currentTarget
+                  setFit({
+                    url: dataUrl,
+                    warning: backgroundPictureWarning(image.naturalWidth, image.naturalHeight)
+                  })
+                }}
               />
             )}
             <button
