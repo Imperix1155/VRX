@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   space; the first section shown gets the big picture cards. Turn off
   Settings → Dashboard → Hide empty sections to always see every section.
 
+### Changed
+
+- The Avatars page opens faster. Avatars you already loaded stay ready for
+  the rest of the session instead of loading again after a few minutes away,
+  big libraries show the first screenful at once and fill in the rest without
+  freezing the window, and opening an avatar's details or pressing Refresh no
+  longer redraws every card. The worn avatar loads alongside your uploads, and
+  Wear works even while a refresh is still running. Nothing extra is sent to
+  VRChat or ChilloutVR.
+
 ## [1.2.0-dev.3] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.2 plus the changes below.
