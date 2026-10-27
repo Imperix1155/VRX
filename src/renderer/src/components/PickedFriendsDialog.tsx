@@ -11,6 +11,78 @@ const PLATFORMS: readonly Platform[] = ['vrchat', 'chilloutvr']
 const REMOVE_CLASS =
   'shrink-0 rounded-pill px-[var(--space-2)] text-[12px] font-semibold text-[var(--text)] hover:bg-[var(--surface-hover)] focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)] disabled:opacity-50'
 
+function PlatformHeading({ platform }: { platform: Platform }): React.JSX.Element {
+  const { t } = useTranslation()
+  const isVrc = platform === 'vrchat'
+  return (
+    <h3>
+      <span
+        className="inline-flex h-[22px] items-center rounded-[9px] border bg-transparent px-[var(--space-2)] text-[11px] font-semibold"
+        style={{
+          color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
+          borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)'
+        }}
+      >
+        {t(isVrc ? 'friends.platform.vrchat' : 'friends.platform.chilloutvr')}
+      </span>
+    </h3>
+  )
+}
+
+function PickRow({
+  label,
+  removeLabel,
+  dim,
+  disabled,
+  onRemove
+}: {
+  label: string
+  removeLabel: string
+  dim: boolean
+  disabled: boolean
+  onRemove: () => void
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  return (
+    <li className="flex items-center justify-between gap-[var(--space-2)] py-[var(--space-1)]">
+      <span
+        className={
+          dim ? 'min-w-0 text-[12.5px] text-[var(--text-dim)]' : 'min-w-0 truncate text-[13px]'
+        }
+        title={dim ? undefined : label}
+      >
+        {label}
+      </span>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={removeLabel}
+        className={REMOVE_CLASS}
+        onClick={onRemove}
+      >
+        {t('settings.notifications.picked.remove')}
+      </button>
+    </li>
+  )
+}
+
+/** Split picks into roster names (sorted) and ids no longer in the roster. */
+function namedPicks(
+  picked: ReadonlySet<string>,
+  roster: readonly Friend[]
+): { known: { id: string; name: string }[]; missing: string[] } {
+  const names = new Map(roster.map((friend) => [friend.platformUserId, friend.displayName]))
+  const known: { id: string; name: string }[] = []
+  const missing: string[] = []
+  for (const id of picked) {
+    const name = names.get(id)
+    if (name === undefined) missing.push(id)
+    else known.push({ id, name })
+  }
+  known.sort((a, b) => a.name.localeCompare(b.name))
+  return { known, missing }
+}
+
 function PlatformPicks({
   platform,
   busy,
@@ -26,16 +98,11 @@ function PlatformPicks({
   const queryClient = useQueryClient()
   const { accountId, picked, writable } = useAlertPicks(platform)
   const setPicks = useSetAlertPicks()
-  const isVrc = platform === 'vrchat'
   // Read the roster already in memory. Observing it here could start a
   // platform request just to show names.
   const roster = queryClient.getQueryData<Friend[]>(friendsQueryKey(platform)) ?? []
-  const names = new Map(roster.map((friend) => [friend.platformUserId, friend.displayName]))
-  const known = [...picked]
-    .filter((id) => names.has(id))
-    .map((id) => ({ id, name: names.get(id) ?? '' }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-  const missing = [...picked].filter((id) => !names.has(id))
+  const { known, missing } = namedPicks(picked, roster)
+  const disabled = busy || !writable
 
   const remove = async (ids: string[]): Promise<void> => {
     onBusy(true)
@@ -44,63 +111,38 @@ function PlatformPicks({
     if (failure !== null) onFailure()
   }
 
+  const emptyKey =
+    accountId === null
+      ? 'settings.notifications.picked.signedOut'
+      : picked.size === 0
+        ? 'settings.notifications.picked.none'
+        : null
+
   return (
     <section className="flex flex-col gap-[var(--space-1)]" data-picked-platform={platform}>
-      <h3>
-        <span
-          className="inline-flex h-[22px] items-center rounded-[9px] border bg-transparent px-[var(--space-2)] text-[11px] font-semibold"
-          style={{
-            color: isVrc ? 'var(--plat-vrc-ghost-text)' : 'var(--plat-cvr-ghost-text)',
-            borderColor: isVrc ? 'var(--plat-vrc-ghost-border)' : 'var(--plat-cvr-ghost-border)'
-          }}
-        >
-          {t(isVrc ? 'friends.platform.vrchat' : 'friends.platform.chilloutvr')}
-        </span>
-      </h3>
-      {accountId === null ? (
-        <p className="text-[12.5px] text-[var(--text-dim)]">
-          {t('settings.notifications.picked.signedOut')}
-        </p>
-      ) : known.length === 0 && missing.length === 0 ? (
-        <p className="text-[12.5px] text-[var(--text-dim)]">
-          {t('settings.notifications.picked.none')}
-        </p>
+      <PlatformHeading platform={platform} />
+      {emptyKey !== null ? (
+        <p className="text-[12.5px] text-[var(--text-dim)]">{t(emptyKey)}</p>
       ) : (
         <ul className="flex flex-col">
           {known.map(({ id, name }) => (
-            <li
+            <PickRow
               key={id}
-              className="flex items-center justify-between gap-[var(--space-2)] py-[var(--space-1)]"
-            >
-              <span className="min-w-0 truncate text-[13px]" title={name}>
-                {name}
-              </span>
-              <button
-                type="button"
-                disabled={busy || !writable}
-                aria-label={t('settings.notifications.picked.removeOne', { name })}
-                className={REMOVE_CLASS}
-                onClick={() => void remove([id])}
-              >
-                {t('settings.notifications.picked.remove')}
-              </button>
-            </li>
+              label={name}
+              removeLabel={t('settings.notifications.picked.removeOne', { name })}
+              dim={false}
+              disabled={disabled}
+              onRemove={() => void remove([id])}
+            />
           ))}
           {missing.length > 0 && (
-            <li className="flex items-center justify-between gap-[var(--space-2)] py-[var(--space-1)]">
-              <span className="min-w-0 text-[12.5px] text-[var(--text-dim)]">
-                {t('settings.notifications.picked.notInList', { count: missing.length })}
-              </span>
-              <button
-                type="button"
-                disabled={busy || !writable}
-                aria-label={t('settings.notifications.picked.removeMissing')}
-                className={REMOVE_CLASS}
-                onClick={() => void remove(missing)}
-              >
-                {t('settings.notifications.picked.remove')}
-              </button>
-            </li>
+            <PickRow
+              label={t('settings.notifications.picked.notInList', { count: missing.length })}
+              removeLabel={t('settings.notifications.picked.removeMissing')}
+              dim
+              disabled={disabled}
+              onRemove={() => void remove(missing)}
+            />
           )}
         </ul>
       )}

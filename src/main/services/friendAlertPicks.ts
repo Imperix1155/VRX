@@ -33,6 +33,42 @@ export function isValidAlertFriendId(friendId: unknown): friendId is string {
   )
 }
 
+function isValidRequest(friendIds: unknown, picked: unknown): friendIds is string[] {
+  return (
+    Array.isArray(friendIds) &&
+    friendIds.length > 0 &&
+    friendIds.length <= ALERT_PICKS_MAX &&
+    friendIds.every(isValidAlertFriendId) &&
+    typeof picked === 'boolean'
+  )
+}
+
+function sameRevision(
+  revision: AlertPicksRevision | undefined,
+  current: AlertPicksRevision
+): boolean {
+  return (
+    revision?.platformAccountId === current.platformAccountId && revision.epoch === current.epoch
+  )
+}
+
+function applyPicks(
+  before: ReadonlySet<string>,
+  friendIds: readonly string[],
+  picked: unknown
+): Set<string> {
+  const ids = new Set(before)
+  for (const friendId of friendIds) {
+    if (picked === true) ids.add(friendId)
+    else ids.delete(friendId)
+  }
+  return ids
+}
+
+function sameIds(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  return a.size === b.size && [...a].every((id) => b.has(id))
+}
+
 /**
  * The friends each signed-in account picked for alerts. Stored locally in the
  * account's SocialStore `socialPrefs.followedFriendIds`; nothing is sent to a
@@ -70,32 +106,30 @@ export class FriendAlertPicks {
   ): AlertPickWriteResult {
     const current = this.revisionFor(platform)
     if (current === undefined) return { ok: false, reason: 'not-authenticated' }
-    if (
-      !Array.isArray(friendIds) ||
-      friendIds.length === 0 ||
-      friendIds.length > ALERT_PICKS_MAX ||
-      !friendIds.every(isValidAlertFriendId) ||
-      typeof picked !== 'boolean'
-    ) {
-      return { ok: false, reason: 'invalid' }
-    }
-    if (
-      !revision ||
-      revision.platformAccountId !== current.platformAccountId ||
-      revision.epoch !== current.epoch
-    ) {
-      return { ok: false, reason: 'stale' }
-    }
+    if (!isValidRequest(friendIds, picked)) return { ok: false, reason: 'invalid' }
+    if (!sameRevision(revision, current)) return { ok: false, reason: 'stale' }
 
     const before = this.idsFor(platform, current)
-    const ids = new Set(before)
-    for (const friendId of friendIds) {
-      if (picked) ids.add(friendId)
-      else ids.delete(friendId)
-    }
-    if (ids.size === before.size && [...ids].every((id) => before.has(id))) return { ok: true }
+    const ids = applyPicks(before, friendIds, picked)
+    if (sameIds(before, ids)) return { ok: true }
     if (ids.size > ALERT_PICKS_MAX) return { ok: false, reason: 'full' }
 
+    const failure = this.persist(platform, current, ids)
+    if (failure !== null) return { ok: false, reason: failure }
+    this.cache.set(platform, {
+      accountKey: `${platform}:${current.platformAccountId}`,
+      epoch: current.epoch,
+      ids
+    })
+    return { ok: true }
+  }
+
+  /** Writes the picks, keeping the namespace's other fields. */
+  private persist(
+    platform: Platform,
+    current: AlertPicksRevision,
+    ids: ReadonlySet<string>
+  ): 'stale' | 'invalid' | null {
     const prefs: SocialPrefsData =
       this.socialStore.read(platform, current.platformAccountId, 'socialPrefs')?.data ?? {}
     try {
@@ -104,16 +138,11 @@ export class FriendAlertPicks {
         'socialPrefs',
         { ...prefs, followedFriendIds: [...ids] }
       )
+      return null
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      return { ok: false, reason: message.includes('stale account epoch') ? 'stale' : 'invalid' }
+      return message.includes('stale account epoch') ? 'stale' : 'invalid'
     }
-    this.cache.set(platform, {
-      accountKey: `${platform}:${current.platformAccountId}`,
-      epoch: current.epoch,
-      ids
-    })
-    return { ok: true }
   }
 
   private revisionFor(platform: Platform): AlertPicksRevision | undefined {

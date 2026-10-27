@@ -4,7 +4,7 @@ import type { IpcInvoke } from '@shared/ipc'
 import type { Platform } from '@shared/types'
 import { useAuthStatus } from './auth'
 
-export type AlertPicks = IpcInvoke['get-alert-picks']['res']
+type AlertPicks = IpcInvoke['get-alert-picks']['res']
 type SaveReason = Extract<IpcInvoke['set-alert-pick']['res'], { ok: false }>['reason']
 
 const NO_PICKS: AlertPicks = { friendIds: [] }
@@ -60,9 +60,34 @@ export function useAlertPicks(platform: Platform): {
   return { accountId, picked, writable: data?.revision !== undefined }
 }
 
+function withPicks(
+  current: AlertPicks | undefined,
+  friendIds: readonly string[],
+  picked: boolean
+): AlertPicks {
+  const ids = new Set(current?.friendIds ?? [])
+  for (const id of friendIds) {
+    if (picked) ids.add(id)
+    else ids.delete(id)
+  }
+  return { friendIds: [...ids], revision: current?.revision }
+}
+
+async function savePicks(
+  bridge: NonNullable<Window['vrx']>,
+  request: IpcInvoke['set-alert-pick']['req']
+): Promise<SaveReason | null> {
+  try {
+    const result = await bridge.setAlertPick(request)
+    return result.ok ? null : result.reason
+  } catch {
+    return 'invalid'
+  }
+}
+
 /**
  * Pick or unpick friends for alerts. The change shows at once and rolls back
- * if main refuses it. Resolves to the first failure reason, or null.
+ * if main refuses it. Resolves to the failure reason, or null.
  */
 export function useSetAlertPicks(): (
   platform: Platform,
@@ -73,34 +98,20 @@ export function useSetAlertPicks(): (
   const queryClient = useQueryClient()
   return useCallback(
     async (platform, accountId, friendIds, picked) => {
-      if (accountId === null || typeof window === 'undefined' || !window.vrx?.setAlertPick) {
+      const key = alertPicksQueryKey(platform, accountId)
+      const revision = queryClient.getQueryData<AlertPicks>(key)?.revision
+      const bridge = window.vrx
+      if (accountId === null || revision === undefined || !bridge?.setAlertPick) {
         return 'not-authenticated'
       }
-      const key = alertPicksQueryKey(platform, accountId)
-      const before = queryClient.getQueryData<AlertPicks>(key)
-      if (!before?.revision) return 'not-authenticated'
-      const revision = before.revision
       await queryClient.cancelQueries({ queryKey: key })
-      queryClient.setQueryData<AlertPicks>(key, (current) => {
-        const ids = new Set(current?.friendIds ?? [])
-        for (const id of friendIds) {
-          if (picked) ids.add(id)
-          else ids.delete(id)
-        }
-        return { friendIds: [...ids], revision: current?.revision ?? revision }
+      queryClient.setQueryData<AlertPicks>(key, (current) => withPicks(current, friendIds, picked))
+      const failure = await savePicks(bridge, {
+        platform,
+        friendIds: [...friendIds],
+        picked,
+        revision
       })
-      let failure: SaveReason | null = null
-      try {
-        const result = await window.vrx.setAlertPick({
-          platform,
-          friendIds: [...friendIds],
-          picked,
-          revision
-        })
-        if (!result.ok) failure = result.reason
-      } catch {
-        failure = 'invalid'
-      }
       // Reread on any failure so the panel shows what main actually kept.
       if (failure !== null) void queryClient.invalidateQueries({ queryKey: key })
       return failure
