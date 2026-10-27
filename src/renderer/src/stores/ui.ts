@@ -2,10 +2,11 @@ import { create } from 'zustand'
 
 /**
  * Implemented top-level app views. Activity and Groups are deferred (VRX-281).
- * `hot` is the Hot Instances page (owner, 2026-10-18).
+ * `hot` is the Hot Instances page (owner, 2026-10-18). `avatars` lists the
+ * user's own avatars and switches between them (owner, 2026-10-27).
  * Session-only state, so retired destinations need no persisted-state migration.
  */
-export type ActiveTab = 'dashboard' | 'hot' | 'friends' | 'explore' | 'settings'
+export type ActiveTab = 'dashboard' | 'hot' | 'friends' | 'explore' | 'avatars' | 'settings'
 
 /**
  * Ephemeral UI view state (VRX-21). Holds only transient layout state — NOT

@@ -12,6 +12,8 @@ import { registerAppBackgroundHandlers, type AppBackgroundHandlerOptions } from 
 import { registerFriendsHandlers } from './friends'
 import { registerInstanceHandlers } from './instance'
 import { registerExploreHandlers } from './explore'
+import { registerAvatarLibraryHandlers } from './avatar-library'
+import type { AvatarLibraryService } from '../services/avatarLibraryService'
 import type { ExploreService } from '../services/exploreService'
 import { registerLaunchHandlers } from './launch'
 import { registerNotesHandlers } from './notes'
@@ -47,6 +49,7 @@ export interface IpcHandlerOptions extends AuthHandlerOptions {
   appStatus: AppStatusService
   instance: InstanceHandlerOptions
   explore: ExploreService
+  avatarLibrary: AvatarLibraryService
   appBackground: AppBackgroundHandlerOptions
   onRendererHydrated: (event: IpcMainEvent) => void
   /** Each roster read, after the location authority is seeded. */
@@ -119,6 +122,7 @@ export function registerIpcHandlers(
     })
     registerInstanceHandlers(adapters, options.locationAuthority, options.instance)
     registerExploreHandlers(options.explore)
+    registerAvatarLibraryHandlers(options.avatarLibrary)
     registerAppStatusHandlers(options.appStatus)
     registerLaunchHandlers()
     registerSettingsHandlers(options.onSettingsApplied)

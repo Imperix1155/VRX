@@ -14,6 +14,7 @@ import type {
   ExploreWorldSnapshot
 } from '@shared/explore'
 import type { LinkSnapshot } from '@shared/linkedProfiles'
+import type { AvatarItem } from '@shared/avatarLibrary'
 
 export type PlatformMode =
   'ready' | 'loading' | 'refreshing' | 'error' | 'stale' | 'empty' | 'unavailable'
@@ -498,3 +499,61 @@ export const instanceExamples: ReadonlyArray<{ platform: Platform; instance: Ins
     instance: cvrInstance(type, `cvr-guide-${type}`, `ChilloutVR ${type}`)
   }))
 ]
+
+/** A simple standing figure on a soft gradient: a stand-in avatar picture. */
+function avatarPicture(first: string, second: string, body: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="${first}"/><stop offset="1" stop-color="${second}"/></linearGradient></defs><rect width="640" height="480" fill="url(#bg)"/><circle cx="320" cy="150" r="62" fill="${body}"/><path d="M220 470c0-120 40-210 100-210s100 90 100 210Z" fill="${body}"/><circle cx="296" cy="146" r="8" fill="#0b0d1a"/><circle cx="344" cy="146" r="8" fill="#0b0d1a"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+function sampleAvatar(
+  platform: Platform,
+  index: number,
+  name: string,
+  colors: [string, string, string],
+  details: Partial<AvatarItem> = {}
+): AvatarItem {
+  const suffix = String(index).padStart(12, '0')
+  const guid = `5a3c1e2d-0000-4000-8000-${suffix}`
+  return {
+    platform,
+    avatarId: platform === 'vrchat' ? `avtr_${guid}` : guid,
+    name,
+    description: null,
+    imageUrl: avatarPicture(...colors),
+    authorName: 'Guide visitor',
+    visibility: 'private',
+    createdAt: '2026-03-14T12:00:00.000Z',
+    updatedAt: '2026-10-02T18:30:00.000Z',
+    ...details
+  }
+}
+
+const vrcAvatars: AvatarItem[] = [
+  sampleAvatar('vrchat', 1, 'Lumen Fox', ['#2b4ea8', '#7a5cf0', '#f2c38b'], {
+    description: 'Everyday avatar with a soft glow tail and three outfits.',
+    visibility: 'public'
+  }),
+  sampleAvatar('vrchat', 2, 'Night Runner', ['#0f2a4a', '#1b7f9c', '#cfd8e6']),
+  sampleAvatar('vrchat', 3, 'Paper Crane', ['#3a3f5c', '#c86f8f', '#f6efe6'], {
+    updatedAt: '2026-08-21T09:00:00.000Z'
+  }),
+  sampleAvatar('vrchat', 4, 'Moss Golem (Quest test)', ['#203b2a', '#5f8f4a', '#a7c48a'])
+]
+
+const cvrAvatars: AvatarItem[] = [
+  sampleAvatar('chilloutvr', 11, 'Ember Synth', ['#5a1f12', '#d9752b', '#ffd6a5'], {
+    description: 'Club avatar with toggles for jacket, visor and glow.',
+    visibility: 'public'
+  }),
+  sampleAvatar('chilloutvr', 12, 'Harbor Otter', ['#183847', '#3f8a9a', '#c9a27e']),
+  sampleAvatar('chilloutvr', 13, 'Copper Knight', ['#2e2620', '#a5652d', '#d8c3a5'], {
+    updatedAt: '2026-07-30T20:15:00.000Z'
+  })
+]
+
+/** The Avatars page's synthetic libraries: the first avatar is worn on each platform. */
+export const avatarLibraries: Record<Platform, AvatarItem[]> = {
+  vrchat: vrcAvatars,
+  chilloutvr: cvrAvatars
+}

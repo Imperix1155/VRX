@@ -213,6 +213,7 @@ describe('SetupWizard', () => {
           msg('shell.nav.dashboard'),
           msg('shell.nav.hot'),
           msg('shell.nav.friends'),
+          msg('shell.nav.avatars'),
           msg('shell.nav.settings')
         ].join(', ')
       )

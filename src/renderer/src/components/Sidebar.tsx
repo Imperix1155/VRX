@@ -5,7 +5,14 @@ import { isPageShown } from '../utils/pages'
 import { useFriendsStore, type PlatformFilter } from '../stores/friends'
 import { useUpdater } from '../hooks/useUpdater'
 import { IconDownload, IconSpinner, IconRestart } from './UpdaterIcons'
-import { IconDashboard, IconExplore, IconFriends, IconHot, IconSettings } from './NavIcons'
+import {
+  IconAvatars,
+  IconDashboard,
+  IconExplore,
+  IconFriends,
+  IconHot,
+  IconSettings
+} from './NavIcons'
 
 function SidebarUpdateButton(): React.JSX.Element | null {
   const { t } = useTranslation()
@@ -110,6 +117,7 @@ const NAV_ITEMS: Array<{ id: ActiveTab; icon: () => React.JSX.Element }> = [
   { id: 'hot', icon: IconHot },
   { id: 'friends', icon: IconFriends },
   { id: 'explore', icon: IconExplore },
+  { id: 'avatars', icon: IconAvatars },
   { id: 'settings', icon: IconSettings }
 ]
 

@@ -139,6 +139,11 @@ function options(): IpcHandlerOptions {
       getImage: vi.fn(),
       joinRoom: vi.fn(() => ({ ok: true }))
     },
+    avatarLibrary: {
+      getLibrary: vi.fn(),
+      getDetails: vi.fn(),
+      switchAvatar: vi.fn()
+    },
     onRendererHydrated: hydrated,
     rateLimit: {
       clock: () => now,
@@ -185,7 +190,7 @@ describe('registerIpcHandlers rate limiting', () => {
 
     registerIpcHandlers(new Map<Platform, IPlatformAdapter>(), options())
 
-    expect(electron.invokeHandlers.size).toBe(32)
+    expect(electron.invokeHandlers.size).toBe(35)
     expect(electron.ipcMain.handle).toBe(originalHandle)
     expect(electron.invokeHandlers.get('get-settings')!(invokeEvent)).toEqual({ theme: 'dark' })
   })
@@ -213,6 +218,9 @@ describe('registerIpcHandlers rate limiting', () => {
         'get-app-status',
         'get-auth-status',
         'get-avatar',
+        'get-avatar-library',
+        'get-avatar-details',
+        'switch-avatar',
         'get-friend-note',
         'get-friends',
         'get-linked-profiles',

@@ -132,7 +132,7 @@ function Scene({ name, variant }: { name: string; variant: string }): React.JSX.
     )
   if (name === 'join') return <JoinScene />
   if (name === 'setup') return <SetupScene />
-  if (['dashboard', 'hot', 'friends', 'linked', 'settings', 'updater'].includes(name))
+  if (['dashboard', 'hot', 'friends', 'linked', 'avatars', 'settings', 'updater'].includes(name))
     return <AppShell />
   return (
     <main className="fixture-canvas">
@@ -228,7 +228,9 @@ export function mountScene(root: HTMLElement, params: URLSearchParams): void {
           ? 'settings'
           : name === 'hot'
             ? 'hot'
-            : 'dashboard'
+            : name === 'avatars'
+              ? 'avatars'
+              : 'dashboard'
     )
   document.body.classList.add('fixture-document')
   createRoot(root).render(

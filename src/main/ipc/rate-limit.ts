@@ -31,6 +31,12 @@ export const IPC_RATE_LIMIT_BUDGETS = {
   'get-friends': { max: 12, windowMs: 30_000 },
   // Three complete 200-friend paints fit in one burst at the exact boundary.
   'get-avatar': { max: 600, windowMs: 10_000 },
+  // The Avatars page reads on open and on Refresh; main coalesces repeats.
+  'get-avatar-library': { max: 30, windowMs: 60_000 },
+  // One read per details panel opened.
+  'get-avatar-details': { max: 60, windowMs: 60_000 },
+  // The 5 s per-platform switch cooldown allows at most 24 switches/minute.
+  'switch-avatar': { max: 24, windowMs: 60_000 },
   // Account settings normally loads once; repeated tab mounts stay harmless.
   'get-accounts': { max: 12, windowMs: 30_000 },
   // Two platforms can mount, invalidate, and retry without approaching this cap.
@@ -88,6 +94,7 @@ export function ipcRateLimitDenial(channel: IpcInvokeChannel): unknown {
     case 'join-instance':
     case 'join-explore-room':
     case 'self-invite':
+    case 'switch-avatar':
     case 'set-friend-note':
     case 'get-linked-profiles':
     case 'change-linked-profile':

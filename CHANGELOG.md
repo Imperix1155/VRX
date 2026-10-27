@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New Avatars page in the sidebar. It shows the avatars you uploaded on VRChat
+  and ChilloutVR, the one you are wearing now on each, and a details panel for
+  each avatar with a Wear button to switch to it. Both platforms share one
+  page, sorted by name. Avatars load when you open the page or press Refresh,
+  and switching is limited to one every 5 seconds per platform. Favorites are
+  not included yet.
+
 ## [1.2.0-dev.2] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.1 plus the fix below.

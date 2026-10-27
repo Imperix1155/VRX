@@ -21,6 +21,8 @@ you press a "Use my sign-in from" button, described below.
   Offline, with search. Friend details show where someone is, their notes, and
   a Join button when you can join them.
 - **Explore**: popular public worlds from both platforms, with room details.
+- **Avatars**: the avatars you uploaded on both platforms, the one you are
+  wearing now, their details, and a Wear button to switch.
 - **Linked profiles**: link a friend's VRChat and ChilloutVR accounts into one
   person by hand. VRX never guesses links from names.
 - **Platform filter**: VRC, ALL, or CVR at the top of the window.
