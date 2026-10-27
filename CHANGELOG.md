@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-dev.4] - 2026-10-27
+
+Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.
+
 ### Added
 
 - Two new Dashboard sections under the numbers, side by side: Wearing now
@@ -15,14 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Avatars page or the Inbox. Each can be turned off in Settings → Dashboard.
   Wearing now asks each platform for your worn avatar only (one request,
   none if the Avatars page just loaded it), and invites come from what VRX
-  already received.
+  already received. (#475)
 - The Dashboard now fits what it has. A section with nothing to show (no
   invites, no hot instances) steps aside and the rest move up to use the
   space; the first section shown gets the big picture cards. Turn off
   Settings → Dashboard → Hide empty sections to always see every section.
+  (#475)
 - Move any Dashboard section up or down. Settings → Dashboard → Sections
   lists Wearing now, Latest invites, Popular now and Hot Instances in their
   Dashboard order, each with up and down buttons and its On/Off switch.
+  (#475)
 
 ### Changed
 
@@ -31,18 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a slash when they can't. Pressing it pops open a small panel with Alert
   me about this friend (while alerts are limited to picked friends), which
   friend alerts are on, and a shortcut to Settings → Notifications. The panel
-  springs out of the bell, or simply appears with reduced motion on.
+  springs out of the bell, or simply appears with reduced motion on. (#473)
 - The Avatars page opens faster. Avatars you already loaded stay ready for
   the rest of the session instead of loading again after a few minutes away,
   big libraries show the first screenful at once and fill in the rest without
   freezing the window, and opening an avatar's details or pressing Refresh no
   longer redraws every card. The worn avatar loads alongside your uploads, and
   Wear works even while a refresh is still running. Nothing extra is sent to
-  VRChat or ChilloutVR.
+  VRChat or ChilloutVR. (#474)
 - Activity entries are now tinted with their platform's color, VRChat blue
   and ChilloutVR orange, with a colored edge on the left, so the two are easy
   to tell apart at a glance. The VRChat and ChilloutVR labels stay, now the
-  same size as each other.
+  same size as each other. (#472)
 
 ## [1.2.0-dev.3] - 2026-10-27
 
