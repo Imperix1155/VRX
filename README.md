@@ -12,9 +12,9 @@ you press a "Use my sign-in from" button, described below.
 ## What it does
 
 - **Dashboard**: friends online, friends in game, and hot instances at a
-  glance, plus a Popular now section of public worlds and a Hot Instances
-  section. You choose which section comes first, or hide either one, in
-  Settings → Dashboard.
+  glance, then the avatar you're wearing, your latest invites, Popular now
+  worlds, and Hot Instances. Sections with nothing to show step aside. Move
+  or hide any section in Settings → Dashboard.
 - **Hot Instances**: every instance where at least two of your friends are
   together (you can change the number), most friends first.
 - **Friends**: one list for both platforms, grouped into In-Game, Online, and
@@ -40,15 +40,14 @@ you press a "Use my sign-in from" button, described below.
   a world, or goes offline, when a hot instance forms, or when you get an
   invite or friend request. All are off until you turn them on in Settings →
   Notifications, where Who alerts you can limit friend alerts to the friends
-  you pick.
+  you pick. The bell in a friend's details shows whether they can alert you.
 - **Your look**: Theme (System, Light, or Dark), Background glow (or none),
-  your own background picture, and which
-  platform's words the instance labels use. Hot Instances and Explore can be
+  your own background picture, and which platform's words the instance labels
+  use. Hot Instances and Explore can be
   hidden from the sidebar in Settings → Behavior.
 - **Welcome setup**: a new install starts with a short, skippable setup for
   sign-in, pages, the Dashboard, alerts, and the look (including instance
-  labels). Run it again any time
-  from Settings → About.
+  labels). Run it again any time from Settings → About.
 - **Tray and updates**: closing the window keeps VRX in the system tray. The
   Windows installer and the Linux AppImage and deb can update from inside VRX;
   the portable Windows build can't.
