@@ -971,7 +971,8 @@
       "dashboardBoth": "{{first}}、次に{{second}}",
       "alertsOff": "すべてオフ",
       "alertsSome": "{{total}}件中{{count}}件オン",
-      "lookValue": "{{theme}}・グロー{{glow}}"
+      "lookValue": "{{theme}}・グロー{{glow}}",
+      "lookValuePicture": "{{theme}}・グロー{{glow}}・背景画像あり"
     }
   },
   "inbox": {

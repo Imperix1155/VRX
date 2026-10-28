@@ -21,8 +21,9 @@ vi.stubGlobal(
 
 const msg = (key: string, options?: Record<string, unknown>): string => i18n.t(key, options)
 
-function setBridge(states: Record<Platform, AuthState>): void {
+function setBridge(states: Record<Platform, AuthState>, extra: Record<string, unknown> = {}): void {
   ;(window as unknown as { vrx?: unknown }).vrx = {
+    ...extra,
     getAuthStatus: vi.fn(({ platform }: { platform: Platform }) =>
       Promise.resolve({
         platform,
@@ -37,8 +38,11 @@ function setBridge(states: Record<Platform, AuthState>): void {
   }
 }
 
-function renderWizard(states: Record<Platform, AuthState>): void {
-  setBridge(states)
+function renderWizard(
+  states: Record<Platform, AuthState>,
+  extra: Record<string, unknown> = {}
+): void {
+  setBridge(states, extra)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={queryClient}>
@@ -57,6 +61,15 @@ async function goToSignIn(): Promise<void> {
   fireEvent.click(button('setup.getStarted'))
   await screen.findByRole('heading', { name: msg('setup.signin.title') })
 }
+
+async function goToLook(): Promise<void> {
+  await goToSignIn()
+  await screen.findByText(msg('setup.signin.one'))
+  for (let i = 0; i < 4; i++) fireEvent.click(button('setup.continue'))
+  await screen.findByRole('heading', { name: msg('setup.look.title') })
+}
+
+const PICTURE = 'data:image/jpeg;base64,AAAA'
 
 beforeEach(() => {
   useSettingsStore.getState().setSettings({ ...DEFAULT_SETTINGS, setupPending: true })
@@ -262,5 +275,74 @@ describe('SetupWizard', () => {
       })
     )
     expect(screen.getByRole('heading', { name: msg('setup.signin.title') })).toBeTruthy()
+  })
+
+  it('offers the background picture on the Look step, with the same checks as Settings', async () => {
+    const chooseAppBackground = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'cancelled' })
+      .mockResolvedValueOnce({ ok: false, reason: 'too-tall' })
+      .mockResolvedValueOnce({ ok: true, dataUrl: PICTURE })
+    const clearAppBackground = vi.fn().mockResolvedValue(undefined)
+    renderWizard(signedIn, {
+      getAppBackground: vi.fn().mockResolvedValue(null),
+      chooseAppBackground,
+      clearAppBackground
+    })
+    await goToLook()
+    expect(screen.getByText(msg('settings.backgroundPicture.label'))).toBeTruthy()
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+    // The fade stays in Settings: simple by default.
+    expect(screen.queryByText(msg('settings.backgroundPicture.fade.label'))).toBeNull()
+
+    // Closing the dialog is not an error.
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    await vi.waitFor(() => expect(chooseAppBackground).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() =>
+      expect(button('settings.backgroundPicture.choose').getAttribute('aria-disabled')).toBeNull()
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // Main refuses a picture that cannot fill the window, with the Settings wording.
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      msg('settings.backgroundPicture.error.tooTall')
+    )
+
+    fireEvent.click(button('settings.backgroundPicture.choose'))
+    expect(await screen.findByTestId('background-picture-thumb')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(button('settings.backgroundPicture.change')).toBeTruthy()
+    expect(button('settings.backgroundPicture.remove')).toBeTruthy()
+
+    fireEvent.click(button('setup.continue'))
+    const summary = screen.getByRole('heading', { name: msg('setup.done.title') }).parentElement
+      ?.parentElement as HTMLElement
+    expect(
+      within(summary).getByText(
+        msg('setup.done.lookValuePicture', {
+          theme: msg('setup.look.system'),
+          glow: msg('settings.backgroundGlow.standard')
+        })
+      )
+    ).toBeTruthy()
+
+    // Back on Look, Remove forgets it and the summary drops it again.
+    fireEvent.click(button('setup.back'))
+    fireEvent.click(button('settings.backgroundPicture.remove'))
+    await vi.waitFor(() => expect(clearAppBackground).toHaveBeenCalledTimes(1))
+    expect(
+      await screen.findByRole('button', { name: msg('settings.backgroundPicture.choose') })
+    ).toBeTruthy()
+    expect(screen.queryByTestId('background-picture-thumb')).toBeNull()
+    fireEvent.click(button('setup.continue'))
+    expect(
+      screen.getByText(
+        msg('setup.done.lookValue', {
+          theme: msg('setup.look.system'),
+          glow: msg('settings.backgroundGlow.standard')
+        })
+      )
+    ).toBeTruthy()
   })
 })

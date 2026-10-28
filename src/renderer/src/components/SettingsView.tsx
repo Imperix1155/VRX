@@ -1,6 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
 import type {
   BackgroundGlow,
   BackgroundPictureFade,
@@ -34,9 +33,9 @@ import Toggle from './Toggle'
 import DashboardSectionsCard from './DashboardSectionsCard'
 import { HOT_INSTANCE_THRESHOLD_MAX, HOT_INSTANCE_THRESHOLD_MIN } from '@shared/constants'
 import { IconDownload, IconSpinner, IconRestart, IconExternalLink } from './UpdaterIcons'
-import type { AppBackgroundResult, UpdaterFailure } from '@shared/ipc'
-import { backgroundPictureWarning, type BackgroundPictureWarning } from '@shared/backgroundPicture'
-import { chooseAppBackground, clearAppBackground, useAppBackground } from '../queries/appBackground'
+import type { UpdaterFailure } from '@shared/ipc'
+import { BackgroundPictureControls, BackgroundPictureMessage } from './BackgroundPicturePicker'
+import { useBackgroundPicturePicker } from '../hooks/useBackgroundPicturePicker'
 import { useAlertPicks } from '../queries/alertPicks'
 import PickedFriendsDialog from './PickedFriendsDialog'
 
@@ -63,21 +62,6 @@ const PICTURE_FADE_LABEL_KEYS: Record<BackgroundPictureFade, string> = {
   low: 'settings.backgroundPicture.fade.low',
   medium: 'settings.backgroundPicture.fade.medium',
   high: 'settings.backgroundPicture.fade.high'
-}
-
-/** A cancelled dialog is not an error. */
-const PICTURE_ERROR_KEYS: Record<
-  Extract<AppBackgroundResult, { ok: false }>['reason'],
-  string | null
-> = {
-  cancelled: null,
-  unsupported: 'settings.backgroundPicture.error.unsupported',
-  'too-large': 'settings.backgroundPicture.error.tooLarge',
-  'too-small': 'settings.backgroundPicture.error.tooSmall',
-  'too-tall': 'settings.backgroundPicture.error.tooTall',
-  'too-wide': 'settings.backgroundPicture.error.tooWide',
-  unreadable: 'settings.backgroundPicture.error.unreadable',
-  'save-failed': 'settings.backgroundPicture.error.saveFailed'
 }
 
 const RECONCILE_LABEL_KEYS: Record<ReconcileInterval, string> = {
@@ -496,67 +480,20 @@ function LegalSettingsRow(): React.JSX.Element {
   )
 }
 
-const PICTURE_WARNING_KEYS: Record<BackgroundPictureWarning, string> = {
-  tall: 'settings.backgroundPicture.warning.tall',
-  wide: 'settings.backgroundPicture.warning.wide',
-  'low-res': 'settings.backgroundPicture.warning.lowRes'
-}
-
 /**
- * Background picture (owner, 2026-10-26): main opens the picture dialog and
- * keeps its own copy; the renderer only ever sees the kept copy's data URL.
- * The fade choice appears once a picture is set. Main refuses pictures that
- * cannot fill the window; a usable picture that will be cropped hard or look
- * soft gets one warning line, read from the thumbnail's own size.
+ * Background picture (owner, 2026-10-26). The picker (shared with the welcome
+ * setup) owns choosing and removing; the fade choice appears once a picture
+ * is set.
  */
 function BackgroundPictureCard(): React.JSX.Element {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const { data } = useAppBackground()
+  const picker = useBackgroundPicturePicker()
   const fade = useSettingsStore((s) => s.settings.backgroundPictureFade)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
-  const [busy, setBusy] = useState(false)
-  const [errorKey, setErrorKey] = useState<string | null>(null)
-  const chooseButton = useRef<HTMLButtonElement>(null)
-  const dataUrl = data?.dataUrl ?? null
-  const [fit, setFit] = useState<{ url: string; warning: BackgroundPictureWarning | null } | null>(
-    null
-  )
-  const warning = fit !== null && fit.url === dataUrl ? fit.warning : null
-  const button = [
-    'shrink-0 px-[var(--space-3)] py-[var(--space-1)] rounded-[10px] text-[13px] font-medium',
-    'border border-[var(--border)]',
-    'bg-[var(--control-fill)] hover:bg-[var(--control-fill-hover)]',
-    'text-[var(--text)]',
-    'focus:outline-none focus:ring-1 focus:ring-[var(--text-dim)]',
-    busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
-  ].join(' ')
-
-  const choose = async (): Promise<void> => {
-    if (busy) return
-    setBusy(true)
-    setErrorKey(null)
-    const result = await chooseAppBackground(queryClient)
-    setBusy(false)
-    if (!result.ok) setErrorKey(PICTURE_ERROR_KEYS[result.reason])
-  }
-  const remove = async (): Promise<void> => {
-    if (busy) return
-    setBusy(true)
-    setErrorKey(null)
-    const removed = await clearAppBackground(queryClient)
-    setBusy(false)
-    if (!removed) {
-      setErrorKey('settings.backgroundPicture.error.removeFailed')
-      return
-    }
-    // The Remove button is gone now; keep focus in the card.
-    chooseButton.current?.focus()
-  }
 
   return (
     <SettingCard
-      expanded={dataUrl !== null}
+      expanded={picker.dataUrl !== null}
       parent={
         <div className="setting-row">
           <div>
@@ -566,59 +503,9 @@ function BackgroundPictureCard(): React.JSX.Element {
             <p className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
               {t('settings.backgroundPicture.description')}
             </p>
-            {errorKey !== null && (
-              <p role="alert" className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]">
-                {t(errorKey)}
-              </p>
-            )}
-            {errorKey === null && warning !== null && (
-              <p
-                role="status"
-                className="text-xs text-[var(--text-dim)] mt-[var(--space-0-5)]"
-                data-testid="background-picture-warning"
-              >
-                {t(PICTURE_WARNING_KEYS[warning])}
-              </p>
-            )}
+            <BackgroundPictureMessage picker={picker} />
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-[var(--space-2)]">
-            {dataUrl !== null && (
-              <img
-                src={dataUrl}
-                alt=""
-                className="background-picture-thumb"
-                data-testid="background-picture-thumb"
-                onLoad={(event) => {
-                  const image = event.currentTarget
-                  setFit({
-                    url: dataUrl,
-                    warning: backgroundPictureWarning(image.naturalWidth, image.naturalHeight)
-                  })
-                }}
-              />
-            )}
-            <button
-              ref={chooseButton}
-              type="button"
-              onClick={() => void choose()}
-              aria-disabled={busy || undefined}
-              className={button}
-            >
-              {dataUrl === null
-                ? t('settings.backgroundPicture.choose')
-                : t('settings.backgroundPicture.change')}
-            </button>
-            {dataUrl !== null && (
-              <button
-                type="button"
-                onClick={() => void remove()}
-                aria-disabled={busy || undefined}
-                className={button}
-              >
-                {t('settings.backgroundPicture.remove')}
-              </button>
-            )}
-          </div>
+          <BackgroundPictureControls picker={picker} />
         </div>
       }
     >

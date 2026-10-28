@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The welcome setup's Pick a look step can now set your own background
+  picture, with the same checks and notes as Settings → Appearance. It's
+  optional like the rest of setup, and the summary says when a picture is
+  set.
+
 ## [1.2.0-dev.4] - 2026-10-27
 
 Dev test build. It has everything in 1.2.0-dev.3 plus the changes below.
