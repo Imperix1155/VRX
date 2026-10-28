@@ -977,7 +977,8 @@
       "dashboardBoth": "{{first}}, then {{second}}",
       "alertsOff": "All off",
       "alertsSome": "{{count}} of {{total}} on",
-      "lookValue": "{{theme}}, {{glow}} glow"
+      "lookValue": "{{theme}}, {{glow}} glow",
+      "lookValuePicture": "{{theme}}, {{glow}} glow, your own picture"
     }
   },
   "inbox": {
